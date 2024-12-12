@@ -22,6 +22,5 @@ module evita.common {
 	requires zero.allocation.hashing;
 	requires okhttp3;
 	requires java.desktop;
-	requires kotlin.stdlib;
 
 }

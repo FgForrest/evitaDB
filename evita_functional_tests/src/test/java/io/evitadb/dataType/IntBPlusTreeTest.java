@@ -310,7 +310,7 @@ class IntBPlusTreeTest {
 	}
 
 	@Test
-	void shouldStealFromLeftNode() {
+	void shouldStealFromRightNode() {
 		IntBPlusTree<String> bPlusTree = new IntBPlusTree<>(3, String.class);
 		bPlusTree.insert(15, "Value15");
 		bPlusTree.insert(17, "Value17");
@@ -378,7 +378,7 @@ class IntBPlusTreeTest {
 	}
 
 	@Test
-	void shouldStealFromRightNode() {
+	void shouldStealFromLeftNode() {
 		IntBPlusTree<String> bPlusTree = new IntBPlusTree<>(3, String.class);
 		bPlusTree.insert(15, "Value15");
 		bPlusTree.insert(17, "Value17");
@@ -415,21 +415,21 @@ class IntBPlusTreeTest {
 			bPlusTree.toString()
 		);
 
-		bPlusTree.delete(12);
-		verifyTreeConsistency(bPlusTree, 11, 14, 15, 16, 17, 18, 19, 20, 23, 25);
+		bPlusTree.delete(15);
+		verifyTreeConsistency(bPlusTree, 11, 12, 14, 16, 17, 18, 19, 20, 23, 25);
 
-		bPlusTree.delete(14);
-		verifyTreeConsistency(bPlusTree, 11, 15, 16, 17, 18, 19, 20, 23, 25);
+		bPlusTree.delete(16);
+		verifyTreeConsistency(bPlusTree, 11, 12, 14, 17, 18, 19, 20, 23, 25);
 
 		assertEquals(
 			"""
 			< 17:
-			   < 15:
+			   < 12:
 			      11:Value11
-			   >=15:
-			      15:Value15
-			   >=16:
-			      16:Value16
+			   >=12:
+			      12:Value12
+			   >=14:
+			      14:Value14
 			>=17:
 			   < 18:
 			      17:Value17
@@ -442,6 +442,75 @@ class IntBPlusTreeTest {
 			      23:Value23, 25:Value25""",
 			bPlusTree.toString()
 		);
+	}
+
+	@Test
+	void shouldMergeWithLeftNode() {
+		final TreeTuple testTree = prepareRandomTree(42, 50);
+		final IntBPlusTree<String> theTree = testTree.bPlusTree();
+		int[] expectedArray = testTree.plainArray();
+
+		theTree.delete(98);
+		expectedArray = ArrayUtils.removeIntFromOrderedArray(98, expectedArray);
+
+		theTree.delete(94);
+		expectedArray = ArrayUtils.removeIntFromOrderedArray(94, expectedArray);
+
+		verifyTreeConsistency(theTree, expectedArray);
+	}
+
+	@Test
+	void shouldMergeWithRightNode() {
+		final TreeTuple testTree = prepareRandomTree(42, 50);
+		final IntBPlusTree<String> theTree = testTree.bPlusTree();
+		int[] expectedArray = testTree.plainArray();
+
+		theTree.delete(93);
+		expectedArray = ArrayUtils.removeIntFromOrderedArray(93, expectedArray);
+
+		verifyTreeConsistency(theTree, expectedArray);
+	}
+
+	@Test
+	void shouldMergeCausingIntermediateParentToStealFromLeft() {
+		final TreeTuple testTree = prepareRandomTree(42, 50);
+		final IntBPlusTree<String> theTree = testTree.bPlusTree();
+		int[] expectedArray = testTree.plainArray();
+
+		theTree.delete(34);
+		expectedArray = ArrayUtils.removeIntFromOrderedArray(34, expectedArray);
+
+		verifyTreeConsistency(theTree, expectedArray);
+	}
+
+	@Test
+	void shouldMergeCausingIntermediateParentToStealFromRight() {
+		final TreeTuple testTree = prepareRandomTree(42, 50);
+		final IntBPlusTree<String> theTree = testTree.bPlusTree();
+		int[] expectedArray = testTree.plainArray();
+
+		theTree.delete(92);
+		expectedArray = ArrayUtils.removeIntFromOrderedArray(92, expectedArray);
+
+		theTree.delete(87);
+		expectedArray = ArrayUtils.removeIntFromOrderedArray(87, expectedArray);
+
+		verifyTreeConsistency(theTree, expectedArray);
+	}
+
+	@Test
+	void shouldMergeCausingIntermediateParentToMergeLeft() {
+
+	}
+
+	@Test
+	void shouldMergeCausingIntermediateParentToMergeRight() {
+
+	}
+
+	@Test
+	void shouldMergeCausingParentChainMergeUpToTheRoot() {
+
 	}
 
 	private static void verifyTreeConsistency(@Nonnull IntBPlusTree<?> bPlusTree, int... keys) {

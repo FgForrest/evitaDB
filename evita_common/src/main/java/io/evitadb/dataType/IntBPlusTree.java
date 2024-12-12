@@ -184,14 +184,16 @@ public class IntBPlusTree<V> {
 			updateParentKeys(
 				parentPath,
 				parentPath.get(leafWithPath.path.size() - 1).getChildIndex(key, leaf),
-				leaf
+				leaf,
+				0
 			);
 		}
 
 		consolidate(
 			leaf,
 			parentPath,
-			parentPath.size() - 1
+			parentPath.size() - 1,
+			0
 		);
 	}
 
@@ -269,20 +271,25 @@ public class IntBPlusTree<V> {
 	 * with its left or right siblings and adjusts the tree structure
 	 * accordingly.
 	 *
+	 * TODO JNO - update documentation
+	 *
 	 * @param node  the current B+ tree node to be consolidated
 	 * @param path  the path of internal tree nodes leading to the current node
 	 * @param index the index of the current node in the path
 	 */
-	private void consolidate(
-		@Nonnull BPlusLeafTreeNode<V> node,
+	private <N extends BPlusTreeNode<N>> void consolidate(
+		@Nonnull N node,
 		@Nonnull List<BPlusInternalTreeNode> path,
-		int index
+		int index,
+		int watermark
 	) {
-		// node has less than minBlockSize keys, check its siblings
-		if (node.size() < this.minBlockSize && path.size() > index && index >= 0) {
+		// leaf node has less than minBlockSize keys, or internal nodes has less than two children
+		final boolean underFlowNode = node instanceof BPlusInternalTreeNode internalNode ?
+			internalNode.size() <= 1 : node.size() < this.minBlockSize;
+		if (underFlowNode && path.size() > index && index >= 0) {
 			boolean nodeIsEmpty = node.size() == 0;
 			final BPlusInternalTreeNode parent = path.get(index);
-			final BPlusLeafTreeNode<V> previousNode = node.getPreviousNode();
+			final N previousNode = node.getPreviousNode();
 			final int previousNodeIndexInParent = previousNode == null ? -1 : parent.getChildIndex(previousNode.getKeys()[0], previousNode);
 			// if previous node with current node exists and shares the same parent
 			// and we can steal from the left sibling
@@ -290,13 +297,13 @@ public class IntBPlusTree<V> {
 				// steal half of the surplus data from the left sibling
 				node.stealFromLeft(Math.max(1, (previousNode.size() - this.minBlockSize) / 2));
 				// update parent keys, but only if node was empty - which means first key was added
-				if (nodeIsEmpty) {
-					updateParentKeys(path, previousNodeIndexInParent + 1, node);
+				if (node instanceof BPlusInternalTreeNode || nodeIsEmpty) {
+					updateParentKeys(path, previousNodeIndexInParent + 1, node, watermark);
 				}
 				return;
 			}
 
-			final BPlusLeafTreeNode<V> nextNode = node.getNextNode();
+			final N nextNode = node.getNextNode();
 			final int nextNodeIndexInParent = nextNode == null ? -1 : parent.getChildIndex(nextNode.getKeys()[0], nextNode);
 			// if next node with current node exists and shares the same parent
 			// and we can steal from the right sibling
@@ -304,34 +311,37 @@ public class IntBPlusTree<V> {
 				// steal half of the surplus data from the right sibling
 				node.stealFromRight(Math.max(1, (nextNode.size() - this.minBlockSize) / 2));
 				// update parent keys of the next node - we've stolen its first key
-				updateParentKeys(path, nextNodeIndexInParent, nextNode);
+				updateParentKeys(path, nextNodeIndexInParent, nextNode, watermark);
 				// update parent keys, but only if node was empty - which means first key was added
-				if (nodeIsEmpty) {
-					updateParentKeys(path, nextNodeIndexInParent - 1, node);
+				if (node instanceof BPlusInternalTreeNode || nodeIsEmpty) {
+					updateParentKeys(path, nextNodeIndexInParent - 1, node, watermark);
 				}
 				return;
 			}
 
 			// if previous node with current node can be merged and share the same parent
 			if (previousNodeIndexInParent > -1 && previousNode.size() + node.size() < this.blockSize) {
-				throw new UnsupportedOperationException("Merging with left sibling not implemented yet");
-				/* TODO JNO - not implemented (hard)
 				// merge nodes
 				node.mergeWithLeft();
 				// remove the removed child from the parent
-				parent.removeChildOnIndex(previousNodeIndexInParent);
-				*/
+				parent.removeChildOnIndex(previousNodeIndexInParent, previousNodeIndexInParent);
+				// update parent keys, previous node has been removed
+				updateParentKeys(path, previousNodeIndexInParent, node, watermark);
+				// consolidate the parent node
+				consolidate(parent, path, index - 1, watermark + 1);
+				return;
 			}
 
 			// if next node with current node can be merged and share the same parent
-			if (nextNodeIndexInParent > -1 && nextNode.getPeek() + node.getPeek() + 2 < this.blockSize) {
-				throw new UnsupportedOperationException("Merging with right sibling not implemented yet");
-				/* TODO JNO - not implemented (hard)
+			if (nextNodeIndexInParent > -1 && nextNode.size() + node.size() < this.blockSize) {
 				// merge nodes
 				node.mergeWithRight();
 				// remove the removed child from the parent
-				parent.removeChildOnIndex(nextNodeIndexInParent);
-				 */
+				parent.removeChildOnIndex(nextNodeIndexInParent - 1, nextNodeIndexInParent);
+				// update parent keys, next node has been removed
+				updateParentKeys(path, nextNodeIndexInParent - 1, node, watermark);
+				// consolidate the parent node
+				consolidate(parent, path, index - 1, watermark + 1);
 			}
 		}
 	}
@@ -347,19 +357,17 @@ public class IntBPlusTree<V> {
 	private static void updateParentKeys(
 		@Nonnull List<BPlusInternalTreeNode> path,
 		int indexToUpdate,
-		@Nonnull BPlusTreeNode<?> previouslyUpdatedNode
+		@Nonnull BPlusTreeNode<?> previouslyUpdatedNode,
+		int watermark
 	) {
 		// first child doesn't have a key in the parent
-		if (indexToUpdate > 0) {
-			for (int i = path.size() - 1; i >= 0; i--) {
-				BPlusInternalTreeNode immediateParent = path.get(i);
+		for (int i = path.size() - 1 - watermark; i >= 0; i--) {
+			BPlusInternalTreeNode immediateParent = path.get(i);
+			if (indexToUpdate > 0) {
 				immediateParent.updateKeyForNode(indexToUpdate, previouslyUpdatedNode);
-				previouslyUpdatedNode = immediateParent;
-				indexToUpdate = i > 0 ? path.get(i - 1).getChildIndex(immediateParent.getLeftBoundaryKey(), immediateParent) : -1;
-				if (indexToUpdate <= 0) {
-					break;
-				}
 			}
+			previouslyUpdatedNode = immediateParent;
+			indexToUpdate = i > 0 ? path.get(i - 1).getChildIndex(immediateParent.getLeftBoundaryKey(), immediateParent) : 0;
 		}
 	}
 
@@ -521,7 +529,7 @@ public class IntBPlusTree<V> {
 	 *                 that necessitate splitting to maintain the B+ tree properties.
 	 */
 	private void splitInternalNode(@Nonnull BPlusInternalTreeNode internal) {
-		final int mid = this.blockSize / 2;
+		final int mid = (this.blockSize + 1) / 2;
 		final int[] originKeys = internal.getKeys();
 		final BPlusTreeNode<?>[] originChildren = internal.getChildren();
 
@@ -532,6 +540,8 @@ public class IntBPlusTree<V> {
 			new int[this.blockSize],
 			new BPlusTreeNode[this.blockSize + 1],
 			0,
+			mid - 1,
+			0,
 			mid
 		);
 
@@ -541,8 +551,10 @@ public class IntBPlusTree<V> {
 			originChildren,
 			originKeys,
 			originChildren,
-			mid + 1,
-			leftInternal.getKeys().length
+			mid,
+			leftInternal.getKeys().length,
+			mid,
+			leftInternal.getChildren().length
 		);
 
 		// rewire the leaf node pointers
@@ -584,6 +596,14 @@ public class IntBPlusTree<V> {
 		 * @return the peek value of the node, indicating the last usable index in the node's values / children array.
 		 */
 		int getPeek();
+
+		/**
+		 * Sets the peek index of the B+ Tree node. The peek index indicates the last
+		 * usable position in the node's values or children array.
+		 *
+		 * @param peek the new peek index to set for the node
+		 */
+		void setPeek(int peek);
 
 		/**
 		 * Returns number of values in this node - i.e. peek + 1.
@@ -642,6 +662,30 @@ public class IntBPlusTree<V> {
 		 */
 		void setNextNode(@Nullable N nextNode);
 
+		/**
+		 * Steals a specified number of values from the end of the left sibling node.
+		 *
+		 * @param numberOfTailValues the number of values to steal from the left sibling node.
+		 */
+		void stealFromLeft(int numberOfTailValues);
+
+		/**
+		 * Steals a specified number of values from the start of the right sibling node.
+		 *
+		 * @param numberOfHeadValues the number of values to steal from the right sibling node.
+		 */
+		void stealFromRight(int numberOfHeadValues);
+
+		/**
+		 * Merges the current leaf node with the left sibling leaf node.
+		 */
+		void mergeWithLeft();
+
+		/**
+		 * Merges the current leaf node with the right sibling leaf node.
+		 */
+		void mergeWithRight();
+
 	}
 
 	/**
@@ -695,18 +739,34 @@ public class IntBPlusTree<V> {
 
 		public BPlusInternalTreeNode(
 			int[] originKeys, BPlusTreeNode<?>[] originChildren,
-			int[] keys, BPlusTreeNode<?>[] values,
-			int start, int end
+			int[] keys, BPlusTreeNode<?>[] children,
+			int keyStart, int keyEnd,
+			int childrenStart, int childrenEnd
 		) {
 			this.keys = keys;
-			this.children = values;
+			this.children = children;
 			// Copy the keys and children from the origin arrays
-			for (int i = start; i < end; i++) {
-				this.keys[i - start] = originKeys[i];
-				this.children[i - start] = originChildren[i];
+			System.arraycopy(originKeys, keyStart, keys, 0, keyEnd - keyStart);
+			//noinspection ArrayEquality
+			if (keys == originKeys) {
+				Arrays.fill(keys, keyEnd - keyStart, keys.length, 0);
 			}
-			this.children[end - start] = originChildren[end];
-			this.peek = end - start;
+			System.arraycopy(originChildren, childrenStart, children, 0, childrenEnd - childrenStart);
+			//noinspection ArrayEquality
+			if (children == originChildren) {
+				Arrays.fill(children, childrenEnd - childrenStart, children.length, null);
+			}
+			this.peek = childrenEnd - childrenStart - 1;
+		}
+
+		@Override
+		public void setPeek(int peek) {
+			final int originPeek = this.peek;
+			this.peek = peek;
+			if (peek < originPeek) {
+				Arrays.fill(this.keys, peek, originPeek, 0);
+				Arrays.fill(this.children, peek + 1, originPeek + 1, null);
+			}
 		}
 
 		/**
@@ -794,11 +854,13 @@ public class IntBPlusTree<V> {
 			} else {
 				final int keyIndex = Arrays.binarySearch(this.keys, 0, this.size(), key);
 				if (keyIndex < 0) {
-					// first children key is not present in the internal node keys array
-					final BPlusTreeNode<?> firstChild = this.children[0];
-					return (
-						firstChild instanceof BPlusInternalTreeNode internalNodeChild ?
-							internalNodeChild.getLeftBoundaryKey() == key : firstChild.getKeys()[0] == key) ? 0 : -1;
+					// the key might have been removed - try to iterate over the children
+					for (int i = 0; i <= this.peek; i++) {
+						if (this.children[i] == node) {
+							return i;
+						}
+					}
+					return -1;
 				} else {
 					Assert.isPremiseValid(
 						this.children[keyIndex + 1] == node,
@@ -828,12 +890,13 @@ public class IntBPlusTree<V> {
 		 * the array remains unchanged, but the number of meaningful elements (peek)
 		 * is decremented.
 		 *
-		 * @param index The position of the child node to be removed from the children array.
+		 * @param keyIndex   The position of the key to be removed from the keys array.
+		 * @param childIndex The position of the child node to be removed from the children array.
 		 *              It must be within the bounds of the current number of children (peek).
 		 */
-		public <N extends BPlusTreeNode<N>> void removeChildOnIndex(int index) {
+		public <N extends BPlusTreeNode<N>> void removeChildOnIndex(int keyIndex, int childIndex) {
 			//noinspection unchecked
-			final BPlusTreeNode<N> child = (BPlusTreeNode<N>) this.children[index];
+			final BPlusTreeNode<N> child = (BPlusTreeNode<N>) this.children[childIndex];
 			if (child.getPreviousNode() != null) {
 				child.getPreviousNode().setNextNode(child.getNextNode());
 			}
@@ -841,8 +904,11 @@ public class IntBPlusTree<V> {
 				child.getNextNode().setPreviousNode(child.getPreviousNode());
 			}
 
-			removeIntFromSameArrayOnIndex(this.keys, index);
-			removeRecordFromSameArrayOnIndex(this.children, index);
+
+			removeIntFromSameArrayOnIndex(this.keys, keyIndex);
+			this.keys[this.peek - 1] = 0;
+			removeRecordFromSameArrayOnIndex(this.children, childIndex);
+			this.children[this.peek] = null;
 			this.peek--;
 		}
 
@@ -866,6 +932,71 @@ public class IntBPlusTree<V> {
 			);
 			this.keys[index - 1] = node instanceof BPlusInternalTreeNode internalNode ?
 				internalNode.getLeftBoundaryKey() : node.getKeys()[0];
+		}
+
+		@Override
+		public void stealFromLeft(int numberOfTailValues) {
+			Assert.isPremiseValid(numberOfTailValues > 0, "Number of tail values to steal must be positive!");
+			final BPlusInternalTreeNode prevNode = Objects.requireNonNull(this.previousNode);
+			// we preserve all the current node children
+			System.arraycopy(this.children, 0, this.children, numberOfTailValues, this.peek + 1);
+			// then move the children from the previous node
+			System.arraycopy(prevNode.getChildren(), prevNode.size() - numberOfTailValues, this.children, 0, numberOfTailValues);
+			// we need to preserve all the current node keys
+			System.arraycopy(this.keys, 0, this.keys, numberOfTailValues - 1, this.peek);
+			// our original first child newly produces its own key
+			this.keys[numberOfTailValues - 1] = this.children[numberOfTailValues] instanceof BPlusInternalTreeNode ?
+				((BPlusInternalTreeNode) this.children[numberOfTailValues]).getLeftBoundaryKey() : this.children[numberOfTailValues].getKeys()[0];
+			// and now we can copy the keys from the previous node - but except the first one
+			System.arraycopy(prevNode.getKeys(), prevNode.size() - numberOfTailValues + 1, this.keys, 0, numberOfTailValues - 1);
+			// and update the peek indexes
+			this.peek += numberOfTailValues;
+			prevNode.setPeek(prevNode.getPeek() - numberOfTailValues);
+		}
+
+		@Override
+		public void stealFromRight(int numberOfHeadValues) {
+			Assert.isPremiseValid(numberOfHeadValues > 0, "Number of head values to steal must be positive!");
+			final BPlusInternalTreeNode nextNode = Objects.requireNonNull(this.nextNode);
+
+			// we move all the children
+			System.arraycopy(nextNode.getChildren(), 0, this.children, this.peek + 1, numberOfHeadValues);
+			System.arraycopy(nextNode.getChildren(), numberOfHeadValues, nextNode.getChildren(), 0, nextNode.size() - numberOfHeadValues);
+
+			// set the key for the first child of the next node
+			this.keys[this.peek] = this.children[this.peek + 1] instanceof BPlusInternalTreeNode internalTreeNode ?
+				internalTreeNode.getLeftBoundaryKey() : this.children[this.peek + 1].getKeys()[0];
+
+			// we move the keys from the next node for all copied children
+			System.arraycopy(nextNode.getKeys(), 0, this.keys, this.peek + 1, numberOfHeadValues - 1);
+			// we need to shift the keys in the next node
+			System.arraycopy(nextNode.getKeys(), numberOfHeadValues, nextNode.getKeys(), 0, nextNode.getKeys().length - numberOfHeadValues);
+
+			// and update the peek indexes
+			this.peek += numberOfHeadValues;
+			nextNode.setPeek(nextNode.getPeek() - numberOfHeadValues);
+		}
+
+		@Override
+		public void mergeWithLeft() {
+			final BPlusInternalTreeNode nodeToMergeWith = Objects.requireNonNull(this.previousNode);
+			final int mergePeek = nodeToMergeWith.getPeek();
+			System.arraycopy(this.keys, 0, this.keys, mergePeek, this.peek);
+			System.arraycopy(this.children, 0, this.children, mergePeek + 1, this.peek + 1);
+			System.arraycopy(nodeToMergeWith.getKeys(), 0, this.keys, 0, mergePeek);
+			System.arraycopy(nodeToMergeWith.getChildren(), 0, this.children, 0, mergePeek + 1);
+			this.peek += mergePeek + 1;
+			nodeToMergeWith.setPeek(-1);
+		}
+
+		@Override
+		public void mergeWithRight() {
+			final BPlusInternalTreeNode nodeToMergeWith = Objects.requireNonNull(this.nextNode);
+			final int mergePeek = nodeToMergeWith.getPeek();
+			System.arraycopy(nodeToMergeWith.getKeys(), 0, this.keys, this.peek, mergePeek);
+			System.arraycopy(nodeToMergeWith.getChildren(), 0, this.children, this.peek + 1, mergePeek + 1);
+			this.peek += mergePeek + 1;
+			nodeToMergeWith.setPeek(-1);
 		}
 
 		@Override
@@ -927,7 +1058,7 @@ public class IntBPlusTree<V> {
 		/**
 		 * Index of the last occupied position in the keys array.
 		 */
-		@Getter @Setter private int peek;
+		@Getter private int peek;
 
 		public BPlusLeafTreeNode(
 			int blockSize,
@@ -949,13 +1080,29 @@ public class IntBPlusTree<V> {
 			this.keys = keys;
 			this.values = values;
 			// Copy the keys and values from the origin arrays
-			for (int i = start; i < end; i++) {
-				keys[i - start] = originKeys[i];
-				values[i - start] = originValues[i];
+			System.arraycopy(originKeys, start, keys, 0, end - start);
+			//noinspection ArrayEquality
+			if (keys == originKeys) {
+				Arrays.fill(keys, end - start, keys.length, 0);
+			}
+			System.arraycopy(originValues, start, values, 0, end - start);
+			//noinspection ArrayEquality
+			if (values == originValues) {
+				Arrays.fill(values, end - start, values.length, null);
 			}
 			this.previousNode = null;
 			this.nextNode = null;
 			this.peek = end - start - 1;
+		}
+
+		@Override
+		public void setPeek(int peek) {
+			final int originPeek = this.peek;
+			this.peek = peek;
+			if (peek < originPeek) {
+				Arrays.fill(this.keys, peek + 1, originPeek + 1, 0);
+				Arrays.fill(this.values, peek + 1, originPeek + 1, null);
+			}
 		}
 
 		/**
@@ -974,12 +1121,9 @@ public class IntBPlusTree<V> {
 				Optional.of(this.values[insertionPosition.position()]) : Optional.empty();
 		}
 
-		/**
-		 * Steals a specified number of values from the end of the left sibling node.
-		 *
-		 * @param numberOfTailValues the number of values to steal from the left sibling node.
-		 */
+		@Override
 		public void stealFromLeft(int numberOfTailValues) {
+			Assert.isPremiseValid(numberOfTailValues > 0, "Number of tail values to steal must be positive!");
 			final BPlusLeafTreeNode<V> prevNode = Objects.requireNonNull(this.previousNode);
 			System.arraycopy(prevNode.getKeys(), prevNode.size() - numberOfTailValues, this.keys, this.peek + 1, numberOfTailValues);
 			System.arraycopy(prevNode.getValues(), prevNode.size() - numberOfTailValues, this.values, this.peek + 1, numberOfTailValues);
@@ -987,19 +1131,38 @@ public class IntBPlusTree<V> {
 			prevNode.setPeek(prevNode.getPeek() - numberOfTailValues);
 		}
 
-		/**
-		 * Steals a specified number of values from the start of the right sibling node.
-		 *
-		 * @param numberOfHeadValues the number of values to steal from the right sibling node.
-		 */
+		@Override
 		public void stealFromRight(int numberOfHeadValues) {
+			Assert.isPremiseValid(numberOfHeadValues > 0, "Number of head values to steal must be positive!");
 			final BPlusLeafTreeNode<V> nextNode = Objects.requireNonNull(this.nextNode);
 			System.arraycopy(nextNode.getKeys(), 0, this.keys, this.peek + 1, numberOfHeadValues);
 			System.arraycopy(nextNode.getValues(), 0, this.values, this.peek + 1, numberOfHeadValues);
+			System.arraycopy(nextNode.getKeys(), numberOfHeadValues, nextNode.getKeys(), 0, nextNode.size() - numberOfHeadValues);
+			System.arraycopy(nextNode.getValues(), numberOfHeadValues, nextNode.getValues(), 0, nextNode.size() - numberOfHeadValues);
 			nextNode.setPeek(nextNode.getPeek() - numberOfHeadValues);
-			System.arraycopy(nextNode.getKeys(), numberOfHeadValues + 1, nextNode.getKeys(), 0, nextNode.size());
-			System.arraycopy(nextNode.getValues(), numberOfHeadValues + 1, nextNode.getValues(), 0, nextNode.size());
 			this.peek += numberOfHeadValues;
+		}
+
+		@Override
+		public void mergeWithLeft() {
+			final BPlusLeafTreeNode<V> nodeToMergeWith = Objects.requireNonNull(this.previousNode);
+			final int mergePeek = nodeToMergeWith.getPeek();
+			System.arraycopy(this.keys, 0, this.keys, mergePeek + 1, this.peek + 1);
+			System.arraycopy(this.values, 0, this.values, mergePeek + 1, this.peek + 1);
+			System.arraycopy(nodeToMergeWith.getKeys(), 0, this.keys, 0, mergePeek + 1);
+			System.arraycopy(nodeToMergeWith.getValues(), 0, this.values, 0, mergePeek + 1);
+			this.peek += mergePeek + 1;
+			nodeToMergeWith.setPeek(-1);
+		}
+
+		@Override
+		public void mergeWithRight() {
+			final BPlusLeafTreeNode<V> nodeToMergeWith = Objects.requireNonNull(this.nextNode);
+			final int mergePeek = nodeToMergeWith.getPeek();
+			System.arraycopy(nodeToMergeWith.getKeys(), 0, this.keys, this.peek + 1, mergePeek + 1);
+			System.arraycopy(nodeToMergeWith.getValues(), 0, this.values, this.peek + 1, mergePeek + 1);
+			this.peek += mergePeek + 1;
+			nodeToMergeWith.setPeek(-1);
 		}
 
 		@Override
@@ -1016,30 +1179,6 @@ public class IntBPlusTree<V> {
 					sb.append(", ");
 				}
 			}
-		}
-
-		/**
-		 * Merges the current leaf node with the left sibling leaf node.
-		 */
-		public void mergeWithLeft() {
-			final BPlusLeafTreeNode<V> nodeToMergeWith = Objects.requireNonNull(this.previousNode);
-			final int mergePeek = nodeToMergeWith.getPeek();
-			System.arraycopy(this.keys, 0, this.keys, mergePeek + 1, this.peek + 1);
-			System.arraycopy(this.values, 0, this.values, mergePeek + 1, this.peek + 1);
-			System.arraycopy(nodeToMergeWith.getKeys(), 0, this.keys, 0, mergePeek + 1);
-			System.arraycopy(nodeToMergeWith.getValues(), 0, this.values, 0, mergePeek + 1);
-			this.peek += mergePeek + 1;
-		}
-
-		/**
-		 * Merges the current leaf node with the right sibling leaf node.
-		 */
-		public void mergeWithRight() {
-			final BPlusLeafTreeNode<V> nodeToMergeWith = Objects.requireNonNull(this.nextNode);
-			final int mergePeek = nodeToMergeWith.getPeek();
-			System.arraycopy(nodeToMergeWith.getKeys(), 0, this.keys, this.peek + 1, mergePeek + 1);
-			System.arraycopy(nodeToMergeWith.getValues(), 0, this.values, this.peek + 1, mergePeek + 1);
-			this.peek += mergePeek + 1;
 		}
 
 		@Override
@@ -1064,6 +1203,8 @@ public class IntBPlusTree<V> {
 			if (index >= 0) {
 				removeIntFromSameArrayOnIndex(this.keys, index);
 				removeRecordFromSameArrayOnIndex(this.values, index);
+				this.keys[this.peek] = 0;
+				this.values[this.peek] = null;
 				this.peek--;
 				return true;
 			} else {
