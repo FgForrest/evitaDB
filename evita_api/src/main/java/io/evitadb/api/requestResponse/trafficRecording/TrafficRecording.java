@@ -21,10 +21,10 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.traffic;
+package io.evitadb.api.requestResponse.trafficRecording;
 
 
-import io.evitadb.core.traffic.TrafficRecordingCaptureRequest.TrafficRecordingType;
+import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest.TrafficRecordingType;
 
 import javax.annotation.Nonnull;
 import java.time.OffsetDateTime;
@@ -43,6 +43,13 @@ public interface TrafficRecording {
 	 */
 	@Nonnull
 	UUID sessionId();
+
+	/**
+	 * The order (sequence) of the traffic recording in the session. First record in the session has sequence ID 0 and
+	 * represents the session start, additional records are numbered sequentially.
+	 * @return the record offset sequence ID within particular session
+	 */
+	int recordSessionOffset();
 
 	/**
 	 * The type of the recording.

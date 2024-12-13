@@ -40,20 +40,30 @@ public class SessionCloseContainerSerializer extends Serializer<SessionCloseCont
 	@Override
 	public void write(Kryo kryo, Output output, SessionCloseContainer object) {
 		kryo.writeObject(output, object.sessionId());
+		output.writeVarInt(object.recordSessionOffset(), true);
 		output.writeLong(object.catalogVersion());
 		kryo.writeObject(output, object.created());
 		output.writeVarInt(object.durationInMilliseconds(), true);
 		output.writeVarInt(object.ioFetchCount(), true);
 		output.writeVarInt(object.ioFetchedSizeBytes(), true);
-		output.writeVarInt(object.recordsMissedOut(), true);
+		output.writeVarInt(object.trafficRecordCount(), true);
+		output.writeVarInt(object.trafficRecordsMissedOut(), true);
+		output.writeVarInt(object.queryCount(), true);
+		output.writeVarInt(object.entityFetchCount(), true);
+		output.writeVarInt(object.mutationCount(), true);
 	}
 
 	@Override
 	public SessionCloseContainer read(Kryo kryo, Input input, Class<? extends SessionCloseContainer> type) {
 		return new SessionCloseContainer(
 			kryo.readObject(input, java.util.UUID.class),
+			input.readVarInt(true),
 			input.readLong(),
 			kryo.readObject(input, java.time.OffsetDateTime.class),
+			input.readVarInt(true),
+			input.readVarInt(true),
+			input.readVarInt(true),
+			input.readVarInt(true),
 			input.readVarInt(true),
 			input.readVarInt(true),
 			input.readVarInt(true),

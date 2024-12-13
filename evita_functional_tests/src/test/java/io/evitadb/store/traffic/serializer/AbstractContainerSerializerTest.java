@@ -1,4 +1,3 @@
-
 /*
  *
  *                         _ _        ____  ____
@@ -26,40 +25,38 @@ package io.evitadb.store.traffic.serializer;
 
 
 import com.esotericsoftware.kryo.Kryo;
-import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.api.requestResponse.mutation.Mutation;
-import io.evitadb.store.traffic.data.MutationContainer;
+import io.evitadb.store.query.QuerySerializationKryoConfigurer;
+import io.evitadb.store.service.KryoFactory;
+import io.evitadb.store.traffic.TrafficRecordingSerializationKryoConfigurer;
+import io.evitadb.store.wal.WalKryoConfigurer;
 
-import java.time.OffsetDateTime;
-import java.util.UUID;
+import javax.annotation.Nonnull;
+import java.io.ByteArrayOutputStream;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * This {@link Serializer} implementation reads/writes {@link MutationContainer} type.
+ * Abstract test class for container serializers.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public class MutationContainerSerializer extends Serializer<MutationContainer> {
+abstract class AbstractContainerSerializerTest {
+	protected final Kryo kryo = KryoFactory.createKryo(
+		WalKryoConfigurer.INSTANCE
+			.andThen(QuerySerializationKryoConfigurer.INSTANCE)
+			.andThen(TrafficRecordingSerializationKryoConfigurer.INSTANCE)
+	);
 
-	@Override
-	public void write(Kryo kryo, Output output, MutationContainer object) {
-		kryo.writeObject(output, object.sessionId());
-		output.writeVarInt(object.recordSessionOffset(), true);
-		kryo.writeObject(output, object.created());
-		output.writeVarInt(object.durationInMilliseconds(), true);
-		kryo.writeClassAndObject(output, object.mutation());
+	protected void assertSerializationRound(@Nonnull Object object) {
+		final ByteArrayOutputStream os = new ByteArrayOutputStream(4_096);
+		try (final Output output = new Output(os, 4_096)) {
+			kryo.writeObject(output, object);
+		}
+		try (final Input input = new Input(os.toByteArray())) {
+			final Object deserialized = kryo.readObject(input, object.getClass());
+			assertEquals(object, deserialized);
+		}
 	}
-
-	@Override
-	public MutationContainer read(Kryo kryo, Input input, Class<? extends MutationContainer> type) {
-		return new MutationContainer(
-			kryo.readObject(input, UUID.class),
-			input.readVarInt(true),
-			kryo.readObject(input, OffsetDateTime.class),
-			input.readVarInt(true),
-			(Mutation) kryo.readClassAndObject(input)
-		);
-	}
-
 }

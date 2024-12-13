@@ -24,9 +24,9 @@
 package io.evitadb.store.traffic;
 
 
-import io.evitadb.core.traffic.TrafficRecording;
-import io.evitadb.core.traffic.TrafficRecordingCaptureRequest;
-import io.evitadb.core.traffic.TrafficRecordingCaptureRequest.TrafficRecordingType;
+import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
+import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest;
+import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest.TrafficRecordingType;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.offsetIndex.model.StorageRecord;

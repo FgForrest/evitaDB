@@ -31,12 +31,12 @@ import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.head.Label;
 import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
+import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest;
 import io.evitadb.core.async.DelayedAsyncTask;
 import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.file.ExportFileService;
 import io.evitadb.core.traffic.TrafficRecorder;
-import io.evitadb.core.traffic.TrafficRecording;
-import io.evitadb.core.traffic.TrafficRecordingCaptureRequest;
 import io.evitadb.core.traffic.TrafficRecordingReader;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.store.kryo.ObservableInput;
@@ -250,7 +250,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 					sessionTraffic.getObservableOutput(),
 					0L,
 					false,
-					new SessionStartContainer(sessionId, catalogVersion, created)
+					new SessionStartContainer(sessionId, sessionTraffic.nextRecordingId(), catalogVersion, created)
 				);
 				Assert.isPremiseValid(sessionStartRecord.fileLocation() != null, "Location must not be null.");
 				this.createdSessions.incrementAndGet();
@@ -279,12 +279,17 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 					true,
 					new SessionCloseContainer(
 						sessionId,
+						sessionTraffic.nextRecordingId(),
 						sessionTraffic.getCatalogVersion(),
 						sessionTraffic.getCreated(),
 						sessionTraffic.getDurationInMillis(),
 						sessionTraffic.getFetchCount(),
 						sessionTraffic.getBytesFetchedTotal(),
-						sessionTraffic.getRecordsMissedOut()
+						sessionTraffic.getRecordCount(),
+						sessionTraffic.getRecordsMissedOut(),
+						sessionTraffic.getQueryCount(),
+						sessionTraffic.getEntityFetchCount(),
+						sessionTraffic.getMutationCount()
 					)
 				);
 				Assert.isPremiseValid(sessionCloseRecord.fileLocation() != null, "Location must not be null.");
@@ -313,10 +318,13 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		int ioFetchedSizeBytes,
 		@Nonnull int... primaryKeys
 	) {
+		final SessionTraffic sessionTraffic = this.trackedSessionsIndex.get(sessionId);
 		record(
-			this.trackedSessionsIndex.get(sessionId),
+			sessionTraffic,
 			new QueryContainer(
-				sessionId, query,
+				sessionId,
+				sessionTraffic.nextRecordingId(),
+				query,
 				labels.length == 0 ?
 					QueryContainer.Label.EMPTY_LABELS :
 					Arrays.stream(labels)
@@ -337,10 +345,15 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		int ioFetchedSizeBytes,
 		int primaryKey
 	) {
+		final SessionTraffic sessionTraffic = this.trackedSessionsIndex.get(sessionId);
 		record(
-			this.trackedSessionsIndex.get(sessionId),
+			sessionTraffic,
 			new RecordFetchContainer(
-				sessionId, query, now, (int) (System.currentTimeMillis() - now.toInstant().toEpochMilli()),
+				sessionId,
+				sessionTraffic.nextRecordingId(),
+				query,
+				now,
+				(int) (System.currentTimeMillis() - now.toInstant().toEpochMilli()),
 				ioFetchCount, ioFetchedSizeBytes, primaryKey
 			)
 		);
@@ -355,10 +368,15 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		int ioFetchedSizeBytes,
 		int primaryKey
 	) {
+		final SessionTraffic sessionTraffic = this.trackedSessionsIndex.get(sessionId);
 		record(
-			this.trackedSessionsIndex.get(sessionId),
+			sessionTraffic,
 			new RecordEnrichmentContainer(
-				sessionId, query, now, (int) (System.currentTimeMillis() - now.toInstant().toEpochMilli()),
+				sessionId,
+				sessionTraffic.nextRecordingId(),
+				query,
+				now,
+				(int) (System.currentTimeMillis() - now.toInstant().toEpochMilli()),
 				ioFetchCount, ioFetchedSizeBytes, primaryKey
 			)
 		);
@@ -370,10 +388,15 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		@Nonnull OffsetDateTime now,
 		@Nonnull Mutation mutation
 	) {
+		final SessionTraffic sessionTraffic = this.trackedSessionsIndex.get(sessionId);
 		record(
-			this.trackedSessionsIndex.get(sessionId),
+			sessionTraffic,
 			new MutationContainer(
-				sessionId, now, (int) (System.currentTimeMillis() - now.toInstant().toEpochMilli()), mutation
+				sessionId,
+				sessionTraffic.nextRecordingId(),
+				now,
+				(int) (System.currentTimeMillis() - now.toInstant().toEpochMilli()),
+				mutation
 			)
 		);
 	}
@@ -392,6 +415,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 			sessionTraffic,
 			new SourceQueryContainer(
 				sessionId,
+				sessionTraffic.nextRecordingId(),
 				sourceQueryId,
 				now,
 				sourceQuery,
@@ -429,6 +453,12 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		this.diskBuffer.close(filePath -> this.exportFileService.purgeManagedTempFile(filePath));
 	}
 
+	/**
+	 * Reads a traffic record from a specified file position.
+	 *
+	 * @param filePosition the position within the file to read the traffic record from
+	 * @return a {@code StorageRecord} containing the traffic recording
+	 */
 	@Nonnull
 	private StorageRecord<TrafficRecording> readTrafficRecord(long filePosition) {
 		final ObservableInput<RandomAccessFileInputStream> input = new ObservableInput<>(

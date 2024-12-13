@@ -1,4 +1,3 @@
-
 /*
  *
  *                         _ _        ____  ____
@@ -29,42 +28,41 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.api.query.Query;
-import io.evitadb.store.traffic.data.RecordFetchContainer;
-
-import java.time.OffsetDateTime;
-import java.util.UUID;
+import io.evitadb.store.traffic.data.SourceQueryContainer;
+import io.evitadb.store.traffic.data.SourceQueryStatisticsContainer;
 
 /**
- * This {@link Serializer} implementation reads/writes {@link RecordFetchContainer} type.
+ * This {@link Serializer} implementation reads/writes {@link SourceQueryContainer} type.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public class RecordFetchContainerSerializer extends Serializer<RecordFetchContainer> {
+public class SourceQueryStatisticsContainerSerializer extends Serializer<SourceQueryStatisticsContainer> {
 
 	@Override
-	public void write(Kryo kryo, Output output, RecordFetchContainer object) {
+	public void write(Kryo kryo, Output output, SourceQueryStatisticsContainer object) {
 		kryo.writeObject(output, object.sessionId());
 		output.writeVarInt(object.recordSessionOffset(), true);
-		kryo.writeObject(output, object.query());
+		kryo.writeObject(output, object.sourceQueryId());
 		kryo.writeObject(output, object.created());
 		output.writeVarInt(object.durationInMilliseconds(), true);
 		output.writeVarInt(object.ioFetchCount(), true);
 		output.writeVarInt(object.ioFetchedSizeBytes(), true);
-		output.writeInt(object.primaryKey());
+		output.writeVarInt(object.returnedRecordCount(), true);
+		output.writeVarInt(object.totalRecordCount(), true);
 	}
 
 	@Override
-	public RecordFetchContainer read(Kryo kryo, Input input, Class<? extends RecordFetchContainer> type) {
-		return new RecordFetchContainer(
-			kryo.readObject(input, UUID.class),
+	public SourceQueryStatisticsContainer read(Kryo kryo, Input input, Class<? extends SourceQueryStatisticsContainer> type) {
+		return new SourceQueryStatisticsContainer(
+			kryo.readObject(input, java.util.UUID.class),
 			input.readVarInt(true),
-			kryo.readObject(input, Query.class),
-			kryo.readObject(input, OffsetDateTime.class),
+			kryo.readObject(input, java.util.UUID.class),
+			kryo.readObject(input, java.time.OffsetDateTime.class),
 			input.readVarInt(true),
 			input.readVarInt(true),
 			input.readVarInt(true),
-			input.readInt()
+			input.readVarInt(true),
+			input.readVarInt(true)
 		);
 	}
 

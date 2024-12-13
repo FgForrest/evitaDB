@@ -24,8 +24,8 @@
 package io.evitadb.store.traffic.data;
 
 
-import io.evitadb.core.traffic.TrafficRecording;
-import io.evitadb.core.traffic.TrafficRecordingCaptureRequest.TrafficRecordingType;
+import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
+import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest.TrafficRecordingType;
 
 import javax.annotation.Nonnull;
 import java.time.OffsetDateTime;
@@ -35,6 +35,7 @@ import java.util.UUID;
  * This container holds information about the source query handling start.
  *
  * @param sessionId     unique identifier of the session the mutation belongs to
+ * @param recordSessionOffset    the order (sequence) of the record in the session
  * @param sourceQueryId unique identifier of the source query
  * @param created       time when the mutation was created
  * @param sourceQuery   unparsed, raw source query in particular format
@@ -43,6 +44,7 @@ import java.util.UUID;
  */
 public record SourceQueryContainer(
 	@Nonnull UUID sessionId,
+	int recordSessionOffset,
 	@Nonnull UUID sourceQueryId,
 	@Nonnull OffsetDateTime created,
 	@Nonnull String sourceQuery,

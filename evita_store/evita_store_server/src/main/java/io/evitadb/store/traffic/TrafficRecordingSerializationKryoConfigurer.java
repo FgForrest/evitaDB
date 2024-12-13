@@ -31,12 +31,16 @@ import io.evitadb.store.traffic.data.RecordEnrichmentContainer;
 import io.evitadb.store.traffic.data.RecordFetchContainer;
 import io.evitadb.store.traffic.data.SessionCloseContainer;
 import io.evitadb.store.traffic.data.SessionStartContainer;
+import io.evitadb.store.traffic.data.SourceQueryContainer;
+import io.evitadb.store.traffic.data.SourceQueryStatisticsContainer;
 import io.evitadb.store.traffic.serializer.MutationContainerSerializer;
 import io.evitadb.store.traffic.serializer.QueryContainerSerializer;
 import io.evitadb.store.traffic.serializer.RecordEnrichmentContainerSerializer;
 import io.evitadb.store.traffic.serializer.RecordFetchContainerSerializer;
 import io.evitadb.store.traffic.serializer.SessionCloseContainerSerializer;
 import io.evitadb.store.traffic.serializer.SessionStartContainerSerializer;
+import io.evitadb.store.traffic.serializer.SourceQueryContainerSerializer;
+import io.evitadb.store.traffic.serializer.SourceQueryStatisticsContainerSerializer;
 import io.evitadb.utils.Assert;
 
 import java.util.function.Consumer;
@@ -58,6 +62,8 @@ public class TrafficRecordingSerializationKryoConfigurer implements Consumer<Kry
 		kryo.register(MutationContainer.class, new MutationContainerSerializer(), index++);
 		kryo.register(RecordFetchContainer.class, new RecordFetchContainerSerializer(), index++);
 		kryo.register(RecordEnrichmentContainer.class, new RecordEnrichmentContainerSerializer(), index++);
+		kryo.register(SourceQueryContainer.class, new SourceQueryContainerSerializer(), index++);
+		kryo.register(SourceQueryStatisticsContainer.class, new SourceQueryStatisticsContainerSerializer(), index++);
 
 		Assert.isPremiseValid(index < 5100, "Index count overflow.");
 	}

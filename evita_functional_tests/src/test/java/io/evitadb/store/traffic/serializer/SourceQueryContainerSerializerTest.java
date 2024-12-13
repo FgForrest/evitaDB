@@ -23,35 +23,30 @@
 
 package io.evitadb.store.traffic.serializer;
 
+import io.evitadb.store.traffic.data.SourceQueryContainer;
+import org.junit.jupiter.api.Test;
 
-import com.esotericsoftware.kryo.Kryo;
-import com.esotericsoftware.kryo.Serializer;
-import com.esotericsoftware.kryo.io.Input;
-import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.store.traffic.data.SessionStartContainer;
+import java.time.OffsetDateTime;
+import java.util.UUID;
 
 /**
- * This {@link Serializer} implementation reads/writes {@link SessionStartContainer} type.
+ * This test verifies the correctness of the {@link SourceQueryContainerSerializer} class.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public class SessionStartContainerSerializer extends Serializer<SessionStartContainer> {
+class SourceQueryContainerSerializerTest extends AbstractContainerSerializerTest {
 
-	@Override
-	public void write(Kryo kryo, Output output, SessionStartContainer object) {
-		kryo.writeObject(output, object.sessionId());
-		output.writeVarInt(object.recordSessionOffset(), true);
-		output.writeLong(object.catalogVersion());
-		kryo.writeObject(output, object.created());
-	}
-
-	@Override
-	public SessionStartContainer read(Kryo kryo, Input input, Class<? extends SessionStartContainer> type) {
-		return new SessionStartContainer(
-			kryo.readObject(input, java.util.UUID.class),
-			input.readVarInt(true),
-			input.readLong(),
-			kryo.readObject(input, java.time.OffsetDateTime.class)
+	@Test
+	void shouldSerializeAndDeserializeContainer() {
+		assertSerializationRound(
+			new SourceQueryContainer(
+				UUID.randomUUID(),
+				4,
+				UUID.randomUUID(),
+				OffsetDateTime.now(),
+				"queryMe",
+				"gRPC"
+			)
 		);
 	}
 

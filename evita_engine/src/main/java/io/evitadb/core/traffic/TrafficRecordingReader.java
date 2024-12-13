@@ -25,12 +25,14 @@ package io.evitadb.core.traffic;
 
 
 import io.evitadb.api.exception.TemporalDataNotAvailableException;
+import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
+import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest;
 
 import javax.annotation.Nonnull;
 import java.util.stream.Stream;
 
 /**
- * TODO JNO - document me
+ * Implementations of this interface can access and read traffic recordings from the previously captured log.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */

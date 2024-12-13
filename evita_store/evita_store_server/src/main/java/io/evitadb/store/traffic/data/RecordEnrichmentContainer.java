@@ -24,8 +24,8 @@
 package io.evitadb.store.traffic.data;
 
 import io.evitadb.api.query.Query;
-import io.evitadb.core.traffic.TrafficRecording;
-import io.evitadb.core.traffic.TrafficRecordingCaptureRequest.TrafficRecordingType;
+import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
+import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest.TrafficRecordingType;
 
 import javax.annotation.Nonnull;
 import java.time.OffsetDateTime;
@@ -35,6 +35,7 @@ import java.util.UUID;
  * This container holds information about single entity enrichment.
  *
  * @param sessionId              the session id which the mutation belongs to
+ * @param recordSessionOffset    the order (sequence) of the record in the session
  * @param query                  the query accompanying the enrichment
  * @param created                the time when the enrichment was executed
  * @param durationInMilliseconds the duration of the enrichment execution within the session in milliseconds
@@ -46,6 +47,7 @@ import java.util.UUID;
  */
 public record RecordEnrichmentContainer(
 	@Nonnull UUID sessionId,
+	int recordSessionOffset,
 	@Nonnull Query query,
 	@Nonnull OffsetDateTime created,
 	int durationInMilliseconds,

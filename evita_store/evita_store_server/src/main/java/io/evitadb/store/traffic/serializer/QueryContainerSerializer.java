@@ -46,6 +46,7 @@ public class QueryContainerSerializer extends Serializer<QueryContainer> {
 	@Override
 	public void write(Kryo kryo, Output output, QueryContainer object) {
 		kryo.writeObject(output, object.sessionId());
+		output.writeVarInt(object.recordSessionOffset(), true);
 		kryo.writeObject(output, object.query());
 		output.writeVarInt(object.labels().length, true);
 		for (int i = 0; i < object.labels().length; i++) {
@@ -64,6 +65,7 @@ public class QueryContainerSerializer extends Serializer<QueryContainer> {
 	@Override
 	public QueryContainer read(Kryo kryo, Input input, Class<? extends QueryContainer> type) {
 		final UUID sessionId = kryo.readObject(input, UUID.class);
+		final int recordSessionOffset = input.readVarInt(true);
 		final Query query = kryo.readObject(input, Query.class);
 		final int labelCount = input.readVarInt(true);
 		final QueryContainer.Label[] labels = labelCount == 0 ? Label.EMPTY_LABELS : new QueryContainer.Label[labelCount];
@@ -75,6 +77,7 @@ public class QueryContainerSerializer extends Serializer<QueryContainer> {
 		}
 		return new QueryContainer(
 			sessionId,
+			recordSessionOffset,
 			query,
 			labels,
 			kryo.readObject(input, OffsetDateTime.class),

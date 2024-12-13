@@ -25,8 +25,8 @@ package io.evitadb.store.traffic.data;
 
 
 import io.evitadb.api.requestResponse.EvitaResponse;
-import io.evitadb.core.traffic.TrafficRecording;
-import io.evitadb.core.traffic.TrafficRecordingCaptureRequest.TrafficRecordingType;
+import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
+import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest.TrafficRecordingType;
 
 import javax.annotation.Nonnull;
 import java.time.OffsetDateTime;
@@ -36,6 +36,7 @@ import java.util.UUID;
  * This container holds information about the source query finalization.
  *
  * @param sessionId              the session id which the mutation belongs to
+ * @param recordSessionOffset    the order (sequence) of the record in the session
  * @param sourceQueryId          the source query id
  * @param created                the time when the mutation was created
  * @param durationInMilliseconds the overall duration of the session in milliseconds
@@ -48,6 +49,7 @@ import java.util.UUID;
  */
 public record SourceQueryStatisticsContainer(
 	@Nonnull UUID sessionId,
+	int recordSessionOffset,
 	@Nonnull UUID sourceQueryId,
 	@Nonnull OffsetDateTime created,
 	int durationInMilliseconds,

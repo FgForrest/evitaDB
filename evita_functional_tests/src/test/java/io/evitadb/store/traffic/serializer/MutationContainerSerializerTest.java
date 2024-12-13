@@ -1,4 +1,3 @@
-
 /*
  *
  *                         _ _        ____  ____
@@ -24,41 +23,30 @@
 
 package io.evitadb.store.traffic.serializer;
 
-
-import com.esotericsoftware.kryo.Kryo;
-import com.esotericsoftware.kryo.Serializer;
-import com.esotericsoftware.kryo.io.Input;
-import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
 import io.evitadb.store.traffic.data.MutationContainer;
+import org.junit.jupiter.api.Test;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
 /**
- * This {@link Serializer} implementation reads/writes {@link MutationContainer} type.
+ * This test verifies the correctness of the {@link MutationContainerSerializer} class.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public class MutationContainerSerializer extends Serializer<MutationContainer> {
+class MutationContainerSerializerTest extends AbstractContainerSerializerTest {
 
-	@Override
-	public void write(Kryo kryo, Output output, MutationContainer object) {
-		kryo.writeObject(output, object.sessionId());
-		output.writeVarInt(object.recordSessionOffset(), true);
-		kryo.writeObject(output, object.created());
-		output.writeVarInt(object.durationInMilliseconds(), true);
-		kryo.writeClassAndObject(output, object.mutation());
-	}
-
-	@Override
-	public MutationContainer read(Kryo kryo, Input input, Class<? extends MutationContainer> type) {
-		return new MutationContainer(
-			kryo.readObject(input, UUID.class),
-			input.readVarInt(true),
-			kryo.readObject(input, OffsetDateTime.class),
-			input.readVarInt(true),
-			(Mutation) kryo.readClassAndObject(input)
+	@Test
+	void shouldSerializeAndDeserializeContainer() {
+		assertSerializationRound(
+			new MutationContainer(
+				UUID.randomUUID(),
+				4,
+				OffsetDateTime.now(),
+				456,
+				new UpsertAttributeMutation("a", "b")
+			)
 		);
 	}
 

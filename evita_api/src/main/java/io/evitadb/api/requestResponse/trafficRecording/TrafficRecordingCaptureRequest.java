@@ -21,9 +21,10 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.traffic;
+package io.evitadb.api.requestResponse.trafficRecording;
 
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.time.Duration;
 import java.time.OffsetDateTime;
@@ -33,11 +34,25 @@ import java.util.UUID;
  * Traffic recording capture request is used to specify the criteria for retrieving contents from the traffic recording
  * log.
  *
+ * @param content determines whether only basic information about the traffic recording is returned or the actual content
+ * @param since specifies the time from which the traffic recording should be returned
+ * @param sinceSessionSequenceId specifies the session sequence ID from which the traffic recording should be returned
+ * @param sinceRecordSessionOffset specifies the record session offset from which the traffic recording should be returned
+ *                                 (the offset is relative to the session sequence ID and starts from 0), offset allows
+ *                                 to continue fetching the traffic recording from the last fetched record when session
+ *                                 was not fully fetched
+ * @param type specifies the types of traffic recording to be returned
+ * @param sessionId specifies the session ID from which the traffic recording should be returned
+ * @param longerThan specifies the minimum duration of the traffic recording to be returned
+ * @param fetchingMoreBytesThan specifies the minimum number of bytes that the traffic recording should contain
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public record TrafficRecordingCaptureRequest(
+	@Nonnull CaptureContent content,
 	@Nullable OffsetDateTime since,
 	@Nullable Long sinceSessionSequenceId,
+	@Nullable Integer sinceRecordSessionOffset,
 	@Nullable TrafficRecordingType[] type,
 	@Nullable UUID sessionId,
 	@Nullable Duration longerThan,

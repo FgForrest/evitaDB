@@ -24,8 +24,8 @@
 package io.evitadb.store.traffic.data;
 
 
-import io.evitadb.core.traffic.TrafficRecording;
-import io.evitadb.core.traffic.TrafficRecordingCaptureRequest.TrafficRecordingType;
+import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
+import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest.TrafficRecordingType;
 
 import javax.annotation.Nonnull;
 import java.time.OffsetDateTime;
@@ -35,6 +35,7 @@ import java.util.UUID;
  * This container holds information about the session start.
  *
  * @param sessionId              the session id which the mutation belongs to
+ * @param recordSessionOffset    the order (sequence) of the record in the session
  * @param catalogVersion         the version of the catalog
  * @param created                the time when the mutation was created
  *
@@ -42,6 +43,7 @@ import java.util.UUID;
  */
 public record SessionStartContainer(
 	@Nonnull UUID sessionId,
+	int recordSessionOffset,
 	long catalogVersion,
 	@Nonnull OffsetDateTime created
 ) implements TrafficRecording {

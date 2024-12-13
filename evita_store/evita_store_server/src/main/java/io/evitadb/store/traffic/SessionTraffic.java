@@ -23,14 +23,16 @@
 
 package io.evitadb.store.traffic;
 
-import io.evitadb.core.traffic.TrafficRecording;
-import io.evitadb.core.traffic.TrafficRecordingCaptureRequest.TrafficRecordingType;
+import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
+import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest.TrafficRecordingType;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.traffic.OffHeapTrafficRecorder.MemoryNotAvailableException;
 import io.evitadb.store.traffic.OffHeapTrafficRecorder.NumberedByteBuffer;
+import io.evitadb.store.traffic.data.MutationContainer;
 import io.evitadb.store.traffic.data.QueryContainer;
 import io.evitadb.store.traffic.data.QueryContainer.Label;
+import io.evitadb.store.traffic.data.RecordFetchContainer;
 import io.evitadb.store.traffic.data.SourceQueryStatisticsContainer;
 import io.evitadb.store.traffic.stream.RecoverableOutputStream;
 import io.evitadb.utils.CollectionUtils;
@@ -46,6 +48,7 @@ import java.util.Optional;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 /**
@@ -84,6 +87,22 @@ public class SessionTraffic {
 	 * Index of source query counters indexed by `sourceQueryId`.
 	 */
 	private Map<UUID, SourceQueryCounter> sourceQueryCounterIndex;
+	/**
+	 * Counter of records in this session.
+	 */
+	private final AtomicInteger recordCounter = new AtomicInteger();
+	/**
+	 * Counter of queries in this session.
+	 */
+	private final AtomicInteger queryCounter = new AtomicInteger();
+	/**
+	 * Counter of separate entity fetches in this session.
+	 */
+	private final AtomicInteger entityFetchCounter = new AtomicInteger();
+	/**
+	 * Counter of mutations in this session.
+	 */
+	private final AtomicInteger mutationCounter = new AtomicInteger();
 	/**
 	 * Duration of the session in milliseconds.
 	 */
@@ -156,6 +175,46 @@ public class SessionTraffic {
 	}
 
 	/**
+	 * Reserves and returns next recording id.
+	 * @return Next recording id.
+	 */
+	public int nextRecordingId() {
+		return this.recordCounter.getAndIncrement();
+	}
+
+	/**
+	 * Returns count of records in this session.
+	 * @return Count of records in this session.
+	 */
+	public int getRecordCount() {
+		return this.recordCounter.get();
+	}
+
+	/**
+	 * Returns count of queries in this session.
+	 * @return Count of queries in this session.
+	 */
+	public int getQueryCount() {
+		return this.queryCounter.get();
+	}
+
+	/**
+	 * Returns count of separate entity fetches in this session.
+	 * @return Count of separate entity fetches in this session.
+	 */
+	public int getEntityFetchCount() {
+		return this.entityFetchCounter.get();
+	}
+
+	/**
+	 * Returns count of mutations in this session.
+	 * @return Count of mutations in this session.
+	 */
+	public int getMutationCount() {
+		return this.mutationCounter.get();
+	}
+
+	/**
 	 * Registers a new traffic recording in this session.
 	 *
 	 * @param container Traffic recording container to be registered.
@@ -165,6 +224,7 @@ public class SessionTraffic {
 		this.fetchCount += container.ioFetchCount();
 		this.bytesFetchedTotal += container.ioFetchedSizeBytes();
 		if (container instanceof QueryContainer queryContainer && this.sourceQueryCounterIndex != null) {
+			this.queryCounter.incrementAndGet();
 			final UUID sourceQueryId = getSourceQueryId(queryContainer);
 			if (sourceQueryId != null) {
 				final SourceQueryCounter sourceQueryCounter = this.sourceQueryCounterIndex.get(sourceQueryId);
@@ -178,6 +238,10 @@ public class SessionTraffic {
 					);
 				}
 			}
+		} else if (container instanceof MutationContainer) {
+			this.mutationCounter.incrementAndGet();
+		} else if (container instanceof RecordFetchContainer) {
+			this.entityFetchCounter.incrementAndGet();
 		}
 	}
 
@@ -265,6 +329,7 @@ public class SessionTraffic {
 			.map(it -> it.remove(sourceQueryId));
 		return new SourceQueryStatisticsContainer(
 			this.sessionId,
+			nextRecordingId(),
 			sourceQueryId,
 			OffsetDateTime.now(),
 			sourceQueryCounter.map(SourceQueryCounter::getComputeTime).orElse(0),

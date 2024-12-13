@@ -24,6 +24,7 @@
 package io.evitadb.core.traffic;
 
 
+import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.observability.trace.TracingBlockReference;
 import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.api.observability.trace.TracingContext.SpanAttribute;
@@ -33,6 +34,8 @@ import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
+import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest;
 import io.evitadb.core.query.QueryPlan;
 import lombok.RequiredArgsConstructor;
 
@@ -43,6 +46,7 @@ import java.util.Arrays;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 /**
  * TrafficRecordingEngine is a class responsible for managing the recording of traffic data,
@@ -57,7 +61,7 @@ import java.util.function.Supplier;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @RequiredArgsConstructor
-public class TrafficRecordingEngine {
+public class TrafficRecordingEngine implements TrafficRecordingReader {
 	private final TracingContext tracingContext;
 	private final TrafficRecorder trafficRecorder;
 
@@ -271,6 +275,14 @@ public class TrafficRecordingEngine {
 			ioFetchedBytes,
 			entity.getPrimaryKeyOrThrowException()
 		);
+	}
+
+	@Nonnull
+	@Override
+	public Stream<TrafficRecording> getRecordings(@Nonnull TrafficRecordingCaptureRequest request) throws TemporalDataNotAvailableException {
+		return this.trafficRecorder instanceof TrafficRecordingReader trr ?
+			trr.getRecordings(request) :
+			Stream.empty();
 	}
 
 	/**

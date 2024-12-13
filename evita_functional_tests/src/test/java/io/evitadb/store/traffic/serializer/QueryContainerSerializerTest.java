@@ -23,35 +23,46 @@
 
 package io.evitadb.store.traffic.serializer;
 
+import io.evitadb.store.traffic.data.QueryContainer;
+import io.evitadb.store.traffic.data.QueryContainer.Label;
+import org.junit.jupiter.api.Test;
 
-import com.esotericsoftware.kryo.Kryo;
-import com.esotericsoftware.kryo.Serializer;
-import com.esotericsoftware.kryo.io.Input;
-import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.store.traffic.data.SessionStartContainer;
+import java.time.OffsetDateTime;
+import java.util.UUID;
+
+import static io.evitadb.api.query.Query.query;
+import static io.evitadb.api.query.QueryConstraints.*;
 
 /**
- * This {@link Serializer} implementation reads/writes {@link SessionStartContainer} type.
+ * This test verifies the correctness of the {@link QueryContainerSerializer} class.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public class SessionStartContainerSerializer extends Serializer<SessionStartContainer> {
+class QueryContainerSerializerTest extends AbstractContainerSerializerTest {
 
-	@Override
-	public void write(Kryo kryo, Output output, SessionStartContainer object) {
-		kryo.writeObject(output, object.sessionId());
-		output.writeVarInt(object.recordSessionOffset(), true);
-		output.writeLong(object.catalogVersion());
-		kryo.writeObject(output, object.created());
-	}
-
-	@Override
-	public SessionStartContainer read(Kryo kryo, Input input, Class<? extends SessionStartContainer> type) {
-		return new SessionStartContainer(
-			kryo.readObject(input, java.util.UUID.class),
-			input.readVarInt(true),
-			input.readLong(),
-			kryo.readObject(input, java.time.OffsetDateTime.class)
+	@Test
+	void shouldSerializeAndDeserializeContainer() {
+		assertSerializationRound(
+			new QueryContainer(
+				UUID.randomUUID(),
+				4,
+				query(
+					collection("a"),
+					filterBy(entityPrimaryKeyInSet(1, 2)),
+					orderBy(attributeNatural("c")),
+					require(entityFetchAll())
+				),
+				new Label[]{
+					new Label("e", "f"),
+					new Label("g", "h"),
+				},
+				OffsetDateTime.now(),
+				456,
+				4,
+				7,
+				650,
+				new int[]{1, 2, 3}
+			)
 		);
 	}
 

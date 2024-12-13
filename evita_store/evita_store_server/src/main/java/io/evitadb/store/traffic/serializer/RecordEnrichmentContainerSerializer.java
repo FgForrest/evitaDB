@@ -45,6 +45,7 @@ public class RecordEnrichmentContainerSerializer extends Serializer<RecordEnrich
 	@Override
 	public void write(Kryo kryo, Output output, RecordEnrichmentContainer object) {
 		kryo.writeObject(output, object.sessionId());
+		output.writeVarInt(object.recordSessionOffset(), true);
 		kryo.writeObject(output, object.query());
 		kryo.writeObject(output, object.created());
 		output.writeVarInt(object.durationInMilliseconds(), true);
@@ -57,6 +58,7 @@ public class RecordEnrichmentContainerSerializer extends Serializer<RecordEnrich
 	public RecordEnrichmentContainer read(Kryo kryo, Input input, Class<? extends RecordEnrichmentContainer> type) {
 		return new RecordEnrichmentContainer(
 			kryo.readObject(input, UUID.class),
+			input.readVarInt(true),
 			kryo.readObject(input, Query.class),
 			kryo.readObject(input, OffsetDateTime.class),
 			input.readVarInt(true),
