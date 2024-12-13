@@ -40,9 +40,9 @@ import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.dataType.ContainerType;
 import io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageRequest;
 import io.evitadb.externalApi.grpc.generated.GetMutationsHistoryRequest;
-import io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria;
-import io.evitadb.externalApi.grpc.generated.GrpcCaptureDataSite;
-import io.evitadb.externalApi.grpc.generated.GrpcCaptureSchemaSite;
+import io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria;
+import io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureDataSite;
+import io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureSchemaSite;
 import io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture;
 import io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.Builder;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
@@ -107,7 +107,7 @@ public class ChangeCaptureConverter {
 	@Nonnull
 	public static GetMutationsHistoryRequest toGrpcChangeCaptureRequest(@Nonnull ChangeCatalogCaptureRequest request) {
 		final GetMutationsHistoryRequest.Builder builder = GetMutationsHistoryRequest.newBuilder()
-			.setContent(EvitaEnumConverter.toGrpcCaptureContent(request.content()));
+			.setContent(EvitaEnumConverter.toGrpcChangeCaptureContent(request.content()));
 
 		if (request.sinceVersion() != null) {
 			builder.setSinceVersion(Int64Value.of(request.sinceVersion()));
@@ -117,7 +117,7 @@ public class ChangeCaptureConverter {
 		}
 		if (request.criteria() != null) {
 			Arrays.stream(request.criteria())
-				.map(ChangeCaptureConverter::toGrpcCaptureCriteria)
+				.map(ChangeCaptureConverter::toGrpcChangeCaptureCriteria)
 				.forEach(builder::addCriteria);
 		}
 
@@ -163,7 +163,7 @@ public class ChangeCaptureConverter {
 		final Builder builder = GrpcChangeCatalogCapture.newBuilder()
 			.setVersion(changeCatalogCapture.version())
 			.setIndex(changeCatalogCapture.index())
-			.setArea(EvitaEnumConverter.toGrpcCaptureArea(changeCatalogCapture.area()))
+			.setArea(EvitaEnumConverter.toGrpcChangeCaptureArea(changeCatalogCapture.area()))
 			.setOperation(EvitaEnumConverter.toGrpcOperation(changeCatalogCapture.operation()));
 		if (changeCatalogCapture.entityType() != null) {
 			builder.setEntityType(StringValue.of(changeCatalogCapture.entityType()));
@@ -179,33 +179,33 @@ public class ChangeCaptureConverter {
 	}
 
 	/**
-	 * Converts a {@link ChangeCatalogCaptureCriteria} to a {@link GrpcCaptureCriteria}.
+	 * Converts a {@link ChangeCatalogCaptureCriteria} to a {@link GrpcChangeCaptureCriteria}.
 	 *
 	 * @param criteria the criteria to convert
 	 * @return the converted request
 	 */
 	@Nonnull
-	private static GrpcCaptureCriteria toGrpcCaptureCriteria(@Nonnull ChangeCatalogCaptureCriteria criteria) {
-		final GrpcCaptureCriteria.Builder builder = GrpcCaptureCriteria.newBuilder();
+	private static GrpcChangeCaptureCriteria toGrpcChangeCaptureCriteria(@Nonnull ChangeCatalogCaptureCriteria criteria) {
+		final GrpcChangeCaptureCriteria.Builder builder = GrpcChangeCaptureCriteria.newBuilder();
 		if (criteria.area() != null) {
-			builder.setArea(EvitaEnumConverter.toGrpcCaptureArea(criteria.area()));
+			builder.setArea(EvitaEnumConverter.toGrpcChangeCaptureArea(criteria.area()));
 		}
 		if (criteria.site() instanceof DataSite dataSite) {
-			builder.setDataSite(toGrpcCaptureDataSite(dataSite));
+			builder.setDataSite(toGrpcChangeCaptureDataSite(dataSite));
 		} else if (criteria.site() instanceof SchemaSite schemaSite) {
-			builder.setSchemaSite(toGrpcCaptureSchemaSite(schemaSite));
+			builder.setSchemaSite(toGrpcChangeCaptureSchemaSite(schemaSite));
 		}
 		return builder.build();
 	}
 
 	/**
-	 * Converts a {@link GrpcCaptureCriteria} to a {@link ChangeCatalogCaptureCriteria}.
+	 * Converts a {@link GrpcChangeCaptureCriteria} to a {@link ChangeCatalogCaptureCriteria}.
 	 *
 	 * @param grpcCaptureCriteria the capture criteria to convert
 	 * @return the converted request
 	 */
 	@Nonnull
-	private static ChangeCatalogCaptureCriteria toChangeCaptureCriteria(@Nonnull GrpcCaptureCriteria grpcCaptureCriteria) {
+	private static ChangeCatalogCaptureCriteria toChangeCaptureCriteria(@Nonnull GrpcChangeCaptureCriteria grpcCaptureCriteria) {
 		final CaptureArea captureArea = EvitaEnumConverter.toCaptureArea(grpcCaptureCriteria.getArea());
 		return new ChangeCatalogCaptureCriteria(
 			captureArea,
@@ -214,13 +214,13 @@ public class ChangeCaptureConverter {
 	}
 
 	/**
-	 * Converts a {@link GrpcCaptureDataSite} to a {@link DataSite}.
+	 * Converts a {@link GrpcChangeCaptureDataSite} to a {@link DataSite}.
 	 *
 	 * @param dataSite the data site to convert
 	 * @return the converted request
 	 */
 	@Nonnull
-	private static DataSite toDataSite(@Nonnull GrpcCaptureDataSite dataSite) {
+	private static DataSite toDataSite(@Nonnull GrpcChangeCaptureDataSite dataSite) {
 		return new DataSite(
 			dataSite.hasEntityType() ? dataSite.getEntityType().getValue() : null,
 			dataSite.hasEntityPrimaryKey() ? dataSite.getEntityPrimaryKey().getValue() : null,
@@ -231,14 +231,14 @@ public class ChangeCaptureConverter {
 	}
 
 	/**
-	 * Converts a {@link GrpcCaptureDataSite} to a {@link DataSite}.
+	 * Converts a {@link GrpcChangeCaptureDataSite} to a {@link DataSite}.
 	 *
 	 * @param dataSite the data site to convert
 	 * @return the converted request
 	 */
 	@Nonnull
-	private static GrpcCaptureDataSite toGrpcCaptureDataSite(@Nonnull DataSite dataSite) {
-		final GrpcCaptureDataSite.Builder builder = GrpcCaptureDataSite.newBuilder();
+	private static GrpcChangeCaptureDataSite toGrpcChangeCaptureDataSite(@Nonnull DataSite dataSite) {
+		final GrpcChangeCaptureDataSite.Builder builder = GrpcChangeCaptureDataSite.newBuilder();
 		if (dataSite.entityType() != null) {
 			builder.setEntityType(StringValue.of(dataSite.entityType()));
 		}
@@ -249,7 +249,7 @@ public class ChangeCaptureConverter {
 			Arrays.stream(dataSite.operation()).map(EvitaEnumConverter::toGrpcOperation).forEach(builder::addOperation);
 		}
 		if (dataSite.containerType() != null) {
-			Arrays.stream(dataSite.containerType()).map(EvitaEnumConverter::toGrpcCaptureContainerType).forEach(builder::addContainerType);
+			Arrays.stream(dataSite.containerType()).map(EvitaEnumConverter::toGrpcChangeCaptureContainerType).forEach(builder::addContainerType);
 		}
 		if (dataSite.containerName() != null) {
 			builder.addAllContainerName(Arrays.asList(dataSite.containerName()));
@@ -258,13 +258,13 @@ public class ChangeCaptureConverter {
 	}
 
 	/**
-	 * Converts a {@link GrpcCaptureSchemaSite} to a {@link SchemaSite}.
+	 * Converts a {@link GrpcChangeCaptureSchemaSite} to a {@link SchemaSite}.
 	 *
 	 * @param schemaSite the schema site to convert
 	 * @return the converted request
 	 */
 	@Nonnull
-	private static SchemaSite toSchemaSite(@Nonnull GrpcCaptureSchemaSite schemaSite) {
+	private static SchemaSite toSchemaSite(@Nonnull GrpcChangeCaptureSchemaSite schemaSite) {
 		return new SchemaSite(
 			schemaSite.hasEntityType() ? schemaSite.getEntityType().getValue() : null,
 			schemaSite.getOperationList().stream().map(EvitaEnumConverter::toOperation).toArray(Operation[]::new),
@@ -273,14 +273,14 @@ public class ChangeCaptureConverter {
 	}
 
 	/**
-	 * Converts a {@link SchemaSite} to a {@link GrpcCaptureSchemaSite}.
+	 * Converts a {@link SchemaSite} to a {@link GrpcChangeCaptureSchemaSite}.
 	 *
 	 * @param schemaSite the schema site to convert
 	 * @return the converted request
 	 */
 	@Nonnull
-	private static GrpcCaptureSchemaSite toGrpcCaptureSchemaSite(@Nonnull SchemaSite schemaSite) {
-		final GrpcCaptureSchemaSite.Builder builder = GrpcCaptureSchemaSite.newBuilder();
+	private static GrpcChangeCaptureSchemaSite toGrpcChangeCaptureSchemaSite(@Nonnull SchemaSite schemaSite) {
+		final GrpcChangeCaptureSchemaSite.Builder builder = GrpcChangeCaptureSchemaSite.newBuilder();
 		if (schemaSite.entityType() != null) {
 			builder.setEntityType(StringValue.of(schemaSite.entityType()));
 		}
@@ -288,7 +288,7 @@ public class ChangeCaptureConverter {
 			Arrays.stream(schemaSite.operation()).map(EvitaEnumConverter::toGrpcOperation).forEach(builder::addOperation);
 		}
 		if (schemaSite.containerType() != null) {
-			Arrays.stream(schemaSite.containerType()).map(EvitaEnumConverter::toGrpcCaptureContainerType).forEach(builder::addContainerType);
+			Arrays.stream(schemaSite.containerType()).map(EvitaEnumConverter::toGrpcChangeCaptureContainerType).forEach(builder::addContainerType);
 		}
 		return builder.build();
 	}

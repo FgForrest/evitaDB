@@ -49,7 +49,7 @@ import java.util.UUID;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public record TrafficRecordingCaptureRequest(
-	@Nonnull CaptureContent content,
+	@Nonnull TrafficRecordingContent content,
 	@Nullable OffsetDateTime since,
 	@Nullable Long sinceSessionSequenceId,
 	@Nullable Integer sinceRecordSessionOffset,
@@ -70,7 +70,7 @@ public record TrafficRecordingCaptureRequest(
 		/**
 		 * evitaDB session closed.
 		 */
-		SESSION_FINISH,
+		SESSION_CLOSE,
 		/**
 		 * Query received via. API from the client - container contains original string of the client query.
 		 * API might call multiple queries related to the same source query.

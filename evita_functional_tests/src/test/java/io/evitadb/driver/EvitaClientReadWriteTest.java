@@ -38,7 +38,7 @@ import io.evitadb.api.mock.TestEntity;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.cdc.CaptureArea;
-import io.evitadb.api.requestResponse.cdc.CaptureContent;
+import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureCriteria;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
@@ -1923,7 +1923,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 								)
 								.build()
 						)
-						.content(CaptureContent.BODY)
+						.content(ChangeCaptureContent.BODY)
 						.build()
 				);
 

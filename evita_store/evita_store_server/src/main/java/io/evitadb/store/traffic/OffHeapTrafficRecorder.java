@@ -25,33 +25,32 @@ package io.evitadb.store.traffic;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.util.Pool;
+import io.evitadb.api.TrafficRecordingReader;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TrafficRecordingOptions;
 import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.head.Label;
 import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.api.requestResponse.trafficRecording.EntityEnrichmentContainer;
+import io.evitadb.api.requestResponse.trafficRecording.EntityFetchContainer;
+import io.evitadb.api.requestResponse.trafficRecording.MutationContainer;
+import io.evitadb.api.requestResponse.trafficRecording.QueryContainer;
+import io.evitadb.api.requestResponse.trafficRecording.SessionCloseContainer;
+import io.evitadb.api.requestResponse.trafficRecording.SessionStartContainer;
+import io.evitadb.api.requestResponse.trafficRecording.SourceQueryContainer;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest;
 import io.evitadb.core.async.DelayedAsyncTask;
 import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.file.ExportFileService;
 import io.evitadb.core.traffic.TrafficRecorder;
-import io.evitadb.core.traffic.TrafficRecordingReader;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.offsetIndex.stream.RandomAccessFileInputStream;
 import io.evitadb.store.query.QuerySerializationKryoConfigurer;
 import io.evitadb.store.service.KryoFactory;
-import io.evitadb.store.traffic.data.MutationContainer;
-import io.evitadb.store.traffic.data.QueryContainer;
-import io.evitadb.store.traffic.data.RecordEnrichmentContainer;
-import io.evitadb.store.traffic.data.RecordFetchContainer;
-import io.evitadb.store.traffic.data.SessionCloseContainer;
-import io.evitadb.store.traffic.data.SessionLocation;
-import io.evitadb.store.traffic.data.SessionStartContainer;
-import io.evitadb.store.traffic.data.SourceQueryContainer;
 import io.evitadb.store.traffic.event.TrafficRecorderStatisticsEvent;
 import io.evitadb.store.wal.WalKryoConfigurer;
 import io.evitadb.utils.Assert;
@@ -348,7 +347,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		final SessionTraffic sessionTraffic = this.trackedSessionsIndex.get(sessionId);
 		record(
 			sessionTraffic,
-			new RecordFetchContainer(
+			new EntityFetchContainer(
 				sessionId,
 				sessionTraffic.nextRecordingId(),
 				query,
@@ -371,7 +370,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		final SessionTraffic sessionTraffic = this.trackedSessionsIndex.get(sessionId);
 		record(
 			sessionTraffic,
-			new RecordEnrichmentContainer(
+			new EntityEnrichmentContainer(
 				sessionId,
 				sessionTraffic.nextRecordingId(),
 				query,

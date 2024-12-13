@@ -1,0 +1,182 @@
+syntax = "proto3";
+
+package io.evitadb.externalApi.grpc.generated;
+option java_multiple_files = true;
+option csharp_namespace = "EvitaDB";
+
+import "google/protobuf/wrappers.proto";
+import "GrpcEvitaDataTypes.proto";
+import "GrpcQueryParam.proto";
+import "GrpcEntityMutation.proto";
+import "GrpcEntitySchemaMutation.proto";
+
+// Record for the criteria of the capture request allowing to limit mutations to specific area of interest an its
+// properties.
+message GrpcTrafficRecordingCaptureCriteria {
+  // content determines whether only basic information about the traffic recording is returned or the actual content
+  GrpcTrafficRecordingContent content = 1;
+  // since specifies the time from which the traffic recording should be returned
+  GrpcOffsetDateTime since = 2;
+  // sinceSessionSequenceId specifies the session sequence ID from which the traffic recording should be returned
+  google.protobuf.Int64Value sinceSessionSequenceId = 3;
+  // sinceRecordSessionOffset specifies the record session offset from which the traffic recording should be returned
+  //                          (the offset is relative to the session sequence ID and starts from 0), offset allows
+  //                          to continue fetching the traffic recording from the last fetched record when session
+  //                          was not fully fetched
+  google.protobuf.Int32Value sinceRecordSessionOffset = 4;
+  // type specifies the types of traffic recording to be returned
+  repeated GrpcTrafficRecordingType type = 5;
+  // sessionId specifies the session ID from which the traffic recording should be returned
+  GrpcUuid sessionId = 6;
+  // longerThan specifies the minimum duration in milliseconds of the traffic recording to be returned
+  google.protobuf.Int32Value longerThan = 7;
+  // fetchingMoreBytesThan specifies the minimum number of bytes that the traffic recording should contain
+  google.protobuf.Int32Value fetchingMoreBytesThan = 8;
+}
+
+// Record represents a CDC event that is sent to the subscriber if it matches to the request he made.
+message GrpcTrafficRecord {
+  // The session id which the recording belongs to.
+  GrpcUuid sessionId = 1;
+  // The order (sequence) of the traffic recording in the session. First record in the session has sequence ID 0 and
+  // represents the session start, additional records are numbered sequentially.
+  int32 recordSessionOffset = 2;
+  // The type of the recording.
+  GrpcTrafficRecordingType type = 3;
+  // The time when the recording was created.
+  GrpcOffsetDateTime created = 4;
+  // The duration of the operation in milliseconds.
+  int32 durationInMilliseconds = 5;
+  // The size of the data fetched from the permanent storage in bytes.
+  int32 ioFetchedSizeBytes = 6;
+  // The number of objects fetched from the permanent storage.
+  int32 ioFetchCount = 7;
+  // optional body of the traffic recording when it is requested by the GrpcTrafficCaptureContent
+  oneof body {
+    GrpcTrafficMutationContainer mutation = 8;
+    GrpcTrafficQueryContainer query = 9;
+    GrpcTrafficEntityEnrichmentContainer enrichment = 10;
+    GrpcTrafficEntityFetchContainer fetch = 11;
+    GrpcTrafficSessionCloseContainer sessionClose = 12;
+    GrpcTrafficSessionStartContainer sessionStart = 13;
+    GrpcTrafficSourceQueryContainer sourceQuery = 14;
+    GrpcTrafficSourceQueryStatisticsContainer sourceQueryStatistics = 15;
+  }
+}
+
+// This container holds a mutation and its metadata.
+message GrpcTrafficMutationContainer {
+  // The mutation operation.
+  GrpcEntityMutation entityMutation = 1;
+  // The schema mutation operation.
+  GrpcEntitySchemaMutation schemaMutation = 2;
+}
+
+// Container for a query and its metadata.
+message GrpcTrafficQueryContainer {
+  // The query operation.
+  string query = 1;
+  // The total number of records calculated by the query
+  int32 totalRecordCount = 2;
+  // the client labels associated with the query
+  repeated GrpcQueryLabel labels = 3;
+  // The primary keys of the records returned by the query (in returned data chunk)
+  repeated int32 primaryKeys = 4;
+}
+
+// This container holds information about single entity enrichment.
+message GrpcTrafficEntityEnrichmentContainer {
+  // The query operation.
+  string query = 1;
+  // The primary keys of the records returned by the query (in returned data chunk)
+  int32 primaryKey = 2;
+}
+
+// This container holds information about single entity fetch.
+message GrpcTrafficEntityFetchContainer {
+  // The query operation.
+  string query = 1;
+  // The primary keys of the records returned by the query (in returned data chunk)
+  int32 primaryKey = 2;
+}
+
+// This container holds information about the session start.
+message GrpcTrafficSessionStartContainer {
+  // The version of the catalog that will be used for the entire session
+  int64 catalogVersion = 1;
+}
+
+// This container holds information about the session close.
+message GrpcTrafficSessionCloseContainer {
+  // The version of the catalog
+  int64 catalogVersion = 1;
+  // The overall number of traffic records recorded for this session
+  int32 trafficRecordCount = 2;
+  // The number of records missed out in this session due to memory shortage or sampling
+  int32 trafficRecordsMissedOut = 3;
+  // The overall number of queries executed in this session
+  int32 queryCount = 4;
+  // The overall number of entities fetched in this session (excluding the entities fetched by queries)
+  int32 entityFetchCount = 5;
+  // The overall number of mutations executed in this session
+  int32 mutationCount = 6;
+}
+
+// This container holds information about the source query.
+message GrpcTrafficSourceQueryContainer {
+  // The unique identifier of the source query
+  GrpcUuid sourceQueryId = 1;
+  // unparsed, raw source query in particular format
+  string sourceQuery = 2;
+  // type of the query (e.g. GraphQL, REST, etc.)
+  string queryType = 3;
+}
+
+// This container holds information about the source query statistics.
+message GrpcTrafficSourceQueryStatisticsContainer {
+  // The source query id
+  GrpcUuid sourceQueryId = 1;
+  // The total number of records returned by the query ({@link EvitaResponse#getRecordData()} size)
+  int32 returnedRecordCount = 2;
+  // The total number of records calculated by the query ({@link EvitaResponse#getTotalRecordCount()})
+  int32 totalRecordCount = 3;
+}
+
+// Client label attached to the query
+message GrpcQueryLabel {
+  // The label name
+  string name = 1;
+  // The label value
+  string value = 2;
+}
+
+// Enum to specify the depth of details sent in the traffic recording event.
+enum GrpcTrafficRecordingContent {
+  // Only the header of the event is sent.
+  TRAFFIC_RECORDING_HEADER = 0;
+  // Entire traffic recording content is sent.
+  TRAFFIC_RECORDING_BODY = 1;
+}
+
+// List of all possible traffic recording types.
+enum GrpcTrafficRecordingType {
+  // evitaDB session opened.
+  TRAFFIC_RECORDING_SESSION_START = 0;
+  //* evitaDB session closed.
+  TRAFFIC_RECORDING_SESSION_FINISH = 1;
+  // Query received via. API from the client - container contains original string of the client query.
+  // API might call multiple queries related to the same source query.
+  TRAFFIC_RECORDING_SOURCE_QUERY = 2;
+  // Query received via. API from the client is finalized and sent to the client. Container contains the final
+  // statistics aggregated over all operations related to the source query.
+  TRAFFIC_RECORDING_SOURCE_QUERY_STATISTICS = 3;
+  // Internal evitaDB query (evitaQL) was executed.
+  TRAFFIC_RECORDING_QUERY = 4;
+  // Internal call to retrieve single evitaDB entity. Record is not created for entities fetched as a part of
+  // a query.
+  TRAFFIC_RECORDING_FETCH = 5;
+  // Internal call to enrich contents of the evitaDB entity.
+  TRAFFIC_RECORDING_ENRICHMENT = 6;
+  // Internal call to mutate the evitaDB entity or catalog schema.
+  TRAFFIC_RECORDING_MUTATION = 7;
+}

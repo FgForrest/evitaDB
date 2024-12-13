@@ -30,20 +30,20 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.query.Query;
-import io.evitadb.store.traffic.data.RecordEnrichmentContainer;
+import io.evitadb.api.requestResponse.trafficRecording.EntityEnrichmentContainer;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
 /**
- * This {@link Serializer} implementation reads/writes {@link RecordEnrichmentContainer} type.
+ * This {@link Serializer} implementation reads/writes {@link EntityEnrichmentContainer} type.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public class RecordEnrichmentContainerSerializer extends Serializer<RecordEnrichmentContainer> {
+public class RecordEnrichmentContainerSerializer extends Serializer<EntityEnrichmentContainer> {
 
 	@Override
-	public void write(Kryo kryo, Output output, RecordEnrichmentContainer object) {
+	public void write(Kryo kryo, Output output, EntityEnrichmentContainer object) {
 		kryo.writeObject(output, object.sessionId());
 		output.writeVarInt(object.recordSessionOffset(), true);
 		kryo.writeObject(output, object.query());
@@ -55,8 +55,8 @@ public class RecordEnrichmentContainerSerializer extends Serializer<RecordEnrich
 	}
 
 	@Override
-	public RecordEnrichmentContainer read(Kryo kryo, Input input, Class<? extends RecordEnrichmentContainer> type) {
-		return new RecordEnrichmentContainer(
+	public EntityEnrichmentContainer read(Kryo kryo, Input input, Class<? extends EntityEnrichmentContainer> type) {
+		return new EntityEnrichmentContainer(
 			kryo.readObject(input, UUID.class),
 			input.readVarInt(true),
 			kryo.readObject(input, Query.class),

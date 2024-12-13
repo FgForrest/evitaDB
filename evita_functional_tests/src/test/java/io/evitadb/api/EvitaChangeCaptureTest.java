@@ -28,7 +28,7 @@ import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.api.requestResponse.cdc.CaptureArea;
-import io.evitadb.api.requestResponse.cdc.CaptureContent;
+import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureCriteria;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
@@ -144,7 +144,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 							.area(CaptureArea.SCHEMA)
 							.build()
 					)
-					.content(CaptureContent.BODY)
+					.content(ChangeCaptureContent.BODY)
 					.build()
 			).toList();
 			assertEquals(10, reverseCaptures.size());
@@ -173,7 +173,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 							.area(CaptureArea.DATA)
 							.build()
 					)
-					.content(CaptureContent.BODY)
+					.content(ChangeCaptureContent.BODY)
 					.build()
 			).toList();
 			assertEquals(8, reverseCaptures.size());
@@ -205,7 +205,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 							.area(CaptureArea.INFRASTRUCTURE)
 							.build()
 					)
-					.content(CaptureContent.BODY)
+					.content(ChangeCaptureContent.BODY)
 					.build()
 			).toList();
 			assertEquals(9, reverseCaptures.size());
@@ -232,7 +232,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 		try (final EvitaSessionContract session = evita.createReadOnlySession(TEST_CATALOG)) {
 			final List<ChangeCatalogCapture> reverseCaptures = session.getMutationsHistory(
 				ChangeCatalogCaptureRequest.builder()
-					.content(CaptureContent.BODY)
+					.content(ChangeCaptureContent.BODY)
 					.build()
 			).toList();
 			assertEquals(19, reverseCaptures.size());
@@ -279,7 +279,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 							.area(CaptureArea.INFRASTRUCTURE)
 							.build()
 					)
-					.content(CaptureContent.BODY)
+					.content(ChangeCaptureContent.BODY)
 					.build()
 			).toList();
 			assertEquals(7, reverseCaptures.size());
@@ -316,7 +316,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 							)
 							.build()
 					)
-					.content(CaptureContent.BODY)
+					.content(ChangeCaptureContent.BODY)
 					.build()
 			).toList();
 
@@ -345,7 +345,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 							)
 							.build()
 					)
-					.content(CaptureContent.BODY)
+					.content(ChangeCaptureContent.BODY)
 					.build()
 			).toList();
 
@@ -377,7 +377,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 							)
 							.build()
 					)
-					.content(CaptureContent.BODY)
+					.content(ChangeCaptureContent.BODY)
 					.build()
 			).toList();
 
@@ -406,7 +406,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 							)
 							.build()
 					)
-					.content(CaptureContent.BODY)
+					.content(ChangeCaptureContent.BODY)
 					.build()
 			).toList();
 
@@ -448,7 +448,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 							)
 							.build()
 					)
-					.content(CaptureContent.BODY)
+					.content(ChangeCaptureContent.BODY)
 					.build()
 			).toList();
 
@@ -470,7 +470,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 							)
 							.build()
 					)
-					.content(CaptureContent.BODY)
+					.content(ChangeCaptureContent.BODY)
 					.build()
 			).toList();
 
@@ -492,7 +492,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 							)
 							.build()
 					)
-					.content(CaptureContent.BODY)
+					.content(ChangeCaptureContent.BODY)
 					.build()
 			).toList();
 
@@ -514,7 +514,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 							)
 							.build()
 					)
-					.content(CaptureContent.BODY)
+					.content(ChangeCaptureContent.BODY)
 					.build()
 			).toList();
 

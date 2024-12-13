@@ -44,7 +44,7 @@ public record ChangeCatalogCaptureRequest(
 	@Nullable Long sinceVersion,
 	@Nullable Integer sinceIndex,
 	@Nullable ChangeCatalogCaptureCriteria[] criteria,
-	@Nonnull CaptureContent content
+	@Nonnull ChangeCaptureContent content
 ) implements ChangeCaptureRequest {
 
 	/**
@@ -63,7 +63,7 @@ public record ChangeCatalogCaptureRequest(
 		private Long sinceVersion;
 		private Integer sinceIndex;
 		private ChangeCatalogCaptureCriteria[] criteria;
-		private CaptureContent content = CaptureContent.HEADER;
+		private ChangeCaptureContent content = ChangeCaptureContent.HEADER;
 
 		/**
 		 * Sets the criteria of the capture.
@@ -82,7 +82,7 @@ public record ChangeCatalogCaptureRequest(
 		 * @return this builder
 		 */
 		@Nonnull
-		public Builder content(@Nonnull CaptureContent content) {
+		public Builder content(@Nonnull ChangeCaptureContent content) {
 			this.content = content;
 			return this;
 		}

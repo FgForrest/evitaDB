@@ -28,8 +28,8 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.store.traffic.data.SourceQueryContainer;
-import io.evitadb.store.traffic.data.SourceQueryStatisticsContainer;
+import io.evitadb.api.requestResponse.trafficRecording.SourceQueryContainer;
+import io.evitadb.api.requestResponse.trafficRecording.SourceQueryStatisticsContainer;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link SourceQueryContainer} type.

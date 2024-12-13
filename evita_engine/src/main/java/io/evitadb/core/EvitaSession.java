@@ -73,6 +73,8 @@ import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.system.CatalogVersion;
+import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
+import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest;
 import io.evitadb.api.task.Task;
 import io.evitadb.core.async.Interruptible;
 import io.evitadb.core.cdc.predicate.MutationPredicateFactory;
@@ -1246,6 +1248,14 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return getCatalog()
 			.getReversedCommittedMutationStream(criteria.sinceVersion())
 			.flatMap(it -> it.toChangeCatalogCapture(mutationPredicate, criteria.content()));
+	}
+
+	@Nonnull
+	@Override
+	public Stream<TrafficRecording> getRecordings(@Nonnull TrafficRecordingCaptureRequest request) throws TemporalDataNotAvailableException {
+		assertActive();
+		return getCatalog() instanceof Catalog theCatalog ?
+			theCatalog.getTrafficRecorder().getRecordings(request) : Stream.empty();
 	}
 
 	@Interruptible

@@ -106,11 +106,11 @@ private static final long serialVersionUID = 0L;
           }
           case 26: {
             if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-              criteria_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria>();
+              criteria_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria>();
               mutable_bitField0_ |= 0x00000001;
             }
             criteria_.add(
-                input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria.parser(), extensionRegistry));
+                input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria.parser(), extensionRegistry));
             break;
           }
           case 32: {
@@ -231,16 +231,16 @@ private static final long serialVersionUID = 0L;
   }
 
   public static final int CRITERIA_FIELD_NUMBER = 3;
-  private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria> criteria_;
+  private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria> criteria_;
   /**
    * <pre>
    * The criteria of the capture, allows to define constraints on the returned mutations
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 3;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
    */
   @java.lang.Override
-  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria> getCriteriaList() {
+  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria> getCriteriaList() {
     return criteria_;
   }
   /**
@@ -248,10 +248,10 @@ private static final long serialVersionUID = 0L;
    * The criteria of the capture, allows to define constraints on the returned mutations
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 3;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteriaOrBuilder> 
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteriaOrBuilder>
       getCriteriaOrBuilderList() {
     return criteria_;
   }
@@ -260,7 +260,7 @@ private static final long serialVersionUID = 0L;
    * The criteria of the capture, allows to define constraints on the returned mutations
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 3;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
    */
   @java.lang.Override
   public int getCriteriaCount() {
@@ -271,10 +271,10 @@ private static final long serialVersionUID = 0L;
    * The criteria of the capture, allows to define constraints on the returned mutations
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 3;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
    */
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria getCriteria(int index) {
+  public io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria getCriteria(int index) {
     return criteria_.get(index);
   }
   /**
@@ -282,10 +282,10 @@ private static final long serialVersionUID = 0L;
    * The criteria of the capture, allows to define constraints on the returned mutations
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 3;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
    */
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteriaOrBuilder getCriteriaOrBuilder(
+  public io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteriaOrBuilder getCriteriaOrBuilder(
       int index) {
     return criteria_.get(index);
   }
@@ -297,7 +297,7 @@ private static final long serialVersionUID = 0L;
    * The scope of the returned data - either header of the mutation, or the whole mutation
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureContent content = 4;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 4;</code>
    * @return The enum numeric value on the wire for content.
    */
   @java.lang.Override public int getContentValue() {
@@ -308,13 +308,13 @@ private static final long serialVersionUID = 0L;
    * The scope of the returned data - either header of the mutation, or the whole mutation
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureContent content = 4;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 4;</code>
    * @return The content.
    */
-  @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcCaptureContent getContent() {
+  @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent getContent() {
     @SuppressWarnings("deprecation")
-    io.evitadb.externalApi.grpc.generated.GrpcCaptureContent result = io.evitadb.externalApi.grpc.generated.GrpcCaptureContent.valueOf(content_);
-    return result == null ? io.evitadb.externalApi.grpc.generated.GrpcCaptureContent.UNRECOGNIZED : result;
+    io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent result = io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent.valueOf(content_);
+    return result == null ? io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent.UNRECOGNIZED : result;
   }
 
   private byte memoizedIsInitialized = -1;
@@ -340,7 +340,7 @@ private static final long serialVersionUID = 0L;
     for (int i = 0; i < criteria_.size(); i++) {
       output.writeMessage(3, criteria_.get(i));
     }
-    if (content_ != io.evitadb.externalApi.grpc.generated.GrpcCaptureContent.HEADER.getNumber()) {
+    if (content_ != io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent.CHANGE_HEADER.getNumber()) {
       output.writeEnum(4, content_);
     }
     unknownFields.writeTo(output);
@@ -364,7 +364,7 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(3, criteria_.get(i));
     }
-    if (content_ != io.evitadb.externalApi.grpc.generated.GrpcCaptureContent.HEADER.getNumber()) {
+    if (content_ != io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent.CHANGE_HEADER.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
         .computeEnumSize(4, content_);
     }
@@ -698,7 +698,7 @@ private static final long serialVersionUID = 0L;
             criteriaBuilder_ = null;
             criteria_ = other.criteria_;
             bitField0_ = (bitField0_ & ~0x00000001);
-            criteriaBuilder_ = 
+            criteriaBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getCriteriaFieldBuilder() : null;
           } else {
@@ -854,7 +854,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
      */
     public com.google.protobuf.Int64Value.Builder getSinceVersionBuilder() {
-      
+
       onChanged();
       return getSinceVersionFieldBuilder().getBuilder();
     }
@@ -881,7 +881,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder> 
+        com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder>
         getSinceVersionFieldBuilder() {
       if (sinceVersionBuilder_ == null) {
         sinceVersionBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1009,7 +1009,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
      */
     public com.google.protobuf.Int32Value.Builder getSinceIndexBuilder() {
-      
+
       onChanged();
       return getSinceIndexFieldBuilder().getBuilder();
     }
@@ -1036,7 +1036,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> 
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>
         getSinceIndexFieldBuilder() {
       if (sinceIndexBuilder_ == null) {
         sinceIndexBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1049,26 +1049,26 @@ private static final long serialVersionUID = 0L;
       return sinceIndexBuilder_;
     }
 
-    private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria> criteria_ =
+    private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria> criteria_ =
       java.util.Collections.emptyList();
     private void ensureCriteriaIsMutable() {
       if (!((bitField0_ & 0x00000001) != 0)) {
-        criteria_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria>(criteria_);
+        criteria_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria>(criteria_);
         bitField0_ |= 0x00000001;
        }
     }
 
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria, io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria.Builder, io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteriaOrBuilder> criteriaBuilder_;
+        io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria, io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria.Builder, io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteriaOrBuilder> criteriaBuilder_;
 
     /**
      * <pre>
      * The criteria of the capture, allows to define constraints on the returned mutations
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria> getCriteriaList() {
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria> getCriteriaList() {
       if (criteriaBuilder_ == null) {
         return java.util.Collections.unmodifiableList(criteria_);
       } else {
@@ -1080,7 +1080,7 @@ private static final long serialVersionUID = 0L;
      * The criteria of the capture, allows to define constraints on the returned mutations
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
      */
     public int getCriteriaCount() {
       if (criteriaBuilder_ == null) {
@@ -1094,9 +1094,9 @@ private static final long serialVersionUID = 0L;
      * The criteria of the capture, allows to define constraints on the returned mutations
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria getCriteria(int index) {
+    public io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria getCriteria(int index) {
       if (criteriaBuilder_ == null) {
         return criteria_.get(index);
       } else {
@@ -1108,10 +1108,10 @@ private static final long serialVersionUID = 0L;
      * The criteria of the capture, allows to define constraints on the returned mutations
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
      */
     public Builder setCriteria(
-        int index, io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria value) {
+        int index, io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria value) {
       if (criteriaBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
@@ -1129,10 +1129,10 @@ private static final long serialVersionUID = 0L;
      * The criteria of the capture, allows to define constraints on the returned mutations
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
      */
     public Builder setCriteria(
-        int index, io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria.Builder builderForValue) {
+        int index, io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria.Builder builderForValue) {
       if (criteriaBuilder_ == null) {
         ensureCriteriaIsMutable();
         criteria_.set(index, builderForValue.build());
@@ -1147,9 +1147,9 @@ private static final long serialVersionUID = 0L;
      * The criteria of the capture, allows to define constraints on the returned mutations
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
      */
-    public Builder addCriteria(io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria value) {
+    public Builder addCriteria(io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria value) {
       if (criteriaBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
@@ -1167,10 +1167,10 @@ private static final long serialVersionUID = 0L;
      * The criteria of the capture, allows to define constraints on the returned mutations
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
      */
     public Builder addCriteria(
-        int index, io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria value) {
+        int index, io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria value) {
       if (criteriaBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
@@ -1188,10 +1188,10 @@ private static final long serialVersionUID = 0L;
      * The criteria of the capture, allows to define constraints on the returned mutations
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
      */
     public Builder addCriteria(
-        io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria.Builder builderForValue) {
+        io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria.Builder builderForValue) {
       if (criteriaBuilder_ == null) {
         ensureCriteriaIsMutable();
         criteria_.add(builderForValue.build());
@@ -1206,10 +1206,10 @@ private static final long serialVersionUID = 0L;
      * The criteria of the capture, allows to define constraints on the returned mutations
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
      */
     public Builder addCriteria(
-        int index, io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria.Builder builderForValue) {
+        int index, io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria.Builder builderForValue) {
       if (criteriaBuilder_ == null) {
         ensureCriteriaIsMutable();
         criteria_.add(index, builderForValue.build());
@@ -1224,10 +1224,10 @@ private static final long serialVersionUID = 0L;
      * The criteria of the capture, allows to define constraints on the returned mutations
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
      */
     public Builder addAllCriteria(
-        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria> values) {
+        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria> values) {
       if (criteriaBuilder_ == null) {
         ensureCriteriaIsMutable();
         com.google.protobuf.AbstractMessageLite.Builder.addAll(
@@ -1243,7 +1243,7 @@ private static final long serialVersionUID = 0L;
      * The criteria of the capture, allows to define constraints on the returned mutations
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
      */
     public Builder clearCriteria() {
       if (criteriaBuilder_ == null) {
@@ -1260,7 +1260,7 @@ private static final long serialVersionUID = 0L;
      * The criteria of the capture, allows to define constraints on the returned mutations
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
      */
     public Builder removeCriteria(int index) {
       if (criteriaBuilder_ == null) {
@@ -1277,9 +1277,9 @@ private static final long serialVersionUID = 0L;
      * The criteria of the capture, allows to define constraints on the returned mutations
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria.Builder getCriteriaBuilder(
+    public io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria.Builder getCriteriaBuilder(
         int index) {
       return getCriteriaFieldBuilder().getBuilder(index);
     }
@@ -1288,9 +1288,9 @@ private static final long serialVersionUID = 0L;
      * The criteria of the capture, allows to define constraints on the returned mutations
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteriaOrBuilder getCriteriaOrBuilder(
+    public io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteriaOrBuilder getCriteriaOrBuilder(
         int index) {
       if (criteriaBuilder_ == null) {
         return criteria_.get(index);  } else {
@@ -1302,9 +1302,9 @@ private static final long serialVersionUID = 0L;
      * The criteria of the capture, allows to define constraints on the returned mutations
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteriaOrBuilder> 
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteriaOrBuilder>
          getCriteriaOrBuilderList() {
       if (criteriaBuilder_ != null) {
         return criteriaBuilder_.getMessageOrBuilderList();
@@ -1317,41 +1317,41 @@ private static final long serialVersionUID = 0L;
      * The criteria of the capture, allows to define constraints on the returned mutations
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria.Builder addCriteriaBuilder() {
+    public io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria.Builder addCriteriaBuilder() {
       return getCriteriaFieldBuilder().addBuilder(
-          io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria.getDefaultInstance());
+          io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria.getDefaultInstance());
     }
     /**
      * <pre>
      * The criteria of the capture, allows to define constraints on the returned mutations
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria.Builder addCriteriaBuilder(
+    public io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria.Builder addCriteriaBuilder(
         int index) {
       return getCriteriaFieldBuilder().addBuilder(
-          index, io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria.getDefaultInstance());
+          index, io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria.getDefaultInstance());
     }
     /**
      * <pre>
      * The criteria of the capture, allows to define constraints on the returned mutations
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria.Builder> 
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria.Builder>
          getCriteriaBuilderList() {
       return getCriteriaFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria, io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria.Builder, io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteriaOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria, io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria.Builder, io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteriaOrBuilder>
         getCriteriaFieldBuilder() {
       if (criteriaBuilder_ == null) {
         criteriaBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
-            io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria, io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria.Builder, io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteriaOrBuilder>(
+            io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria, io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria.Builder, io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteriaOrBuilder>(
                 criteria_,
                 ((bitField0_ & 0x00000001) != 0),
                 getParentForChildren(),
@@ -1367,7 +1367,7 @@ private static final long serialVersionUID = 0L;
      * The scope of the returned data - either header of the mutation, or the whole mutation
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureContent content = 4;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 4;</code>
      * @return The enum numeric value on the wire for content.
      */
     @java.lang.Override public int getContentValue() {
@@ -1378,12 +1378,12 @@ private static final long serialVersionUID = 0L;
      * The scope of the returned data - either header of the mutation, or the whole mutation
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureContent content = 4;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 4;</code>
      * @param value The enum numeric value on the wire for content to set.
      * @return This builder for chaining.
      */
     public Builder setContentValue(int value) {
-      
+
       content_ = value;
       onChanged();
       return this;
@@ -1393,29 +1393,29 @@ private static final long serialVersionUID = 0L;
      * The scope of the returned data - either header of the mutation, or the whole mutation
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureContent content = 4;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 4;</code>
      * @return The content.
      */
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcCaptureContent getContent() {
+    public io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent getContent() {
       @SuppressWarnings("deprecation")
-      io.evitadb.externalApi.grpc.generated.GrpcCaptureContent result = io.evitadb.externalApi.grpc.generated.GrpcCaptureContent.valueOf(content_);
-      return result == null ? io.evitadb.externalApi.grpc.generated.GrpcCaptureContent.UNRECOGNIZED : result;
+      io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent result = io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent.valueOf(content_);
+      return result == null ? io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent.UNRECOGNIZED : result;
     }
     /**
      * <pre>
      * The scope of the returned data - either header of the mutation, or the whole mutation
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureContent content = 4;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 4;</code>
      * @param value The content to set.
      * @return This builder for chaining.
      */
-    public Builder setContent(io.evitadb.externalApi.grpc.generated.GrpcCaptureContent value) {
+    public Builder setContent(io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent value) {
       if (value == null) {
         throw new NullPointerException();
       }
-      
+
       content_ = value.getNumber();
       onChanged();
       return this;
@@ -1425,11 +1425,11 @@ private static final long serialVersionUID = 0L;
      * The scope of the returned data - either header of the mutation, or the whole mutation
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureContent content = 4;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 4;</code>
      * @return This builder for chaining.
      */
     public Builder clearContent() {
-      
+
       content_ = 0;
       onChanged();
       return this;

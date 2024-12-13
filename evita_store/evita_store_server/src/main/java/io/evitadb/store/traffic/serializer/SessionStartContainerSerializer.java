@@ -28,7 +28,7 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.store.traffic.data.SessionStartContainer;
+import io.evitadb.api.requestResponse.trafficRecording.SessionStartContainer;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link SessionStartContainer} type.

@@ -29,8 +29,8 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.query.Query;
-import io.evitadb.store.traffic.data.QueryContainer;
-import io.evitadb.store.traffic.data.QueryContainer.Label;
+import io.evitadb.api.requestResponse.trafficRecording.QueryContainer;
+import io.evitadb.api.requestResponse.trafficRecording.QueryContainer.Label;
 
 import java.io.Serializable;
 import java.time.OffsetDateTime;

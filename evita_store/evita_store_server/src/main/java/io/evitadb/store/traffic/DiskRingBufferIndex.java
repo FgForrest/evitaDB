@@ -24,18 +24,17 @@
 package io.evitadb.store.traffic;
 
 
+import io.evitadb.api.requestResponse.trafficRecording.EntityEnrichmentContainer;
+import io.evitadb.api.requestResponse.trafficRecording.EntityFetchContainer;
+import io.evitadb.api.requestResponse.trafficRecording.MutationContainer;
+import io.evitadb.api.requestResponse.trafficRecording.QueryContainer;
+import io.evitadb.api.requestResponse.trafficRecording.SessionCloseContainer;
+import io.evitadb.api.requestResponse.trafficRecording.SessionStartContainer;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest.TrafficRecordingType;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.store.model.FileLocation;
-import io.evitadb.store.traffic.data.MutationContainer;
-import io.evitadb.store.traffic.data.QueryContainer;
-import io.evitadb.store.traffic.data.RecordEnrichmentContainer;
-import io.evitadb.store.traffic.data.RecordFetchContainer;
-import io.evitadb.store.traffic.data.SessionCloseContainer;
-import io.evitadb.store.traffic.data.SessionLocation;
-import io.evitadb.store.traffic.data.SessionStartContainer;
 
 import javax.annotation.Nonnull;
 import java.time.OffsetDateTime;
@@ -149,9 +148,9 @@ public class DiskRingBufferIndex {
 			emptyRemovalQueue();
 		} else if (recording instanceof QueryContainer qc) {
 
-		} else if (recording instanceof RecordFetchContainer rfc) {
+		} else if (recording instanceof EntityFetchContainer rfc) {
 
-		} else if (recording instanceof RecordEnrichmentContainer rec) {
+		} else if (recording instanceof EntityEnrichmentContainer rec) {
 
 		} else if (recording instanceof MutationContainer mc) {
 

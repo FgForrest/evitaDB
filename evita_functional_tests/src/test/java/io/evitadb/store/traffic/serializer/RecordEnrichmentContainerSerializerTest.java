@@ -23,7 +23,7 @@
 
 package io.evitadb.store.traffic.serializer;
 
-import io.evitadb.store.traffic.data.RecordEnrichmentContainer;
+import io.evitadb.api.requestResponse.trafficRecording.EntityEnrichmentContainer;
 import org.junit.jupiter.api.Test;
 
 import java.time.OffsetDateTime;
@@ -42,7 +42,7 @@ class RecordEnrichmentContainerSerializerTest extends AbstractContainerSerialize
 	@Test
 	void shouldSerializeAndDeserializeContainer() {
 		assertSerializationRound(
-			new RecordEnrichmentContainer(
+			new EntityEnrichmentContainer(
 				UUID.randomUUID(),
 				4,
 				query(

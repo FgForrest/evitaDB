@@ -30,20 +30,20 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.query.Query;
-import io.evitadb.store.traffic.data.RecordFetchContainer;
+import io.evitadb.api.requestResponse.trafficRecording.EntityFetchContainer;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
 /**
- * This {@link Serializer} implementation reads/writes {@link RecordFetchContainer} type.
+ * This {@link Serializer} implementation reads/writes {@link EntityFetchContainer} type.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public class RecordFetchContainerSerializer extends Serializer<RecordFetchContainer> {
+public class RecordFetchContainerSerializer extends Serializer<EntityFetchContainer> {
 
 	@Override
-	public void write(Kryo kryo, Output output, RecordFetchContainer object) {
+	public void write(Kryo kryo, Output output, EntityFetchContainer object) {
 		kryo.writeObject(output, object.sessionId());
 		output.writeVarInt(object.recordSessionOffset(), true);
 		kryo.writeObject(output, object.query());
@@ -55,8 +55,8 @@ public class RecordFetchContainerSerializer extends Serializer<RecordFetchContai
 	}
 
 	@Override
-	public RecordFetchContainer read(Kryo kryo, Input input, Class<? extends RecordFetchContainer> type) {
-		return new RecordFetchContainer(
+	public EntityFetchContainer read(Kryo kryo, Input input, Class<? extends EntityFetchContainer> type) {
+		return new EntityFetchContainer(
 			kryo.readObject(input, UUID.class),
 			input.readVarInt(true),
 			kryo.readObject(input, Query.class),

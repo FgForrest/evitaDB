@@ -23,7 +23,7 @@
 
 package io.evitadb.store.traffic.serializer;
 
-import io.evitadb.store.traffic.data.SessionCloseContainer;
+import io.evitadb.api.requestResponse.trafficRecording.SessionCloseContainer;
 import org.junit.jupiter.api.Test;
 
 import java.time.OffsetDateTime;

@@ -24,6 +24,7 @@
 package io.evitadb.core.traffic;
 
 
+import io.evitadb.api.TrafficRecordingReader;
 import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.observability.trace.TracingBlockReference;
 import io.evitadb.api.observability.trace.TracingContext;

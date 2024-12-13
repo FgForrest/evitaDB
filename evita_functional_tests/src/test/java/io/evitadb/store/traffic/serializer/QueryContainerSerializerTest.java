@@ -23,8 +23,8 @@
 
 package io.evitadb.store.traffic.serializer;
 
-import io.evitadb.store.traffic.data.QueryContainer;
-import io.evitadb.store.traffic.data.QueryContainer.Label;
+import io.evitadb.api.requestResponse.trafficRecording.QueryContainer;
+import io.evitadb.api.requestResponse.trafficRecording.QueryContainer.Label;
 import org.junit.jupiter.api.Test;
 
 import java.time.OffsetDateTime;

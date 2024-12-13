@@ -25,7 +25,6 @@ package io.evitadb.store.traffic;
 
 import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.traffic.OffHeapTrafficRecorder.MemoryNotAvailableException;
-import io.evitadb.store.traffic.data.SessionLocation;
 import io.evitadb.utils.FileUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;

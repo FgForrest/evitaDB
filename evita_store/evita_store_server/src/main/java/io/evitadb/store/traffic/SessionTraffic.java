@@ -23,17 +23,17 @@
 
 package io.evitadb.store.traffic;
 
+import io.evitadb.api.requestResponse.trafficRecording.EntityFetchContainer;
+import io.evitadb.api.requestResponse.trafficRecording.MutationContainer;
+import io.evitadb.api.requestResponse.trafficRecording.QueryContainer;
+import io.evitadb.api.requestResponse.trafficRecording.QueryContainer.Label;
+import io.evitadb.api.requestResponse.trafficRecording.SourceQueryStatisticsContainer;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest.TrafficRecordingType;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.traffic.OffHeapTrafficRecorder.MemoryNotAvailableException;
 import io.evitadb.store.traffic.OffHeapTrafficRecorder.NumberedByteBuffer;
-import io.evitadb.store.traffic.data.MutationContainer;
-import io.evitadb.store.traffic.data.QueryContainer;
-import io.evitadb.store.traffic.data.QueryContainer.Label;
-import io.evitadb.store.traffic.data.RecordFetchContainer;
-import io.evitadb.store.traffic.data.SourceQueryStatisticsContainer;
 import io.evitadb.store.traffic.stream.RecoverableOutputStream;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
@@ -240,7 +240,7 @@ public class SessionTraffic {
 			}
 		} else if (container instanceof MutationContainer) {
 			this.mutationCounter.incrementAndGet();
-		} else if (container instanceof RecordFetchContainer) {
+		} else if (container instanceof EntityFetchContainer) {
 			this.entityFetchCounter.incrementAndGet();
 		}
 	}

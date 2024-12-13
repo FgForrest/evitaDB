@@ -30,7 +30,7 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.mutation.Mutation;
-import io.evitadb.store.traffic.data.MutationContainer;
+import io.evitadb.api.requestResponse.trafficRecording.MutationContainer;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;

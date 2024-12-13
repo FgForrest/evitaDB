@@ -25,6 +25,7 @@ package io.evitadb.core;
 
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.TrafficRecordingReader;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.exception.TransactionException;
@@ -52,7 +53,7 @@ import java.util.function.Function;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public interface EvitaInternalSessionContract extends EvitaSessionContract {
+public interface EvitaInternalSessionContract extends EvitaSessionContract, TrafficRecordingReader {
 
 	/**
 	 * Returns date and time this session was created.

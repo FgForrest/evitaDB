@@ -31,7 +31,6 @@ import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.traffic.OffHeapTrafficRecorder.MemoryNotAvailableException;
-import io.evitadb.store.traffic.data.SessionLocation;
 import io.evitadb.utils.Assert;
 import lombok.AccessLevel;
 import lombok.Getter;

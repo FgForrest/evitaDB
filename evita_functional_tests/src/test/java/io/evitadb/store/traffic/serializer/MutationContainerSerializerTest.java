@@ -24,7 +24,7 @@
 package io.evitadb.store.traffic.serializer;
 
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
-import io.evitadb.store.traffic.data.MutationContainer;
+import io.evitadb.api.requestResponse.trafficRecording.MutationContainer;
 import org.junit.jupiter.api.Test;
 
 import java.time.OffsetDateTime;

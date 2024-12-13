@@ -24,15 +24,15 @@
 package io.evitadb.store.traffic;
 
 import com.esotericsoftware.kryo.Kryo;
+import io.evitadb.api.requestResponse.trafficRecording.EntityEnrichmentContainer;
+import io.evitadb.api.requestResponse.trafficRecording.EntityFetchContainer;
+import io.evitadb.api.requestResponse.trafficRecording.MutationContainer;
+import io.evitadb.api.requestResponse.trafficRecording.QueryContainer;
+import io.evitadb.api.requestResponse.trafficRecording.SessionCloseContainer;
+import io.evitadb.api.requestResponse.trafficRecording.SessionStartContainer;
+import io.evitadb.api.requestResponse.trafficRecording.SourceQueryContainer;
+import io.evitadb.api.requestResponse.trafficRecording.SourceQueryStatisticsContainer;
 import io.evitadb.core.traffic.TrafficRecorder;
-import io.evitadb.store.traffic.data.MutationContainer;
-import io.evitadb.store.traffic.data.QueryContainer;
-import io.evitadb.store.traffic.data.RecordEnrichmentContainer;
-import io.evitadb.store.traffic.data.RecordFetchContainer;
-import io.evitadb.store.traffic.data.SessionCloseContainer;
-import io.evitadb.store.traffic.data.SessionStartContainer;
-import io.evitadb.store.traffic.data.SourceQueryContainer;
-import io.evitadb.store.traffic.data.SourceQueryStatisticsContainer;
 import io.evitadb.store.traffic.serializer.MutationContainerSerializer;
 import io.evitadb.store.traffic.serializer.QueryContainerSerializer;
 import io.evitadb.store.traffic.serializer.RecordEnrichmentContainerSerializer;
@@ -60,8 +60,8 @@ public class TrafficRecordingSerializationKryoConfigurer implements Consumer<Kry
 		kryo.register(SessionCloseContainer.class, new SessionCloseContainerSerializer(), index++);
 		kryo.register(QueryContainer.class, new QueryContainerSerializer(), index++);
 		kryo.register(MutationContainer.class, new MutationContainerSerializer(), index++);
-		kryo.register(RecordFetchContainer.class, new RecordFetchContainerSerializer(), index++);
-		kryo.register(RecordEnrichmentContainer.class, new RecordEnrichmentContainerSerializer(), index++);
+		kryo.register(EntityFetchContainer.class, new RecordFetchContainerSerializer(), index++);
+		kryo.register(EntityEnrichmentContainer.class, new RecordEnrichmentContainerSerializer(), index++);
 		kryo.register(SourceQueryContainer.class, new SourceQueryContainerSerializer(), index++);
 		kryo.register(SourceQueryStatisticsContainer.class, new SourceQueryStatisticsContainerSerializer(), index++);
 
