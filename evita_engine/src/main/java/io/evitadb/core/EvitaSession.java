@@ -80,6 +80,7 @@ import io.evitadb.core.exception.CatalogCorruptedException;
 import io.evitadb.core.metric.event.query.EntityEnrichEvent;
 import io.evitadb.core.metric.event.query.EntityFetchEvent;
 import io.evitadb.core.query.response.ServerEntityDecorator;
+import io.evitadb.core.traffic.TrafficRecordingEngine;
 import io.evitadb.core.transaction.TransactionWalFinalizer;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInternalError;
@@ -1389,16 +1390,25 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return false;
 	}
 
-	/**
-	 * Retrieves a CompletableFuture that represents the finalization status of a session. If the catalog is in
-	 * transactional mode, the future will respect the requested {@link CommitBehavior} bound to the current transaction.
-	 *
-	 * @return completable future returning new catalog version introduced by this session
-	 */
 	@Nonnull
 	@Override
 	public CompletableFuture<Long> getFinalizationFuture() {
 		return this.finalizationFuture;
+	}
+
+	@Nonnull
+	@Override
+	public UUID recordSourceQuery(@Nonnull String sourceQuery, @Nonnull String queryType) {
+		final TrafficRecordingEngine trafficRecorder = this.catalog.get().getTrafficRecorder();
+		final UUID sourceQueryId = UUIDUtil.randomUUID();
+		trafficRecorder.setupSourceQuery(id, sourceQueryId, sourceQuery, queryType);
+		return sourceQueryId;
+	}
+
+	@Override
+	public void finalizeSourceQuery(@Nonnull UUID sourceQueryId) {
+		final TrafficRecordingEngine trafficRecorder = this.catalog.get().getTrafficRecorder();
+		trafficRecorder.closeSourceQuery(id, sourceQueryId);
 	}
 
 	/**

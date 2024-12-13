@@ -200,9 +200,9 @@ public class Query implements Serializable, PrettyPrintable {
 	@Deprecated
 	@Nonnull
 	public Query normalizeQuery(
-		@Nullable UnaryOperator<Constraint<?>> filterConstraintTranslator,
-		@Nullable UnaryOperator<Constraint<?>> orderConstraintTranslator,
-		@Nullable UnaryOperator<Constraint<?>> requireConstraintTranslator
+		@Nullable UnaryOperator<FilterConstraint> filterConstraintTranslator,
+		@Nullable UnaryOperator<OrderConstraint> orderConstraintTranslator,
+		@Nullable UnaryOperator<RequireConstraint> requireConstraintTranslator
 	) {
 		return normalizeQuery(
 			null,
@@ -220,17 +220,17 @@ public class Query implements Serializable, PrettyPrintable {
 	 */
 	@Nonnull
 	public Query normalizeQuery(
-		@Nullable UnaryOperator<Constraint<?>> headConstraintTranslator,
-		@Nullable UnaryOperator<Constraint<?>> filterConstraintTranslator,
-		@Nullable UnaryOperator<Constraint<?>> orderConstraintTranslator,
-		@Nullable UnaryOperator<Constraint<?>> requireConstraintTranslator
+		@Nullable UnaryOperator<HeadConstraint> headConstraintTranslator,
+		@Nullable UnaryOperator<FilterConstraint> filterConstraintTranslator,
+		@Nullable UnaryOperator<OrderConstraint> orderConstraintTranslator,
+		@Nullable UnaryOperator<RequireConstraint> requireConstraintTranslator
 	) {
 		// avoid costly normalization on already normalized query
 		if (normalized) {
 			return this;
 		}
 
-		final HeadConstraint normalizedHead = this.head == null ? null : (HeadConstraint) purify(this.head, headConstraintTranslator);
+		final HeadConstraint normalizedHead = this.head == null ? null : purify(this.head, headConstraintTranslator);
 		final FilterBy normalizedFilter = this.filterBy == null ? null : (FilterBy) purify(this.filterBy, filterConstraintTranslator);
 		final OrderBy normalizedOrder = this.orderBy == null ? null : (OrderBy) purify(this.orderBy, orderConstraintTranslator);
 		final Require normalizedRequire = this.require == null ? null : (Require) purify(this.require, requireConstraintTranslator);
@@ -263,9 +263,9 @@ public class Query implements Serializable, PrettyPrintable {
 		return PrettyPrintingVisitor.toStringWithParameterExtraction(this);
 	}
 
-	@SuppressWarnings("unchecked")
-	private static <T extends Constraint<T>> T purify(@Nonnull Constraint<?> constraint, @Nullable UnaryOperator<Constraint<?>> translator) {
-		return (T) QueryPurifierVisitor.purify(constraint, translator);
+	@Nullable
+	private static <T extends Constraint<T>> T purify(@Nonnull T constraint, @Nullable UnaryOperator<T> translator) {
+		return QueryPurifierVisitor.purify(constraint, translator);
 	}
 
 }

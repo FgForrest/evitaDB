@@ -65,6 +65,7 @@ import io.evitadb.externalApi.grpc.query.QueryConverter;
 import io.evitadb.externalApi.grpc.testUtils.SessionInitializer;
 import io.evitadb.externalApi.grpc.testUtils.TestDataProvider;
 import io.evitadb.externalApi.grpc.utils.QueryUtil;
+import io.evitadb.externalApi.grpc.utils.QueryWithParameters;
 import io.evitadb.externalApi.system.SystemProvider;
 import io.evitadb.server.EvitaServer;
 import io.evitadb.test.Entities;
@@ -256,11 +257,11 @@ class EvitaSessionServiceFunctionalTest {
 
 		assertDoesNotThrow(executable);
 
-		final Query query = QueryUtil.parseQuery(stringQuery, params, null);
+		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, params, Collections.emptyMap(), null);
 
 		assertNotNull(query);
 
-		final EvitaResponse<EntityReference> entityResponse = evita.createReadOnlySession(TEST_CATALOG).query(query, EntityReference.class);
+		final EvitaResponse<EntityReference> entityResponse = evita.createReadOnlySession(TEST_CATALOG).query(query.parsedQuery(), EntityReference.class);
 
 		assertEquals(entityResponse.getRecordData().size(), response.get().getRecordPage().getEntityReferencesCount());
 
@@ -312,11 +313,11 @@ class EvitaSessionServiceFunctionalTest {
 
 		assertDoesNotThrow(executable);
 
-		final Query query = QueryUtil.parseQuery(stringQuery, params, null);
+		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, params, Collections.emptyMap(), null);
 
 		assertNotNull(query);
 
-		final List<EntityReference> entityResponse = evita.createReadOnlySession(TEST_CATALOG).queryListOfEntityReferences(query);
+		final List<EntityReference> entityResponse = evita.createReadOnlySession(TEST_CATALOG).queryListOfEntityReferences(query.parsedQuery());
 
 		for (int i = 0; i < entityResponse.size(); i++) {
 			final GrpcEntityReference grpcEntityReference = response.get().getEntityReferencesList().get(i);
@@ -401,12 +402,12 @@ class EvitaSessionServiceFunctionalTest {
 
 		assertDoesNotThrow(executable);
 
-		final Query query = QueryUtil.parseQuery(stringQuery, params, null);
+		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, params, Collections.emptyMap(), null);
 
 		assertNotNull(query);
 
 		final EntityReference entity = evita.createReadOnlySession(TEST_CATALOG)
-			.queryOneEntityReference(query)
+			.queryOneEntityReference(query.parsedQuery())
 			.orElseThrow();
 
 		final GrpcEntityReference grpcEntityReference = response.get().getEntityReference();
@@ -511,14 +512,14 @@ class EvitaSessionServiceFunctionalTest {
 
 		assertDoesNotThrow(executable);
 
-		final Query query = QueryUtil.parseQuery(stringQuery, params, null);
+		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, params, Collections.emptyMap(), null);
 
 		assertNotNull(query);
 
 		assertNotEquals(0, response.get().getRecordPage().getSealedEntitiesCount());
 		assertEquals(0, response.get().getRecordPage().getEntityReferencesCount());
 
-		final EvitaResponse<SealedEntity> entityResponse = evita.createReadOnlySession(TEST_CATALOG).query(query, SealedEntity.class);
+		final EvitaResponse<SealedEntity> entityResponse = evita.createReadOnlySession(TEST_CATALOG).query(query.parsedQuery(), SealedEntity.class);
 
 		for (int i = 0; i < entityResponse.getRecordData().size(); i++) {
 			final SealedEntity entity = entityResponse.getRecordData().get(i);
@@ -575,14 +576,14 @@ class EvitaSessionServiceFunctionalTest {
 
 		assertDoesNotThrow(executable);
 
-		final Query query = QueryUtil.parseQuery(stringQuery, params, null);
+		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, params, Collections.emptyMap(), null);
 
 		assertNotNull(query);
 
 		assertNotEquals(0, response.get().getRecordPage().getSealedEntitiesCount());
 		assertEquals(0, response.get().getRecordPage().getEntityReferencesCount());
 
-		final EvitaResponse<SealedEntity> entityResponse = evita.createReadOnlySession(TEST_CATALOG).query(query, SealedEntity.class);
+		final EvitaResponse<SealedEntity> entityResponse = evita.createReadOnlySession(TEST_CATALOG).query(query.parsedQuery(), SealedEntity.class);
 
 		for (int i = 0; i < entityResponse.getRecordData().size(); i++) {
 			final SealedEntity entity = entityResponse.getRecordData().get(i);
@@ -685,14 +686,14 @@ class EvitaSessionServiceFunctionalTest {
 
 		assertDoesNotThrow(executable);
 
-		final Query query = QueryUtil.parseQuery(stringQuery, params, null);
+		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, params, Collections.emptyMap(), null);
 
 		assertNotNull(query);
 
 		assertNotEquals(0, response.get().getRecordPage().getSealedEntitiesCount());
 		assertEquals(0, response.get().getRecordPage().getEntityReferencesCount());
 
-		final EvitaResponse<SealedEntity> entityResponse = evita.createReadOnlySession(TEST_CATALOG).query(query, SealedEntity.class);
+		final EvitaResponse<SealedEntity> entityResponse = evita.createReadOnlySession(TEST_CATALOG).query(query.parsedQuery(), SealedEntity.class);
 
 		for (int i = 0; i < entityResponse.getRecordData().size(); i++) {
 			final SealedEntity entity = entityResponse.getRecordData().get(i);
@@ -778,14 +779,14 @@ class EvitaSessionServiceFunctionalTest {
 
 		assertDoesNotThrow(executable);
 
-		final Query query = QueryUtil.parseQuery(stringQuery, positionalParams, namedParams, null);
+		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, positionalParams, namedParams, null);
 
 		assertNotNull(query);
 
 		assertNotEquals(0, response.get().getRecordPage().getSealedEntitiesCount());
 		assertEquals(0, response.get().getRecordPage().getEntityReferencesCount());
 
-		final EvitaResponse<SealedEntity> entityResponse = evita.createReadOnlySession(TEST_CATALOG).query(query, SealedEntity.class);
+		final EvitaResponse<SealedEntity> entityResponse = evita.createReadOnlySession(TEST_CATALOG).query(query.parsedQuery(), SealedEntity.class);
 
 		for (int i = 0; i < entityResponse.getRecordData().size(); i++) {
 			final SealedEntity entity = entityResponse.getRecordData().get(i);
@@ -875,14 +876,14 @@ class EvitaSessionServiceFunctionalTest {
 
 		assertDoesNotThrow(executable);
 
-		final Query query = QueryUtil.parseQuery(stringQuery, positionalParams, null);
+		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, positionalParams, Collections.emptyMap(), null);
 
 		assertNotNull(query);
 
 		assertNotEquals(0, response.get().getRecordPage().getSealedEntitiesCount());
 		assertEquals(0, response.get().getRecordPage().getEntityReferencesCount());
 
-		final EvitaResponse<SealedEntity> entityResponse = evita.createReadOnlySession(TEST_CATALOG).query(query, SealedEntity.class);
+		final EvitaResponse<SealedEntity> entityResponse = evita.createReadOnlySession(TEST_CATALOG).query(query.parsedQuery(), SealedEntity.class);
 
 		for (int i = 0; i < entityResponse.getRecordData().size(); i++) {
 			final SealedEntity entity = entityResponse.getRecordData().get(i);
@@ -968,14 +969,14 @@ class EvitaSessionServiceFunctionalTest {
 
 		assertDoesNotThrow(executable);
 
-		final Query query = QueryUtil.parseQuery(stringQuery, namedParams, null);
+		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, Collections.emptyList(), namedParams, null);
 
 		assertNotNull(query);
 
 		assertNotEquals(0, response.get().getRecordPage().getSealedEntitiesCount());
 		assertEquals(0, response.get().getRecordPage().getEntityReferencesCount());
 
-		final EvitaResponse<SealedEntity> entityResponse = evita.createReadOnlySession(TEST_CATALOG).query(query, SealedEntity.class);
+		final EvitaResponse<SealedEntity> entityResponse = evita.createReadOnlySession(TEST_CATALOG).query(query.parsedQuery(), SealedEntity.class);
 
 		for (int i = 0; i < entityResponse.getRecordData().size(); i++) {
 			final SealedEntity entity = entityResponse.getRecordData().get(i);
@@ -1050,14 +1051,14 @@ class EvitaSessionServiceFunctionalTest {
 
 		assertDoesNotThrow(executable);
 
-		final Query query = QueryUtil.parseQuery(stringQuery, params, null);
+		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, params, Collections.emptyMap(), null);
 
 		assertNotNull(query);
 
 		assertNotEquals(0, response.get().getRecordPage().getSealedEntitiesCount());
 		assertEquals(0, response.get().getRecordPage().getEntityReferencesCount());
 
-		final EvitaResponse<SealedEntity> entityResponse = evita.createReadOnlySession(TEST_CATALOG).query(query, SealedEntity.class);
+		final EvitaResponse<SealedEntity> entityResponse = evita.createReadOnlySession(TEST_CATALOG).query(query.parsedQuery(), SealedEntity.class);
 
 		for (int i = 0; i < entityResponse.getRecordData().size(); i++) {
 			final SealedEntity entity = entityResponse.getRecordData().get(i);
@@ -1140,14 +1141,14 @@ class EvitaSessionServiceFunctionalTest {
 
 		assertDoesNotThrow(executable);
 
-		final Query query = QueryUtil.parseQuery(stringQuery, params, null);
+		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, params, Collections.emptyMap(), null);
 
 		assertNotNull(query);
 
 		assertNotEquals(0, response.get().getRecordPage().getSealedEntitiesCount());
 		assertEquals(0, response.get().getRecordPage().getEntityReferencesCount());
 
-		final EvitaResponse<SealedEntity> entityResponse = evita.createReadOnlySession(TEST_CATALOG).query(query, SealedEntity.class);
+		final EvitaResponse<SealedEntity> entityResponse = evita.createReadOnlySession(TEST_CATALOG).query(query.parsedQuery(), SealedEntity.class);
 
 		for (int i = 0; i < entityResponse.getRecordData().size(); i++) {
 			final SealedEntity entity = entityResponse.getRecordData().get(i);
@@ -1218,14 +1219,14 @@ class EvitaSessionServiceFunctionalTest {
 
 		assertDoesNotThrow(executable);
 
-		final Query query = QueryUtil.parseQuery(stringQuery, params, null);
+		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, params, Collections.emptyMap(), null);
 
 		assertNotNull(query);
 
 		assertNotEquals(0, response.get().getRecordPage().getSealedEntitiesCount());
 		assertEquals(0, response.get().getRecordPage().getEntityReferencesCount());
 
-		final EvitaResponse<SealedEntity> entityResponse = evita.createReadOnlySession(TEST_CATALOG).query(query, SealedEntity.class);
+		final EvitaResponse<SealedEntity> entityResponse = evita.createReadOnlySession(TEST_CATALOG).query(query.parsedQuery(), SealedEntity.class);
 
 		assertAttributeHistograms(Objects.requireNonNull(entityResponse.getExtraResult(AttributeHistogram.class)), response.get().getExtraResults().getAttributeHistogramMap());
 		assertPriceHistogram(Objects.requireNonNull(entityResponse.getExtraResult(PriceHistogram.class)), response.get().getExtraResults().getPriceHistogram());
@@ -1284,13 +1285,13 @@ class EvitaSessionServiceFunctionalTest {
 
 		assertDoesNotThrow(executable);
 
-		final Query query = QueryUtil.parseQuery(stringQuery, params, null);
+		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, params, Collections.emptyMap(), null);
 
 		assertNotNull(query);
 
 		assertNotEquals(0, response.get().getRecordPage().getEntityReferencesCount());
 
-		final EvitaResponse<EntityReference> entityResponse = evita.createReadOnlySession(TEST_CATALOG).query(query, EntityReference.class);
+		final EvitaResponse<EntityReference> entityResponse = evita.createReadOnlySession(TEST_CATALOG).query(query.parsedQuery(), EntityReference.class);
 
 		assertFacetSummary(
 			Objects.requireNonNull(entityResponse.getExtraResult(FacetSummary.class)),
@@ -1338,11 +1339,11 @@ class EvitaSessionServiceFunctionalTest {
 
 		assertDoesNotThrow(executable);
 
-		final Query query = QueryUtil.parseQuery(stringQuery, params, null);
+		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, params, Collections.emptyMap(), null);
 
 		assertNotNull(query);
 
-		final EvitaResponse<EntityReference> referenceResponse = evita.createReadOnlySession(TEST_CATALOG).query(query, EntityReference.class);
+		final EvitaResponse<EntityReference> referenceResponse = evita.createReadOnlySession(TEST_CATALOG).query(query.parsedQuery(), EntityReference.class);
 
 		final Hierarchy hierarchyOfSelf = referenceResponse.getExtraResult(Hierarchy.class);
 
@@ -1403,11 +1404,11 @@ class EvitaSessionServiceFunctionalTest {
 
 		assertDoesNotThrow(executable);
 
-		final Query query = QueryUtil.parseQuery(stringQuery, params, null);
+		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, params, Collections.emptyMap(), null);
 
 		assertNotNull(query);
 
-		final EvitaResponse<SealedEntity> entityResponse = evita.createReadOnlySession(TEST_CATALOG).query(query, SealedEntity.class);
+		final EvitaResponse<SealedEntity> entityResponse = evita.createReadOnlySession(TEST_CATALOG).query(query.parsedQuery(), SealedEntity.class);
 
 		final GrpcExtraResults extraResults = response.get().getExtraResults();
 		assertHierarchy(
@@ -2485,11 +2486,11 @@ class EvitaSessionServiceFunctionalTest {
 
 		assertDoesNotThrow(executable);
 
-		final Query query = QueryUtil.parseQuery(stringQuery, params, null);
+		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, params, Collections.emptyMap(), null);
 
 		assertNotNull(query);
 
-		final List<BinaryEntity> entityResponse = evita.createSession(new SessionTraits(TEST_CATALOG, SessionFlags.BINARY)).queryList(query, BinaryEntity.class);
+		final List<BinaryEntity> entityResponse = evita.createSession(new SessionTraits(TEST_CATALOG, SessionFlags.BINARY)).queryList(query.parsedQuery(), BinaryEntity.class);
 
 		for (int i = 0; i < entityResponse.size(); i++) {
 			final GrpcBinaryEntity grpcBinaryEntity = response.get().getRecordPage().getBinaryEntitiesList().get(i);

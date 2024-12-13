@@ -30,7 +30,8 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 /**
- * TODO JNO - document me
+ * Traffic recording capture request is used to specify the criteria for retrieving contents from the traffic recording
+ * log.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
@@ -43,12 +44,44 @@ public record TrafficRecordingCaptureRequest(
 	@Nullable Integer fetchingMoreBytesThan
 ) {
 
+	/**
+	 * List of all possible traffic recording types.
+	 */
 	public enum TrafficRecordingType {
+		/**
+		 * evitaDB session opened.
+		 */
 		SESSION_START,
+		/**
+		 * evitaDB session closed.
+		 */
 		SESSION_FINISH,
+		/**
+		 * Query received via. API from the client - container contains original string of the client query.
+		 * API might call multiple queries related to the same source query.
+		 */
+		SOURCE_QUERY,
+		/**
+		 * Query received via. API from the client is finalized and sent to the client. Container contains the final
+		 * statistics aggregated over all operations related to the source query.
+		 */
+		SOURCE_QUERY_STATISTICS,
+		/**
+		 * Internal evitaDB query (evitaQL) was executed.
+		 */
 		QUERY,
+		/**
+		 * Internal call to retrieve single evitaDB entity. Record is not created for entities fetched as a part of
+		 * a query.
+		 */
 		FETCH,
+		/**
+		 * Internal call to enrich contents of the evitaDB entity.
+		 */
 		ENRICHMENT,
+		/**
+		 * Internal call to mutate the evitaDB entity or catalog schema.
+		 */
 		MUTATION
 	}
 

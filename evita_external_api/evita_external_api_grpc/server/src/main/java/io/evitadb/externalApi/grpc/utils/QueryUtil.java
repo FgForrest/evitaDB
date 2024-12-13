@@ -38,6 +38,7 @@ import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -110,56 +111,6 @@ public class QueryUtil {
 	 * Parse query with provided list of positional parameters.
 	 *
 	 * @param queryString      to be parsed
-	 * @param queryParams      to be used for parsing
-	 * @param responseObserver response observer for error handling
-	 * @param <T>              type of response message to be able to pass generic {@link StreamObserver}
-	 * @return parsed {@link Query}
-	 */
-	@Nullable
-	public static <T extends GeneratedMessageV3> Query parseQuery(
-		@Nonnull String queryString,
-		@Nonnull List<GrpcQueryParam> queryParams,
-		@Nullable StreamObserver<T> responseObserver
-	) {
-		try {
-			return parser.parseQuery(queryString, QueryConverter.convertQueryParamsList(queryParams));
-		} catch (Exception ex) {
-			if (responseObserver != null) {
-				sendErrorToClient(ex, responseObserver);
-			}
-			return null;
-		}
-	}
-
-	/**
-	 * Parse query with provided map of named parameters.
-	 *
-	 * @param queryString      to be parsed
-	 * @param queryParams      to be used for parsing
-	 * @param responseObserver response observer for error handling
-	 * @param <T>              type of response message to be able to pass generic {@link StreamObserver}
-	 * @return parsed {@link Query}
-	 */
-	@Nullable
-	public static <T extends GeneratedMessageV3> Query parseQuery(
-		@Nonnull String queryString,
-		@Nonnull Map<String, GrpcQueryParam> queryParams,
-		@Nullable StreamObserver<T> responseObserver
-	) {
-		try {
-			return parser.parseQuery(queryString, QueryConverter.convertQueryParamsMap(queryParams));
-		} catch (Exception ex) {
-			if (responseObserver != null) {
-				sendErrorToClient(ex, responseObserver);
-			}
-			return null;
-		}
-	}
-
-	/**
-	 * Parse query with provided list of positional parameters.
-	 *
-	 * @param queryString      to be parsed
 	 * @param queryParamsList  to be used for parsing query with substitutions placeholder characters for this list values
 	 * @param queryParamsMap   to be used for parsing query with substitutions named placeholders for this map values (key is name of placeholder)
 	 * @param responseObserver response observer for error handling
@@ -167,7 +118,7 @@ public class QueryUtil {
 	 * @return parsed {@link Query}
 	 */
 	@Nullable
-	public static <T extends GeneratedMessageV3> Query parseQuery(
+	public static <T extends GeneratedMessageV3> QueryWithParameters parseQuery(
 		@Nonnull String queryString,
 		@Nonnull List<GrpcQueryParam> queryParamsList,
 		@Nonnull Map<String, GrpcQueryParam> queryParamsMap,
@@ -175,42 +126,38 @@ public class QueryUtil {
 	) {
 		try {
 			if (queryParamsList.isEmpty() && queryParamsMap.isEmpty()) {
-				return parser.parseQuery(queryString);
+				return new QueryWithParameters(
+					parser.parseQuery(queryString),
+					Collections.emptyList(),
+					Collections.emptyMap()
+				);
+			} else if (queryParamsList.isEmpty()) {
+				final Map<String, Object> namedArguments = QueryConverter.convertQueryParamsMap(queryParamsMap);
+				return new QueryWithParameters(
+					parser.parseQuery(queryString, namedArguments, Collections.emptyList()),
+					Collections.emptyList(),
+					namedArguments
+				);
+			} else if (queryParamsMap.isEmpty()) {
+				final List<Object> positionalArguments = QueryConverter.convertQueryParamsList(queryParamsList);
+				return new QueryWithParameters(
+					parser.parseQuery(queryString, Collections.emptyMap(), positionalArguments),
+					positionalArguments,
+					Collections.emptyMap()
+				);
+			} else {
+				final Map<String, Object> namedArguments = QueryConverter.convertQueryParamsMap(queryParamsMap);
+				final List<Object> positionalArguments = QueryConverter.convertQueryParamsList(queryParamsList);
+				return new QueryWithParameters(
+					parser.parseQuery(
+						queryString,
+						namedArguments,
+						positionalArguments
+					),
+					positionalArguments,
+					namedArguments
+				);
 			}
-			if (queryParamsList.isEmpty()) {
-				return parseQuery(queryString, queryParamsMap, responseObserver);
-			}
-			if (queryParamsMap.isEmpty()) {
-				return parseQuery(queryString, queryParamsList, responseObserver);
-			}
-			return parser.parseQuery(
-				queryString,
-				QueryConverter.convertQueryParamsMap(queryParamsMap),
-				QueryConverter.convertQueryParamsList(queryParamsList)
-			);
-		} catch (Exception ex) {
-			if (responseObserver != null) {
-				sendErrorToClient(ex, responseObserver);
-			}
-			return null;
-		}
-	}
-
-	/**
-	 * Parse unsafe query.
-	 *
-	 * @param queryString      to be parsed
-	 * @param responseObserver response observer for error handling
-	 * @param <T>              type of response message to be able to pass generic {@link StreamObserver}
-	 * @return parsed {@link Query}
-	 */
-	@Nullable
-	public static <T extends GeneratedMessageV3> Query parseQueryUnsafe(
-		@Nonnull String queryString,
-		@Nullable StreamObserver<T> responseObserver
-	) {
-		try {
-			return parser.parseQueryUnsafe(queryString);
 		} catch (Exception ex) {
 			if (responseObserver != null) {
 				sendErrorToClient(ex, responseObserver);

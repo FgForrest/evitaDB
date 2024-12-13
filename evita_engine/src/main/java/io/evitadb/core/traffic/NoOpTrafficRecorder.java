@@ -23,8 +23,8 @@
 
 package io.evitadb.core.traffic;
 
-import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.configuration.TrafficRecordingOptions;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.head.Label;
 import io.evitadb.api.requestResponse.mutation.Mutation;
@@ -39,7 +39,7 @@ import java.util.UUID;
 
 /**
  * No-op implementation of the {@link TrafficRecorder} interface. This implementation does not record any traffic and
- * is used when recording is disabled by the {@link io.evitadb.api.configuration.ServerOptions#trafficRecording()} option.
+ * is used when recording is disabled by the {@link io.evitadb.api.configuration.TrafficRecordingOptions#enabled()} option.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
@@ -53,7 +53,7 @@ public class NoOpTrafficRecorder implements TrafficRecorder {
 		@Nonnull ExportFileService exportFileService,
 		@Nonnull Scheduler scheduler,
 		@Nonnull StorageOptions storageOptions,
-		@Nonnull ServerOptions serverOptions
+		@Nonnull TrafficRecordingOptions recordingOptions
 	) {
 		// no-op
 	}
@@ -98,6 +98,16 @@ public class NoOpTrafficRecorder implements TrafficRecorder {
 
 	@Override
 	public void recordMutation(@Nonnull UUID sessionId, @Nonnull OffsetDateTime now, @Nonnull Mutation mutation) {
+		// no-op
+	}
+
+	@Override
+	public void setupSourceQuery(@Nonnull UUID sessionId, @Nonnull UUID sourceQueryId, @Nonnull OffsetDateTime now, @Nonnull String sourceQuery, @Nonnull String queryType) {
+		// no-op
+	}
+
+	@Override
+	public void closeSourceQuery(@Nonnull UUID sessionId, @Nonnull UUID sourceQueryId) {
 		// no-op
 	}
 

@@ -23,8 +23,8 @@
 
 package io.evitadb.core.traffic;
 
-import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.configuration.TrafficRecordingOptions;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.head.Label;
 import io.evitadb.api.requestResponse.mutation.Mutation;
@@ -51,14 +51,14 @@ public interface TrafficRecorder {
 	 * @param exportFileService export file service
 	 * @param scheduler         scheduler
 	 * @param storageOptions    storage options
-	 * @param serverOptions     server options
+	 * @param recordingOptions  traffic recording options
 	 */
 	void init(
 		@Nonnull String catalogName,
 		@Nonnull ExportFileService exportFileService,
 		@Nonnull Scheduler scheduler,
 		@Nonnull StorageOptions storageOptions,
-		@Nonnull ServerOptions serverOptions
+		@Nonnull TrafficRecordingOptions recordingOptions
 	);
 
 	/**
@@ -150,6 +150,35 @@ public interface TrafficRecorder {
 		@Nonnull UUID sessionId,
 		@Nonnull OffsetDateTime now,
 		@Nonnull Mutation mutation
+	);
+
+	/**
+	 * Method registers RAW input query and assigns a unique identifier to it. All queries in this session that are
+	 * labeled with {@link Label#LABEL_SOURCE_QUERY} will be registered as sub-queries of this source query.
+	 *
+	 * @param sessionId unique identifier of the session the mutation belongs to
+	 * @param sourceQueryId unique identifier of the source query
+	 * @param sourceQuery   unparsed, raw source query in particular format
+	 * @param queryType     type of the query (e.g. GraphQL, REST, etc.)
+	 */
+	void setupSourceQuery(
+		@Nonnull UUID sessionId,
+		@Nonnull UUID sourceQueryId,
+		@Nonnull OffsetDateTime now,
+		@Nonnull String sourceQuery,
+		@Nonnull String queryType
+	);
+
+	/**
+	 * Method closes the source query and marks it as finalized. Overall statistics for all registered sub-queries
+	 * will be aggregated and stored in the traffic recording along with this record.
+	 *
+	 * @param sessionId unique identifier of the session the mutation belongs to
+	 * @param sourceQueryId unique identifier of the source query
+	 */
+	void closeSourceQuery(
+		@Nonnull UUID sessionId,
+		@Nonnull UUID sourceQueryId
 	);
 
 }

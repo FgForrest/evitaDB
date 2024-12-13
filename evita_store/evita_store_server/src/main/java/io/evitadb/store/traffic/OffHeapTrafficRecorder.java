@@ -25,8 +25,8 @@ package io.evitadb.store.traffic;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.util.Pool;
-import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.configuration.TrafficRecordingOptions;
 import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.head.Label;
@@ -51,6 +51,7 @@ import io.evitadb.store.traffic.data.RecordFetchContainer;
 import io.evitadb.store.traffic.data.SessionCloseContainer;
 import io.evitadb.store.traffic.data.SessionLocation;
 import io.evitadb.store.traffic.data.SessionStartContainer;
+import io.evitadb.store.traffic.data.SourceQueryContainer;
 import io.evitadb.store.traffic.event.TrafficRecorderStatisticsEvent;
 import io.evitadb.store.wal.WalKryoConfigurer;
 import io.evitadb.utils.Assert;
@@ -58,6 +59,7 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.Serial;
@@ -71,7 +73,6 @@ import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -108,10 +109,6 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		}
 	};
 	/**
-	 * Pool of byte arrays used for storing output data and reading input data.
-	 */
-	private Pool<byte[]> copyBufferPool;
-	/**
 	 * Private final variable to store a reference to a ByteBuffer object.
 	 * The AtomicReference class is used to provide thread-safe access to the memoryBlock.
 	 */
@@ -124,6 +121,30 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 	 * Queue of all sessions that were finished and are waiting to be written to disk buffer.
 	 */
 	private final Queue<SessionTraffic> finalizedSessions = new ConcurrentLinkedQueue<>();
+	/**
+	 * Counter of records used in sampling calculation.
+	 */
+	private final AtomicLong recordedRecords = new AtomicLong();
+	/**
+	 * Counter of missed records due to memory shortage or sampling.
+	 */
+	private final AtomicLong missedRecords = new AtomicLong();
+	/**
+	 * Counter of dropped sessions due to memory shortage.
+	 */
+	private final AtomicLong droppedSessions = new AtomicLong();
+	/**
+	 * Counter of created sessions.
+	 */
+	private final AtomicLong createdSessions = new AtomicLong();
+	/**
+	 * Counter of finished sessions.
+	 */
+	private final AtomicLong finishedSessions = new AtomicLong();
+	/**
+	 * Pool of byte arrays used for storing output data and reading input data.
+	 */
+	private Pool<byte[]> copyBufferPool;
 	/**
 	 * Reference to the export file service used for creating temporary files and creating export files.
 	 */
@@ -145,22 +166,6 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 	 * Zero means that all records are stored, 99 means that almost no records are stored.
 	 */
 	private int samplingPercentage;
-	/**
-	 * Counter of missed records due to memory shortage or sampling.
-	 */
-	private final AtomicLong missedRecords = new AtomicLong();
-	/**
-	 * Counter of dropped sessions due to memory shortage.
-	 */
-	private final AtomicLong droppedSessions = new AtomicLong();
-	/**
-	 * Counter of created sessions.
-	 */
-	private final AtomicLong createdSessions = new AtomicLong();
-	/**
-	 * Counter of finished sessions.
-	 */
-	private final AtomicLong finishedSessions = new AtomicLong();
 	/**
 	 * Contains reference to the asynchronous task executor that clears finalized session memory blocks and writes
 	 * them to disk buffer.
@@ -185,13 +190,13 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		@Nonnull ExportFileService exportFileService,
 		@Nonnull Scheduler scheduler,
 		@Nonnull StorageOptions storageOptions,
-		@Nonnull ServerOptions serverOptions
+		@Nonnull TrafficRecordingOptions recordingOptions
 	) {
 		this.catalogName = catalogName;
 		this.exportFileService = exportFileService;
-		this.samplingPercentage = serverOptions.trafficSamplingPercentage();
+		this.samplingPercentage = recordingOptions.trafficSamplingPercentage();
 
-		final long trafficMemoryBufferSizeInBytes = serverOptions.trafficMemoryBufferSizeInBytes();
+		final long trafficMemoryBufferSizeInBytes = recordingOptions.trafficMemoryBufferSizeInBytes();
 		Assert.isPremiseValid(
 			trafficMemoryBufferSizeInBytes > 0,
 			"Traffic memory buffer size must be greater than 0."
@@ -209,7 +214,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		// create ring buffer on disk
 		this.diskBuffer = new DiskRingBuffer(
 			exportFileService.createManagedTempFile("traffic-recording-buffer.bin"),
-			serverOptions.trafficDiskBufferSizeInBytes()
+			recordingOptions.trafficDiskBufferSizeInBytes()
 		);
 
 		this.freeMemoryTask = new DelayedAsyncTask(
@@ -227,27 +232,35 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 
 	@Override
 	public void createSession(@Nonnull UUID sessionId, long catalogVersion, @Nonnull OffsetDateTime created) {
-		final SessionTraffic sessionTraffic = new SessionTraffic(
-			sessionId,
-			catalogVersion,
-			created,
-			this.copyBufferPool.obtain(),
-			this::prepareStorageBlock
-		);
-		try {
-			final StorageRecord<SessionStartContainer> sessionStartRecord = new StorageRecord<>(
-				this.offHeapTrafficRecorderKryoPool.obtain(),
-				sessionTraffic.getObservableOutput(),
-				0L,
-				false,
-				new SessionStartContainer(sessionId, catalogVersion, created)
+		final long recorded = this.recordedRecords.get();
+		final long missed = this.missedRecords.get();
+		final boolean record = ((double) recorded / (double) (recorded + missed) * 100.0) < this.samplingPercentage;
+
+		if (record) {
+			final SessionTraffic sessionTraffic = new SessionTraffic(
+				sessionId,
+				catalogVersion,
+				created,
+				this.copyBufferPool.obtain(),
+				this::prepareStorageBlock
 			);
-			Assert.isPremiseValid(sessionStartRecord.fileLocation() != null, "Location must not be null.");
-			this.createdSessions.incrementAndGet();
-			this.trackedSessionsIndex.put(sessionId, sessionTraffic);
-		} catch (MemoryNotAvailableException ex) {
-			this.copyBufferPool.free(ex.getWriteBuffer());
-			this.droppedSessions.incrementAndGet();
+			try {
+				final StorageRecord<SessionStartContainer> sessionStartRecord = new StorageRecord<>(
+					this.offHeapTrafficRecorderKryoPool.obtain(),
+					sessionTraffic.getObservableOutput(),
+					0L,
+					false,
+					new SessionStartContainer(sessionId, catalogVersion, created)
+				);
+				Assert.isPremiseValid(sessionStartRecord.fileLocation() != null, "Location must not be null.");
+				this.createdSessions.incrementAndGet();
+				this.trackedSessionsIndex.put(sessionId, sessionTraffic);
+			} catch (MemoryNotAvailableException ex) {
+				this.copyBufferPool.free(ex.getWriteBuffer());
+				this.droppedSessions.incrementAndGet();
+				this.missedRecords.incrementAndGet();
+			}
+		} else {
 			this.missedRecords.incrementAndGet();
 		}
 	}
@@ -301,7 +314,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		@Nonnull int... primaryKeys
 	) {
 		record(
-			sessionId,
+			this.trackedSessionsIndex.get(sessionId),
 			new QueryContainer(
 				sessionId, query,
 				labels.length == 0 ?
@@ -325,7 +338,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		int primaryKey
 	) {
 		record(
-			sessionId,
+			this.trackedSessionsIndex.get(sessionId),
 			new RecordFetchContainer(
 				sessionId, query, now, (int) (System.currentTimeMillis() - now.toInstant().toEpochMilli()),
 				ioFetchCount, ioFetchedSizeBytes, primaryKey
@@ -343,7 +356,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		int primaryKey
 	) {
 		record(
-			sessionId,
+			this.trackedSessionsIndex.get(sessionId),
 			new RecordEnrichmentContainer(
 				sessionId, query, now, (int) (System.currentTimeMillis() - now.toInstant().toEpochMilli()),
 				ioFetchCount, ioFetchedSizeBytes, primaryKey
@@ -358,10 +371,44 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		@Nonnull Mutation mutation
 	) {
 		record(
-			sessionId,
+			this.trackedSessionsIndex.get(sessionId),
 			new MutationContainer(
 				sessionId, now, (int) (System.currentTimeMillis() - now.toInstant().toEpochMilli()), mutation
 			)
+		);
+	}
+
+	@Override
+	public void setupSourceQuery(
+		@Nonnull UUID sessionId,
+		@Nonnull UUID sourceQueryId,
+		@Nonnull OffsetDateTime now,
+		@Nonnull String sourceQuery,
+		@Nonnull String queryType
+	) {
+		final SessionTraffic sessionTraffic = this.trackedSessionsIndex.get(sessionId);
+		sessionTraffic.setupSourceQuery(sourceQueryId, now);
+		record(
+			sessionTraffic,
+			new SourceQueryContainer(
+				sessionId,
+				sourceQueryId,
+				now,
+				sourceQuery,
+				queryType
+			)
+		);
+	}
+
+	@Override
+	public void closeSourceQuery(
+		@Nonnull UUID sessionId,
+		@Nonnull UUID sourceQueryId
+	) {
+		final SessionTraffic sessionTraffic = this.trackedSessionsIndex.get(sessionId);
+		record(
+			sessionTraffic,
+			sessionTraffic.closeSourceQuery(sourceQueryId)
 		);
 	}
 
@@ -373,6 +420,13 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 			request,
 			this::readTrafficRecord
 		);
+	}
+
+	@Override
+	public void close() throws IOException {
+		this.memoryBlock.set(null);
+		this.trackedSessionsIndex.clear();
+		this.diskBuffer.close(filePath -> this.exportFileService.purgeManagedTempFile(filePath));
 	}
 
 	@Nonnull
@@ -389,13 +443,6 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		);
 	}
 
-	@Override
-	public void close() throws IOException {
-		this.memoryBlock.set(null);
-		this.trackedSessionsIndex.clear();
-		this.diskBuffer.close(filePath -> this.exportFileService.purgeManagedTempFile(filePath));
-	}
-
 	/**
 	 * Records traffic data for a specific session. The method tracks traffic statistics for an
 	 * active session and stores records if the sampling conditions are met and if resources are
@@ -403,14 +450,12 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 	 * a missed record is counted. In cases where memory is not available, the write buffer is
 	 * released and a missed record is incremented.
 	 *
-	 * @param sessionId the unique identifier for the session whose traffic data is to be recorded
-	 * @param container the traffic recording container object containing the data to be recorded
-	 *                  and its associated metadata
+	 * @param sessionTraffic the session traffic object containing the data to be recorded
+	 * @param container      the traffic recording container object containing the data to be recorded
+	 *                       and its associated metadata
 	 */
-	private <T extends TrafficRecording> void record(@Nonnull UUID sessionId, @Nonnull T container) {
-		final SessionTraffic sessionTraffic = this.trackedSessionsIndex.get(sessionId);
-		if (sessionTraffic != null && !sessionTraffic.isFinished() &&
-			(this.samplingPercentage == 0 || this.samplingPercentage <= ThreadLocalRandom.current().nextInt(100))) {
+	private <T extends TrafficRecording> void record(@Nullable SessionTraffic sessionTraffic, @Nonnull T container) {
+		if (sessionTraffic != null && !sessionTraffic.isFinished()) {
 			try {
 				final StorageRecord<T> storageRecord = new StorageRecord<>(
 					this.offHeapTrafficRecorderKryoPool.obtain(),
@@ -420,7 +465,8 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 					container
 				);
 				Assert.isPremiseValid(storageRecord.fileLocation() != null, "Location must not be null.");
-				sessionTraffic.registerRecording(container.type(), container.ioFetchCount(), container.ioFetchedSizeBytes());
+				sessionTraffic.registerRecording(container);
+				this.recordedRecords.incrementAndGet();
 			} catch (MemoryNotAvailableException ex) {
 				this.copyBufferPool.free(ex.getWriteBuffer());
 				this.missedRecords.incrementAndGet();

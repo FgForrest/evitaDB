@@ -318,7 +318,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		@Nonnull Scheduler scheduler,
 		@Nonnull EvitaConfiguration configuration
 	) {
-		if (configuration.server().trafficRecording()) {
+		if (configuration.server().trafficRecording().enabled()) {
 			final TrafficRecorder trafficRecorderInstance = ServiceLoader.load(TrafficRecorder.class)
 				.stream()
 				.findFirst()
@@ -326,7 +326,8 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 				.get();
 			trafficRecorderInstance.init(
 				catalogName, exportFileService, scheduler,
-				configuration.storage(), configuration.server()
+				configuration.storage(),
+				configuration.server().trafficRecording()
 			);
 			return trafficRecorderInstance;
 		} else {

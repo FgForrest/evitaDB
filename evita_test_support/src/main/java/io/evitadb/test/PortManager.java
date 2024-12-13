@@ -62,7 +62,8 @@ public class PortManager {
 			final Iterator<Entry<String, CompletableFuture<Void>>> it = pendingReleases.entrySet().iterator();
 			while (it.hasNext()) {
 				Entry<String, CompletableFuture<Void>> entry = it.next();
-				if (entry.getValue().isDone()) {
+				final CompletableFuture<Void> future = entry.getValue();
+				if (future != null && future.isDone()) {
 					releasePorts(entry.getKey());
 					it.remove();
 				}

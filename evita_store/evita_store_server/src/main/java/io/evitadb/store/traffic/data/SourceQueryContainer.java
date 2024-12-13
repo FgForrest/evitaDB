@@ -23,56 +23,51 @@
 
 package io.evitadb.store.traffic.data;
 
-import io.evitadb.api.query.Query;
-import io.evitadb.api.requestResponse.EvitaResponse;
+
 import io.evitadb.core.traffic.TrafficRecording;
 import io.evitadb.core.traffic.TrafficRecordingCaptureRequest.TrafficRecordingType;
 
 import javax.annotation.Nonnull;
-import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
 /**
- * Container for a query and its metadata.
+ * This container holds information about the source query handling start.
  *
- * @param sessionId              the session id which the mutation belongs to
- * @param query                  the query itself
- * @param created                the time when the query was issued
- * @param durationInMilliseconds the duration of the query execution within the session in milliseconds
- * @param returnedRecordCount    the total number of records returned by the query ({@link EvitaResponse#getRecordData()} size)
- * @param totalRecordCount       the total number of records calculated by the query ({@link EvitaResponse#getTotalRecordCount()})
- * @param ioFetchCount           the number of IO fetches performed by the query
- * @param ioFetchedSizeBytes     the total size of the data fetched by the query in bytes
- * @param primaryKeys            the primary keys of the records returned by the query (in returned data chunk)
- *
+ * @param sessionId     unique identifier of the session the mutation belongs to
+ * @param sourceQueryId unique identifier of the source query
+ * @param created       time when the mutation was created
+ * @param sourceQuery   unparsed, raw source query in particular format
+ * @param queryType     type of the query (e.g. GraphQL, REST, etc.)
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public record QueryContainer(
+public record SourceQueryContainer(
 	@Nonnull UUID sessionId,
-	@Nonnull Query query,
-	@Nonnull Label[] labels,
+	@Nonnull UUID sourceQueryId,
 	@Nonnull OffsetDateTime created,
-	int durationInMilliseconds,
-	int totalRecordCount,
-	int ioFetchCount,
-	int ioFetchedSizeBytes,
-	@Nonnull int[] primaryKeys
+	@Nonnull String sourceQuery,
+	@Nonnull String queryType
 ) implements TrafficRecording {
 
 	@Nonnull
 	@Override
 	public TrafficRecordingType type() {
-		return TrafficRecordingType.QUERY;
+		return TrafficRecordingType.SOURCE_QUERY;
 	}
 
-	public record Label(
-		@Nonnull String name,
-		@Nonnull Serializable value
-	) {
+	@Override
+	public int durationInMilliseconds() {
+		return 0;
+	}
 
-		public static final Label[] EMPTY_LABELS = new Label[0];
+	@Override
+	public int ioFetchedSizeBytes() {
+		return 0;
+	}
 
+	@Override
+	public int ioFetchCount() {
+		return 0;
 	}
 
 }

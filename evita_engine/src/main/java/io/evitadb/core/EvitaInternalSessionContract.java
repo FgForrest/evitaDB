@@ -31,6 +31,7 @@ import io.evitadb.api.exception.TransactionException;
 import io.evitadb.api.exception.UnexpectedResultCountException;
 import io.evitadb.api.exception.UnexpectedResultException;
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.head.Label;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
 
@@ -40,6 +41,7 @@ import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -159,4 +161,24 @@ public interface EvitaInternalSessionContract extends EvitaSessionContract {
 	 */
 	@Nonnull
 	CompletableFuture<Long> getFinalizationFuture();
+
+	/**
+	 * Method registers RAW input query and assigns a unique identifier to it. All queries in this session that are
+	 * labeled with {@link Label#LABEL_SOURCE_QUERY} will be registered as sub-queries of this source query.
+	 *
+	 * @param sourceQuery unparsed, raw source query in particular format
+	 * @param queryType   type of the query (e.g. GraphQL, REST, etc.)
+	 * @return unique identifier of the source query
+	 */
+	@Nonnull
+	UUID recordSourceQuery(@Nonnull String sourceQuery, @Nonnull String queryType);
+
+	/**
+	 * Method closes the source query and marks it as finalized. Overall statistics for all registered sub-queries
+	 * will be aggregated and stored in the traffic recording along with this record.
+	 *
+	 * @param sourceQueryId unique identifier of the source query
+	 */
+	void finalizeSourceQuery(@Nonnull UUID sourceQueryId);
+
 }

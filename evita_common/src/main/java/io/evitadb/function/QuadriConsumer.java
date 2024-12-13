@@ -24,13 +24,13 @@
 package io.evitadb.function;
 
 /**
- * Interface similar to {@link java.util.function.BiConsumer} but for three arguments.
+ * Interface similar to {@link java.util.function.BiConsumer} but for four arguments.
  *
  * @apiNote inspired by the JDK interface
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @FunctionalInterface
-public interface TriConsumer <T, U, V> {
+public interface QuadriConsumer<T, U, V, W> {
 
 	/**
 	 * Performs this operation on the given arguments.
@@ -38,8 +38,9 @@ public interface TriConsumer <T, U, V> {
 	 * @param t the first input argument
 	 * @param u the second input argument
 	 * @param v the third input argument
+	 * @param w the fourth input argument
 	 */
-	void accept(T t, U u, V v);
+	void accept(T t, U u, V v, W w);
 
 }
 

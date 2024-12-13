@@ -24,8 +24,8 @@
 package io.evitadb.store.traffic;
 
 
-import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.configuration.TrafficRecordingOptions;
 import io.evitadb.api.query.head.Label;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
@@ -76,8 +76,8 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 			new ExportFileService(storageOptions, scheduler),
 			scheduler,
 			storageOptions,
-			ServerOptions.builder()
-				.trafficRecording(true)
+			TrafficRecordingOptions.builder()
+				.enabled(true)
 				.trafficSamplingPercentage(0)
 				.trafficMemoryBufferSizeInBytes(4096L)
 				.trafficDiskBufferSizeInBytes(16_384L)

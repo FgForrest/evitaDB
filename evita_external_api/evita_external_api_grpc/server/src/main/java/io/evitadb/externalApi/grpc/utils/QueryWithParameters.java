@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,25 +21,26 @@
  *   limitations under the License.
  */
 
-package io.evitadb.function;
+package io.evitadb.externalApi.grpc.utils;
+
+
+import io.evitadb.api.query.Query;
+
+import javax.annotation.Nonnull;
+import java.util.List;
+import java.util.Map;
 
 /**
- * Interface similar to {@link java.util.function.BiConsumer} but for three arguments.
+ * Record contains parsed information from gRPC query.
  *
- * @apiNote inspired by the JDK interface
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
+ * @param parsedQuery                - parsed query
+ * @param positionalParameters - list of positional parameters
+ * @param namedParameters      - map of named parameters
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@FunctionalInterface
-public interface TriConsumer <T, U, V> {
-
-	/**
-	 * Performs this operation on the given arguments.
-	 *
-	 * @param t the first input argument
-	 * @param u the second input argument
-	 * @param v the third input argument
-	 */
-	void accept(T t, U u, V v);
-
+public record QueryWithParameters(
+	@Nonnull Query parsedQuery,
+	@Nonnull List<Object> positionalParameters,
+	@Nonnull Map<String, Object> namedParameters
+) {
 }
-

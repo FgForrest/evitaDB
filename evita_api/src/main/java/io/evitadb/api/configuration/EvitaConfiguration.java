@@ -137,10 +137,10 @@ public record EvitaConfiguration(
 	@ToString
 	public static class Builder {
 		private String name = DEFAULT_SERVER_NAME;
-		private ServerOptions server = new ServerOptions();
-		private StorageOptions storage = new StorageOptions();
-		private TransactionOptions transaction = new TransactionOptions();
-		private CacheOptions cache = new CacheOptions();
+		private ServerOptions server = ServerOptions.builder().build();
+		private StorageOptions storage = StorageOptions.builder().build();
+		private TransactionOptions transaction = TransactionOptions.builder().build();
+		private CacheOptions cache = CacheOptions.builder().build();
 
 		Builder() {
 		}

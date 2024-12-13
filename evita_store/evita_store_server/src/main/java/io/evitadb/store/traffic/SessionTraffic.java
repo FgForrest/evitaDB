@@ -23,17 +23,26 @@
 
 package io.evitadb.store.traffic;
 
+import io.evitadb.core.traffic.TrafficRecording;
 import io.evitadb.core.traffic.TrafficRecordingCaptureRequest.TrafficRecordingType;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.traffic.OffHeapTrafficRecorder.MemoryNotAvailableException;
 import io.evitadb.store.traffic.OffHeapTrafficRecorder.NumberedByteBuffer;
+import io.evitadb.store.traffic.data.QueryContainer;
+import io.evitadb.store.traffic.data.QueryContainer.Label;
+import io.evitadb.store.traffic.data.SourceQueryStatisticsContainer;
 import io.evitadb.store.traffic.stream.RecoverableOutputStream;
+import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
 import java.util.EnumSet;
+import java.util.Map;
+import java.util.Optional;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.Set;
 import java.util.UUID;
@@ -72,6 +81,10 @@ public class SessionTraffic {
 	 */
 	@Getter private final ObservableOutput<RecoverableOutputStream> observableOutput;
 	/**
+	 * Index of source query counters indexed by `sourceQueryId`.
+	 */
+	private Map<UUID, SourceQueryCounter> sourceQueryCounterIndex;
+	/**
 	 * Duration of the session in milliseconds.
 	 */
 	@Getter private int durationInMillis;
@@ -91,6 +104,27 @@ public class SessionTraffic {
 	 * Flag indicating whether the session is finished.
 	 */
 	@Getter private FinishReason finished;
+
+	/**
+	 * Extracts the source query UUID from the specified query container's labels, if present.
+	 *
+	 * The method iterates through all labels associated with the provided query container
+	 * and checks for a label with the name `LABEL_SOURCE_QUERY`. If such a label is found,
+	 * its value is returned as a UUID. If no such label is found, the method returns null.
+	 *
+	 * @param queryContainer the container holding the query and its associated labels
+	 * @return the UUID value of the source query label, or null if not found
+	 */
+	@Nullable
+	private static UUID getSourceQueryId(QueryContainer queryContainer) {
+		final Label[] labels = queryContainer.labels();
+		for (Label label : labels) {
+			if (io.evitadb.api.query.head.Label.LABEL_SOURCE_QUERY.equals(label.name())) {
+				return (UUID) label.value();
+			}
+		}
+		return null;
+	}
 
 	public SessionTraffic(
 		@Nonnull UUID sessionId,
@@ -124,14 +158,27 @@ public class SessionTraffic {
 	/**
 	 * Registers a new traffic recording in this session.
 	 *
-	 * @param type         Type of the traffic recording.
-	 * @param fetchCount   Number of fetch operations in this recording.
-	 * @param bytesFetched Number of bytes fetched in this recording.
+	 * @param container Traffic recording container to be registered.
 	 */
-	public void registerRecording(@Nonnull TrafficRecordingType type, int fetchCount, int bytesFetched) {
-		this.recordingTypes.add(type);
-		this.fetchCount += fetchCount;
-		this.bytesFetchedTotal += bytesFetched;
+	public <T extends TrafficRecording> void registerRecording(T container) {
+		this.recordingTypes.add(container.type());
+		this.fetchCount += container.ioFetchCount();
+		this.bytesFetchedTotal += container.ioFetchedSizeBytes();
+		if (container instanceof QueryContainer queryContainer && this.sourceQueryCounterIndex != null) {
+			final UUID sourceQueryId = getSourceQueryId(queryContainer);
+			if (sourceQueryId != null) {
+				final SourceQueryCounter sourceQueryCounter = this.sourceQueryCounterIndex.get(sourceQueryId);
+				if (sourceQueryCounter != null) {
+					sourceQueryCounter.append(
+						queryContainer.primaryKeys().length,
+						queryContainer.totalRecordCount(),
+						queryContainer.ioFetchCount(),
+						queryContainer.ioFetchedSizeBytes(),
+						queryContainer.durationInMilliseconds()
+					);
+				}
+			}
+		}
 	}
 
 	/**
@@ -195,6 +242,40 @@ public class SessionTraffic {
 	}
 
 	/**
+	 * Creates a counter container for particular source query with the given id.
+	 *
+	 * @param sourceQueryId Id of the source query.
+	 */
+	public void setupSourceQuery(@Nonnull UUID sourceQueryId, @Nonnull OffsetDateTime created) {
+		if (this.sourceQueryCounterIndex == null) {
+			this.sourceQueryCounterIndex = CollectionUtils.createConcurrentHashMap(32);
+		}
+		this.sourceQueryCounterIndex.put(sourceQueryId, new SourceQueryCounter(created.toInstant().toEpochMilli()));
+	}
+
+	/**
+	 * Finalizes the counter container for particular source query with the given id and returns the traffic recording
+	 * container with aggregated data.
+	 *
+	 * @param sourceQueryId Id of the source query.
+	 * @return Traffic recording container with aggregated data.
+	 */
+	public TrafficRecording closeSourceQuery(@Nonnull UUID sourceQueryId) {
+		final Optional<SourceQueryCounter> sourceQueryCounter = Optional.ofNullable(this.sourceQueryCounterIndex)
+			.map(it -> it.remove(sourceQueryId));
+		return new SourceQueryStatisticsContainer(
+			this.sessionId,
+			sourceQueryId,
+			OffsetDateTime.now(),
+			sourceQueryCounter.map(SourceQueryCounter::getComputeTime).orElse(0),
+			sourceQueryCounter.map(SourceQueryCounter::getRecordsReturned).orElse(0),
+			sourceQueryCounter.map(SourceQueryCounter::getTotalRecordCount).orElse(0),
+			sourceQueryCounter.map(SourceQueryCounter::getIoFetchCount).orElse(0),
+			sourceQueryCounter.map(SourceQueryCounter::getIoFetchedSizeBytes).orElse(0)
+		);
+	}
+
+	/**
 	 * Represents various reasons why the session was finished.
 	 */
 	public enum FinishReason {
@@ -207,6 +288,38 @@ public class SessionTraffic {
 		 * The session was prematurely abandoned due to memory shortage.
 		 */
 		MEMORY_SHORTAGE
+
+	}
+
+	/**
+	 * Represents a counter for a single source query.
+	 */
+	@Getter
+	@RequiredArgsConstructor
+	private static class SourceQueryCounter {
+		private final long started;
+		private int recordsReturned;
+		private int totalRecordCount;
+		private int ioFetchCount;
+		private int ioFetchedSizeBytes;
+		private int computeTime;
+
+		/**
+		 * Updates the current counter values by adding the provided values to the existing ones.
+		 *
+		 * @param recordsReturned    The number of records returned to be added to the current total.
+		 * @param totalRecordCount   The total record count to be added to the current total.
+		 * @param ioFetchCount       The number of fetch operations performed to be added to the current total.
+		 * @param ioFetchedSizeBytes The size in bytes of fetched data to be added to the current total.
+		 * @param computeTime        The time spent computing the query to be added to the current total.
+		 */
+		void append(int recordsReturned, int totalRecordCount, int ioFetchCount, int ioFetchedSizeBytes, int computeTime) {
+			this.recordsReturned += recordsReturned;
+			this.totalRecordCount += totalRecordCount;
+			this.ioFetchCount += ioFetchCount;
+			this.ioFetchedSizeBytes += ioFetchedSizeBytes;
+			this.computeTime += computeTime;
+		}
 
 	}
 

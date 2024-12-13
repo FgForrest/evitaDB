@@ -35,11 +35,11 @@ import io.evitadb.api.exception.UnexpectedResultCountException;
 import io.evitadb.api.exception.UnexpectedResultException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.proxy.ProxyFactory;
+import io.evitadb.api.query.HeadConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.FilterBy;
-import io.evitadb.api.query.head.Collection;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetch;
@@ -351,7 +351,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * translates it to simplified return type.
 	 *
 	 * @param query input query,
-	 *              for creation use {@link Query#query(Collection, FilterBy, OrderBy, Require)} or similar methods
+	 *              for creation use {@link Query#query(HeadConstraint, FilterBy, OrderBy, Require)} or similar methods
 	 *              for defining constraint use {@link QueryConstraints} static methods
 	 * @return found entity reference, empty optional object if none was found
 	 * @throws UnexpectedResultException   when {@link EvitaResponse#getRecordPage()} contains data that are not assignable to `expectedType`
@@ -370,7 +370,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * translates it to simplified return type.
 	 *
 	 * @param query input query,
-	 *              for creation use {@link Query#query(Collection, FilterBy, OrderBy, Require)} or similar methods
+	 *              for creation use {@link Query#query(HeadConstraint, FilterBy, OrderBy, Require)} or similar methods
 	 *              for defining constraint use {@link QueryConstraints} static methods
 	 * @return found entity itself, empty optional object if none was found
 	 * @throws UnexpectedResultException   when {@link EvitaResponse#getRecordPage()} contains data that are not assignable to `expectedType`
@@ -422,7 +422,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * side.
 	 *
 	 * @param query        input query,
-	 *                     for creation use {@link Query#query(Collection, FilterBy, OrderBy, Require)} or similar methods
+	 *                     for creation use {@link Query#query(HeadConstraint, FilterBy, OrderBy, Require)} or similar methods
 	 *                     for defining constraint use {@link QueryConstraints} static methods
 	 * @param expectedType type of object, that is expected to be in response data,
 	 *                     use one of type: {@link EntityReference} or {@link SealedEntity}
@@ -444,7 +444,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * the {@link #query(Query, Class)} method.
 	 *
 	 * @param query input query,
-	 *              for creation use {@link Query#query(Collection, FilterBy, OrderBy, Require)} or similar methods
+	 *              for creation use {@link Query#query(HeadConstraint, FilterBy, OrderBy, Require)} or similar methods
 	 *              for defining constraint use {@link QueryConstraints} static methods
 	 * @return shortened response - only list of found entities will be returned, the list respect paging / stripping
 	 * requirements (if none defined the method behaves as first page with 20 results is requested)
@@ -466,7 +466,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * the {@link #query(Query, Class)} method.
 	 *
 	 * @param query input query,
-	 *              for creation use {@link Query#query(Collection, FilterBy, OrderBy, Require)} or similar methods
+	 *              for creation use {@link Query#query(HeadConstraint, FilterBy, OrderBy, Require)} or similar methods
 	 *              for defining constraint use {@link QueryConstraints} static methods
 	 * @return shortened response - only list of found entities will be returned, the list respect paging / stripping
 	 * requirements (if none defined the method behaves as first page with 20 results is requested)
@@ -521,7 +521,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * side.
 	 *
 	 * @param query        input query,
-	 *                     for creation use {@link Query#query(Collection, FilterBy, OrderBy, Require)} or similar methods
+	 *                     for creation use {@link Query#query(HeadConstraint, FilterBy, OrderBy, Require)} or similar methods
 	 *                     for defining constraint use {@link QueryConstraints} static methods
 	 * @param expectedType type of object, that is expected to be in response data,
 	 *                     use one of type: {@link EntityReference} or {@link SealedEntity}
@@ -540,7 +540,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * Method executes query on {@link CatalogContract} data and returns result.
 	 *
 	 * @param query input query,
-	 *              for creation use {@link Query#query(Collection, FilterBy, OrderBy, Require)} or similar methods
+	 *              for creation use {@link Query#query(HeadConstraint, FilterBy, OrderBy, Require)} or similar methods
 	 *              for defining constraint use {@link QueryConstraints} static methods
 	 * @return full response data transfer object with all available data
 	 * @throws UnexpectedResultException   when {@link EvitaResponse#getRecordPage()} contains data that are not assignable to `expectedType`
@@ -557,7 +557,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * Method executes query on {@link CatalogContract} data and returns result.
 	 *
 	 * @param query input query,
-	 *              for creation use {@link Query#query(Collection, FilterBy, OrderBy, Require)} or similar methods
+	 *              for creation use {@link Query#query(HeadConstraint, FilterBy, OrderBy, Require)} or similar methods
 	 *              for defining constraint use {@link QueryConstraints} static methods
 	 * @return full response data transfer object with all available data
 	 * @throws UnexpectedResultException   when {@link EvitaResponse#getRecordPage()} contains data that are not assignable to `expectedType`
@@ -605,7 +605,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * This should prevent late ClassCastExceptions on the client side.
 	 *
 	 * @param query        input query,
-	 *                     for creation use {@link Query#query(Collection, FilterBy, OrderBy, Require)} or similar methods
+	 *                     for creation use {@link Query#query(HeadConstraint, FilterBy, OrderBy, Require)} or similar methods
 	 *                     for defining constraint use {@link QueryConstraints} static methods
 	 * @param expectedType type of object, that is expected to be in response data,
 	 *                     use one of type: {@link EntityReference} or {@link SealedEntity}

@@ -27,6 +27,7 @@ package io.evitadb.core.traffic;
 import io.evitadb.api.observability.trace.TracingBlockReference;
 import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.api.observability.trace.TracingContext.SpanAttribute;
+import io.evitadb.api.query.head.Label;
 import io.evitadb.api.requestResponse.EntityFetchAwareDecorator;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
@@ -145,11 +146,11 @@ public class TrafficRecordingEngine {
 	 * Records and executes an enrichment operation within the given session and operation context.
 	 * It traces the operation's span attributes and records traffic details upon execution.
 	 *
-	 * @param <T> the return type expected from the lambda execution
-	 * @param sessionId the unique identifier of the session in which the enrichment operation is executed
-	 * @param entity the entity that is being enriched, which provides access to its primary key
+	 * @param <T>          the return type expected from the lambda execution
+	 * @param sessionId    the unique identifier of the session in which the enrichment operation is executed
+	 * @param entity       the entity that is being enriched, which provides access to its primary key
 	 * @param evitaRequest the request object containing details of the enrichment operation
-	 * @param lambda a supplier function that executes the enrichment operation and returns the result
+	 * @param lambda       a supplier function that executes the enrichment operation and returns the result
 	 * @return the result obtained from executing the provided lambda function within a traceable context
 	 */
 	@Nonnull
@@ -192,7 +193,7 @@ public class TrafficRecordingEngine {
 	 * Beware! Returned object must be finished in order to record the mutation!
 	 *
 	 * @param sessionId the unique identifier of the session with which this mutation is associated
-	 * @param mutation the mutation operation to be recorded and executed, must be non-null
+	 * @param mutation  the mutation operation to be recorded and executed, must be non-null
 	 * @return a MutationApplicationRecord object that tracks the lifecycle of the mutation, including its execution tracing and logging
 	 */
 	@Nonnull
@@ -207,6 +208,40 @@ public class TrafficRecordingEngine {
 			now,
 			mutation
 		);
+	}
+
+	/**
+	 * Method registers RAW input query and assigns a unique identifier to it. All queries in this session that are
+	 * labeled with {@link Label#LABEL_SOURCE_QUERY} will be registered as sub-queries of this source query.
+	 *
+	 * @param sessionId unique identifier of the session the mutation belongs to
+	 * @param sourceQueryId unique identifier of the source query
+	 * @param sourceQuery   unparsed, raw source query in particular format
+	 * @param queryType     type of the query (e.g. GraphQL, REST, etc.)
+	 */
+	public void setupSourceQuery(
+		@Nonnull UUID sessionId,
+		@Nonnull UUID sourceQueryId,
+		@Nonnull String sourceQuery,
+		@Nonnull String queryType
+	) {
+		this.trafficRecorder.setupSourceQuery(
+			sessionId, sourceQueryId, OffsetDateTime.now(), sourceQuery, queryType
+		);
+	}
+
+	/**
+	 * Method closes the source query and marks it as finalized. Overall statistics for all registered sub-queries
+	 * will be aggregated and stored in the traffic recording along with this record.
+	 *
+	 * @param sessionId unique identifier of the session the mutation belongs to
+	 * @param sourceQueryId unique identifier of the source query
+	 */
+	public void closeSourceQuery(
+		@Nonnull UUID sessionId,
+		@Nonnull UUID sourceQueryId
+	) {
+		this.trafficRecorder.closeSourceQuery(sessionId, sourceQueryId);
 	}
 
 	/**

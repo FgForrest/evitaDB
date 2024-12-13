@@ -68,6 +68,7 @@ import java.io.Serializable;
 )
 public class Label extends AbstractHeadConstraintLeaf implements GenericConstraint<HeadConstraint> {
 	public static final Label[] EMPTY_ARRAY = new Label[0];
+	public static final String LABEL_SOURCE_QUERY = "source-query";
 	@Serial private static final long serialVersionUID = -7618002411866828589L;
 
 	public Label(@Nonnull Serializable... arguments) {
