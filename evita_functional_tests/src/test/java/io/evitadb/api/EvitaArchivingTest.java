@@ -698,8 +698,9 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		assertNull(catalog.getCatalogIndexIfExits(Scope.ARCHIVED).orElse(null));
 		assertNotNull(getGlobalIndex(productCollection, Scope.ARCHIVED));
 		assertNull(getReferencedEntityIndex(productCollection, Scope.ARCHIVED, Entities.CATEGORY, 1));
-		assertNull(getReferencedEntityIndex(productCollection, Scope.ARCHIVED, Entities.CATEGORY, 2));
-		assertNull(getReferencedEntityIndex(productCollection, Scope.ARCHIVED, Entities.BRAND, 1));
+		// indexes contain only information about language entity presence
+		assertNotNull(getReferencedEntityIndex(productCollection, Scope.ARCHIVED, Entities.CATEGORY, 2));
+		assertNotNull(getReferencedEntityIndex(productCollection, Scope.ARCHIVED, Entities.BRAND, 1));
 		assertNull(getReferencedEntityIndex(productCollection, Scope.ARCHIVED, Entities.BRAND, 2));
 	}
 

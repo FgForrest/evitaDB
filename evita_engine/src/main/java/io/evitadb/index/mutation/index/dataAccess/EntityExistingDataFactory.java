@@ -46,7 +46,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public final class EntityExistingDataFactory implements ExistingDataSupplierFactory {
 	private final Entity entity;
-	private EntityAttributeValueSupplier entityAttributeValueSupplier;
+	private ExistingAttributeValueSupplier entityAttributeValueSupplier;
 	private EntityPriceSupplier entityPriceSupplier;
 	private ReferenceSupplier referenceSupplier;
 	private Map<ReferenceKey, ReferenceAttributeValueSupplier> referenceAttributeValueSuppliers;
@@ -59,14 +59,9 @@ public final class EntityExistingDataFactory implements ExistingDataSupplierFact
 	 * @param key the key of the attribute to be removed; must not be null
 	 */
 	public void registerRemoval(@Nonnull AttributeKey key) {
-		this.entityAttributeValueSupplier.registerRemoval(key);
-	}
-
-	/**
-	 * Clears the information about attribute removals.
-	 */
-	public void clearAttributeRemovalInformation() {
-		this.entityAttributeValueSupplier.clearAttributeRemovalInformation();
+		if (getEntityAttributeValueSupplier() instanceof EntityAttributeValueSupplier eavs) {
+			eavs.registerRemoval(key);
+		}
 	}
 
 	@Nonnull

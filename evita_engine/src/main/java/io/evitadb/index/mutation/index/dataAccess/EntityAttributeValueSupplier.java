@@ -98,13 +98,6 @@ class EntityAttributeValueSupplier implements ExistingAttributeValueSupplier {
 	}
 
 	/**
-	 * Clears the information about attribute removals.
-	 */
-	public void clearAttributeRemovalInformation() {
-		this.removedAttributes.clear();
-	}
-
-	/**
 	 * Checks if the provided attribute value has not been removed.
 	 *
 	 * @param attributeValue the attribute value to check; must not be null

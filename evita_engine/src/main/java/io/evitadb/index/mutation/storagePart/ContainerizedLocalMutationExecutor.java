@@ -453,13 +453,13 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	@Nonnull
 	@Override
 	public Set<Locale> getAddedLocales() {
-		return addedLocales == null ? Collections.emptySet() : addedLocales;
+		return this.addedLocales == null ? Collections.emptySet() : this.addedLocales;
 	}
 
 	@Nonnull
 	@Override
 	public Set<Locale> getRemovedLocales() {
-		return removedLocales == null ? Collections.emptySet() : removedLocales;
+		return this.removedLocales == null ? Collections.emptySet() : this.removedLocales;
 	}
 
 	/**
@@ -675,7 +675,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		if (attributeMutation instanceof UpsertAttributeMutation) {
 			ofNullable(affectedAttribute.locale())
 				.ifPresent(locale -> {
-					final EntityBodyStoragePart entityStoragePart = getEntityStoragePart(entityType, entityPrimaryKey, EntityExistence.MUST_EXIST);
+					final EntityBodyStoragePart entityStoragePart = getEntityStoragePart(this.entityType, this.entityPrimaryKey, EntityExistence.MUST_EXIST);
 					if (entityStoragePart.addAttributeLocale(locale)) {
 						registerAddedLocale(locale);
 					}
@@ -683,11 +683,11 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		} else if (attributeMutation instanceof RemoveAttributeMutation) {
 			ofNullable(affectedAttribute.locale())
 				.ifPresent(locale -> {
-					final AttributesStoragePart attributeStoragePart = getAttributeStoragePart(entityType, entityPrimaryKey, locale);
-					final ReferencesStoragePart referencesStoragePart = getReferencesStoragePart(entityType, entityPrimaryKey);
+					final AttributesStoragePart attributeStoragePart = getAttributeStoragePart(this.entityType, this.entityPrimaryKey, locale);
+					final ReferencesStoragePart referencesStoragePart = getReferencesStoragePart(this.entityType, this.entityPrimaryKey);
 
 					if (attributeStoragePart.isEmpty() && !referencesStoragePart.isLocalePresent(locale)) {
-						final EntityBodyStoragePart entityStoragePart = getEntityStoragePart(entityType, entityPrimaryKey, EntityExistence.MUST_EXIST);
+						final EntityBodyStoragePart entityStoragePart = getEntityStoragePart(this.entityType, this.entityPrimaryKey, EntityExistence.MUST_EXIST);
 						if (entityStoragePart.removeAttributeLocale(locale)) {
 							registerRemovedLocale(locale);
 						}
@@ -1667,10 +1667,10 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 * @param locale the locale to be registered as added
 	 */
 	private void registerAddedLocale(@Nonnull Locale locale) {
-		if (addedLocales == null) {
-			addedLocales = new HashSet<>();
+		if (this.addedLocales == null) {
+			this.addedLocales = new HashSet<>();
 		}
-		addedLocales.add(locale);
+		this.addedLocales.add(locale);
 	}
 
 	/**
@@ -1680,10 +1680,10 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 * @param locale the locale to be registered as removed
 	 */
 	private void registerRemovedLocale(@Nonnull Locale locale) {
-		if (removedLocales == null) {
-			removedLocales = new HashSet<>();
+		if (this.removedLocales == null) {
+			this.removedLocales = new HashSet<>();
 		}
-		removedLocales.add(locale);
+		this.removedLocales.add(locale);
 	}
 
 }

@@ -1795,11 +1795,6 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 	}
 
 	@Test
-	void shouldDeleteArchivedEntity() {
-		/* TODO JNO - Implement me */
-	}
-
-	@Test
 	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
 	void shouldDeleteHierarchy(EvitaClient evitaClient) {
 		evitaClient.updateCatalog(

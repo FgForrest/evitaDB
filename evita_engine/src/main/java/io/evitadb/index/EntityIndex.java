@@ -371,6 +371,8 @@ public abstract class EntityIndex implements
 	 */
 	public boolean isEmpty() {
 		return this.entityIds.isEmpty() &&
+			this.entityIdsByLanguage.isEmpty() &&
+			this.facetIndex.isEmpty() &&
 			this.attributeIndex.isAttributeIndexEmpty() &&
 			this.hierarchyIndex.isHierarchyIndexEmpty();
 	}
