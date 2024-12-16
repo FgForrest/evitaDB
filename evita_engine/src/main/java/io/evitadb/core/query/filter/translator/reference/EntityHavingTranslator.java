@@ -39,6 +39,7 @@ import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.core.query.algebra.deferred.FormulaWrapper;
 import io.evitadb.core.query.algebra.reference.ReferenceOwnerTranslatingFormula;
+import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
@@ -46,6 +47,8 @@ import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.sort.attribute.translator.EntityNestedQueryComparator;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.EntityIndex;
+import io.evitadb.index.EntityIndexKey;
+import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -58,8 +61,8 @@ import org.roaringbitmap.RoaringBitmap;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -86,50 +89,57 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 	 *                                 filter formula resulting from planning the nested query.
 	 */
 	@Nonnull
-	private static GlobalIndexAndFormula planNestedQuery(
+	private static List<GlobalIndexAndFormula> planNestedQuery(
 		@Nonnull String targetEntityType,
 		@Nonnull FilterConstraint filter,
 		@Nonnull FilterByVisitor filterByVisitor,
 		@Nonnull Supplier<String> taskDescriptionSupplier
 	) {
+		final ProcessingScope<?> processingScope = filterByVisitor.getProcessingScope();
 		final EntityCollection targetEntityCollection = filterByVisitor.getEntityCollectionOrThrowException(targetEntityType, taskDescriptionSupplier);
-		final Optional<GlobalEntityIndex> globalIndexIfExists = targetEntityCollection.getGlobalIndexIfExists();
-		if (globalIndexIfExists.isEmpty()) {
-			return new GlobalIndexAndFormula(null, EmptyFormula.INSTANCE);
+		final List<GlobalEntityIndex> globalIndexes = processingScope.getScopes()
+			.stream()
+			.map(scope -> targetEntityCollection.getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL, scope)))
+			.map(GlobalEntityIndex.class::cast)
+			.toList();
+		if (globalIndexes.isEmpty()) {
+			return List.of(new GlobalIndexAndFormula(null, EmptyFormula.INSTANCE));
 		} else {
-			final ProcessingScope<?> processingScope = filterByVisitor.getProcessingScope();
 			final Function<FilterConstraint, FilterConstraint> enricher = processingScope.getNestedQueryFormulaEnricher();
 			final FilterConstraint enrichedConstraint = enricher.apply(filter);
 			final FilterBy combinedFilterBy = enrichedConstraint instanceof FilterBy fb ? fb : new FilterBy(enrichedConstraint);
 			final EntityNestedQueryComparator entityNestedQueryComparator = processingScope.getEntityNestedQueryComparator();
 
-			final GlobalEntityIndex globalIndex = globalIndexIfExists.get();
-			return new GlobalIndexAndFormula(
-				globalIndex,
-				filterByVisitor.computeOnlyOnce(
-					Collections.singletonList(globalIndex),
-					combinedFilterBy,
-					() -> {
-						final QueryPlanningContext nestedQueryContext = targetEntityCollection.createQueryContext(
-							filterByVisitor.getQueryContext(),
-							filterByVisitor.getEvitaRequest().deriveCopyWith(
-								targetEntityType,
-								combinedFilterBy,
-								ofNullable(entityNestedQueryComparator)
-									.map(EntityNestedQueryComparator::getOrderBy)
-									.map(it -> new OrderBy(it.getChildren()))
-									.orElse(null),
-								ofNullable(entityNestedQueryComparator)
-									.map(EntityNestedQueryComparator::getLocale)
-									.orElse(null)
-							),
-							filterByVisitor.getEvitaSession()
-						);
+			return globalIndexes
+				.stream()
+				.map(globalIndex -> new GlobalIndexAndFormula(
+						globalIndex,
+						filterByVisitor.computeOnlyOnce(
+							Collections.singletonList(globalIndex),
+							combinedFilterBy,
+							() -> {
+								final QueryPlanningContext nestedQueryContext = targetEntityCollection.createQueryContext(
+									filterByVisitor.getQueryContext(),
+									filterByVisitor.getEvitaRequest().deriveCopyWith(
+										targetEntityType,
+										combinedFilterBy,
+										ofNullable(entityNestedQueryComparator)
+											.map(EntityNestedQueryComparator::getOrderBy)
+											.map(it -> new OrderBy(it.getChildren()))
+											.orElse(null),
+										ofNullable(entityNestedQueryComparator)
+											.map(EntityNestedQueryComparator::getLocale)
+											.orElse(null)
+									),
+									filterByVisitor.getEvitaSession()
+								);
 
-						return QueryPlanner.planNestedQuery(nestedQueryContext, taskDescriptionSupplier)
-							.getFilter();
-					})
-			);
+								return QueryPlanner.planNestedQuery(nestedQueryContext, taskDescriptionSupplier)
+									.getFilter();
+							}
+						)
+					)
+				).toList();
 		}
 	}
 
@@ -156,62 +166,65 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 			final Supplier<String> nestedQueryDescription = () -> "filtering reference `" + referenceSchema.getName() +
 				"` by entity `" + referencedEntityType + "` having: " + filterConstraint;
 
-			final GlobalIndexAndFormula nestedResult = planNestedQuery(
-				referencedEntityType,
-				filterConstraint,
-				filterByVisitor,
-				nestedQueryDescription
-			);
-
-			if (!nestedResult.isEmpty()) {
-				if (ReferencedTypeEntityIndex.class.isAssignableFrom(processingScope.getIndexType())) {
-					return nestedResult.filter();
-				} else {
-					return filterByVisitor.computeOnlyOnce(
-						processingScope.getIndexes(),
-						filterConstraint,
-						() -> {
-							if (nestedResult.globalIndex() == null) {
-								return EmptyFormula.INSTANCE;
-							}
-							final ReferenceOwnerTranslatingFormula outputFormula = new ReferenceOwnerTranslatingFormula(
-								nestedResult.globalIndex(),
-								nestedResult.filter(),
-								it -> {
-									// leave the return here, so that we can easily debug it
-									final RoaringBitmap combinedResult = RoaringBitmap.or(
-										filterByVisitor.getReferencedEntityIndex(entitySchema, referenceSchema, it)
-											.map(EntityIndex::getAllPrimaryKeys)
-											.map(RoaringBitmapBackedBitmap::getRoaringBitmap)
-											.toArray(RoaringBitmap[]::new)
-									);
-									return combinedResult.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(combinedResult);
-								}
-							);
-							return new DeferredFormula(
-								new FormulaWrapper(
-									outputFormula,
-									(executionContext, formula) -> {
-										try {
-											executionContext.pushStep(QueryPhase.EXECUTION_FILTER_NESTED_QUERY, nestedQueryDescription);
-											return formula.compute();
-										} finally {
-											executionContext.popStep();
-										}
+			return FormulaFactory.or(
+				planNestedQuery(
+					referencedEntityType,
+					filterConstraint,
+					filterByVisitor,
+					nestedQueryDescription
+				)
+					.stream()
+					.map(nestedResult -> {
+						if (ReferencedTypeEntityIndex.class.isAssignableFrom(processingScope.getIndexType())) {
+							return nestedResult.filter();
+						} else {
+							return filterByVisitor.computeOnlyOnce(
+								processingScope.getIndexes(),
+								filterConstraint,
+								() -> {
+									if (nestedResult.globalIndex() == null) {
+										return EmptyFormula.INSTANCE;
 									}
+									final ReferenceOwnerTranslatingFormula outputFormula = new ReferenceOwnerTranslatingFormula(
+										nestedResult.globalIndex(),
+										nestedResult.filter(),
+										it -> {
+											// leave the return here, so that we can easily debug it
+											final RoaringBitmap combinedResult = RoaringBitmap.or(
+												filterByVisitor.getReferencedEntityIndex(entitySchema, referenceSchema, it)
+													.map(EntityIndex::getAllPrimaryKeys)
+													.map(RoaringBitmapBackedBitmap::getRoaringBitmap)
+													.toArray(RoaringBitmap[]::new)
+											);
+											return combinedResult.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(combinedResult);
+										}
+									);
+									return new DeferredFormula(
+										new FormulaWrapper(
+											outputFormula,
+											(executionContext, formula) -> {
+												try {
+													executionContext.pushStep(QueryPhase.EXECUTION_FILTER_NESTED_QUERY, nestedQueryDescription);
+													return formula.compute();
+												} finally {
+													executionContext.popStep();
+												}
+											}
+										)
+									);
+								},
+								2L,
+								// we need to add exact pointers to the entity schema and reference schema, which play role
+								// in the lambda evaluation
+								NumberUtils.join(
+									System.identityHashCode(entitySchema),
+									System.identityHashCode(referenceSchema)
 								)
 							);
-						},
-						2L,
-						// we need to add exact pointers to the entity schema and reference schema, which play role
-						// in the lambda evaluation
-						NumberUtils.join(
-							System.identityHashCode(entitySchema),
-							System.identityHashCode(referenceSchema)
-						)
-					);
-				}
-			}
+						}
+					})
+					.toArray(Formula[]::new)
+			);
 		}
 		return EmptyFormula.INSTANCE;
 	}
