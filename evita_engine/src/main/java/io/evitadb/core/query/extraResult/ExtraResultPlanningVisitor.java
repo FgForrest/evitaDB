@@ -414,6 +414,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 			final GlobalEntityIndex[] entityIndexes = scopes.stream()
 				.map(scope -> entityCollection.getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL, scope)))
 				.map(GlobalEntityIndex.class::cast)
+				.filter(Objects::nonNull)
 				.toArray(GlobalEntityIndex[]::new);
 			final Sorter sorter;
 			if (entityIndexes.length == 0) {
