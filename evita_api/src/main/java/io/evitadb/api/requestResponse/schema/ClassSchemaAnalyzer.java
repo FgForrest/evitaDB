@@ -1178,7 +1178,7 @@ public class ClassSchemaAnalyzer {
 						.toArray(Scope[]::new)
 				);
 				Assert.isTrue(
-					reference.faceted() != InheritableBoolean.INHERITED,
+					reference.faceted() == InheritableBoolean.INHERITED,
 					"When `scope` is defined in `@Reference` annotation, " +
 						"the value of `faceted` property is not taken into an account " +
 						"(and thus it doesn't make sense to set it to true)!"
