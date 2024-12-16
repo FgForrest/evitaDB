@@ -1183,7 +1183,7 @@ public class ClassSchemaAnalyzer {
 						"the value of `faceted` property is not taken into an account " +
 						"(and thus it doesn't make sense to set it to true)!"
 				);
-				editor.indexedInScope(
+				editor.facetedInScope(
 					Arrays.stream(scopedDefinition)
 						.filter(ScopeReferenceSettings::faceted)
 						.map(ScopeReferenceSettings::scope)
