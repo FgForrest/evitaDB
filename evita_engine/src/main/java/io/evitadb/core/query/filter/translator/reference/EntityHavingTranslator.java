@@ -100,6 +100,7 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 		final List<GlobalEntityIndex> globalIndexes = processingScope.getScopes()
 			.stream()
 			.map(scope -> targetEntityCollection.getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL, scope)))
+			.filter(Objects::nonNull)
 			.map(GlobalEntityIndex.class::cast)
 			.toList();
 		if (globalIndexes.isEmpty()) {
