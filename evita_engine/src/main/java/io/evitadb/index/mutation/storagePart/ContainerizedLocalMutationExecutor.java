@@ -379,12 +379,15 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 			}
 		} else if (this.entityRemovedEntirely) {
 			removeReflectedReferences(scope, this.initialReferencesStorageContainer, mutationCollector);
-		} else if (this.initialEntityScope != this.entityContainer.getScope()) {
-			// we need to drop all reflected references in old scope
-			removeReflectedReferences(this.initialEntityScope, this.referencesStorageContainer, mutationCollector);
-			// and insert new reflected references in new scope
-			insertReflectedReferences(scope, this.referencesStorageContainer, List.of(), mutationCollector);
-		} else {
+		} else{
+			if (this.initialEntityScope != this.entityContainer.getScope()) {
+				// we need to drop all reflected references in old scope
+				removeReflectedReferences(this.initialEntityScope, this.referencesStorageContainer, mutationCollector);
+				// and insert new reflected references in new scope
+				insertReflectedReferences(scope, this.referencesStorageContainer, List.of(), mutationCollector);
+			}
+
+			// check mandatory attributes
 			final List<Object> missingMandatedAttributes = new LinkedList<>();
 			// we need to check only changed parts
 			if (implicitMutationBehavior.contains(ImplicitMutationBehavior.GENERATE_ATTRIBUTES)) {
@@ -410,6 +413,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 						mutationCollector
 					);
 				}
+
 			}
 
 			if (!missingMandatedAttributes.isEmpty()) {
