@@ -164,18 +164,6 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 		final FilterConstraint filterConstraint = entityHaving.getChild();
 		if (filterConstraint != null) {
 			@SuppressWarnings("unchecked") final ProcessingScope<EntityIndex> processingScope = (ProcessingScope<EntityIndex>) filterByVisitor.getProcessingScope();
-			Assert.isTrue(
-				processingScope.getScopes().stream().allMatch(referenceSchema::isIndexedInScope),
-				() -> "Filtering constraint `" + entityHaving + "` targets entity " +
-					"`" + referenceSchema.getReferencedEntityType() + "` that is not indexed in `" +
-					processingScope.getScopes()
-						.stream()
-						.filter(scope -> !referenceSchema.isIndexedInScope(scope))
-						.findFirst()
-						.orElse(null) +
-					"` scope."
-			);
-
 			final Supplier<String> nestedQueryDescription = () -> "filtering reference `" + referenceSchema.getName() +
 				"` by entity `" + referencedEntityType + "` having: " + filterConstraint;
 
