@@ -397,6 +397,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 				QueryPhase.PLANNING_SORT,
 				stepDescriptionSupplier
 			);
+			final Set<Scope> scopes = getProcessingScope().getScopes();
 			// we have to create and trap the nested query context here to carry it along with the sorter
 			// otherwise the sorter will target and use the incorrectly originally queried (prefetched) entities
 			final QueryPlanningContext nestedQueryContext = entityCollection.createQueryContext(
@@ -405,12 +406,12 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 					entityType,
 					null,
 					new OrderBy(orderBy.getChildren()),
-					this.queryContext.getLocale()
+					this.queryContext.getLocale(),
+					scopes
 				),
 				this.queryContext.getEvitaSession()
 			);
 
-			final Set<Scope> scopes = getProcessingScope().getScopes();
 			final GlobalEntityIndex[] entityIndexes = scopes.stream()
 				.map(scope -> entityCollection.getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL, scope)))
 				.map(GlobalEntityIndex.class::cast)

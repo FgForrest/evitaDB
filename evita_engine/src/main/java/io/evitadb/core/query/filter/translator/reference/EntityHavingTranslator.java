@@ -61,6 +61,7 @@ import org.roaringbitmap.RoaringBitmap;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
@@ -130,7 +131,8 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 											.orElse(null),
 										ofNullable(entityNestedQueryComparator)
 											.map(EntityNestedQueryComparator::getLocale)
-											.orElse(null)
+											.orElse(null),
+										EnumSet.of(globalIndex.getIndexKey().scope())
 									),
 									filterByVisitor.getEvitaSession()
 								);

@@ -80,46 +80,46 @@ public class EvitaRequest {
 	private final String entityType;
 	private final Locale implicitLocale;
 	@Getter private final Class<?> expectedType;
-	private int[] primaryKeys;
+	@Nullable private int[] primaryKeys;
 	private boolean localeExamined;
-	private Locale locale;
-	private Boolean requiredLocales;
-	private Set<Locale> requiredLocaleSet;
+	@Nullable private Locale locale;
+	@Nullable private Boolean requiredLocales;
+	@Nullable private Set<Locale> requiredLocaleSet;
 	private QueryPriceMode queryPriceMode;
 	private Boolean priceValidInTimeSet;
-	private OffsetDateTime priceValidInTime;
+	@Nullable private OffsetDateTime priceValidInTime;
 	private Boolean requiresEntity;
-	private Boolean requiresParent;
-	private HierarchyContent parentContent;
-	private EntityFetch entityRequirement;
-	private Boolean entityAttributes;
-	private Set<String> entityAttributeSet;
-	private Boolean entityAssociatedData;
-	private Set<String> entityAssociatedDataSet;
-	private Boolean entityReference;
-	private PriceContentMode entityPrices;
+	@Nullable private Boolean requiresParent;
+	@Nullable private HierarchyContent parentContent;
+	@Nullable private EntityFetch entityRequirement;
+	@Nullable private Boolean entityAttributes;
+	@Nullable private Set<String> entityAttributeSet;
+	@Nullable private Boolean entityAssociatedData;
+	@Nullable private Set<String> entityAssociatedDataSet;
+	@Nullable private Boolean entityReference;
+	@Nullable private PriceContentMode entityPrices;
 	private Boolean currencySet;
-	private Currency currency;
+	@Nullable private Currency currency;
 	private Boolean requiresPriceLists;
 	private String[] priceLists;
 	private String[] additionalPriceLists;
-	private Integer start;
-	private ConditionalGap[] conditionalGaps;
-	private Map<String, HierarchyFilterConstraint> hierarchyWithin;
-	private Boolean requiredWithinHierarchy;
-	private Boolean requiresHierarchyStatistics;
-	private Boolean requiresHierarchyParents;
-	private Integer limit;
-	private EvitaRequest.ResultForm resultForm;
-	private Map<String, FacetFilterBy> facetGroupConjunction;
-	private Map<String, FacetFilterBy> facetGroupDisjunction;
-	private Map<String, FacetFilterBy> facetGroupNegation;
+	@Nullable private Integer start;
+	@Nullable private ConditionalGap[] conditionalGaps;
+	@Nullable private Map<String, HierarchyFilterConstraint> hierarchyWithin;
+	@Nullable private Boolean requiredWithinHierarchy;
+	@Nullable private Boolean requiresHierarchyStatistics;
+	@Nullable private Boolean requiresHierarchyParents;
+	@Nullable private Integer limit;
+	@Nullable private EvitaRequest.ResultForm resultForm;
+	@Nullable private Map<String, FacetFilterBy> facetGroupConjunction;
+	@Nullable private Map<String, FacetFilterBy> facetGroupDisjunction;
+	@Nullable private Map<String, FacetFilterBy> facetGroupNegation;
 	private Boolean queryTelemetryRequested;
-	private EnumSet<DebugMode> debugModes;
+	@Nullable private EnumSet<DebugMode> debugModes;
 	private Scope[] scopesAsArray;
-	private Set<Scope> scopes;
-	private Map<String, RequirementContext> entityFetchRequirements;
-	private RequirementContext defaultReferenceRequirement;
+	@Nullable private Set<Scope> scopes;
+	@Nullable private Map<String, RequirementContext> entityFetchRequirements;
+	@Nullable private RequirementContext defaultReferenceRequirement;
 
 	/**
 	 * Parses the requirement context from the passed {@link ReferenceContent} and {@link AttributeContent}.
@@ -269,9 +269,10 @@ public class EvitaRequest {
 	public EvitaRequest(
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull String entityType,
-		@Nonnull FilterBy filterBy,
+		@Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy,
-		@Nullable Locale locale
+		@Nullable Locale locale,
+		@Nullable Set<Scope> scopes
 	) {
 
 		this.requiresEntity = true;
@@ -877,20 +878,20 @@ public class EvitaRequest {
 	 */
 	@Nullable
 	public HierarchyFilterConstraint getHierarchyWithin(@Nullable String referenceName) {
-		if (requiredWithinHierarchy == null) {
-			if (query.getFilterBy() == null) {
-				hierarchyWithin = Collections.emptyMap();
+		if (this.requiredWithinHierarchy == null) {
+			if (this.query.getFilterBy() == null) {
+				this.hierarchyWithin = Collections.emptyMap();
 			} else {
-				hierarchyWithin = new HashMap<>();
+				this.hierarchyWithin = new HashMap<>();
 				QueryUtils.findConstraints(
 						query.getFilterBy(),
 						HierarchyFilterConstraint.class
 					)
-					.forEach(it -> hierarchyWithin.put(it.getReferenceName().orElse(null), it));
+					.forEach(it -> this.hierarchyWithin.put(it.getReferenceName().orElse(null), it));
 			}
-			requiredWithinHierarchy = true;
+			this.requiredWithinHierarchy = true;
 		}
-		return hierarchyWithin.get(referenceName);
+		return this.hierarchyWithin == null ? null : this.hierarchyWithin.get(referenceName);
 	}
 
 	/**
@@ -916,11 +917,12 @@ public class EvitaRequest {
 		@Nonnull String entityType,
 		@Nullable FilterBy filterConstraint,
 		@Nullable OrderBy orderConstraint,
-		@Nullable Locale locale
+		@Nullable Locale locale,
+		@Nonnull Set<Scope> scopes
 	) {
 		return new EvitaRequest(
 			this,
-			entityType, filterConstraint, orderConstraint, locale
+			entityType, filterConstraint, orderConstraint, locale, scopes
 		);
 	}
 
