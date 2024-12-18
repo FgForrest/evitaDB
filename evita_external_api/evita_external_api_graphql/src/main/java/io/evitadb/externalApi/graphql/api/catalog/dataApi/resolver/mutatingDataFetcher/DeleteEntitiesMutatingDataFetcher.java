@@ -32,6 +32,7 @@ import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.head.Head;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.Require;
@@ -44,6 +45,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.En
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.AbstractEntitiesDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityQueryContext;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
 import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
@@ -72,20 +74,14 @@ import static io.evitadb.api.query.QueryConstraints.strip;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @Slf4j
-@RequiredArgsConstructor
-public class DeleteEntitiesMutatingDataFetcher implements DataFetcher<DataFetcherResult<List<SealedEntity>>>, WriteDataFetcher {
-
-	/**
-	 * Schema of collection to which this fetcher is mapped to.
-	 */
-	@Nonnull private EntitySchemaContract entitySchema;
+public class DeleteEntitiesMutatingDataFetcher extends AbstractEntitiesDataFetcher<DataFetcherResult<List<SealedEntity>>> implements WriteDataFetcher {
 
 	@Nonnull private final FilterConstraintResolver filterConstraintResolver;
 	@Nonnull private final OrderConstraintResolver orderConstraintResolver;
 	@Nonnull private final EntityFetchRequireResolver entityFetchRequireResolver;
 
 	public DeleteEntitiesMutatingDataFetcher(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaContract entitySchema) {
-		this.entitySchema = entitySchema;
+		super(entitySchema);
 
 		this.filterConstraintResolver = new FilterConstraintResolver(catalogSchema);
 		this.orderConstraintResolver = new OrderConstraintResolver(
@@ -106,16 +102,17 @@ public class DeleteEntitiesMutatingDataFetcher implements DataFetcher<DataFetche
 
 	@Nonnull
 	@Override
-	public DataFetcherResult<List<SealedEntity>> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+	public DataFetcherResult<List<SealedEntity>> get(DataFetchingEnvironment environment) throws Exception {
 		final Arguments arguments = Arguments.from(environment);
 		final ExecutedEvent requestExecutedEvent = environment.getGraphQlContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
 
 		final Query query = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> {
+			final Head head = buildHead(environment);
 			final FilterBy filterBy = buildFilterBy(arguments);
 			final OrderBy orderBy = buildOrderBy(arguments);
 			final Require require = buildRequire(environment, arguments, filterBy);
 			return query(
-				collection(entitySchema.getName()),
+				head,
 				filterBy,
 				orderBy,
 				require

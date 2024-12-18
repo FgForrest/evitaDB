@@ -24,13 +24,13 @@
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher;
 
 import graphql.execution.DataFetcherResult;
-import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.head.Head;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.query.require.Require;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
@@ -82,18 +82,13 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<EntityClassifier>>, ReadDataFetcher {
-
-	/**
-	 * Schema of collection to which this fetcher is mapped to.
-	 */
-	@Nonnull private final EntitySchemaContract entitySchema;
+public class GetEntityDataFetcher extends AbstractEntitiesDataFetcher<DataFetcherResult<EntityClassifier>> implements ReadDataFetcher {
 
 	@Nonnull private final EntityFetchRequireResolver entityFetchRequireResolver;
 
 	public GetEntityDataFetcher(@Nonnull CatalogSchemaContract catalogSchema,
 	                            @Nonnull EntitySchemaContract entitySchema) {
-		this.entitySchema = entitySchema;
+		super(entitySchema);
 		final FilterConstraintResolver filterConstraintResolver = new FilterConstraintResolver(catalogSchema);
 		final OrderConstraintResolver orderConstraintResolver = new OrderConstraintResolver(
 			catalogSchema,
@@ -113,15 +108,16 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
 
 	@Nonnull
 	@Override
-	public DataFetcherResult<EntityClassifier> get(@Nonnull DataFetchingEnvironment environment) {
+	public DataFetcherResult<EntityClassifier> get(DataFetchingEnvironment environment) {
 		final Arguments arguments = Arguments.from(environment, entitySchema);
 		final ExecutedEvent requestExecutedEvent = environment.getGraphQlContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
 
 		final Query query = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> {
+			final Head head = buildHead(environment);
 			final FilterBy filterBy = buildFilterBy(arguments);
 			final Require require = buildRequire(environment, arguments);
 			return query(
-				collection(entitySchema.getName()),
+				head,
 				filterBy,
 				require
 			);

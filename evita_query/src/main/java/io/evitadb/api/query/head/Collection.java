@@ -52,8 +52,7 @@ import java.io.Serializable;
 @ConstraintDefinition(
 	name = "collection",
 	shortDescription = "The constraint specifies which entity collection will be searched for results.",
-	userDocsLink = "/documentation/query/header/header#collection",
-	supportedIn = ConstraintDomain.GENERIC
+	userDocsLink = "/documentation/query/header/header#collection"
 )
 public class Collection extends ConstraintLeaf<HeadConstraint> implements HeadConstraint, GenericConstraint<HeadConstraint> {
 	@Serial private static final long serialVersionUID = -7064678623633579615L;

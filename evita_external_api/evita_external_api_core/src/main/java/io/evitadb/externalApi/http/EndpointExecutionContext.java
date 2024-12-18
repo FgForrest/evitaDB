@@ -30,7 +30,10 @@ import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -42,6 +45,8 @@ import java.util.function.Supplier;
 public abstract class EndpointExecutionContext implements AutoCloseable {
 	@Nonnull private final HttpRequest httpRequest;
 	@Nonnull private final Evita evita;
+
+	@Nonnull private final List<Consumer<EndpointExecutionContext>> closeCallbacks = new LinkedList<>();
 
 	/**
 	 * Underlying HTTP request
@@ -74,6 +79,13 @@ public abstract class EndpointExecutionContext implements AutoCloseable {
 	public abstract String preferredResponseContentType();
 
 	/**
+	 * Adds callback that will be called when context gets closed.
+	 */
+	public void addCloseCallback(@Nonnull Consumer<EndpointExecutionContext> callback) {
+		closeCallbacks.add(callback);
+	}
+
+	/**
 	 * Called by endpoint when error occurred. Can be used for logging.
 	 * The error should not be thrown.
 	 */
@@ -83,7 +95,7 @@ public abstract class EndpointExecutionContext implements AutoCloseable {
 
 	@Override
 	public void close() {
-		// do nothing
+		closeCallbacks.forEach(it -> it.accept(this));
 	}
 
 	/**

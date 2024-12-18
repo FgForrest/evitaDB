@@ -63,8 +63,7 @@ import java.io.Serializable;
 @ConstraintDefinition(
 	name = "label",
 	shortDescription = "Constraint allows to pass a key-value pair to the query. The label will be attached to recorded query and can be used for filtering in traffic inspection.",
-	userDocsLink = "/documentation/query/header/header#label",
-	supportedIn = { ConstraintDomain.GENERIC, ConstraintDomain.ENTITY }
+	userDocsLink = "/documentation/query/header/header#label"
 )
 public class Label extends AbstractHeadConstraintLeaf implements GenericConstraint<HeadConstraint> {
 	public static final Label[] EMPTY_ARRAY = new Label[0];

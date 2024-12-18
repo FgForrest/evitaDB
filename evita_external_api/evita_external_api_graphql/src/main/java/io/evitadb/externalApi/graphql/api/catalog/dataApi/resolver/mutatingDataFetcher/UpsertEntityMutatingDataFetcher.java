@@ -42,6 +42,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.En
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.AbstractEntitiesDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityQueryContext;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.mutation.GraphQLEntityUpsertMutationConverter;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
@@ -64,14 +65,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @Slf4j
-@RequiredArgsConstructor
-public class UpsertEntityMutatingDataFetcher implements DataFetcher<DataFetcherResult<EntityClassifier>>, WriteDataFetcher {
-
-
-	/**
-	 * Schema of collection to which this fetcher is mapped to.
-	 */
-	@Nonnull private EntitySchemaContract entitySchema;
+public class UpsertEntityMutatingDataFetcher extends AbstractEntitiesDataFetcher<DataFetcherResult<EntityClassifier>> implements WriteDataFetcher {
 
 	@Nonnull private final GraphQLEntityUpsertMutationConverter entityUpsertMutationResolver;
 	@Nonnull private final EntityFetchRequireResolver entityFetchRequireResolver;
@@ -79,7 +73,7 @@ public class UpsertEntityMutatingDataFetcher implements DataFetcher<DataFetcherR
 	public UpsertEntityMutatingDataFetcher(@Nonnull ObjectMapper objectMapper,
 										   @Nonnull CatalogSchemaContract catalogSchema,
 	                                       @Nonnull EntitySchemaContract entitySchema) {
-		this.entitySchema = entitySchema;
+		super(entitySchema);
 		this.entityUpsertMutationResolver = new GraphQLEntityUpsertMutationConverter(objectMapper, entitySchema);
 		final FilterConstraintResolver filterConstraintResolver = new FilterConstraintResolver(catalogSchema);
 		final OrderConstraintResolver orderConstraintResolver = new OrderConstraintResolver(
@@ -100,7 +94,7 @@ public class UpsertEntityMutatingDataFetcher implements DataFetcher<DataFetcherR
 
 	@Nonnull
 	@Override
-	public DataFetcherResult<EntityClassifier> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+	public DataFetcherResult<EntityClassifier> get(DataFetchingEnvironment environment) throws Exception {
 		final Arguments arguments = Arguments.from(environment);
 		final ExecutedEvent requestExecutedEvent = environment.getGraphQlContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
 

@@ -24,7 +24,6 @@
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher;
 
 import graphql.execution.DataFetcherResult;
-import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.Query;
@@ -35,6 +34,7 @@ import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.PriceInCurrency;
 import io.evitadb.api.query.filter.PriceInPriceLists;
 import io.evitadb.api.query.filter.PriceValidIn;
+import io.evitadb.api.query.head.Head;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.Require;
@@ -66,7 +66,6 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.api.query.Query.query;
-import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.api.query.QueryConstraints.strip;
 
@@ -77,12 +76,7 @@ import static io.evitadb.api.query.QueryConstraints.strip;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<List<EntityClassifier>>>, ReadDataFetcher {
-
-    /**
-     * Entity type of collection to which this fetcher is mapped to.
-     */
-    @Nonnull private final EntitySchemaContract entitySchema;
+public class ListEntitiesDataFetcher extends AbstractEntitiesDataFetcher<DataFetcherResult<List<EntityClassifier>>> implements ReadDataFetcher {
 
     @Nonnull private final FilterConstraintResolver filterConstraintResolver;
     @Nonnull private final OrderConstraintResolver orderConstraintResolver;
@@ -90,7 +84,7 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
 
     public ListEntitiesDataFetcher(@Nonnull CatalogSchemaContract catalogSchema,
                                    @Nonnull EntitySchemaContract entitySchema) {
-        this.entitySchema = entitySchema;
+        super(entitySchema);
 
         this.filterConstraintResolver = new FilterConstraintResolver(catalogSchema);
         this.orderConstraintResolver = new OrderConstraintResolver(
@@ -116,11 +110,12 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
         final ExecutedEvent requestExecutedEvent = environment.getGraphQlContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
 
         final Query query = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> {
+            final Head head = buildHead(environment);
             final FilterBy filterBy = buildFilterBy(arguments);
             final OrderBy orderBy = buildOrderBy(arguments);
             final Require require = buildRequire(environment, arguments, filterBy);
             return query(
-                collection(entitySchema.getName()),
+                head,
                 filterBy,
                 orderBy,
                 require

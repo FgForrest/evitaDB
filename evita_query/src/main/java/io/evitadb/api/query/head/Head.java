@@ -60,8 +60,7 @@ import java.io.Serializable;
 @ConstraintDefinition(
 	name = "head",
 	shortDescription = "The container encapsulates inner head constraints into one main constraint that is required by the query.",
-	userDocsLink = "/documentation/query/header/header#head",
-	supportedIn = { ConstraintDomain.GENERIC, ConstraintDomain.ENTITY }
+	userDocsLink = "/documentation/query/header/header#head"
 )
 public class Head extends AbstractHeadConstraintContainer implements GenericConstraint<HeadConstraint> {
 	@Serial private static final long serialVersionUID = -3870428448982728781L;
