@@ -46,6 +46,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 /**
  * This interface extends the public interface and adds a few methods that are targeted for internal use of EvitaDB
@@ -181,5 +182,24 @@ public interface EvitaInternalSessionContract extends EvitaSessionContract, Traf
 	 * @param sourceQueryId unique identifier of the source query
 	 */
 	void finalizeSourceQuery(@Nonnull UUID sourceQueryId);
+
+	/**
+	 * Returns a stream of all unique labels names ordered by cardinality of their values present in the traffic recording.
+	 *
+	 * @param nameStartingWith optional prefix to filter the labels by
+	 * @return stream of unique label names ordered by cardinality of their values
+	 */
+	@Nonnull
+	Stream<String> getLabelsNamesOrderedByCardinality(@Nullable String nameStartingWith);
+
+	/**
+	 * Returns a stream of all unique label values ordered by cardinality present in the traffic recording.
+	 *
+	 * @param labelName name of the label to get values for
+	 * @param valueStartingWith optional prefix to filter the labels by
+	 * @return stream of unique label values ordered by cardinality
+	 */
+	@Nonnull
+	Stream<String> getLabelValuesOrderedByCardinality(@Nonnull String labelName, @Nullable String valueStartingWith);
 
 }

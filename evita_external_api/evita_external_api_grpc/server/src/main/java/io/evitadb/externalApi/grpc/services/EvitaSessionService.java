@@ -53,8 +53,6 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.system.CatalogVersion;
-import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
-import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest;
 import io.evitadb.api.task.Task;
 import io.evitadb.core.Evita;
 import io.evitadb.core.EvitaInternalSessionContract;
@@ -79,7 +77,6 @@ import io.evitadb.externalApi.grpc.requestResponse.data.mutation.DelegatingLocal
 import io.evitadb.externalApi.grpc.requestResponse.schema.EntitySchemaConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingLocalCatalogSchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutationConverter;
-import io.evitadb.externalApi.grpc.requestResponse.traffic.TrafficCaptureConverter;
 import io.evitadb.externalApi.grpc.services.interceptors.GlobalExceptionHandlerInterceptor;
 import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionInterceptor;
 import io.evitadb.externalApi.grpc.utils.QueryUtil;
@@ -147,7 +144,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	 * @param lambda   lambda function to be executed
 	 * @param executor executor service to be used as a carrier for a lambda function
 	 */
-	private static void executeWithClientContext(
+	static void executeWithClientContext(
 		@Nonnull Consumer<EvitaInternalSessionContract> lambda,
 		@Nonnull ObservableExecutorServiceWithHardDeadline executor,
 		@Nonnull StreamObserver<?> responseObserver
@@ -591,67 +588,6 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 						final GrpcChangeCatalogCapture event = ChangeCaptureConverter.toGrpcChangeCatalogCapture(cdcEvent);
 						// we send mutations one by one, but we may want to send them in batches in the future
 						builder.addChangeCapture(event);
-						responseObserver.onNext(builder.build());
-					}
-				);
-				responseObserver.onCompleted();
-			},
-			evita.getRequestExecutor(),
-			responseObserver
-		);
-	}
-
-	/**
-	 * Method returns list of traffic recording history entries that match given criteria.
-	 *
-	 * @param request          request containing the criteria
-	 * @param responseObserver observer on which errors might be thrown and result returned
-	 */
-	@Override
-	public void getTrafficRecordingHistoryList(GetTrafficHistoryListRequest request, StreamObserver<GetTrafficHistoryListResponse> responseObserver) {
-		executeWithClientContext(
-			session -> {
-				final TrafficRecordingCaptureRequest captureRequest = TrafficCaptureConverter.toTrafficRecordingCaptureRequest(request);
-				final GetTrafficHistoryListResponse.Builder builder = GetTrafficHistoryListResponse.newBuilder();
-				session.getRecordings(captureRequest)
-					.limit(request.getLimit())
-					.forEach(
-						trafficRecording -> builder.addTrafficRecord(
-							TrafficCaptureConverter.toGrpcGrpcTrafficRecord(trafficRecording, captureRequest.content())
-						)
-					);
-				responseObserver.onNext(builder.build());
-				responseObserver.onCompleted();
-			},
-			evita.getRequestExecutor(),
-			responseObserver
-		);
-	}
-
-	/**
-	 * Method streams traffic recording history entries that match given criteria.
-	 *
-	 * @param request          request containing the criteria
-	 * @param responseObserver observer on which errors might be thrown and result returned
-	 */
-	@Override
-	public void getTrafficRecordingHistory(GetTrafficHistoryRequest request, StreamObserver<GetTrafficHistoryResponse> responseObserver) {
-		ServerCallStreamObserver<GetTrafficHistoryResponse> serverCallStreamObserver =
-			(ServerCallStreamObserver<GetTrafficHistoryResponse>) responseObserver;
-
-		// avoid returning error when client cancels the stream
-		serverCallStreamObserver.setOnCancelHandler(() -> log.info("Client cancelled the traffic history request."));
-
-		executeWithClientContext(
-			session -> {
-				final TrafficRecordingCaptureRequest captureRequest = TrafficCaptureConverter.toTrafficRecordingCaptureRequest(request);
-				final Stream<TrafficRecording> trafficHistoryStream = session.getRecordings(captureRequest);
-				trafficHistoryStream.forEach(
-					trafficRecording -> {
-						final GetTrafficHistoryResponse.Builder builder = GetTrafficHistoryResponse.newBuilder();
-						final GrpcTrafficRecord event = TrafficCaptureConverter.toGrpcGrpcTrafficRecord(trafficRecording, captureRequest.content());
-						// we send mutations one by one, but we may want to send them in batches in the future
-						builder.addTrafficRecord(event);
 						responseObserver.onNext(builder.build());
 					}
 				);

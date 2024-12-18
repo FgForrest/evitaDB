@@ -75,6 +75,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 /**
@@ -317,10 +318,9 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		int ioFetchedSizeBytes,
 		@Nonnull int... primaryKeys
 	) {
-		final SessionTraffic sessionTraffic = this.trackedSessionsIndex.get(sessionId);
 		record(
-			sessionTraffic,
-			new QueryContainer(
+			this.trackedSessionsIndex.get(sessionId),
+			sessionTraffic -> new QueryContainer(
 				sessionId,
 				sessionTraffic.nextRecordingId(),
 				query,
@@ -344,10 +344,9 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		int ioFetchedSizeBytes,
 		int primaryKey
 	) {
-		final SessionTraffic sessionTraffic = this.trackedSessionsIndex.get(sessionId);
 		record(
-			sessionTraffic,
-			new EntityFetchContainer(
+			this.trackedSessionsIndex.get(sessionId),
+			sessionTraffic -> new EntityFetchContainer(
 				sessionId,
 				sessionTraffic.nextRecordingId(),
 				query,
@@ -367,10 +366,9 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		int ioFetchedSizeBytes,
 		int primaryKey
 	) {
-		final SessionTraffic sessionTraffic = this.trackedSessionsIndex.get(sessionId);
 		record(
-			sessionTraffic,
-			new EntityEnrichmentContainer(
+			this.trackedSessionsIndex.get(sessionId),
+			sessionTraffic -> new EntityEnrichmentContainer(
 				sessionId,
 				sessionTraffic.nextRecordingId(),
 				query,
@@ -387,10 +385,9 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		@Nonnull OffsetDateTime now,
 		@Nonnull Mutation mutation
 	) {
-		final SessionTraffic sessionTraffic = this.trackedSessionsIndex.get(sessionId);
 		record(
-			sessionTraffic,
-			new MutationContainer(
+			this.trackedSessionsIndex.get(sessionId),
+			sessionTraffic -> new MutationContainer(
 				sessionId,
 				sessionTraffic.nextRecordingId(),
 				now,
@@ -408,18 +405,20 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		@Nonnull String sourceQuery,
 		@Nonnull String queryType
 	) {
-		final SessionTraffic sessionTraffic = this.trackedSessionsIndex.get(sessionId);
-		sessionTraffic.setupSourceQuery(sourceQueryId, now);
 		record(
-			sessionTraffic,
-			new SourceQueryContainer(
-				sessionId,
-				sessionTraffic.nextRecordingId(),
-				sourceQueryId,
-				now,
-				sourceQuery,
-				queryType
-			)
+			this.trackedSessionsIndex.get(sessionId),
+			sessionTraffic
+				-> {
+				sessionTraffic.setupSourceQuery(sourceQueryId, now);
+				return new SourceQueryContainer(
+					sessionId,
+					sessionTraffic.nextRecordingId(),
+					sourceQueryId,
+					now,
+					sourceQuery,
+					queryType
+				);
+			}
 		);
 	}
 
@@ -428,10 +427,9 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		@Nonnull UUID sessionId,
 		@Nonnull UUID sourceQueryId
 	) {
-		final SessionTraffic sessionTraffic = this.trackedSessionsIndex.get(sessionId);
 		record(
-			sessionTraffic,
-			sessionTraffic.closeSourceQuery(sourceQueryId)
+			this.trackedSessionsIndex.get(sessionId),
+			sessionTraffic -> sessionTraffic.closeSourceQuery(sourceQueryId)
 		);
 	}
 
@@ -479,13 +477,14 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 	 * a missed record is counted. In cases where memory is not available, the write buffer is
 	 * released and a missed record is incremented.
 	 *
-	 * @param sessionTraffic the session traffic object containing the data to be recorded
-	 * @param container      the traffic recording container object containing the data to be recorded
-	 *                       and its associated metadata
+	 * @param sessionTraffic   the session traffic object containing the data to be recorded
+	 * @param containerFactory the traffic recording container object containing the data to be recorded
+	 *                         and its associated metadata
 	 */
-	private <T extends TrafficRecording> void record(@Nullable SessionTraffic sessionTraffic, @Nonnull T container) {
+	private <T extends TrafficRecording> void record(@Nullable SessionTraffic sessionTraffic, @Nonnull Function<SessionTraffic, T> containerFactory) {
 		if (sessionTraffic != null && !sessionTraffic.isFinished()) {
 			try {
+				final T container = containerFactory.apply(sessionTraffic);
 				final StorageRecord<T> storageRecord = new StorageRecord<>(
 					this.offHeapTrafficRecorderKryoPool.obtain(),
 					sessionTraffic.getObservableOutput(),
