@@ -653,28 +653,18 @@ the more indexes you maintain, the more memory and CPU resources you will consum
 
 ### Changes in reference behavior
 
-When you move an entity from one scope to another, the original references remain intact, while reflected references are
-removed if they refer to an entity that does not exist in the target scope. Reflected references are something that is 
-maintained by the evitaDB engine, and it requires appropriate indexes to be present in the target scope in order to work. 
-This cannot be guaranteed in the archive scope (on the contrary, it is expected that the indexes in the archive scope - 
-because that's the default behaviour).
+When you move an entity from one scope to another, the original references are retained, while the reflected references 
+are removed if either of the following conditions is not met
 
-Therefore, the reflected references are removed when the entity is moved to the archive scope. The engine can recreate 
-them in the archive scope if there is an index configured in the target entity type for the archive scope and the target 
-entity is also present in the archive scope.
+- the reflected reference schema is not marked as *indexed* in the target scope
+- the primary reference schema (i.e. the original reference being reflected) is not marked as *indexed* in the target scope.
 
-### Changes in unique constraints behavior
+Reflected references are something that is maintained by the evitaDB engine, and it requires appropriate indexes to be 
+present in the target scope in order to work. By default, the archive scope does not maintain any indexes other than 
+the primary key and a few others explicitly specified by you in the entity schema.
 
-Unique constraints are only enforced within the same scope. This means that two entities in different scopes can have 
-the same unique attribute value. When you move an entity from one scope to another, the unique constraints within 
-the target scope are checked and if the entity violates the unique constraint, the move is refused.
-
-If you query entities in both scopes using [scope](../query/filtering/behavioral.md#scope) filter and use the filtering
-constraint that exactly matches the unique attribute ([attribute equals](../query/filtering/comparable.md#attribute-equals),
-[attribute in set](../query/filtering/comparable.md#attribute-in-set), [attribute is](../query/filtering/comparable.md#attribute-is)),
-evitaDB will prefer the entity from the live scope over the entity from the archive scope. This means that if you query 
-a single entity by its unique attribute value (e.g. `URL`) and search for the entity in both scopes, you will always get
-the entity from the live scope.
+Therefore, the reflected references are usually removed when the entity is moved to the archive scope. The engine can 
+recreate them if the entity is moved back to the live scope where appropriate indexes exist.
 
 ## What's next?
 

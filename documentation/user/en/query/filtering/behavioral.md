@@ -124,8 +124,16 @@ the scope in which the result is searched. Two scopes are available:
 
 Scopes represent the means how evitaDB handles so called "soft deletes". The application can choose between a hard 
 delete and archiving the entity, which simply moves the entity to the archive scope. The details of the archiving 
-process are described in the chapter [Archiving](../../use/schema.md#scopes) and the reasons why this feature 
+process are described in the chapter [scopes](../../use/schema.md#scopes) and the reasons why this feature 
 exists are explained in the [dedicated blog post](https://evitadb.io/blog/15-soft-delete).
+
+By default, all queries behave as if the `scope(LIVE)` is present in the filter part, unless you explicitly specify
+the scope constraint yourself. This means that no entity from the archive scope will be returned. If the entity has
+a reference to an entity in the archive scope, the [`referenceHaving`](../filtering/references.md#reference-having)
+won't be satisfied if only entities in the `LIVE` scope are queried. If you change the scope to `scope(ARCHIVE)`, you
+will only get entities from the archive scope. You can also mix entities from both scopes by specifying
+`scope(LIVE, ARCHIVE)`, and in such a case the [`referenceHaving`](../filtering/references.md#reference-having)
+may also match entities from different scopes than the one being queried.
 
 <Note type="warning">
 
