@@ -61,44 +61,29 @@ import static java.util.Optional.of;
  */
 public class ReferenceHavingTranslator implements FilteringConstraintTranslator<ReferenceHaving>, SelfTraversingTranslator {
 
-	@Nonnull
-	@Override
-	public Formula translate(@Nonnull ReferenceHaving referenceHaving, @Nonnull FilterByVisitor filterByVisitor) {
-		final String referenceName = referenceHaving.getReferenceName();
-		final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
-		final EntitySchemaContract entitySchema = processingScope.getEntitySchema();
-
-		Assert.isTrue(
-			entitySchema != null,
-			() -> "Entity type must be known when filtering by `referenceHaving`."
-		);
-
-		final ReferenceSchemaContract referenceSchema = entitySchema.getReference(referenceName)
-			.orElseThrow(() -> new ReferenceNotFoundException(referenceName, entitySchema));
-
-		final Supplier<List<ReducedEntityIndex>> referencedEntityIndexesSupplier = () -> getTargetIndexes(
-			filterByVisitor, referenceHaving, processingScope.getScopes()
-		);
-
-		// the reference content needs to be prefetched in order to bea able to apply the filter on prefetched data
-		// i.e. access the reference attributes
-		filterByVisitor.addRequirementToPrefetch(referenceContent(referenceName));
-
-		return applySearchOnIndexes(
-			referenceHaving, filterByVisitor, entitySchema, referenceSchema, referencedEntityIndexesSupplier
-		);
-	}
-
+	/**
+	 * Applies a search operation on specified indexes based on the given filter constraints, context, and schema
+	 * configurations. The method builds and executes the necessary formulas for filtering and efficiently retrieves
+	 * the data satisfying the filter criteria.
+	 *
+	 * @param filterConstraint              the filtering constraint specifying conditions to evaluate against the references.
+	 * @param filterByVisitor               the visitor responsible for collecting the results of the filtering logic across schemas.
+	 * @param entitySchema                  the entity schema defining the structure and attributes of the entity being queried.
+	 * @param referenceSchema               the reference schema containing metadata about the reference relation and its attributes.
+	 * @param processingScope               the processing scope providing additional contextual properties required during the filtering.
+	 * @param referencedEntityIndexSupplier the supplier that provides a list of reduced entity indexes for processing references.
+	 * @return the resulting formula representing the combined computation steps for the filtering operation.
+	 */
 	@Nonnull
 	private static Formula applySearchOnIndexes(
 		@Nonnull ReferenceHaving filterConstraint,
 		@Nonnull FilterByVisitor filterByVisitor,
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull ProcessingScope<?> processingScope,
 		@Nonnull Supplier<List<ReducedEntityIndex>> referencedEntityIndexSupplier
 	) {
 		final String referenceName = referenceSchema.getName();
-		final ProcessingScope<?> processingScope = filterByVisitor.getProcessingScope();
 		return filterByVisitor.executeInContextAndIsolatedFormulaStack(
 			ReducedEntityIndex.class,
 			referencedEntityIndexSupplier,
@@ -118,6 +103,8 @@ public class ReferenceHavingTranslator implements FilteringConstraintTranslator<
 				getFilterByFormula(filterConstraint).ifPresent(it -> it.accept(filterByVisitor));
 				final Formula[] collectedFormulas = filterByVisitor.getCollectedFormulasOnCurrentLevel();
 				return switch (collectedFormulas.length) {
+					// when there was no filter constraint or entityPrimaryKeyInSet, we can safely use super set formula
+					// e.g. all primary keys in reduced entity indexes
 					case 0 -> filterByVisitor.getSuperSetFormula();
 					case 1 -> collectedFormulas[0];
 					default -> new OrFormula(collectedFormulas);
@@ -144,7 +131,7 @@ public class ReferenceHavingTranslator implements FilteringConstraintTranslator<
 		@Nonnull FilterByVisitor filterByVisitor,
 		@Nonnull ReferenceHaving referenceHaving,
 		@Nonnull Set<Scope> scopes
-		) {
+	) {
 		final TargetIndexes<?> targetIndexes = filterByVisitor.findTargetIndexSet(referenceHaving);
 		final List<ReducedEntityIndex> referencedEntityIndexes;
 		if (targetIndexes == null) {
@@ -154,6 +141,35 @@ public class ReferenceHavingTranslator implements FilteringConstraintTranslator<
 			referencedEntityIndexes = (List<ReducedEntityIndex>) targetIndexes.getIndexes();
 		}
 		return referencedEntityIndexes;
+	}
+
+	@Nonnull
+	@Override
+	public Formula translate(@Nonnull ReferenceHaving referenceHaving, @Nonnull FilterByVisitor filterByVisitor) {
+		final String referenceName = referenceHaving.getReferenceName();
+		final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
+		final EntitySchemaContract entitySchema = processingScope.getEntitySchema();
+
+		Assert.isTrue(
+			entitySchema != null,
+			() -> "Entity type must be known when filtering by `referenceHaving`."
+		);
+
+		final ReferenceSchemaContract referenceSchema = entitySchema.getReference(referenceName)
+			.orElseThrow(() -> new ReferenceNotFoundException(referenceName, entitySchema));
+
+		final Supplier<List<ReducedEntityIndex>> referencedEntityIndexesSupplier = () -> getTargetIndexes(
+			filterByVisitor, referenceHaving, processingScope.getScopes()
+		);
+
+		// the reference content needs to be prefetched in order to bea able to apply the filter on prefetched data
+		// i.e. access the reference attributes
+		filterByVisitor.addRequirementToPrefetch(referenceContent(referenceName));
+
+		return applySearchOnIndexes(
+			referenceHaving, filterByVisitor, entitySchema, referenceSchema,
+			processingScope, referencedEntityIndexesSupplier
+		);
 	}
 
 }

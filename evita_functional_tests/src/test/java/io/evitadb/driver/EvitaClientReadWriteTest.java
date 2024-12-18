@@ -2147,7 +2147,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		);
 		assertNotNull(categoryAfterArchiving);
 		final ReferenceContract productsAfterArchiving = categoryAfterArchiving.getReference("products", 100).orElse(null);
-		assertNull(productsAfterArchiving);
+		assertNotNull(productsAfterArchiving);
 
 		// archive category entity
 		evitaClient.updateCatalog(
