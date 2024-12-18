@@ -50,6 +50,15 @@ public class ConstraintCloneVisitor implements ConstraintVisitor {
 	private final BiFunction<ConstraintCloneVisitor, Constraint<?>, Constraint<?>> constraintTranslator;
 	private Constraint<?> result = null;
 
+	/**
+	 * Creates a clone of the given constraint using the provided constraint translator, if any.
+	 *
+	 * @param <T> The type of the constraint being cloned.
+	 * @param constraint The constraint instance to be cloned. Must not be null.
+	 * @param constraintTranslator An optional translation function to apply during the cloning process. May be null.
+	 * @return A new instance of the constraint with the applied cloning logic.
+	 */
+	@Nullable
 	public static <T extends Constraint<T>> T clone(@Nonnull T constraint, @Nullable BiFunction<ConstraintCloneVisitor, Constraint<?>, Constraint<?>> constraintTranslator) {
 		final ConstraintCloneVisitor visitor = new ConstraintCloneVisitor(constraintTranslator);
 		constraint.accept(visitor);
@@ -111,17 +120,17 @@ public class ConstraintCloneVisitor implements ConstraintVisitor {
 		if (constraint instanceof final ConstraintContainer<?> container) {
 			final Constraint<?> translatedConstraint = constraintTranslator.apply(this, constraint);
 			if (translatedConstraint == constraint) {
-				levelConstraints.push(new ArrayList<>(container.getChildrenCount()));
+				this.levelConstraints.push(new ArrayList<>(container.getChildrenCount()));
 				for (Constraint<?> child : container) {
 					child.accept(this);
 				}
 				final List<Constraint<?>> children = levelConstraints.pop();
 
-				levelConstraints.push(new ArrayList<>(container.getAdditionalChildrenCount()));
+				this.levelConstraints.push(new ArrayList<>(container.getAdditionalChildrenCount()));
 				for (Constraint<?> additionalChild : container.getAdditionalChildren()) {
 					additionalChild.accept(this);
 				}
-				final List<Constraint<?>> additionalChildren = levelConstraints.pop();
+				final List<Constraint<?>> additionalChildren = this.levelConstraints.pop();
 
 				if (isEqual(container.getChildren(), children) &&
 					isEqual(container.getAdditionalChildren(), additionalChildren)) {
@@ -133,7 +142,7 @@ public class ConstraintCloneVisitor implements ConstraintVisitor {
 				addOnCurrentLevel(translatedConstraint);
 			}
 		} else if (constraint instanceof ConstraintLeaf) {
-			addOnCurrentLevel(constraintTranslator.apply(this, constraint));
+			addOnCurrentLevel(this.constraintTranslator.apply(this, constraint));
 		}
 	}
 
@@ -152,7 +161,20 @@ public class ConstraintCloneVisitor implements ConstraintVisitor {
 
 	@Nullable
 	public Constraint<?> getResult() {
-		return result;
+		return this.result;
+	}
+
+	/**
+	 * Adds normalized constraint to the new composition.
+	 */
+	public void addOnCurrentLevel(@Nullable Constraint<?> constraint) {
+		if (constraint != null && constraint.isApplicable()) {
+			if (this.levelConstraints.isEmpty()) {
+				this.result = getFlattenedResult(constraint);
+			} else {
+				this.levelConstraints.peek().add(getFlattenedResult(constraint));
+			}
+		}
 	}
 
 	/**
@@ -170,19 +192,6 @@ public class ConstraintCloneVisitor implements ConstraintVisitor {
 		final Constraint<?> copyWithNewChildren = container.getCopyWithNewChildren(newChildren, newAdditionalChildren);
 		if (copyWithNewChildren.isApplicable()) {
 			addOnCurrentLevel(getFlattenedResult(copyWithNewChildren));
-		}
-	}
-
-	/**
-	 * Adds normalized constraint to the new composition.
-	 */
-	private void addOnCurrentLevel(@Nullable Constraint<?> constraint) {
-		if (constraint != null && constraint.isApplicable()) {
-			if (levelConstraints.isEmpty()) {
-				result = getFlattenedResult(constraint);
-			} else {
-				levelConstraints.peek().add(getFlattenedResult(constraint));
-			}
 		}
 	}
 }

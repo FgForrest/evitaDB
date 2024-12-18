@@ -222,7 +222,8 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 								NumberUtils.join(
 									System.identityHashCode(entitySchema),
 									System.identityHashCode(referenceSchema)
-								)
+								),
+								nestedResult.globalIndex() == null ? 0L : nestedResult.globalIndex().getPrimaryKey()
 							);
 						}
 					})
