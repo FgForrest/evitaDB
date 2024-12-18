@@ -263,11 +263,6 @@ public interface ReferenceIndexMutator {
 				undoActionConsumer
 			);
 		}
-
-		// if referenced type index is empty remove it completely
-		if (referenceTypeIndex.isEmpty()) {
-			executor.removeIndex(referenceTypeIndex.getIndexKey());
-		}
 	}
 
 	/**
@@ -411,11 +406,6 @@ public interface ReferenceIndexMutator {
 		index.removeFacet(referenceKey, groupId, entityPrimaryKey);
 		if (undoActionConsumer != null) {
 			undoActionConsumer.accept(() -> index.addFacet(referenceKey, groupId, entityPrimaryKey));
-		}
-		if (index.isEmpty()) {
-			// if the result index is empty, we should drop track of it in global entity index
-			// it was probably registered before, and it has been emptied by the consumer lambda just now
-			executor.removeIndex(index.getIndexKey());
 		}
 	}
 
@@ -735,11 +725,6 @@ public interface ReferenceIndexMutator {
 		removeAllPrices(executor, targetIndex, existingDataSupplierFactory.getPriceSupplier(), undoActionConsumer);
 		removeAllAttributes(executor, targetIndex, existingDataSupplierFactory, undoActionConsumer);
 		removeEntireSuiteOfSortableAttributeCompounds(executor, targetIndex, null, existingDataSupplierFactory, undoActionConsumer);
-
-		// if target index is empty, remove it completely
-		if (targetIndex.isEmpty()) {
-			executor.removeIndex(targetIndex.getIndexKey());
-		}
 	}
 
 	/**

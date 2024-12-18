@@ -846,7 +846,33 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 						(theEntity, attributeName, locale) -> theEntity.getReferences(referenceName).stream().map(it -> it.getAttributeValue(attributeName, locale)),
 						() -> {
 							filterBy.accept(this);
-							return getFormulaAndClear();
+							final Formula formula = getFormulaAndClear();
+							// when target entity type is managed
+							if (referenceSchema.isReferencedEntityTypeManaged()) {
+								// we must match the result with the existence of the primary keys in the global entity index in allowed scopes
+								return FormulaFactory.and(
+									formula,
+									FormulaFactory.or(
+										// here we use all scopes targeted by the query
+										this.queryContext.getScopes()
+											.stream()
+											.map(theScope -> {
+												if (referenceSchema.isIndexedInScope(theScope)) {
+													return getGlobalEntityIndexIfExists(referenceSchema.getReferencedEntityType(), theScope)
+														.map(EntityIndex::getAllPrimaryKeysFormula)
+														.orElse(EmptyFormula.INSTANCE);
+												} else {
+													// if the schema is not indexed in particular scope, we must keep original formula results in place
+													// to avoid their removal from the final result
+													return formula;
+												}
+											})
+											.toArray(Formula[]::new)
+									)
+								);
+							} else {
+								return formula;
+							}
 						}
 					);
 				})
@@ -871,6 +897,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			 return Stream.empty();
 		} else if (allowedScopes.size() == 1) {
 			return processingScope.getIndexStream()
+				.filter(ix -> ix.getIndexKey().scope() == allowedScopes.iterator().next())
 				.filter(EntityIndex.class::isInstance)
 				.map(EntityIndex.class::cast);
 		} else {

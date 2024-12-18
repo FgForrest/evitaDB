@@ -699,8 +699,11 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			final OrderBy orderBy = new OrderBy(entityOrderBy.getChildren());
 			final QueryPlanningContext nestedQueryContext = targetEntityCollection.createQueryContext(
 				evitaRequest.deriveCopyWith(
-					targetEntityCollection.getEntityType(), null, orderBy,
-					entityNestedQueryComparator.getLocale()
+					targetEntityCollection.getEntityType(),
+					null,
+					orderBy,
+					entityNestedQueryComparator.getLocale(),
+					evitaRequest.getScopes()
 				),
 				evitaSession
 			);
@@ -721,7 +724,13 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 
 			final OrderBy orderBy = new OrderBy(entityGroupOrderBy.getChildren());
 			final QueryPlanningContext nestedQueryContext = targetEntityGroupCollection.createQueryContext(
-				evitaRequest.deriveCopyWith(targetEntityGroupCollection.getEntityType(), null, orderBy, entityNestedQueryComparator.getLocale()),
+				evitaRequest.deriveCopyWith(
+					targetEntityGroupCollection.getEntityType(),
+					null,
+					orderBy,
+					entityNestedQueryComparator.getLocale(),
+					evitaRequest.getScopes()
+				),
 				evitaSession
 			);
 

@@ -375,7 +375,9 @@ public final class ReflectedReferenceSchemaBuilder
 	@Override
 	public ReflectedReferenceSchemaBuilder facetedInScope(@Nonnull Scope... inScope) {
 		final boolean reflectedReferenceAvailable = isReflectedReferenceAvailable();
-		if (reflectedReferenceAvailable && Arrays.stream(inScope).allMatch(this::isIndexedInScope)) {
+		final boolean indexedInherited = isIndexedInherited();
+		final boolean allInformationPresent = reflectedReferenceAvailable || !indexedInherited;
+		if (allInformationPresent && Arrays.stream(inScope).allMatch(this::isIndexedInScope)) {
 			// just update the faceted scopes
 			this.updatedSchemaDirty = updateMutationImpact(
 				this.updatedSchemaDirty,
@@ -394,7 +396,7 @@ public final class ReflectedReferenceSchemaBuilder
 					new SetReferenceSchemaIndexedMutation(
 						getName(),
 						Arrays.stream(Scope.values())
-							.filter(scope -> includedScopes.contains(scope) && (reflectedReferenceAvailable || !this.isIndexedInScope(scope)))
+							.filter(scope -> includedScopes.contains(scope) || (allInformationPresent && this.isIndexedInScope(scope)))
 							.toArray(Scope[]::new)
 					),
 					new SetReferenceSchemaFacetedMutation(getName(), inScope)

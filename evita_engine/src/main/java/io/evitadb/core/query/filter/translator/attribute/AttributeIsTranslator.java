@@ -73,7 +73,7 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 		@Nonnull FilterByVisitor filterByVisitor
 	) {
 		if (filterByVisitor.isEntityTypeKnown()) {
-			final Set<Scope> scopes = filterByVisitor.getScopes();
+			final Set<Scope> scopes = filterByVisitor.getProcessingScope().getScopes();
 			final AttributeSchemaContract attributeDefinition = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName, AttributeTrait.FILTERABLE)
 				.map(AttributeSchemaContract.class::cast)
 				.orElseGet(() -> filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE));
@@ -229,7 +229,7 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 		@Nonnull FilterByVisitor filterByVisitor
 	) {
 		if (filterByVisitor.isEntityTypeKnown()) {
-			final Set<Scope> scopes = filterByVisitor.getScopes();
+			final Set<Scope> scopes = filterByVisitor.getProcessingScope().getScopes();
 			final AttributeSchemaContract attributeDefinition = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName, AttributeTrait.FILTERABLE)
 				.map(AttributeSchemaContract.class::cast)
 				.orElseGet(() -> filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE));

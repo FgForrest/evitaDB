@@ -117,7 +117,7 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 		final QueryPlanningContext queryContext = extraResultPlanningVisitor.getQueryContext();
 		return new FilteringFormulaPredicate(
 			queryContext,
-			queryContext.getScopes(),
+			extraResultPlanningVisitor.getProcessingScope().getScopes(),
 			new FilterBy(filterGroupBy.getChildren()),
 			referenceSchema.getReferencedGroupType(),
 			() -> "Facet summary of `" + referenceSchema.getName() + "` group filter: " + filterGroupBy
@@ -153,7 +153,7 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 		final QueryPlanningContext queryContext = extraResultPlanningVisitor.getQueryContext();
 		return new FilteringFormulaPredicate(
 			queryContext,
-			queryContext.getScopes(),
+			extraResultPlanningVisitor.getProcessingScope().getScopes(),
 			filterBy,
 			referenceSchema.getReferencedEntityType(),
 			() -> "Facet summary of `" + referenceSchema.getName() + "` facet filter: " + filterBy
