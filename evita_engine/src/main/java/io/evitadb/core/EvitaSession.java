@@ -388,8 +388,15 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 				// then apply termination callbacks
 				try {
 					this.beingClosed = true;
-					ofNullable(terminationCallback)
+					ofNullable(this.terminationCallback)
 						.ifPresent(it -> it.onTermination(this));
+				} catch (Throwable tcException) {
+					log.error("Error occurred while executing termination callback!", tcException);
+					if (throwable == null) {
+						throw new TransactionException("Error occurred while executing termination callback!", tcException);
+					} else {
+						throwable.addSuppressed(tcException);
+					}
 				} finally {
 					theCatalog.getTrafficRecorder().closeSession(this.id);
 					this.beingClosed = false;
