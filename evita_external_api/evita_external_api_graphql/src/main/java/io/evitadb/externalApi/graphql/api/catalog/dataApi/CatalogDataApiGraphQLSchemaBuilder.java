@@ -27,6 +27,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import graphql.schema.GraphQLEnumType;
 import graphql.schema.GraphQLFieldDefinition;
 import graphql.schema.GraphQLFieldDefinition.Builder;
+import graphql.schema.GraphQLInputObjectField;
 import graphql.schema.GraphQLInputObjectType;
 import graphql.schema.GraphQLInputType;
 import graphql.schema.GraphQLObjectType;
@@ -49,6 +50,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.FullResponseOb
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.LocalMutationAggregateObjectBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.FilterConstraintSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.GraphQLConstraintSchemaBuildingContext;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.HeadConstraintSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.OrderConstraintSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.RequireConstraintSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.DeleteEntitiesMutationHeaderDescriptor;
@@ -57,6 +59,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GlobalEntityDesc
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ListEntitiesHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ListUnknownEntitiesHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.QueryEntitiesHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.QueryLabelDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.UnknownEntityHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.UpsertEntityHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.CollectionSizeDataFetcher;
@@ -104,6 +107,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	private static final ObjectMapper CDO_OBJECT_MAPPER = new ObjectMapper();
 
 	@Nonnull private final GraphQLConstraintSchemaBuildingContext constraintContext;
+	@Nonnull private final HeadConstraintSchemaBuilder headConstraintSchemaBuilder;
 	@Nonnull private final FilterConstraintSchemaBuilder filterConstraintSchemaBuilder;
 	@Nonnull private final OrderConstraintSchemaBuilder orderConstraintSchemaBuilder;
 	@Nonnull private final RequireConstraintSchemaBuilder mainRequireConstraintSchemaBuilder;
@@ -118,6 +122,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 		super(new CatalogGraphQLSchemaBuildingContext(config, evita, catalog));
 		this.constraintContext = new GraphQLConstraintSchemaBuildingContext(buildingContext);
 
+		this.headConstraintSchemaBuilder = new HeadConstraintSchemaBuilder(constraintContext);
 		this.filterConstraintSchemaBuilder = new FilterConstraintSchemaBuilder(constraintContext);
 		this.orderConstraintSchemaBuilder = new OrderConstraintSchemaBuilder(
 			constraintContext,
@@ -168,6 +173,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	private void buildCommonTypes() {
 		buildLocaleEnum().ifPresent(buildingContext::registerCustomEnumIfAbsent);
 		buildCurrencyEnum().ifPresent(buildingContext::registerCustomEnumIfAbsent);
+		buildingContext.registerType(QueryLabelDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 
 		final GraphQLEnumType scalarEnum = buildScalarEnum();
 		buildingContext.registerType(scalarEnum);
@@ -176,7 +182,6 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 		entityObjectBuilder.buildCommonTypes();
 		fullResponseObjectBuilder.buildCommonTypes();
 		localMutationAggregateObjectBuilder.buildCommonTypes();
-
 	}
 
 	private void buildFields() {
@@ -226,6 +231,10 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			buildingContext,
 			entitySchema
 		);
+
+		// build head input objects
+		final GraphQLInputType headInputObject = headConstraintSchemaBuilder.build(collectionBuildingContext.getSchema().getName());
+		collectionBuildingContext.setHeadInputObject(headInputObject);
 
 		// build filter input object
 		final GraphQLInputType filterByInputObject = filterConstraintSchemaBuilder.build(collectionBuildingContext.getSchema().getName());
@@ -301,7 +310,8 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		getUnknownEntityFieldBuilder
 			.argument(UnknownEntityHeaderDescriptor.JOIN.to(argumentBuilderTransformer))
-			.argument(UnknownEntityHeaderDescriptor.SCOPE.to(argumentBuilderTransformer));
+			.argument(UnknownEntityHeaderDescriptor.SCOPE.to(argumentBuilderTransformer))
+			.argument(UnknownEntityHeaderDescriptor.LABELS.to(argumentBuilderTransformer));
 
 		return new BuiltFieldDescriptor(
 			getUnknownEntityFieldBuilder.build(),
@@ -354,7 +364,8 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		listUnknownEntityFieldBuilder
 			.argument(ListUnknownEntitiesHeaderDescriptor.JOIN.to(argumentBuilderTransformer))
-			.argument(ListUnknownEntitiesHeaderDescriptor.SCOPE.to(argumentBuilderTransformer));
+			.argument(ListUnknownEntitiesHeaderDescriptor.SCOPE.to(argumentBuilderTransformer))
+			.argument(ListUnknownEntitiesHeaderDescriptor.LABELS.to(argumentBuilderTransformer));
 
 		return new BuiltFieldDescriptor(
 			listUnknownEntityFieldBuilder.build(),
@@ -402,6 +413,8 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 				.argument(GetEntityHeaderDescriptor.PRICE_TYPE
 					.to(argumentBuilderTransformer))
 				.argument(GetEntityHeaderDescriptor.SCOPE
+					.to(argumentBuilderTransformer))
+				.argument(GetEntityHeaderDescriptor.LABELS
 					.to(argumentBuilderTransformer));
 		}
 
@@ -440,6 +453,9 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			.to(new EndpointDescriptorToGraphQLFieldTransformer(propertyDataTypeBuilderTransformer, entitySchema))
 			.description(CatalogDataApiRootDescriptor.LIST_ENTITY.description(entitySchema))
 			.type(nonNull(list(nonNull(typeRef(EntityDescriptor.THIS.name(entitySchema))))))
+			.argument(ListEntitiesHeaderDescriptor.HEAD
+				.to(argumentBuilderTransformer)
+				.type(collectionBuildingContext.getHeadInputObject()))
 			.argument(ListEntitiesHeaderDescriptor.FILTER_BY
 				.to(argumentBuilderTransformer)
 				.type(collectionBuildingContext.getFilterByInputObject()))
@@ -475,6 +491,9 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			.to(new EndpointDescriptorToGraphQLFieldTransformer(propertyDataTypeBuilderTransformer, entitySchema))
 			.description(CatalogDataApiRootDescriptor.QUERY_ENTITY.description(entitySchema))
 			.type(nonNull(entityFullResponseObject))
+			.argument(QueryEntitiesHeaderDescriptor.HEAD
+				.to(argumentBuilderTransformer)
+				.type(collectionBuildingContext.getHeadInputObject()))
 			.argument(QueryEntitiesHeaderDescriptor.FILTER_BY
 				.to(argumentBuilderTransformer)
 				.type(collectionBuildingContext.getFilterByInputObject()))

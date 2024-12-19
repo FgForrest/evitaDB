@@ -23,14 +23,18 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher;
 
+import graphql.GraphQLContext;
 import graphql.execution.DataFetcherResult;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import graphql.schema.SelectedField;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.HeadConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.head.Head;
+import io.evitadb.api.query.head.Label;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.Require;
@@ -42,8 +46,10 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.dto.QueryLabelDto;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GlobalEntityDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.QueryHeaderArgumentsJoinType;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.QueryLabelDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.UnknownEntityHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.EntityFetchRequireResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
@@ -69,6 +75,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
@@ -145,9 +152,11 @@ public class GetUnknownEntityDataFetcher implements DataFetcher<DataFetcherResul
         final ExecutedEvent requestExecutedEvent = environment.getGraphQlContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
 
         final Query query = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> {
+            final Head head = buildHead(environment, arguments);
             final FilterBy filterBy = buildFilterBy(arguments);
             final Require require = buildInitialRequire(environment);
             return query(
+                head,
                 filterBy,
                 require
             );
@@ -166,6 +175,7 @@ public class GetUnknownEntityDataFetcher implements DataFetcher<DataFetcherResul
                         return it;
                     } else {
                         log.debug("Enriching entity reference `{}` with `{}`.", it, Arrays.toString(contentRequires.get()));
+                        // todo jno think about adding ability to EvitaInternalSessionContract to specify labels to enrichment query
                         return evitaSession.enrichEntity(it, contentRequires.get());
                     }
                 })
@@ -179,6 +189,26 @@ public class GetUnknownEntityDataFetcher implements DataFetcher<DataFetcherResul
         }
 
         return resultBuilder.build();
+    }
+
+    @Nullable
+    private <LV extends Serializable & Comparable<LV>> Head buildHead(@Nonnull DataFetchingEnvironment environment, @Nonnull Arguments arguments) {
+        final List<HeadConstraint> headConstraints = new LinkedList<>();
+
+        final GraphQLContext graphQlContext = environment.getGraphQlContext();
+        final UUID sourceRecordingId = graphQlContext.get(GraphQLContextKey.TRAFFIC_SOURCE_QUERY_RECORDING_ID);
+        if (sourceRecordingId != null) {
+            headConstraints.add(label(Label.LABEL_SOURCE_QUERY, sourceRecordingId));
+        }
+
+        if (arguments.labels() != null) {
+            for (final QueryLabelDto label : arguments.labels()) {
+                //noinspection unchecked
+                headConstraints.add(label(label.name(), (LV) label.value()));
+            }
+        }
+
+        return head(headConstraints.toArray(HeadConstraint[]::new));
     }
 
     @Nonnull
@@ -265,6 +295,7 @@ public class GetUnknownEntityDataFetcher implements DataFetcher<DataFetcherResul
     private record Arguments(@Nullable Locale locale,
                              @Nonnull QueryHeaderArgumentsJoinType join,
                              @Nonnull Scope[] scopes,
+                             @Nullable List<QueryLabelDto> labels,
                              @Nonnull Map<GlobalAttributeSchemaContract, Object> globallyUniqueAttributes) {
 
         private static Arguments from(@Nonnull DataFetchingEnvironment environment, @Nonnull CatalogSchemaContract catalogSchema) {
@@ -276,6 +307,17 @@ public class GetUnknownEntityDataFetcher implements DataFetcher<DataFetcherResul
             final Scope[] scopes = Optional.ofNullable((List<Scope>) arguments.remove(UnknownEntityHeaderDescriptor.SCOPE.name()))
                 .map(it -> it.toArray(Scope[]::new))
                 .orElse(Scope.DEFAULT_SCOPES);
+
+            //noinspection unchecked
+			final List<QueryLabelDto> labels = Optional.ofNullable((List<Map<String, Object>>) arguments.remove(UnknownEntityHeaderDescriptor.LABELS.name()))
+				.map(rawLabels -> rawLabels
+					.stream()
+					.map(rawLabel -> new QueryLabelDto(
+						(String) rawLabel.get(QueryLabelDescriptor.NAME.name()),
+						rawLabel.get(QueryLabelDescriptor.VALUE.name())
+					))
+					.toList())
+				.orElse(null);
 
             // left over arguments are globally unique attribute filters as defined by schema
             final Map<GlobalAttributeSchemaContract, Object> globallyUniqueAttributes = extractUniqueAttributesFromArguments(scopes, arguments, catalogSchema);
@@ -299,6 +341,7 @@ public class GetUnknownEntityDataFetcher implements DataFetcher<DataFetcherResul
                 locale,
                 join,
                 scopes,
+                labels,
                 globallyUniqueAttributes
             );
         }

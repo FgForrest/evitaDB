@@ -36,6 +36,7 @@ import io.evitadb.api.query.head.Label;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.Require;
 import io.evitadb.core.EvitaInternalSessionContract;
+import io.evitadb.externalApi.http.AdditionalHttpHeaderNames;
 import io.evitadb.externalApi.http.MimeTypes;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.QueryEntityRequestDto;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.FetchEntityRequestDescriptor;
@@ -58,6 +59,7 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -67,6 +69,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -185,6 +188,8 @@ public abstract class QueryOrientedEntitiesHandler extends JsonRestHandler<Colle
 
 		executionContext.trafficSourceQueryRecordingId()
 			.ifPresent(uuid -> headConstraints.add(label(Label.LABEL_SOURCE_QUERY, uuid)));
+
+		headConstraints.addAll(parseQueryLabelsFromHeaders(executionContext));
 
 		return head(headConstraints.toArray(HeadConstraint[]::new));
 	}

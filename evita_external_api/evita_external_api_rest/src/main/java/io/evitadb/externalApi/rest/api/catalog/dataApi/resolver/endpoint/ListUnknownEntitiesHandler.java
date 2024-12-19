@@ -24,7 +24,10 @@
 package io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint;
 
 import com.linecorp.armeria.common.HttpMethod;
+import io.evitadb.api.query.HeadConstraint;
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.head.Head;
+import io.evitadb.api.query.head.Label;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
@@ -41,11 +44,17 @@ import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+
+import static io.evitadb.api.query.QueryConstraints.head;
+import static io.evitadb.api.query.QueryConstraints.label;
 
 /**
  * Handles requests for multiple unknown entities identified by their URLs or codes.
@@ -73,6 +82,7 @@ public class ListUnknownEntitiesHandler extends JsonRestHandler<CatalogRestHandl
 			requestExecutedEvent.finishInputDeserialization();
 
 			final Query query = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> Query.query(
+				buildHead(executionContext),
 				FilterByConstraintFromRequestQueryBuilder.buildFilterByForUnknownEntityList(parametersFromRequest, restHandlingContext.getCatalogSchema()),
 				RequireConstraintFromRequestQueryBuilder.buildRequire(parametersFromRequest)
 			));
@@ -87,6 +97,18 @@ public class ListUnknownEntitiesHandler extends JsonRestHandler<CatalogRestHandl
 
 			return new SuccessEndpointResponse(result);
 		});
+	}
+
+	@Nullable
+	protected Head buildHead(@Nonnull RestEndpointExecutionContext executionContext) {
+		final List<HeadConstraint> headConstraints = new LinkedList<>();
+
+		executionContext.trafficSourceQueryRecordingId()
+			.ifPresent(uuid -> headConstraints.add(label(Label.LABEL_SOURCE_QUERY, uuid)));
+
+		headConstraints.addAll(parseQueryLabelsFromHeaders(executionContext));
+
+		return head(headConstraints.toArray(HeadConstraint[]::new));
 	}
 
 	@Nonnull

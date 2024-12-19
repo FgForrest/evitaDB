@@ -27,9 +27,11 @@ import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.query.head.Label;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
+import io.evitadb.externalApi.http.AdditionalHttpHeaderNames;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.EndpointHandler;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.CollectionRestHandlingContext;
@@ -52,6 +54,7 @@ import javax.annotation.Nullable;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -241,6 +244,22 @@ public abstract class RestEndpointHandler<CTX extends RestHandlingContext> exten
                 " is missing in query data (" + parameter.getIn() + ")");
         }
         return Optional.empty();
+    }
+
+    @Nonnull
+    protected static List<Label> parseQueryLabelsFromHeaders(@Nonnull RestEndpointExecutionContext executionContext) {
+        return executionContext.httpRequest()
+            .headers()
+            .getAll(AdditionalHttpHeaderNames.EVITADB_QUERY_LABEL_HEADER_STRING)
+            .stream()
+            .map(labelHeader -> {
+                final String[] labelParts = labelHeader.split("=");
+                if (labelParts.length != 2) {
+                    throw new RestInvalidArgumentException("Invalid label `" + labelHeader + "`.");
+                }
+                return new Label(labelParts[0], labelParts[1]);
+            })
+            .toList();
     }
 
     @Nonnull

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,23 +21,16 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.http;
+package io.evitadb.externalApi.graphql.api.catalog.dataApi.dto;
 
-import io.netty.util.AsciiString;
-import lombok.AccessLevel;
-import lombok.NoArgsConstructor;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
- * Additional list of HTTP headers that are not supported by {@link com.linecorp.armeria.common.HttpHeaderNames}.
+ * DTO for a single query label (equivalent to {@link io.evitadb.api.query.head.Label} where full head part of query
+ * cannot be used).
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
-@NoArgsConstructor(access = AccessLevel.PRIVATE)
-public class AdditionalHttpHeaderNames {
-
-	public static final AsciiString OPENTELEMETRY_TRACEPARENT_STRING = new AsciiString("traceparent");
-	public static final AsciiString EVITADB_CLIENTID_HEADER_STRING = new AsciiString("X-EvitaDB-ClientID");
-	public static final AsciiString EVITADB_QUERY_LABEL_HEADER_STRING = new AsciiString("X-EvitaDB-Query-Label");
-
-	public static final AsciiString INTERNAL_HEADER_PREFIX = new AsciiString("internal_");
+public record QueryLabelDto(@Nonnull String name, @Nullable Object value) {
 }

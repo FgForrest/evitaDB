@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -48,6 +48,7 @@ public class CollectionGraphQLSchemaBuildingContext {
 	@Nonnull
 	private final EntitySchemaContract schema;
 
+	private GraphQLInputType headInputObject;
 	private GraphQLInputType filterByInputObject;
 	private GraphQLInputType orderByInputObject;
 	private GraphQLInputType requireInputObject;
@@ -59,6 +60,17 @@ public class CollectionGraphQLSchemaBuildingContext {
 
 	public void registerEntityObject(@Nonnull GraphQLObjectType entityObject) {
 		catalogCtx.registerEntityObject(schema.getName(), entityObject);
+	}
+
+	/**
+	 * Set built head object corresponding to this schema. Can be set only once before all other methods need it.
+	 */
+	public void setHeadInputObject(@Nonnull GraphQLInputType headInputObject) {
+		Assert.isPremiseValid(
+			this.headInputObject == null,
+			() -> new GraphQLSchemaBuildingError("Head input object for schema `" + schema.getName() + "` has been already initialized.")
+		);
+		this.headInputObject = headInputObject;
 	}
 
 	/**

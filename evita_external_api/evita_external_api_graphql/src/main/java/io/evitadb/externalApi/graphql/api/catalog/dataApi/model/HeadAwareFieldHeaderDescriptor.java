@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,26 +23,20 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.model;
 
-import io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 /**
- * Descriptor for header arguments of {@link CatalogDataApiRootDescriptor#QUERY_ENTITY}
- * query.
+ * Partial field header descriptor for fields needing head arguments.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
-public interface QueryEntitiesHeaderDescriptor
-	extends HeadAwareFieldHeaderDescriptor, FilterByAwareFieldHeaderDescriptor, OrderByAwareFieldHeaderDescriptor {
+public interface HeadAwareFieldHeaderDescriptor {
 
-	PropertyDescriptor REQUIRE = PropertyDescriptor.builder()
-		.name("require")
+	PropertyDescriptor HEAD = PropertyDescriptor.builder()
+		.name("head")
 		.description("""
-			Complex require query to alter query behaviour.
-			Because most of require constraints are resolved from client-defined output objects structure we need only
-			few left constraints that cannot be resolved from output structure because they usually change whole evitaDB
-			query behaviour.
+			Allows specifying arbitrary query metadata. Key and value can be any string. 
 			""")
-		// type is expected to be tree of require constraints
+		// type is expected to be tree of head constraints
 		.build();
 }
