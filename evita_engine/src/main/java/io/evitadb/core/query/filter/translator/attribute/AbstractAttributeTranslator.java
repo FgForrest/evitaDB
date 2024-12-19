@@ -64,7 +64,7 @@ class AbstractAttributeTranslator {
 		@Nonnull AttributeSchemaContract attributeDefinition
 	) {
 		final String attributeName = attributeDefinition.getName();
-		final Set<Scope> scopes = filterByVisitor.getScopes();
+		final Set<Scope> scopes = filterByVisitor.getProcessingScope().getScopes();
 		Assert.isTrue(
 			!attributeDefinition.isLocalized() || filterByVisitor.getLocale() != null ||
 				(scopes.stream().anyMatch(scope -> attributeDefinition.isUniqueInScope(scope) && !attributeDefinition.isUniqueWithinLocaleInScope(scope))),

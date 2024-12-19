@@ -1421,6 +1421,20 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		trafficRecorder.closeSourceQuery(id, sourceQueryId);
 	}
 
+	@Nonnull
+	@Override
+	public Stream<String> getLabelsNamesOrderedByCardinality(@Nullable String nameStartingWith) {
+		final TrafficRecordingEngine trafficRecorder = this.catalog.get().getTrafficRecorder();
+		return trafficRecorder.getLabelsNamesOrderedByCardinality(nameStartingWith);
+	}
+
+	@Nonnull
+	@Override
+	public Stream<String> getLabelValuesOrderedByCardinality(@Nonnull String labelName, @Nullable String valueStartingWith) {
+		final TrafficRecordingEngine trafficRecorder = this.catalog.get().getTrafficRecorder();
+		return trafficRecorder.getLabelValuesOrderedByCardinality(labelName, valueStartingWith);
+	}
+
 	/**
 	 * Returns a transaction wrapped in optional. If no transaction is bound to the session, an empty optional is returned.
 	 *

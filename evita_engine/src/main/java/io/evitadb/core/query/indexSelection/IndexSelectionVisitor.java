@@ -236,16 +236,21 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 		final List<ReducedEntityIndex> theTargetIndexes = theFilterByVisitor
 			.getReferencedRecordEntityIndexes(constraint, scopes);
 
-		// add indexes as potential target indexes
-		this.targetIndexes.add(
-			new TargetIndexes<>(
-				EntityIndexType.REFERENCED_ENTITY.name() +
-					" composed of " + theTargetIndexes.size() + " indexes",
-				constraint,
-				ReducedEntityIndex.class,
-				theTargetIndexes
-			)
-		);
+		if (theTargetIndexes.isEmpty() && !scopes.equals(theFilterByVisitor.getScopes())) {
+			// if the scopes were redefined in processing scope (differ from globally allowed scopes)
+			// skip this indexing option
+		} else {
+			// add indexes as potential target indexes
+			this.targetIndexes.add(
+				new TargetIndexes<>(
+					EntityIndexType.REFERENCED_ENTITY.name() +
+						" composed of " + theTargetIndexes.size() + " indexes",
+					constraint,
+					ReducedEntityIndex.class,
+					theTargetIndexes
+				)
+			);
+		}
 	}
 
 	private FilterByVisitor getFilterByVisitor() {

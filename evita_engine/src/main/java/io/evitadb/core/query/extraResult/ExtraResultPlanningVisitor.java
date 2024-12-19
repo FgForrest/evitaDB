@@ -85,6 +85,8 @@ import io.evitadb.core.query.sort.attribute.translator.EntityAttributeExtractor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
+import io.evitadb.index.EntityIndexKey;
+import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.utils.ArrayUtils;
 import lombok.Getter;
@@ -391,26 +393,32 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 		@Nonnull Supplier<String> stepDescriptionSupplier
 	) {
 		try {
-			queryContext.pushStep(
+			this.queryContext.pushStep(
 				QueryPhase.PLANNING_SORT,
 				stepDescriptionSupplier
 			);
+			final Set<Scope> scopes = getProcessingScope().getScopes();
 			// we have to create and trap the nested query context here to carry it along with the sorter
 			// otherwise the sorter will target and use the incorrectly originally queried (prefetched) entities
 			final QueryPlanningContext nestedQueryContext = entityCollection.createQueryContext(
-				queryContext,
-				queryContext.getEvitaRequest().deriveCopyWith(
+				this.queryContext,
+				this.queryContext.getEvitaRequest().deriveCopyWith(
 					entityType,
 					null,
 					new OrderBy(orderBy.getChildren()),
-					queryContext.getLocale()
+					this.queryContext.getLocale(),
+					scopes
 				),
-				queryContext.getEvitaSession()
+				this.queryContext.getEvitaSession()
 			);
 
-			final GlobalEntityIndex entityIndex = entityCollection.getGlobalIndexIfExists().orElse(null);
+			final GlobalEntityIndex[] entityIndexes = scopes.stream()
+				.map(scope -> entityCollection.getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL, scope)))
+				.map(GlobalEntityIndex.class::cast)
+				.filter(Objects::nonNull)
+				.toArray(GlobalEntityIndex[]::new);
 			final Sorter sorter;
-			if (entityIndex == null) {
+			if (entityIndexes.length == 0) {
 				sorter = NoSorter.INSTANCE;
 			} else {
 				// create a visitor
@@ -422,7 +430,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 				);
 				// now analyze the filter by in a nested context with exchanged primary entity index
 				sorter = orderByVisitor.executeInContext(
-					new EntityIndex[]{entityIndex},
+					entityIndexes,
 					entityType,
 					locale,
 					new AttributeSchemaAccessor(nestedQueryContext.getCatalogSchema(), entityCollection.getSchema()),

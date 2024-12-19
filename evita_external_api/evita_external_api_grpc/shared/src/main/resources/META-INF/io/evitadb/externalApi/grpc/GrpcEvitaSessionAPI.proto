@@ -17,7 +17,6 @@ import "GrpcEntityMutation.proto";
 import "GrpcCatalogSchemaMutation.proto";
 import "GrpcCatalogSchemaMutations.proto";
 import "GrpcChangeCapture.proto";
-import "GrpcTrafficRecording.proto";
 
 // Response to GetCatalogState request.
 message GrpcCatalogStateResponse {
@@ -77,36 +76,6 @@ message GetMutationsHistoryRequest {
 message GetMutationsHistoryResponse {
   // The list of mutations that match the criteria
   repeated GrpcChangeCatalogCapture changeCapture = 1;
-}
-
-// Request to GetTrafficHistoryList request.
-message GetTrafficHistoryListRequest {
-  // The limit of records to return
-  int32 limit = 1;
-  // The criteria of the traffic recording, allows to define constraints on the returned records
-  GrpcTrafficRecordingCaptureCriteria criteria = 2;
-  // The scope of the returned data - either header of the record, or the whole record
-  GrpcTrafficRecordingContent content = 3;
-}
-
-// Response to GetTrafficHistoryList request.
-message GetTrafficHistoryListResponse {
-  // The list of traffic records that match the criteria
-  repeated GrpcTrafficRecord trafficRecord = 1;
-}
-
-// Request to GetTrafficHistory request.
-message GetTrafficHistoryRequest {
-  // The criteria of the traffic recording, allows to define constraints on the returned records
-  GrpcTrafficRecordingCaptureCriteria criteria = 1;
-  // The scope of the returned data - either header of the record, or the whole record
-  GrpcTrafficRecordingContent content = 2;
-}
-
-// Response to GetTrafficHistory request.
-message GetTrafficHistoryResponse {
-  // The list of traffic records that match the criteria
-  repeated GrpcTrafficRecord trafficRecord = 1;
 }
 
 // Request to GetCatalogSchema request.
@@ -610,13 +579,4 @@ service EvitaSessionService {
 
   // Procedure that opens a transaction.
   rpc GetTransactionId(google.protobuf.Empty) returns (GrpcTransactionResponse);
-
-  // Procedure that returns requested list of past traffic records with limited size that match the request criteria.
-  // Order of the returned records is from the newest sessions to the oldest,
-  // traffic records within the session are ordered from the newest to the oldest.
-  rpc GetTrafficRecordingHistoryList(GetTrafficHistoryListRequest) returns (GetTrafficHistoryListResponse);
-  // Procedure that returns stream of all past traffic records that match the request criteria.
-  // Order of the returned records is from the newest sessions to the oldest,
-  // traffic records within the session are ordered from the newest to the oldest.
-  rpc GetTrafficRecordingHistory(GetTrafficHistoryRequest) returns (stream GetTrafficHistoryResponse);
 }

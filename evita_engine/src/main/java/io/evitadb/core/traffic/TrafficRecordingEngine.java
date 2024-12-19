@@ -41,6 +41,7 @@ import io.evitadb.core.query.QueryPlan;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
@@ -284,6 +285,29 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 		return this.trafficRecorder instanceof TrafficRecordingReader trr ?
 			trr.getRecordings(request) :
 			Stream.empty();
+	}
+
+	/**
+	 * Returns a stream of all unique labels names ordered by cardinality of their values present in the traffic recording.
+	 *
+	 * @param nameStartingWith optional prefix to filter the labels by
+	 * @return stream of unique label names ordered by cardinality of their values
+	 */
+	@Nonnull
+	public Stream<String> getLabelsNamesOrderedByCardinality(@Nullable String nameStartingWith) {
+		return Stream.empty();
+	}
+
+	/**
+	 * Returns a stream of all unique label values ordered by cardinality present in the traffic recording.
+	 *
+	 * @param labelName name of the label to get values for
+	 * @param valueStartingWith optional prefix to filter the labels by
+	 * @return stream of unique label values ordered by cardinality
+	 */
+	@Nonnull
+	public Stream<String> getLabelValuesOrderedByCardinality(@Nonnull String labelName, @Nullable String valueStartingWith) {
+		return Stream.empty();
 	}
 
 	/**

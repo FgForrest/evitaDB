@@ -99,6 +99,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 	private static final String PRICE_LIST_BASIC = "basic";
 	private static final Currency CURRENCY_CZK = Currency.getInstance("CZK");
 	private static final Currency CURRENCY_EUR = Currency.getInstance("EUR");
+	private static final String REFLECTED_REFERENCE_NAME = "products";
 
 	private Evita evita;
 
@@ -698,8 +699,9 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		assertNull(catalog.getCatalogIndexIfExits(Scope.ARCHIVED).orElse(null));
 		assertNotNull(getGlobalIndex(productCollection, Scope.ARCHIVED));
 		assertNull(getReferencedEntityIndex(productCollection, Scope.ARCHIVED, Entities.CATEGORY, 1));
-		assertNull(getReferencedEntityIndex(productCollection, Scope.ARCHIVED, Entities.CATEGORY, 2));
-		assertNull(getReferencedEntityIndex(productCollection, Scope.ARCHIVED, Entities.BRAND, 1));
+		// indexes contain only information about language entity presence
+		assertNotNull(getReferencedEntityIndex(productCollection, Scope.ARCHIVED, Entities.CATEGORY, 2));
+		assertNotNull(getReferencedEntityIndex(productCollection, Scope.ARCHIVED, Entities.BRAND, 1));
 		assertNull(getReferencedEntityIndex(productCollection, Scope.ARCHIVED, Entities.BRAND, 2));
 	}
 
@@ -903,7 +905,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 					.withoutGeneratedPrimaryKey()
 					.withGlobalAttribute(ATTRIBUTE_CODE)
 					.withReflectedReferenceToEntity(
-						"products",
+						REFLECTED_REFERENCE_NAME,
 						Entities.PRODUCT,
 						Entities.CATEGORY,
 						whichIs -> whichIs.indexed().withAttributesInherited()
@@ -977,7 +979,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 			}
 		);
 		assertNotNull(category);
-		final ReferenceContract products = category.getReference("products", 100).orElse(null);
+		final ReferenceContract products = category.getReference(REFLECTED_REFERENCE_NAME, 100).orElse(null);
 		assertNotNull(products);
 		assertEquals("EU", products.getAttribute(ATTRIBUTE_CATEGORY_MARKET));
 
@@ -998,7 +1000,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 			}
 		);
 		assertNotNull(categoryAfterArchiving);
-		final ReferenceContract productsAfterArchiving = categoryAfterArchiving.getReference("products", 100).orElse(null);
+		final ReferenceContract productsAfterArchiving = categoryAfterArchiving.getReference(REFLECTED_REFERENCE_NAME, 100).orElse(null);
 		assertNull(productsAfterArchiving);
 
 		// restore both category and product entity
@@ -1019,7 +1021,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 			}
 		);
 		assertNotNull(categoryAfterRestore);
-		final ReferenceContract productsAfterRestore = categoryAfterRestore.getReference("products", 100).orElse(null);
+		final ReferenceContract productsAfterRestore = categoryAfterRestore.getReference(REFLECTED_REFERENCE_NAME, 100).orElse(null);
 		assertNotNull(productsAfterRestore);
 		assertEquals("EU", productsAfterRestore.getAttribute(ATTRIBUTE_CATEGORY_MARKET));
 	}
@@ -1039,7 +1041,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 						session.defineEntitySchema(Entities.CATEGORY)
 							.withoutGeneratedPrimaryKey()
 							.withReflectedReferenceToEntity(
-								"products",
+								REFLECTED_REFERENCE_NAME,
 								Entities.PRODUCT,
 								Entities.CATEGORY,
 								whichIs -> whichIs.indexedInScope(Scope.ARCHIVED).withAttributesInherited()
@@ -1092,7 +1094,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 
 	}
 
-	@DisplayName("Entity reflected references should be recreated in separate scopes")
+	@DisplayName("Entity reflected references should remain across scopes")
 	@Test
 	void shouldRecreateReflectedReferencesInSeparateScopes() {
 		/* create schema for entity archival */
@@ -1108,7 +1110,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 					.withoutGeneratedPrimaryKey()
 					.withGlobalAttribute(ATTRIBUTE_CODE)
 					.withReflectedReferenceToEntity(
-						"products",
+						REFLECTED_REFERENCE_NAME,
 						Entities.PRODUCT,
 						Entities.CATEGORY,
 						whichIs -> whichIs.indexedInScope(scopes).withAttributesInherited()
@@ -1182,9 +1184,13 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 			}
 		);
 		assertNotNull(category);
-		final ReferenceContract products = category.getReference("products", 100).orElse(null);
+		final ReferenceContract products = category.getReference(REFLECTED_REFERENCE_NAME, 100).orElse(null);
 		assertNotNull(products);
 		assertEquals("EU", products.getAttribute(ATTRIBUTE_CATEGORY_MARKET));
+
+		// client can query for category by having product
+		assertCategoryContainsProduct(new EntityReference(Entities.CATEGORY, 2), 100, Scope.LIVE);
+		assertProductContainsCategory(new EntityReference(Entities.PRODUCT, 100), 2, Scope.LIVE);
 
 		// archive product entity
 		evita.updateCatalog(
@@ -1194,7 +1200,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 			}
 		);
 
-		// check category has no reflected reference to product
+		// check category still has reflected reference to product
 		final SealedEntity categoryAfterArchiving = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1203,8 +1209,17 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 			}
 		);
 		assertNotNull(categoryAfterArchiving);
-		final ReferenceContract productsAfterArchiving = categoryAfterArchiving.getReference("products", 100).orElse(null);
-		assertNull(productsAfterArchiving);
+		final ReferenceContract productsAfterArchiving = categoryAfterArchiving.getReference(REFLECTED_REFERENCE_NAME, 100).orElse(null);
+		assertNotNull(productsAfterArchiving);
+
+		// client can query for category by having product
+		assertCategoryContainsProduct(new EntityReference(Entities.CATEGORY, 2), 100, Scope.LIVE, Scope.ARCHIVED);
+		assertProductContainsCategory(new EntityReference(Entities.PRODUCT, 100), 2, Scope.LIVE, Scope.ARCHIVED);
+		// but not in each scope separately
+		assertCategoryDoesNotContainProduct(100, Scope.LIVE);
+		assertCategoryDoesNotContainProduct(100, Scope.ARCHIVED);
+		assertProductDoesNotContainCategory(2, Scope.LIVE);
+		assertProductDoesNotContainCategory(2, Scope.ARCHIVED);
 
 		// archive category entity
 		evita.updateCatalog(
@@ -1214,7 +1229,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 			}
 		);
 
-		// check archived category has reflected reference to product
+		// check archived category still has reflected reference to product
 		final SealedEntity archivedCategory = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1235,9 +1250,18 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		);
 
 		assertNotNull(archivedCategory);
-		final ReferenceContract archivedProducts = archivedCategory.getReference("products", 100).orElse(null);
+		final ReferenceContract archivedProducts = archivedCategory.getReference(REFLECTED_REFERENCE_NAME, 100).orElse(null);
 		assertNotNull(archivedProducts);
 		assertEquals("EU", archivedProducts.getAttribute(ATTRIBUTE_CATEGORY_MARKET));
+
+		// client can query for category by having product
+		assertCategoryContainsProduct(new EntityReference(Entities.CATEGORY, 2), 100, Scope.LIVE, Scope.ARCHIVED);
+		assertCategoryContainsProduct(new EntityReference(Entities.CATEGORY, 2), 100, Scope.ARCHIVED);
+		assertProductContainsCategory(new EntityReference(Entities.PRODUCT, 100), 2, Scope.LIVE, Scope.ARCHIVED);
+		assertProductContainsCategory(new EntityReference(Entities.PRODUCT, 100), 2, Scope.ARCHIVED);
+		// but not in live scope
+		assertCategoryDoesNotContainProduct(100, Scope.LIVE);
+		assertProductDoesNotContainCategory(2, Scope.LIVE);
 
 		// restore both category and product entity
 		evita.updateCatalog(
@@ -1248,7 +1272,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 			}
 		);
 
-		// check restored category has reflected reference to product again
+		// check restored category has still reflected reference to product
 		final SealedEntity categoryAfterRestore = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1257,9 +1281,18 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 			}
 		);
 		assertNotNull(categoryAfterRestore);
-		final ReferenceContract productsAfterRestore = categoryAfterRestore.getReference("products", 100).orElse(null);
+		final ReferenceContract productsAfterRestore = categoryAfterRestore.getReference(REFLECTED_REFERENCE_NAME, 100).orElse(null);
 		assertNotNull(productsAfterRestore);
 		assertEquals("EU", productsAfterRestore.getAttribute(ATTRIBUTE_CATEGORY_MARKET));
+
+		// client can query for category by having product
+		assertCategoryContainsProduct(new EntityReference(Entities.CATEGORY, 2), 100, Scope.LIVE, Scope.ARCHIVED);
+		assertCategoryContainsProduct(new EntityReference(Entities.CATEGORY, 2), 100, Scope.LIVE);
+		assertProductContainsCategory(new EntityReference(Entities.PRODUCT, 100), 2, Scope.LIVE, Scope.ARCHIVED);
+		assertProductContainsCategory(new EntityReference(Entities.PRODUCT, 100), 2, Scope.LIVE);
+		// but not in archived scope
+		assertCategoryDoesNotContainProduct(100, Scope.ARCHIVED);
+		assertProductDoesNotContainCategory(2, Scope.ARCHIVED);
 	}
 
 	@DisplayName("Entity querying should respect scope requirement")
@@ -2376,6 +2409,114 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 				);
 			}
 		).orElse(null);
+	}
+
+	private void assertCategoryContainsProduct(
+		@Nonnull EntityReference category,
+		int productPk,
+		@Nonnull Scope... scopes
+	) {
+		assertEquals(
+			category,
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.queryOne(
+						Query.query(
+							collection(Entities.CATEGORY),
+							filterBy(
+								referenceHaving(
+									REFLECTED_REFERENCE_NAME,
+									entityPrimaryKeyInSet(productPk)
+								),
+								scope(scopes)
+							)
+						),
+						EntityReference.class
+					).orElse(null);
+				}
+			)
+		);
+	}
+
+	private void assertCategoryDoesNotContainProduct(
+		int productPk,
+		@Nonnull Scope... scopes
+	) {
+		assertNull(
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.queryOne(
+						Query.query(
+							collection(Entities.CATEGORY),
+							filterBy(
+								referenceHaving(
+									REFLECTED_REFERENCE_NAME,
+									entityPrimaryKeyInSet(productPk)
+								),
+								scope(scopes)
+							)
+						),
+						EntityReference.class
+					).orElse(null);
+				}
+			)
+		);
+	}
+
+	private void assertProductContainsCategory(
+		@Nonnull EntityReference product,
+		int categoryPk,
+		@Nonnull Scope... scopes
+	) {
+		assertEquals(
+			product,
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.queryOne(
+						Query.query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								referenceHaving(
+									Entities.CATEGORY,
+									entityPrimaryKeyInSet(categoryPk)
+								),
+								scope(scopes)
+							)
+						),
+						EntityReference.class
+					).orElse(null);
+				}
+			)
+		);
+	}
+
+	private void assertProductDoesNotContainCategory(
+		int categoryPk,
+		@Nonnull Scope... scopes
+	) {
+		assertNull(
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.queryOne(
+						Query.query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								referenceHaving(
+									Entities.CATEGORY,
+									entityPrimaryKeyInSet(categoryPk)
+								),
+								scope(scopes)
+							)
+						),
+						EntityReference.class
+					).orElse(null);
+				}
+			)
+		);
 	}
 
 	@Nonnull

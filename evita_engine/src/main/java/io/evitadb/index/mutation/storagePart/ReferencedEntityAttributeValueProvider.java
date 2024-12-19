@@ -35,7 +35,6 @@ import io.evitadb.store.entity.model.entity.ReferencesStoragePart;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -63,7 +62,7 @@ class ReferencedEntityAttributeValueProvider implements ReflectedReferenceAttrib
 	/**
 	 * The array of reference keys that are found in index of referenced entity that referer to the created entity.
 	 */
-	private final ReferenceKey[] referenceKeys;
+	private final List<ReferenceKey> referenceKeys;
 	/**
 	 * The reader that is used to fetch the referenced entity reference part.
 	 */
@@ -92,7 +91,7 @@ class ReferencedEntityAttributeValueProvider implements ReflectedReferenceAttrib
 	@Nonnull
 	@Override
 	public Stream<ReferenceKey> getReferenceCarriers() {
-		return Arrays.stream(referenceKeys);
+		return referenceKeys.stream();
 	}
 
 	@Override

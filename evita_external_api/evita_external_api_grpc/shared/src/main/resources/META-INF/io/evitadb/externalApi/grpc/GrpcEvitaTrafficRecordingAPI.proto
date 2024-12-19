@@ -1,0 +1,88 @@
+syntax = "proto3";
+
+package io.evitadb.externalApi.grpc.generated;
+option java_multiple_files = true;
+option csharp_namespace = "EvitaDB";
+
+import "google/protobuf/empty.proto";
+import "GrpcEnums.proto";
+import "GrpcEvitaDataTypes.proto";
+import "google/protobuf/wrappers.proto";
+import "GrpcTrafficRecording.proto";
+
+// Request to GetTrafficHistoryList request.
+message GetTrafficHistoryListRequest {
+  // The limit of records to return
+  int32 limit = 1;
+  // The criteria of the traffic recording, allows to define constraints on the returned records
+  GrpcTrafficRecordingCaptureCriteria criteria = 2;
+  // The scope of the returned data - either header of the record, or the whole record
+  GrpcTrafficRecordingContent content = 3;
+}
+
+// Response to GetTrafficHistoryList request.
+message GetTrafficHistoryListResponse {
+  // The list of traffic records that match the criteria
+  repeated GrpcTrafficRecord trafficRecord = 1;
+}
+
+// Request to GetTrafficHistory request.
+message GetTrafficHistoryRequest {
+  // The criteria of the traffic recording, allows to define constraints on the returned records
+  GrpcTrafficRecordingCaptureCriteria criteria = 1;
+  // The scope of the returned data - either header of the record, or the whole record
+  GrpcTrafficRecordingContent content = 2;
+}
+
+// Response to GetTrafficHistory request.
+message GetTrafficHistoryResponse {
+  // The list of traffic records that match the criteria
+  repeated GrpcTrafficRecord trafficRecord = 1;
+}
+
+// Response to GetTrafficRecordingLabelsNamesOrderedByCardinality request.
+message GetTrafficRecordingLabelNamesRequest {
+  // The limit of records to return
+  int32 limit = 1;
+  // Allows to filter the returned labels by the name prefix
+  google.protobuf.StringValue nameStartsWith = 2;
+}
+
+// Response to GetTrafficRecordingLabelsNamesOrderedByCardinality response.
+message GetTrafficRecordingLabelNamesResponse {
+  // The list of labels names that match the criteria
+  repeated string labelName = 1;
+}
+
+// Response to GetTrafficRecordingLabelsValuesOrderedByCardinality request.
+message GetTrafficRecordingValuesNamesRequest {
+  // The limit of records to return
+  int32 limit = 1;
+  // The name of the label to get the values for
+  string labelName = 2;
+  // Allows to filter the returned labels by the name prefix
+  google.protobuf.StringValue valueStartsWith = 3;
+}
+
+// Response to GetTrafficRecordingLabelsValuesOrderedByCardinality response.
+message GetTrafficRecordingValuesNamesResponse {
+  // The list of labels values that match the criteria
+  repeated string labelValue = 1;
+}
+
+service GrpcEvitaTrafficRecordingService {
+
+  // Procedure that returns requested list of past traffic records with limited size that match the request criteria.
+  // Order of the returned records is from the newest sessions to the oldest,
+  // traffic records within the session are ordered from the newest to the oldest.
+  rpc GetTrafficRecordingHistoryList(GetTrafficHistoryListRequest) returns (GetTrafficHistoryListResponse);
+  // Procedure that returns stream of all past traffic records that match the request criteria.
+  // Order of the returned records is from the newest sessions to the oldest,
+  // traffic records within the session are ordered from the newest to the oldest.
+  rpc GetTrafficRecordingHistory(GetTrafficHistoryRequest) returns (stream GetTrafficHistoryResponse);
+  // Procedure returns a list of top unique labels names ordered by cardinality of their values present in the traffic recording.
+  rpc GetTrafficRecordingLabelsNamesOrderedByCardinality(GetTrafficRecordingLabelNamesRequest) returns (stream GetTrafficRecordingLabelNamesResponse);
+  // Procedure returns a list of top unique label values ordered by cardinality of their values present in the traffic recording.
+  rpc GetTrafficRecordingLabelsValuesOrderedByCardinality(GetTrafficRecordingValuesNamesRequest) returns (stream GetTrafficRecordingValuesNamesResponse);
+
+}

@@ -24,7 +24,6 @@
 package io.evitadb.index;
 
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
-import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
@@ -169,7 +168,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		(proxy, method, args, methodContext, proxyState, invokeSuper) -> {
 			final EntityIndexKey theIndexKey = proxy.getIndexKey();
 			throw new ReferenceNotIndexedException(
-				((ReferenceKey) theIndexKey.discriminator()).referenceName(),
+				(String) theIndexKey.discriminator(),
 				proxyState.getEntitySchema(),
 				theIndexKey.scope()
 			);

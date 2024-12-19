@@ -444,11 +444,13 @@ public interface AttributeIndexMutator {
 			.map(AttributeSchema.class::cast)
 			.orElse(null);
 
+		final Scope scope = entityIndex.getIndexKey().scope();
 		final Stream<SortableAttributeCompoundSchema> allCompounds = sortableAttributeCompounds
 			.values()
 			.stream()
 			// we retrieve schemas from EntitySchema, so we can safely cast them here
-			.map(SortableAttributeCompoundSchema.class::cast);
+			.map(SortableAttributeCompoundSchema.class::cast)
+			.filter(it -> it.isIndexedInScope(scope));
 
 		final Stream<SortableAttributeCompoundSchema> filteredCompounds = locale == null ?
 			allCompounds.filter(it -> !it.isLocalized(attributeSchemaProvider)) :
@@ -492,11 +494,13 @@ public interface AttributeIndexMutator {
 			.map(AttributeSchema.class::cast)
 			.orElse(null);
 
+		final Scope scope = entityIndex.getIndexKey().scope();
 		final Stream<SortableAttributeCompoundSchema> allCompounds = compoundProvider.getSortableAttributeCompounds()
 			.values()
 			.stream()
 			// we retrieve schemas from EntitySchema, so we can safely cast them here
-			.map(SortableAttributeCompoundSchema.class::cast);
+			.map(SortableAttributeCompoundSchema.class::cast)
+			.filter(it -> it.isIndexedInScope(scope));
 
 		final Stream<SortableAttributeCompoundSchema> filteredCompounds = locale == null ?
 			allCompounds.filter(it -> !it.isLocalized(attributeSchemaProvider)) :
@@ -535,7 +539,9 @@ public interface AttributeIndexMutator {
 		@Nonnull String updatedAttributeName,
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
+		final Scope scope = entityIndex.getIndexKey().scope();
 		compoundsSchemaProvider.apply(updatedAttributeName)
+			.filter(it -> it.isIndexedInScope(scope))
 			.forEach(
 				compound -> {
 					final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX);

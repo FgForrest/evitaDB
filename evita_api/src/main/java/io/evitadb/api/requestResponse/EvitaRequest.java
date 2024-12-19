@@ -26,6 +26,7 @@ package io.evitadb.api.requestResponse;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.EntityCollectionRequiredException;
+import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
@@ -47,6 +48,7 @@ import io.evitadb.dataType.expression.Expression;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -54,10 +56,13 @@ import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.*;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 import static io.evitadb.api.query.QueryConstraints.collection;
+import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.api.query.QueryConstraints.require;
+import static io.evitadb.api.query.QueryConstraints.scope;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -286,7 +291,8 @@ public class EvitaRequest {
 		@Nonnull String entityType,
 		@Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy,
-		@Nullable Locale locale
+		@Nullable Locale locale,
+		@Nullable Set<Scope> scopes
 	) {
 
 		this.requiresEntity = true;
@@ -342,7 +348,7 @@ public class EvitaRequest {
 		this.facetGroupNegation = null;
 		this.expectedType = evitaRequest.expectedType;
 		this.debugModes = null;
-		this.scopes = null;
+		this.scopes = scopes;
 	}
 
 	/**
@@ -911,8 +917,8 @@ public class EvitaRequest {
 	 */
 	@Nullable
 	public HierarchyFilterConstraint getHierarchyWithin(@Nullable String referenceName) {
-		if (this.hierarchyWithin == null) {
-			if (query.getFilterBy() == null) {
+		if (this.requiredWithinHierarchy == null) {
+			if (this.query.getFilterBy() == null) {
 				this.hierarchyWithin = Collections.emptyMap();
 			} else {
 				this.hierarchyWithin = new HashMap<>();
@@ -924,7 +930,7 @@ public class EvitaRequest {
 			}
 			this.requiredWithinHierarchy = true;
 		}
-		return this.hierarchyWithin.get(referenceName);
+		return this.hierarchyWithin == null ? null : this.hierarchyWithin.get(referenceName);
 	}
 
 	/**
@@ -950,11 +956,20 @@ public class EvitaRequest {
 		@Nonnull String entityType,
 		@Nullable FilterBy filterConstraint,
 		@Nullable OrderBy orderConstraint,
-		@Nullable Locale locale
+		@Nullable Locale locale,
+		@Nonnull Set<Scope> scopes
 	) {
+		final EntityScope enforcedScope = scope(scopes.toArray(Scope[]::new));
+		final FilterBy filterBy = filterConstraint == null ?
+			filterBy(enforcedScope) :
+			(FilterBy) ConstraintCloneVisitor.clone(filterConstraint, new ScopeEnforcer(enforcedScope));
 		return new EvitaRequest(
 			this,
-			entityType, filterConstraint, orderConstraint, locale
+			entityType,
+			filterBy,
+			orderConstraint,
+			locale,
+			scopes
 		);
 	}
 
@@ -1131,4 +1146,26 @@ public class EvitaRequest {
 
 	}
 
+	/**
+	 * ScopeEnforcer is a private static class that enforces a specific {@link EntityScope}
+	 * and ensures it is added to filterBy constraint.
+	 */
+	@RequiredArgsConstructor
+	private static class ScopeEnforcer implements BiFunction<ConstraintCloneVisitor, Constraint<?>, Constraint<?>> {
+		private final EntityScope enforcedScope;
+		private boolean scopeFound;
+
+		@Override
+		public Constraint<?> apply(ConstraintCloneVisitor constraintCloneVisitor, Constraint<?> constraint) {
+			if (constraint instanceof EntityScope) {
+				this.scopeFound = true;
+				return this.enforcedScope;
+			} else if (constraint instanceof FilterBy && !this.scopeFound) {
+				constraintCloneVisitor.addOnCurrentLevel(this.enforcedScope);
+				return constraint;
+			} else {
+				return constraint;
+			}
+		}
+	}
 }
