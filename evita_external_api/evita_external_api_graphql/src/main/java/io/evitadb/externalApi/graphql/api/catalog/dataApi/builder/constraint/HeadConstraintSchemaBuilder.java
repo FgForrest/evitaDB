@@ -55,7 +55,7 @@ public class HeadConstraintSchemaBuilder extends GraphQLConstraintSchemaBuilder 
 			constraintSchemaBuildingCtx,
 			createHashMap(0), // currently, we don't support any head constraint with additional children
 			Set.of(),
-			Set.of(Collection.class)
+			Set.of(Head.class, Collection.class)
 		);
 	}
 

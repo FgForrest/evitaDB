@@ -36,11 +36,12 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.Filte
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.RequireConstraintFromRequestQueryBuilder;
 import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
 import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
+import io.evitadb.externalApi.rest.traffic.RestQueryLabels;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -97,8 +98,9 @@ public class GetEntityHandler extends EntityHandler<CollectionRestHandlingContex
 
 	@Nullable
 	protected Head buildHead(@Nonnull RestEndpointExecutionContext executionContext) {
-		final List<HeadConstraint> headConstraints = new ArrayList<>(3);
+		final List<HeadConstraint> headConstraints = new LinkedList<>();
 		headConstraints.add(collection(restHandlingContext.getEntityType()));
+		headConstraints.add(label(Label.LABEL_SOURCE_TYPE, RestQueryLabels.REST_SOURCE_TYPE_VALUE));
 
 		executionContext.trafficSourceQueryRecordingId()
 			.ifPresent(uuid -> headConstraints.add(label(Label.LABEL_SOURCE_QUERY, uuid)));

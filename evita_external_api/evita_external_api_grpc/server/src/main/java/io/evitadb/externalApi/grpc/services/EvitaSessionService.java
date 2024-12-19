@@ -100,6 +100,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -128,6 +129,8 @@ import static java.util.Optional.ofNullable;
  */
 @Slf4j
 public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionServiceImplBase {
+
+	private static final String GRPC_SOURCE_TYPE_LABEL_VALUE = "gRPC";
 
 	/**
 	 * Instance of Evita upon which will be executed service calls
@@ -191,11 +194,11 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		@Nonnull StreamObserver<GrpcQueryOneResponse> responseObserver,
 		@Nonnull EvitaInternalSessionContract session,
 		@Nullable Query query,
-		@Nullable Label additionalLabel
+		@Nullable Label... additionalLabels
 	) {
 		if (query != null) {
 			final EvitaRequest evitaRequest = new EvitaRequest(
-				normalizeQueryWithAddingLabel(query, additionalLabel),
+				normalizeQueryWithAddingLabel(query, additionalLabels),
 				OffsetDateTime.now(),
 				EntityClassifier.class,
 				null
@@ -232,11 +235,11 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		@Nonnull StreamObserver<GrpcQueryListResponse> responseObserver,
 		@Nonnull EvitaInternalSessionContract session,
 		@Nullable Query query,
-		@Nullable Label additionalLabel
+		@Nullable Label... additionalLabels
 	) {
 		if (query != null) {
 			final EvitaRequest evitaRequest = new EvitaRequest(
-				normalizeQueryWithAddingLabel(query, additionalLabel),
+				normalizeQueryWithAddingLabel(query, additionalLabels),
 				OffsetDateTime.now(),
 				EntityClassifier.class,
 				null
@@ -279,11 +282,11 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		@Nonnull StreamObserver<GrpcQueryResponse> responseObserver,
 		@Nonnull EvitaInternalSessionContract session,
 		@Nullable Query query,
-		@Nullable Label additionalLabel
+		@Nullable Label... additionalLabels
 	) {
 		if (query != null) {
 			final EvitaRequest evitaRequest = new EvitaRequest(
-				normalizeQueryWithAddingLabel(query, additionalLabel),
+				normalizeQueryWithAddingLabel(query, additionalLabels),
 				OffsetDateTime.now(),
 				EntityClassifier.class,
 				null
@@ -363,20 +366,20 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	@Nonnull
 	private static Query normalizeQueryWithAddingLabel(
 		@Nonnull Query query,
-		@Nullable Label additionalLabel
+		@Nullable Label... additionalLabels
 	) {
-		if (additionalLabel == null) {
+		if (additionalLabels == null) {
 			return query.normalizeQuery();
 		} else if (query.getHead() == null) {
 			return Query.query(
-				additionalLabel,
+				head(additionalLabels),
 				query.getFilterBy(),
 				query.getOrderBy(),
 				query.getRequire()
 			).normalizeQuery();
 		} else {
 			return query.normalizeQuery(
-				new LabelAppender(additionalLabel),
+				new LabelAppender(additionalLabels),
 				null, null, null
 			);
 		}
@@ -402,7 +405,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		@Nonnull List<GrpcQueryParam> positionalQueryParamsList,
 		@Nonnull Map<String, GrpcQueryParam> namedQueryParamsMap,
 		boolean trackSourceQueries,
-		@Nonnull QuadriConsumer<StreamObserver<T>, EvitaInternalSessionContract, Query, Label> handler
+		@Nonnull QuadriConsumer<StreamObserver<T>, EvitaInternalSessionContract, Query, Label[]> handler
 	) {
 		final QueryWithParameters query = QueryUtil.parseQuery(
 			sourceQuery,
@@ -418,10 +421,12 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 					GrpcProvider.CODE
 				) : null;
 			try {
-				//noinspection DataFlowIssue
 				handler.accept(
 					responseObserver, session, query.parsedQuery(),
-					sourceQueryId == null ? null : label(Label.LABEL_SOURCE_QUERY, sourceQueryId)
+					new Label[] {
+						label(Label.LABEL_SOURCE_TYPE, GRPC_SOURCE_TYPE_LABEL_VALUE),
+						sourceQueryId == null ? null : label(Label.LABEL_SOURCE_QUERY, sourceQueryId)
+					}
 				);
 			} finally {
 				if (trackSourceQueries) {
@@ -1400,7 +1405,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	 */
 	@RequiredArgsConstructor
 	private static class LabelAppender implements UnaryOperator<HeadConstraint> {
-		private final Label label;
+		private final Label[] labels;
 		private boolean appended = false;
 
 		@Override
@@ -1409,8 +1414,12 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				return constraint;
 			} else {
 				this.appended = true;
+				final List<HeadConstraint> constraints = new ArrayList<>(labels.length + 1);
+				constraints.add(constraint);
+				Arrays.stream(this.labels).filter(Objects::nonNull).forEach(constraints::add);
+
 				//noinspection DataFlowIssue
-				return head(constraint, this.label);
+				return head(constraints.toArray(HeadConstraint[]::new));
 			}
 		}
 

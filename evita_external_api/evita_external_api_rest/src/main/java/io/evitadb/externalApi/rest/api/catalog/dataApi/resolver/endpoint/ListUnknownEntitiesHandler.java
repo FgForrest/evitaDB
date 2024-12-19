@@ -40,6 +40,7 @@ import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.io.JsonRestHandler;
 import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
 import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
+import io.evitadb.externalApi.rest.traffic.RestQueryLabels;
 import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 
@@ -102,6 +103,7 @@ public class ListUnknownEntitiesHandler extends JsonRestHandler<CatalogRestHandl
 	@Nullable
 	protected Head buildHead(@Nonnull RestEndpointExecutionContext executionContext) {
 		final List<HeadConstraint> headConstraints = new LinkedList<>();
+		headConstraints.add(label(Label.LABEL_SOURCE_TYPE, RestQueryLabels.REST_SOURCE_TYPE_VALUE));
 
 		executionContext.trafficSourceQueryRecordingId()
 			.ifPresent(uuid -> headConstraints.add(label(Label.LABEL_SOURCE_QUERY, uuid)));

@@ -1035,7 +1035,7 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	 */
 	protected boolean isJavaTypeGeneric(@Nonnull Class<?> javaType) {
 		final Class<?> componentType = javaType.isArray() ? javaType.getComponentType() : javaType;
-		return componentType.equals(Serializable.class);
+		return componentType.equals(Serializable.class) || componentType.equals(Comparable.class);
 	}
 
 	/**

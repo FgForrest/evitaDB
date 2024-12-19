@@ -37,6 +37,7 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.Requi
 import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
 import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
 import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
+import io.evitadb.externalApi.rest.traffic.RestQueryLabels;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -100,6 +101,7 @@ public class GetUnknownEntityHandler extends EntityHandler<CatalogRestHandlingCo
 	@Nullable
 	protected Head buildHead(@Nonnull RestEndpointExecutionContext executionContext) {
 		final List<HeadConstraint> headConstraints = new LinkedList<>();
+		headConstraints.add(label(Label.LABEL_SOURCE_TYPE, RestQueryLabels.REST_SOURCE_TYPE_VALUE));
 
 		executionContext.trafficSourceQueryRecordingId()
 			.ifPresent(uuid -> headConstraints.add(label(Label.LABEL_SOURCE_QUERY, uuid)));
