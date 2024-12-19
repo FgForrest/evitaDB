@@ -65,8 +65,7 @@ public class SourceQueryRecordingInstrumentation extends SimplePerformantInstrum
 	@Nullable
 	public InstrumentationContext<ExecutionResult> beginExecuteOperation(InstrumentationExecuteOperationParameters parameters,
 	                                                                     InstrumentationState state) {
-		// todo lho new method
-		if (!trafficRecordingOptions.enabled() || !trafficRecordingOptions.sourceQueryTracking()) {
+		if (!trafficRecordingOptions.sourceQueryTrackingEnabled()) {
 			return noOp();
 		}
 

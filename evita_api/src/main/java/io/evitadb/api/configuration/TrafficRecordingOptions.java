@@ -80,6 +80,14 @@ public record TrafficRecordingOptions(
 		return new Builder(trafficRecordingOptions);
 	}
 
+	/**
+	 * Returns true if both traffic recording and source query tracking are enabled.
+	 * @return true if both traffic recording and source query tracking are enabled.
+	 */
+	public boolean sourceQueryTrackingEnabled() {
+		return this.enabled() && this.sourceQueryTracking();
+	}
+
 	public TrafficRecordingOptions() {
 		this(
 			DEFAULT_TRAFFIC_RECORDING,

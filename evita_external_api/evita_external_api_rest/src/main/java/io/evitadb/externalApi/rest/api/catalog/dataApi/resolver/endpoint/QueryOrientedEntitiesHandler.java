@@ -66,7 +66,6 @@ import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.api.query.QueryConstraints.head;
 import static io.evitadb.api.query.QueryUtils.findFilter;
 import static java.util.Optional.ofNullable;
 
@@ -156,8 +155,7 @@ public abstract class QueryOrientedEntitiesHandler extends JsonRestHandler<Colle
 	}
 
 	private void trackSourceQuery(@Nonnull RestEndpointExecutionContext executionContext, @Nonnull QueryEntityRequestDto queryDto) {
-		// todo lho new method
-		if (restHandlingContext.getEvita().getConfiguration().server().trafficRecording().sourceQueryTracking()) {
+		if (restHandlingContext.getEvita().getConfiguration().server().trafficRecording().sourceQueryTrackingEnabled()) {
 			if (executionContext.session() instanceof EvitaInternalSessionContract evitaInternalSession) {
 				try {
 					final String serializedSourceQuery = restHandlingContext.getObjectMapper().writeValueAsString(queryDto);
