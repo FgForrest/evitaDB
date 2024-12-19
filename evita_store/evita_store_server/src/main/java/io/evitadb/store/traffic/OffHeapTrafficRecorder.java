@@ -318,7 +318,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		int ioFetchedSizeBytes,
 		@Nonnull int... primaryKeys
 	) {
-		record(
+		doRecord(
 			this.trackedSessionsIndex.get(sessionId),
 			sessionTraffic -> new QueryContainer(
 				sessionId,
@@ -344,7 +344,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		int ioFetchedSizeBytes,
 		int primaryKey
 	) {
-		record(
+		doRecord(
 			this.trackedSessionsIndex.get(sessionId),
 			sessionTraffic -> new EntityFetchContainer(
 				sessionId,
@@ -366,7 +366,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		int ioFetchedSizeBytes,
 		int primaryKey
 	) {
-		record(
+		doRecord(
 			this.trackedSessionsIndex.get(sessionId),
 			sessionTraffic -> new EntityEnrichmentContainer(
 				sessionId,
@@ -385,7 +385,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		@Nonnull OffsetDateTime now,
 		@Nonnull Mutation mutation
 	) {
-		record(
+		doRecord(
 			this.trackedSessionsIndex.get(sessionId),
 			sessionTraffic -> new MutationContainer(
 				sessionId,
@@ -405,7 +405,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		@Nonnull String sourceQuery,
 		@Nonnull String queryType
 	) {
-		record(
+		doRecord(
 			this.trackedSessionsIndex.get(sessionId),
 			sessionTraffic
 				-> {
@@ -427,7 +427,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		@Nonnull UUID sessionId,
 		@Nonnull UUID sourceQueryId
 	) {
-		record(
+		doRecord(
 			this.trackedSessionsIndex.get(sessionId),
 			sessionTraffic -> sessionTraffic.closeSourceQuery(sourceQueryId)
 		);
@@ -481,7 +481,10 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 	 * @param containerFactory the traffic recording container object containing the data to be recorded
 	 *                         and its associated metadata
 	 */
-	private <T extends TrafficRecording> void record(@Nullable SessionTraffic sessionTraffic, @Nonnull Function<SessionTraffic, T> containerFactory) {
+	private <T extends TrafficRecording> void doRecord(
+		@Nullable SessionTraffic sessionTraffic,
+		@Nonnull Function<SessionTraffic, T> containerFactory
+	) {
 		if (sessionTraffic != null && !sessionTraffic.isFinished()) {
 			try {
 				final T container = containerFactory.apply(sessionTraffic);
