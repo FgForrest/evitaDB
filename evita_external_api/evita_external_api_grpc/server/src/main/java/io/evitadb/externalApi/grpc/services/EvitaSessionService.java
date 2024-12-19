@@ -473,7 +473,6 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 
 	public EvitaSessionService(@Nonnull Evita evita) {
 		this.evita = evita;
-		// todo lho new method
 		this.trackSourceQueries = evita.getConfiguration().server().trafficRecording().sourceQueryTrackingEnabled();
 	}
 
