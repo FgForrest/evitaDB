@@ -27,6 +27,7 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.configuration.ApiWithSpecificPrefix;
+import io.evitadb.externalApi.configuration.MtlsConfiguration;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -72,9 +73,10 @@ public class GraphQLConfig extends AbstractApiConfiguration implements ApiWithSp
 		@Nullable @JsonProperty("tlsMode") String tlsMode,
 		@Nullable @JsonProperty("keepAlive") Boolean keepAlive,
 		@Nullable @JsonProperty("prefix") String prefix,
-		@Nullable @JsonProperty("parallelize") Boolean parallelize
+		@Nullable @JsonProperty("parallelize") Boolean parallelize,
+		@Nullable @JsonProperty("mTLS") MtlsConfiguration mtlsConfiguration
 	) {
-		super(enabled, host, exposeOn, tlsMode, keepAlive);
+		super(enabled, host, exposeOn, tlsMode, keepAlive, mtlsConfiguration);
 		this.prefix = ofNullable(prefix).orElse(BASE_GRAPHQL_PATH);
 		this.parallelize = ofNullable(parallelize).orElse(false);
 	}

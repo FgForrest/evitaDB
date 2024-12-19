@@ -84,6 +84,9 @@ api:                                              # [see API configuration](#api
     exposeOn: "localhost:5555"
     tlsMode: FORCE_TLS
     keepAlive: true
+    mTLS:
+      enabled: false
+      allowedClientCertificatePaths: []
   endpoints:
     system:                                       # [see System API configuration](#system-api-configuration)
       enabled: null
@@ -91,6 +94,9 @@ api:                                              # [see API configuration](#api
       exposeOn: null
       tlsMode: FORCE_NO_TLS
       keepAlive: null
+      mTLS:
+        enabled: null
+        allowedClientCertificatePaths: null
     graphQL:                                      # [see GraphQL API configuration](#graphql-api-configuration)
       enabled: null
       host: null
@@ -98,12 +104,18 @@ api:                                              # [see API configuration](#api
       tlsMode: null
       keepAlive: null
       parallelize: true
+      mTLS:
+        enabled: null
+        allowedClientCertificatePaths: null
     rest:                                         # [see REST API configuration](#rest-api-configuration)
       enabled: null
       host: null
       exposeOn: null
       tlsMode: null
       keepAlive: null
+      mTLS:
+        enabled: null
+        allowedClientCertificatePaths: null
     gRPC:                                         # [see gRPC API configuration](#grpc-api-configuration)
       enabled: null
       host: null
@@ -112,8 +124,8 @@ api:                                              # [see API configuration](#api
       keepAlive: null
       exposeDocsService: false
       mTLS:
-        enabled: false
-        allowedClientCertificatePaths: []
+        enabled: null
+        allowedClientCertificatePaths: null
     lab:                                          # [see evitaLab configuration](#evitalab-configuration)
       enabled: null
       host: null
@@ -123,7 +135,10 @@ api:                                              # [see API configuration](#api
       gui:
         enabled: true
         readOnly: false
-        preconfiguredConnections: null
+      preconfiguredConnections: null
+      mTLS:
+        enabled: null
+        allowedClientCertificatePaths: null
     observability:                                # [see Observability configuration](#observability-configuration)
       enabled: null
       host: null
@@ -134,6 +149,9 @@ api:                                              # [see API configuration](#api
         endpoint: null
         protocol: grpc
       allowedEvents: null
+      mTLS:
+        enabled: null
+        allowedClientCertificatePaths: null
 ```
 
 <Note type="info">
@@ -778,6 +796,16 @@ This allows you to set common settings for all endpoints in one place.
         <p>**Default:** `true`</p>
         <p>If this is set to false server closes connection via HTTP `connection: close` after each request.</p>
     </dd>
+    <dt>mTls.enabled</dt>
+    <dd>
+        <p>**Default:** `false`</p>
+        <p>It enables / disables [mutual authentication](tls.md#mutual-tls-for-http) for a particular API.</p>
+    </dd>
+    <dt>mTls.allowedClientCertificatePaths</dt>
+    <dd>
+        <p>**Default:** `[]`</p>
+        <p>It allows you to define zero or more file paths pointing to public <Term location="/documentation/user/en/operate/tls.md" name="certificate">client certificates</Term> that can only communicate with the API.</p>
+    </dd>
 </dl>
 
 ### GraphQL API configuration
@@ -808,6 +836,16 @@ This allows you to set common settings for all endpoints in one place.
         <p>**Default:** `true`</p>
         <p>Controls whether queries that fetch data from evitaDB engine will be executed in parallel.</p>
     </dd>
+    <dt>mTls.enabled</dt>
+    <dd>
+        <p>**Default:** `false`</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
+    </dd>
+    <dt>mTls.allowedClientCertificatePaths</dt>
+    <dd>
+        <p>**Default:** `[]`</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
+    </dd>
 </dl>
 
 ### REST API configuration
@@ -831,6 +869,16 @@ This allows you to set common settings for all endpoints in one place.
     <dt>tlsMode</dt>
     <dd>
         <p>**Default:** `FORCE_TLS`</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
+    </dd>
+    <dt>mTls.enabled</dt>
+    <dd>
+        <p>**Default:** `false`</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
+    </dd>
+    <dt>mTls.allowedClientCertificatePaths</dt>
+    <dd>
+        <p>**Default:** `[]`</p>
         <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
 </dl>
@@ -864,21 +912,15 @@ This allows you to set common settings for all endpoints in one place.
         <p>It enables / disables the gRPC service, which provides documentation for the gRPC API and allows to
         experimentally call any of the services from the web UI and examine its output.</p>
     </dd>
-</dl>
-
-#### Mutual TLS configuration
-
-<dl>
-    <dt>enabled</dt>
+    <dt>mTls.enabled</dt>
     <dd>
-        <p>**Default:** `true`</p>
-        <p>It enables / disables [mutual authentication](tls.md#mutual-tls-for-grpc).</p>
+        <p>**Default:** `false`</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
-    <dt>allowedClientCertificatePaths</dt>
+    <dt>mTls.allowedClientCertificatePaths</dt>
     <dd>
-        <p>**Default:** `null`</p>
-        <p>It allows you to define zero or more file paths pointing to public <Term location="/documentation/user/en/operate/tls.md" name="certificate">client certificates</Term>.
-        Only clients that present the correct certificate will be allowed to communicate with the gRPC web API.</p>
+        <p>**Default:** `[]`</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
 </dl>
 
@@ -889,7 +931,7 @@ only exposed endpoint on the unsecured http protocol, it must run on a separate 
 download the public part of the server certificate.
 
 It also allows downloading the default client private/public key pair if `api.certificate.generateAndUseSelfSigned` and
-`api.gRPC.mTLS` are both set to `true`. See [default unsecure mTLS behaviour](tls.md#default-mtls-behaviour-not-secure) for
+any of `api.*.mTLS` are both set to `true`. See [default unsecure mTLS behaviour](tls.md#default-mtls-behaviour-not-secure) for
 more information.
 
 <dl>
@@ -911,6 +953,16 @@ more information.
     <dt>tlsMode</dt>
     <dd>
         <p>**Default:** `FORCE_NO_TLS`</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
+    </dd>
+    <dt>mTls.enabled</dt>
+    <dd>
+        <p>**Default:** `false`</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
+    </dd>
+    <dt>mTls.allowedClientCertificatePaths</dt>
+    <dd>
+        <p>**Default:** `[]`</p>
         <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
 </dl>
@@ -946,6 +998,16 @@ of other APIs.
     <dt>gui</dt>
     <dd>
         <p>[See config](#gui-configuration)</p>
+    </dd>
+    <dt>mTls.enabled</dt>
+    <dd>
+        <p>**Default:** `false`</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
+    </dd>
+    <dt>mTls.allowedClientCertificatePaths</dt>
+    <dd>
+        <p>**Default:** `[]`</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
 </dl>
 
@@ -1033,5 +1095,15 @@ pro scraping Prometheus metrics, OTEL trace exporter and Java Flight Recorder ev
         <p>**Default:** `grpc`</p>
         <p>Specifies the protocol used between the application and the OTEL collector to pass the traces. Possible 
         values are `grpc` and `http`. gRPC is much more performant and is the preferred option.</p>
+    </dd>
+    <dt>mTls.enabled</dt>
+    <dd>
+        <p>**Default:** `false`</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
+    </dd>
+    <dt>mTls.allowedClientCertificatePaths</dt>
+    <dd>
+        <p>**Default:** `[]`</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
 </dl>

@@ -33,7 +33,7 @@ import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.CertificateSettings;
 import io.evitadb.externalApi.configuration.TlsMode;
-import io.evitadb.externalApi.grpc.certificate.ClientCertificateManager.Builder;
+import io.evitadb.externalApi.grpc.certificate.ClientCertificateManager;
 import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
 import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.externalApi.system.SystemProvider;
@@ -64,7 +64,7 @@ public class TestGrpcClientBuilderCreator {
 		final ApiOptions apiOptions = externalApiServer.getApiOptions();
 		final int grpcPort = apiOptions.getEndpointConfiguration(GrpcProvider.CODE).getHost()[0].port();
 		final CertificateSettings certificate = apiOptions.certificate();
-		final Builder builder = new Builder()
+		final ClientCertificateManager.Builder builder = new ClientCertificateManager.Builder()
 			.certificateClientFolderPath(Path.of(externalApiServer.getApiOptions().certificate().folderPath()));
 		if (certificate.generateAndUseSelfSigned()) {
 			final AbstractApiConfiguration systemEndpoint = apiOptions.getEndpointConfiguration(SystemProvider.CODE);
@@ -74,7 +74,7 @@ public class TestGrpcClientBuilderCreator {
 
 		final GrpcConfig grpcConfig = apiOptions.getEndpointConfiguration(GrpcProvider.CODE);
 
-		final ClientFactoryBuilder clientFactoryBuilder = ClientFactory.builder()
+		ClientFactoryBuilder clientFactoryBuilder = ClientFactory.builder()
 			.useHttp1Pipelining(true)
 			.idleTimeoutMillis(10000, true)
 			.maxNumRequestsPerConnection(1000)
@@ -82,7 +82,7 @@ public class TestGrpcClientBuilderCreator {
 
 		final String uriScheme;
 		if (grpcConfig.getTlsMode() != TlsMode.FORCE_NO_TLS) {
-			clientFactoryBuilder.tlsCustomizer(tlsCustomizer -> builder.build().buildClientSslContext(null, tlsCustomizer));
+			clientFactoryBuilder = builder.build().buildClientSslContext(null, clientFactoryBuilder);
 			uriScheme = "https";
 		} else {
 			uriScheme = "http";

@@ -21,24 +21,22 @@
  *   limitations under the License.
  */
 
+package io.evitadb.externalApi.exception;
+
+
+import javax.annotation.Nonnull;
+import java.io.Serial;
+
 /**
- * Module contains gRPC Java driver (gRPC client) observability extension realized via OpenTelemetry.
+ * Exception is raised when client accesses the API endpoint secured by client certificate (mTLS) without providing it.
+ *
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-module evita.java.driver.observability {
-	uses io.evitadb.driver.trace.ClientTracingContext;
-	uses io.evitadb.api.observability.trace.TracingContext;
+public class ClientCertificateNotProvidedException extends ExternalApiInvalidUsageException {
+	@Serial private static final long serialVersionUID = 3934858455674566277L;
 
-	provides io.evitadb.driver.trace.ClientTracingContext with io.evitadb.driver.observability.trace.DriverTracingContext;
+	public ClientCertificateNotProvidedException(@Nonnull String publicMessage) {
+		super(publicMessage);
+	}
 
-	requires static jsr305;
-	requires static lombok;
-
-	requires evita.api;
-	requires evita.java.driver;
-
-	requires io.opentelemetry.context;
-	requires io.opentelemetry.api;
-	requires evita.common;
-
-	exports io.evitadb.driver.observability.trace;
 }
