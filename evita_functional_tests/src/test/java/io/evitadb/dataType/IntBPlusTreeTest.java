@@ -500,22 +500,70 @@ class IntBPlusTreeTest {
 
 	@Test
 	void shouldMergeCausingIntermediateParentToMergeLeft() {
+		final TreeTuple testTree = prepareRandomTree(42, 50);
+		final IntBPlusTree<String> theTree = testTree.bPlusTree();
+		int[] expectedArray = testTree.plainArray();
 
+		theTree.delete(32);
+		expectedArray = ArrayUtils.removeIntFromOrderedArray(32, expectedArray);
+
+		theTree.delete(34);
+		expectedArray = ArrayUtils.removeIntFromOrderedArray(34, expectedArray);
+
+		theTree.delete(35);
+		expectedArray = ArrayUtils.removeIntFromOrderedArray(35, expectedArray);
+
+		theTree.delete(37);
+		expectedArray = ArrayUtils.removeIntFromOrderedArray(37, expectedArray);
+
+		theTree.delete(40);
+		expectedArray = ArrayUtils.removeIntFromOrderedArray(40, expectedArray);
+
+		verifyTreeConsistency(theTree, expectedArray);
 	}
 
 	@Test
 	void shouldMergeCausingIntermediateParentToMergeRight() {
+		final TreeTuple testTree = prepareRandomTree(42, 50);
+		final IntBPlusTree<String> theTree = testTree.bPlusTree();
+		int[] expectedArray = testTree.plainArray();
 
+		theTree.delete(25);
+		expectedArray = ArrayUtils.removeIntFromOrderedArray(25, expectedArray);
+
+		theTree.delete(26);
+		expectedArray = ArrayUtils.removeIntFromOrderedArray(26, expectedArray);
+
+		theTree.delete(27);
+		expectedArray = ArrayUtils.removeIntFromOrderedArray(27, expectedArray);
+
+		theTree.delete(30);
+		expectedArray = ArrayUtils.removeIntFromOrderedArray(30, expectedArray);
+
+		verifyTreeConsistency(theTree, expectedArray);
 	}
 
 	@Test
-	void shouldMergeCausingParentChainMergeUpToTheRoot() {
+	void shouldDeleteEntireContentsOfTheTree() {
+		final Random rnd = new Random(42);
+		final TreeTuple testTree = prepareRandomTree(42, 50);
+		final IntBPlusTree<String> theTree = testTree.bPlusTree();
+		int[] expectedArray = testTree.plainArray();
 
+		while (expectedArray.length > 0) {
+			final int index = rnd.nextInt(expectedArray.length);
+			final int key = expectedArray[index];
+			theTree.delete(key);
+			expectedArray = ArrayUtils.removeIntFromOrderedArray(key, expectedArray);
+			verifyTreeConsistency(theTree, expectedArray);
+		}
+
+		assertEquals(0, theTree.size());
 	}
 
 	private static void verifyTreeConsistency(@Nonnull IntBPlusTree<?> bPlusTree, int... keys) {
 		int height = verifyAndReturnHeight(bPlusTree);
-		verifyMinimalCountOfValuesInNodes(bPlusTree.getRoot(), bPlusTree.getMinBlockSize());
+		verifyMinimalCountOfValuesInNodes(bPlusTree.getRoot(), bPlusTree.getMinBlockSize(), true);
 		verifyInternalNodeKeys(bPlusTree.getRoot());
 		verifyPreviousAndNextNodesOnEachLevel(bPlusTree, height);
 		verifyForwardKeyIterator(bPlusTree, keys);
@@ -563,14 +611,14 @@ class IntBPlusTreeTest {
 		}
 	}
 
-	private static void verifyMinimalCountOfValuesInNodes(@Nonnull BPlusTreeNode<?> node, int minBlockSize) {
+	private static void verifyMinimalCountOfValuesInNodes(@Nonnull BPlusTreeNode<?> node, int minBlockSize, boolean isRoot) {
 		if (node instanceof BPlusInternalTreeNode internalNode) {
-			assertTrue(internalNode.size() >= minBlockSize, "Internal node " + internalNode + " has less than " + minBlockSize + " values!");
+			assertTrue(internalNode.size() >= minBlockSize + 1, "Internal node " + internalNode + " has less than " + minBlockSize + " values!");
 			for (int i = 0; i < internalNode.size(); i++) {
-				verifyMinimalCountOfValuesInNodes(internalNode.getChildren()[i], minBlockSize);
+				verifyMinimalCountOfValuesInNodes(internalNode.getChildren()[i], minBlockSize, false);
 			}
 		} else {
-			assertTrue(node.size() >= minBlockSize, "Leaf node " + node + " has less than " + minBlockSize + " values!");
+			assertTrue(isRoot || node.size() >= minBlockSize, "Leaf node " + node + " has less than " + minBlockSize + " values!");
 		}
 	}
 
