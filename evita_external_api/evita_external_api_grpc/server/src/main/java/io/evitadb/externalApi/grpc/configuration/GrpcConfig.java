@@ -26,7 +26,6 @@ package io.evitadb.externalApi.grpc.configuration;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
-import io.evitadb.externalApi.configuration.ApiConfigurationWithMutualTls;
 import io.evitadb.externalApi.configuration.MtlsConfiguration;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -39,14 +38,11 @@ import static java.util.Optional.ofNullable;
 
 /**
  * gRPC API specific configuration.
- * Currently, we're not able to set prefix for gRPC API and share port with other APIs.
- * By configuring {@link GrpcConfig#mtlsConfiguration}, additional security can be added to the gRPC API by enabling
- * mTLS and allowing only specific and verified client to connect.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public class GrpcConfig extends AbstractApiConfiguration implements ApiConfigurationWithMutualTls {
+public class GrpcConfig extends AbstractApiConfiguration {
 
 	private static final String BASE_GRPC_PATH = "";
 	/**
@@ -59,11 +55,6 @@ public class GrpcConfig extends AbstractApiConfiguration implements ApiConfigura
 	@Getter private final boolean exposeDocsService;
 
 	/**
-	 * Wrapper that contains a part of configuration file that is related to mTLS settings.
-	 */
-	@Getter
-	private final MtlsConfiguration mtlsConfiguration;
-	/**
 	 * Controls the prefix gRPC API will react on.
 	 * Default value is empty string - gRPC currently doesn't support running on any prefix.
 	 * This is unfortunately limitation of original implementation - see <a href="https://github.com/grpc/grpc-java/issues/9671">related issue</a>.
@@ -73,14 +64,12 @@ public class GrpcConfig extends AbstractApiConfiguration implements ApiConfigura
 	public GrpcConfig() {
 		super(true, ":" + DEFAULT_GRPC_PORT);
 		this.exposeDocsService = false;
-		this.mtlsConfiguration = new MtlsConfiguration(false, List.of());
 		this.prefix = BASE_GRPC_PATH;
 	}
 
 	public GrpcConfig(@Nonnull String host) {
 		super(true, host);
 		this.exposeDocsService = false;
-		this.mtlsConfiguration = new MtlsConfiguration(false, List.of());
 		this.prefix = BASE_GRPC_PATH;
 	}
 
@@ -92,11 +81,10 @@ public class GrpcConfig extends AbstractApiConfiguration implements ApiConfigura
 					  @Nullable @JsonProperty("keepAlive") Boolean keepAlive,
 					  @Nullable @JsonProperty("exposeDocsService") Boolean exposeDocsService,
 	                  @Nullable @JsonProperty("prefix") String prefix,
-	                  @Nonnull @JsonProperty("mTLS") MtlsConfiguration mtlsConfiguration
+	                  @Nullable @JsonProperty("mTLS") MtlsConfiguration mtlsConfiguration
 	) {
-		super(enabled, host, exposeOn, tlsMode, keepAlive);
+		super(enabled, host, exposeOn, tlsMode, keepAlive, mtlsConfiguration);
 		this.exposeDocsService = ofNullable(exposeDocsService).orElse(false);
-		this.mtlsConfiguration = mtlsConfiguration;
 		this.prefix = ofNullable(prefix).orElse(BASE_GRPC_PATH);
 	}
 
@@ -109,10 +97,5 @@ public class GrpcConfig extends AbstractApiConfiguration implements ApiConfigura
 			);
 		}
 		return true;
-	}
-
-	@Override
-	public boolean isMtlsEnabled() {
-		return mtlsConfiguration.enabled();
 	}
 }

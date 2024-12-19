@@ -88,7 +88,7 @@ module evita.engine {
 	requires evita.store.entity;
 
 	requires zero.allocation.hashing;
-	requires com.carrotsearch.hppc;
+    requires com.carrotsearch.hppc;
 	requires roaringbitmap;
 	requires com.esotericsoftware.kryo;
 

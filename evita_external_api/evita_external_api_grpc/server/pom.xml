@@ -60,10 +60,5 @@
 			<artifactId>armeria-grpc-protocol</artifactId>
 			<version>${armeria.version}</version>
 		</dependency>
-		<dependency>
-			<groupId>com.linecorp.armeria</groupId>
-			<artifactId>armeria-protobuf</artifactId>
-			<version>${armeria.version}</version>
-		</dependency>
 	</dependencies>
 </project>

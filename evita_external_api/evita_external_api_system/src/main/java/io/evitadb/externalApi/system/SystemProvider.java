@@ -43,7 +43,6 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Optional;
 import java.util.function.Predicate;
 
 import static io.evitadb.externalApi.system.SystemProviderRegistrar.ENDPOINT_SERVER_NAME;
@@ -57,7 +56,6 @@ import static io.evitadb.externalApi.system.SystemProviderRegistrar.ENDPOINT_SER
 @Slf4j
 public class SystemProvider implements ExternalApiProviderWithConsoleOutput<SystemConfig> {
 	public static final String CODE = "system";
-	public static final String ROOT_CERTIFICATE_URL = "rootCertificateUrl";
 	public static final String SERVER_CERTIFICATE_URL = "serverCertificateUrl";
 	public static final String CLIENT_CERTIFICATE_URL = "clientCertificateUrl";
 	public static final String CLIENT_PRIVATE_KEY_URL = "clientPrivateKeyUrl";
@@ -159,7 +157,6 @@ public class SystemProvider implements ExternalApiProviderWithConsoleOutput<Syst
 	@Override
 	public void writeToConsole() {
 		writeLine("   - server name served at: ", SERVER_NAME_URL);
-		writeLine("   - CA certificate served at: ", ROOT_CERTIFICATE_URL);
 		writeLine("   - server certificate served at: ", SERVER_CERTIFICATE_URL);
 		writeLine("   - client certificate served at: ", CLIENT_CERTIFICATE_URL);
 		writeLine("   - client private key served at: ", CLIENT_PRIVATE_KEY_URL);

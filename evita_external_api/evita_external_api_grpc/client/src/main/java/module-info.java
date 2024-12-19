@@ -11,7 +11,7 @@ module evita.java.driver {
 	requires static jsr305;
 	requires static lombok;
 	requires org.slf4j;
-	requires protobuf.java;
+	requires com.google.protobuf;
 
 	requires evita.api;
 	requires evita.common;

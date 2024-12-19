@@ -53,7 +53,7 @@
 		<dependency>
 			<groupId>${project.parent.groupId}</groupId>
 			<artifactId>evita_api</artifactId>
-			<version>2024.12-SNAPSHOT</version>
+			<version>${project.parent.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>io.opentelemetry</groupId>
@@ -62,15 +62,9 @@
 		<dependency>
 			<groupId>io.evitadb</groupId>
 			<artifactId>evita_java_driver</artifactId>
-			<version>2024.12-SNAPSHOT</version>
-			<scope>compile</scope>
+			<version>${project.parent.version}</version>
+			<scope>provided</scope>
 		</dependency>
 	</dependencies>
-
-	<properties>
-		<maven.compiler.source>17</maven.compiler.source>
-		<maven.compiler.target>17</maven.compiler.target>
-		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-	</properties>
 
 </project>
