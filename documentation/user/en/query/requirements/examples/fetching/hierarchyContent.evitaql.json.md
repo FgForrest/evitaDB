@@ -7,10 +7,12 @@
       "parentEntity": {
         "parentEntity": {
           "primaryKey": 66468,
-          "type": "Category"
+          "type": "Category",
+          "primaryKeyOrThrowException": 66468
         },
         "primaryKey": 66481,
-        "type": "Category"
+        "type": "Category",
+        "primaryKeyOrThrowException": 66481
       }
     }
   ],

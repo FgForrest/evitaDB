@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -71,13 +71,19 @@ public abstract class RestEndpointFunctionalTest {
 
 	@DataSet(value = TestDataGenerator.REST_THOUSAND_PRODUCTS, openWebApi = RestProvider.CODE)
 	protected DataCarrier setUp(Evita evita, EvitaServer evitaServer) {
-		return setUpData(evita, evitaServer, 1000);
+		return setUpData(evita, evitaServer, 1000, false);
 	}
 
+	@DataSet(value = TestDataGenerator.REST_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE, openWebApi = RestProvider.CODE)
+	protected DataCarrier setUpForArchival(Evita evita, EvitaServer evitaServer) {
+		return setUpData(evita, evitaServer, 100, true);
+	}
+
+
 	@Nonnull
-	protected DataCarrier setUpData(Evita evita, EvitaServer evitaServer, int productCount) {
+	protected DataCarrier setUpData(Evita evita, EvitaServer evitaServer, int productCount, boolean archiveSomeProducts) {
 		TestDataGenerator.generateMockCatalogs(evita);
-		return TestDataGenerator.generateMainCatalogEntities(evita, productCount);
+		return TestDataGenerator.generateMainCatalogEntities(evita, productCount, archiveSomeProducts);
 	}
 
 	@Nullable

@@ -21,4 +21,4 @@
 | 104490           | 'iget-blackview-tab-g13'                     | 🪙 €293.00, 🪙 €283.14, 🪙 €281.00 ... and 5 other prices         |
 | 104500           | 'huawei-honor-pad-6-10-1'                    | 🪙 €385.00, 🪙 €435.00, 🪙 €372.68 ... and 15 other prices        |
 
-###### **Page** 1/207 **(Total number of results: 4133)**
+###### **Page** 1/204 **(Total number of results: 4069)**

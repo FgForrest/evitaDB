@@ -5,6 +5,7 @@
       "primaryKey": 64703,
       "type": "Brand",
       "version": 1,
+      "scope": "LIVE",
       "locales": [
         "en"
       ],

@@ -29,8 +29,6 @@ module evita.external.api.lab {
 	uses ExternalApiProviderRegistrar;
 
 	opens io.evitadb.externalApi.lab.configuration to com.fasterxml.jackson.databind;
-	opens io.evitadb.externalApi.lab.api.resolver.serializer to com.fasterxml.jackson.databind;
-	opens io.evitadb.externalApi.lab.api.dto to com.fasterxml.jackson.databind;
 	opens io.evitadb.externalApi.lab.gui.dto to com.fasterxml.jackson.databind;
 
 	provides ExternalApiProviderRegistrar with LabProviderRegistrar;

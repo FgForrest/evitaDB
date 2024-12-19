@@ -24,6 +24,7 @@
 package io.evitadb.index.bitmap;
 
 import io.evitadb.dataType.iterator.EmptyIntIterator;
+import io.evitadb.utils.ArrayUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
@@ -40,7 +41,6 @@ import java.util.PrimitiveIterator.OfInt;
 public class EmptyBitmap implements Bitmap {
 	@Serial private static final long serialVersionUID = -1544760619146901988L;
 	public static final EmptyBitmap INSTANCE = new EmptyBitmap();
-	private static final int[] EMPTY_INT_ARRAY = new int[0];
 	private static final String ERROR_READ_ONLY = "Empty bitmap is read only.";
 	public static final String ERROR_EMPTY_BITMAP = "Bitmap is empty!";
 
@@ -109,7 +109,7 @@ public class EmptyBitmap implements Bitmap {
 
 	@Override
 	public int[] getArray() {
-		return EMPTY_INT_ARRAY;
+		return ArrayUtils.EMPTY_INT_ARRAY;
 	}
 
 	@Nonnull

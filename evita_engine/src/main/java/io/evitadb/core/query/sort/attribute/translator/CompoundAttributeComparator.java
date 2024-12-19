@@ -44,7 +44,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.function.UnaryOperator;
 
 import static io.evitadb.index.attribute.SortIndex.createCombinedComparatorFor;
 import static io.evitadb.index.attribute.SortIndex.createNormalizerFor;
@@ -60,11 +59,11 @@ public class CompoundAttributeComparator implements EntityComparator, Serializab
 	/**
 	 * Function for fetching the attribute value from the entity.
 	 */
-	@Nonnull private final BiFunction<EntityContract, String, Comparable<?>> attributeValueFetcher;
+	@Nonnull private final BiFunction<EntityContract, String, Object> attributeValueFetcher;
 	/**
 	 * Function for normalizing the attribute values (such as string values or BigDecimals).
 	 */
-	@Nonnull private final UnaryOperator<Object> normalizer;
+	@Nonnull private final Function<Object, Object> normalizer;
 	/**
 	 * Comparator for comparing the normalized attribute values.
 	 */
@@ -135,7 +134,7 @@ public class CompoundAttributeComparator implements EntityComparator, Serializab
 	private ComparableArray getAndMemoizeValue(@Nonnull EntityContract entity) {
 		ComparableArray value = this.memoizedValues.get(entity.getPrimaryKey());
 		if (value == null) {
-			final Comparable<?>[] valueArray = new Comparable<?>[this.attributeElements.length];
+			final Object[] valueArray = new Comparable<?>[this.attributeElements.length];
 			for (int i = 0; i < this.attributeElements.length; i++) {
 				final AttributeElement attributeElement = this.attributeElements[i];
 				valueArray[i] = this.attributeValueFetcher.apply(entity, attributeElement.attributeName());

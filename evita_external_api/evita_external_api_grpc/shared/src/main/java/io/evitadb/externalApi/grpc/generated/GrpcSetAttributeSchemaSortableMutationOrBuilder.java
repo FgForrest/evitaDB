@@ -55,10 +55,71 @@ public interface GrpcSetAttributeSchemaSortableMutationOrBuilder extends
    * When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
    * as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
    * (memory/disk) space in the form of index.
+   * deprecated in favor of `sortableInScopes`
    * </pre>
    *
-   * <code>bool sortable = 2;</code>
+   * <code>bool sortable = 2 [deprecated = true];</code>
+   * @deprecated
    * @return The sortable.
    */
-  boolean getSortable();
+  @java.lang.Deprecated boolean getSortable();
+
+  /**
+   * <pre>
+   * When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
+   * as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
+   * (memory/disk) space in the form of index.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope sortableInScopes = 3;</code>
+   * @return A list containing the sortableInScopes.
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getSortableInScopesList();
+  /**
+   * <pre>
+   * When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
+   * as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
+   * (memory/disk) space in the form of index.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope sortableInScopes = 3;</code>
+   * @return The count of sortableInScopes.
+   */
+  int getSortableInScopesCount();
+  /**
+   * <pre>
+   * When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
+   * as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
+   * (memory/disk) space in the form of index.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope sortableInScopes = 3;</code>
+   * @param index The index of the element to return.
+   * @return The sortableInScopes at the given index.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcEntityScope getSortableInScopes(int index);
+  /**
+   * <pre>
+   * When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
+   * as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
+   * (memory/disk) space in the form of index.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope sortableInScopes = 3;</code>
+   * @return A list containing the enum numeric values on the wire for sortableInScopes.
+   */
+  java.util.List<java.lang.Integer>
+  getSortableInScopesValueList();
+  /**
+   * <pre>
+   * When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
+   * as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
+   * (memory/disk) space in the form of index.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope sortableInScopes = 3;</code>
+   * @param index The index of the value to return.
+   * @return The enum numeric value on the wire of sortableInScopes at the given index.
+   */
+  int getSortableInScopesValue(int index);
 }

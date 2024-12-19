@@ -64,6 +64,7 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -134,7 +135,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 
 			log.info("Starting backup of catalog `{}` at version {}.", this.catalogName, catalogVersion);
 
-			final Path backupFolder = defaultCatalogPersistenceService.getStorageOptions().exportDirectoryOrDefault();
+			final Path backupFolder = defaultCatalogPersistenceService.getStorageOptions().exportDirectory();
 			if (!backupFolder.toFile().exists()) {
 				Assert.isPremiseValid(backupFolder.toFile().mkdirs(), "Failed to create backup folder `" + backupFolder + "`!");
 			}
@@ -420,18 +421,21 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 		totalRecords += catalogServiceRecordCount;
 
 		for (CollectionFileReference entityTypeFileIndex : catalogHeader.getEntityTypeFileIndexes()) {
+			final EntityCollectionHeader entityCollectionHeader = catalogPersistenceService.getStoragePart(
+				catalogVersion,
+				entityTypeFileIndex.entityTypePrimaryKey(),
+				EntityCollectionHeader.class
+			);
+			Assert.isPremiseValid(
+				entityCollectionHeader != null,
+				"Entity collection header for entity type `" + entityTypeFileIndex.entityType() + "` was unexpectedly not created!"
+			);
 			final DefaultEntityCollectionPersistenceService entityCollectionPersistenceService = thePastMoment == null ?
 				defaultCatalogPersistenceService.getOrCreateEntityCollectionPersistenceService(
 					catalogVersion, entityTypeFileIndex.entityType(), entityTypeFileIndex.entityTypePrimaryKey()
 				) :
 				closeables.add(
-					defaultCatalogPersistenceService.createEntityCollectionPersistenceService(
-						catalogPersistenceService.getStoragePart(
-							catalogVersion,
-							entityTypeFileIndex.entityTypePrimaryKey(),
-							EntityCollectionHeader.class
-						)
-					)
+					defaultCatalogPersistenceService.createEntityCollectionPersistenceService(entityCollectionHeader)
 				);
 			final ServiceWithStatistics serviceStats = new ServiceWithStatistics(
 				entityCollectionPersistenceService,
@@ -506,9 +510,11 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 
 		@Override
 		public String toString() {
-			return StringUtils.capitalize(
-				(pastMoment == null ? "" : "pastMoment=" + EvitaDataTypes.formatValue(pastMoment) + ", ") +
-				"includingWAL=" + includingWAL
+			return Objects.requireNonNull(
+				StringUtils.capitalize(
+					(pastMoment == null ? "" : "pastMoment=" + EvitaDataTypes.formatValue(pastMoment) + ", ") +
+						"includingWAL=" + includingWAL
+				)
 			);
 		}
 	}

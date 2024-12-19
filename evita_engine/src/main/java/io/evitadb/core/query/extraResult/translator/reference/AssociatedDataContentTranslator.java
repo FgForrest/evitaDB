@@ -127,7 +127,7 @@ public class AssociatedDataContentTranslator implements RequireConstraintTransla
 
 	@Nullable
 	@Override
-	public ExtraResultProducer apply(AssociatedDataContent associatedDataContent, ExtraResultPlanningVisitor extraResultPlanningVisitor) {
+	public ExtraResultProducer createProducer(@Nonnull AssociatedDataContent associatedDataContent, @Nonnull ExtraResultPlanningVisitor extraResultPlanningVisitor) {
 		if (extraResultPlanningVisitor.isEntityTypeKnown()) {
 			final Optional<EntitySchemaContract> entitySchema = extraResultPlanningVisitor.getCurrentEntitySchema();
 			Assert.isTrue(

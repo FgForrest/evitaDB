@@ -31,6 +31,9 @@ import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.NotFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.dataType.array.CompositeObjectArray;
+import io.evitadb.index.bitmap.BaseBitmap;
+import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
+import org.roaringbitmap.RoaringBitmap;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
@@ -62,7 +65,22 @@ public class FormulaFactory {
 				superSetFormulaSupplier
 			);
 		} else {
-			return new OrFormula(innerFormulas);
+			/* this check and transformation enables prefetching for simple cases */
+			if (Arrays.stream(innerFormulas).allMatch(it -> it instanceof ConstantFormula || it instanceof EmptyFormula)) {
+				final RoaringBitmap[] bitmaps = Arrays.stream(innerFormulas)
+					.filter(ConstantFormula.class::isInstance)
+					.map(ConstantFormula.class::cast)
+					.map(ConstantFormula::getDelegate)
+					.map(
+						it -> it instanceof RoaringBitmapBackedBitmap rbbb ?
+							rbbb.getRoaringBitmap() :
+							RoaringBitmap.bitmapOf(it.getArray())
+					)
+					.toArray(RoaringBitmap[]::new);
+				return bitmaps.length == 0 ? EmptyFormula.INSTANCE : new ConstantFormula(new BaseBitmap(RoaringBitmap.or(bitmaps)));
+			} else {
+				return new OrFormula(innerFormulas);
+			}
 		}
 	}
 

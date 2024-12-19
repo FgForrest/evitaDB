@@ -132,15 +132,17 @@ public interface ReferenceSortableAttributeCompoundSchemaMutation extends Sortab
 					referenceSchema.getNameVariants(),
 					referenceSchema.getDescription(),
 					referenceSchema.getDeprecationNotice(),
-					referenceSchema.getReferencedEntityType(),
-					referenceSchema.isReferencedEntityTypeManaged() ? Collections.emptyMap() : referenceSchema.getEntityTypeNameVariants(s -> null),
-					referenceSchema.isReferencedEntityTypeManaged(),
 					referenceSchema.getCardinality(),
+					referenceSchema.getReferencedEntityType(),
+					referenceSchema.isReferencedEntityTypeManaged() ?
+						Collections.emptyMap() : referenceSchema.getEntityTypeNameVariants(s -> null),
+					referenceSchema.isReferencedEntityTypeManaged(),
 					referenceSchema.getReferencedGroupType(),
-					referenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
+					referenceSchema.isReferencedGroupTypeManaged() ?
+						Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
 					referenceSchema.isReferencedGroupTypeManaged(),
-					referenceSchema.isIndexed(),
-					referenceSchema.isFaceted(),
+					referenceSchema.getIndexedInScopes(),
+					referenceSchema.getFacetedInScopes(),
 					referenceSchema.getAttributes(),
 					Stream.concat(
 							referenceSchema.getSortableAttributeCompounds().values().stream().filter(it -> !updatedSchema.getName().equals(it.getName())),

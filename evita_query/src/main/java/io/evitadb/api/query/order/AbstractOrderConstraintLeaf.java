@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -39,7 +39,11 @@ import java.io.Serializable;
 abstract class AbstractOrderConstraintLeaf extends ConstraintLeaf<OrderConstraint> implements OrderConstraint {
 	@Serial private static final long serialVersionUID = 3475944299512789481L;
 
-	protected AbstractOrderConstraintLeaf(Serializable... arguments) {
+	protected AbstractOrderConstraintLeaf(@Nonnull String name, @Nonnull Serializable... arguments) {
+		super(name, arguments);
+	}
+
+	protected AbstractOrderConstraintLeaf(@Nonnull Serializable... arguments) {
 		super(arguments);
 	}
 

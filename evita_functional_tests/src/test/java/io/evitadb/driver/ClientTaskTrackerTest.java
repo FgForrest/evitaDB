@@ -62,7 +62,7 @@ class ClientTaskTrackerTest implements TestConstants {
 		final ClientTask<Void, Boolean> task = tested.createTask(
 			new TaskStatus<>(
 				"whatever", "whatever", UUIDUtil.randomUUID(), TEST_CATALOG,
-				OffsetDateTime.now(), null, null, 0,
+				OffsetDateTime.now(), OffsetDateTime.now(), null, null, 0,
 				null, null, null, null,
 				EnumSet.noneOf(TaskTrait.class)
 			)
@@ -73,7 +73,7 @@ class ClientTaskTrackerTest implements TestConstants {
 			invocation -> List.of(
 				new TaskStatus<>(
 					"whatever", "whatever", task.getStatus().taskId(), TEST_CATALOG,
-					OffsetDateTime.now(), OffsetDateTime.now(), OffsetDateTime.now(), 0,
+					OffsetDateTime.now(), OffsetDateTime.now(), OffsetDateTime.now(), OffsetDateTime.now(), 0,
 					null, true, null, null,
 					EnumSet.noneOf(TaskTrait.class)
 				)
@@ -92,7 +92,7 @@ class ClientTaskTrackerTest implements TestConstants {
 		final ClientTask<Void, Boolean> task = tested.createTask(
 			new TaskStatus<>(
 				"whatever", "whatever", UUIDUtil.randomUUID(), TEST_CATALOG,
-				OffsetDateTime.now(), null, null, 0,
+				OffsetDateTime.now(), OffsetDateTime.now(), null, null, 0,
 				null, null, null, null,
 				EnumSet.noneOf(TaskTrait.class)
 			)

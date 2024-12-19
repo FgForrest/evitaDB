@@ -245,6 +245,19 @@ private static final long serialVersionUID = 0L;
             input.popLimit(oldLimit);
             break;
           }
+          case 122: {
+            io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder subBuilder = null;
+            if (created_ != null) {
+              subBuilder = created_.toBuilder();
+            }
+            created_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.parser(), extensionRegistry);
+            if (subBuilder != null) {
+              subBuilder.mergeFrom(created_);
+              created_ = subBuilder.buildPartial();
+            }
+
+            break;
+          }
           default: {
             if (!parseUnknownField(
                 input, unknownFields, extensionRegistry, tag)) {
@@ -895,6 +908,44 @@ private static final long serialVersionUID = 0L;
   }
   private int traitMemoizedSerializedSize;
 
+  public static final int CREATED_FIELD_NUMBER = 15;
+  private io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created_;
+  /**
+   * <pre>
+   * Date and time when the task was created
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 15;</code>
+   * @return Whether the created field is set.
+   */
+  @java.lang.Override
+  public boolean hasCreated() {
+    return created_ != null;
+  }
+  /**
+   * <pre>
+   * Date and time when the task was created
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 15;</code>
+   * @return The created.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getCreated() {
+    return created_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : created_;
+  }
+  /**
+   * <pre>
+   * Date and time when the task was created
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 15;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getCreatedOrBuilder() {
+    return getCreated();
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -955,6 +1006,9 @@ private static final long serialVersionUID = 0L;
     }
     for (int i = 0; i < trait_.size(); i++) {
       output.writeEnumNoTag(trait_.get(i));
+    }
+    if (created_ != null) {
+      output.writeMessage(15, getCreated());
     }
     unknownFields.writeTo(output);
   }
@@ -1027,6 +1081,10 @@ private static final long serialVersionUID = 0L;
           .computeUInt32SizeNoTag(dataSize);
       }traitMemoizedSerializedSize = dataSize;
     }
+    if (created_ != null) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(15, getCreated());
+    }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
     return size;
@@ -1085,6 +1143,11 @@ private static final long serialVersionUID = 0L;
           .equals(other.getException())) return false;
     }
     if (!trait_.equals(other.trait_)) return false;
+    if (hasCreated() != other.hasCreated()) return false;
+    if (hasCreated()) {
+      if (!getCreated()
+          .equals(other.getCreated())) return false;
+    }
     if (!getResultCase().equals(other.getResultCase())) return false;
     switch (resultCase_) {
       case 11:
@@ -1148,6 +1211,10 @@ private static final long serialVersionUID = 0L;
     if (getTraitCount() > 0) {
       hash = (37 * hash) + TRAIT_FIELD_NUMBER;
       hash = (53 * hash) + trait_.hashCode();
+    }
+    if (hasCreated()) {
+      hash = (37 * hash) + CREATED_FIELD_NUMBER;
+      hash = (53 * hash) + getCreated().hashCode();
     }
     switch (resultCase_) {
       case 11:
@@ -1350,6 +1417,12 @@ private static final long serialVersionUID = 0L;
       }
       trait_ = java.util.Collections.emptyList();
       bitField0_ = (bitField0_ & ~0x00000001);
+      if (createdBuilder_ == null) {
+        created_ = null;
+      } else {
+        created_ = null;
+        createdBuilder_ = null;
+      }
       resultCase_ = 0;
       result_ = null;
       return this;
@@ -1437,6 +1510,11 @@ private static final long serialVersionUID = 0L;
         bitField0_ = (bitField0_ & ~0x00000001);
       }
       result.trait_ = trait_;
+      if (createdBuilder_ == null) {
+        result.created_ = created_;
+      } else {
+        result.created_ = createdBuilder_.build();
+      }
       result.resultCase_ = resultCase_;
       onBuilt();
       return result;
@@ -1530,6 +1608,9 @@ private static final long serialVersionUID = 0L;
           trait_.addAll(other.trait_);
         }
         onChanged();
+      }
+      if (other.hasCreated()) {
+        mergeCreated(other.getCreated());
       }
       switch (other.getResultCase()) {
         case TEXT: {
@@ -3548,6 +3629,161 @@ private static final long serialVersionUID = 0L;
       }
       onChanged();
       return this;
+    }
+
+    private io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> createdBuilder_;
+    /**
+     * <pre>
+     * Date and time when the task was created
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 15;</code>
+     * @return Whether the created field is set.
+     */
+    public boolean hasCreated() {
+      return createdBuilder_ != null || created_ != null;
+    }
+    /**
+     * <pre>
+     * Date and time when the task was created
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 15;</code>
+     * @return The created.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getCreated() {
+      if (createdBuilder_ == null) {
+        return created_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : created_;
+      } else {
+        return createdBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * Date and time when the task was created
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 15;</code>
+     */
+    public Builder setCreated(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value) {
+      if (createdBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        created_ = value;
+        onChanged();
+      } else {
+        createdBuilder_.setMessage(value);
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * Date and time when the task was created
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 15;</code>
+     */
+    public Builder setCreated(
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder builderForValue) {
+      if (createdBuilder_ == null) {
+        created_ = builderForValue.build();
+        onChanged();
+      } else {
+        createdBuilder_.setMessage(builderForValue.build());
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * Date and time when the task was created
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 15;</code>
+     */
+    public Builder mergeCreated(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value) {
+      if (createdBuilder_ == null) {
+        if (created_ != null) {
+          created_ =
+            io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.newBuilder(created_).mergeFrom(value).buildPartial();
+        } else {
+          created_ = value;
+        }
+        onChanged();
+      } else {
+        createdBuilder_.mergeFrom(value);
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * Date and time when the task was created
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 15;</code>
+     */
+    public Builder clearCreated() {
+      if (createdBuilder_ == null) {
+        created_ = null;
+        onChanged();
+      } else {
+        created_ = null;
+        createdBuilder_ = null;
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * Date and time when the task was created
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 15;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder getCreatedBuilder() {
+
+      onChanged();
+      return getCreatedFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Date and time when the task was created
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 15;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getCreatedOrBuilder() {
+      if (createdBuilder_ != null) {
+        return createdBuilder_.getMessageOrBuilder();
+      } else {
+        return created_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : created_;
+      }
+    }
+    /**
+     * <pre>
+     * Date and time when the task was created
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 15;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder>
+        getCreatedFieldBuilder() {
+      if (createdBuilder_ == null) {
+        createdBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder>(
+                getCreated(),
+                getParentForChildren(),
+                isClean());
+        created_ = null;
+      }
+      return createdBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

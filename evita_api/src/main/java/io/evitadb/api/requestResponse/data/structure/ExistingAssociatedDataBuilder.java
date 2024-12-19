@@ -142,7 +142,7 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 	@Nonnull
 	public AssociatedDataBuilder removeAssociatedData(@Nonnull String associatedDataName) {
 		final AssociatedDataKey associatedDataKey = new AssociatedDataKey(associatedDataName);
-		if (this.baseAssociatedData.getAssociatedDataValueWithoutSchemaCheck(associatedDataKey).isEmpty()) {
+		if (this.baseAssociatedData.getAssociatedDataValueWithoutSchemaCheck(associatedDataKey).filter(Droppable::exists).isEmpty()) {
 			this.associatedDataMutations.remove(associatedDataKey);
 		} else {
 			this.associatedDataMutations.put(associatedDataKey, new RemoveAssociatedDataMutation(associatedDataKey));
@@ -191,7 +191,7 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 	@Nonnull
 	public AssociatedDataBuilder removeAssociatedData(@Nonnull String associatedDataName, @Nonnull Locale locale) {
 		final AssociatedDataKey associatedDataKey = new AssociatedDataKey(associatedDataName, locale);
-		if (this.baseAssociatedData.getAssociatedDataValueWithoutSchemaCheck(associatedDataKey).isEmpty()) {
+		if (this.baseAssociatedData.getAssociatedDataValueWithoutSchemaCheck(associatedDataKey).filter(Droppable::exists).isEmpty()) {
 			this.associatedDataMutations.remove(associatedDataKey);
 		} else {
 			this.associatedDataMutations.put(associatedDataKey, new RemoveAssociatedDataMutation(associatedDataKey));
@@ -278,7 +278,7 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 	@Override
 	public <T extends Serializable> T getAssociatedData(@Nonnull String associatedDataName, @Nonnull Class<T> dtoType, @Nonnull ReflectionLookup reflectionLookup) {
 		return getAssociatedDataValueInternal(new AssociatedDataKey(associatedDataName))
-			.map(it -> ComplexDataObjectConverter.getOriginalForm(it.value(), dtoType, reflectionLookup))
+			.map(it -> ComplexDataObjectConverter.getOriginalForm(it.valueOrThrowException(), dtoType, reflectionLookup))
 			.orElse(null);
 	}
 
@@ -312,7 +312,7 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 	@Override
 	public <T extends Serializable> T getAssociatedData(@Nonnull String associatedDataName, @Nonnull Locale locale, @Nonnull Class<T> dtoType, @Nonnull ReflectionLookup reflectionLookup) {
 		return getAssociatedDataValueInternal(new AssociatedDataKey(associatedDataName, locale))
-			.map(it -> ComplexDataObjectConverter.getOriginalForm(it.value(), dtoType, reflectionLookup))
+			.map(it -> ComplexDataObjectConverter.getOriginalForm(it.valueOrThrowException(), dtoType, reflectionLookup))
 			.orElse(null);
 	}
 

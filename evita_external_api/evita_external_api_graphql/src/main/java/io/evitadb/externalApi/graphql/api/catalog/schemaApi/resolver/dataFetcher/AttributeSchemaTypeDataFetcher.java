@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,21 +24,36 @@
 package io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher;
 
 import graphql.schema.DataFetchingEnvironment;
-import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
- * Translates Java {@link AttributeSchema#getType()} to GraphQL equivalent.
+ * Translates Java {@link AttributeSchemaContract#getType()} to GraphQL equivalent.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class AttributeSchemaTypeDataFetcher extends SchemaTypeDataFetcher {
+
+	@Nullable
+	private static AttributeSchemaTypeDataFetcher INSTANCE = null;
+
+	@Nonnull
+	public static AttributeSchemaTypeDataFetcher getInstance() {
+		if (INSTANCE == null) {
+			INSTANCE = new AttributeSchemaTypeDataFetcher();
+		}
+		return INSTANCE;
+	}
 
 	@Nonnull
 	@Override
 	protected Class<?> getJavaType(@Nonnull DataFetchingEnvironment environment) {
-		final AttributeSchema attributeSchema = environment.getSource();
+		final AttributeSchemaContract attributeSchema = environment.getSource();
 		return attributeSchema.getType();
 	}
 }

@@ -208,4 +208,17 @@ public class ReferencesStoragePart implements EntityStoragePart {
 		return reference;
 	}
 
+	/**
+	 * Checks if the provided {@link ReferenceKey} is present in the references.
+	 *
+	 * @param referenceKey the key to be checked for presence in the references
+	 * @return true if the reference key exists in the references, false otherwise
+	 */
+	public boolean contains(@Nonnull ReferenceKey referenceKey) {
+		return ArrayUtils.binarySearch(
+			this.references, referenceKey,
+			(referenceContract, theReferenceKey) -> referenceContract.getReferenceKey().compareTo(theReferenceKey)
+		) >= 0;
+	}
+
 }

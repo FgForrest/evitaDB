@@ -38,7 +38,10 @@ import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.CreateMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.dataType.Scope;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -69,37 +72,38 @@ import java.util.stream.Stream;
 @Immutable
 @EqualsAndHashCode
 public class CreateSortableAttributeCompoundSchemaMutation
-	implements CombinableLocalEntitySchemaMutation, ReferenceSortableAttributeCompoundSchemaMutation {
+	implements CombinableLocalEntitySchemaMutation, ReferenceSortableAttributeCompoundSchemaMutation, CreateMutation {
 
-	@Serial private static final long serialVersionUID = 5667962046673510848L;
+	@Serial private static final long serialVersionUID = 4126462217562106850L;
 	@Getter @Nonnull private final String name;
 	@Getter @Nullable private final String description;
 	@Getter @Nullable private final String deprecationNotice;
+	@Getter @Nonnull private final Scope[] indexedInScopes;
 	@Getter @Nonnull private final AttributeElement[] attributeElements;
-
-	@Nullable
-	private static <T> LocalEntitySchemaMutation makeMutationIfDifferent(
-		@Nonnull SortableAttributeCompoundSchemaContract createdVersion,
-		@Nonnull SortableAttributeCompoundSchemaContract existingVersion,
-		@Nonnull Function<SortableAttributeCompoundSchemaContract, T> propertyRetriever,
-		@Nonnull Function<T, LocalEntitySchemaMutation> mutationCreator
-	) {
-		final T newValue = propertyRetriever.apply(createdVersion);
-		return Objects.equals(propertyRetriever.apply(existingVersion), newValue) ?
-			null : mutationCreator.apply(newValue);
-	}
 
 	public CreateSortableAttributeCompoundSchemaMutation(
 		@Nonnull String name,
 		@Nullable String description,
 		@Nullable String deprecationNotice,
+		@Nullable Scope[] indexedInScopes,
 		@Nonnull AttributeElement... attributeElements
 	) {
 
 		this.name = name;
 		this.description = description;
 		this.deprecationNotice = deprecationNotice;
+		this.indexedInScopes = indexedInScopes == null ? Scope.NO_SCOPE : indexedInScopes;
 		this.attributeElements = attributeElements;
+	}
+
+	/**
+	 * Checks if the current instance has indexed scopes.
+	 *
+	 * @return true if the indexedInScopes array is neither empty nor contains null values,
+	 * otherwise returns false.
+	 */
+	public boolean isIndexed() {
+		return !ArrayUtils.isEmptyOrItsValuesNull(this.indexedInScopes);
 	}
 
 	@Nullable
@@ -112,29 +116,34 @@ public class CreateSortableAttributeCompoundSchemaMutation
 		// when the attribute schema was removed before and added again, we may remove both operations
 		// and leave only operations that reset the original settings do defaults
 		if (existingMutation instanceof RemoveSortableAttributeCompoundSchemaMutation removeCompound &&
-			Objects.equals(removeCompound.getName(), name) &&
+			Objects.equals(removeCompound.getName(), this.name) &&
 			Arrays.equals(
 				currentEntitySchema.getSortableAttributeCompound(removeCompound.getName())
 					.map(SortableAttributeCompoundSchemaContract::getAttributeElements)
 					.map(it -> it.toArray(AttributeElement[]::new))
 					.orElseGet(() -> new AttributeElement[0]),
-				attributeElements
+				this.attributeElements
 			)
 		) {
 			final SortableAttributeCompoundSchemaContract createdVersion = mutate(currentEntitySchema, null, (SortableAttributeCompoundSchemaContract) null);
-			final SortableAttributeCompoundSchemaContract existingVersion = currentEntitySchema.getSortableAttributeCompound(name).orElseThrow();
+			final SortableAttributeCompoundSchemaContract existingVersion = currentEntitySchema.getSortableAttributeCompound(this.name).orElseThrow();
 			return new MutationCombinationResult<>(
 				null,
 				Stream.of(
 						makeMutationIfDifferent(
-							createdVersion, existingVersion,
+							SortableAttributeCompoundSchemaContract.class, createdVersion, existingVersion,
 							NamedSchemaContract::getDescription,
-							newValue -> new ModifySortableAttributeCompoundSchemaDescriptionMutation(name, newValue)
+							newValue -> new ModifySortableAttributeCompoundSchemaDescriptionMutation(this.name, newValue)
 						),
 						makeMutationIfDifferent(
-							createdVersion, existingVersion,
+							SortableAttributeCompoundSchemaContract.class, createdVersion, existingVersion,
 							NamedSchemaWithDeprecationContract::getDeprecationNotice,
-							newValue -> new ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation(name, newValue)
+							newValue -> new ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation(this.name, newValue)
+						),
+						makeMutationIfDifferent(
+							SortableAttributeCompoundSchemaContract.class, createdVersion, existingVersion,
+							sacs -> sacs.getIndexedInScopes().toArray(Scope[]::new),
+							newValue -> new SetSortableAttributeCompoundIndexedMutation(this.name, newValue)
 						)
 					)
 					.filter(Objects::nonNull)
@@ -153,17 +162,17 @@ public class CreateSortableAttributeCompoundSchemaMutation
 		@Nullable SortableAttributeCompoundSchemaContract sortableAttributeCompoundSchema
 	) {
 		return SortableAttributeCompoundSchema._internalBuild(
-			name, description, deprecationNotice,
-			Arrays.asList(attributeElements)
+			this.name, this.description, this.deprecationNotice, this.indexedInScopes,
+			Arrays.asList(this.attributeElements)
 		);
 	}
 
-	@Nullable
+	@Nonnull
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
 		final SortableAttributeCompoundSchemaContract newCompoundSchema = mutate(entitySchema, null, (SortableAttributeCompoundSchemaContract) null);
-		final SortableAttributeCompoundSchemaContract existingCompoundSchema = entitySchema.getSortableAttributeCompound(name).orElse(null);
+		final SortableAttributeCompoundSchemaContract existingCompoundSchema = entitySchema.getSortableAttributeCompound(this.name).orElse(null);
 		if (existingCompoundSchema == null) {
 			return EntitySchema._internalBuild(
 				entitySchema.version() + 1,
@@ -173,7 +182,9 @@ public class CreateSortableAttributeCompoundSchemaMutation
 				entitySchema.getDeprecationNotice(),
 				entitySchema.isWithGeneratedPrimaryKey(),
 				entitySchema.isWithHierarchy(),
+				entitySchema.getHierarchyIndexedInScopes(),
 				entitySchema.isWithPrice(),
+				entitySchema.getPriceIndexedInScopes(),
 				entitySchema.getIndexedPricePlaces(),
 				entitySchema.getLocales(),
 				entitySchema.getCurrencies(),
@@ -197,7 +208,7 @@ public class CreateSortableAttributeCompoundSchemaMutation
 		} else {
 			// ups, there is conflict in attribute settings
 			throw new InvalidSchemaMutationException(
-				"The sortable attribute compound `" + name + "` already exists in entity `" + entitySchema.getName() +
+				"The sortable attribute compound `" + this.name + "` already exists in entity `" + entitySchema.getName() +
 					"` schema and it has different definition. To alter existing sortable attribute compound schema you" +
 					" need to use different mutations."
 			);
@@ -209,7 +220,7 @@ public class CreateSortableAttributeCompoundSchemaMutation
 	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
 		final SortableAttributeCompoundSchemaContract newCompoundSchema = mutate(entitySchema, referenceSchema, (SortableAttributeCompoundSchemaContract) null);
-		final Optional<SortableAttributeCompoundSchemaContract> existingCompoundSchema = getReferenceSortableAttributeCompoundSchema(referenceSchema, name);
+		final Optional<SortableAttributeCompoundSchemaContract> existingCompoundSchema = getReferenceSortableAttributeCompoundSchema(referenceSchema, this.name);
 		if (existingCompoundSchema.isEmpty()) {
 			if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema) {
 				return reflectedReferenceSchema
@@ -231,15 +242,17 @@ public class CreateSortableAttributeCompoundSchemaMutation
 					referenceSchema.getNameVariants(),
 					referenceSchema.getDescription(),
 					referenceSchema.getDeprecationNotice(),
-					referenceSchema.getReferencedEntityType(),
-					referenceSchema.isReferencedEntityTypeManaged() ? Collections.emptyMap() : referenceSchema.getEntityTypeNameVariants(s -> null),
-					referenceSchema.isReferencedEntityTypeManaged(),
 					referenceSchema.getCardinality(),
+					referenceSchema.getReferencedEntityType(),
+					referenceSchema.isReferencedEntityTypeManaged() ?
+						Collections.emptyMap() : referenceSchema.getEntityTypeNameVariants(s -> null),
+					referenceSchema.isReferencedEntityTypeManaged(),
 					referenceSchema.getReferencedGroupType(),
-					referenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
+					referenceSchema.isReferencedGroupTypeManaged() ?
+						Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
 					referenceSchema.isReferencedGroupTypeManaged(),
-					referenceSchema.isIndexed(),
-					referenceSchema.isFaceted(),
+					referenceSchema.getIndexedInScopes(),
+					referenceSchema.getFacetedInScopes(),
 					referenceSchema.getAttributes(),
 					Stream.concat(
 						referenceSchema.getSortableAttributeCompounds().values().stream(),
@@ -258,7 +271,7 @@ public class CreateSortableAttributeCompoundSchemaMutation
 		} else {
 			// ups, there is conflict in attribute settings
 			throw new InvalidSchemaMutationException(
-				"The sortable attribute compound `" + name + "` already exists in entity `" + entitySchema.getName() + "`" +
+				"The sortable attribute compound `" + this.name + "` already exists in entity `" + entitySchema.getName() + "`" +
 					" reference `" + referenceSchema.getName() + "` schema and" +
 					" it has different definition. To alter existing sortable attribute compound schema you need to use" +
 					" different mutations."
@@ -275,10 +288,11 @@ public class CreateSortableAttributeCompoundSchemaMutation
 	@Override
 	public String toString() {
 		return "Create sortable attribute compound schema: " +
-			"name='" + name + '\'' +
-			", description='" + description + '\'' +
-			", deprecationNotice='" + deprecationNotice + '\'' +
-			", attributeElements=" + Arrays.stream(attributeElements).map(AttributeElement::toString).collect(Collectors.joining(", "));
+			"name='" + this.name + '\'' +
+			", description='" + this.description + '\'' +
+			", deprecationNotice='" + this.deprecationNotice + '\'' +
+			", indexed=" + (isIndexed() ? "(in scopes: " + Arrays.toString(this.indexedInScopes) + ")" : "no") +
+			", attributeElements=" + Arrays.stream(this.attributeElements).map(AttributeElement::toString).collect(Collectors.joining(", "));
 	}
 
 }

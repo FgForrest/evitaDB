@@ -25,14 +25,22 @@ package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.attribute;
 
 import com.google.protobuf.StringValue;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.GrpcCreateAttributeSchemaMutation;
+import io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.util.Arrays;
+
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toAttributeUniquenessType;
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcAttributeUniquenessType;
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toScope;
 
 /**
  * Converts between {@link CreateAttributeSchemaMutation} and {@link GrpcCreateAttributeSchemaMutation} in both directions.
@@ -45,13 +53,37 @@ public class CreateAttributeSchemaMutationConverter implements SchemaMutationCon
 
 	@Nonnull
 	public CreateAttributeSchemaMutation convert(@Nonnull GrpcCreateAttributeSchemaMutation mutation) {
+		final ScopedAttributeUniquenessType[] uniqueInScopes = mutation.getUniqueInScopesList().isEmpty() ?
+			new ScopedAttributeUniquenessType[]{
+				new ScopedAttributeUniquenessType(Scope.DEFAULT_SCOPE, toAttributeUniquenessType(mutation.getUnique()))
+			}
+			:
+			mutation.getUniqueInScopesList()
+				.stream()
+				.map(it -> new ScopedAttributeUniquenessType(toScope(it.getScope()), toAttributeUniquenessType(it.getUniquenessType())))
+				.toArray(ScopedAttributeUniquenessType[]::new);
+		final Scope[] filterableInScopes = mutation.getFilterableInScopesList().isEmpty() ?
+			(mutation.getFilterable() ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE)
+			:
+			mutation.getFilterableInScopesList()
+				.stream()
+				.map(EvitaEnumConverter::toScope)
+				.toArray(Scope[]::new);
+		final Scope[] sortableInScopes = mutation.getSortableInScopesList().isEmpty() ?
+			(mutation.getSortable() ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE)
+			:
+			mutation.getSortableInScopesList()
+				.stream()
+				.map(EvitaEnumConverter::toScope)
+				.toArray(Scope[]::new);
+
 		return new CreateAttributeSchemaMutation(
 			mutation.getName(),
 			mutation.hasDescription() ? mutation.getDescription().getValue() : null,
 			mutation.hasDeprecationNotice() ? mutation.getDeprecationNotice().getValue() : null,
-			EvitaEnumConverter.toAttributeUniquenessType(mutation.getUnique()),
-			mutation.getFilterable(),
-			mutation.getSortable(),
+			uniqueInScopes,
+			filterableInScopes,
+			sortableInScopes,
 			mutation.getLocalized(),
 			mutation.getNullable(),
 			mutation.getRepresentative(),
@@ -65,9 +97,29 @@ public class CreateAttributeSchemaMutationConverter implements SchemaMutationCon
 	public GrpcCreateAttributeSchemaMutation convert(@Nonnull CreateAttributeSchemaMutation mutation) {
 		final GrpcCreateAttributeSchemaMutation.Builder builder = GrpcCreateAttributeSchemaMutation.newBuilder()
 			.setName(mutation.getName())
-			.setUnique(EvitaEnumConverter.toGrpcAttributeUniquenessType(mutation.getUnique()))
+			.setUnique(toGrpcAttributeUniquenessType(mutation.getUnique()))
+			.addAllUniqueInScopes(
+				Arrays.stream(mutation.getUniqueInScopes())
+					.map(
+						it -> GrpcScopedAttributeUniquenessType.newBuilder()
+							.setScope(EvitaEnumConverter.toGrpcScope(it.scope()))
+							.setUniquenessType(toGrpcAttributeUniquenessType(it.uniquenessType()))
+							.build()
+					)
+					.toList()
+			)
 			.setFilterable(mutation.isFilterable())
+			.addAllFilterableInScopes(
+				Arrays.stream(mutation.getFilterableInScopes())
+					.map(EvitaEnumConverter::toGrpcScope)
+					.toList()
+			)
 			.setSortable(mutation.isSortable())
+			.addAllSortableInScopes(
+				Arrays.stream(mutation.getSortableInScopes())
+					.map(EvitaEnumConverter::toGrpcScope)
+					.toList()
+			)
 			.setLocalized(mutation.isLocalized())
 			.setNullable(mutation.isNullable())
 			.setType(EvitaDataTypesConverter.toGrpcEvitaDataType(mutation.getType()))

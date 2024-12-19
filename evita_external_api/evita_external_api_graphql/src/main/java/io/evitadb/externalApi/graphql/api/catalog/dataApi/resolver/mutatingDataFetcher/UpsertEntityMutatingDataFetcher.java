@@ -82,7 +82,10 @@ public class UpsertEntityMutatingDataFetcher implements DataFetcher<DataFetcherR
 		this.entitySchema = entitySchema;
 		this.entityUpsertMutationResolver = new GraphQLEntityUpsertMutationConverter(objectMapper, entitySchema);
 		final FilterConstraintResolver filterConstraintResolver = new FilterConstraintResolver(catalogSchema);
-		final OrderConstraintResolver orderConstraintResolver = new OrderConstraintResolver(catalogSchema);
+		final OrderConstraintResolver orderConstraintResolver = new OrderConstraintResolver(
+			catalogSchema,
+			new AtomicReference<>(filterConstraintResolver)
+		);
 		final RequireConstraintResolver requireConstraintResolver = new RequireConstraintResolver(
 			catalogSchema,
 			new AtomicReference<>(filterConstraintResolver)

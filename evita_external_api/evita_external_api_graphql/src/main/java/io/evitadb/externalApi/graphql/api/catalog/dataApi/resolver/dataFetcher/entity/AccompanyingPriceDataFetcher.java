@@ -29,8 +29,11 @@ import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.dto.PrefetchedPriceForSale;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Optional;
 
 /**
@@ -38,7 +41,19 @@ import java.util.Optional;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class AccompanyingPriceDataFetcher implements DataFetcher<DataFetcherResult<PriceContract>> {
+
+	@Nullable
+	private static AccompanyingPriceDataFetcher INSTANCE;
+
+	@Nonnull
+	public static AccompanyingPriceDataFetcher getInstance() {
+		if (INSTANCE == null) {
+			INSTANCE = new AccompanyingPriceDataFetcher();
+		}
+		return INSTANCE;
+	}
 
 	@Override
 	@Nonnull

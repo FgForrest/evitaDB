@@ -196,14 +196,13 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 	@Nonnull
 	private static Evita createEvita(@Nonnull String catalogName, @Nonnull String randomFolderName) {
 		final Path evitaDataPath = STORAGE_PATH.resolve(randomFolderName);
+		final Path evitaExportPath = STORAGE_PATH.resolve(randomFolderName + "_export");
 		if (evitaDataPath.toFile().exists()) {
-			try {
-				FileUtils.deleteDirectory(evitaDataPath.toFile());
-			} catch (IOException e) {
-				fail("Failed to empty directory: " + evitaDataPath, e);
-			}
+			io.evitadb.utils.FileUtils.deleteDirectory(evitaDataPath);
+			io.evitadb.utils.FileUtils.deleteDirectory(evitaExportPath);
 		}
 		Assert.isTrue(evitaDataPath.toFile().mkdirs(), "Fail to create directory: " + evitaDataPath);
+		Assert.isTrue(evitaExportPath.toFile().mkdirs(), "Fail to create directory: " + evitaDataPath);
 		final Evita evita = new Evita(
 			EvitaConfiguration.builder()
 				.server(
@@ -234,6 +233,7 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 					// point evitaDB to a test directory (temp directory)
 					StorageOptions.builder()
 						.storageDirectory(evitaDataPath)
+						.exportDirectory(evitaExportPath)
 						.maxOpenedReadHandles(1000)
 						.build()
 				)
@@ -848,6 +848,13 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 									}
 								}
 							} catch (Exception e) {
+								// close the server instance and free ports
+								ofNullable(evitaServer)
+									.ifPresent(it -> getPortManager().releasePortsOnCompletion(dataSetToUse, it.stop()));
+
+								// close evita and clear data
+								evita.close();
+
 								throw new ParameterResolutionException("Failed to set up data set " + dataSetToUse, e);
 							}
 

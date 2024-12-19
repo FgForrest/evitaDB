@@ -32,6 +32,7 @@ import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
 import io.evitadb.utils.Assert;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Optional;
 
@@ -47,7 +48,7 @@ public class PriceContentTranslator implements RequireConstraintTranslator<Price
 
 	@Nullable
 	@Override
-	public ExtraResultProducer apply(PriceContent priceContent, ExtraResultPlanningVisitor extraResultPlanningVisitor) {
+	public ExtraResultProducer createProducer(@Nonnull PriceContent priceContent, @Nonnull ExtraResultPlanningVisitor extraResultPlanningVisitor) {
 		if (extraResultPlanningVisitor.isEntityTypeKnown()) {
 			final Optional<EntitySchemaContract> entitySchema = extraResultPlanningVisitor.getCurrentEntitySchema();
 			Assert.isTrue(

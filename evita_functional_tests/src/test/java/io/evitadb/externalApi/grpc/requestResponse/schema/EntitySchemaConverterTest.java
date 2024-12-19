@@ -42,6 +42,9 @@ import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
+import io.evitadb.dataType.Scope;
 import io.evitadb.test.Entities;
 import org.junit.jupiter.api.Test;
 
@@ -93,7 +96,9 @@ class EntitySchemaConverterTest {
 			"Alert! Deprecated!",
 			true,
 			false,
+			Scope.NO_SCOPE,
 			true,
+			new Scope[] { Scope.LIVE },
 			2,
 			Set.of(Locale.ENGLISH, Locale.GERMAN),
 			Set.of(Currency.getInstance("EUR"), Currency.getInstance("USD")),
@@ -103,10 +108,14 @@ class EntitySchemaConverterTest {
 					"test2",
 					"description",
 					"depr",
-					AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION,
-					GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG,
-					true,
-					true,
+					new ScopedAttributeUniquenessType[]{
+						new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
+					},
+					new ScopedGlobalAttributeUniquenessType[]{
+						new ScopedGlobalAttributeUniquenessType(Scope.LIVE, GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG)
+					},
+					new Scope[] { Scope.LIVE },
+					new Scope[] { Scope.LIVE },
 					true,
 					true,
 					false,
@@ -127,8 +136,8 @@ class EntitySchemaConverterTest {
 					Cardinality.ZERO_OR_MORE,
 					Entities.PARAMETER_GROUP,
 					false,
-					true,
-					true
+					new Scope[] { Scope.LIVE },
+					new Scope[] { Scope.LIVE }
 				),
 				"test2", ReferenceSchema._internalBuild(
 					"test2",
@@ -139,16 +148,18 @@ class EntitySchemaConverterTest {
 					Cardinality.ONE_OR_MORE,
 					null,
 					false,
-					true,
-					true,
+					new Scope[] { Scope.LIVE },
+					new Scope[] { Scope.LIVE },
 					Map.of(
 						"code", EntityAttributeSchema._internalBuild(
 							"code",
 							"description",
 							"depr",
-							AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION,
-							true,
-							true,
+							new ScopedAttributeUniquenessType[]{
+								new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
+							},
+							new Scope[] { Scope.LIVE },
+							new Scope[] { Scope.LIVE },
 							true,
 							true,
 							true,
@@ -165,7 +176,7 @@ class EntitySchemaConverterTest {
 					Map.of(
 						"compound1",
 						SortableAttributeCompoundSchema._internalBuild(
-							"compound1", "This is compound 1", null,
+							"compound1", "This is compound 1", null, new Scope[] { Scope.LIVE },
 							Arrays.asList(
 								new AttributeElement("code", OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
 								new AttributeElement("name", OrderDirection.DESC, OrderBehaviour.NULLS_FIRST)
@@ -173,7 +184,7 @@ class EntitySchemaConverterTest {
 						),
 						"compound2",
 						SortableAttributeCompoundSchema._internalBuild(
-							"compound2", "This is compound 2", null,
+							"compound2", "This is compound 2", null, new Scope[] { Scope.LIVE },
 							Arrays.asList(
 								new AttributeElement("name", OrderDirection.DESC, OrderBehaviour.NULLS_FIRST),
 								new AttributeElement("age", OrderDirection.ASC, OrderBehaviour.NULLS_FIRST)
@@ -186,7 +197,7 @@ class EntitySchemaConverterTest {
 			Map.of(
 				"compound1",
 				SortableAttributeCompoundSchema._internalBuild(
-					"compound1", "This is compound 1", null,
+					"compound1", "This is compound 1", null, new Scope[] { Scope.LIVE },
 					Arrays.asList(
 						new AttributeElement("code", OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
 						new AttributeElement("name", OrderDirection.DESC, OrderBehaviour.NULLS_FIRST)
@@ -236,18 +247,18 @@ class EntitySchemaConverterTest {
 		}
 
 		assertEquals(expected.getName(), actual.getName());
-		assertEquals(expected.getDescription(), actual.getDescription());
+		assertEquals(expected.getDescription(), actual.getDescription(), "Attribute `" + expected.getName() + "` is expected to have description `" + expected.getDescription() + "`!");
 		assertEquals(expected.getNameVariants(), actual.getNameVariants());
-		assertEquals(expected.getDeprecationNotice(), actual.getDeprecationNotice());
-		assertEquals(expected.isLocalized(), actual.isLocalized());
-		assertEquals(expected.isUnique(), actual.isUnique());
-		assertEquals(expected.isFilterable(), actual.isFilterable());
-		assertEquals(expected.isSortable(), actual.isSortable());
-		assertEquals(expected.isNullable(), actual.isNullable());
-		assertEquals(expected.getType(), actual.getType());
-		assertEquals(expected.getPlainType(), actual.getPlainType());
-		assertEquals(expected.getDefaultValue(), actual.getDefaultValue());
-		assertEquals(expected.getIndexedDecimalPlaces(), actual.getIndexedDecimalPlaces());
+		assertEquals(expected.getDeprecationNotice(), actual.getDeprecationNotice(), "Attribute `" + expected.getName() + "` is expected to have deprecation notice `" + expected.getDeprecationNotice() + "`!");
+		assertEquals(expected.isLocalized(), actual.isLocalized(), "Attribute `" + expected.getName() + "` is expected " + (expected.isLocalized() ? "localized" : "not localized") + "!");
+		assertEquals(expected.isUnique(), actual.isUnique(), "Attribute `" + expected.getName() + "` is expected " + (expected.isUnique() ? "unique" : "not unique") + "!");
+		assertEquals(expected.isFilterable(), actual.isFilterable(), "Attribute `" + expected.getName() + "` is expected " + (expected.isFilterable() ? "filterable" : "not filterable") + "!");
+		assertEquals(expected.isSortable(), actual.isSortable(), "Attribute `" + expected.getName() + "` is expected " + (expected.isSortable() ? "sortable" : "not sortable") + "!");
+		assertEquals(expected.isNullable(), actual.isNullable(), "Attribute `" + expected.getName() + "` is expected " + (expected.isNullable() ? "nullable" : "not nullable") + "!");
+		assertEquals(expected.getType(), actual.getType(), "Attribute `" + expected.getName() + "` is expected to be of type `" + expected.getType() + "`!");
+		assertEquals(expected.getPlainType(), actual.getPlainType(), "Attribute `" + expected.getName() + "` is expected to be of plain type `" + expected.getPlainType() + "`!");
+		assertEquals(expected.getDefaultValue(), actual.getDefaultValue(), "Attribute `" + expected.getName() + "` is expected to have default value `" + expected.getDefaultValue() + "`!");
+		assertEquals(expected.getIndexedDecimalPlaces(), actual.getIndexedDecimalPlaces(), "Attribute `" + expected.getName() + "` is expected to have indexed decimal places `" + expected.getIndexedDecimalPlaces() + "`!");
 	}
 
 	private static void assertSortableAttributeCompoundSchema(@Nonnull SortableAttributeCompoundSchemaContract expected, @Nonnull SortableAttributeCompoundSchemaContract actual) {

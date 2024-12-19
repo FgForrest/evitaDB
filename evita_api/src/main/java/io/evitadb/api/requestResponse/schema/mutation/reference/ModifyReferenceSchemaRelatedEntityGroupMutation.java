@@ -43,6 +43,7 @@ import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.util.Collections;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -91,27 +92,32 @@ public class ModifyReferenceSchemaRelatedEntityGroupMutation
 			!(referenceSchema instanceof ReflectedReferenceSchema),
 			() -> "Group cannot be changed on reflected reference. This mutation can be applied only on original reference!"
 		);
-		return ReferenceSchema._internalBuild(
-			this.name,
-			referenceSchema.getNameVariants(),
-			referenceSchema.getDescription(),
-			referenceSchema.getDeprecationNotice(),
-			referenceSchema.getReferencedEntityType(),
-			referenceSchema.isReferencedEntityTypeManaged() ? Collections.emptyMap() : referenceSchema.getEntityTypeNameVariants(s -> null),
-			referenceSchema.isReferencedEntityTypeManaged(),
-			referenceSchema.getCardinality(),
-			this.referencedGroupType,
-			this.referencedGroupTypeManaged || this.referencedGroupType == null ?
-				Collections.emptyMap() : NamingConvention.generate(this.referencedGroupType),
-			this.referencedGroupTypeManaged,
-			referenceSchema.isIndexed(),
-			referenceSchema.isFaceted(),
-			referenceSchema.getAttributes(),
-			referenceSchema.getSortableAttributeCompounds()
-		);
+		if (Objects.equals(referenceSchema.getReferencedGroupType(), this.referencedGroupType) &&
+			referenceSchema.isReferencedGroupTypeManaged() == this.referencedGroupTypeManaged) {
+			return referenceSchema;
+		} else {
+			return ReferenceSchema._internalBuild(
+				this.name,
+				referenceSchema.getNameVariants(),
+				referenceSchema.getDescription(),
+				referenceSchema.getDeprecationNotice(),
+				referenceSchema.getCardinality(),
+				referenceSchema.getReferencedEntityType(),
+				referenceSchema.isReferencedEntityTypeManaged() ? Collections.emptyMap() : referenceSchema.getEntityTypeNameVariants(s -> null),
+				referenceSchema.isReferencedEntityTypeManaged(),
+				this.referencedGroupType,
+				this.referencedGroupTypeManaged || this.referencedGroupType == null ?
+					Collections.emptyMap() : NamingConvention.generate(this.referencedGroupType),
+				this.referencedGroupTypeManaged,
+				referenceSchema.getIndexedInScopes(),
+				referenceSchema.getFacetedInScopes(),
+				referenceSchema.getAttributes(),
+				referenceSchema.getSortableAttributeCompounds()
+			);
+		}
 	}
 
-	@Nullable
+	@Nonnull
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");

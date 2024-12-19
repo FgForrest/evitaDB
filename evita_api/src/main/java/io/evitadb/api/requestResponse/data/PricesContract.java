@@ -398,7 +398,7 @@ public interface PricesContract extends Versioned, Serializable {
 	 * @param priceKey business key of the price
 	 * @throws ContextMissingException when the prices were not fetched along with entity but might exist
 	 */
-	@Nullable
+	@Nonnull
 	Optional<PriceContract> getPrice(@Nonnull PriceKey priceKey)
 		throws ContextMissingException;
 

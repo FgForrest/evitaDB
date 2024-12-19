@@ -401,5 +401,32 @@ public interface GrpcTaskStatusOrBuilder extends
    */
   int getTraitValue(int index);
 
+  /**
+   * <pre>
+   * Date and time when the task was created
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 15;</code>
+   * @return Whether the created field is set.
+   */
+  boolean hasCreated();
+  /**
+   * <pre>
+   * Date and time when the task was created
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 15;</code>
+   * @return The created.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getCreated();
+  /**
+   * <pre>
+   * Date and time when the task was created
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 15;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getCreatedOrBuilder();
+
   public io.evitadb.externalApi.grpc.generated.GrpcTaskStatus.ResultCase getResultCase();
 }

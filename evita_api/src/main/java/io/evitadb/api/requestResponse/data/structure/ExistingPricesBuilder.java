@@ -77,7 +77,7 @@ public class ExistingPricesBuilder implements PricesBuilder {
 	/**
 	 * This predicate filters out prices that were not fetched in query.
 	 */
-	@Getter private final PriceContractSerializablePredicate pricePredicate;
+	@Nonnull @Getter private final PriceContractSerializablePredicate pricePredicate;
 	private final Map<PriceKey, PriceMutation> priceMutations;
 	private final EntitySchemaContract entitySchema;
 	private final Prices basePrices;
@@ -167,7 +167,7 @@ public class ExistingPricesBuilder implements PricesBuilder {
 	@Override
 	public PricesBuilder removePrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency) {
 		final PriceKey priceKey = new PriceKey(priceId, priceList, currency);
-		Assert.notNull(basePrices.getPriceWithoutSchemaCheck(priceKey), "Price " + priceKey + " doesn't exist!");
+		Assert.notNull(basePrices.getPriceWithoutSchemaCheck(priceKey).filter(Droppable::exists), "Price " + priceKey + " doesn't exist!");
 		final RemovePriceMutation mutation = new RemovePriceMutation(priceKey);
 		this.priceMutations.put(priceKey, mutation);
 		return this;
@@ -270,6 +270,9 @@ public class ExistingPricesBuilder implements PricesBuilder {
 	@Nonnull
 	@Override
 	public List<PriceContract> getAllPricesForSale() {
+		if (pricePredicate.getCurrency() == null || pricePredicate.getPriceLists() == null) {
+			throw new ContextMissingException();
+		}
 		return getAllPricesForSale(
 			pricePredicate.getCurrency(),
 			pricePredicate.getValidIn(),
@@ -444,7 +447,9 @@ public class ExistingPricesBuilder implements PricesBuilder {
 			.filter(it -> Objects.equals(it.innerRecordId(), price.innerRecordId()))
 			.filter(it ->
 				price.validity() == null ||
-					ofNullable(it.validity()).map(existingValidity -> existingValidity.overlaps(price.validity()))
+					ofNullable(it.validity())
+						// price.validity() cannot be null, but IntelliJ doesn't know that there :(
+						.map(existingValidity -> existingValidity.overlaps(Objects.requireNonNull(price.validity())))
 						.orElse(true)
 			)
 			// the conflicting prices don't play role if they're going to be removed in the same update
@@ -464,7 +469,9 @@ public class ExistingPricesBuilder implements PricesBuilder {
 			.filter(it -> Objects.equals(it.getInnerRecordId(), price.innerRecordId()))
 			.filter(it ->
 				price.validity() == null ||
-					ofNullable(it.getValidity()).map(existingValidity -> existingValidity.overlaps(price.validity()))
+					ofNullable(it.getValidity())
+						// price.validity() cannot be null, but IntelliJ doesn't know that there :(
+						.map(existingValidity -> existingValidity.overlaps(Objects.requireNonNull(price.validity())))
 						.orElse(true)
 			)
 			.findFirst()

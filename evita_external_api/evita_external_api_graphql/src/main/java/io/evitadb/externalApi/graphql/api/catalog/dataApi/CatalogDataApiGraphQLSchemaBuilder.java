@@ -119,7 +119,10 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 		this.constraintContext = new GraphQLConstraintSchemaBuildingContext(buildingContext);
 
 		this.filterConstraintSchemaBuilder = new FilterConstraintSchemaBuilder(constraintContext);
-		this.orderConstraintSchemaBuilder = new OrderConstraintSchemaBuilder(constraintContext);
+		this.orderConstraintSchemaBuilder = new OrderConstraintSchemaBuilder(
+			constraintContext,
+			new AtomicReference<>(filterConstraintSchemaBuilder)
+		);
 		this.mainRequireConstraintSchemaBuilder = RequireConstraintSchemaBuilder.forMainRequire(
 			constraintContext,
 			new AtomicReference<>(filterConstraintSchemaBuilder)
@@ -235,7 +238,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 		// build require input object
 		// build only if there are any prices or facets because these are only few allowed constraints in require builder
 		if (!entitySchema.getCurrencies().isEmpty() ||
-			entitySchema.getReferences().values().stream().anyMatch(ReferenceSchemaContract::isFaceted)) {
+			entitySchema.getReferences().values().stream().anyMatch(ReferenceSchemaContract::isFacetedInAnyScope)) {
 			final GraphQLInputType requireInputObject = mainRequireConstraintSchemaBuilder.build(collectionBuildingContext.getSchema().getName());
 			collectionBuildingContext.setRequireInputObject(requireInputObject);
 		}
@@ -254,7 +257,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 		return new BuiltFieldDescriptor(
 			CatalogDataApiRootDescriptor.COLLECTIONS.to(staticEndpointBuilderTransformer).build(),
 			new AsyncDataFetcher(
-				new CollectionsDataFetcher(),
+				CollectionsDataFetcher.getInstance(),
 				buildingContext.getConfig(),
 				buildingContext.getTracingContext(),
 				buildingContext.getEvita()
@@ -274,7 +277,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			.getAttributes()
 			.values()
 			.stream()
-			.filter(GlobalAttributeSchemaContract::isUniqueGlobally)
+			.filter(GlobalAttributeSchemaContract::isUniqueGloballyInAnyScope)
 			.toList();
 		if (globalAttributes.isEmpty()) {
 			// this field doesn't make sense without global attributes as user wouldn't have way to query any entity
@@ -290,15 +293,15 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 				.build())
 			.forEach(getUnknownEntityFieldBuilder::argument);
 
-		final boolean localeArgumentNeeded = globalAttributes.stream()
-			.anyMatch(GlobalAttributeSchemaContract::isUniqueGloballyWithinLocale);
-		if (localeArgumentNeeded) {
+		if (!buildingContext.getSupportedLocales().isEmpty()) {
 			getUnknownEntityFieldBuilder.argument(UnknownEntityHeaderDescriptor.LOCALE
 				.to(argumentBuilderTransformer)
 				.type(typeRef(LOCALE_ENUM.name())));
 		}
 
-		getUnknownEntityFieldBuilder.argument(UnknownEntityHeaderDescriptor.JOIN.to(argumentBuilderTransformer));
+		getUnknownEntityFieldBuilder
+			.argument(UnknownEntityHeaderDescriptor.JOIN.to(argumentBuilderTransformer))
+			.argument(UnknownEntityHeaderDescriptor.SCOPE.to(argumentBuilderTransformer));
 
 		return new BuiltFieldDescriptor(
 			getUnknownEntityFieldBuilder.build(),
@@ -327,7 +330,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			.getAttributes()
 			.values()
 			.stream()
-			.filter(GlobalAttributeSchemaContract::isUniqueGlobally)
+			.filter(GlobalAttributeSchemaContract::isUniqueGloballyInAnyScope)
 			.toList();
 		if (globalAttributes.isEmpty()) {
 			// this field doesn't make sense without global attributes as user wouldn't have way to query any entity
@@ -343,15 +346,15 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 				.build())
 			.forEach(listUnknownEntityFieldBuilder::argument);
 
-		final boolean localeArgumentNeeded = globalAttributes.stream()
-			.anyMatch(GlobalAttributeSchemaContract::isUniqueGloballyWithinLocale);
-		if (localeArgumentNeeded) {
+		if (!buildingContext.getSupportedLocales().isEmpty()) {
 			listUnknownEntityFieldBuilder.argument(ListUnknownEntitiesHeaderDescriptor.LOCALE
 				.to(argumentBuilderTransformer)
 				.type(typeRef(LOCALE_ENUM.name())));
 		}
 
-		listUnknownEntityFieldBuilder.argument(ListUnknownEntitiesHeaderDescriptor.JOIN.to(argumentBuilderTransformer));
+		listUnknownEntityFieldBuilder
+			.argument(ListUnknownEntitiesHeaderDescriptor.JOIN.to(argumentBuilderTransformer))
+			.argument(ListUnknownEntitiesHeaderDescriptor.SCOPE.to(argumentBuilderTransformer));
 
 		return new BuiltFieldDescriptor(
 			listUnknownEntityFieldBuilder.build(),
@@ -397,6 +400,8 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 				.argument(GetEntityHeaderDescriptor.PRICE_VALID_NOW
 					.to(argumentBuilderTransformer))
 				.argument(GetEntityHeaderDescriptor.PRICE_TYPE
+					.to(argumentBuilderTransformer))
+				.argument(GetEntityHeaderDescriptor.SCOPE
 					.to(argumentBuilderTransformer));
 		}
 
@@ -404,7 +409,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 		entitySchema.getAttributes()
 			.values()
 			.stream()
-			.filter(AttributeSchemaContract::isUnique)
+			.filter(AttributeSchemaContract::isUniqueInAnyScope)
 			.map(as -> newArgument()
 				.name(as.getNameVariant(ARGUMENT_NAME_NAMING_CONVENTION))
 				.type(DataTypesConverter.getGraphQLScalarType(as.getPlainType()))

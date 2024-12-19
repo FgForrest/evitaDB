@@ -30,13 +30,15 @@ import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReflectedReferenceSchemaMutation;
+import io.evitadb.dataType.Scope;
+import io.evitadb.store.wal.schema.MutationSerializationFunctions;
 
 /**
  * Serializer for {@link CreateReflectedReferenceSchemaMutation}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class CreateReflectedReferenceSchemaMutationSerializer extends Serializer<CreateReflectedReferenceSchemaMutation> {
+public class CreateReflectedReferenceSchemaMutationSerializer extends Serializer<CreateReflectedReferenceSchemaMutation> implements MutationSerializationFunctions {
 
 	@Override
 	public void write(Kryo kryo, Output output, CreateReflectedReferenceSchemaMutation mutation) {
@@ -46,7 +48,20 @@ public class CreateReflectedReferenceSchemaMutationSerializer extends Serializer
 		kryo.writeObjectOrNull(output, mutation.getCardinality(), Cardinality.class);
 		output.writeString(mutation.getReferencedEntityType());
 		output.writeString(mutation.getReflectedReferenceName());
-		kryo.writeObjectOrNull(output, mutation.getFaceted(), Boolean.class);
+
+		if (mutation.getIndexedInScopes() == null) {
+			output.writeBoolean(false);
+		} else {
+			output.writeBoolean(true);
+			writeScopeArray(kryo, output, mutation.getIndexedInScopes());
+		}
+		if (mutation.getFacetedInScopes() == null) {
+			output.writeBoolean(false);
+		} else {
+			output.writeBoolean(true);
+			writeScopeArray(kryo, output, mutation.getFacetedInScopes());
+		}
+
 		kryo.writeObject(output, mutation.getAttributesInheritanceBehavior());
 
 		final String[] attributesExcludedFromInheritance = mutation.getAttributeInheritanceFilter();
@@ -64,7 +79,10 @@ public class CreateReflectedReferenceSchemaMutationSerializer extends Serializer
 		final Cardinality cardinality = kryo.readObjectOrNull(input, Cardinality.class);
 		final String referencedEntityType = input.readString();
 		final String reflectedReferenceName = input.readString();
-		final Boolean faceted = kryo.readObjectOrNull(input, Boolean.class);
+
+		final Scope[] indexedInScopes = input.readBoolean() ? readScopeArray(kryo, input) : null;
+		final Scope[] facetedInScopes = input.readBoolean() ? readScopeArray(kryo, input) : null;
+
 		final AttributeInheritanceBehavior attributeInheritanceBehavior = kryo.readObject(input, AttributeInheritanceBehavior.class);
 		final int attributesExcludedFromInheritanceLength = input.readVarInt(true);
 		final String[] attributesExcludedFromInheritance = new String[attributesExcludedFromInheritanceLength];
@@ -79,10 +97,11 @@ public class CreateReflectedReferenceSchemaMutationSerializer extends Serializer
 			cardinality,
 			referencedEntityType,
 			reflectedReferenceName,
-			faceted,
+			indexedInScopes, facetedInScopes,
 			attributeInheritanceBehavior,
 			attributesExcludedFromInheritance
 		);
 	}
+
 }
 

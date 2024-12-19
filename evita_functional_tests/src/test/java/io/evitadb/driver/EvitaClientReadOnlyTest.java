@@ -96,6 +96,7 @@ import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
@@ -165,6 +166,7 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 			.certificateFolderPath(clientCertificates)
 			.certificateFileName(Path.of(CertificateUtils.getGeneratedClientCertificateFileName()))
 			.certificateKeyFileName(Path.of(CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()))
+			.timeoutUnit(5, TimeUnit.MINUTES)
 			.build();
 
 		final AtomicReference<EntitySchemaContract> productSchema = new AtomicReference<>();

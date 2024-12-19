@@ -28,15 +28,12 @@ import com.linecorp.armeria.common.HttpMethod;
 import com.linecorp.armeria.server.HttpService;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.core.Evita;
-import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.http.CorsEndpoint;
-import io.evitadb.externalApi.http.CorsFilter;
+import io.evitadb.externalApi.http.CorsService;
 import io.evitadb.externalApi.http.PathNormalizingHandler;
-import io.evitadb.externalApi.lab.api.LabApiBuilder;
 import io.evitadb.externalApi.lab.configuration.LabConfig;
 import io.evitadb.externalApi.lab.gui.resolver.GuiHandler;
 import io.evitadb.externalApi.lab.io.LabExceptionHandler;
-import io.evitadb.externalApi.rest.api.Rest;
 import io.evitadb.externalApi.utils.UriPath;
 import io.evitadb.externalApi.utils.path.RoutingHandlerService;
 import io.evitadb.utils.StringUtils;
@@ -55,8 +52,6 @@ import static io.evitadb.utils.CollectionUtils.createConcurrentHashMap;
  */
 @Slf4j
 public class LabManager {
-
-	public static final String LAB_API_URL_PREFIX = "api";
 
 	/**
 	 * Common object mapper for endpoints
@@ -78,7 +73,6 @@ public class LabManager {
 
 		final long buildingStartTime = System.currentTimeMillis();
 
-		registerLabApi();
 		registerLabGui();
 		corsEndpoints.forEach((path, endpoint) -> labRouter.add(HttpMethod.OPTIONS, path.toString(), endpoint.toHandler()));
 
@@ -91,51 +85,21 @@ public class LabManager {
 	}
 
 	/**
-	 * Builds REST API for evitaLab and registers it into router.
-	 */
-	private void registerLabApi() {
-		final LabApiBuilder labApiBuilder = new LabApiBuilder(labConfig, evita);
-		final Rest builtLabApi = labApiBuilder.build();
-		builtLabApi.endpoints().forEach(this::registerLabApiEndpoint);
-	}
-
-	/**
-	 * Creates new lab API endpoint on specified path with specified {@link Rest} instance.
-	 */
-	private void registerLabApiEndpoint(@Nonnull Rest.Endpoint endpoint) {
-		final UriPath path = UriPath.of("/", LAB_API_URL_PREFIX, endpoint.path());
-
-		final CorsEndpoint corsEndpoint = corsEndpoints.computeIfAbsent(path, p -> new CorsEndpoint(labConfig));
-		corsEndpoint.addMetadataFromEndpoint(endpoint.handler());
-
-		labRouter.add(
-			endpoint.method(),
-			path.toString(),
-			new CorsFilter(
-				endpoint.handler()
-					.decorate(service -> new LabExceptionHandler(objectMapper, service)),
-				labConfig.getAllowedOrigins()
-			)
-		);
-	}
-
-	/**
 	 * Creates new endpoint for serving lab GUI static files from fs.
 	 */
 	private void registerLabGui() {
 		final UriPath endpointPath = UriPath.of("/", "*");
 
-		final CorsEndpoint corsEndpoint = corsEndpoints.computeIfAbsent(endpointPath, p -> new CorsEndpoint(labConfig));
+		final CorsEndpoint corsEndpoint = corsEndpoints.computeIfAbsent(endpointPath, p -> new CorsEndpoint());
 		corsEndpoint.addMetadata(Set.of(HttpMethod.GET), true, true);
 
 		final EvitaConfiguration configuration = evita.getConfiguration();
 		labRouter.add(
 			HttpMethod.GET,
 			endpointPath.toString(),
-			new CorsFilter(
+			CorsService.standaloneFilter(
 				GuiHandler.create(labConfig, configuration.name(), objectMapper)
-					.decorate(service -> new LabExceptionHandler(objectMapper, service)),
-				labConfig.getAllowedOrigins()
+					.decorate(service -> new LabExceptionHandler(objectMapper, service))
 			)
 		);
 	}

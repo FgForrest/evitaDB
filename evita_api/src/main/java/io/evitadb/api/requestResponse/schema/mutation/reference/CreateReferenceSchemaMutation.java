@@ -36,11 +36,13 @@ import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.CreateMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutation;
 import io.evitadb.dataType.ClassifierType;
+import io.evitadb.dataType.Scope;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassifierUtils;
 import lombok.EqualsAndHashCode;
@@ -51,12 +53,16 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static io.evitadb.dataType.Scope.DEFAULT_SCOPE;
+import static io.evitadb.dataType.Scope.NO_SCOPE;
 
 /**
  * Mutation is responsible for setting up a new {@link ReferenceSchemaContract} in the {@link EntitySchemaContract}.
@@ -69,8 +75,10 @@ import java.util.stream.Stream;
 @ThreadSafe
 @Immutable
 @EqualsAndHashCode
-public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, CombinableLocalEntitySchemaMutation {
-	@Serial private static final long serialVersionUID = -1736213837309810284L;
+public class CreateReferenceSchemaMutation
+	implements ReferenceSchemaMutation, CombinableLocalEntitySchemaMutation, CreateMutation {
+	@Serial private static final long serialVersionUID = -5200773391501101688L;
+
 	@Getter @Nonnull private final String name;
 	@Getter @Nullable private final String description;
 	@Getter @Nullable private final String deprecationNotice;
@@ -79,20 +87,8 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 	@Getter private final boolean referencedEntityTypeManaged;
 	@Getter @Nullable private final String referencedGroupType;
 	@Getter private final boolean referencedGroupTypeManaged;
-	@Getter private final boolean indexed;
-	@Getter private final boolean faceted;
-
-	@Nullable
-	private static <T> LocalEntitySchemaMutation makeMutationIfDifferent(
-		@Nonnull ReferenceSchemaContract createdVersion,
-		@Nonnull ReferenceSchemaContract existingVersion,
-		@Nonnull Function<ReferenceSchemaContract, T> propertyRetriever,
-		@Nonnull Function<T, LocalEntitySchemaMutation> mutationCreator
-	) {
-		final T newValue = propertyRetriever.apply(createdVersion);
-		return Objects.equals(propertyRetriever.apply(existingVersion), newValue) ?
-			null : mutationCreator.apply(newValue);
-	}
+	@Getter private final Scope[] indexedInScopes;
+	@Getter private final Scope[] facetedInScopes;
 
 	public CreateReferenceSchemaMutation(
 		@Nonnull String name,
@@ -106,6 +102,27 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 		boolean indexed,
 		boolean faceted
 	) {
+		this(
+			name, description, deprecationNotice, cardinality,
+			referencedEntityType, referencedEntityTypeManaged,
+			referencedGroupType, referencedGroupTypeManaged,
+			indexed ? Scope.DEFAULT_SCOPES : NO_SCOPE,
+			faceted ? Scope.DEFAULT_SCOPES : NO_SCOPE
+		);
+	}
+
+	public CreateReferenceSchemaMutation(
+		@Nonnull String name,
+		@Nullable String description,
+		@Nullable String deprecationNotice,
+		@Nullable Cardinality cardinality,
+		@Nonnull String referencedEntityType,
+		boolean referencedEntityTypeManaged,
+		@Nullable String referencedGroupType,
+		boolean referencedGroupTypeManaged,
+		@Nullable Scope[] indexedInScopes,
+		@Nullable Scope[] facetedInScopes
+	) {
 		ClassifierUtils.validateClassifierFormat(ClassifierType.REFERENCE, name);
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, referencedEntityType);
 		this.name = name;
@@ -116,8 +133,16 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 		this.referencedEntityTypeManaged = referencedEntityTypeManaged;
 		this.referencedGroupType = referencedGroupType;
 		this.referencedGroupTypeManaged = referencedGroupTypeManaged;
-		this.indexed = indexed;
-		this.faceted = faceted;
+		this.indexedInScopes = indexedInScopes == null ? NO_SCOPE : indexedInScopes;
+		this.facetedInScopes = facetedInScopes == null ? NO_SCOPE : facetedInScopes;
+	}
+
+	public boolean isIndexed() {
+		return Arrays.stream(this.indexedInScopes).anyMatch(scope -> scope == DEFAULT_SCOPE);
+	}
+
+	public boolean isFaceted() {
+		return Arrays.stream(this.facetedInScopes).anyMatch(scope -> scope == DEFAULT_SCOPE);
 	}
 
 	@Nullable
@@ -144,38 +169,45 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 					Stream.of(
 							Stream.of(
 								makeMutationIfDifferent(
+									ReferenceSchemaContract.class,
 									createdVersion, existingVersion,
 									NamedSchemaContract::getDescription,
 									newValue -> new ModifyReferenceSchemaDescriptionMutation(name, newValue)
 								),
 								makeMutationIfDifferent(
+									ReferenceSchemaContract.class,
 									createdVersion, existingVersion,
 									NamedSchemaWithDeprecationContract::getDeprecationNotice,
 									newValue -> new ModifyReferenceSchemaDeprecationNoticeMutation(name, newValue)
 								),
 								makeMutationIfDifferent(
+									ReferenceSchemaContract.class,
 									createdVersion, existingVersion,
 									ReferenceSchemaContract::getCardinality,
 									newValue -> new ModifyReferenceSchemaCardinalityMutation(name, newValue)
 								),
 								makeMutationIfDifferent(
+									ReferenceSchemaContract.class,
 									createdVersion, existingVersion,
 									ReferenceSchemaContract::getReferencedEntityType,
 									newValue -> new ModifyReferenceSchemaRelatedEntityMutation(name, newValue, referencedEntityTypeManaged)
 								),
 								makeMutationIfDifferent(
+									ReferenceSchemaContract.class,
 									createdVersion, existingVersion,
 									ReferenceSchemaContract::getReferencedGroupType,
 									newValue -> new ModifyReferenceSchemaRelatedEntityGroupMutation(name, newValue, referencedGroupTypeManaged)
 								),
 								makeMutationIfDifferent(
+									ReferenceSchemaContract.class,
 									createdVersion, existingVersion,
-									ReferenceSchemaContract::isIndexed,
+									ref -> Arrays.stream(Scope.values()).filter(ref::isIndexedInScope).toArray(Scope[]::new),
 									newValue -> new SetReferenceSchemaIndexedMutation(name, newValue)
 								),
 								makeMutationIfDifferent(
+									ReferenceSchemaContract.class,
 									createdVersion, existingVersion,
-									ReferenceSchemaContract::isFaceted,
+									ref -> Arrays.stream(Scope.values()).filter(ref::isFacetedInScope).toArray(Scope[]::new),
 									newValue -> new SetReferenceSchemaFacetedMutation(name, newValue)
 								)
 							),
@@ -204,17 +236,17 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 	@Override
 	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
 		return ReferenceSchema._internalBuild(
-			name, description, deprecationNotice,
-			referencedEntityType, referencedEntityTypeManaged,
-			cardinality,
-			referencedGroupType, referencedGroupTypeManaged,
-			indexed, faceted,
+			this.name, this.description, this.deprecationNotice,
+			this.referencedEntityType, this.referencedEntityTypeManaged,
+			this.cardinality,
+			this.referencedGroupType, this.referencedGroupTypeManaged,
+			this.indexedInScopes, this.facetedInScopes,
 			Collections.emptyMap(),
 			Collections.emptyMap()
 		);
 	}
 
-	@Nullable
+	@Nonnull
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
@@ -229,7 +261,9 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 				entitySchema.getDeprecationNotice(),
 				entitySchema.isWithGeneratedPrimaryKey(),
 				entitySchema.isWithHierarchy(),
+				entitySchema.getHierarchyIndexedInScopes(),
 				entitySchema.isWithPrice(),
+				entitySchema.getPriceIndexedInScopes(),
 				entitySchema.getIndexedPricePlaces(),
 				entitySchema.getLocales(),
 				entitySchema.getCurrencies(),
@@ -269,15 +303,16 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 	@Override
 	public String toString() {
 		return "Create entity reference schema: " +
-			"name='" + name + '\'' +
-			", description='" + description + '\'' +
-			", deprecationNotice='" + deprecationNotice + '\'' +
-			", cardinality=" + cardinality +
-			", entityType='" + referencedEntityType + '\'' +
-			", referencedEntityTypeManaged=" + referencedEntityTypeManaged +
-			", groupType='" + referencedGroupType + '\'' +
-			", referencedGroupTypeManaged=" + referencedGroupTypeManaged +
-			", indexed=" + indexed +
-			", faceted=" + faceted;
+			"name='" + this.name + '\'' +
+			", description='" + this.description + '\'' +
+			", deprecationNotice='" + this.deprecationNotice + '\'' +
+			", cardinality=" + this.cardinality +
+			", entityType='" + this.referencedEntityType + '\'' +
+			", referencedEntityTypeManaged=" + this.referencedEntityTypeManaged +
+			", groupType='" + this.referencedGroupType + '\'' +
+			", referencedGroupTypeManaged=" + this.referencedGroupTypeManaged +
+			", indexed=" + Arrays.toString(this.indexedInScopes) +
+			", faceted=" + Arrays.toString(this.facetedInScopes);
 	}
+
 }

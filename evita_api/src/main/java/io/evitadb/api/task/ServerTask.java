@@ -25,6 +25,7 @@ package io.evitadb.api.task;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.function.Predicate;
 
 /**
  * Extension of the {@link Task} interface that is used on the server side. It provides methods to execute and fail
@@ -47,5 +48,18 @@ public interface ServerTask<S, T> extends Task<S, T> {
 	 * @param exception The exception that caused the task to be cancelled.
 	 */
 	void fail(@Nonnull Exception exception);
+
+	/**
+	 * Transitions the task to the QUEUED state (issued date time is assigned).
+	 */
+	void transitionToIssued();
+
+	/**
+	 * Evaluates the specified predicate against this server task.
+	 *
+	 * @param taskPredicate The predicate to be evaluated against this server task.
+	 * @return True if the predicate evaluates to true for this task, false otherwise.
+	 */
+	boolean matches(@Nonnull Predicate<ServerTask<?,?>> taskPredicate);
 
 }

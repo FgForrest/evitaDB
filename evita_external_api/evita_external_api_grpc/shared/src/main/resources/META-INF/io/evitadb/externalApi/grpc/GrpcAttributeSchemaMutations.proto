@@ -21,15 +21,18 @@ message GrpcCreateAttributeSchemaMutation {
   google.protobuf.StringValue deprecationNotice = 3;
   // When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
   // having certain value of this attribute among other entities in the same collection.
-  GrpcAttributeUniquenessType unique = 4;
+  // deprecated in favor of `uniqueInScopes`
+  GrpcAttributeUniquenessType unique = 4 [deprecated = true];
   // When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
   // as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
   // (memory/disk) space in the form of index.
-  bool filterable = 5;
+  // deprecated in favor of `filterableInScopes`
+  bool filterable = 5 [deprecated = true];
   // When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
   // as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
   // (memory/disk) space in the form of index.
-  bool sortable = 6;
+  // deprecated in favor of `sortableInScopes`
+  bool sortable = 6 [deprecated = true];
   // Localized attribute has to be ALWAYS used in connection with specific `locale`. In other
   // words - it cannot be stored unless associated locale is also provided.
   bool localized = 7;
@@ -52,6 +55,17 @@ message GrpcCreateAttributeSchemaMutation {
   // Default value is used when the entity is created without this attribute specified. Default values allow to pass
   // non-null checks even if no attributes of such name are specified.
   GrpcEvitaValue defaultValue = 12;
+  // When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+  // having certain value of this attribute among other entities in the same collection.
+  repeated GrpcScopedAttributeUniquenessType uniqueInScopes = 13;
+  // When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
+  // as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
+  // (memory/disk) space in the form of index.
+  repeated GrpcEntityScope filterableInScopes = 14;
+  // When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
+  // as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
+  // (memory/disk) space in the form of index.
+  repeated GrpcEntityScope sortableInScopes = 15;
 }
 
 // Mutation is responsible for setting up a new `GlobalAttributeSchema` in the `CatalogSchema`.
@@ -67,18 +81,22 @@ message GrpcCreateGlobalAttributeSchemaMutation {
   google.protobuf.StringValue deprecationNotice = 3;
   // When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
   // having certain value of this attribute among other entities in the same collection.
-  GrpcAttributeUniquenessType unique = 4;
+  // deprecated in favor of `uniqueInScopes`
+  GrpcAttributeUniquenessType unique = 4 [deprecated = true];
   // When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
   // entity having certain value of this attribute in entire catalog.
-  GrpcGlobalAttributeUniquenessType uniqueGlobally = 5;
+  // deprecated in favor of `uniqueGloballyInScopes`
+  GrpcGlobalAttributeUniquenessType uniqueGlobally = 5 [deprecated = true];
   // When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
   // as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
   // (memory/disk) space in the form of index.
-  bool filterable = 6;
+  // deprecated in favor of `filterableInScopes`
+  bool filterable = 6 [deprecated = true];
   // When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
   // as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
   // (memory/disk) space in the form of index.
-  bool sortable = 7;
+  // deprecated in favor of `sortableInScopes`
+  bool sortable = 7 [deprecated = true];
   // Localized attribute has to be ALWAYS used in connection with specific `locale`. In other
   // words - it cannot be stored unless associated locale is also provided.
   bool localized = 8;
@@ -101,6 +119,20 @@ message GrpcCreateGlobalAttributeSchemaMutation {
   // Default value is used when the entity is created without this attribute specified. Default values allow to pass
   // non-null checks even if no attributes of such name are specified.
   GrpcEvitaValue defaultValue = 13;
+  // When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+  // having certain value of this attribute among other entities in the same collection.
+  repeated GrpcScopedAttributeUniquenessType uniqueInScopes = 14;
+  // When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
+  // entity having certain value of this attribute in entire catalog.
+  repeated GrpcScopedGlobalAttributeUniquenessType uniqueGloballyInScopes = 15;
+  // When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
+  // as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
+  // (memory/disk) space in the form of index.
+  repeated GrpcEntityScope filterableInScopes = 16;
+  // When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
+  // as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
+  // (memory/disk) space in the form of index.
+  repeated GrpcEntityScope sortableInScopes = 17;
 }
 
 // Mutation is responsible for setting value to a `AttributeSchema.defaultValue` in `EntitySchema`.
@@ -168,7 +200,12 @@ message GrpcSetAttributeSchemaFilterableMutation {
   // When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
   // as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
   // (memory/disk) space in the form of index.
-  bool filterable = 2;
+  // deprecated in favor of `filterableInScopes`
+  bool filterable = 2 [deprecated = true];
+  // When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
+  // as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
+  // (memory/disk) space in the form of index.
+  repeated GrpcEntityScope filterableInScopes = 3;
 }
 
 // Mutation is responsible for setting value to a `GlobalAttributeSchema.uniqueGlobally` in `EntitySchema`.
@@ -178,7 +215,11 @@ message GrpcSetAttributeSchemaGloballyUniqueMutation {
   string name = 1;
   // When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
   // entity having certain value of this attribute in entire catalog.
-  GrpcGlobalAttributeUniquenessType uniqueGlobally = 2;
+  // deprecated in favor of `uniqueGloballyInScopes`
+  GrpcGlobalAttributeUniquenessType uniqueGlobally = 2 [deprecated = true];
+  // When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
+  // entity having certain value of this attribute in entire catalog.
+  repeated GrpcScopedGlobalAttributeUniquenessType uniqueGloballyInScopes = 15;
 }
 
 // Mutation is responsible for setting value to a `AttributeSchema.localized` in `EntitySchema`.
@@ -219,7 +260,12 @@ message GrpcSetAttributeSchemaSortableMutation {
   // When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
   // as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
   // (memory/disk) space in the form of index.
-  bool sortable = 2;
+  // deprecated in favor of `sortableInScopes`
+  bool sortable = 2 [deprecated = true];
+  // When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
+  // as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
+  // (memory/disk) space in the form of index.
+  repeated GrpcEntityScope sortableInScopes = 3;
 }
 
 // Mutation is responsible for setting value to a `AttributeSchema.unique` in `EntitySchema`.
@@ -229,7 +275,11 @@ message GrpcSetAttributeSchemaUniqueMutation {
   string name = 1;
   // When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
   // having certain value of this attribute among other entities in the same collection.
-  GrpcAttributeUniquenessType unique = 2;
+  // deprecated in favor of `uniqueInScopes`
+  GrpcAttributeUniquenessType unique = 2 [deprecated = true];
+  // When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+  // having certain value of this attribute among other entities in the same collection.
+  repeated GrpcScopedAttributeUniquenessType uniqueInScopes = 13;
 }
 
 // Mutation is responsible for introducing a `GlobalAttributeSchema` into an `EvitaSession`.

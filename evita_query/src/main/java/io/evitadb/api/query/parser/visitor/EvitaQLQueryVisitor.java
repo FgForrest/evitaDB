@@ -32,7 +32,7 @@ import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.head.Collection;
 import io.evitadb.api.query.order.OrderBy;
-import io.evitadb.api.query.parser.error.EvitaQLInvalidQueryError;
+import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser;
 import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
 import io.evitadb.api.query.require.Require;
@@ -85,7 +85,7 @@ public class EvitaQLQueryVisitor extends EvitaQLBaseVisitor<Query> {
      *
      * @param topLevelConstraints top level constraints directly from query args
      * @return found {@link Collection}
-     * @throws EvitaQLInvalidQueryError if no appropriated constraint found
+     * @throws EvitaSyntaxException if no appropriated constraint found
      */
     @Nullable
     protected Collection findCollectionConstraint(@Nonnull ParserRuleContext ctx, @Nonnull List<Constraint<?>> topLevelConstraints) {
@@ -97,7 +97,7 @@ public class EvitaQLQueryVisitor extends EvitaQLBaseVisitor<Query> {
             return null;
         }
         if ((headConstraints.size() > 1) || !(headConstraints.get(0) instanceof Collection)) {
-            throw new EvitaQLInvalidQueryError(
+            throw new EvitaSyntaxException(
                 ctx,
                 "Query can have only one top level head constraint -> `collection`."
             );
@@ -110,7 +110,7 @@ public class EvitaQLQueryVisitor extends EvitaQLBaseVisitor<Query> {
      *
      * @param topLevelConstraints top level constraints directly from query args
      * @return {@code null} if not appropriated constraint found or found {@link FilterBy}
-     * @throws EvitaQLInvalidQueryError if there is more top level filter constraints or found constraint is not appropriated type
+     * @throws EvitaSyntaxException if there is more top level filter constraints or found constraint is not appropriated type
      */
     @Nullable
     protected FilterBy findFilterByConstraint(@Nonnull ParserRuleContext ctx, @Nonnull List<Constraint<?>> topLevelConstraints) {
@@ -122,7 +122,7 @@ public class EvitaQLQueryVisitor extends EvitaQLBaseVisitor<Query> {
             return null;
         }
         if ((filterConstraints.size() > 1) || !(filterConstraints.get(0) instanceof FilterBy)) {
-            throw new EvitaQLInvalidQueryError(
+            throw new EvitaSyntaxException(
                 ctx,
                 "Query can have only one top level filter constraint -> \"filterBy\"."
             );
@@ -135,7 +135,7 @@ public class EvitaQLQueryVisitor extends EvitaQLBaseVisitor<Query> {
      *
      * @param topLevelConstraints top level constraints directly from query args
      * @return {@code null} if not appropriated constraint found or found {@link OrderBy}
-     * @throws EvitaQLInvalidQueryError if there is more top level order constraints or found constraint is not appropriated type
+     * @throws EvitaSyntaxException if there is more top level order constraints or found constraint is not appropriated type
      */
     @Nullable
     protected OrderBy findOrderByConstraint(@Nonnull ParserRuleContext ctx, @Nonnull List<Constraint<?>> topLevelConstraints) {
@@ -147,7 +147,7 @@ public class EvitaQLQueryVisitor extends EvitaQLBaseVisitor<Query> {
             return null;
         }
         if ((orderConstraints.size() > 1) || !(orderConstraints.get(0) instanceof OrderBy)) {
-            throw new EvitaQLInvalidQueryError(
+            throw new EvitaSyntaxException(
                 ctx,
                 "Query can have only one top level order constraint -> \"orderBy\"."
             );
@@ -160,7 +160,7 @@ public class EvitaQLQueryVisitor extends EvitaQLBaseVisitor<Query> {
      *
      * @param topLevelConstraints top level constraints directly from query args
      * @return {@code null} if not appropriated constraint found or found {@link Require}
-     * @throws EvitaQLInvalidQueryError if there is more top level require constraints or found constraint is not appropriated type
+     * @throws EvitaSyntaxException if there is more top level require constraints or found constraint is not appropriated type
      */
     @Nullable
     protected Require findRequireConstraint(@Nonnull ParserRuleContext ctx, @Nonnull List<Constraint<?>> topLevelConstraints) {
@@ -172,7 +172,7 @@ public class EvitaQLQueryVisitor extends EvitaQLBaseVisitor<Query> {
             return null;
         }
         if ((requireConstraints.size() > 1) || !(requireConstraints.get(0) instanceof Require)) {
-            throw new EvitaQLInvalidQueryError(
+            throw new EvitaSyntaxException(
                 ctx,
                 "Query can have only one top level require constraint -> \"require\"."
             );

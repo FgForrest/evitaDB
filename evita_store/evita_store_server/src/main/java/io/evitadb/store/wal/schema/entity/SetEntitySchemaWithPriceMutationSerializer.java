@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,17 +28,19 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWithPriceMutation;
+import io.evitadb.store.wal.schema.MutationSerializationFunctions;
 
 /**
  * Serializer for {@link SetEntitySchemaWithPriceMutation}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class SetEntitySchemaWithPriceMutationSerializer extends Serializer<SetEntitySchemaWithPriceMutation> {
+public class SetEntitySchemaWithPriceMutationSerializer extends Serializer<SetEntitySchemaWithPriceMutation> implements MutationSerializationFunctions {
 
 	@Override
 	public void write(Kryo kryo, Output output, SetEntitySchemaWithPriceMutation mutation) {
 		output.writeBoolean(mutation.isWithPrice());
+		writeScopeArray(kryo, output, mutation.getIndexedInScopes());
 		output.writeVarInt(mutation.getIndexedPricePlaces(), true);
 	}
 
@@ -46,6 +48,7 @@ public class SetEntitySchemaWithPriceMutationSerializer extends Serializer<SetEn
 	public SetEntitySchemaWithPriceMutation read(Kryo kryo, Input input, Class<? extends SetEntitySchemaWithPriceMutation> type) {
 		return new SetEntitySchemaWithPriceMutation(
 			input.readBoolean(),
+			readScopeArray(kryo, input),
 			input.readVarInt(true)
 		);
 	}

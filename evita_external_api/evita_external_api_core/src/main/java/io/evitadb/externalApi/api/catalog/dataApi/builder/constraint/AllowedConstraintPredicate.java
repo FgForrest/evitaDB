@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,7 +24,9 @@
 package io.evitadb.externalApi.api.catalog.dataApi.builder.constraint;
 
 import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.descriptor.ConstraintCreator.AdditionalChildParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ChildParameterDescriptor;
+import io.evitadb.api.query.descriptor.ConstraintCreator.ConstraintParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptor;
 import lombok.AccessLevel;
 import lombok.EqualsAndHashCode;
@@ -67,14 +69,28 @@ public class AllowedConstraintPredicate implements Predicate<ConstraintDescripto
 		this.forbiddenConstraints = resolveForbiddenConstraints(childParameter, globallyForbiddenConstraints);
 	}
 
+	/**
+	 * Creates predicate for constraint's child parameter. Tested constraint must be a subclass of parameter type,
+	 * be allowed by parameter allowed set and be allowed by global set of constraints.
+	 */
+	public AllowedConstraintPredicate(@Nonnull AdditionalChildParameterDescriptor additionalChildParameter,
+	                                  @Nonnull Set<Class<? extends Constraint<?>>> globallyAllowedConstraints,
+	                                  @Nonnull Set<Class<? extends Constraint<?>>> globallyForbiddenConstraints) {
+		this.baseConstraintType = resolveChildParameterBaseType(additionalChildParameter);
+		this.locallyAllowedConstraints = Set.of();
+		this.globallyAllowedConstraints = globallyAllowedConstraints;
+
+		this.forbiddenConstraints = globallyForbiddenConstraints;
+	}
+
 	@Override
-	public boolean test(@Nonnull ConstraintDescriptor constraintDescriptor) {
+	public boolean test(ConstraintDescriptor constraintDescriptor) {
 		return isConstraintAllowed(constraintDescriptor.constraintClass()) &&
 			!isConstraintForbidden(constraintDescriptor.constraintClass());
 	}
 
 	@Nonnull
-	private Class<? extends Constraint<?>> resolveChildParameterBaseType(@Nonnull ChildParameterDescriptor childParameter) {
+	private Class<? extends Constraint<?>> resolveChildParameterBaseType(@Nonnull ConstraintParameterDescriptor childParameter) {
 		final Class<?> parameterType = childParameter.type();
 		if (parameterType.isArray()) {
 			//noinspection unchecked

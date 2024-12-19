@@ -5,6 +5,7 @@
       "primaryKey": 66486,
       "type": "Category",
       "version": 1,
+      "scope": "LIVE",
       "parentEntity": {
         "primaryKey": 66481,
         "type": "Category",

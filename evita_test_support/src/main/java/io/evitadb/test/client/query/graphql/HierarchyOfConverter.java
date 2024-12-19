@@ -29,6 +29,7 @@ import io.evitadb.api.query.require.*;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.HierarchyFromNodeHeaderDescriptor;
@@ -83,7 +84,7 @@ public class HierarchyOfConverter extends RequireConverter {
 							HierarchyOfSelfHeaderDescriptor.ORDER_BY,
 							offset,
 							multipleArguments,
-							convertOrderConstraint(new EntityDataLocator(entityType), orderBy).orElse(null)
+							convertOrderConstraint(new EntityDataLocator(new ManagedEntityTypePointer(entityType)), orderBy).orElse(null)
 						)
 					})
 					.orElse(new ArgumentSupplier[0]);
@@ -94,7 +95,7 @@ public class HierarchyOfConverter extends RequireConverter {
 						hierarchyOfSelfBuilder,
 						locale,
 						entityType,
-						new HierarchyDataLocator(entityType),
+						new HierarchyDataLocator(new ManagedEntityTypePointer(entityType)),
 						hierarchyOfSelf.getRequirements()
 					),
 					arguments
@@ -119,7 +120,7 @@ public class HierarchyOfConverter extends RequireConverter {
 									offset,
 									multipleArguments,
 									convertOrderConstraint(
-										new EntityDataLocator(referencedEntityType),
+										new EntityDataLocator(new ManagedEntityTypePointer(referencedEntityType)),
 										hierarchyOfReference.getOrderBy().get()
 									)
 										.orElse(null)
@@ -145,7 +146,7 @@ public class HierarchyOfConverter extends RequireConverter {
 							hierarchyOfReferenceBuilder,
 							locale,
 							referencedEntityType,
-							new HierarchyDataLocator(entityType, referenceName),
+							new HierarchyDataLocator(new ManagedEntityTypePointer(entityType), referenceName),
 							hierarchyOfReference.getRequirements()
 						),
 						arguments.toArray(ArgumentSupplier[]::new)

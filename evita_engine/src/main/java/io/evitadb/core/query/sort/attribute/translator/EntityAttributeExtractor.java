@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -45,13 +45,13 @@ public final class EntityAttributeExtractor implements AttributeExtractor {
 
 	@Nullable
 	@Override
-	public Comparable<?> extract(@Nonnull EntityContract entity, @Nonnull String attributeName) {
+	public Object extract(@Nonnull EntityContract entity, @Nonnull String attributeName) {
 		return entity.getAttribute(attributeName);
 	}
 
 	@Nullable
 	@Override
-	public Comparable<?> extract(@Nonnull EntityContract entity, @Nonnull String attributeName, @Nonnull Locale locale) {
+	public Object extract(@Nonnull EntityContract entity, @Nonnull String attributeName, @Nonnull Locale locale) {
 		return entity.getAttribute(attributeName, locale);
 	}
 

@@ -37,6 +37,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.InlineReferenceDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesProviderDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
@@ -169,14 +170,15 @@ public class EntityFetchRequireResolver {
 		return Optional.of(entityContentRequires);
 	}
 
-	private boolean needsEntityBody(@Nonnull SelectionSetAggregator selectionSetAggregator) {
+	private static boolean needsEntityBody(@Nonnull SelectionSetAggregator selectionSetAggregator) {
 		return needsVersion(selectionSetAggregator) ||
 			needsLocales(selectionSetAggregator) ||
 			needsAttributes(selectionSetAggregator);
 	}
 
-	private boolean needsEntityBody(@Nonnull SelectionSetAggregator selectionSetAggregator, @Nonnull EntitySchemaContract currentEntitySchema) {
+	private static boolean needsEntityBody(@Nonnull SelectionSetAggregator selectionSetAggregator, @Nonnull EntitySchemaContract currentEntitySchema) {
 		return needsVersion(selectionSetAggregator) ||
+			needsScope(selectionSetAggregator) ||
 			needsParent(selectionSetAggregator) ||
 			needsParents(selectionSetAggregator) ||
 			needsLocales(selectionSetAggregator) ||
@@ -186,38 +188,42 @@ public class EntityFetchRequireResolver {
 			needsReferences(selectionSetAggregator, currentEntitySchema);
 	}
 
-	private boolean needsVersion(@Nonnull SelectionSetAggregator selectionSetAggregator) {
+	private static boolean needsVersion(@Nonnull SelectionSetAggregator selectionSetAggregator) {
 		return selectionSetAggregator.containsImmediate(GraphQLEntityDescriptor.VERSION.name());
 	}
 
-	private boolean needsParent(@Nonnull SelectionSetAggregator selectionSetAggregator) {
+	private static boolean needsScope(@Nonnull SelectionSetAggregator selectionSetAggregator) {
+		return selectionSetAggregator.containsImmediate(GraphQLEntityDescriptor.SCOPE.name());
+	}
+
+	private static boolean needsParent(@Nonnull SelectionSetAggregator selectionSetAggregator) {
 		return selectionSetAggregator.containsImmediate(GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.name());
 	}
 
-	private boolean needsParents(@Nonnull SelectionSetAggregator selectionSetAggregator) {
+	private static boolean needsParents(@Nonnull SelectionSetAggregator selectionSetAggregator) {
 		return selectionSetAggregator.containsImmediate(GraphQLEntityDescriptor.PARENTS.name());
 	}
 
-	private boolean needsLocales(@Nonnull SelectionSetAggregator selectionSetAggregator) {
+	private static boolean needsLocales(@Nonnull SelectionSetAggregator selectionSetAggregator) {
 		return selectionSetAggregator.containsImmediate(GraphQLEntityDescriptor.LOCALES.name()) ||
 			selectionSetAggregator.containsImmediate(GraphQLEntityDescriptor.ALL_LOCALES.name());
 	}
 
-	private boolean needsAttributes(@Nonnull SelectionSetAggregator selectionSetAggregator) {
+	private static boolean needsAttributes(@Nonnull SelectionSetAggregator selectionSetAggregator) {
 		return selectionSetAggregator.containsImmediate(AttributesProviderDescriptor.ATTRIBUTES.name());
 	}
 
-	private boolean needsAssociatedData(@Nonnull SelectionSetAggregator selectionSetAggregator) {
+	private static boolean needsAssociatedData(@Nonnull SelectionSetAggregator selectionSetAggregator) {
 		return selectionSetAggregator.containsImmediate(GraphQLEntityDescriptor.ASSOCIATED_DATA.name());
 	}
 
-	private boolean needsPrices(@Nonnull SelectionSetAggregator selectionSetAggregator) {
+	private static boolean needsPrices(@Nonnull SelectionSetAggregator selectionSetAggregator) {
 		return selectionSetAggregator.containsImmediate(GraphQLEntityDescriptor.PRICE.name() + "*") ||
 			selectionSetAggregator.containsImmediate(GraphQLEntityDescriptor.MULTIPLE_PRICES_FOR_SALE_AVAILABLE.name()) ||
 			selectionSetAggregator.containsImmediate(GraphQLEntityDescriptor.ALL_PRICES_FOR_SALE.name());
 	}
 
-	private boolean needsReferences(@Nonnull SelectionSetAggregator selectionSetAggregator, @Nonnull EntitySchemaContract currentEntitySchema) {
+	private static boolean needsReferences(@Nonnull SelectionSetAggregator selectionSetAggregator, @Nonnull EntitySchemaContract currentEntitySchema) {
 		return currentEntitySchema.getReferences()
 			.values()
 			.stream()
@@ -241,7 +247,7 @@ public class EntityFetchRequireResolver {
 		return parentsFields.stream()
 			.findFirst()
 			.map(parentsField -> {
-				final DataLocator hierarchyDataLocator = new HierarchyDataLocator(currentEntitySchema.getName());
+				final DataLocator hierarchyDataLocator = new HierarchyDataLocator(new ManagedEntityTypePointer(currentEntitySchema.getName()));
 				final HierarchyStopAt stopAt = Optional.ofNullable(parentsField.getArguments().get(ParentsFieldHeaderDescriptor.STOP_AT.name()))
 					.map(it -> (HierarchyStopAt) requireConstraintResolver.resolve(
 						hierarchyDataLocator,
@@ -269,8 +275,8 @@ public class EntityFetchRequireResolver {
 	}
 
 	@Nonnull
-	private Optional<AttributeContent> resolveAttributeContent(@Nonnull SelectionSetAggregator selectionSetAggregator,
-	                                                           @Nonnull AttributeSchemaProvider<?> attributeSchemaProvider) {
+	private static Optional<AttributeContent> resolveAttributeContent(@Nonnull SelectionSetAggregator selectionSetAggregator,
+	                                                                  @Nonnull AttributeSchemaProvider<?> attributeSchemaProvider) {
 		if (!needsAttributes(selectionSetAggregator)) {
 			return Optional.empty();
 		}
@@ -289,8 +295,8 @@ public class EntityFetchRequireResolver {
 	}
 
 	@Nonnull
-	private Optional<AssociatedDataContent> resolveAssociatedDataContent(@Nonnull SelectionSetAggregator selectionSetAggregator,
-	                                                                     @Nonnull EntitySchemaContract currentEntitySchema) {
+	private static Optional<AssociatedDataContent> resolveAssociatedDataContent(@Nonnull SelectionSetAggregator selectionSetAggregator,
+	                                                                            @Nonnull EntitySchemaContract currentEntitySchema) {
 		if (!needsAssociatedData(selectionSetAggregator)) {
 			return Optional.empty();
 		}
@@ -312,7 +318,7 @@ public class EntityFetchRequireResolver {
 	}
 
 	@Nonnull
-	private Optional<PriceContent> resolvePriceContent(@Nonnull SelectionSetAggregator selectionSetAggregator) {
+	private static Optional<PriceContent> resolvePriceContent(@Nonnull SelectionSetAggregator selectionSetAggregator) {
 		if (!needsPrices(selectionSetAggregator)) {
 			return Optional.empty();
 		}
@@ -321,22 +327,23 @@ public class EntityFetchRequireResolver {
 			return Optional.of(priceContentAll());
 		} else {
 			final String[] accompanyingPriceListsToFetch = resolveAccompanyingPriceLists(selectionSetAggregator);
+			//noinspection DataFlowIssue
 			return Optional.of(priceContent(PriceContentMode.RESPECTING_FILTER, accompanyingPriceListsToFetch));
 		}
 	}
 
-	private boolean isCustomPriceFieldPresent(@Nonnull SelectionSetAggregator selectionSetAggregator) {
+	private static boolean isCustomPriceFieldPresent(@Nonnull SelectionSetAggregator selectionSetAggregator) {
 		return !selectionSetAggregator.getImmediateFields(CUSTOM_PRICE_FIELDS).isEmpty();
 	}
 
-	private boolean isCustomPriceForSaleFieldPresent(@Nonnull SelectionSetAggregator selectionSetAggregator) {
+	private static boolean isCustomPriceForSaleFieldPresent(@Nonnull SelectionSetAggregator selectionSetAggregator) {
 		return selectionSetAggregator.getImmediateFields(PRICE_FOR_SALE_FIELDS)
 			.stream()
 			.anyMatch(f -> !f.getArguments().isEmpty());
 	}
 
 	@Nonnull
-	private String[] resolveAccompanyingPriceLists(@Nonnull SelectionSetAggregator selectionSetAggregator) {
+	private static String[] resolveAccompanyingPriceLists(@Nonnull SelectionSetAggregator selectionSetAggregator) {
 		return selectionSetAggregator.getImmediateFields(PRICE_FOR_SALE_FIELDS)
 			.stream()
 			.flatMap(f -> SelectionSetAggregator.getImmediateFields(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name(), f.getSelectionSet())
@@ -408,7 +415,7 @@ public class EntityFetchRequireResolver {
 
 		return Optional.ofNullable(
 			(FilterBy) filterConstraintResolver.resolve(
-				new InlineReferenceDataLocator(currentEntitySchema.getName(), fieldsForReferenceHolder.referenceSchema().getName()),
+				new InlineReferenceDataLocator(new ManagedEntityTypePointer(currentEntitySchema.getName()), fieldsForReferenceHolder.referenceSchema().getName()),
 				ReferenceFieldHeaderDescriptor.FILTER_BY.name(),
 				fields.get(0).getArguments().get(ReferenceFieldHeaderDescriptor.FILTER_BY.name())
 			)
@@ -431,7 +438,7 @@ public class EntityFetchRequireResolver {
 
 		return Optional.ofNullable(
 			(OrderBy) orderConstraintResolver.resolve(
-				new InlineReferenceDataLocator(currentEntitySchema.getName(), fieldsForReferenceHolder.referenceSchema().getName()),
+				new InlineReferenceDataLocator(new ManagedEntityTypePointer(currentEntitySchema.getName()), fieldsForReferenceHolder.referenceSchema().getName()),
 				ReferenceFieldHeaderDescriptor.ORDER_BY.name(),
 				fieldsForReferenceHolder.fields().get(0).getArguments().get(ReferenceFieldHeaderDescriptor.ORDER_BY.name())
 			)
@@ -439,7 +446,7 @@ public class EntityFetchRequireResolver {
 	}
 
 	@Nonnull
-	private Optional<AttributeContent> resolveReferenceAttributeContent(@Nonnull FieldsForReferenceHolder fieldsForReferenceHolder) {
+	private static Optional<AttributeContent> resolveReferenceAttributeContent(@Nonnull FieldsForReferenceHolder fieldsForReferenceHolder) {
 		final List<DataFetchingFieldSelectionSet> attributeFields = fieldsForReferenceHolder.fields()
 			.stream()
 			.flatMap(it -> SelectionSetAggregator.getImmediateFields(ReferenceDescriptor.ATTRIBUTES.name(), it.getSelectionSet()).stream())
@@ -504,9 +511,9 @@ public class EntityFetchRequireResolver {
 	}
 
 	@Nonnull
-	private Optional<DataInLocales> resolveDataInLocales(@Nonnull SelectionSetAggregator selectionSetAggregator,
-	                                                     @Nullable Locale desiredLocale,
-	                                                     @Nonnull Set<Locale> allPossibleLocales) {
+	private static Optional<DataInLocales> resolveDataInLocales(@Nonnull SelectionSetAggregator selectionSetAggregator,
+	                                                            @Nullable Locale desiredLocale,
+	                                                            @Nonnull Set<Locale> allPossibleLocales) {
 		if (!needsAttributes(selectionSetAggregator) && !needsAssociatedData(selectionSetAggregator)) {
 			return Optional.empty();
 		}

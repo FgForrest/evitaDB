@@ -63,7 +63,7 @@ import java.util.Optional;
  * <p>
  * Inspired by https://stackoverflow.com/a/56999548.
  *
- * @author Lukáš Hornych, 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @Slf4j
 @RequiredArgsConstructor

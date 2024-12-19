@@ -333,7 +333,7 @@ public interface InternalSchemaBuilderHelper {
 	 * provide multiple values to sort by.
 	 */
 	default void checkSortableTraits(@Nonnull String attributeName, @Nonnull AttributeSchemaContract attributeSchema) {
-		if (attributeSchema.isSortable()) {
+		if (attributeSchema.isSortableInAnyScope()) {
 			Assert.isTrue(
 				!attributeSchema.getType().isArray(),
 				() -> new InvalidSchemaMutationException(

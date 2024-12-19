@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.api.catalog.dataApi.constraint;
 
 import io.evitadb.api.query.descriptor.ConstraintDomain;
+import io.evitadb.externalApi.exception.ExternalApiInternalError;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -33,10 +34,16 @@ import javax.annotation.Nullable;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public record FacetDataLocator(@Nonnull String entityType, @Nullable String referenceName) implements DataLocatorWithReference {
+public record FacetDataLocator(@Nonnull EntityTypePointer entityTypePointer, @Nullable String referenceName) implements DataLocatorWithReference {
 
-	public FacetDataLocator(@Nonnull String entityType) {
-		this(entityType, null);
+	public FacetDataLocator(@Nonnull EntityTypePointer entityTypePointer) {
+		this(entityTypePointer, null);
+	}
+
+	public FacetDataLocator {
+		if (!(entityTypePointer instanceof ManagedEntityTypePointer)) {
+			throw new ExternalApiInternalError("Facets can be accessed only on managed entity type.");
+		}
 	}
 
 	@Nonnull

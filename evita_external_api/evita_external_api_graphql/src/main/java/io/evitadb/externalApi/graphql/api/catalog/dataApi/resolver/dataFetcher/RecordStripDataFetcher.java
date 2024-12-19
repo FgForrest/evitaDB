@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,15 +31,30 @@ import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.StripList;
 import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
 import io.evitadb.utils.Assert;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * Returns page of records as {@link StripList} if {@link io.evitadb.api.query.require.Strip} was used in query.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class RecordStripDataFetcher implements DataFetcher<StripList<? extends EntityClassifier>> {
+
+	@Nullable
+	private static RecordStripDataFetcher INSTANCE;
+
+	@Nonnull
+	public static RecordStripDataFetcher getInstance() {
+		if (INSTANCE == null) {
+			INSTANCE = new RecordStripDataFetcher();
+		}
+		return INSTANCE;
+	}
 
 	@Nonnull
 	@Override

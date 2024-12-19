@@ -39,5 +39,6 @@ module evita.external.api.grpc.shared {
 	requires io.grpc.stub;
 	requires io.grpc.protobuf;
 	requires io.netty.handler;
+	requires org.checkerframework.checker.qual;
 
 }

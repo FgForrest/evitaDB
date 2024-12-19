@@ -31,7 +31,6 @@ import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.price.model.PriceIndexKey;
-import io.evitadb.store.entity.model.entity.price.PriceInternalIdContainer;
 import io.evitadb.store.model.StoragePart;
 import lombok.Getter;
 
@@ -98,11 +97,11 @@ abstract class AbstractPriceIndex<T extends PriceListAndCurrencyPriceIndex> impl
 			});
 	}
 
-	@Nonnull
 	@Override
-	public PriceInternalIdContainer addPrice(
+	public int addPrice(
 		int entityPrimaryKey,
-		@Nullable Integer internalPriceId, @Nonnull PriceKey priceKey,
+		int internalPriceId,
+		@Nonnull PriceKey priceKey,
 		@Nonnull PriceInnerRecordHandling innerRecordHandling,
 		@Nullable Integer innerRecordId,
 		@Nullable DateTimeRange validity,
@@ -177,7 +176,7 @@ abstract class AbstractPriceIndex<T extends PriceListAndCurrencyPriceIndex> impl
 
 	@Override
 	public void resetDirty() {
-		for (PriceListAndCurrencyPriceIndex priceIndex : getPriceIndexes().values()) {
+		for (PriceListAndCurrencyPriceIndex<?,?> priceIndex : getPriceIndexes().values()) {
 			priceIndex.resetDirty();
 		}
 	}
@@ -194,10 +193,10 @@ abstract class AbstractPriceIndex<T extends PriceListAndCurrencyPriceIndex> impl
 		removedIndex.terminate();
 	}
 
-	protected abstract PriceInternalIdContainer addPrice(
+	protected abstract int addPrice(
 		@Nonnull T priceListIndex,
 		int entityPrimaryKey,
-		@Nullable Integer internalPriceId,
+		int internalPriceId,
 		int priceId,
 		@Nullable Integer innerRecordId,
 		@Nullable DateTimeRange validity,

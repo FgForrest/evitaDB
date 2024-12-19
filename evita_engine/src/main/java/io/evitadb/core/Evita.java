@@ -47,6 +47,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBu
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalCatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation.CatalogSchemaWithImpactOnEntitySchemas;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaMutation;
@@ -251,7 +252,7 @@ public final class Evita implements EvitaContract {
 			);
 
 		this.tracingContext = TracingContextProvider.getContext();
-		final Path[] directories = FileUtils.listDirectories(configuration.storage().storageDirectoryOrDefault());
+		final Path[] directories = FileUtils.listDirectories(configuration.storage().storageDirectory());
 		this.catalogs = CollectionUtils.createConcurrentHashMap(directories.length);
 		this.management = new EvitaManagement(this);
 
@@ -466,7 +467,7 @@ public final class Evita implements EvitaContract {
 		@Nullable SessionFlags... flags
 	) {
 		assertActive();
-		if (readOnly && Arrays.stream(flags).noneMatch(it -> it == SessionFlags.DRY_RUN)) {
+		if (this.readOnly && flags != null && Arrays.stream(flags).noneMatch(it -> it == SessionFlags.DRY_RUN)) {
 			throw new ReadOnlyException();
 		}
 		final SessionTraits traits = new SessionTraits(
@@ -506,7 +507,7 @@ public final class Evita implements EvitaContract {
 		@Nullable SessionFlags... flags
 	) {
 		assertActive();
-		if (readOnly && Arrays.stream(flags).noneMatch(it -> it == SessionFlags.DRY_RUN)) {
+		if (this.readOnly && flags != null && Arrays.stream(flags).noneMatch(it -> it == SessionFlags.DRY_RUN)) {
 			throw new ReadOnlyException();
 		}
 		final SessionTraits traits = new SessionTraits(
@@ -641,7 +642,7 @@ public final class Evita implements EvitaContract {
 					catalogName,
 					new CorruptedCatalog(
 						catalogName,
-						configuration.storage().storageDirectoryOrDefault().resolve(catalogName),
+						configuration.storage().storageDirectory().resolve(catalogName),
 						exception
 					)
 				);
@@ -751,9 +752,13 @@ public final class Evita implements EvitaContract {
 		@Nonnull CatalogContract catalogToBeReplacedWith
 	) {
 		try {
+			final CatalogSchemaWithImpactOnEntitySchemas updatedSchemaWrapper = modifyCatalogSchemaName.mutate(catalogToBeReplacedWith.getSchema());
+			Assert.isPremiseValid(
+				updatedSchemaWrapper != null,
+				"Result of modify catalog schema mutation must not be null."
+			);
 			final CatalogContract replacedCatalog = catalogToBeReplacedWith.replace(
-				modifyCatalogSchemaName.mutate(catalogToBeReplacedWith.getSchema())
-					.updatedCatalogSchema(),
+				updatedSchemaWrapper.updatedCatalogSchema(),
 				catalogToBeReplaced
 			);
 			// now rewrite the original catalog with renamed contents so that the observers could access it
@@ -953,7 +958,10 @@ public final class Evita implements EvitaContract {
 		final EvitaInternalSessionContract newSession = sessionRegistry.addSession(
 			catalog.supportsTransaction(),
 			() -> new EvitaSession(
-				this, catalog, reflectionLookup, terminationCallback, sessionTraits.commitBehaviour(), sessionTraits
+				this, catalog, reflectionLookup,
+				terminationCallback,
+				ofNullable(sessionTraits.commitBehaviour()).orElse(CommitBehavior.defaultBehaviour()),
+				sessionTraits
 			)
 		);
 

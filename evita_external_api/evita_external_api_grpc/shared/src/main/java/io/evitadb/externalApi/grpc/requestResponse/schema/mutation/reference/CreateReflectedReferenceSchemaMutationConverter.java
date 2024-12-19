@@ -26,12 +26,15 @@ package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.reference;
 import com.google.protobuf.BoolValue;
 import com.google.protobuf.StringValue;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReflectedReferenceSchemaMutation;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation;
+import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.util.Arrays;
 
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toAttributeInheritanceBehavior;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toCardinality;
@@ -49,6 +52,21 @@ public class CreateReflectedReferenceSchemaMutationConverter implements SchemaMu
 
 	@Nonnull
 	public CreateReflectedReferenceSchemaMutation convert(@Nonnull GrpcCreateReflectedReferenceSchemaMutation mutation) {
+		final Scope[] indexedInScopes = mutation.getIndexedInScopesList().isEmpty() ?
+			Scope.DEFAULT_SCOPES
+			:
+			mutation.getIndexedInScopesList()
+				.stream()
+				.map(EvitaEnumConverter::toScope)
+				.toArray(Scope[]::new);
+		final Scope[] facetedInScopes = mutation.getFacetedInScopesList().isEmpty() ?
+			(mutation.hasFaceted() && mutation.getFaceted().getValue() ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE)
+			:
+			mutation.getFacetedInScopesList()
+				.stream()
+				.map(EvitaEnumConverter::toScope)
+				.toArray(Scope[]::new);
+
 		return new CreateReflectedReferenceSchemaMutation(
 			mutation.getName(),
 			mutation.hasDescription() ? mutation.getDescription().getValue() : null,
@@ -56,7 +74,8 @@ public class CreateReflectedReferenceSchemaMutationConverter implements SchemaMu
 			toCardinality(mutation.getCardinality()),
 			mutation.getReferencedEntityType(),
 			mutation.getReflectedReferenceName(),
-			mutation.hasFaceted() ? mutation.getFaceted().getValue() : null,
+			mutation.getIndexedInherited() ? null : indexedInScopes,
+			mutation.getFacetedInherited() ? null : facetedInScopes,
 			toAttributeInheritanceBehavior(mutation.getAttributeInheritanceBehavior()),
 			mutation.getAttributeInheritanceFilterList().toArray(String[]::new)
 		);
@@ -77,8 +96,24 @@ public class CreateReflectedReferenceSchemaMutationConverter implements SchemaMu
 		if (mutation.getDeprecationNotice() != null) {
 			builder.setDeprecationNotice(StringValue.of(mutation.getDeprecationNotice()));
 		}
-		if (mutation.getFaceted() != null) {
-			builder.setFaceted(BoolValue.newBuilder().setValue(mutation.getFaceted()).build());
+		if (mutation.getIndexedInScopes() != null) {
+			builder.addAllIndexedInScopes(
+				Arrays.stream(mutation.getIndexedInScopes())
+					.map(EvitaEnumConverter::toGrpcScope)
+					.toList()
+			);
+		} else {
+			builder.setIndexedInherited(true);
+		}
+		if (mutation.getFacetedInScopes() != null) {
+			builder.setFaceted(BoolValue.of(mutation.isFaceted()));
+			builder.addAllFacetedInScopes(
+				Arrays.stream(mutation.getFacetedInScopes())
+					.map(EvitaEnumConverter::toGrpcScope)
+					.toList()
+			);
+		} else {
+			builder.setFacetedInherited(true);
 		}
 		for (String attribute : mutation.getAttributeInheritanceFilter()) {
 			builder.addAttributeInheritanceFilter(attribute);

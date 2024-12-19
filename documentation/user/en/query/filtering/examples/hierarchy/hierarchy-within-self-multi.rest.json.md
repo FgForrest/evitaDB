@@ -6,6 +6,7 @@
         "primaryKey": 66488,
         "type": "Category",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],
@@ -19,6 +20,7 @@
         "primaryKey": 66489,
         "type": "Category",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],
@@ -32,6 +34,7 @@
         "primaryKey": 66494,
         "type": "Category",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],
@@ -45,6 +48,7 @@
         "primaryKey": 66495,
         "type": "Category",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],
@@ -58,6 +62,7 @@
         "primaryKey": 66496,
         "type": "Category",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],
@@ -71,6 +76,7 @@
         "primaryKey": 66497,
         "type": "Category",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],
@@ -84,6 +90,7 @@
         "primaryKey": 66498,
         "type": "Category",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],
@@ -97,6 +104,7 @@
         "primaryKey": 66499,
         "type": "Category",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],
@@ -110,6 +118,7 @@
         "primaryKey": 66500,
         "type": "Category",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],

@@ -76,6 +76,13 @@ public interface ReflectedReferenceSchemaContract extends ReferenceSchemaContrac
 	boolean isCardinalityInherited();
 
 	/**
+	 * Returns true if the indexed property settings of the reflected reference is inherited from the target reference.
+	 *
+	 * @return true if the indexed property settings is inherited, false otherwise
+	 */
+	boolean isIndexedInherited();
+
+	/**
 	 * Returns true if the faceted property settings of the reflected reference is inherited from the target reference.
 	 *
 	 * @return true if the faceted property settings is inherited, false otherwise

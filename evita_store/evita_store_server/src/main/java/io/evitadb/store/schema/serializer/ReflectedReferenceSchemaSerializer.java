@@ -34,12 +34,17 @@ import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaCont
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
+import io.evitadb.dataType.Scope;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
 import lombok.RequiredArgsConstructor;
 
+import java.util.EnumSet;
 import java.util.Map;
 import java.util.Map.Entry;
+
+import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.readScopeSet;
+import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.writeScopeSet;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link ReferenceSchema} from/to binary format.
@@ -66,11 +71,18 @@ public class ReflectedReferenceSchemaSerializer extends Serializer<ReflectedRefe
 			Cardinality.class
 		);
 
-		kryo.writeObjectOrNull(
-			output,
-			referenceSchema.isFacetedInherited() ? null : referenceSchema.isFaceted(),
-			Boolean.class
-		);
+		if (referenceSchema.isIndexedInherited()) {
+			output.writeBoolean(false);
+		} else {
+			output.writeBoolean(true);
+			writeScopeSet(kryo, output, referenceSchema.getIndexedInScopes());
+		}
+		if (referenceSchema.isFacetedInherited()) {
+			output.writeBoolean(false);
+		} else {
+			output.writeBoolean(true);
+			writeScopeSet(kryo, output, referenceSchema.getFacetedInScopes());
+		}
 
 		kryo.writeObject(output, referenceSchema.getDeclaredAttributes());
 
@@ -113,7 +125,9 @@ public class ReflectedReferenceSchemaSerializer extends Serializer<ReflectedRefe
 		final String entityType = input.readString();
 		final String reflectedReferenceName = input.readString();
 		final Cardinality cardinality = kryo.readObjectOrNull(input, Cardinality.class);
-		final Boolean faceted = kryo.readObjectOrNull(input, Boolean.class);
+
+		final EnumSet<Scope> indexedInScopes = input.readBoolean() ? readScopeSet(kryo, input) : null;
+		final EnumSet<Scope> facetedInScopes = input.readBoolean() ? readScopeSet(kryo, input) : null;
 
 		@SuppressWarnings("unchecked") final Map<String, AttributeSchemaContract> attributes = kryo.readObject(input, Map.class);
 
@@ -140,7 +154,8 @@ public class ReflectedReferenceSchemaSerializer extends Serializer<ReflectedRefe
 		return ReflectedReferenceSchema._internalBuild(
 			name, nameVariants, description, deprecationNotice,
 			entityType, reflectedReferenceName, cardinality,
-			faceted, attributes, sortableAttributeCompounds,
+			indexedInScopes, facetedInScopes,
+			attributes, sortableAttributeCompounds,
 			attributeInheritanceBehavior, attributesExcludedFromInheritance
 		);
 	}

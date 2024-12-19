@@ -27,7 +27,6 @@ import io.evitadb.api.query.require.DefaultPrefetchRequirementCollector;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetchRequire;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
-import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.FormulaPostProcessor;
@@ -62,7 +61,7 @@ import static java.util.Optional.of;
  * - {@link #getConjunctiveEntities()} entity primary keys to fetch
  * - {@link #getExpectedComputationalCosts()} costs that is estimated to be paid with regular execution
  */
-public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProcessor, PrefetchFactory {
+public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProcessor, PrefetcherFactory {
 	/**
 	 * Threshold where we avoid prefetching entities whatsoever.
 	 */
@@ -71,6 +70,10 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 	 * Contains set of requirements collected from all {@link SelectionFormula} in the tree.
 	 */
 	protected final DefaultPrefetchRequirementCollector requirements = new DefaultPrefetchRequirementCollector();
+	/**
+	 * Context of the query planning.
+	 */
+	private final QueryPlanningContext queryContext;
 	/**
 	 * Indexes that were used when visitor was created.
 	 */
@@ -93,6 +96,7 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 	 * Result of {@link FormulaPostProcessor} interface - basically root of the formula. This implementation doesn't
 	 * change the input formula tree - just analyzes it.
 	 */
+	@Nullable
 	protected Formula outputFormula;
 	/**
 	 * Contains sum of all collected bitmap cardinalities. If sum is greater than {@link #BITMAP_SIZE_THRESHOLD}
@@ -104,7 +108,11 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 	 */
 	private long expectedComputationalCosts = 0L;
 
-	public PrefetchFormulaVisitor(@Nonnull TargetIndexes<?> targetIndexes) {
+	public PrefetchFormulaVisitor(
+		@Nonnull QueryPlanningContext queryContext,
+		@Nonnull TargetIndexes<?> targetIndexes
+	) {
+		this.queryContext = queryContext;
 		this.targetIndexes = targetIndexes;
 	}
 
@@ -120,30 +128,29 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 	}
 
 	/**
-	 * Method allows to add a requirement that will be used by {@link QueryExecutionContext#prefetchEntities(Bitmap, EntityFetchRequire)}
-	 * to fetch wide enough scope of the entity so that all filtering/sorting logic would have all data present
-	 * for its evaluation.
+	 * Method allows to add a requirement that will be used for prefetched entities to fetch wide enough scope of
+	 * the entity so that all filtering/sorting logic would have all data present for its evaluation.
 	 */
 	public void addRequirement(@Nonnull EntityContentRequire... requirement) {
 		this.requirements.addRequirementsToPrefetch(requirement);
 	}
 
+	@Nonnull
 	@Override
-	@Nullable
-	public Optional<Runnable> createPrefetchLambdaIfNeededOrWorthwhile(@Nonnull QueryExecutionContext queryContext) {
+	public Optional<PrefetchOrder> createPrefetcherIfNeededOrWorthwhile() {
 		EntityFetchRequire requirements = null;
 		Bitmap entitiesToPrefetch = null;
 		// are we forced to prefetch entities from catalog index?
-		if (!entityReferences.isEmpty()) {
+		if (!this.entityReferences.isEmpty()) {
 			requirements = getRequirements();
-			entitiesToPrefetch = entityReferences;
+			entitiesToPrefetch = this.entityReferences;
 		}
 		// do we know entity ids to prefetch?
 		if (isPrefetchPossible()) {
 			final Bitmap conjunctiveEntities = getConjunctiveEntities();
 			requirements = requirements == null ? getRequirements() : requirements;
 			// does the prefetch pay off?
-			if (getExpectedComputationalCosts() > queryContext.estimatePrefetchCost(conjunctiveEntities.size(), requirements)) {
+			if (requirements != null && getExpectedComputationalCosts() > this.queryContext.estimatePrefetchCost(conjunctiveEntities.size(), requirements)) {
 				if (entitiesToPrefetch == null) {
 					entitiesToPrefetch = conjunctiveEntities;
 				} else {
@@ -153,18 +160,18 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 						RoaringBitmap.or(roaringBitmapA, roaringBitmapB)
 					);
 				}
-				if (!(targetIndexes.isGlobalIndex() || targetIndexes.isCatalogIndex())) {
+				if (!(this.targetIndexes.isGlobalIndex() || this.targetIndexes.isCatalogIndex())) {
 					// when narrowed indexes were used we need to filter the prefetched primary keys to the ones that are
 					// present in the index
 					Assert.isPremiseValid(
-						ReducedEntityIndex.class.isAssignableFrom(targetIndexes.getIndexType()),
+						ReducedEntityIndex.class.isAssignableFrom(this.targetIndexes.getIndexType()),
 						"Only reduced entity indexes are supported"
 					);
 					entitiesToPrefetch = RoaringBitmapBackedBitmap.and(
 						new RoaringBitmap[]{
 							RoaringBitmapBackedBitmap.getRoaringBitmap(entitiesToPrefetch),
 							RoaringBitmap.or(
-								targetIndexes.getIndexes().stream()
+								this.targetIndexes.getIndexes().stream()
 									.map(index -> ((ReducedEntityIndex) index).getAllPrimaryKeys())
 									.map(RoaringBitmapBackedBitmap::getRoaringBitmap)
 									.toArray(RoaringBitmap[]::new)
@@ -176,12 +183,12 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 		}
 
 		if (entitiesToPrefetch != null && requirements != null) {
-			final Bitmap finalEntitiesToPrefetch = entitiesToPrefetch;
-			final EntityFetchRequire finalRequirements = requirements;
 			return of(
-				() -> queryContext.prefetchEntities(
-					finalEntitiesToPrefetch,
-					finalRequirements
+				new PrefetchOrder(
+					// when there are any conjunctive entities registered, they can be used for filtering purposes
+					!this.conjunctiveEntityIds.isEmpty(),
+					entitiesToPrefetch,
+					requirements
 				)
 			);
 		} else {
@@ -209,10 +216,10 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 			final Bitmap bitmap = constantFormula.getDelegate();
 			this.conjunctiveEntityIds.add(bitmap);
 			final int bitmapSize = bitmap.size();
-			estimatedBitmapCardinality = estimatedBitmapCardinality == -1 || bitmapSize < estimatedBitmapCardinality ?
-				bitmapSize : estimatedBitmapCardinality;
+			this.estimatedBitmapCardinality = this.estimatedBitmapCardinality == -1 || bitmapSize < this.estimatedBitmapCardinality ?
+				bitmapSize : this.estimatedBitmapCardinality;
 		} else if (formula instanceof final MultipleEntityFormula multipleEntityFormula) {
-			entityReferences.addAll(multipleEntityFormula.getDirectEntityReferences());
+			this.entityReferences.addAll(multipleEntityFormula.getDirectEntityReferences());
 		}
 
 		traverse(formula);
@@ -246,9 +253,10 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 	/**
 	 * Returns entity primary keys to fetch.
 	 */
+	@Nonnull
 	private Bitmap getConjunctiveEntities() {
-		return estimatedBitmapCardinality <= BITMAP_SIZE_THRESHOLD ?
-			conjunctiveEntityIds.stream()
+		return this.estimatedBitmapCardinality <= BITMAP_SIZE_THRESHOLD ?
+			this.conjunctiveEntityIds.stream()
 				.reduce((bitmapA, bitmapB) -> {
 					final RoaringBitmap roaringBitmapA = RoaringBitmapBackedBitmap.getRoaringBitmap(bitmapA);
 					final RoaringBitmap roaringBitmapB = RoaringBitmapBackedBitmap.getRoaringBitmap(bitmapB);

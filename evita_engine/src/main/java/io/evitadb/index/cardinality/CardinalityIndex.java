@@ -119,14 +119,14 @@ public class CardinalityIndex implements VoidTransactionMemoryProducer<Cardinali
 	public boolean removeRecord(@Nonnull Serializable key, int recordId) {
 		this.dirty.setToTrue();
 		final CardinalityKey cardinalityKey = new CardinalityKey(recordId, key);
-		final Integer newValue = cardinalities.computeIfPresent(
+		final Integer newValue = this.cardinalities.computeIfPresent(
 			cardinalityKey,
 			(k, v) -> v - 1
 		);
 		if (newValue == null) {
 			throw new GenericEvitaInternalError("Cardinality of key `" + key + "` for record `" + recordId + "` is null");
 		} else if (newValue == 0) {
-			cardinalities.remove(cardinalityKey);
+			this.cardinalities.remove(cardinalityKey);
 			return true;
 		} else {
 			return false;

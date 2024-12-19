@@ -29,7 +29,8 @@ import io.evitadb.api.query.parser.ParseContext;
 import io.evitadb.api.query.parser.ParseMode;
 import io.evitadb.api.query.parser.ParserExecutor;
 import io.evitadb.api.query.parser.ParserFactory;
-import io.evitadb.api.query.parser.error.EvitaQLInvalidQueryError;
+import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
+import io.evitadb.dataType.Scope;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -97,9 +98,9 @@ class EvitaQLFilterConstraintVisitorTest {
 
     @Test
     void shouldNotParseFilterByConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("filterBy"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("filterBy()"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("filterBy(collection('a'))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("filterBy"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("filterBy()"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("filterBy(collection('a'))"));
     }
 
     @Test
@@ -140,9 +141,9 @@ class EvitaQLFilterConstraintVisitorTest {
 
     @Test
     void shouldNotParseFilterGroupByConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("filterGroupBy"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("filterGroupBy()"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("filterGroupBy(collection('a'))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("filterGroupBy"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("filterGroupBy()"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("filterGroupBy(collection('a'))"));
     }
 
     @Test
@@ -162,8 +163,8 @@ class EvitaQLFilterConstraintVisitorTest {
 
     @Test
     void shouldNotParseAndConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("and"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("and(collection('a'))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("and"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("and(collection('a'))"));
     }
 
     @Test
@@ -183,8 +184,8 @@ class EvitaQLFilterConstraintVisitorTest {
 
     @Test
     void shouldNotParseOrConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("or"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("or(collection('a'))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("or"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("or(collection('a'))"));
     }
 
     @Test
@@ -198,10 +199,10 @@ class EvitaQLFilterConstraintVisitorTest {
 
     @Test
     void shouldNotParseNotConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("not"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("not()"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("not(collection('a'))"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("not(attributeEquals('a',1),attributeEquals('b','c'))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("not"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("not()"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("not(collection('a'))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("not(attributeEquals('a',1),attributeEquals('b','c'))"));
     }
 
      @Test
@@ -221,8 +222,8 @@ class EvitaQLFilterConstraintVisitorTest {
 
     @Test
     void shouldNotParseUserFilterConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("userFilter"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("userFilter(collection('a'))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("userFilter"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("userFilter(collection('a'))"));
     }
 
     @Test
@@ -248,15 +249,15 @@ class EvitaQLFilterConstraintVisitorTest {
 
     @Test
     void shouldNotParseAttributeEqualsConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeEquals('a','b')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeEquals('a',?)", "c"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeEquals(?,?)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeEquals(@a,@b)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeEquals"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeEquals()"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeEquals('a')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeEquals(1,2)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeEquals('a',2,3)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeEquals('a','b')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeEquals('a',?)", "c"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeEquals(?,?)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeEquals(@a,@b)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeEquals"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeEquals()"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeEquals('a')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeEquals(1,2)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeEquals('a',2,3)"));
     }
 
     @Test
@@ -279,16 +280,16 @@ class EvitaQLFilterConstraintVisitorTest {
 
     @Test
     void shouldNotParseAttributeGreaterThanConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeGreaterThan('a','c')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeGreaterThan('a',?)", "c"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeGreaterThan(?,?)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeGreaterThan(@a,@b)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeGreaterThan"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeGreaterThan()"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeGreaterThan('a')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeGreaterThan(1,2)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeGreaterThan('a',2,3)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeGreaterThan('a',SOME_ENUM)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeGreaterThan('a','c')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeGreaterThan('a',?)", "c"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeGreaterThan(?,?)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeGreaterThan(@a,@b)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeGreaterThan"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeGreaterThan()"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeGreaterThan('a')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeGreaterThan(1,2)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeGreaterThan('a',2,3)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeGreaterThan('a',SOME_ENUM)"));
     }
 
     @Test
@@ -311,16 +312,16 @@ class EvitaQLFilterConstraintVisitorTest {
 
     @Test
     void shouldNotParseAttributeGreaterThanEqualsConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeGreaterThanEquals('a','c')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeGreaterThanEquals('a',?)", "c"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeGreaterThanEquals(?,?)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeGreaterThanEquals(@a,@b)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeGreaterThanEquals"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeGreaterThanEquals()"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeGreaterThanEquals('a')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeGreaterThanEquals(1,2)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeGreaterThanEquals('a',2,3)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeGreaterThanEquals('a',SOME_ENUM)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeGreaterThanEquals('a','c')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeGreaterThanEquals('a',?)", "c"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeGreaterThanEquals(?,?)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeGreaterThanEquals(@a,@b)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeGreaterThanEquals"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeGreaterThanEquals()"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeGreaterThanEquals('a')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeGreaterThanEquals(1,2)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeGreaterThanEquals('a',2,3)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeGreaterThanEquals('a',SOME_ENUM)"));
     }
 
     @Test
@@ -343,16 +344,16 @@ class EvitaQLFilterConstraintVisitorTest {
 
     @Test
     void shouldNotParseAttributeLessThanConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeGreaterThan('a','c')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeGreaterThan('a',?)", "c"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeGreaterThan(?,?)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeGreaterThan(@a,@b)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeLessThan"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeLessThan()"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeLessThan('a')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeLessThan(1,2)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeLessThan('a',2,3)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeLessThan('a',SOME_ENUM)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeGreaterThan('a','c')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeGreaterThan('a',?)", "c"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeGreaterThan(?,?)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeGreaterThan(@a,@b)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeLessThan"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeLessThan()"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeLessThan('a')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeLessThan(1,2)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeLessThan('a',2,3)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeLessThan('a',SOME_ENUM)"));
     }
 
     @Test
@@ -375,16 +376,16 @@ class EvitaQLFilterConstraintVisitorTest {
 
     @Test
     void shouldNotParseAttributeLessThanEqualsConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeLessThanEquals('a','c')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeLessThanEquals('a',?)", "c"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeLessThanEquals(?,?)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeLessThanEquals(@a,@b)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeLessThanEquals"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeLessThanEquals()"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeLessThanEquals('a')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeLessThanEquals(1,2)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeLessThanEquals('a',2,3)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeLessThanEquals('a',SOME_ENUM)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeLessThanEquals('a','c')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeLessThanEquals('a',?)", "c"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeLessThanEquals(?,?)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeLessThanEquals(@a,@b)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeLessThanEquals"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeLessThanEquals()"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeLessThanEquals('a')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeLessThanEquals(1,2)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeLessThanEquals('a',2,3)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeLessThanEquals('a',SOME_ENUM)"));
     }
 
     @Test
@@ -414,15 +415,15 @@ class EvitaQLFilterConstraintVisitorTest {
 
     @Test
     void shouldNotParseAttributeBetweenConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeBetween('a',100,150)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeBetween('a',?,?)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeBetween('a',?,?)", 100, 150));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeBetween('a',@a,@b)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeBetween"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeBetween()"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeBetween('a')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeBetween(1,2)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeBetween('a',2,3,3)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeBetween('a',100,150)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeBetween('a',?,?)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeBetween('a',?,?)", 100, 150));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeBetween('a',@a,@b)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeBetween"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeBetween()"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeBetween('a')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeBetween(1,2)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeBetween('a',2,3,3)"));
     }
 
     @Test
@@ -461,14 +462,14 @@ class EvitaQLFilterConstraintVisitorTest {
 
     @Test
     void shouldNotParseAttributeInSetConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeInSet('a',1)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeInSet('a',?)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeInSet('a',?)", "b"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeInSet('a',@a)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeInSet"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeInSet()"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeInSet(1,2)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeInSet('a',SOME_ENUM)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeInSet('a',1)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeInSet('a',?)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeInSet('a',?)", "b"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeInSet('a',@a)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeInSet"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeInSet()"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeInSet(1,2)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeInSet('a',SOME_ENUM)"));
     }
 
     @Test
@@ -491,16 +492,16 @@ class EvitaQLFilterConstraintVisitorTest {
 
     @Test
     void shouldNotParseAttributeContainsConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeContains('a','b')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeContains('a',?)", "b"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeContains(?,?)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeContains(@a,@b)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeContains"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeContains()"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeContains('a')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeContains(1,2)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeContains('a',2,'b',3)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeContains('a',2)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeContains('a','b')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeContains('a',?)", "b"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeContains(?,?)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeContains(@a,@b)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeContains"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeContains()"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeContains('a')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeContains(1,2)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeContains('a',2,'b',3)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeContains('a',2)"));
     }
 
     @Test
@@ -523,16 +524,16 @@ class EvitaQLFilterConstraintVisitorTest {
 
     @Test
     void shouldNotParseAttributeStartsWithConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeStartsWith('a','b')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeStartsWith(?,?)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeStartsWith('a',?)", "b"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeStartsWith(@a,@b)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeStartsWith"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeStartsWith()"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeStartsWith('a')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeStartsWith(1,2)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeStartsWith('a',2,'b',3)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeStartsWith('a',2)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeStartsWith('a','b')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeStartsWith(?,?)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeStartsWith('a',?)", "b"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeStartsWith(@a,@b)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeStartsWith"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeStartsWith()"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeStartsWith('a')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeStartsWith(1,2)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeStartsWith('a',2,'b',3)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeStartsWith('a',2)"));
     }
 
     @Test
@@ -555,16 +556,16 @@ class EvitaQLFilterConstraintVisitorTest {
 
     @Test
     void shouldNotParseAttributeEndsWithConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeEndsWith('a','b')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeEndsWith('a',?)", "b"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeEndsWith(?,?)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeEndsWith(@a,@b)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeEndsWith"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeEndsWith()"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeEndsWith('a')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeEndsWith(1,2)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeEndsWith('a',2,'b',3)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeEndsWith('a',2)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeEndsWith('a','b')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeEndsWith('a',?)", "b"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeEndsWith(?,?)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeEndsWith(@a,@b)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeEndsWith"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeEndsWith()"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeEndsWith('a')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeEndsWith(1,2)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeEndsWith('a',2,'b',3)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeEndsWith('a',2)"));
     }
 
     @Test
@@ -584,11 +585,11 @@ class EvitaQLFilterConstraintVisitorTest {
 
     @Test
     void shouldNotParseAttributeEqualsTrueConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeEqualsTrue"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeEqualsTrue()"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeEqualsTrue(1)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeEqualsTrue('a',2)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeEqualsTrue('a')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeEqualsTrue"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeEqualsTrue()"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeEqualsTrue(1)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeEqualsTrue('a',2)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeEqualsTrue('a')"));
     }
 
     @Test
@@ -608,11 +609,11 @@ class EvitaQLFilterConstraintVisitorTest {
 
     @Test
     void shouldNotParseAttributeEqualsFalseConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeEqualsFalse"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeEqualsFalse()"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeEqualsFalse(1)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeEqualsFalse('a',2)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeEqualsFalse('a')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeEqualsFalse"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeEqualsFalse()"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeEqualsFalse(1)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeEqualsFalse('a',2)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeEqualsFalse('a')"));
     }
 
     @Test
@@ -632,14 +633,14 @@ class EvitaQLFilterConstraintVisitorTest {
 
     @Test
     void shouldNotParseAttributeIsConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeIs('a',NULL)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeIs('a',?)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeIs('a',?)", NULL));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeIs('a',@b)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeIs"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeIs()"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeIs('a')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeIs('a',2)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeIs('a',NULL)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeIs('a',?)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeIs('a',?)", NULL));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeIs('a',@b)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeIs"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeIs()"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeIs('a')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeIs('a',2)"));
     }
 
     @Test
@@ -659,11 +660,11 @@ class EvitaQLFilterConstraintVisitorTest {
 
     @Test
     void shouldNotParseAttributeIsNullConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeIsNull"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeIsNull()"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeIsNull(1)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeIsNull('a',2)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeIsNull('a')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeIsNull"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeIsNull()"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeIsNull(1)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeIsNull('a',2)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeIsNull('a')"));
     }
 
     @Test
@@ -683,11 +684,11 @@ class EvitaQLFilterConstraintVisitorTest {
 
     @Test
     void shouldNotParseAttributeIsNotNullConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeIsNotNull"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeIsNotNull()"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeIsNotNull(1)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeIsNotNull('a',2)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeIsNotNull('a')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeIsNotNull"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeIsNotNull()"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeIsNotNull(1)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeIsNotNull('a',2)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeIsNotNull('a')"));
     }
 
     @Test
@@ -725,16 +726,16 @@ class EvitaQLFilterConstraintVisitorTest {
 
     @Test
     void shouldNotParseAttributeInRangeConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeInRange('a',500)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeInRange('a',?)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeInRange('a',?)", 500));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeInRange('a',@b)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeInRange"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeInRange()"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeInRange(1)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeInRange('a','b')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeInRange('a',2021-02-15)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeInRange('a',1,2)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeInRange('a',500)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeInRange('a',?)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeInRange('a',?)", 500));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("attributeInRange('a',@b)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeInRange"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeInRange()"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeInRange(1)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeInRange('a','b')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeInRange('a',2021-02-15)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeInRange('a',1,2)"));
     }
 
     @Test
@@ -778,12 +779,12 @@ class EvitaQLFilterConstraintVisitorTest {
 
     @Test
     void shouldNotParseEntityPrimaryKeyInSetConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("entityPrimaryKeyInSet(?)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("entityPrimaryKeyInSet(@a)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("entityPrimaryKeyInSet"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("entityPrimaryKeyInSet('a')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("entityPrimaryKeyInSet('a','b')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("entityPrimaryKeyInSet(1,'a',2)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("entityPrimaryKeyInSet(?)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("entityPrimaryKeyInSet(@a)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("entityPrimaryKeyInSet"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("entityPrimaryKeyInSet('a')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("entityPrimaryKeyInSet('a','b')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("entityPrimaryKeyInSet(1,'a',2)"));
     }
 
     @Test
@@ -803,13 +804,13 @@ class EvitaQLFilterConstraintVisitorTest {
 
     @Test
     void shouldNotParseEntityLocaleEqualsConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("entityLocaleEquals('cs')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("entityLocaleEquals(?)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("entityLocaleEquals(@a)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("entityLocaleEquals"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("entityLocaleEquals()"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("entityLocaleEquals('a','b')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("entityLocaleEquals(1,'a',2)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("entityLocaleEquals('cs')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("entityLocaleEquals(?)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("entityLocaleEquals(@a)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("entityLocaleEquals"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("entityLocaleEquals()"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("entityLocaleEquals('a','b')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("entityLocaleEquals(1,'a',2)"));
     }
 
     @Test
@@ -829,12 +830,12 @@ class EvitaQLFilterConstraintVisitorTest {
 
     @Test
     void shouldNotParsePriceInCurrencyConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("priceInCurrency(?)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("priceInCurrency(@a)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("priceInCurrency"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("priceInCurrency()"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("priceInCurrency('a','b')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("priceInCurrency(1,'a',2)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("priceInCurrency(?)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("priceInCurrency(@a)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("priceInCurrency"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("priceInCurrency()"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("priceInCurrency('a','b')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("priceInCurrency(1,'a',2)"));
     }
 
     @Test
@@ -890,10 +891,10 @@ class EvitaQLFilterConstraintVisitorTest {
 
     @Test
     void shouldNotParsePriceInPriceListsConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("priceInPriceLists('basic')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("priceInPriceLists(?)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("priceInPriceLists(@a)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("priceInPriceLists"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("priceInPriceLists('basic')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("priceInPriceLists(?)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("priceInPriceLists(@a)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("priceInPriceLists"));
     }
 
     @Test
@@ -907,8 +908,8 @@ class EvitaQLFilterConstraintVisitorTest {
 
     @Test
     void shouldNotParsepriceValidInNowConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("priceValidInNow"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("priceValidInNow(2021-02-15T11:00:00+01:00)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("priceValidInNow"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("priceValidInNow(2021-02-15T11:00:00+01:00)"));
     }
 
     @Test
@@ -949,13 +950,13 @@ class EvitaQLFilterConstraintVisitorTest {
 
     @Test
     void shouldNotParsePriceValidInConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("priceValidIn(2021-02-15T11:00:00+01:00)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("priceValidIn(?)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("priceValidIn(@a)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("priceValidIn"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("priceValidIn('a')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("priceValidIn(1)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("priceValidIn(2021-02-15T11:00:00+01:00,2021-02-15T11:00:00+01:00)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("priceValidIn(2021-02-15T11:00:00+01:00)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("priceValidIn(?)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("priceValidIn(@a)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("priceValidIn"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("priceValidIn('a')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("priceValidIn(1)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("priceValidIn(2021-02-15T11:00:00+01:00,2021-02-15T11:00:00+01:00)"));
     }
 
     @Test
@@ -993,14 +994,14 @@ class EvitaQLFilterConstraintVisitorTest {
 
     @Test
     void shouldNotParsePriceBetweenConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("priceBetween(10.0,50.5)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("priceBetween(?,?)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("priceBetween(@a,@b)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("priceBetween(10,11)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("priceBetween"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("priceBetween()"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("priceBetween('a',1)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("priceBetween(10.0,50.0,78)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("priceBetween(10.0,50.5)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("priceBetween(?,?)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("priceBetween(@a,@b)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("priceBetween(10,11)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("priceBetween"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("priceBetween()"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("priceBetween('a',1)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("priceBetween(10.0,50.0,78)"));
     }
 
     @Test
@@ -1035,15 +1036,15 @@ class EvitaQLFilterConstraintVisitorTest {
 
     @Test
     void shouldNotParseFacetHavingConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("facetHaving('a',entityPrimaryKeyInSet(10))"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("facetHaving('a',entityPrimaryKeyInSet(?))"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("facetHaving('a',entityPrimaryKeyInSet(?))", "c"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("facetHaving('a',entityPrimaryKeyInSet(@b))"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("facetHaving"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("facetHaving()"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("facetHaving('a')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("facetHaving('a',5)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("facetHaving('a','b',entityPrimaryKeyInSet(5))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("facetHaving('a',entityPrimaryKeyInSet(10))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("facetHaving('a',entityPrimaryKeyInSet(?))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("facetHaving('a',entityPrimaryKeyInSet(?))", "c"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("facetHaving('a',entityPrimaryKeyInSet(@b))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("facetHaving"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("facetHaving()"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("facetHaving('a')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("facetHaving('a',5)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("facetHaving('a','b',entityPrimaryKeyInSet(5))"));
     }
 
     @Test
@@ -1086,13 +1087,13 @@ class EvitaQLFilterConstraintVisitorTest {
 
     @Test
     void shouldNotParseReferenceHavingConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("referenceHaving(?,attributeEqualsTrue('a'))"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("referenceHaving(@a,attributeEqualsTrue('a'))"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("referenceHaving"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("referenceHaving()"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("referenceHaving(1)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("referenceHaving('a','b')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("referenceHaving('a',attributeEquals('b',1),attributeEqualsTrue('c'))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("referenceHaving(?,attributeEqualsTrue('a'))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("referenceHaving(@a,attributeEqualsTrue('a'))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("referenceHaving"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("referenceHaving()"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("referenceHaving(1)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("referenceHaving('a','b')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("referenceHaving('a',attributeEquals('b',1),attributeEqualsTrue('c'))"));
     }
 
     @Test
@@ -1133,17 +1134,17 @@ class EvitaQLFilterConstraintVisitorTest {
 
     @Test
     void shouldNotParseHierarchyWithinConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("hierarchyWithin('a',10)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("hierarchyWithin('a',?)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("hierarchyWithin('a',?)", "c"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("hierarchyWithin('a',@b)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("hierarchyWithin"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("hierarchyWithin()"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("hierarchyWithin('a')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("hierarchyWithin(10)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("hierarchyWithin(directRelation())"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("hierarchyWithin(1,'a')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("hierarchyWithin(directRelation(),'a')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("hierarchyWithin('a',10)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("hierarchyWithin('a',?)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("hierarchyWithin('a',?)", "c"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("hierarchyWithin('a',@b)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("hierarchyWithin"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("hierarchyWithin()"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("hierarchyWithin('a')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("hierarchyWithin(10)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("hierarchyWithin(directRelation())"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("hierarchyWithin(1,'a')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("hierarchyWithin(directRelation(),'a')"));
     }
 
     @Test
@@ -1160,10 +1161,10 @@ class EvitaQLFilterConstraintVisitorTest {
 
     @Test
     void shouldNotParseHierarchyWithinSelfConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("hierarchyWithinSelf(10)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("hierarchyWithinSelf"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("hierarchyWithinSelf()"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("hierarchyWithinSelf('a')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("hierarchyWithinSelf(10)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("hierarchyWithinSelf"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("hierarchyWithinSelf()"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("hierarchyWithinSelf('a')"));
     }
 
     @Test
@@ -1186,12 +1187,12 @@ class EvitaQLFilterConstraintVisitorTest {
 
     @Test
     void shouldNotParseHierarchyWithinRootConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("hierarchyWithinRoot(?)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("hierarchyWithinRoot(@a)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("hierarchyWithinRoot"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("hierarchyWithinRoot(1,'a')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("hierarchyWithinRoot(1)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("hierarchyWithinRoot(directRelation(),'a')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("hierarchyWithinRoot(?)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("hierarchyWithinRoot(@a)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("hierarchyWithinRoot"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("hierarchyWithinRoot(1,'a')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("hierarchyWithinRoot(1)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("hierarchyWithinRoot(directRelation(),'a')"));
     }
 
     @Test
@@ -1211,10 +1212,10 @@ class EvitaQLFilterConstraintVisitorTest {
 
     @Test
     void shouldNotParseHierarchyWithinRootSelfConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("hierarchyWithinRootSelf(excluding(entityPrimaryKeyInSet(?)))"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("hierarchyWithinRootSelf"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("hierarchyWithinRootSelf('a')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("hierarchyWithinRootSelf(directRelation(),'a')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("hierarchyWithinRootSelf(excluding(entityPrimaryKeyInSet(?)))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("hierarchyWithinRootSelf"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("hierarchyWithinRootSelf('a')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("hierarchyWithinRootSelf(directRelation(),'a')"));
     }
 
     @Test
@@ -1228,8 +1229,8 @@ class EvitaQLFilterConstraintVisitorTest {
 
     @Test
     void shouldNotParseDirectRelationConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("directRelation"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("directRelation('a')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("directRelation"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("directRelation('a')"));
     }
 
     @Test
@@ -1264,14 +1265,14 @@ class EvitaQLFilterConstraintVisitorTest {
 
     @Test
     void shouldNotParseHierarchyHavingConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("having(1)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("having(?)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("having(@a)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("having(1)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("having"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("having()"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("having('a','b')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("having(1,'a')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("having(1)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("having(?)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("having(@a)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("having(1)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("having"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("having()"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("having('a','b')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("having(1,'a')"));
     }
 
     @Test
@@ -1285,8 +1286,8 @@ class EvitaQLFilterConstraintVisitorTest {
 
     @Test
     void shouldNotParseExcludingRootConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("excludingRoot"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("excludingRoot('a')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("excludingRoot"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("excludingRoot('a')"));
     }
 
     @Test
@@ -1321,14 +1322,14 @@ class EvitaQLFilterConstraintVisitorTest {
 
     @Test
     void shouldNotParseExcludingConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("excluding(1)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("excluding(?)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("excluding(@a)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("excluding(1)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("excluding"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("excluding()"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("excluding('a','b')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("excluding(1,'a')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("excluding(1)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("excluding(?)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("excluding(@a)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("excluding(1)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("excluding"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("excluding()"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("excluding('a','b')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("excluding(1,'a')"));
     }
 
     @Test
@@ -1342,12 +1343,72 @@ class EvitaQLFilterConstraintVisitorTest {
 
     @Test
     void shouldNotParseEntityHavingConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("entityHaving"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("entityHaving()"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("entityHaving(collection('a'))"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("entityHaving(attributeEquals('a',1),attributeEquals('b','c'))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("entityHaving"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("entityHaving()"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("entityHaving(collection('a'))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("entityHaving(attributeEquals('a',1),attributeEquals('b','c'))"));
     }
 
+    @Test
+    void shouldParseScopeConstraint() {
+        final FilterConstraint constraint1 = parseFilterConstraintUnsafe("scope(LIVE)");
+        assertEquals(scope(Scope.LIVE), constraint1);
+
+        final FilterConstraint constraint2 = parseFilterConstraintUnsafe("scope ( LIVE )");
+        assertEquals(scope(Scope.LIVE), constraint2);
+
+        final FilterConstraint constraint3 = parseFilterConstraintUnsafe("scope ( ARCHIVED )");
+        assertEquals(scope(Scope.ARCHIVED), constraint3);
+
+        final FilterConstraint constraint4 = parseFilterConstraintUnsafe("scope ( ARCHIVED,    LIVE )");
+        assertEquals(scope(Scope.ARCHIVED, Scope.LIVE), constraint4);
+
+        final FilterConstraint constraint5 = parseFilterConstraint("scope ( ?,    ? )", Scope.ARCHIVED, Scope.LIVE);
+        assertEquals(scope(Scope.ARCHIVED, Scope.LIVE), constraint5);
+
+        final FilterConstraint constraint = parseFilterConstraint("scope ( @a,    @b )", Map.of("a", Scope.ARCHIVED, "b", Scope.LIVE));
+        assertEquals(scope(Scope.ARCHIVED, Scope.LIVE), constraint);
+    }
+
+    @Test
+    void shouldNotParseScopeConstraint() {
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("scope"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("scope(LIVE)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("scope('a','b')"));
+    }
+
+    @Test
+    void shouldParseInScopeConstraint() {
+        final FilterConstraint constraint1 = parseFilterConstraintUnsafe("inScope(LIVE, entityPrimaryKeyInSet(1))");
+        assertEquals(inScope(Scope.LIVE, entityPrimaryKeyInSet(1)), constraint1);
+
+        final FilterConstraint constraint2 = parseFilterConstraintUnsafe("inScope ( LIVE , entityPrimaryKeyInSet(1))");
+        assertEquals(inScope(Scope.LIVE, entityPrimaryKeyInSet(1)), constraint2);
+
+        final FilterConstraint constraint3 = parseFilterConstraintUnsafe("inScope ( LIVE , entityPrimaryKeyInSet(1), entityLocaleEquals('en'))");
+        assertEquals(inScope(Scope.LIVE, entityPrimaryKeyInSet(1), entityLocaleEquals(Locale.ENGLISH)), constraint3);
+
+        final FilterConstraint constraint4 = parseFilterConstraint("inScope ( ?,    entityPrimaryKeyInSet( ? ) )", Scope.ARCHIVED, 1);
+        assertEquals(inScope(Scope.ARCHIVED, entityPrimaryKeyInSet(1)), constraint4);
+
+        final FilterConstraint constraint5 = parseFilterConstraint("inScope ( ?,    entityPrimaryKeyInSet( ? ), entityLocaleEquals(?) )", Scope.ARCHIVED, 1, "en");
+        assertEquals(inScope(Scope.ARCHIVED, entityPrimaryKeyInSet(1), entityLocaleEquals(Locale.ENGLISH)), constraint5);
+
+        final FilterConstraint constraint6 = parseFilterConstraint("inScope ( @a,  entityPrimaryKeyInSet(  @b) )", Map.of("a", Scope.ARCHIVED, "b", 1));
+        assertEquals(inScope(Scope.ARCHIVED, entityPrimaryKeyInSet(1)), constraint6);
+
+        final FilterConstraint constraint7 = parseFilterConstraint("inScope ( @a,   entityPrimaryKeyInSet( @b ), entityLocaleEquals(@c) )", Map.of("a", Scope.ARCHIVED, "b", 1, "c", "en"));
+        assertEquals(inScope(Scope.ARCHIVED, entityPrimaryKeyInSet(1), entityLocaleEquals(Locale.ENGLISH)), constraint7);
+    }
+
+    @Test
+    void shouldNotParseInScopeConstraint() {
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("inScope"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("inScope(LIVE)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("inScope(LIVE)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("inScope('LIVE', entityPrimaryKeyInSet(1))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("inScope('a','b')"));
+    }
 
     /**
      * Using generated EvitaQL parser tries to parse string as grammar rule "filterConstraint"

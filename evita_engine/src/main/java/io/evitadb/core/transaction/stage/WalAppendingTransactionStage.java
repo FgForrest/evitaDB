@@ -31,6 +31,7 @@ import io.evitadb.core.transaction.TransactionManager;
 import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage.TrunkIncorporationTransactionTask;
 import io.evitadb.core.transaction.stage.WalAppendingTransactionStage.WalAppendingTransactionTask;
 import io.evitadb.store.spi.OffHeapWithFileBackupReference;
+import io.evitadb.store.spi.exception.CatalogWriteAheadLastTransactionMismatchException;
 import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 
@@ -95,16 +96,29 @@ public final class WalAppendingTransactionStage
 		log.debug("Appending transaction {} to WAL for catalog {}.", task.transactionId(), task.catalogName());
 
 		// append WAL and discard the contents of the isolated WAL
-		final long writtenLength = this.transactionManager.appendWalAndDiscard(
-			new TransactionMutation(
-				task.transactionId(),
-				task.catalogVersion(),
-				task.mutationCount(),
-				task.walSizeInBytes(),
-				OffsetDateTime.now()
-			),
-			task.walReference()
-		);
+		final long writtenLength;
+		try {
+			writtenLength = this.transactionManager.appendWalAndDiscard(
+				new TransactionMutation(
+					task.transactionId(),
+					task.catalogVersion(),
+					task.mutationCount(),
+					task.walSizeInBytes(),
+					OffsetDateTime.now()
+				),
+				task.walReference()
+			);
+		} catch (CatalogWriteAheadLastTransactionMismatchException ex) {
+			log.error(
+				"Transaction mismatch between transaction manager and WAL {} vs. {} in catalog {}.",
+				ex.getCurrentTransactionVersion(),
+				transactionManager.getLastWrittenCatalogVersion(),
+				task.catalogName(),
+				ex
+			);
+			this.droppedCatalogVersions = Math.toIntExact(ex.getCurrentTransactionVersion() - transactionManager.getLastWrittenCatalogVersion());
+			throw ex;
+		}
 
 		// now the WAL is safely written - no version is lost
 		this.droppedCatalogVersions = 0;

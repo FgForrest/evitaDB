@@ -51,7 +51,7 @@
           "threshold": 145.60
         },
         {
-          "occurrences": 230,
+          "occurrences": 222,
           "requested": true,
           "threshold": 159.00
         },
@@ -100,7 +100,7 @@
       ],
       "max": 293.00,
       "min": 25.00,
-      "overallCount": 503
+      "overallCount": 495
     },
     "width": {
       "buckets": [
@@ -115,7 +115,7 @@
           "threshold": 40.51
         },
         {
-          "occurrences": 249,
+          "occurrences": 217,
           "requested": true,
           "threshold": 65.12
         },
@@ -201,7 +201,7 @@
       ],
       "max": 508.00,
       "min": 15.90,
-      "overallCount": 2195
+      "overallCount": 2163
     }
   }
 }

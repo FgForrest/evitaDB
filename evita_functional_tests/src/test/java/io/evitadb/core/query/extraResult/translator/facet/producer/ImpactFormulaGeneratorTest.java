@@ -32,6 +32,7 @@ import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.facet.FacetGroupOrFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.utils.visitor.PrettyPrintingFormulaVisitor;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.test.Entities;
@@ -54,7 +55,7 @@ class ImpactFormulaGeneratorTest {
 	private final Map<EntityReference, Boolean> facetGroupConjunction = new HashMap<>();
 	private final Map<EntityReference, Boolean> facetGroupDisjunction = new HashMap<>();
 	private final Map<EntityReference, Boolean> facetGroupNegation = new HashMap<>();
-	private final ReferenceSchema brandReference = ReferenceSchema._internalBuild(Entities.BRAND, Entities.BRAND, false, Cardinality.ZERO_OR_ONE, null, false, true, true);
+	private final ReferenceSchema brandReference = ReferenceSchema._internalBuild(Entities.BRAND, Entities.BRAND, false, Cardinality.ZERO_OR_ONE, null, false, new Scope[]{Scope.LIVE}, new Scope[]{Scope.LIVE});
 	private ImpactFormulaGenerator impactFormulaGenerator;
 
 	@BeforeEach

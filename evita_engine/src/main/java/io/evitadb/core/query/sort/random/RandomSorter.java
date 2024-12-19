@@ -31,6 +31,7 @@ import io.evitadb.index.bitmap.Bitmap;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Random;
+import java.util.function.IntConsumer;
 
 /**
  * Random sorter outputs filtered results in a random order. Ordering is optimized to the requested slice only and doesn't
@@ -40,7 +41,16 @@ import java.util.Random;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class RandomSorter implements Sorter {
-	private static final int[] EMPTY_RESULT = new int[0];
+	public static final RandomSorter INSTANCE = new RandomSorter();
+	private final Long seed;
+
+	public RandomSorter() {
+		this.seed = null;
+	}
+
+	public RandomSorter(long seed) {
+		this.seed = seed;
+	}
 
 	@Nonnull
 	@Override
@@ -61,7 +71,15 @@ public class RandomSorter implements Sorter {
 	}
 
 	@Override
-	public int sortAndSlice(@Nonnull QueryExecutionContext queryContext, @Nonnull Formula input, int startIndex, int endIndex, @Nonnull int[] result, int peak) {
+	public int sortAndSlice(
+		@Nonnull QueryExecutionContext queryContext,
+		@Nonnull Formula input,
+		int startIndex,
+		int endIndex,
+		@Nonnull int[] result,
+		int peak,
+		@Nullable IntConsumer skippedRecordsConsumer
+	) {
 		final Bitmap filteredRecordIdBitmap = input.compute();
 		if (filteredRecordIdBitmap.isEmpty()) {
 			return 0;
@@ -71,7 +89,7 @@ public class RandomSorter implements Sorter {
 			if (length < 0) {
 				throw new IndexOutOfBoundsException("Index: " + startIndex + ", Size: " + filteredRecordIds.length);
 			}
-			final Random random = queryContext.getRandom();
+			final Random random = seed == null ? queryContext.getRandom() : new Random(seed);
 			for (int i = 0; i < length; i++) {
 				final int tmp = filteredRecordIds[startIndex + i];
 				final int swapPosition = random.nextInt(filteredRecordIds.length);

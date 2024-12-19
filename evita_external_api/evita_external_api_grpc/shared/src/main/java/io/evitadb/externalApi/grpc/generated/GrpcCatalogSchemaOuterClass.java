@@ -39,17 +39,17 @@ public final class GrpcCatalogSchemaOuterClass {
   }
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcCatalogSchema_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcCatalogSchema_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcCatalogSchema_AttributesEntry_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcCatalogSchema_AttributesEntry_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcGlobalAttributeSchema_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcGlobalAttributeSchema_fieldAccessorTable;
 
@@ -76,25 +76,35 @@ public final class GrpcCatalogSchemaOuterClass {
       "rpc.generated.GrpcNameVariant\032s\n\017Attribu" +
       "tesEntry\022\013\n\003key\030\001 \001(\t\022O\n\005value\030\002 \001(\0132@.i" +
       "o.evitadb.externalApi.grpc.generated.Grp" +
-      "cGlobalAttributeSchema:\0028\001\"\256\005\n\031GrpcGloba" +
+      "cGlobalAttributeSchema:\0028\001\"\266\010\n\031GrpcGloba" +
       "lAttributeSchema\022\014\n\004name\030\001 \001(\t\0221\n\013descri" +
       "ption\030\002 \001(\0132\034.google.protobuf.StringValu" +
       "e\0227\n\021deprecationNotice\030\003 \001(\0132\034.google.pr" +
-      "otobuf.StringValue\022R\n\006unique\030\004 \001(\0162B.io." +
+      "otobuf.StringValue\022V\n\006unique\030\004 \001(\0162B.io." +
       "evitadb.externalApi.grpc.generated.GrpcA" +
-      "ttributeUniquenessType\022\022\n\nfilterable\030\005 \001" +
-      "(\010\022\020\n\010sortable\030\006 \001(\010\022\021\n\tlocalized\030\007 \001(\010\022" +
-      "\020\n\010nullable\030\010 \001(\010\022\026\n\016representative\030\t \001(" +
-      "\010\022F\n\004type\030\n \001(\01628.io.evitadb.externalApi" +
-      ".grpc.generated.GrpcEvitaDataType\022K\n\014def" +
-      "aultValue\030\013 \001(\01325.io.evitadb.externalApi" +
-      ".grpc.generated.GrpcEvitaValue\022\034\n\024indexe" +
-      "dDecimalPlaces\030\014 \001(\005\022`\n\016uniqueGlobally\030\r" +
-      " \001(\0162H.io.evitadb.externalApi.grpc.gener" +
-      "ated.GrpcGlobalAttributeUniquenessType\022K" +
-      "\n\013nameVariant\030\016 \003(\01326.io.evitadb.externa" +
-      "lApi.grpc.generated.GrpcNameVariantB\014P\001\252" +
-      "\002\007EvitaDBb\006proto3"
+      "ttributeUniquenessTypeB\002\030\001\022\026\n\nfilterable" +
+      "\030\005 \001(\010B\002\030\001\022\024\n\010sortable\030\006 \001(\010B\002\030\001\022\021\n\tloca" +
+      "lized\030\007 \001(\010\022\020\n\010nullable\030\010 \001(\010\022\026\n\016represe" +
+      "ntative\030\t \001(\010\022F\n\004type\030\n \001(\01628.io.evitadb" +
+      ".externalApi.grpc.generated.GrpcEvitaDat" +
+      "aType\022K\n\014defaultValue\030\013 \001(\01325.io.evitadb" +
+      ".externalApi.grpc.generated.GrpcEvitaVal" +
+      "ue\022\034\n\024indexedDecimalPlaces\030\014 \001(\005\022d\n\016uniq" +
+      "ueGlobally\030\r \001(\0162H.io.evitadb.externalAp" +
+      "i.grpc.generated.GrpcGlobalAttributeUniq" +
+      "uenessTypeB\002\030\001\022K\n\013nameVariant\030\016 \003(\01326.io" +
+      ".evitadb.externalApi.grpc.generated.Grpc" +
+      "NameVariant\022`\n\016uniqueInScopes\030\017 \003(\0132H.io" +
+      ".evitadb.externalApi.grpc.generated.Grpc" +
+      "ScopedAttributeUniquenessType\022R\n\022filtera" +
+      "bleInScopes\030\020 \003(\01626.io.evitadb.externalA" +
+      "pi.grpc.generated.GrpcEntityScope\022P\n\020sor" +
+      "tableInScopes\030\021 \003(\01626.io.evitadb.externa" +
+      "lApi.grpc.generated.GrpcEntityScope\022n\n\026u" +
+      "niqueGloballyInScopes\030\022 \003(\0132N.io.evitadb" +
+      ".externalApi.grpc.generated.GrpcScopedGl" +
+      "obalAttributeUniquenessTypeB\014P\001\252\002\007EvitaD" +
+      "Bb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
@@ -120,7 +130,7 @@ public final class GrpcCatalogSchemaOuterClass {
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcGlobalAttributeSchema_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcGlobalAttributeSchema_descriptor,
-        new java.lang.String[] { "Name", "Description", "DeprecationNotice", "Unique", "Filterable", "Sortable", "Localized", "Nullable", "Representative", "Type", "DefaultValue", "IndexedDecimalPlaces", "UniqueGlobally", "NameVariant", });
+        new java.lang.String[] { "Name", "Description", "DeprecationNotice", "Unique", "Filterable", "Sortable", "Localized", "Nullable", "Representative", "Type", "DefaultValue", "IndexedDecimalPlaces", "UniqueGlobally", "NameVariant", "UniqueInScopes", "FilterableInScopes", "SortableInScopes", "UniqueGloballyInScopes", });
     io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor();
     io.evitadb.externalApi.grpc.generated.GrpcEvitaDataTypes.getDescriptor();
     com.google.protobuf.WrappersProto.getDescriptor();

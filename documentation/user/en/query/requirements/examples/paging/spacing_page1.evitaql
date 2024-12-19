@@ -1,0 +1,12 @@
+query(
+    collection("Product"),
+    require(
+        page(
+            1, 5,
+            spacing(
+               gap(1, "$pageNumber % 2 == 0 && $pageNumber <= 10"),
+               gap(1, "$pageNumber == 1 || $pageNumber == 4")
+            )
+        )
+    )
+)

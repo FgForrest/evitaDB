@@ -73,8 +73,8 @@ import java.util.Optional;
  */
 @Builder
 public record StorageOptions(
-	@Nullable Path storageDirectory,
-	@Nullable Path exportDirectory,
+	@Nonnull Path storageDirectory,
+	@Nonnull Path exportDirectory,
 	long lockTimeoutSeconds,
 	long waitOnCloseSeconds,
 	int outputBufferSize,
@@ -178,24 +178,6 @@ public record StorageOptions(
 	}
 
 	/**
-	 * Method returns null safe data directory.
-	 */
-	@Nonnull
-	public Path storageDirectoryOrDefault() {
-		return storageDirectory == null ?
-			DEFAULT_DATA_DIRECTORY : storageDirectory;
-	}
-
-	/**
-	 * Method returns null safe export directory.
-	 */
-	@Nonnull
-	public Path exportDirectoryOrDefault() {
-		return exportDirectory == null ?
-			DEFAULT_EXPORT_DIRECTORY : exportDirectory;
-	}
-
-	/**
 	 * Standard builder pattern implementation.
 	 */
 	@ToString
@@ -233,13 +215,15 @@ public record StorageOptions(
 
 		@Nonnull
 		public Builder storageDirectory(@Nonnull Path storageDirectory) {
-			this.storageDirectory = storageDirectory;
+			//noinspection ConstantValue
+			this.storageDirectory = storageDirectory == null ? DEFAULT_DATA_DIRECTORY : storageDirectory;
 			return this;
 		}
 
 		@Nonnull
 		public Builder exportDirectory(@Nonnull Path exportDirectory) {
-			this.exportDirectory = exportDirectory;
+			//noinspection ConstantValue
+			this.exportDirectory = exportDirectory == null ? DEFAULT_EXPORT_DIRECTORY : exportDirectory;
 			return this;
 		}
 

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,11 +26,14 @@ package io.evitadb.store.spi.model.storageParts.index;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.dataType.Scope;
+import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.attribute.GlobalUniqueIndex.EntityWithTypeTuple;
 import io.evitadb.store.model.RecordWithCompressedId;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.service.KeyCompressor;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.NumberUtils;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -57,8 +60,12 @@ import java.util.Map;
 @AllArgsConstructor
 @ToString(of = "attributeKey")
 public class GlobalUniqueIndexStoragePart implements StoragePart, RecordWithCompressedId<AttributeKey> {
-	@Serial private static final long serialVersionUID = -8158322083280466471L;
+	@Serial private static final long serialVersionUID = -7216725334566367295L;
 
+	/**
+	 * Scope of the {@link CatalogIndex} this unique index belongs to.
+	 */
+	@Getter private final Scope scope;
 	/**
 	 * Contains name and locale of the indexed attribute.
 	 */
@@ -84,8 +91,8 @@ public class GlobalUniqueIndexStoragePart implements StoragePart, RecordWithComp
 	 * Method computes unique part id as long, that composes of integer primary key of the {@link io.evitadb.index.EntityIndex}
 	 * attributes belong to and compressed attribute key integer that is assigned as soon as attribute is first stored.
 	 */
-	public static long computeUniquePartId(@Nonnull AttributeKey attributeKey, @Nonnull KeyCompressor keyCompressor) {
-		return keyCompressor.getId(attributeKey);
+	public static long computeUniquePartId(@Nonnull Scope scope, @Nonnull AttributeKey attributeKey, @Nonnull KeyCompressor keyCompressor) {
+		return NumberUtils.join(scope.ordinal(), keyCompressor.getId(attributeKey));
 	}
 
 	/**
@@ -94,7 +101,7 @@ public class GlobalUniqueIndexStoragePart implements StoragePart, RecordWithComp
 	 */
 	@Override
 	public long computeUniquePartIdAndSet(@Nonnull KeyCompressor keyCompressor) {
-		final long computedUniquePartId = computeUniquePartId(getAttributeKey(), keyCompressor);
+		final long computedUniquePartId = computeUniquePartId(getScope(), getAttributeKey(), keyCompressor);
 		final Long uniquePartId = getStoragePartPK();
 		if (uniquePartId == null) {
 			setStoragePartPK(computedUniquePartId);

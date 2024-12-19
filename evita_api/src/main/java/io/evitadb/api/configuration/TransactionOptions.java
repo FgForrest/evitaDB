@@ -58,7 +58,7 @@ import java.util.Optional;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public record TransactionOptions(
-	@Nullable Path transactionWorkDirectory,
+	@Nonnull Path transactionWorkDirectory,
 	long transactionMemoryBufferLimitSizeBytes,
 	int transactionMemoryRegionCount,
 	long walFileSizeBytes,

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 
@@ -37,8 +38,6 @@ import java.util.Comparator;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
-@Deprecated
-@SuppressWarnings("rawtypes")
 public class InvertedIndexSerializer extends Serializer<InvertedIndex> {
 
 	@Override
@@ -57,8 +56,7 @@ public class InvertedIndexSerializer extends Serializer<InvertedIndex> {
 		for (int i = 0; i < pointCount; i++) {
 			points[i] = kryo.readObject(input, ValueToRecordBitmap.class);
 		}
-		//noinspection unchecked
-		return new InvertedIndex(points, Comparator.naturalOrder());
+		return new InvertedIndex(points, FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder());
 	}
 
 }

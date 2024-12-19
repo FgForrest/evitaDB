@@ -40,7 +40,9 @@ import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.LongNumberRange;
+import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.ShortNumberRange;
+import io.evitadb.dataType.expression.Expression;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcQueryParam.Builder;
@@ -158,8 +160,12 @@ public final class QueryConverter {
 			return EvitaEnumConverter.toStatisticsType(GrpcQueryParam.getStatisticsType());
 		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.HISTOGRAMBEHAVIOR) {
 			return EvitaEnumConverter.toHistogramBehavior(GrpcQueryParam.getHistogramBehavior());
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.SCOPE) {
+			return EvitaEnumConverter.toScope(GrpcQueryParam.getScope());
 		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.MANAGEDREFERENCESBEHAVIOUR) {
 			return EvitaEnumConverter.toManagedReferencesBehaviour(GrpcQueryParam.getManagedReferencesBehaviour());
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.EXPRESSIONVALUE) {
+			return GrpcQueryParam.getExpressionValue();
 		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.STRINGARRAYVALUE) {
 			return toStringArray(GrpcQueryParam.getStringArrayValue());
 		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.INTEGERARRAYVALUE) {
@@ -238,6 +244,12 @@ public final class QueryConverter {
 				.stream()
 				.map(EvitaEnumConverter::toHistogramBehavior)
 				.toArray(HistogramBehavior[]::new);
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.SCOPEARRAYVALUE) {
+			return GrpcQueryParam.getScopeArrayValue()
+				.getValueList()
+				.stream()
+				.map(EvitaEnumConverter::toScope)
+				.toArray(Scope[]::new);
 		}
 		throw new EvitaInvalidUsageException("Unsupported Evita data type `" + GrpcQueryParam + "` in gRPC API.");
 	}
@@ -303,8 +315,12 @@ public final class QueryConverter {
 			builder.setStatisticsType(EvitaEnumConverter.toGrpcStatisticsType(statisticsType));
 		} else if (parameter instanceof final HistogramBehavior histogramBehavior) {
 			builder.setHistogramBehavior(EvitaEnumConverter.toGrpcHistogramBehavior(histogramBehavior));
+		} else if (parameter instanceof final Scope scope) {
+			builder.setScope(EvitaEnumConverter.toGrpcScope(scope));
 		} else if (parameter instanceof final ManagedReferencesBehaviour managedReferencesBehaviour) {
 			builder.setManagedReferencesBehaviour(EvitaEnumConverter.toGrpcManagedReferencesBehaviour(managedReferencesBehaviour));
+		} else if (parameter instanceof Expression expression) {
+			builder.setExpressionValue(expression.toString());
 		} else if (parameter instanceof final String[] stringArrayValue) {
 			builder.setStringArrayValue(toGrpcStringArray(stringArrayValue));
 		} else if (parameter instanceof final Integer[] integerArrayValue) {
@@ -374,6 +390,10 @@ public final class QueryConverter {
 		} else if (parameter instanceof final HistogramBehavior[] histogramBehaviorArrayValue) {
 			builder.setHistogramBehaviorTypeArrayValue(GrpcHistogramBehaviorTypeArray.newBuilder().addAllValue(
 				Arrays.stream(histogramBehaviorArrayValue).map(EvitaEnumConverter::toGrpcHistogramBehavior).toList()
+			));
+		} else if (parameter instanceof final Scope[] scopeArrayValue) {
+			builder.setScopeArrayValue(GrpcEntityScopeArray.newBuilder().addAllValue(
+				Arrays.stream(scopeArrayValue).map(EvitaEnumConverter::toGrpcScope).toList()
 			));
 		} else {
 			throw new EvitaInvalidUsageException("Unsupported Evita data type `" + parameter + "` in gRPC API.");

@@ -31,8 +31,8 @@ PUT /rest/evita/schema
               "name": "name",
               "type": "String",
               "description": "The apt brand name.",
-              "filterable": true,
-              "sortable": true
+              "filterableInScopes": ["LIVE"],
+              "sortableInScopes": ["LIVE"]
             }
           }
         ]
@@ -55,7 +55,8 @@ PUT /rest/evita/schema
               "withGeneratedPrimaryKey": false
             },
             "setEntitySchemaWithHierarchyMutation": {
-              "withHierarchy": true
+              "withHierarchy": true,
+              "indexedInScopes": ["LIVE"]
             },
             "allowLocaleInEntitySchemaMutation": {
               "locales": ["en", "de"]
@@ -65,8 +66,8 @@ PUT /rest/evita/schema
               "type": "String",
               "description": "The apt category name.",
               "localized": true,
-              "filterable": true,
-              "sortable": true
+              "filterableInScopes": ["LIVE"],
+              "sortableInScopes": ["LIVE"]
             }
           }
         ]
@@ -105,8 +106,8 @@ PUT /rest/evita/schema
               "type": "String",
               "description": "The apt brand name.",
               "localized": true,
-              "filterable": true,
-              "sortable": true,
+              "filterableInScopes": ["LIVE"],
+              "sortableInScopes": ["LIVE"],
               "nullable": true
             }
           },
@@ -115,8 +116,8 @@ PUT /rest/evita/schema
               "name": "catalogCode",
               "type": "String",
               "description": "Product designation in your sales catalogue.",
-              "filterable": true,
-              "sortable": true,
+              "filterableInScopes": ["LIVE"],
+              "sortableInScopes": ["LIVE"],
               "nullable": true
             }
           },
@@ -125,8 +126,8 @@ PUT /rest/evita/schema
               "name": "stockQuantity",
               "type": "Integer",
               "description": "Number of pieces in stock.",
-              "filterable": true,
-              "sortable": true,
+              "filterableInScopes": ["LIVE"],
+              "sortableInScopes": ["LIVE"],
               "defaultValue": 0
             }
           },
@@ -145,8 +146,8 @@ PUT /rest/evita/schema
               "referencedEntityTypeManaged": true,
               "cardinality": "ZERO_OR_ONE",
               "description": "Reference to the brand or manufacturer of the product.",
-              "indexed": true,
-              "faceted": true
+              "indexedInScopes": ["LIVE"],
+              "facetedInScopes": ["LIVE"]
             }
           },
           {
@@ -156,7 +157,7 @@ PUT /rest/evita/schema
               "referencedEntityTypeManaged": true,
               "cardinality": "ZERO_OR_MORE",
               "description": "Reference to one or more categories the product is listed in.",
-              "indexed": true
+              "indexedInScopes": ["LIVE"]
             }
           }
         ]

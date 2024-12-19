@@ -21,4 +21,4 @@
 | 107183           | 'oppo-a73'                          | '10043989' | '2510997'     |
 | 111247           | 'msi-modern-15-a10ras-1'            | '10044055' | '2511013'     |
 
-###### **Page** 1/212 **(Total number of results: 4225)**
+###### **Page** 1/209 **(Total number of results: 4161)**

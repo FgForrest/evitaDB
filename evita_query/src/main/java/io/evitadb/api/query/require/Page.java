@@ -23,9 +23,12 @@
 
 package io.evitadb.api.query.require;
 
+import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.AliasForParameter;
+import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.dataType.PaginatedList;
@@ -35,6 +38,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Optional;
 
 /**
@@ -54,6 +58,22 @@ import java.util.Optional;
  * page(1, 24)
  * </pre>
  *
+ * Page also allows to insert artificial gaps instead of entities on particular pages. The gaps are defined by the
+ * {@link Spacing} sub-constraints, which specify the number of entities that should be skipped on the page when the
+ * `onPage` expression is evaluated to true.
+ *
+ * Example:
+ *
+ * <pre>
+ * page(
+ *    1, 20,
+ *    spacing(
+ *       gap(2, "($pageNumber - 1) % 2 == 0 && $pageNumber <= 6"),
+ *       gap(1, "$pageNumber % 2 == 0 && $pageNumber <= 6")
+ *    )
+ * )
+ * </pre>
+ *
  * <p><a href="https://evitadb.io/documentation/query/requirements/paging#page">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
@@ -63,18 +83,25 @@ import java.util.Optional;
 	shortDescription = "The constraint specifies which page of found entities will be returned.",
 	userDocsLink = "/documentation/query/requirements/paging#page"
 )
-public class Page extends AbstractRequireConstraintLeaf implements GenericConstraint<RequireConstraint>, ChunkingRequireConstraint {
+public class Page extends AbstractRequireConstraintContainer implements GenericConstraint<RequireConstraint>, ChunkingRequireConstraint {
 	@Serial private static final long serialVersionUID = 1300354074537839696L;
 
-	private Page(Serializable... arguments) {
-		super(arguments);
+	private Page(@Nonnull Serializable[] arguments, @Nonnull RequireConstraint... children) {
+		super(arguments, children);
+	}
+
+	public Page(@Nullable Integer number, @Nullable Integer size) {
+		this(number, size, null);
 	}
 
 	@Creator
-	public Page(@Nullable Integer number, @Nullable Integer size) {
+	public Page(@Nullable Integer number, @Nullable Integer size, @Nullable @Child(domain = ConstraintDomain.SEGMENT) Spacing spacing) {
 		super(
-			Optional.ofNullable(number).orElse(1),
-			Optional.ofNullable(size).orElse(20)
+			new Serializable[]{
+				Optional.ofNullable(number).orElse(1),
+				Optional.ofNullable(size).orElse(20)
+			},
+			spacing
 		);
 		Assert.isTrue(
 			number == null || number > 0,
@@ -103,6 +130,17 @@ public class Page extends AbstractRequireConstraintLeaf implements GenericConstr
 		return (Integer) getArguments()[1];
 	}
 
+	/**
+	 * Returns optional spacing rules for the page.
+	 */
+	@Nonnull
+	public Optional<Spacing> getSpacing() {
+		return Arrays.stream(getChildren())
+			.filter(Spacing.class::isInstance)
+			.map(Spacing.class::cast)
+			.findFirst();
+	}
+
 	@Override
 	public boolean isApplicable() {
 		return isArgumentsNonNull() && getArguments().length == 2;
@@ -110,8 +148,21 @@ public class Page extends AbstractRequireConstraintLeaf implements GenericConstr
 
 	@Nonnull
 	@Override
-	public RequireConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
-		return new Page(newArguments);
+	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+		Assert.isTrue(
+			additionalChildren.length <= 1 && additionalChildren[0] instanceof Spacing,
+			"Page constraint supports only one additional child of type Spacing."
+		);
+		return new Page(
+			getPageNumber(),
+			getPageSize(),
+			(Spacing) children[0]
+		);
 	}
 
+	@Nonnull
+	@Override
+	public RequireConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
+		return new Page(newArguments, getChildren());
+	}
 }

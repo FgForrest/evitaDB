@@ -4,7 +4,8 @@
     {
       "primaryKey": 103911,
       "type": "Product",
-      "version": 1,
+      "version": 2,
+      "scope": "LIVE",
       "allLocales": [
         "cs",
         "en"
@@ -329,7 +330,8 @@
     {
       "primaryKey": 103988,
       "type": "Product",
-      "version": 1,
+      "version": 2,
+      "scope": "LIVE",
       "allLocales": [
         "cs",
         "en"
@@ -412,7 +414,8 @@
     {
       "primaryKey": 104008,
       "type": "Product",
-      "version": 1,
+      "version": 2,
+      "scope": "LIVE",
       "allLocales": [
         "en"
       ],
@@ -780,7 +783,8 @@
     {
       "primaryKey": 104084,
       "type": "Product",
-      "version": 1,
+      "version": 2,
+      "scope": "LIVE",
       "allLocales": [
         "en"
       ],
@@ -1214,7 +1218,8 @@
     {
       "primaryKey": 104171,
       "type": "Product",
-      "version": 1,
+      "version": 2,
+      "scope": "LIVE",
       "allLocales": [
         "en"
       ],
@@ -1516,7 +1521,8 @@
     {
       "primaryKey": 104227,
       "type": "Product",
-      "version": 1,
+      "version": 2,
+      "scope": "LIVE",
       "allLocales": [
         "en"
       ],
@@ -1950,7 +1956,8 @@
     {
       "primaryKey": 104305,
       "type": "Product",
-      "version": 1,
+      "version": 2,
+      "scope": "LIVE",
       "allLocales": [
         "en"
       ],
@@ -2516,7 +2523,8 @@
     {
       "primaryKey": 104368,
       "type": "Product",
-      "version": 1,
+      "version": 2,
+      "scope": "LIVE",
       "allLocales": [
         "en"
       ],
@@ -2708,7 +2716,8 @@
     {
       "primaryKey": 104392,
       "type": "Product",
-      "version": 1,
+      "version": 2,
+      "scope": "LIVE",
       "allLocales": [
         "en"
       ],
@@ -2966,7 +2975,8 @@
     {
       "primaryKey": 104423,
       "type": "Product",
-      "version": 1,
+      "version": 2,
+      "scope": "LIVE",
       "allLocales": [
         "en"
       ],
@@ -3005,6 +3015,7 @@
       "primaryKey": 104435,
       "type": "Product",
       "version": 1,
+      "scope": "LIVE",
       "allLocales": [
         "en"
       ],
@@ -3043,6 +3054,7 @@
       "primaryKey": 104467,
       "type": "Product",
       "version": 1,
+      "scope": "LIVE",
       "allLocales": [
         "en"
       ],
@@ -3125,6 +3137,7 @@
       "primaryKey": 104475,
       "type": "Product",
       "version": 1,
+      "scope": "LIVE",
       "allLocales": [
         "en"
       ],
@@ -3185,6 +3198,7 @@
       "primaryKey": 104481,
       "type": "Product",
       "version": 1,
+      "scope": "LIVE",
       "allLocales": [
         "en"
       ],
@@ -3222,7 +3236,8 @@
     {
       "primaryKey": 104500,
       "type": "Product",
-      "version": 1,
+      "version": 2,
+      "scope": "LIVE",
       "allLocales": [
         "en"
       ],
@@ -3260,7 +3275,8 @@
     {
       "primaryKey": 104508,
       "type": "Product",
-      "version": 1,
+      "version": 2,
+      "scope": "LIVE",
       "allLocales": [
         "en"
       ],
@@ -3320,7 +3336,8 @@
     {
       "primaryKey": 104526,
       "type": "Product",
-      "version": 1,
+      "version": 2,
+      "scope": "LIVE",
       "allLocales": [
         "en"
       ],
@@ -3490,7 +3507,8 @@
     {
       "primaryKey": 104567,
       "type": "Product",
-      "version": 1,
+      "version": 2,
+      "scope": "LIVE",
       "allLocales": [
         "en"
       ],
@@ -3638,7 +3656,8 @@
     {
       "primaryKey": 104583,
       "type": "Product",
-      "version": 1,
+      "version": 2,
+      "scope": "LIVE",
       "allLocales": [
         "en"
       ],
@@ -3808,7 +3827,8 @@
     {
       "primaryKey": 104599,
       "type": "Product",
-      "version": 1,
+      "version": 2,
+      "scope": "LIVE",
       "allLocales": [
         "en"
       ],
@@ -3917,11 +3937,11 @@
   "hasPrevious": false,
   "last": false,
   "lastPageItemNumber": 19,
-  "lastPageNumber": 118,
+  "lastPageNumber": 116,
   "pageNumber": 1,
   "pageSize": 20,
   "singlePage": false,
-  "totalRecordCount": 2348,
+  "totalRecordCount": 2314,
   "type": "PAGE"
 }
 ```

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,13 +29,15 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
+import io.evitadb.dataType.Scope;
+import io.evitadb.store.wal.schema.MutationSerializationFunctions;
 
 /**
  * Serializer for {@link CreateReferenceSchemaMutation}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class CreateReferenceSchemaMutationSerializer extends Serializer<CreateReferenceSchemaMutation> {
+public class CreateReferenceSchemaMutationSerializer extends Serializer<CreateReferenceSchemaMutation> implements MutationSerializationFunctions {
 
 	@Override
 	public void write(Kryo kryo, Output output, CreateReferenceSchemaMutation mutation) {
@@ -47,8 +49,8 @@ public class CreateReferenceSchemaMutationSerializer extends Serializer<CreateRe
 		output.writeBoolean(mutation.isReferencedEntityTypeManaged());
 		output.writeString(mutation.getReferencedGroupType());
 		output.writeBoolean(mutation.isReferencedGroupTypeManaged());
-		output.writeBoolean(mutation.isIndexed());
-		output.writeBoolean(mutation.isFaceted());
+		writeScopeArray(kryo, output, mutation.getIndexedInScopes());
+		writeScopeArray(kryo, output, mutation.getFacetedInScopes());
 	}
 
 	@Override
@@ -61,8 +63,10 @@ public class CreateReferenceSchemaMutationSerializer extends Serializer<CreateRe
 		final boolean referencedEntityTypeManaged = input.readBoolean();
 		final String referencedGroupType = input.readString();
 		final boolean referencedGroupTypeManaged = input.readBoolean();
-		final boolean indexed = input.readBoolean();
-		final boolean faceted = input.readBoolean();
+
+		final Scope[] indexedInScopes = readScopeArray(kryo, input);
+		final Scope[] facetedInScopes = readScopeArray(kryo, input);
+
 		return new CreateReferenceSchemaMutation(
 			name,
 			description,
@@ -72,8 +76,9 @@ public class CreateReferenceSchemaMutationSerializer extends Serializer<CreateRe
 			referencedEntityTypeManaged,
 			referencedGroupType,
 			referencedGroupTypeManaged,
-			indexed,
-			faceted
+			indexedInScopes,
+			facetedInScopes
 		);
 	}
+
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -109,8 +109,12 @@ public class PrettyPrintingFormulaVisitor implements FormulaVisitor {
 			result.append(formula);
 		}
 		if (formula.getInnerFormulas().length > 0) {
-			result.append(" → ")
-				.append(style == PrettyPrintStyle.VERBOSE ? formula.compute() : " result count " + formula.compute().size());
+			try {
+				result.append(" → ")
+					.append(style == PrettyPrintStyle.VERBOSE ? formula.compute() : " result count " + formula.compute().size());
+			} catch (Exception ex) {
+				result.append(" → ?");
+			}
 		}
 		result.append("\n");
 		level++;

@@ -273,6 +273,8 @@ public interface TracingContext {
 	record SpanAttribute(
 		@Nonnull String key,
 		@Nullable Object value
-	) {}
+	) {
+		public static final SpanAttribute[] EMPTY_ARRAY = new SpanAttribute[0];
+	}
 
 }

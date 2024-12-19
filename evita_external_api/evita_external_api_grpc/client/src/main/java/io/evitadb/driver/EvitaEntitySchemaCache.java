@@ -39,6 +39,7 @@ import io.evitadb.api.requestResponse.schema.mutation.SchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.driver.requestResponse.schema.ClientCatalogSchemaDecorator;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassUtils;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ReflectionLookup;
@@ -94,7 +95,7 @@ class EvitaEntitySchemaCache {
 	/**
 	 * Contains the latest entity schema index.
 	 */
-	private final AtomicReference<SchemaIndexWrapper> schemaIndex = new AtomicReference<SchemaIndexWrapper>();
+	private final AtomicReference<SchemaIndexWrapper> schemaIndex = new AtomicReference<>();
 	/**
 	 * Contains the timestamp of the last check for entity schemas in {@link #cachedSchemas} being obsolete.
 	 */
@@ -300,6 +301,7 @@ class EvitaEntitySchemaCache {
 			schemaIndexWrapper = new SchemaIndexWrapper(newIndex, now);
 			this.schemaIndex.set(schemaIndexWrapper);
 		}
+
 		return schemaIndexWrapper.getIndex();
 	}
 
@@ -404,11 +406,13 @@ class EvitaEntitySchemaCache {
 		/**
 		 * The entity schema fetched from the server.
 		 */
-		@Getter private final @Nullable CatalogSchema catalogSchema;
+		@Nullable
+		private final CatalogSchema catalogSchema;
 		/**
 		 * The entity schema fetched from the server.
 		 */
-		@Getter private final @Nullable EntitySchema entitySchema;
+		@Nullable
+		private final EntitySchema entitySchema;
 		/**
 		 * Date and time ({@link System#currentTimeMillis()} of the moment when the entity schema was fetched from
 		 * the server side.
@@ -432,6 +436,18 @@ class EvitaEntitySchemaCache {
 			this.entitySchema = entitySchema;
 			this.fetched = fetched;
 			this.lastUsed = fetched;
+		}
+
+		@Nonnull
+		public CatalogSchema getCatalogSchema() {
+			Assert.isPremiseValid(catalogSchema != null, "Catalog schema is not present in the wrapper.");
+			return catalogSchema;
+		}
+
+		@Nonnull
+		public EntitySchema getEntitySchema() {
+			Assert.isPremiseValid(entitySchema != null, "Entity schema is not present in the wrapper.");
+			return entitySchema;
 		}
 
 		/**
@@ -461,7 +477,8 @@ class EvitaEntitySchemaCache {
 		/**
 		 * The entity schema index fetched from the server.
 		 */
-		@Getter private final @Nullable Map<String, EntitySchemaContract> index;
+		@Nonnull
+		@Getter private final Map<String, EntitySchemaContract> index;
 		/**
 		 * Date and time ({@link System#currentTimeMillis()} of the moment when the entity schema was fetched from
 		 * the server side.

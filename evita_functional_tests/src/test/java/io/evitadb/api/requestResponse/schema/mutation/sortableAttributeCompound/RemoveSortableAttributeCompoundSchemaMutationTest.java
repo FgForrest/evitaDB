@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper
 import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
+import io.evitadb.dataType.Scope;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -55,7 +56,7 @@ public class RemoveSortableAttributeCompoundSchemaMutationTest {
 	void shouldRemovePreviousCreateMutationWithSameName() {
 		RemoveSortableAttributeCompoundSchemaMutation mutation = new RemoveSortableAttributeCompoundSchemaMutation(ATTRIBUTE_COMPOUND_NAME);
 		CreateSortableAttributeCompoundSchemaMutation previousMutation = new CreateSortableAttributeCompoundSchemaMutation(
-			ATTRIBUTE_COMPOUND_NAME, "description", "deprecationNotice",
+			ATTRIBUTE_COMPOUND_NAME, "description", "deprecationNotice", new Scope[] { Scope.LIVE },
 			new AttributeElement("A", OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
 			new AttributeElement("B", OrderDirection.DESC, OrderBehaviour.NULLS_LAST)
 		);

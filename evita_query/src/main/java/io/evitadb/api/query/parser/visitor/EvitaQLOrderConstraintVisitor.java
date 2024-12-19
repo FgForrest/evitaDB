@@ -23,20 +23,17 @@
 
 package io.evitadb.api.query.parser.visitor;
 
+import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.OrderConstraint;
+import io.evitadb.api.query.filter.EntityHaving;
 import io.evitadb.api.query.order.*;
 import io.evitadb.api.query.parser.EnumWrapper;
+import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser;
-import io.evitadb.api.query.parser.grammar.EvitaQLParser.AttributeSetExactConstraintContext;
-import io.evitadb.api.query.parser.grammar.EvitaQLParser.AttributeSetInFilterConstraintContext;
-import io.evitadb.api.query.parser.grammar.EvitaQLParser.EntityGroupPropertyConstraintContext;
-import io.evitadb.api.query.parser.grammar.EvitaQLParser.EntityPrimaryKeyExactConstraintContext;
-import io.evitadb.api.query.parser.grammar.EvitaQLParser.EntityPrimaryKeyExactNaturalContext;
-import io.evitadb.api.query.parser.grammar.EvitaQLParser.EntityPrimaryKeyInFilterConstraintContext;
-import io.evitadb.api.query.parser.grammar.EvitaQLParser.EntityPropertyConstraintContext;
-import io.evitadb.api.query.parser.grammar.EvitaQLParser.PriceDiscountConstraintContext;
-import io.evitadb.api.query.parser.grammar.EvitaQLParser.ValueArgsContext;
+import io.evitadb.api.query.parser.grammar.EvitaQLParser.*;
 import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
+import io.evitadb.dataType.Scope;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -56,6 +53,7 @@ import java.util.stream.Collectors;
  */
 public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<OrderConstraint> {
 
+	protected final EvitaQLFilterConstraintVisitor filterConstraintVisitor = new EvitaQLFilterConstraintVisitor();
 	protected final EvitaQLValueTokenVisitor comparableValueTokenVisitor = EvitaQLValueTokenVisitor.withComparableTypesAllowed();
 	protected final EvitaQLValueTokenVisitor intValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
 		byte.class,
@@ -75,6 +73,7 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 		String[].class,
 		Iterable.class
 	);
+	protected final EvitaQLValueTokenVisitor scopeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(Scope.class);
 
 	@Override
 	public OrderConstraint visitOrderByConstraint(@Nonnull EvitaQLParser.OrderByConstraintContext ctx) {
@@ -213,7 +212,15 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 
 	@Override
 	public OrderConstraint visitRandomConstraint(@Nonnull EvitaQLParser.RandomConstraintContext ctx) {
-		return parse(ctx, Random::new);
+		return parse(ctx, () -> Random.INSTANCE);
+	}
+
+	@Override
+	public OrderConstraint visitRandomWithSeedConstraint(RandomWithSeedConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new Random(ctx.args.value.accept(intValueTokenVisitor).asLong())
+		);
 	}
 
 	@Override
@@ -280,6 +287,81 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 				ctx.args.constraints
 					.stream()
 					.map(c -> visitChildConstraint(c, OrderConstraint.class))
+					.toArray(OrderConstraint[]::new)
+			)
+		);
+	}
+
+	@Override
+	public OrderConstraint visitSegmentsConstraint(SegmentsConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new Segments(
+				ctx.args.constraints.stream()
+					.map(it -> it.accept(this))
+					.map(it -> {
+						if (it instanceof Segment theSegment) {
+							return theSegment;
+						} else {
+							throw new EvitaSyntaxException(ctx, "Only `segment` is accepted as parameter of `segments` order constraint!");
+						}
+					})
+					.toArray(Segment[]::new)
+			)
+		);
+	}
+
+	@Override
+	public OrderConstraint visitSegmentLimitConstraint(SegmentLimitConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new SegmentLimit(
+				ctx.args.valueToken().accept(intValueTokenVisitor).asInt()
+			)
+		);
+	}
+
+	@Override
+	public OrderConstraint visitSegmentConstraint(SegmentConstraintContext ctx) {
+		final FilterConstraint filterConstraint = ctx.args.entityHaving == null ?
+			null : ctx.args.filterConstraint().accept(filterConstraintVisitor);
+		Assert.isTrue(
+			filterConstraint == null || filterConstraint instanceof EntityHaving,
+			"Only `entityHaving` is accepted as first parameter of `segment` order constraint!"
+		);
+
+		final OrderConstraint orderByConstraint = ctx.args.orderBy.accept(this);
+		Assert.isTrue(
+			orderByConstraint instanceof OrderBy,
+			"Only `orderBy` is accepted as " + (filterConstraint == null ? "first" : "second") + " parameter of `segment` order constraint!"
+		);
+
+		final OrderConstraint limitConstraint = ctx.args.limit == null ?
+			null : ctx.args.limit.accept(this);
+		Assert.isTrue(
+			limitConstraint == null || limitConstraint instanceof SegmentLimit,
+			"Only `limit` is accepted as " + (filterConstraint == null ? "second" : "third") + " parameter of `segment` order constraint!"
+		);
+
+		return parse(
+			ctx,
+			() -> new Segment(
+				(EntityHaving) filterConstraint,
+				(OrderBy) orderByConstraint,
+				(SegmentLimit) limitConstraint
+			)
+		);
+	}
+
+	@Override
+	public OrderConstraint visitOrderInScopeConstraint(OrderInScopeConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new OrderInScope(
+				ctx.args.scope.accept(scopeValueTokenVisitor).asEnum(Scope.class),
+				ctx.args.orderConstraints
+					.stream()
+					.map(fc -> visitChildConstraint(fc, OrderConstraint.class))
 					.toArray(OrderConstraint[]::new)
 			)
 		);

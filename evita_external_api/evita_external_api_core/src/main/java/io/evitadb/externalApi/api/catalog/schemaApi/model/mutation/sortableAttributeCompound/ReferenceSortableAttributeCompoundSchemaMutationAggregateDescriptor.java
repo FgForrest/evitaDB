@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,6 +43,7 @@ public interface ReferenceSortableAttributeCompoundSchemaMutationAggregateDescri
 	PropertyDescriptor MODIFY_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_DEPRECATION_NOTICE_MUTATION = PropertyDescriptor.nullableFromObject(ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationDescriptor.THIS);
 	PropertyDescriptor MODIFY_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_DESCRIPTION_MUTATION = PropertyDescriptor.nullableFromObject(ModifySortableAttributeCompoundSchemaDescriptionMutationDescriptor.THIS);
 	PropertyDescriptor MODIFY_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_NAME_MUTATION = PropertyDescriptor.nullableFromObject(ModifySortableAttributeCompoundSchemaNameMutationDescriptor.THIS);
+	PropertyDescriptor SET_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_INDEXED_MUTATION = PropertyDescriptor.nullableFromObject(SetSortableAttributeCompoundIndexedMutationDescriptor.THIS);
 	PropertyDescriptor REMOVE_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION = PropertyDescriptor.nullableFromObject(RemoveSortableAttributeCompoundSchemaMutationDescriptor.THIS);
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
@@ -55,6 +56,7 @@ public interface ReferenceSortableAttributeCompoundSchemaMutationAggregateDescri
 			MODIFY_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_DEPRECATION_NOTICE_MUTATION,
 			MODIFY_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_DESCRIPTION_MUTATION,
 			MODIFY_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_NAME_MUTATION,
+			SET_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_INDEXED_MUTATION,
 			REMOVE_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION
 		))
 		.build();

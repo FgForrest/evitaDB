@@ -134,15 +134,15 @@ public interface ReferenceAttributeSchemaMutation extends AttributeSchemaMutatio
 					referenceSchema.getNameVariants(),
 					referenceSchema.getDescription(),
 					referenceSchema.getDeprecationNotice(),
+					referenceSchema.getCardinality(),
 					referenceSchema.getReferencedEntityType(),
 					referenceSchema.isReferencedEntityTypeManaged() ? Collections.emptyMap() : referenceSchema.getEntityTypeNameVariants(s -> null),
 					referenceSchema.isReferencedEntityTypeManaged(),
-					referenceSchema.getCardinality(),
 					referenceSchema.getReferencedGroupType(),
 					referenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
 					referenceSchema.isReferencedGroupTypeManaged(),
-					referenceSchema.isIndexed(),
-					referenceSchema.isFaceted(),
+					referenceSchema.getIndexedInScopes(),
+					referenceSchema.getFacetedInScopes(),
 					Stream.concat(
 							referenceSchema.getAttributes().values().stream().filter(it -> !updatedAttributeSchema.getName().equals(it.getName())),
 							Stream.of(updatedAttributeSchema)

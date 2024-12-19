@@ -61,18 +61,21 @@ message GrpcGlobalAttributeSchema {
   //
   // As an example of unique attribute can be EAN - there is no sense in having two entities with same EAN, and it's
   // better to have this ensured by the database engine.
-  GrpcAttributeUniquenessType unique = 4;
+  // deprecated in favor of `uniqueInScopes`
+  GrpcAttributeUniquenessType unique = 4 [deprecated = true];
   // When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
   // as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
   // (memory/disk) space in the form of index.
   //
   // When attribute is filterable, extra result `attributeHistogram`
   // can be requested for this attribute.
-  bool filterable = 5;
+  // deprecated in favor of `filterableInScopes`
+  bool filterable = 5 [deprecated = true];
   // When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
   // as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
   // (memory/disk) space in the form of index..
-  bool sortable = 6;
+  // deprecated in favor of `sortableInScopes`
+  bool sortable = 6 [deprecated = true];
   // When attribute is localized, it has to be ALWAYS used in connection with specific `Locale`.
   bool localized = 7;
   // When attribute is nullable, its values may be missing in the entities. Otherwise, the system will enforce
@@ -100,7 +103,31 @@ message GrpcGlobalAttributeSchema {
   //
   // As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
   // better to have this ensured by the database engine.
-  GrpcGlobalAttributeUniquenessType uniqueGlobally = 13;
+  // deprecated in favor of `uniqueGloballyInScopes`
+  GrpcGlobalAttributeUniquenessType uniqueGlobally = 13 [deprecated = true];
   // Contains attribute name converted to different naming conventions.
   repeated GrpcNameVariant nameVariant = 14;
+  // When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+  // having certain value of this attribute among other entities in the same collection.
+  //
+  // As an example of unique attribute can be EAN - there is no sense in having two entities with same EAN, and it's
+  // better to have this ensured by the database engine.
+  repeated GrpcScopedAttributeUniquenessType uniqueInScopes = 15;
+  // When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
+  // as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
+  // (memory/disk) space in the form of index.
+  //
+  // When attribute is filterable, extra result `attributeHistogram`
+  // can be requested for this attribute.
+  repeated GrpcEntityScope filterableInScopes = 16;
+  // When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
+  // as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
+  // (memory/disk) space in the form of index..
+  repeated GrpcEntityScope sortableInScopes = 17;
+  // When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
+  // entity having certain value of this attribute in entire catalog.
+  //
+  // As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
+  // better to have this ensured by the database engine.
+  repeated GrpcScopedGlobalAttributeUniquenessType uniqueGloballyInScopes = 18;
 }

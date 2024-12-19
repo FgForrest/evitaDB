@@ -37,6 +37,7 @@ import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.grpc.generated.GrpcExtraResults;
 import io.evitadb.externalApi.grpc.generated.GrpcExtraResults.Builder;
 import io.evitadb.externalApi.grpc.testUtils.GrpcAssertions;
@@ -60,13 +61,13 @@ public class GrpcFacetSummaryBuilderTest {
 	void buildFacetSummary() {
 		final ReferenceSchema[] types = {
 			ReferenceSchema._internalBuild(
-				"test1", "test1", false, Cardinality.ONE_OR_MORE, "testGroup1", false, true, true
+				"test1", "test1", false, Cardinality.ONE_OR_MORE, "testGroup1", false, new Scope[] { Scope.LIVE }, new Scope[] { Scope.LIVE }
 			),
 			ReferenceSchema._internalBuild(
-				"test2", "test2", false, Cardinality.ONE_OR_MORE, "testGroup2", false, true, true
+				"test2", "test2", false, Cardinality.ONE_OR_MORE, "testGroup2", false, new Scope[] { Scope.LIVE }, new Scope[] { Scope.LIVE }
 			),
 			ReferenceSchema._internalBuild(
-				"test3", "test3", false, Cardinality.ONE_OR_MORE, null, false, true, true
+				"test3", "test3", false, Cardinality.ONE_OR_MORE, null, false, new Scope[] { Scope.LIVE }, new Scope[] { Scope.LIVE }
 			),
 		};
 

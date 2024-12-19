@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetStatistics;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.RequestImpact;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.dataType.Scope;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -56,7 +57,7 @@ class FacetSummaryTest {
 	@Nonnull
 	private static FacetSummary createFacetSummary() {
 		final ReferenceSchema parameter = ReferenceSchema._internalBuild(
-			"parameter", "parameter", false, Cardinality.ZERO_OR_MORE, "parameterGroup", false, true, true
+			"parameter", "parameter", false, Cardinality.ZERO_OR_MORE, "parameterGroup", false, new Scope[]{Scope.LIVE}, new Scope[]{Scope.LIVE}
 		);
 		return new FacetSummary(
 			Arrays.asList(

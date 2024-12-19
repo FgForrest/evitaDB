@@ -63,7 +63,7 @@ import java.io.Serializable;
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE },
 	supportedValues = @ConstraintSupportedValues(allTypesSupported = true, arraysSupported = true)
 )
-public class AttributeLessThan extends AbstractAttributeFilterConstraintLeaf implements FilterConstraint {
+public class AttributeLessThan extends AbstractAttributeFilterComparisonConstraintLeaf implements FilterConstraint {
 	@Serial private static final long serialVersionUID = -1531450217250657781L;
 
 	private AttributeLessThan(Serializable... arguments) {
@@ -71,7 +71,7 @@ public class AttributeLessThan extends AbstractAttributeFilterConstraintLeaf imp
 	}
 
 	@Creator
-	public <T extends Serializable & Comparable<?>> AttributeLessThan(@Nonnull @Classifier String attributeName,
+	public <T extends Serializable> AttributeLessThan(@Nonnull @Classifier String attributeName,
 	                                                                  @Nonnull @Value(requiresPlainType = true) T attributeValue) {
 		super(attributeName, attributeValue);
 	}
@@ -80,7 +80,7 @@ public class AttributeLessThan extends AbstractAttributeFilterConstraintLeaf imp
 	 * Returns value that must be less than attribute value.
 	 */
 	@Nonnull
-	public <T extends Serializable & Comparable<?>> T getAttributeValue() {
+	public <T extends Serializable> T getAttributeValue() {
 		//noinspection unchecked
 		return (T) getArguments()[1];
 	}

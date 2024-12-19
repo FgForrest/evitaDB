@@ -93,7 +93,10 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
         this.entitySchema = entitySchema;
 
         this.filterConstraintResolver = new FilterConstraintResolver(catalogSchema);
-        this.orderConstraintResolver = new OrderConstraintResolver(catalogSchema);
+        this.orderConstraintResolver = new OrderConstraintResolver(
+            catalogSchema,
+            new AtomicReference<>(filterConstraintResolver)
+        );
         final RequireConstraintResolver requireConstraintResolver = new RequireConstraintResolver(
             catalogSchema,
             new AtomicReference<>(filterConstraintResolver)
@@ -108,7 +111,7 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
 
     @Nonnull
     @Override
-    public DataFetcherResult<List<EntityClassifier>> get(@Nonnull DataFetchingEnvironment environment) {
+    public DataFetcherResult<List<EntityClassifier>> get(DataFetchingEnvironment environment) {
         final Arguments arguments = Arguments.from(environment);
         final ExecutedEvent requestExecutedEvent = environment.getGraphQlContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
 
@@ -190,7 +193,7 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
     }
 
     @Nonnull
-    private EntityQueryContext buildResultContext(@Nonnull Query query) {
+    private static EntityQueryContext buildResultContext(@Nonnull Query query) {
         final Locale desiredLocale = Optional.ofNullable(QueryUtils.findFilter(query, EntityLocaleEquals.class))
             .map(EntityLocaleEquals::getLocale)
             .orElse(null);
@@ -239,7 +242,12 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
             final Integer offset = environment.getArgument(ListEntitiesHeaderDescriptor.OFFSET.name());
             final Integer limit = environment.getArgument(ListEntitiesHeaderDescriptor.LIMIT.name());
 
-            return new Arguments(filterBy, orderBy, offset, limit);
+            return new Arguments(
+                filterBy,
+                orderBy,
+                offset,
+                limit
+            );
         }
     }
 

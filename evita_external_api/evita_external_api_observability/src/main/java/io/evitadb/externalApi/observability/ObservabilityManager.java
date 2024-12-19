@@ -389,7 +389,7 @@ public class ObservabilityManager {
 		final CheckJfrRecordingHandler checkJfrRecordingHandler = new CheckJfrRecordingHandler(this.evita, this);
 		final GetJfrRecordingEventTypesHandler getJfrRecordingEventTypesHandler = new GetJfrRecordingEventTypesHandler(this.evita, this);
 
-		final CorsEndpoint corsEndpoint = new CorsEndpoint(config);
+		final CorsEndpoint corsEndpoint = new CorsEndpoint();
 		corsEndpoint.addMetadataFromEndpoint(startLoggingHandler);
 		corsEndpoint.addMetadataFromEndpoint(stopLoggingHandler);
 		corsEndpoint.addMetadataFromEndpoint(checkJfrRecordingHandler);

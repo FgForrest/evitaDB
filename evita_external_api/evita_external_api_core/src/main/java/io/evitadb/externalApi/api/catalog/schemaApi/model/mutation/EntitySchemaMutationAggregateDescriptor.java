@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -42,6 +42,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttri
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDescriptionMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaNameMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.SetSortableAttributeCompoundIndexedMutationDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
@@ -115,6 +116,7 @@ public interface EntitySchemaMutationAggregateDescriptor {
 	PropertyDescriptor MODIFY_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_DEPRECATION_NOTICE_MUTATION = PropertyDescriptor.nullableFromObject(ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationDescriptor.THIS);
 	PropertyDescriptor MODIFY_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_DESCRIPTION_MUTATION = PropertyDescriptor.nullableFromObject(ModifySortableAttributeCompoundSchemaDescriptionMutationDescriptor.THIS);
 	PropertyDescriptor MODIFY_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_NAME_MUTATION = PropertyDescriptor.nullableFromObject(ModifySortableAttributeCompoundSchemaNameMutationDescriptor.THIS);
+	PropertyDescriptor SET_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_INDEXED_MUTATION = PropertyDescriptor.nullableFromObject(SetSortableAttributeCompoundIndexedMutationDescriptor.THIS);
 	PropertyDescriptor REMOVE_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION = PropertyDescriptor.nullableFromObject(RemoveSortableAttributeCompoundSchemaMutationDescriptor.THIS);
 
 	/**
@@ -122,6 +124,7 @@ public interface EntitySchemaMutationAggregateDescriptor {
 	 */
 
 	PropertyDescriptor CREATE_REFERENCE_SCHEMA_MUTATION = PropertyDescriptor.nullableFromObject(CreateReferenceSchemaMutationDescriptor.THIS);
+	PropertyDescriptor CREATE_REFLECTED_REFERENCE_SCHEMA_MUTATION = PropertyDescriptor.nullableFromObject(CreateReflectedReferenceSchemaMutationDescriptor.THIS);
 	PropertyDescriptor MODIFY_REFERENCE_ATTRIBUTE_SCHEMA_MUTATION = PropertyDescriptor.nullableFromObject(ModifyReferenceAttributeSchemaMutationDescriptor.THIS);
 	PropertyDescriptor MODIFY_REFERENCE_SCHEMA_CARDINALITY_MUTATION = PropertyDescriptor.nullableFromObject(ModifyReferenceSchemaCardinalityMutationDescriptor.THIS);
 	PropertyDescriptor MODIFY_REFERENCE_SCHEMA_DEPRECATION_NOTICE_MUTATION = PropertyDescriptor.nullableFromObject(ModifyReferenceSchemaDeprecationNoticeMutationDescriptor.THIS);
@@ -129,6 +132,7 @@ public interface EntitySchemaMutationAggregateDescriptor {
 	PropertyDescriptor MODIFY_REFERENCE_SCHEMA_NAME_MUTATION = PropertyDescriptor.nullableFromObject(ModifyReferenceSchemaNameMutationDescriptor.THIS);
 	PropertyDescriptor MODIFY_REFERENCE_SCHEMA_RELATED_ENTITY_GROUP_MUTATION = PropertyDescriptor.nullableFromObject(ModifyReferenceSchemaRelatedEntityGroupMutationDescriptor.THIS);
 	PropertyDescriptor MODIFY_REFERENCE_SCHEMA_RELATED_ENTITY_MUTATION = PropertyDescriptor.nullableFromObject(ModifyReferenceSchemaRelatedEntityMutationDescriptor.THIS);
+	PropertyDescriptor MODIFY_REFERENCE_SCHEMA_ATTRIBUTE_INHERITANCE_MUTATION = PropertyDescriptor.nullableFromObject(ModifyReflectedReferenceAttributeInheritanceSchemaMutationDescriptor.THIS);
 	PropertyDescriptor REMOVE_REFERENCE_SCHEMA_MUTATION = PropertyDescriptor.nullableFromObject(RemoveReferenceSchemaMutationDescriptor.THIS);
 	PropertyDescriptor SET_REFERENCE_SCHEMA_FACETED_MUTATION = PropertyDescriptor.nullableFromObject(SetReferenceSchemaFacetedMutationDescriptor.THIS);
 	PropertyDescriptor SET_REFERENCE_SCHEMA_INDEXED_MUTATION = PropertyDescriptor.nullableFromObject(SetReferenceSchemaIndexedMutationDescriptor.THIS);
@@ -181,9 +185,11 @@ public interface EntitySchemaMutationAggregateDescriptor {
 			MODIFY_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_DEPRECATION_NOTICE_MUTATION,
 			MODIFY_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_DESCRIPTION_MUTATION,
 			MODIFY_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_NAME_MUTATION,
+			SET_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_INDEXED_MUTATION,
 			REMOVE_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION,
 
 			CREATE_REFERENCE_SCHEMA_MUTATION,
+			CREATE_REFLECTED_REFERENCE_SCHEMA_MUTATION,
 			MODIFY_REFERENCE_ATTRIBUTE_SCHEMA_MUTATION,
 			MODIFY_REFERENCE_SCHEMA_CARDINALITY_MUTATION,
 			MODIFY_REFERENCE_SCHEMA_DEPRECATION_NOTICE_MUTATION,
@@ -192,6 +198,7 @@ public interface EntitySchemaMutationAggregateDescriptor {
 			MODIFY_REFERENCE_SCHEMA_RELATED_ENTITY_GROUP_MUTATION,
 			MODIFY_REFERENCE_SCHEMA_RELATED_ENTITY_MUTATION,
 			REMOVE_REFERENCE_SCHEMA_MUTATION,
+			MODIFY_REFERENCE_SCHEMA_ATTRIBUTE_INHERITANCE_MUTATION,
 			SET_REFERENCE_SCHEMA_FACETED_MUTATION,
 			SET_REFERENCE_SCHEMA_INDEXED_MUTATION
 		))

@@ -30,18 +30,25 @@ import io.evitadb.core.query.algebra.FormulaPostProcessor;
 import io.evitadb.core.query.algebra.attribute.AttributeFormula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.core.query.algebra.base.OrFormula;
+import io.evitadb.core.query.algebra.facet.ScopeContainerFormula;
 import io.evitadb.core.query.algebra.price.termination.PriceWrappingFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
+import io.evitadb.core.query.filter.translator.behavioral.FilterInScopeTranslator;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.bitmap.BaseBitmap;
-import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
-import java.util.LinkedHashSet;
+import java.util.Arrays;
+import java.util.EnumSet;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * This implementation of {@link FilteringConstraintTranslator} converts {@link EntityPrimaryKeyInSet} to {@link AbstractFormula}.
@@ -54,9 +61,10 @@ public class EntityPrimaryKeyInSetTranslator implements FilteringConstraintTrans
 	@Override
 	public Formula translate(@Nonnull EntityPrimaryKeyInSet entityPrimaryKeyInSet, @Nonnull FilterByVisitor filterByVisitor) {
 		Assert.notNull(filterByVisitor.getSchema(), "Schema must be known!");
-		final SuperSetMatchingPostProcessor superSetMatchingPostProcessor = filterByVisitor.registerFormulaPostProcessor(
+		filterByVisitor.registerFormulaPostProcessorAfter(
 			SuperSetMatchingPostProcessor.class,
-			SuperSetMatchingPostProcessor::new
+			() -> new SuperSetMatchingPostProcessor(filterByVisitor),
+			FilterInScopeTranslator.InScopeFormulaPostProcessor.class
 		);
 		final int[] primaryKeys = entityPrimaryKeyInSet.getPrimaryKeys();
 		final Formula requiredBitmap = ArrayUtils.isEmpty(primaryKeys) ?
@@ -65,10 +73,7 @@ public class EntityPrimaryKeyInSetTranslator implements FilteringConstraintTrans
 				new BaseBitmap(primaryKeys)
 			);
 		return filterByVisitor.applyOnIndexes(
-			entityIndex -> {
-				superSetMatchingPostProcessor.addSuperSet(entityIndex.getAllPrimaryKeys());
-				return requiredBitmap;
-			}
+			entityIndex -> requiredBitmap
 		);
 	}
 
@@ -86,7 +91,11 @@ public class EntityPrimaryKeyInSetTranslator implements FilteringConstraintTrans
 	 * In this situation the result formula should be empty and not [1, 2, 3] as it would be without this post processor.
 	 */
 	@RequiredArgsConstructor
-	private static class SuperSetMatchingPostProcessor implements FormulaPostProcessor {
+	public static class SuperSetMatchingPostProcessor implements FormulaPostProcessor {
+		/**
+		 * The filter by visitor that is used to process the formula.
+		 */
+		protected final FilterByVisitor filterByVisitor;
 		/**
 		 * Flag that signalizes {@link #visit(Formula)} happens in conjunctive scope.
 		 */
@@ -95,10 +104,6 @@ public class EntityPrimaryKeyInSetTranslator implements FilteringConstraintTrans
 		 * Flag that signalizes that the target index is queried by other formulas in the conjunctive scope.
 		 */
 		protected boolean targetIndexQueriedByOtherConstraints = false;
-		/**
-		 * Set of formulas representing the super set.
-		 */
-		private final LinkedHashSet<Bitmap> superSetFormulas = new LinkedHashSet<>(16);
 		/**
 		 * Contains the root of the final formula.
 		 */
@@ -109,16 +114,53 @@ public class EntityPrimaryKeyInSetTranslator implements FilteringConstraintTrans
 		public Formula getPostProcessedFormula() {
 			// if the index is queried by other constraints, we don't need to merge the super set formulas
 			// because it's already more constrained than the super set
-			if (targetIndexQueriedByOtherConstraints) {
+			if (this.targetIndexQueriedByOtherConstraints) {
 				return this.resultFormula;
+			} else if (this.resultFormula instanceof ScopeContainerFormula scf) {
+				// if the result formula is a scope container, we need to merge the super set formula with the inner formula
+				return FormulaFactory.and(
+					this.filterByVisitor.getSuperSetFormula(scf.getScope()),
+					scf
+				);
+			} else if (this.resultFormula instanceof OrFormula of &&
+				of.getInnerFormulas().length > 0 &&
+				Arrays.stream(of.getInnerFormulas()).allMatch(ScopeContainerFormula.class::isInstance)
+			) {
+				// if the result formula is an OR formula containing only scope containers,
+				// we need to merge their respective super set formulas with the inner formulas
+				return FormulaFactory.or(
+					Arrays.stream(of.getInnerFormulas())
+						.map(ScopeContainerFormula.class::cast)
+						.map(scf -> FormulaFactory.and(
+							this.filterByVisitor.getSuperSetFormula(scf.getScope()),
+							scf
+						))
+						.toArray(Formula[]::new)
+				);
 			} else {
 				// if the index is not queried by other constraints, we need to merge the super set formulas
+				final Set<Scope> scopesNotCovered = EnumSet.noneOf(Scope.class);
+				scopesNotCovered.addAll(this.filterByVisitor.getQueryContext().getScopes());
+				final Set<Scope> scopesCoveredByIndexes = this.filterByVisitor.getEntityIndexStream()
+					.map(it -> it.getIndexKey().scope())
+					.collect(Collectors.toCollection(() -> EnumSet.noneOf(Scope.class)));
+				final Formula superSetFormula;
+				scopesNotCovered.removeAll(scopesCoveredByIndexes);
+				// if all scopes are covered by indexes, we can use the super set formula directly
+				if (scopesNotCovered.isEmpty()) {
+					superSetFormula = this.filterByVisitor.getSuperSetFormula();
+				} else {
+					// otherwise, we need to combine it with the super set formula that covers particular scope
+					superSetFormula = FormulaFactory.or(
+						Stream.concat(
+							Stream.of(this.filterByVisitor.getSuperSetFormula()),
+							scopesNotCovered.stream()
+								.map(this.filterByVisitor::getSuperSetFormula)
+						).toArray(Formula[]::new)
+					);
+				}
 				return FormulaFactory.and(
-					FormulaFactory.or(
-						this.superSetFormulas.stream()
-							.map(it -> it.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(it))
-							.toArray(Formula[]::new)
-					),
+					superSetFormula,
 					this.resultFormula
 				);
 			}
@@ -138,10 +180,10 @@ public class EntityPrimaryKeyInSetTranslator implements FilteringConstraintTrans
 				}
 				if (formula instanceof final AttributeFormula attributeFormula) {
 					this.targetIndexQueriedByOtherConstraints = this.targetIndexQueriedByOtherConstraints ||
-						(!attributeFormula.isTargetsGlobalAttribute() && conjunctiveScope);
+						(!attributeFormula.isTargetsGlobalAttribute() && this.conjunctiveScope);
 				} else if (formula instanceof PriceWrappingFormula) {
 					this.targetIndexQueriedByOtherConstraints = this.targetIndexQueriedByOtherConstraints ||
-						conjunctiveScope;
+						this.conjunctiveScope;
 				}
 				for (Formula innerFormula : formula.getInnerFormulas()) {
 					innerFormula.accept(this);
@@ -151,14 +193,5 @@ public class EntityPrimaryKeyInSetTranslator implements FilteringConstraintTrans
 			}
 		}
 
-		/**
-		 * Adds the given Bitmap as a superSet formula.
-		 *
-		 * @param primaryKeysFormula the Bitmap containing the primary keys formula to be added as a superSet formula
-		 */
-		public void addSuperSet(@Nonnull Bitmap primaryKeysFormula) {
-			// because we're adding bitmap to a set, the duplicates will be removed
-			this.superSetFormulas.add(primaryKeysFormula);
-		}
 	}
 }

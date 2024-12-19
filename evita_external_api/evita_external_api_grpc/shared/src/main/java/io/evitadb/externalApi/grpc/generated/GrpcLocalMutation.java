@@ -285,6 +285,20 @@ private static final long serialVersionUID = 0L;
             mutationCase_ = 15;
             break;
           }
+          case 130: {
+            io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutation.Builder subBuilder = null;
+            if (mutationCase_ == 16) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutation) mutation_).toBuilder();
+            }
+            mutation_ =
+                input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutation.parser(), extensionRegistry);
+            if (subBuilder != null) {
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutation) mutation_);
+              mutation_ = subBuilder.buildPartial();
+            }
+            mutationCase_ = 16;
+            break;
+          }
           default: {
             if (!parseUnknownField(
                 input, unknownFields, extensionRegistry, tag)) {
@@ -337,6 +351,7 @@ private static final long serialVersionUID = 0L;
     SETREFERENCEGROUPMUTATION(13),
     REMOVEREFERENCEGROUPMUTATION(14),
     REFERENCEATTRIBUTEMUTATION(15),
+    SETENTITYSCOPEMUTATION(16),
     MUTATION_NOT_SET(0);
     private final int value;
     private MutationCase(int value) {
@@ -369,6 +384,7 @@ private static final long serialVersionUID = 0L;
         case 13: return SETREFERENCEGROUPMUTATION;
         case 14: return REMOVEREFERENCEGROUPMUTATION;
         case 15: return REFERENCEATTRIBUTEMUTATION;
+        case 16: return SETENTITYSCOPEMUTATION;
         case 0: return MUTATION_NOT_SET;
         default: return null;
       }
@@ -1041,6 +1057,49 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcReferenceAttributeMutation.getDefaultInstance();
   }
 
+  public static final int SETENTITYSCOPEMUTATION_FIELD_NUMBER = 16;
+  /**
+   * <pre>
+   * This mutation allows to set scope of the entity to ARCHIVED or LIVE state.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutation setEntityScopeMutation = 16;</code>
+   * @return Whether the setEntityScopeMutation field is set.
+   */
+  @java.lang.Override
+  public boolean hasSetEntityScopeMutation() {
+    return mutationCase_ == 16;
+  }
+  /**
+   * <pre>
+   * This mutation allows to set scope of the entity to ARCHIVED or LIVE state.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutation setEntityScopeMutation = 16;</code>
+   * @return The setEntityScopeMutation.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutation getSetEntityScopeMutation() {
+    if (mutationCase_ == 16) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutation.getDefaultInstance();
+  }
+  /**
+   * <pre>
+   * This mutation allows to set scope of the entity to ARCHIVED or LIVE state.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutation setEntityScopeMutation = 16;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutationOrBuilder getSetEntityScopeMutationOrBuilder() {
+    if (mutationCase_ == 16) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutation.getDefaultInstance();
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -1099,6 +1158,9 @@ private static final long serialVersionUID = 0L;
     }
     if (mutationCase_ == 15) {
       output.writeMessage(15, (io.evitadb.externalApi.grpc.generated.GrpcReferenceAttributeMutation) mutation_);
+    }
+    if (mutationCase_ == 16) {
+      output.writeMessage(16, (io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutation) mutation_);
     }
     unknownFields.writeTo(output);
   }
@@ -1168,6 +1230,10 @@ private static final long serialVersionUID = 0L;
     if (mutationCase_ == 15) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(15, (io.evitadb.externalApi.grpc.generated.GrpcReferenceAttributeMutation) mutation_);
+    }
+    if (mutationCase_ == 16) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(16, (io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutation) mutation_);
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -1246,6 +1312,10 @@ private static final long serialVersionUID = 0L;
         if (!getReferenceAttributeMutation()
             .equals(other.getReferenceAttributeMutation())) return false;
         break;
+      case 16:
+        if (!getSetEntityScopeMutation()
+            .equals(other.getSetEntityScopeMutation())) return false;
+        break;
       case 0:
       default:
     }
@@ -1320,6 +1390,10 @@ private static final long serialVersionUID = 0L;
       case 15:
         hash = (37 * hash) + REFERENCEATTRIBUTEMUTATION_FIELD_NUMBER;
         hash = (53 * hash) + getReferenceAttributeMutation().hashCode();
+        break;
+      case 16:
+        hash = (37 * hash) + SETENTITYSCOPEMUTATION_FIELD_NUMBER;
+        hash = (53 * hash) + getSetEntityScopeMutation().hashCode();
         break;
       case 0:
       default:
@@ -1594,6 +1668,13 @@ private static final long serialVersionUID = 0L;
           result.mutation_ = referenceAttributeMutationBuilder_.build();
         }
       }
+      if (mutationCase_ == 16) {
+        if (setEntityScopeMutationBuilder_ == null) {
+          result.mutation_ = mutation_;
+        } else {
+          result.mutation_ = setEntityScopeMutationBuilder_.build();
+        }
+      }
       result.mutationCase_ = mutationCase_;
       onBuilt();
       return result;
@@ -1702,6 +1783,10 @@ private static final long serialVersionUID = 0L;
         }
         case REFERENCEATTRIBUTEMUTATION: {
           mergeReferenceAttributeMutation(other.getReferenceAttributeMutation());
+          break;
+        }
+        case SETENTITYSCOPEMUTATION: {
+          mergeSetEntityScopeMutation(other.getSetEntityScopeMutation());
           break;
         }
         case MUTATION_NOT_SET: {
@@ -1938,7 +2023,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutation applyDeltaAttributeMutation = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutation, io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutation, io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutationOrBuilder>
         getApplyDeltaAttributeMutationFieldBuilder() {
       if (applyDeltaAttributeMutationBuilder_ == null) {
         if (!(mutationCase_ == 1)) {
@@ -2115,7 +2200,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUpsertAttributeMutation upsertAttributeMutation = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcUpsertAttributeMutation, io.evitadb.externalApi.grpc.generated.GrpcUpsertAttributeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcUpsertAttributeMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcUpsertAttributeMutation, io.evitadb.externalApi.grpc.generated.GrpcUpsertAttributeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcUpsertAttributeMutationOrBuilder>
         getUpsertAttributeMutationFieldBuilder() {
       if (upsertAttributeMutationBuilder_ == null) {
         if (!(mutationCase_ == 2)) {
@@ -2292,7 +2377,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeMutation removeAttributeMutation = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveAttributeMutationOrBuilder>
         getRemoveAttributeMutationFieldBuilder() {
       if (removeAttributeMutationBuilder_ == null) {
         if (!(mutationCase_ == 3)) {
@@ -2469,7 +2554,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUpsertAssociatedDataMutation upsertAssociatedDataMutation = 4;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcUpsertAssociatedDataMutation, io.evitadb.externalApi.grpc.generated.GrpcUpsertAssociatedDataMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcUpsertAssociatedDataMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcUpsertAssociatedDataMutation, io.evitadb.externalApi.grpc.generated.GrpcUpsertAssociatedDataMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcUpsertAssociatedDataMutationOrBuilder>
         getUpsertAssociatedDataMutationFieldBuilder() {
       if (upsertAssociatedDataMutationBuilder_ == null) {
         if (!(mutationCase_ == 4)) {
@@ -2655,7 +2740,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveAssociatedDataMutation removeAssociatedDataMutation = 5;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcRemoveAssociatedDataMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveAssociatedDataMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveAssociatedDataMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcRemoveAssociatedDataMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveAssociatedDataMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveAssociatedDataMutationOrBuilder>
         getRemoveAssociatedDataMutationFieldBuilder() {
       if (removeAssociatedDataMutationBuilder_ == null) {
         if (!(mutationCase_ == 5)) {
@@ -2832,7 +2917,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUpsertPriceMutation upsertPriceMutation = 6;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcUpsertPriceMutation, io.evitadb.externalApi.grpc.generated.GrpcUpsertPriceMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcUpsertPriceMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcUpsertPriceMutation, io.evitadb.externalApi.grpc.generated.GrpcUpsertPriceMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcUpsertPriceMutationOrBuilder>
         getUpsertPriceMutationFieldBuilder() {
       if (upsertPriceMutationBuilder_ == null) {
         if (!(mutationCase_ == 6)) {
@@ -3009,7 +3094,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemovePriceMutation removePriceMutation = 7;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcRemovePriceMutation, io.evitadb.externalApi.grpc.generated.GrpcRemovePriceMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemovePriceMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcRemovePriceMutation, io.evitadb.externalApi.grpc.generated.GrpcRemovePriceMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemovePriceMutationOrBuilder>
         getRemovePriceMutationFieldBuilder() {
       if (removePriceMutationBuilder_ == null) {
         if (!(mutationCase_ == 7)) {
@@ -3186,7 +3271,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetPriceInnerRecordHandlingMutation setPriceInnerRecordHandlingMutation = 8;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcSetPriceInnerRecordHandlingMutation, io.evitadb.externalApi.grpc.generated.GrpcSetPriceInnerRecordHandlingMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetPriceInnerRecordHandlingMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcSetPriceInnerRecordHandlingMutation, io.evitadb.externalApi.grpc.generated.GrpcSetPriceInnerRecordHandlingMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetPriceInnerRecordHandlingMutationOrBuilder>
         getSetPriceInnerRecordHandlingMutationFieldBuilder() {
       if (setPriceInnerRecordHandlingMutationBuilder_ == null) {
         if (!(mutationCase_ == 8)) {
@@ -3363,7 +3448,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation setParentMutation = 9;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation, io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetParentMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation, io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetParentMutationOrBuilder>
         getSetParentMutationFieldBuilder() {
       if (setParentMutationBuilder_ == null) {
         if (!(mutationCase_ == 9)) {
@@ -3540,7 +3625,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation removeParentMutation = 10;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutationOrBuilder>
         getRemoveParentMutationFieldBuilder() {
       if (removeParentMutationBuilder_ == null) {
         if (!(mutationCase_ == 10)) {
@@ -3717,7 +3802,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcInsertReferenceMutation insertReferenceMutation = 11;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcInsertReferenceMutation, io.evitadb.externalApi.grpc.generated.GrpcInsertReferenceMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcInsertReferenceMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcInsertReferenceMutation, io.evitadb.externalApi.grpc.generated.GrpcInsertReferenceMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcInsertReferenceMutationOrBuilder>
         getInsertReferenceMutationFieldBuilder() {
       if (insertReferenceMutationBuilder_ == null) {
         if (!(mutationCase_ == 11)) {
@@ -3894,7 +3979,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveReferenceMutation removeReferenceMutation = 12;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcRemoveReferenceMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveReferenceMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveReferenceMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcRemoveReferenceMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveReferenceMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveReferenceMutationOrBuilder>
         getRemoveReferenceMutationFieldBuilder() {
       if (removeReferenceMutationBuilder_ == null) {
         if (!(mutationCase_ == 12)) {
@@ -4071,7 +4156,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceGroupMutation setReferenceGroupMutation = 13;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcSetReferenceGroupMutation, io.evitadb.externalApi.grpc.generated.GrpcSetReferenceGroupMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetReferenceGroupMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcSetReferenceGroupMutation, io.evitadb.externalApi.grpc.generated.GrpcSetReferenceGroupMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetReferenceGroupMutationOrBuilder>
         getSetReferenceGroupMutationFieldBuilder() {
       if (setReferenceGroupMutationBuilder_ == null) {
         if (!(mutationCase_ == 13)) {
@@ -4248,7 +4333,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveReferenceGroupMutation removeReferenceGroupMutation = 14;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcRemoveReferenceGroupMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveReferenceGroupMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveReferenceGroupMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcRemoveReferenceGroupMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveReferenceGroupMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveReferenceGroupMutationOrBuilder>
         getRemoveReferenceGroupMutationFieldBuilder() {
       if (removeReferenceGroupMutationBuilder_ == null) {
         if (!(mutationCase_ == 14)) {
@@ -4425,7 +4510,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcReferenceAttributeMutation referenceAttributeMutation = 15;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcReferenceAttributeMutation, io.evitadb.externalApi.grpc.generated.GrpcReferenceAttributeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcReferenceAttributeMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcReferenceAttributeMutation, io.evitadb.externalApi.grpc.generated.GrpcReferenceAttributeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcReferenceAttributeMutationOrBuilder>
         getReferenceAttributeMutationFieldBuilder() {
       if (referenceAttributeMutationBuilder_ == null) {
         if (!(mutationCase_ == 15)) {
@@ -4441,6 +4526,183 @@ private static final long serialVersionUID = 0L;
       mutationCase_ = 15;
       onChanged();;
       return referenceAttributeMutationBuilder_;
+    }
+
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutation, io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutationOrBuilder> setEntityScopeMutationBuilder_;
+    /**
+     * <pre>
+     * This mutation allows to set scope of the entity to ARCHIVED or LIVE state.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutation setEntityScopeMutation = 16;</code>
+     * @return Whether the setEntityScopeMutation field is set.
+     */
+    @java.lang.Override
+    public boolean hasSetEntityScopeMutation() {
+      return mutationCase_ == 16;
+    }
+    /**
+     * <pre>
+     * This mutation allows to set scope of the entity to ARCHIVED or LIVE state.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutation setEntityScopeMutation = 16;</code>
+     * @return The setEntityScopeMutation.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutation getSetEntityScopeMutation() {
+      if (setEntityScopeMutationBuilder_ == null) {
+        if (mutationCase_ == 16) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutation.getDefaultInstance();
+      } else {
+        if (mutationCase_ == 16) {
+          return setEntityScopeMutationBuilder_.getMessage();
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * This mutation allows to set scope of the entity to ARCHIVED or LIVE state.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutation setEntityScopeMutation = 16;</code>
+     */
+    public Builder setSetEntityScopeMutation(io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutation value) {
+      if (setEntityScopeMutationBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        mutation_ = value;
+        onChanged();
+      } else {
+        setEntityScopeMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 16;
+      return this;
+    }
+    /**
+     * <pre>
+     * This mutation allows to set scope of the entity to ARCHIVED or LIVE state.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutation setEntityScopeMutation = 16;</code>
+     */
+    public Builder setSetEntityScopeMutation(
+        io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutation.Builder builderForValue) {
+      if (setEntityScopeMutationBuilder_ == null) {
+        mutation_ = builderForValue.build();
+        onChanged();
+      } else {
+        setEntityScopeMutationBuilder_.setMessage(builderForValue.build());
+      }
+      mutationCase_ = 16;
+      return this;
+    }
+    /**
+     * <pre>
+     * This mutation allows to set scope of the entity to ARCHIVED or LIVE state.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutation setEntityScopeMutation = 16;</code>
+     */
+    public Builder mergeSetEntityScopeMutation(io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutation value) {
+      if (setEntityScopeMutationBuilder_ == null) {
+        if (mutationCase_ == 16 &&
+            mutation_ != io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutation.getDefaultInstance()) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutation) mutation_)
+              .mergeFrom(value).buildPartial();
+        } else {
+          mutation_ = value;
+        }
+        onChanged();
+      } else {
+        if (mutationCase_ == 16) {
+          setEntityScopeMutationBuilder_.mergeFrom(value);
+        }
+        setEntityScopeMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 16;
+      return this;
+    }
+    /**
+     * <pre>
+     * This mutation allows to set scope of the entity to ARCHIVED or LIVE state.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutation setEntityScopeMutation = 16;</code>
+     */
+    public Builder clearSetEntityScopeMutation() {
+      if (setEntityScopeMutationBuilder_ == null) {
+        if (mutationCase_ == 16) {
+          mutationCase_ = 0;
+          mutation_ = null;
+          onChanged();
+        }
+      } else {
+        if (mutationCase_ == 16) {
+          mutationCase_ = 0;
+          mutation_ = null;
+        }
+        setEntityScopeMutationBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * This mutation allows to set scope of the entity to ARCHIVED or LIVE state.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutation setEntityScopeMutation = 16;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutation.Builder getSetEntityScopeMutationBuilder() {
+      return getSetEntityScopeMutationFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * This mutation allows to set scope of the entity to ARCHIVED or LIVE state.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutation setEntityScopeMutation = 16;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutationOrBuilder getSetEntityScopeMutationOrBuilder() {
+      if ((mutationCase_ == 16) && (setEntityScopeMutationBuilder_ != null)) {
+        return setEntityScopeMutationBuilder_.getMessageOrBuilder();
+      } else {
+        if (mutationCase_ == 16) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * This mutation allows to set scope of the entity to ARCHIVED or LIVE state.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutation setEntityScopeMutation = 16;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutation, io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutationOrBuilder>
+        getSetEntityScopeMutationFieldBuilder() {
+      if (setEntityScopeMutationBuilder_ == null) {
+        if (!(mutationCase_ == 16)) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutation.getDefaultInstance();
+        }
+        setEntityScopeMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutation, io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutationOrBuilder>(
+                (io.evitadb.externalApi.grpc.generated.GrpcSetEntityScopeMutation) mutation_,
+                getParentForChildren(),
+                isClean());
+        mutation_ = null;
+      }
+      mutationCase_ = 16;
+      onChanged();;
+      return setEntityScopeMutationBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

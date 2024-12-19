@@ -104,16 +104,28 @@ public interface ExternalApiProvider<T extends AbstractApiConfiguration> {
 	 *
 	 * @param path sub-path of the API
 	 * @param service HTTP service that is responsible for processing all requests addressed to path
+	 * @param pathHandlingMode mode of path handling (see {@link PathHandlingMode})
+	 * @param defaultService true, if the root path should be redirected to this service
 	 */
 	record HttpServiceDefinition(
 		@Nullable String path,
 		@Nonnull HttpService service,
-		@Nonnull PathHandlingMode pathHandlingMode
+		@Nonnull PathHandlingMode pathHandlingMode,
+		boolean defaultService
 	) {
 
 		public HttpServiceDefinition(@Nonnull HttpService service, @Nonnull PathHandlingMode routing) {
-			this("", service, routing);
+			this("", service, routing, false);
 		}
+
+		public HttpServiceDefinition(@Nonnull HttpService service, @Nonnull PathHandlingMode routing, boolean defaultService) {
+			this("", service, routing, defaultService);
+		}
+
+		public HttpServiceDefinition(@Nullable String path, @Nonnull HttpService service, @Nonnull PathHandlingMode pathHandlingMode) {
+			this(path, service, pathHandlingMode, false);
+		}
+
 	}
 
 	enum PathHandlingMode {

@@ -21,4 +21,4 @@
 | 104583           | 'huawei-honor-tablet-v7-10-4-wifi'           | 🪙 €8,455.00, 🪙 €355.09, 🪙 €8,286.00 ... and 11 other prices     |
 | 104599           | 'huawei-honor-tablet-v7-pro-11-wifi'         | 🪙 €14,856.00, 🪙 €623.95, 🪙 €10,870.00 ... and 5 other prices    |
 
-###### **Page** 1/118 **(Total number of results: 2348)**
+###### **Page** 1/116 **(Total number of results: 2314)**

@@ -33,6 +33,8 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.api.ExternalApiNamingConventions;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ExternalEntityTypePointer;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetRequestImpactDescriptor;
@@ -48,7 +50,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static java.util.Optional.ofNullable;
@@ -115,9 +116,11 @@ public class FacetSummaryConverter extends RequireConverter {
 	}
 
 	@Nonnull
-	private FacetSummaryOfReference getFacetSummaryOfReference(@Nonnull ReferenceSchemaContract referenceSchema,
-	                                                           @Nullable FacetSummaryOfReference facetSummaryRequest,
-	                                                           @Nullable FacetSummary defaultRequest) {
+	private static FacetSummaryOfReference getFacetSummaryOfReference(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nullable FacetSummaryOfReference facetSummaryRequest,
+		@Nullable FacetSummary defaultRequest
+	) {
 		if (facetSummaryRequest == null && defaultRequest == null) {
 			throw new GenericEvitaInternalError("Either facet summary request or default request must be present!");
 		}
@@ -169,7 +172,11 @@ public class FacetSummaryConverter extends RequireConverter {
 					offset,
 					multipleArguments,
 					convertFilterConstraint(
-						new EntityDataLocator(referenceSchema.getReferencedGroupType()),
+						new EntityDataLocator(
+							referenceSchema.isReferencedGroupTypeManaged()
+								? new ManagedEntityTypePointer(referenceSchema.getReferencedGroupType())
+								: new ExternalEntityTypePointer(referenceSchema.getReferencedGroupType())
+						),
 						facetSummaryOfReference.getFilterGroupBy().get()
 					)
 						.orElseThrow()
@@ -185,7 +192,11 @@ public class FacetSummaryConverter extends RequireConverter {
 					offset,
 					multipleArguments,
 					convertOrderConstraint(
-						new EntityDataLocator(referenceSchema.getReferencedGroupType()),
+						new EntityDataLocator(
+							referenceSchema.isReferencedGroupTypeManaged()
+								? new ManagedEntityTypePointer(referenceSchema.getReferencedGroupType())
+								: new ExternalEntityTypePointer(referenceSchema.getReferencedGroupType())
+						),
 						facetSummaryOfReference.getOrderGroupBy().get()
 					)
 						.orElseThrow()
@@ -243,7 +254,11 @@ public class FacetSummaryConverter extends RequireConverter {
 					offset,
 					multipleArguments,
 					convertFilterConstraint(
-						new EntityDataLocator(referenceSchema.getReferencedEntityType()),
+						new EntityDataLocator(
+							referenceSchema.isReferencedEntityTypeManaged()
+								? new ManagedEntityTypePointer(referenceSchema.getReferencedEntityType())
+								: new ExternalEntityTypePointer(referenceSchema.getReferencedEntityType())
+						),
 						facetSummaryOfReference.getFilterBy().get()
 					)
 						.orElseThrow()
@@ -258,7 +273,11 @@ public class FacetSummaryConverter extends RequireConverter {
 					offset,
 					multipleArguments,
 					convertOrderConstraint(
-						new EntityDataLocator(referenceSchema.getReferencedEntityType()),
+						new EntityDataLocator(
+							referenceSchema.isReferencedEntityTypeManaged()
+								? new ManagedEntityTypePointer(referenceSchema.getReferencedEntityType())
+								: new ExternalEntityTypePointer(referenceSchema.getReferencedEntityType())
+						),
 						facetSummaryOfReference.getOrderBy().get()
 					)
 						.orElseThrow()

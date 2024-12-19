@@ -36,6 +36,7 @@ import io.evitadb.api.observability.ReadinessState;
 import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.externalApi.api.system.ProbesProvider.ApiState;
 import io.evitadb.externalApi.api.system.ProbesProvider.Readiness;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.CertificatePath;
@@ -43,8 +44,7 @@ import io.evitadb.externalApi.configuration.CertificateSettings;
 import io.evitadb.externalApi.event.ReadinessEvent;
 import io.evitadb.externalApi.event.ReadinessEvent.Prospective;
 import io.evitadb.externalApi.event.ReadinessEvent.Result;
-import io.evitadb.externalApi.http.CorsFilter;
-import io.evitadb.externalApi.http.CorsPreflightHandler;
+import io.evitadb.externalApi.http.CorsService;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.http.ExternalApiServer;
@@ -57,7 +57,9 @@ import javax.annotation.Nonnull;
 import java.io.File;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -88,6 +90,7 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 			"\t\"status\": \"" + readiness.state().name() + "\",\n" +
 			"\t\"apis\": {\n" +
 			Arrays.stream(readiness.apiStates())
+				.sorted(Comparator.comparing(ApiState::apiCode))
 				.map(entry -> "\t\t\"" + entry.apiCode() + "\": \"" + (entry.isReady() ? "ready" : "not ready") + "\"")
 				.collect(Collectors.joining(",\n")) + "\n" +
 			"\t}\n" +
@@ -155,6 +158,7 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 								.entrySet()
 								.stream()
 								.filter(entry -> Arrays.stream(enabledEndPoints).anyMatch(it -> it.equals(entry.getKey())))
+								.sorted(Map.Entry.comparingByKey())
 								.map(
 									entry -> "      {\n         \"" + entry.getKey() + "\": " +
 										"[\n" + Arrays.stream(entry.getValue().getBaseUrls())
@@ -274,7 +278,6 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 			HttpMethod.GET,
 			"/" + ENDPOINT_SERVER_NAME,
 			createCorsWrapper(
-				systemConfig,
 				(ctx, req) -> {
 					new ReadinessEvent(SystemProvider.CODE, Prospective.SERVER).finish(Result.READY);
 					return HttpResponse.of(HttpStatus.OK, MediaType.PLAIN_TEXT, evita.getConfiguration().name());
@@ -287,7 +290,6 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 			HttpMethod.GET,
 			"/" + ENDPOINT_SYSTEM_STATUS,
 			createCorsWrapper(
-				systemConfig,
 				(ctx, req) -> HttpResponse.of(
 					renderStatus(
 						evita,
@@ -303,7 +305,6 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 			HttpMethod.GET,
 			"/" + ENDPOINT_SYSTEM_LIVENESS,
 			createCorsWrapper(
-				systemConfig,
 				(ctx, req) -> HttpResponse.of(renderLivenessResponse(evita, externalApiServer, enabledEndPoints))
 			)
 		);
@@ -312,7 +313,6 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 			HttpMethod.GET,
 			"/" + ENDPOINT_SYSTEM_READINESS,
 			createCorsWrapper(
-				systemConfig,
 				(ctx, req) -> HttpResponse.of(renderReadinessResponse(evita, externalApiServer, enabledEndPoints))
 			)
 		);
@@ -344,7 +344,6 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 				HttpMethod.GET,
 				"/" + fileName,
 				createCorsWrapper(
-					systemConfig,
 					(ctx, req) -> {
 						ctx.addAdditionalResponseHeader(HttpHeaderNames.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"");
 						return HttpFile.of(new File(file, fileName)).asService().serve(ctx, req);
@@ -356,7 +355,6 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 				HttpMethod.GET,
 				"/" + CertificateUtils.getGeneratedServerCertificateFileName(),
 				createCorsWrapper(
-					systemConfig,
 					(ctx, req) -> {
 						ctx.addAdditionalResponseHeader(HttpHeaderNames.CONTENT_DISPOSITION, "attachment; filename=\"" + CertificateUtils.getGeneratedServerCertificateFileName() + "\"");
 						return HttpFile.of(new File(file, CertificateUtils.getGeneratedServerCertificateFileName())).asService().serve(ctx, req);
@@ -368,7 +366,6 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 				HttpMethod.GET,
 				"/" + CertificateUtils.getGeneratedClientCertificateFileName(),
 				createCorsWrapper(
-					systemConfig,
 					(ctx, req) -> {
 						ctx.addAdditionalResponseHeader(HttpHeaderNames.CONTENT_DISPOSITION, "attachment; filename=\"" + CertificateUtils.getGeneratedClientCertificateFileName() + "\"");
 						return HttpFile.of(new File(file, CertificateUtils.getGeneratedClientCertificateFileName())).asService().serve(ctx, req);
@@ -380,7 +377,6 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 				HttpMethod.GET,
 				"/" + CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName(),
 				createCorsWrapper(
-					systemConfig,
 					(ctx, req) -> {
 						ctx.addAdditionalResponseHeader(HttpHeaderNames.CONTENT_DISPOSITION, "attachment; filename=\"" + CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName() + "\"");
 						return HttpFile.of(new File(file, CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName())).asService().serve(ctx, req);
@@ -433,15 +429,11 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 	}
 
 	@Nonnull
-	private static HttpService createCorsWrapper(@Nonnull SystemConfig config, @Nonnull HttpService delegate) {
-		return new CorsFilter(
-			new CorsPreflightHandler(
-				delegate,
-				config.getAllowedOrigins(),
-				Set.of(HttpMethod.GET),
-				Set.of()
-			),
-			config.getAllowedOrigins()
+	private static HttpService createCorsWrapper(@Nonnull HttpService delegate) {
+		return CorsService.filter(
+			delegate,
+			Set.of(HttpMethod.GET),
+			Set.of()
 		);
 	}
 }

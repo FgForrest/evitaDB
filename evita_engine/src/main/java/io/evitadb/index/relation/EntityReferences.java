@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -56,10 +56,8 @@ public record EntityReferences(
 	@Nonnull int[] referencedEntityGroupPrimaryKeys
 ) {
 
-	private static final int[] EMPTY_INT_ARRAY = new int[0];
-
 	public EntityReferences(int referencedEntityPrimaryKey) {
-		this(new int[]{referencedEntityPrimaryKey}, EMPTY_INT_ARRAY);
+		this(new int[]{referencedEntityPrimaryKey}, ArrayUtils.EMPTY_INT_ARRAY);
 	}
 
 	public EntityReferences(int referencedEntityPrimaryKey, int referencedEntityGroupPrimaryKey) {

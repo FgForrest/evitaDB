@@ -33,6 +33,7 @@ import io.evitadb.api.query.order.AttributeNatural;
 import io.evitadb.api.query.order.EntityGroupProperty;
 import io.evitadb.api.query.order.EntityProperty;
 import io.evitadb.api.query.order.OrderBy;
+import io.evitadb.api.query.order.OrderInScope;
 import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.FetchRequirementCollector;
@@ -57,6 +58,7 @@ import io.evitadb.core.query.sort.attribute.translator.EntityGroupPropertyTransl
 import io.evitadb.core.query.sort.attribute.translator.EntityNestedQueryComparator;
 import io.evitadb.core.query.sort.attribute.translator.EntityPropertyTranslator;
 import io.evitadb.core.query.sort.translator.OrderByTranslator;
+import io.evitadb.core.query.sort.translator.OrderInScopeTranslator;
 import io.evitadb.core.query.sort.translator.ReferenceOrderingConstraintTranslator;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
@@ -72,6 +74,7 @@ import lombok.experimental.Delegate;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 import static io.evitadb.utils.Assert.isPremiseValid;
@@ -92,6 +95,7 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 	static {
 		TRANSLATORS = CollectionUtils.createHashMap(8);
 		TRANSLATORS.put(OrderBy.class, new OrderByTranslator());
+		TRANSLATORS.put(OrderInScope.class, new OrderInScopeTranslator());
 		TRANSLATORS.put(AttributeNatural.class, new AttributeNaturalTranslator());
 		TRANSLATORS.put(EntityProperty.class, new EntityPropertyTranslator());
 		TRANSLATORS.put(EntityGroupProperty.class, new EntityGroupPropertyTranslator());
@@ -105,10 +109,6 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 	 * Reference to the collector of requirements for entity (pre)fetch phase.
 	 */
 	private final FetchRequirementCollector fetchRequirementCollector;
-	/**
-	 * Entity schema of the entity being fetched.
-	 */
-	private final EntitySchemaContract entitySchema;
 	/**
 	 * Reference schema of the reference being fetched and sorted.
 	 */
@@ -136,7 +136,7 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 	 * The last retrieved chain index used in processing and determining the position of the chain in the reference order.
 	 * This variable is internally updated during the traversal and comparison of constraints.
 	 */
-	private ChainIndex lastRetrievedChainIndex;
+	@Nullable private ChainIndex lastRetrievedChainIndex;
 
 	/**
 	 * Extracts {@link OrderingDescriptor} from the passed `orderBy` constraint using passed `queryContext` for
@@ -153,7 +153,6 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 		final ReferenceOrderByVisitor orderVisitor = new ReferenceOrderByVisitor(
 			queryContext,
 			fetchRequirementCollector,
-			entitySchema,
 			referenceSchema,
 			new AttributeSchemaAccessor(
 				queryContext.getCatalogSchema(),
@@ -271,8 +270,12 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 	 * @throws AttributeNotSortableException   when sortable traits are requested but the attribute does not
 	 */
 	@Nonnull
-	public NamedSchemaContract getAttributeSchemaOrSortableAttributeCompound(@Nonnull String attributeName) {
-		return attributeSchemaAccessor.getAttributeSchemaOrSortableAttributeCompound(attributeName);
+	public NamedSchemaContract getAttributeSchemaOrSortableAttributeCompound(
+		@Nonnull String attributeName
+	) {
+		return attributeSchemaAccessor.getAttributeSchemaOrSortableAttributeCompound(
+			attributeName, this.getScopes()
+		);
 	}
 
 	/**
@@ -286,8 +289,13 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 	 * @throws AttributeNotSortableException   when sortable traits are requested but the attribute does not
 	 */
 	@Nonnull
-	public AttributeSchemaContract getAttributeSchema(@Nonnull String attributeName, @Nonnull AttributeTrait... requiredTrait) {
-		return attributeSchemaAccessor.getAttributeSchema(attributeName, requiredTrait);
+	public AttributeSchemaContract getAttributeSchema(
+		@Nonnull String attributeName,
+		@Nonnull AttributeTrait... requiredTrait
+	) {
+		return attributeSchemaAccessor.getAttributeSchema(
+			attributeName, this.getScopes(), requiredTrait
+		);
 	}
 
 	/**
@@ -315,19 +323,18 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 			// the references should be sorted by reference key and attribute key, so the caching should be efficient here
 			if (this.lastRetrievedChainIndexKey != null &&
 				this.lastRetrievedChainIndexKey.referenceKey().referenceName().equals(reflectedReferenceSchema.getReflectedReferenceName()) &&
-				this.lastRetrievedChainIndexKey.referenceKey().primaryKey() == entityPrimaryKey &&
+				Objects.equals(this.lastRetrievedChainIndexKey.referenceKey().primaryKey(), entityPrimaryKey) &&
 				this.lastRetrievedChainIndexKey.attributeKey().equals(attributeKey)) {
 				return Optional.ofNullable(this.lastRetrievedChainIndex);
 			} else {
 				// else we have to retrieve the chain and cache it
-				final boolean referencedEntityHierarchical = this.entitySchema.isWithHierarchy();
+				Assert.notNull(entityPrimaryKey, "Entity primary key must not be null for reflected reference schema.");
 				final ReferenceKey theLookupReferenceKey = new ReferenceKey(reflectedReferenceSchema.getReflectedReferenceName(), entityPrimaryKey);
 				// get the index from the referenced entity collection using inverted key specification
 				final Optional<ChainIndex> chainIndex = this.queryContext.getIndex(
 					this.referenceSchema.getReferencedEntityType(),
 					new EntityIndexKey(
-						referencedEntityHierarchical ?
-							EntityIndexType.REFERENCED_HIERARCHY_NODE : EntityIndexType.REFERENCED_ENTITY,
+						EntityIndexType.REFERENCED_ENTITY,
 						// this would fail if the entity primary key is null, but it should never happen, and if so, exception is thrown
 						theLookupReferenceKey
 					),
@@ -347,13 +354,10 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 				return Optional.ofNullable(this.lastRetrievedChainIndex);
 			} else {
 				// else we have to retrieve the chain and cache it
-				final boolean referencedEntityHierarchical = this.referenceSchema.isReferencedEntityTypeManaged() &&
-					this.queryContext.getSchema(this.referenceSchema.getReferencedEntityType()).isWithHierarchy();
 				// get the index from this entity collection using the reference key
 				final Optional<ChainIndex> chainIndex = this.queryContext.getIndex(
 					new EntityIndexKey(
-						referencedEntityHierarchical ?
-							EntityIndexType.REFERENCED_HIERARCHY_NODE : EntityIndexType.REFERENCED_ENTITY,
+						EntityIndexType.REFERENCED_ENTITY,
 						referenceKey
 					)
 				).map(it -> ((EntityIndex) it).getChainIndex(attributeKey));

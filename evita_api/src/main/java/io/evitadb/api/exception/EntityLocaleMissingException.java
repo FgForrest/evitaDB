@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import io.evitadb.utils.ArrayUtils;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 
 /**
@@ -53,8 +54,8 @@ public class EntityLocaleMissingException extends EvitaInvalidUsageException {
 	}
 
 	public EntityLocaleMissingException(
-		@Nonnull String[] attributeNames,
-		@Nonnull String[] associatedDataNames
+		@Nullable String[] attributeNames,
+		@Nullable String[] associatedDataNames
 	) {
 		super(
 			"Query requires localized " +

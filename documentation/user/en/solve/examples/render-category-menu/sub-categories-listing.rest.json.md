@@ -5,6 +5,7 @@
       "primaryKey": 66468,
       "type": "Category",
       "version": 1,
+      "scope": "LIVE",
       "locales": [
         "en"
       ],
@@ -26,6 +27,7 @@
           "primaryKey": 66480,
           "type": "Category",
           "version": 1,
+          "scope": "LIVE",
           "locales": [
             "en"
           ],
@@ -45,6 +47,7 @@
           "primaryKey": 66481,
           "type": "Category",
           "version": 1,
+          "scope": "LIVE",
           "locales": [
             "en"
           ],
@@ -64,6 +67,7 @@
           "primaryKey": 66482,
           "type": "Category",
           "version": 1,
+          "scope": "LIVE",
           "locales": [
             "en"
           ],
@@ -83,6 +87,7 @@
           "primaryKey": 66483,
           "type": "Category",
           "version": 1,
+          "scope": "LIVE",
           "locales": [
             "en"
           ],
@@ -102,6 +107,7 @@
           "primaryKey": 66484,
           "type": "Category",
           "version": 1,
+          "scope": "LIVE",
           "locales": [
             "en"
           ],
@@ -121,6 +127,7 @@
           "primaryKey": 66537,
           "type": "Category",
           "version": 1,
+          "scope": "LIVE",
           "locales": [
             "en"
           ],

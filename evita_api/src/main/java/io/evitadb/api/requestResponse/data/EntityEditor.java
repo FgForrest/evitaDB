@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.dataType.Scope;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -51,6 +52,18 @@ import static io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySch
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public interface EntityEditor<W extends EntityEditor<W>> extends EntityContract, AttributesEditor<W, EntityAttributeSchemaContract>, AssociatedDataEditor<W>, PricesEditor<W> {
+
+	/**
+	 * Sets the scope of the entity. When the {@link Scope#ARCHIVED} is set, and the entity is saved, it will be moved
+	 * to the archive indexes and will be no longer accessible in the live data set. It's the equivalent of calling
+	 * {@link EvitaSessionContract#archiveEntity(String, int)} method. When the {@link Scope#LIVE} is set, and the entity
+	 * is saved, it will be moved to the live data set and will be accessible in the live data set. It's the equivalent of
+	 * calling {@link EvitaSessionContract#restoreEntity(String, int)} method.
+	 *
+	 * @param scope the scope to set for the entity
+	 * @return an instance of the entity editor with the updated scope
+	 */
+	W setScope(@Nonnull Scope scope);
 
 	/**
 	 * Sets hierarchy information of the entity. Hierarchy information allows to compose hierarchy tree composed of

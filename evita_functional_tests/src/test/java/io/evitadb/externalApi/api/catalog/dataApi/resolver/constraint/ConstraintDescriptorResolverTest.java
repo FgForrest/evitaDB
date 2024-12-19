@@ -39,6 +39,7 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ReferenceDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.ConstraintDescriptorResolver.ParsedConstraintDescriptor;
 import io.evitadb.test.Entities;
@@ -114,7 +115,7 @@ public class ConstraintDescriptorResolverTest {
 	@Test
 	void shouldCorrectlyParseConstraintKey() {
 		final Optional<ParsedConstraintDescriptor> parsedAttributeConstraint = parser.resolve(
-			new ConstraintResolveContext(new EntityDataLocator(Entities.PRODUCT)),
+			new ConstraintResolveContext(new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT))),
 			"attributeCodeEquals"
 		);
 		assertEquals(
@@ -123,12 +124,12 @@ public class ConstraintDescriptorResolverTest {
 				"attributeCodeEquals",
 				"code",
 				ConstraintDescriptorProvider.getConstraint(AttributeEquals.class),
-				new EntityDataLocator(Entities.PRODUCT)
+				new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT))
 			)
 		);
 
 		final Optional<ParsedConstraintDescriptor> parsedEntityFromReferenceConstraint = parser.resolve(
-			new ConstraintResolveContext(new ReferenceDataLocator(Entities.PRODUCT, Entities.CATEGORY)),
+			new ConstraintResolveContext(new ReferenceDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.CATEGORY)),
 			"entityHaving"
 		);
 		assertEquals(
@@ -137,12 +138,12 @@ public class ConstraintDescriptorResolverTest {
 				"entityHaving",
 				null,
 				ConstraintDescriptorProvider.getConstraint(EntityHaving.class),
-				new EntityDataLocator(Entities.CATEGORY)
+				new EntityDataLocator(new ManagedEntityTypePointer(Entities.CATEGORY))
 			)
 		);
 
 		final Optional<ParsedConstraintDescriptor> parsedHierarchyConstraint = parser.resolve(
-			new ConstraintResolveContext(new EntityDataLocator(Entities.PRODUCT)),
+			new ConstraintResolveContext(new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT))),
 			"hierarchyCategoryWithin"
 		);
 		assertEquals(
@@ -155,13 +156,13 @@ public class ConstraintDescriptorResolverTest {
 					.filter(it -> it.fullName().equals("within"))
 					.findFirst()
 					.orElseThrow(),
-				new HierarchyDataLocator(Entities.PRODUCT, Entities.CATEGORY)
+				new HierarchyDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.CATEGORY)
 			)
 		);
 
 		// should be parsed because there is proper parent hierarchy context properly identifying the simplified constraint
 		final Optional<ParsedConstraintDescriptor> parsedSimplifiedStopAt = parser.resolve(
-			new ConstraintResolveContext(new HierarchyDataLocator(Entities.CATEGORY), new HierarchyDataLocator(Entities.CATEGORY)),
+			new ConstraintResolveContext(new HierarchyDataLocator(new ManagedEntityTypePointer(Entities.CATEGORY)), new HierarchyDataLocator(new ManagedEntityTypePointer(Entities.CATEGORY))),
 			"excluding"
 		);
 		assertEquals(
@@ -169,7 +170,7 @@ public class ConstraintDescriptorResolverTest {
 				"excluding",
 				null,
 				ConstraintDescriptorProvider.getConstraint(HierarchyExcluding.class),
-				new HierarchyDataLocator(Entities.CATEGORY)
+				new HierarchyDataLocator(new ManagedEntityTypePointer(Entities.CATEGORY))
 			),
 			parsedSimplifiedStopAt.orElseThrow()
 		);
@@ -179,27 +180,27 @@ public class ConstraintDescriptorResolverTest {
 	void shouldNotParseConstraintKey() {
 		assertTrue(
 			parser.resolve(
-				new ConstraintResolveContext(new EntityDataLocator(Entities.PRODUCT)),
+				new ConstraintResolveContext(new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT))),
 				"attributeEquals"
 			).isEmpty()
 		);
 		assertTrue(
 			parser.resolve(
-				new ConstraintResolveContext(new EntityDataLocator(Entities.PRODUCT)),
+				new ConstraintResolveContext(new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT))),
 				"attributeCodeNot"
 			).isEmpty()
 		);
 		// should not be parsed because it is simplified constraint without proper parent hierarchy context
 		assertTrue(
 			parser.resolve(
-				new ConstraintResolveContext(new HierarchyDataLocator(Entities.CATEGORY)),
+				new ConstraintResolveContext(new HierarchyDataLocator(new ManagedEntityTypePointer(Entities.CATEGORY))),
 				"excluding"
 			).isEmpty()
 		);
 		// should not be parsed because it is simplified constraint without same current context as parent has
 		assertTrue(
 			parser.resolve(
-				new ConstraintResolveContext(new HierarchyDataLocator(Entities.CATEGORY), new EntityDataLocator(Entities.PRODUCT)),
+				new ConstraintResolveContext(new HierarchyDataLocator(new ManagedEntityTypePointer(Entities.CATEGORY)), new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT))),
 				"excluding"
 			).isEmpty()
 		);

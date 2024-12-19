@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,6 +28,8 @@ import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import org.junit.jupiter.api.Test;
 
+import java.util.Comparator;
+
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 
 /**
@@ -35,21 +37,21 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-@SuppressWarnings({"rawtypes", "unchecked"})
 class AttributeHistogramProducerTest {
 
 	@Test
 	void shouldReturnSimpleBuckets() {
 		final ValueToRecordBitmap[] input = {
-			new ValueToRecordBitmap<>(1, 1),
-			new ValueToRecordBitmap<>(2, 2),
-			new ValueToRecordBitmap<>(3, 3)
+			new ValueToRecordBitmap(1, 1),
+			new ValueToRecordBitmap(2, 2),
+			new ValueToRecordBitmap(3, 3)
 		};
 		final ValueToRecordBitmap[] output = AttributeHistogramProducer.getCombinedAndFilteredBucketArray(
 			new ConstantFormula(new BaseBitmap(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)),
 			new ValueToRecordBitmap[][]{
 				input
-			}
+			},
+			Comparator.naturalOrder()
 		);
 		assertArrayEquals(input, output);
 	}
@@ -60,17 +62,18 @@ class AttributeHistogramProducerTest {
 			new ConstantFormula(new BaseBitmap(2, 4, 6, 8, 10)),
 			new ValueToRecordBitmap[][]{
 				new ValueToRecordBitmap[]{
-					new ValueToRecordBitmap<>(1, 1, 2, 3),
-					new ValueToRecordBitmap<>(2, 4, 5, 6),
-					new ValueToRecordBitmap<>(3, 7, 8, 9)
+					new ValueToRecordBitmap(1, 1, 2, 3),
+					new ValueToRecordBitmap(2, 4, 5, 6),
+					new ValueToRecordBitmap(3, 7, 8, 9)
 				}
-			}
+			},
+			Comparator.naturalOrder()
 		);
 		assertArrayEquals(
 			new ValueToRecordBitmap[]{
-				new ValueToRecordBitmap<>(1, 2),
-				new ValueToRecordBitmap<>(2, 4, 6),
-				new ValueToRecordBitmap<>(3, 8)
+				new ValueToRecordBitmap(1, 2),
+				new ValueToRecordBitmap(2, 4, 6),
+				new ValueToRecordBitmap(3, 8)
 			},
 			output
 		);
@@ -82,28 +85,29 @@ class AttributeHistogramProducerTest {
 			new ConstantFormula(new BaseBitmap(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)),
 			new ValueToRecordBitmap[][]{
 				new ValueToRecordBitmap[]{
-					new ValueToRecordBitmap<>(1, 1, 3),
-					new ValueToRecordBitmap<>(3, 8, 9)
+					new ValueToRecordBitmap(1, 1, 3),
+					new ValueToRecordBitmap(3, 8, 9)
 				},
 				new ValueToRecordBitmap[]{
-					new ValueToRecordBitmap<>(1, 1),
-					new ValueToRecordBitmap<>(2, 6)
+					new ValueToRecordBitmap(1, 1),
+					new ValueToRecordBitmap(2, 6)
 				},
 				new ValueToRecordBitmap[]{
-					new ValueToRecordBitmap<>(1, 2),
-					new ValueToRecordBitmap<>(2, 6),
-					new ValueToRecordBitmap<>(3, 7)
+					new ValueToRecordBitmap(1, 2),
+					new ValueToRecordBitmap(2, 6),
+					new ValueToRecordBitmap(3, 7)
 				},
 				new ValueToRecordBitmap[]{
-					new ValueToRecordBitmap<>(2, 4, 5)
+					new ValueToRecordBitmap(2, 4, 5)
 				}
-			}
+			},
+			Comparator.naturalOrder()
 		);
 		assertArrayEquals(
 			new ValueToRecordBitmap[]{
-				new ValueToRecordBitmap<>(1, 1, 2, 3),
-				new ValueToRecordBitmap<>(2, 4, 5, 6),
-				new ValueToRecordBitmap<>(3, 7, 8, 9)
+				new ValueToRecordBitmap(1, 1, 2, 3),
+				new ValueToRecordBitmap(2, 4, 5, 6),
+				new ValueToRecordBitmap(3, 7, 8, 9)
 			},
 			output
 		);
@@ -115,28 +119,29 @@ class AttributeHistogramProducerTest {
 			new ConstantFormula(new BaseBitmap(2, 4, 6, 8, 10)),
 			new ValueToRecordBitmap[][]{
 				new ValueToRecordBitmap[]{
-					new ValueToRecordBitmap<>(1, 1, 3),
-					new ValueToRecordBitmap<>(2, 6)
+					new ValueToRecordBitmap(1, 1, 3),
+					new ValueToRecordBitmap(2, 6)
 				},
 				new ValueToRecordBitmap[]{
-					new ValueToRecordBitmap<>(1, 1),
-					new ValueToRecordBitmap<>(3, 8, 9)
+					new ValueToRecordBitmap(1, 1),
+					new ValueToRecordBitmap(3, 8, 9)
 				},
 				new ValueToRecordBitmap[]{
-					new ValueToRecordBitmap<>(1, 2),
-					new ValueToRecordBitmap<>(2, 6),
-					new ValueToRecordBitmap<>(3, 7)
+					new ValueToRecordBitmap(1, 2),
+					new ValueToRecordBitmap(2, 6),
+					new ValueToRecordBitmap(3, 7)
 				},
 				new ValueToRecordBitmap[]{
-					new ValueToRecordBitmap<>(2, 4, 5)
+					new ValueToRecordBitmap(2, 4, 5)
 				}
-			}
+			},
+			Comparator.naturalOrder()
 		);
 		assertArrayEquals(
 			new ValueToRecordBitmap[]{
-				new ValueToRecordBitmap<>(1, 2),
-				new ValueToRecordBitmap<>(2, 4, 6),
-				new ValueToRecordBitmap<>(3, 8)
+				new ValueToRecordBitmap(1, 2),
+				new ValueToRecordBitmap(2, 4, 6),
+				new ValueToRecordBitmap(3, 8)
 			},
 			output
 		);

@@ -31,7 +31,6 @@ import io.evitadb.api.requestResponse.data.structure.Price.PriceIdFirstPriceKeyC
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.data.structure.Prices;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.store.entity.model.entity.price.MinimalPriceInternalIdContainer;
 import io.evitadb.store.entity.model.entity.price.PriceInternalIdContainer;
 import io.evitadb.store.entity.model.entity.price.PriceWithInternalIds;
 import io.evitadb.store.model.EntityStoragePart;
@@ -50,12 +49,9 @@ import java.io.Serial;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.OptionalInt;
-import java.util.function.Function;
+import java.util.function.ToIntFunction;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
-
-import static java.util.Objects.requireNonNull;
-import static java.util.Optional.ofNullable;
 
 /**
  * This container class represents {@link Prices} of single {@link Entity}. Contains {@link PriceInnerRecordHandling}
@@ -148,6 +144,7 @@ public class PricesStoragePart implements EntityStoragePart {
 	/**
 	 * Returns inner data wrapped to {@link Prices} object that can be wired to {@link Entity}.
 	 */
+	@Nonnull
 	public Prices getAsPrices(@Nonnull EntitySchemaContract entitySchema) {
 		return new Prices(
 			entitySchema, version, Arrays.stream(prices).collect(Collectors.toList()), priceInnerRecordHandling
@@ -170,7 +167,7 @@ public class PricesStoragePart implements EntityStoragePart {
 	public void replaceOrAddPrice(
 		@Nonnull PriceKey priceKey,
 		@Nonnull UnaryOperator<PriceContract> mutator,
-		@Nonnull Function<PriceKey, Integer> internalPriceIdResolver
+		@Nonnull ToIntFunction<PriceKey> internalPriceIdResolver
 	) {
 		final InsertionPosition insertionPosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
 			this.prices, priceKey,
@@ -181,26 +178,20 @@ public class PricesStoragePart implements EntityStoragePart {
 			final PriceWithInternalIds existingContract = this.prices[position];
 			final PriceContract updatedPriceContract = mutator.apply(existingContract);
 			if (this.prices[position].differsFrom(updatedPriceContract)) {
+				final int existingInternalPriceId = existingContract.getInternalPriceId();
 				this.prices[position] = new PriceWithInternalIds(
 					updatedPriceContract,
-					updatedPriceContract.indexed() ?
-						requireNonNull(
-							ofNullable(existingContract.getInternalPriceId())
-								.orElseGet(() -> internalPriceIdResolver.apply(priceKey))
-						) : null
+					// -1 value is used of old prices that were not indexed and thus do not have internal id
+					// now all prices have internal id, so we can safely use -1 as a marker for non-existing price id
+					existingInternalPriceId == -1 ?
+						internalPriceIdResolver.applyAsInt(priceKey) : existingInternalPriceId
 				);
 				this.dirty = true;
 			}
 		} else {
 			final PriceContract newPrice = mutator.apply(null);
-			final Integer internalPriceId;
-			if (newPrice.indexed()) {
-				internalPriceId = internalPriceIdResolver.apply(priceKey);
-			} else {
-				internalPriceId = null;
-			}
 			this.prices = ArrayUtils.insertRecordIntoArray(
-				new PriceWithInternalIds(newPrice, internalPriceId),
+				new PriceWithInternalIds(newPrice, internalPriceIdResolver.applyAsInt(priceKey)),
 				this.prices,
 				position
 			);
@@ -225,15 +216,13 @@ public class PricesStoragePart implements EntityStoragePart {
 	 * {@link PriceInternalIdContainer} contains nulls in its field.
 	 */
 	@Nonnull
-	public PriceInternalIdContainer findExistingInternalIds(@Nonnull PriceKey priceKey) {
-		Integer internalPriceId = null;
-		for (PriceWithInternalIds price : prices) {
+	public OptionalInt findExistingInternalIds(@Nonnull PriceKey priceKey) {
+		for (PriceWithInternalIds price : this.prices) {
 			if (Objects.equals(priceKey, price.priceKey())) {
-				internalPriceId = price.getInternalPriceId();
-				break;
+				return OptionalInt.of(price.getInternalPriceId());
 			}
 		}
-		return new MinimalPriceInternalIdContainer(internalPriceId);
+		return OptionalInt.empty();
 	}
 
 	/**

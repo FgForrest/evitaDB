@@ -55,10 +55,71 @@ public interface GrpcSetAttributeSchemaFilterableMutationOrBuilder extends
    * When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
    * as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
    * (memory/disk) space in the form of index.
+   * deprecated in favor of `filterableInScopes`
    * </pre>
    *
-   * <code>bool filterable = 2;</code>
+   * <code>bool filterable = 2 [deprecated = true];</code>
+   * @deprecated
    * @return The filterable.
    */
-  boolean getFilterable();
+  @java.lang.Deprecated boolean getFilterable();
+
+  /**
+   * <pre>
+   * When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
+   * as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
+   * (memory/disk) space in the form of index.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope filterableInScopes = 3;</code>
+   * @return A list containing the filterableInScopes.
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getFilterableInScopesList();
+  /**
+   * <pre>
+   * When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
+   * as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
+   * (memory/disk) space in the form of index.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope filterableInScopes = 3;</code>
+   * @return The count of filterableInScopes.
+   */
+  int getFilterableInScopesCount();
+  /**
+   * <pre>
+   * When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
+   * as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
+   * (memory/disk) space in the form of index.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope filterableInScopes = 3;</code>
+   * @param index The index of the element to return.
+   * @return The filterableInScopes at the given index.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcEntityScope getFilterableInScopes(int index);
+  /**
+   * <pre>
+   * When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
+   * as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
+   * (memory/disk) space in the form of index.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope filterableInScopes = 3;</code>
+   * @return A list containing the enum numeric values on the wire for filterableInScopes.
+   */
+  java.util.List<java.lang.Integer>
+  getFilterableInScopesValueList();
+  /**
+   * <pre>
+   * When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
+   * as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
+   * (memory/disk) space in the form of index.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope filterableInScopes = 3;</code>
+   * @param index The index of the value to return.
+   * @return The enum numeric value on the wire of filterableInScopes at the given index.
+   */
+  int getFilterableInScopesValue(int index);
 }

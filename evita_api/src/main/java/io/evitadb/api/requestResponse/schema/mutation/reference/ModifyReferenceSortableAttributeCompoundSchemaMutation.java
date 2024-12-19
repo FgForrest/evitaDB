@@ -72,8 +72,8 @@ public class ModifyReferenceSortableAttributeCompoundSchemaMutation extends Abst
 	@Override
 	public MutationCombinationResult<LocalEntitySchemaMutation> combineWith(@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull EntitySchemaContract currentEntitySchema, @Nonnull LocalEntitySchemaMutation existingMutation) {
 		if (existingMutation instanceof ModifyReferenceSortableAttributeCompoundSchemaMutation theExistingMutation && name.equals(theExistingMutation.getName())
-				&& sortableAttributeCompoundSchemaMutation.getName().equals(theExistingMutation.getSortableAttributeCompoundSchemaMutation().getName())) {
-			if (sortableAttributeCompoundSchemaMutation instanceof CombinableLocalEntitySchemaMutation combinableSortableAttributeCompoundCombinationMutation) {
+				&& this.sortableAttributeCompoundSchemaMutation.getName().equals(theExistingMutation.getSortableAttributeCompoundSchemaMutation().getName())) {
+			if (this.sortableAttributeCompoundSchemaMutation instanceof CombinableLocalEntitySchemaMutation combinableSortableAttributeCompoundCombinationMutation) {
 				final MutationCombinationResult<LocalEntitySchemaMutation> result = combinableSortableAttributeCompoundCombinationMutation.combineWith(
 					currentCatalogSchema, currentEntitySchema, (LocalEntitySchemaMutation) theExistingMutation.getSortableAttributeCompoundSchemaMutation()
 				);
@@ -97,7 +97,7 @@ public class ModifyReferenceSortableAttributeCompoundSchemaMutation extends Abst
 								if (it == ((ModifyReferenceSortableAttributeCompoundSchemaMutation) existingMutation).getSortableAttributeCompoundSchemaMutation()) {
 									return existingMutation;
 								} else {
-									return new ModifyReferenceSortableAttributeCompoundSchemaMutation(name, (ReferenceSortableAttributeCompoundSchemaMutation) it);
+									return new ModifyReferenceSortableAttributeCompoundSchemaMutation(this.name, (ReferenceSortableAttributeCompoundSchemaMutation) it);
 								}
 							})
 							.toArray(LocalEntitySchemaMutation[]::new);
@@ -115,10 +115,10 @@ public class ModifyReferenceSortableAttributeCompoundSchemaMutation extends Abst
 	@Nullable
 	@Override
 	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
-		return sortableAttributeCompoundSchemaMutation.mutate(entitySchema, referenceSchema);
+		return this.sortableAttributeCompoundSchemaMutation.mutate(entitySchema, referenceSchema);
 	}
 
-	@Nullable
+	@Nonnull
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
@@ -138,7 +138,7 @@ public class ModifyReferenceSortableAttributeCompoundSchemaMutation extends Abst
 
 	@Override
 	public String toString() {
-		return "Modify entity reference `" + name + "` schema, " +
-			StringUtils.uncapitalize(sortableAttributeCompoundSchemaMutation.toString());
+		return "Modify entity reference `" + this.name + "` schema, " +
+			StringUtils.uncapitalize(this.sortableAttributeCompoundSchemaMutation.toString());
 	}
 }

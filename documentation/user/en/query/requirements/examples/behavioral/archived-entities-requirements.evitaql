@@ -1,0 +1,23 @@
+query(
+  collection("Product"),
+  filterBy(
+    scope(LIVE, ARCHIVED),
+    entityLocaleEquals("en"),
+    inScope(
+      LIVE,
+      hierarchyWithin(
+        "categories",
+        attributeEquals("url", "/en/cell-phones")
+      ),
+      priceInPriceLists("basic"),
+      priceInCurrency("EUR"),
+      priceValidInNow()
+    )
+  ),
+  require(
+    inScope(
+      LIVE,
+      priceHistogram(5)
+    )
+  )
+)

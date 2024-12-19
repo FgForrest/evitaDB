@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -42,13 +42,13 @@ public sealed interface AttributeExtractor permits EntityAttributeExtractor, Ent
 	 * Returns attribute value for particular `attributeName` from the `entity`.
 	 */
 	@Nullable
-	Comparable<?> extract(@Nonnull EntityContract entity, @Nonnull String attributeName);
+	Object extract(@Nonnull EntityContract entity, @Nonnull String attributeName);
 
 	/**
 	 * Returns attribute value for particular combination of `attributeName` and `locale` from the `entity`.
 	 */
 	@Nullable
-	Comparable<?> extract(@Nonnull EntityContract entity, @Nonnull String attributeName, @Nonnull Locale locale);
+	Object extract(@Nonnull EntityContract entity, @Nonnull String attributeName, @Nonnull Locale locale);
 
 	/**
 	 * Requirements that will trigger fetching appropriate container to access attribute in {@link EntityContract}.

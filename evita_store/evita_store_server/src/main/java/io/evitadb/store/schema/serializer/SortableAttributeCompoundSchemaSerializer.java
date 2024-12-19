@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,14 +32,19 @@ import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
+import io.evitadb.dataType.Scope;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
 import lombok.RequiredArgsConstructor;
 
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+
+import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.readScopeSet;
+import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.writeScopeSet;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link ReferenceSchema} from/to binary format.
@@ -71,6 +76,8 @@ public class SortableAttributeCompoundSchemaSerializer extends Serializer<Sortab
 			output.writeBoolean(false);
 		}
 
+		writeScopeSet(kryo, output, attributeCompoundSchema.getIndexedInScopes());
+
 		final List<AttributeElement> attributeElements = attributeCompoundSchema.getAttributeElements();
 		output.writeVarInt(attributeElements.size(), true);
 		for (AttributeElement attributeElement : attributeElements) {
@@ -96,6 +103,8 @@ public class SortableAttributeCompoundSchemaSerializer extends Serializer<Sortab
 		final String description = input.readBoolean() ? input.readString() : null;
 		final String deprecationNotice = input.readBoolean() ? input.readString() : null;
 
+		final EnumSet<Scope> indexedInScopes = readScopeSet(kryo, input);
+
 		final int attributeElementCount = input.readVarInt(true);
 		final List<AttributeElement> attributeElements = new ArrayList<>(attributeElementCount);
 		for (int i = 0; i < attributeElementCount; i++) {
@@ -109,7 +118,7 @@ public class SortableAttributeCompoundSchemaSerializer extends Serializer<Sortab
 		}
 
 		return SortableAttributeCompoundSchema._internalBuild(
-			name, nameVariants, description, deprecationNotice, attributeElements
+			name, nameVariants, description, deprecationNotice, indexedInScopes, attributeElements
 		);
 	}
 

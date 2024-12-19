@@ -15,6 +15,7 @@
           "primaryKey": 105140,
           "type": "Brand",
           "version": 1,
+          "scope": "LIVE",
           "allLocales": [
             "en"
           ],
@@ -37,6 +38,7 @@
           "primaryKey": 105168,
           "type": "Brand",
           "version": 1,
+          "scope": "LIVE",
           "allLocales": [
             "en"
           ],
@@ -59,6 +61,7 @@
           "primaryKey": 105239,
           "type": "Brand",
           "version": 1,
+          "scope": "LIVE",
           "allLocales": [
             "en"
           ],
@@ -81,6 +84,7 @@
           "primaryKey": 105281,
           "type": "Brand",
           "version": 1,
+          "scope": "LIVE",
           "allLocales": [
             "en"
           ],

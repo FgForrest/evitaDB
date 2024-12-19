@@ -45,4 +45,68 @@ public interface GrpcSetEntitySchemaWithHierarchyMutationOrBuilder extends
    * @return The withHierarchy.
    */
   boolean getWithHierarchy();
+
+  /**
+   * <pre>
+   * Contains set of all scopes the entity is indexed in and can be used for filtering entities and computation of
+   * extra data. If the hierarchy information is not indexed, it is still available on the entity itself (i.e. entity
+   * can define its parent entity), but it is not possible to work with the hierarchy information in any other way
+   * (calculating parent chain, children, siblings, etc.).
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>
+   * @return A list containing the indexedInScopes.
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getIndexedInScopesList();
+  /**
+   * <pre>
+   * Contains set of all scopes the entity is indexed in and can be used for filtering entities and computation of
+   * extra data. If the hierarchy information is not indexed, it is still available on the entity itself (i.e. entity
+   * can define its parent entity), but it is not possible to work with the hierarchy information in any other way
+   * (calculating parent chain, children, siblings, etc.).
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>
+   * @return The count of indexedInScopes.
+   */
+  int getIndexedInScopesCount();
+  /**
+   * <pre>
+   * Contains set of all scopes the entity is indexed in and can be used for filtering entities and computation of
+   * extra data. If the hierarchy information is not indexed, it is still available on the entity itself (i.e. entity
+   * can define its parent entity), but it is not possible to work with the hierarchy information in any other way
+   * (calculating parent chain, children, siblings, etc.).
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>
+   * @param index The index of the element to return.
+   * @return The indexedInScopes at the given index.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcEntityScope getIndexedInScopes(int index);
+  /**
+   * <pre>
+   * Contains set of all scopes the entity is indexed in and can be used for filtering entities and computation of
+   * extra data. If the hierarchy information is not indexed, it is still available on the entity itself (i.e. entity
+   * can define its parent entity), but it is not possible to work with the hierarchy information in any other way
+   * (calculating parent chain, children, siblings, etc.).
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>
+   * @return A list containing the enum numeric values on the wire for indexedInScopes.
+   */
+  java.util.List<java.lang.Integer>
+  getIndexedInScopesValueList();
+  /**
+   * <pre>
+   * Contains set of all scopes the entity is indexed in and can be used for filtering entities and computation of
+   * extra data. If the hierarchy information is not indexed, it is still available on the entity itself (i.e. entity
+   * can define its parent entity), but it is not possible to work with the hierarchy information in any other way
+   * (calculating parent chain, children, siblings, etc.).
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 2;</code>
+   * @param index The index of the value to return.
+   * @return The enum numeric value on the wire of indexedInScopes at the given index.
+   */
+  int getIndexedInScopesValue(int index);
 }

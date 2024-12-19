@@ -6,6 +6,7 @@
         "primaryKey": 108550,
         "type": "Product",
         "version": 1,
+        "scope": "LIVE",
         "locales": [
           "en"
         ],
@@ -24,6 +25,7 @@
         "primaryKey": 108547,
         "type": "Product",
         "version": 1,
+        "scope": "LIVE",
         "locales": [
           "en"
         ],
@@ -42,6 +44,7 @@
         "primaryKey": 108545,
         "type": "Product",
         "version": 1,
+        "scope": "LIVE",
         "locales": [
           "en"
         ],
@@ -60,6 +63,7 @@
         "primaryKey": 108543,
         "type": "Product",
         "version": 1,
+        "scope": "LIVE",
         "locales": [
           "en"
         ],
@@ -78,6 +82,7 @@
         "primaryKey": 108540,
         "type": "Product",
         "version": 1,
+        "scope": "LIVE",
         "locales": [
           "en"
         ],

@@ -26,6 +26,8 @@ package io.evitadb.dataType;
 import io.evitadb.dataType.data.DataItem;
 import io.evitadb.dataType.exception.InconvertibleDataTypeException;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
+import io.evitadb.dataType.expression.Expression;
+import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.MemoryMeasuringConstants;
@@ -522,6 +524,7 @@ public class EvitaDataTypes {
 		queryDataTypes.add(UUID.class);
 		queryDataTypes.add(Predecessor.class);
 		queryDataTypes.add(ReferencedEntityPredecessor.class);
+		queryDataTypes.add(Expression.class);
 		SUPPORTED_QUERY_DATA_TYPES = Collections.unmodifiableSet(queryDataTypes);
 
 		final LinkedHashMap<Class<?>, Class<?>> primitiveWrappers = new LinkedHashMap<>();
@@ -722,6 +725,8 @@ public class EvitaDataTypes {
 			return CHAR_STRING_DELIMITER + value.toString() + CHAR_STRING_DELIMITER;
 		} else if (value instanceof Predecessor || value instanceof ReferencedEntityPredecessor) {
 			return value.toString();
+		} else if (value instanceof ExpressionNode expressionNode) {
+			return expressionNode.toString();
 		} else if (value == null) {
 			throw new GenericEvitaInternalError(
 				"Null argument value should never ever happen. Null values are excluded in constructor of the class!"

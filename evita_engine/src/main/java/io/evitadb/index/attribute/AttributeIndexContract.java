@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import io.evitadb.api.exception.UniqueValueViolationException;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
+import io.evitadb.dataType.Scope;
 import io.evitadb.store.model.StoragePart;
 
 import javax.annotation.Nonnull;
@@ -47,7 +48,7 @@ import java.util.function.Function;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public interface AttributeIndexContract {
+public interface AttributeIndexContract extends AttributeIndexScopeSpecificContract {
 
 	/**
 	 * Method inserts new unique attribute to the index.
@@ -57,6 +58,7 @@ public interface AttributeIndexContract {
 	void insertUniqueAttribute(
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
+		@Nonnull Scope scope,
 		@Nullable Locale locale,
 		@Nonnull Object value,
 		int recordId
@@ -70,6 +72,7 @@ public interface AttributeIndexContract {
 	void removeUniqueAttribute(
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
+		@Nonnull Scope scope,
 		@Nullable Locale locale,
 		@Nonnull Object value,
 		int recordId
@@ -182,15 +185,6 @@ public interface AttributeIndexContract {
 	Set<AttributeKey> getUniqueIndexes();
 
 	/**
-	 * Returns index that maintains unique attributes to record ids information.
-	 *
-	 * @param locale might not be passed for language agnostic attributes
-	 * @return NULL value when there is no unique index associated with this `attributeSchema`
-	 */
-	@Nullable
-	UniqueIndex getUniqueIndex(@Nonnull AttributeSchemaContract attributeSchema, @Nullable Locale locale);
-
-	/**
 	 * Returns collection of all filter indexes in this {@link AttributeIndex} instance.
 	 */
 	@Nonnull
@@ -205,6 +199,7 @@ public interface AttributeIndexContract {
 	/**
 	 * Returns index that maintains filterable attributes for records in the index.
 	 *
+	 * @param attributeName schema to set up the index for
 	 * @param locale might not be passed for language agnostic attributes
 	 * @return NULL value when there is no unique index associated with this `attributeName`
 	 */
@@ -226,6 +221,7 @@ public interface AttributeIndexContract {
 	/**
 	 * Returns index that maintains sortable attributes for records in the index.
 	 *
+	 * @param attributeName to set up the index for
 	 * @param locale might not be passed for language agnostic attributes
 	 * @return NULL value when there is no sort index associated with this `attributeName`
 	 */
@@ -257,7 +253,6 @@ public interface AttributeIndexContract {
 	 * Returns true when this index contains no data and may be safely purged.
 	 */
 	boolean isAttributeIndexEmpty();
-
 	/**
 	 * Method returns collection of all modified parts of this index that were modified and needs to be stored.
 	 */

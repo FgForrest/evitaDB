@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -37,6 +37,7 @@ import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.dataType.Range;
 import io.evitadb.dataType.ShortNumberRange;
+import io.evitadb.dataType.expression.Expression;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -274,7 +275,7 @@ public class JavaPrettyPrintingVisitor implements ConstraintVisitor {
 			final Constraint<?>[] additionalChildren = constraint.getExplicitAdditionalChildren();
 			final int additionalChildrenLength = additionalChildren.length;
 
-			final Serializable[] arguments = constraint.getArguments();
+			final Serializable[] arguments = constraint.getArgumentsExcludingDefaults();
 			final int argumentsLength = arguments.length;
 
 			// print arguments
@@ -435,6 +436,8 @@ public class JavaPrettyPrintingVisitor implements ConstraintVisitor {
 			return "Locale.forLanguageTag(\"" + locale.toLanguageTag() + "\")";
 		} else if (value instanceof Currency currency) {
 			return "Currency.getInstance(\"" + currency.getCurrencyCode() + "\")";
+		} else if (value instanceof Expression expression) {
+			return "ExpressionFactory.parse(\"" + expression + "\")";
 		} else if (value == null) {
 			return "null";
 		} else {
