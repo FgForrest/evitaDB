@@ -114,7 +114,12 @@ public class ClientTaskTracker implements Closeable {
 	@Nonnull
 	public <S, T> ClientTask<S, T> createTask(@Nonnull TaskStatus<S, T> taskStatus) {
 		assertActive();
-		if (taskStatus.simplifiedState() == TaskSimplifiedState.QUEUED || taskStatus.simplifiedState() == TaskSimplifiedState.RUNNING) {
+		final TaskSimplifiedState taskState = taskStatus.simplifiedState();
+		if (
+			taskState == TaskSimplifiedState.WAITING_FOR_PRECONDITION ||
+			taskState == TaskSimplifiedState.QUEUED ||
+			taskState == TaskSimplifiedState.RUNNING
+		) {
 			// we need to add the task to the queue and track its status - unless it's already GCed
 			final ClientTask<S, T> taskToTrack = new ClientTask<>(
 				taskStatus,

@@ -37,6 +37,7 @@ import io.evitadb.api.requestResponse.data.Versioned;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
+import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.associatedData.AssociatedDataMutation;
 import io.evitadb.api.requestResponse.data.mutation.associatedData.UpsertAssociatedDataMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
@@ -48,11 +49,13 @@ import io.evitadb.api.requestResponse.data.mutation.reference.InsertReferenceMut
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.SetReferenceGroupMutation;
+import io.evitadb.api.requestResponse.data.mutation.scope.SetEntityScopeMutation;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.dataType.Scope;
 import lombok.experimental.Delegate;
 
 import javax.annotation.Nonnull;
@@ -90,19 +93,21 @@ public class InitialEntityBuilder implements EntityBuilder {
 	private final String type;
 	private final EntitySchemaContract schema;
 	private final Integer primaryKey;
+	private Scope scope;
 	@Delegate(types = AttributesContract.class)
 	private final InitialEntityAttributesBuilder attributesBuilder;
 	@Delegate(types = AssociatedDataContract.class)
-	private final AssociatedDataBuilder associatedDataBuilder;
+	private final InitialAssociatedDataBuilder associatedDataBuilder;
 	@Delegate(types = PricesContract.class, excludes = Versioned.class)
-	private final PricesBuilder pricesBuilder;
+	private final InitialPricesBuilder pricesBuilder;
 	private final Map<ReferenceKey, ReferenceContract> references;
-	private Integer parent;
+	@Nullable private Integer parent;
 
 	public InitialEntityBuilder(@Nonnull String type) {
 		this.type = type;
 		this.schema = EntitySchema._internalBuild(type);
 		this.primaryKey = null;
+		this.scope =  Scope.DEFAULT_SCOPE;
 		this.attributesBuilder = new InitialEntityAttributesBuilder(schema);
 		this.associatedDataBuilder = new InitialAssociatedDataBuilder(schema);
 		this.pricesBuilder = new InitialPricesBuilder(schema);
@@ -113,6 +118,7 @@ public class InitialEntityBuilder implements EntityBuilder {
 		this.type = schema.getName();
 		this.schema = schema;
 		this.primaryKey = null;
+		this.scope =  Scope.DEFAULT_SCOPE;
 		this.attributesBuilder = new InitialEntityAttributesBuilder(schema);
 		this.associatedDataBuilder = new InitialAssociatedDataBuilder(schema);
 		this.pricesBuilder = new InitialPricesBuilder(schema);
@@ -123,6 +129,7 @@ public class InitialEntityBuilder implements EntityBuilder {
 		this.type = type;
 		this.primaryKey = primaryKey;
 		this.schema = EntitySchema._internalBuild(type);
+		this.scope =  Scope.DEFAULT_SCOPE;
 		this.attributesBuilder = new InitialEntityAttributesBuilder(schema);
 		this.associatedDataBuilder = new InitialAssociatedDataBuilder(schema);
 		this.pricesBuilder = new InitialPricesBuilder(schema);
@@ -133,6 +140,7 @@ public class InitialEntityBuilder implements EntityBuilder {
 		this.type = schema.getName();
 		this.schema = schema;
 		this.primaryKey = primaryKey;
+		this.scope =  Scope.DEFAULT_SCOPE;
 		this.attributesBuilder = new InitialEntityAttributesBuilder(schema);
 		this.associatedDataBuilder = new InitialAssociatedDataBuilder(schema);
 		this.pricesBuilder = new InitialPricesBuilder(schema);
@@ -142,6 +150,7 @@ public class InitialEntityBuilder implements EntityBuilder {
 	public InitialEntityBuilder(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nullable Integer primaryKey,
+		@Nullable Scope scope,
 		@Nonnull Collection<AttributeValue> attributeValues,
 		@Nonnull Collection<AssociatedDataValue> associatedDataValues,
 		@Nonnull Collection<ReferenceContract> referenceContracts,
@@ -151,13 +160,14 @@ public class InitialEntityBuilder implements EntityBuilder {
 		this.type = entitySchema.getName();
 		this.schema = entitySchema;
 		this.primaryKey = primaryKey;
-		this.attributesBuilder = new InitialEntityAttributesBuilder(schema);
+		this.scope = scope == null ? Scope.DEFAULT_SCOPE : scope;
+		this.attributesBuilder = new InitialEntityAttributesBuilder(this.schema);
 		for (AttributeValue attributeValue : attributeValues) {
 			final AttributeKey attributeKey = attributeValue.key();
 			if (attributeKey.localized()) {
 				this.attributesBuilder.setAttribute(
 					attributeKey.attributeName(),
-					attributeKey.locale(),
+					attributeKey.localeOrThrowException(),
 					attributeValue.value()
 				);
 			} else {
@@ -167,13 +177,13 @@ public class InitialEntityBuilder implements EntityBuilder {
 				);
 			}
 		}
-		this.associatedDataBuilder = new InitialAssociatedDataBuilder(schema);
+		this.associatedDataBuilder = new InitialAssociatedDataBuilder(this.schema);
 		for (AssociatedDataValue associatedDataValue : associatedDataValues) {
 			final AssociatedDataKey associatedDataKey = associatedDataValue.key();
 			if (associatedDataKey.localized()) {
 				this.associatedDataBuilder.setAssociatedData(
 					associatedDataKey.associatedDataName(),
-					associatedDataKey.locale(),
+					associatedDataKey.localeOrThrowException(),
 					associatedDataValue.value()
 				);
 			} else {
@@ -183,7 +193,7 @@ public class InitialEntityBuilder implements EntityBuilder {
 				);
 			}
 		}
-		this.pricesBuilder = new InitialPricesBuilder(schema);
+		this.pricesBuilder = new InitialPricesBuilder(this.schema);
 		ofNullable(priceInnerRecordHandling)
 			.ifPresent(this.pricesBuilder::setPriceInnerRecordHandling);
 		for (PriceContract price : prices) {
@@ -226,19 +236,25 @@ public class InitialEntityBuilder implements EntityBuilder {
 	@Override
 	@Nonnull
 	public String getType() {
-		return type;
+		return this.type;
 	}
 
 	@Override
 	@Nonnull
 	public EntitySchemaContract getSchema() {
-		return schema;
+		return this.schema;
 	}
 
 	@Override
 	@Nullable
 	public Integer getPrimaryKey() {
-		return primaryKey;
+		return this.primaryKey;
+	}
+
+	@Nonnull
+	@Override
+	public Scope getScope() {
+		return this.scope;
 	}
 
 	@Override
@@ -249,8 +265,8 @@ public class InitialEntityBuilder implements EntityBuilder {
 	@Nonnull
 	@Override
 	public Optional<EntityClassifierWithParent> getParentEntity() {
-		return ofNullable(parent)
-			.map(it -> new EntityReferenceWithParent(type, it, null));
+		return ofNullable(this.parent)
+			.map(it -> new EntityReferenceWithParent(this.type, it, null));
 	}
 
 	@Override
@@ -265,13 +281,13 @@ public class InitialEntityBuilder implements EntityBuilder {
 	@Nonnull
 	@Override
 	public Collection<ReferenceContract> getReferences() {
-		return references.values();
+		return this.references.values();
 	}
 
 	@Nonnull
 	@Override
 	public Collection<ReferenceContract> getReferences(@Nonnull String referenceName) {
-		return references
+		return this.references
 			.values()
 			.stream()
 			.filter(it -> Objects.equals(referenceName, it.getReferenceName()))
@@ -281,14 +297,14 @@ public class InitialEntityBuilder implements EntityBuilder {
 	@Nonnull
 	@Override
 	public Optional<ReferenceContract> getReference(@Nonnull String referenceName, int referencedEntityId) {
-		return ofNullable(references.get(new ReferenceKey(referenceName, referencedEntityId)));
+		return ofNullable(this.references.get(new ReferenceKey(referenceName, referencedEntityId)));
 	}
 
 	@Nonnull
 	public Set<Locale> getAllLocales() {
 		return Stream.concat(
-				attributesBuilder.getAttributeLocales().stream(),
-				associatedDataBuilder.getAssociatedDataLocales().stream()
+				this.attributesBuilder.getAttributeLocales().stream(),
+				this.associatedDataBuilder.getAssociatedDataLocales().stream()
 			)
 			.collect(Collectors.toSet());
 	}
@@ -301,42 +317,42 @@ public class InitialEntityBuilder implements EntityBuilder {
 	@Nonnull
 	@Override
 	public EntityBuilder removeAttribute(@Nonnull String attributeName) {
-		attributesBuilder.removeAttribute(attributeName);
+		this.attributesBuilder.removeAttribute(attributeName);
 		return this;
 	}
 
 	@Nonnull
 	@Override
 	public <T extends Serializable> EntityBuilder setAttribute(@Nonnull String attributeName, @Nullable T attributeValue) {
-		attributesBuilder.setAttribute(attributeName, attributeValue);
+		this.attributesBuilder.setAttribute(attributeName, attributeValue);
 		return this;
 	}
 
 	@Nonnull
 	@Override
 	public <T extends Serializable> EntityBuilder setAttribute(@Nonnull String attributeName, @Nullable T[] attributeValue) {
-		attributesBuilder.setAttribute(attributeName, attributeValue);
+		this.attributesBuilder.setAttribute(attributeName, attributeValue);
 		return this;
 	}
 
 	@Nonnull
 	@Override
 	public EntityBuilder removeAttribute(@Nonnull String attributeName, @Nonnull Locale locale) {
-		attributesBuilder.removeAttribute(attributeName, locale);
+		this.attributesBuilder.removeAttribute(attributeName, locale);
 		return this;
 	}
 
 	@Nonnull
 	@Override
 	public <T extends Serializable> EntityBuilder setAttribute(@Nonnull String attributeName, @Nonnull Locale locale, @Nullable T attributeValue) {
-		attributesBuilder.setAttribute(attributeName, locale, attributeValue);
+		this.attributesBuilder.setAttribute(attributeName, locale, attributeValue);
 		return this;
 	}
 
 	@Nonnull
 	@Override
 	public <T extends Serializable> EntityBuilder setAttribute(@Nonnull String attributeName, @Nonnull Locale locale, @Nullable T[] attributeValue) {
-		attributesBuilder.setAttribute(attributeName, locale, attributeValue);
+		this.attributesBuilder.setAttribute(attributeName, locale, attributeValue);
 		return this;
 	}
 
@@ -350,49 +366,49 @@ public class InitialEntityBuilder implements EntityBuilder {
 	@Nonnull
 	@Override
 	public EntityBuilder removeAssociatedData(@Nonnull String associatedDataName) {
-		associatedDataBuilder.removeAssociatedData(associatedDataName);
+		this.associatedDataBuilder.removeAssociatedData(associatedDataName);
 		return this;
 	}
 
 	@Nonnull
 	@Override
 	public <T extends Serializable> EntityBuilder setAssociatedData(@Nonnull String associatedDataName, @Nullable T associatedDataValue) {
-		associatedDataBuilder.setAssociatedData(associatedDataName, associatedDataValue);
+		this.associatedDataBuilder.setAssociatedData(associatedDataName, associatedDataValue);
 		return this;
 	}
 
 	@Nonnull
 	@Override
 	public <T extends Serializable> EntityBuilder setAssociatedData(@Nonnull String associatedDataName, @Nonnull T[] associatedDataValue) {
-		associatedDataBuilder.setAssociatedData(associatedDataName, associatedDataValue);
+		this.associatedDataBuilder.setAssociatedData(associatedDataName, associatedDataValue);
 		return this;
 	}
 
 	@Nonnull
 	@Override
 	public EntityBuilder removeAssociatedData(@Nonnull String associatedDataName, @Nonnull Locale locale) {
-		associatedDataBuilder.removeAssociatedData(associatedDataName, locale);
+		this.associatedDataBuilder.removeAssociatedData(associatedDataName, locale);
 		return this;
 	}
 
 	@Nonnull
 	@Override
 	public <T extends Serializable> EntityBuilder setAssociatedData(@Nonnull String associatedDataName, @Nonnull Locale locale, @Nullable T associatedDataValue) {
-		associatedDataBuilder.setAssociatedData(associatedDataName, locale, associatedDataValue);
+		this.associatedDataBuilder.setAssociatedData(associatedDataName, locale, associatedDataValue);
 		return this;
 	}
 
 	@Nonnull
 	@Override
 	public <T extends Serializable> EntityBuilder setAssociatedData(@Nonnull String associatedDataName, @Nonnull Locale locale, @Nullable T[] associatedDataValue) {
-		associatedDataBuilder.setAssociatedData(associatedDataName, locale, associatedDataValue);
+		this.associatedDataBuilder.setAssociatedData(associatedDataName, locale, associatedDataValue);
 		return this;
 	}
 
 	@Nonnull
 	@Override
 	public EntityBuilder mutateAssociatedData(@Nonnull AssociatedDataMutation mutation) {
-		associatedDataBuilder.mutateAssociatedData(mutation);
+		this.associatedDataBuilder.mutateAssociatedData(mutation);
 		return this;
 	}
 
@@ -405,6 +421,12 @@ public class InitialEntityBuilder implements EntityBuilder {
 	@Override
 	public EntityBuilder removeParent() {
 		this.parent = null;
+		return this;
+	}
+
+	@Override
+	public EntityBuilder setScope(@Nonnull Scope scope) {
+		this.scope = scope;
 		return this;
 	}
 
@@ -430,13 +452,13 @@ public class InitialEntityBuilder implements EntityBuilder {
 		final InitialReferenceBuilder builder = new InitialReferenceBuilder(this.schema, referenceName, referencedPrimaryKey, cardinality, referencedEntityType);
 		ofNullable(whichIs).ifPresent(it -> it.accept(builder));
 		final Reference reference = builder.build();
-		references.put(new ReferenceKey(referenceName, referencedPrimaryKey), reference);
+		this.references.put(new ReferenceKey(referenceName, referencedPrimaryKey), reference);
 		return this;
 	}
 
 	@Override
 	public void addOrReplaceReferenceMutations(@Nonnull ReferenceBuilder referenceBuilder) {
-		references.put(referenceBuilder.getReferenceKey(), referenceBuilder.build());
+		this.references.put(referenceBuilder.getReferenceKey(), referenceBuilder.build());
 	}
 
 	@Override
@@ -447,49 +469,49 @@ public class InitialEntityBuilder implements EntityBuilder {
 
 	@Override
 	public EntityBuilder setPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, boolean indexed) {
-		pricesBuilder.setPrice(priceId, priceList, currency, priceWithoutTax, taxRate, priceWithTax, indexed);
+		this.pricesBuilder.setPrice(priceId, priceList, currency, priceWithoutTax, taxRate, priceWithTax, indexed);
 		return this;
 	}
 
 	@Override
 	public EntityBuilder setPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nullable Integer innerRecordId, @Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, boolean indexed) {
-		pricesBuilder.setPrice(priceId, priceList, currency, innerRecordId, priceWithoutTax, taxRate, priceWithTax, indexed);
+		this.pricesBuilder.setPrice(priceId, priceList, currency, innerRecordId, priceWithoutTax, taxRate, priceWithTax, indexed);
 		return this;
 	}
 
 	@Override
 	public EntityBuilder setPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, DateTimeRange validity, boolean indexed) {
-		pricesBuilder.setPrice(priceId, priceList, currency, priceWithoutTax, taxRate, priceWithTax, validity, indexed);
+		this.pricesBuilder.setPrice(priceId, priceList, currency, priceWithoutTax, taxRate, priceWithTax, validity, indexed);
 		return this;
 	}
 
 	@Override
 	public EntityBuilder setPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nullable Integer innerRecordId, @Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, @Nullable DateTimeRange validity, boolean indexed) {
-		pricesBuilder.setPrice(priceId, priceList, currency, innerRecordId, priceWithoutTax, taxRate, priceWithTax, validity, indexed);
+		this.pricesBuilder.setPrice(priceId, priceList, currency, innerRecordId, priceWithoutTax, taxRate, priceWithTax, validity, indexed);
 		return this;
 	}
 
 	@Override
 	public EntityBuilder removePrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency) {
-		pricesBuilder.removePrice(priceId, priceList, currency);
+		this.pricesBuilder.removePrice(priceId, priceList, currency);
 		return this;
 	}
 
 	@Override
 	public EntityBuilder setPriceInnerRecordHandling(@Nonnull PriceInnerRecordHandling priceInnerRecordHandling) {
-		pricesBuilder.setPriceInnerRecordHandling(priceInnerRecordHandling);
+		this.pricesBuilder.setPriceInnerRecordHandling(priceInnerRecordHandling);
 		return this;
 	}
 
 	@Override
 	public EntityBuilder removePriceInnerRecordHandling() {
-		pricesBuilder.removePriceInnerRecordHandling();
+		this.pricesBuilder.removePriceInnerRecordHandling();
 		return this;
 	}
 
 	@Override
 	public EntityBuilder removeAllNonTouchedPrices() {
-		pricesBuilder.removeAllNonTouchedPrices();
+		this.pricesBuilder.removeAllNonTouchedPrices();
 		return this;
 	}
 
@@ -502,10 +524,12 @@ public class InitialEntityBuilder implements EntityBuilder {
 				getPrimaryKey(),
 				EntityExistence.MUST_NOT_EXIST,
 				Stream.of(
-						ofNullable(parent)
+						this.scope == Scope.LIVE ?
+							Stream.<LocalMutation<?,?>>empty() : Stream.of(new SetEntityScopeMutation(this.scope)),
+						ofNullable(this.parent)
 							.map(SetParentMutation::new)
 							.stream(),
-						references.values()
+						this.references.values()
 							.stream()
 							.flatMap(it -> Stream.concat(
 									Stream.of(
@@ -524,19 +548,19 @@ public class InitialEntityBuilder implements EntityBuilder {
 										)
 								)
 							),
-						attributesBuilder
+						this.attributesBuilder
 							.getAttributeValues()
 							.stream()
 							.filter(it -> it.value() != null)
 							.map(it -> new UpsertAttributeMutation(it.key(), it.value())),
-						associatedDataBuilder
+						this.associatedDataBuilder
 							.getAssociatedDataValues()
 							.stream()
-							.map(it -> new UpsertAssociatedDataMutation(it.key(), it.value())),
+							.map(it -> new UpsertAssociatedDataMutation(it.key(), it.valueOrThrowException())),
 						Stream.of(
-							new SetPriceInnerRecordHandlingMutation(pricesBuilder.getPriceInnerRecordHandling())
+							new SetPriceInnerRecordHandlingMutation(this.pricesBuilder.getPriceInnerRecordHandling())
 						),
-						pricesBuilder
+						this.pricesBuilder
 							.getPrices()
 							.stream()
 							.map(it -> new UpsertPriceMutation(it.priceKey(), it))
@@ -552,22 +576,22 @@ public class InitialEntityBuilder implements EntityBuilder {
 	@Override
 	public Entity toInstance() {
 		return Entity._internalBuild(
-			primaryKey,
+			this.primaryKey,
 			version(),
-			schema,
-			parent,
-			references.values(),
-			attributesBuilder.build(),
-			associatedDataBuilder.build(),
-			pricesBuilder.build(),
+			this.schema,
+			this.parent,
+			this.references.values(),
+			this.attributesBuilder.build(),
+			this.associatedDataBuilder.build(),
+			this.pricesBuilder.build(),
 			getAllLocales(),
 			Stream.concat(
-				schema.getReferences().keySet().stream(),
-				references.keySet()
+				this.schema.getReferences().keySet().stream(),
+				this.references.keySet()
 					.stream()
 					.map(ReferenceKey::referenceName)
 			).collect(Collectors.toSet()),
-			schema.isWithHierarchy() || parent != null,
+			this.schema.isWithHierarchy() || this.parent != null,
 			false
 		);
 	}

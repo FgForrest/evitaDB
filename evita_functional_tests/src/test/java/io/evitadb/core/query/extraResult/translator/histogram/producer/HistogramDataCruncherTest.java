@@ -183,13 +183,13 @@ class HistogramDataCruncherTest {
 
 	@Test
 	void computeHistogramFromDistinctValuesWithLessStepsAndSpecificWeight() {
-		final HistogramDataCruncher<ValueToRecordBitmap<Integer>> cruncher = createHistogramBucketCruncher(
+		final HistogramDataCruncher<ValueToRecordBitmap> cruncher = createHistogramBucketCruncher(
 			3,
-			new ValueToRecordBitmap<>(100, 1, 11, 12, 13, 14, 15, 16, 17, 18, 19),
-			new ValueToRecordBitmap<>(200, 2, 21),
-			new ValueToRecordBitmap<>(300, 3, 31, 32, 33, 34),
-			new ValueToRecordBitmap<>(400, 4, 41, 42),
-			new ValueToRecordBitmap<>(500, 5, 51, 52, 53, 54, 55)
+			new ValueToRecordBitmap(100, 1, 11, 12, 13, 14, 15, 16, 17, 18, 19),
+			new ValueToRecordBitmap(200, 2, 21),
+			new ValueToRecordBitmap(300, 3, 31, 32, 33, 34),
+			new ValueToRecordBitmap(400, 4, 41, 42),
+			new ValueToRecordBitmap(500, 5, 51, 52, 53, 54, 55)
 		);
 		assertArrayEquals(
 			new CacheableBucket[]{
@@ -372,12 +372,12 @@ class HistogramDataCruncherTest {
 	}
 
 	@Nonnull
-	private static HistogramDataCruncher<ValueToRecordBitmap<Integer>> createHistogramBucketCruncher(int stepCount, ValueToRecordBitmap<Integer>... data) {
+	private static HistogramDataCruncher<ValueToRecordBitmap> createHistogramBucketCruncher(int stepCount, ValueToRecordBitmap... data) {
 		return new HistogramDataCruncher<>(
 			"test histogram",
 			stepCount, 0,
 			data,
-			ValueToRecordBitmap::getValue,
+			it -> (int) it.getValue(),
 			CacheableBucket -> CacheableBucket.getRecordIds().size(),
 			BigDecimal::new,
 			BigDecimal::intValueExact

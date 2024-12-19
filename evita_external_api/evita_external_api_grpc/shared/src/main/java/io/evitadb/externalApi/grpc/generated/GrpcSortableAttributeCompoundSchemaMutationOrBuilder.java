@@ -105,5 +105,20 @@ public interface GrpcSortableAttributeCompoundSchemaMutationOrBuilder extends
    */
   io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutationOrBuilder getRemoveSortableAttributeCompoundSchemaMutationOrBuilder();
 
+  /**
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation setSortableAttributeCompoundIndexedMutation = 6;</code>
+   * @return Whether the setSortableAttributeCompoundIndexedMutation field is set.
+   */
+  boolean hasSetSortableAttributeCompoundIndexedMutation();
+  /**
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation setSortableAttributeCompoundIndexedMutation = 6;</code>
+   * @return The setSortableAttributeCompoundIndexedMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation getSetSortableAttributeCompoundIndexedMutation();
+  /**
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation setSortableAttributeCompoundIndexedMutation = 6;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutationOrBuilder getSetSortableAttributeCompoundIndexedMutationOrBuilder();
+
   public io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation.MutationCase getMutationCase();
 }

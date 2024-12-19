@@ -71,6 +71,15 @@ public enum GrpcTaskSimplifiedState
    * <code>TASK_FAILED = 3;</code>
    */
   TASK_FAILED(3),
+  /**
+   * <pre>
+   **
+   * Task is waiting for precondition to be satisfied.
+   * </pre>
+   *
+   * <code>TASK_WAITING_FOR_PRECONDITION = 4;</code>
+   */
+  TASK_WAITING_FOR_PRECONDITION(4),
   UNRECOGNIZED(-1),
   ;
 
@@ -110,6 +119,15 @@ public enum GrpcTaskSimplifiedState
    * <code>TASK_FAILED = 3;</code>
    */
   public static final int TASK_FAILED_VALUE = 3;
+  /**
+   * <pre>
+   **
+   * Task is waiting for precondition to be satisfied.
+   * </pre>
+   *
+   * <code>TASK_WAITING_FOR_PRECONDITION = 4;</code>
+   */
+  public static final int TASK_WAITING_FOR_PRECONDITION_VALUE = 4;
 
 
   public final int getNumber() {
@@ -140,6 +158,7 @@ public enum GrpcTaskSimplifiedState
       case 1: return TASK_RUNNING;
       case 2: return TASK_FINISHED;
       case 3: return TASK_FAILED;
+      case 4: return TASK_WAITING_FOR_PRECONDITION;
       default: return null;
     }
   }

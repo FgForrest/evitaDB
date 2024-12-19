@@ -49,4 +49,14 @@ public interface GrpcPaginatedListOrBuilder extends
    * @return The pageNumber.
    */
   int getPageNumber();
+
+  /**
+   * <pre>
+   * The number of the last page.
+   * </pre>
+   *
+   * <code>int32 lastPageNumber = 3;</code>
+   * @return The lastPageNumber.
+   */
+  int getLastPageNumber();
 }

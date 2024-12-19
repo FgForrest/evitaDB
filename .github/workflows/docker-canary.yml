@@ -19,7 +19,7 @@ jobs:
           ref: dev  # Always checks out the dev branch
 
       - name: Download a single artifact # download `evita-server.jar` artifact if the workflow we react to was successful
-        uses: dawidd6/action-download-artifact@v2
+        uses: dawidd6/action-download-artifact@v6
         with:
           workflow: ${{ github.event.workflow_run.workflow_id }}
           workflow_conclusion: success

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,13 +23,14 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute;
 
-import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import java.util.List;
 
-import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
+import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullListRef;
+import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nullableListRef;
 
 /**
  * Descriptor representing {@link io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaUniqueMutation}.
@@ -40,20 +41,20 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  */
 public interface SetAttributeSchemaUniqueMutationDescriptor extends AttributeSchemaMutationDescriptor {
 
-	PropertyDescriptor UNIQUENESS_TYPE = PropertyDescriptor.builder()
-		.name("uniquenessType")
+	PropertyDescriptor UNIQUE_IN_SCOPES = PropertyDescriptor.builder()
+		.name("uniqueInScopes")
 		.description("""
-			When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
-			having certain value of this attribute among other entities in the same collection.
-						
-			As an example of unique attribute can be EAN - there is no sense in having two entities with same EAN, and it's
-			better to have this ensured by the database engine.
-						
-			If the attribute is localized you can choose between `UNIQUE_WITHIN_COLLECTION` and `UNIQUE_WITHIN_COLLECTION_LOCALE`
-			modes. The first will ensure there is only single value within entire collection regardless of locale,
-			the second will ensure there is only single value within collection and specific locale.
+			The ScopedAttributeUniquenessType class encapsulates the relationship between an attribute's
+			uniqueness type and the scope in which this uniqueness characteristic is enforced.
+			
+			It makes use of two parameters:
+			- scope: Defines the context or domain (live or archived) where the attribute resides.
+			- uniquenessType: Determines the uniqueness enforcement (e.g., unique within the entire collection or specific locale).
+			
+			The combination of these parameters allows for scoped uniqueness checks within attribute schemas,
+			providing fine-grained control over attribute constraints based on the entity's scope.
 			""")
-		.type(nonNull(AttributeUniquenessType.class))
+		.type(nullableListRef(ScopedAttributeUniquenessTypeDescriptor.THIS_INPUT))
 		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
@@ -64,6 +65,6 @@ public interface SetAttributeSchemaUniqueMutationDescriptor extends AttributeSch
 			Mutation can be used for altering also the existing `AttributeSchema` or
 			`GlobalAttributeSchema` alone.
 			""")
-		.staticFields(List.of(NAME, UNIQUENESS_TYPE))
+		.staticFields(List.of(NAME, UNIQUE_IN_SCOPES))
 		.build();
 }

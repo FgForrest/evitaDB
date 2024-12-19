@@ -110,6 +110,7 @@ public interface ReflectedReferenceSchemaEditor<S extends ReflectedReferenceSche
 	@Nonnull
 	S withAttributesInheritedExcept(@Nonnull String... attributeNames);
 
+	@Nonnull
 	@Override
 	default S nonIndexed() {
 		throw new InvalidSchemaMutationException(
@@ -130,6 +131,7 @@ public interface ReflectedReferenceSchemaEditor<S extends ReflectedReferenceSche
 	 *
 	 * @return this
 	 */
+	@Nonnull
 	@Override
 	default S withGroupType(@Nonnull String groupType) {
 		throw new UnsupportedOperationException(GROUP_TYPE_EXCEPTION_MESSAGE);
@@ -140,6 +142,7 @@ public interface ReflectedReferenceSchemaEditor<S extends ReflectedReferenceSche
 	 *
 	 * @return this
 	 */
+	@Nonnull
 	@Override
 	default S withGroupTypeRelatedToEntity(@Nonnull String groupType) {
 		throw new UnsupportedOperationException(GROUP_TYPE_EXCEPTION_MESSAGE);
@@ -150,6 +153,7 @@ public interface ReflectedReferenceSchemaEditor<S extends ReflectedReferenceSche
 	 *
 	 * @return this
 	 */
+	@Nonnull
 	@Override
 	default S withoutGroupType() {
 		throw new UnsupportedOperationException(GROUP_TYPE_EXCEPTION_MESSAGE);

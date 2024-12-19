@@ -40,6 +40,7 @@ import io.evitadb.core.Catalog;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
 import io.evitadb.dataType.PaginatedList;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.InvalidClassifierFormatException;
 import io.evitadb.exception.UnexpectedIOException;
@@ -250,7 +251,10 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 * Method reconstructs catalog index from underlying containers.
 	 */
 	@Nonnull
-	CatalogIndex readCatalogIndex(@Nonnull Catalog catalog);
+	Optional<CatalogIndex> readCatalogIndex(
+		@Nonnull Catalog catalog,
+		@Nonnull Scope scope
+	);
 
 	/**
 	 * Serializes all {@link EntityCollection} of the catalog to the persistent storage.

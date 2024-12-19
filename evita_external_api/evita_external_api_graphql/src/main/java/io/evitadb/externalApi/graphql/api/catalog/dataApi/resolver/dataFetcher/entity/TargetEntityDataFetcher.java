@@ -26,13 +26,31 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
- * Fetches the target entity of generic entity object.TOBEDONE LHO
+ * Fetches the target entity of generic entity object.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class TargetEntityDataFetcher implements DataFetcher<EntityClassifier> {
+
+	@Nullable
+	private static TargetEntityDataFetcher INSTANCE;
+
+	@Nonnull
+	public static TargetEntityDataFetcher getInstance() {
+		if (INSTANCE == null) {
+			INSTANCE = new TargetEntityDataFetcher();
+		}
+		return INSTANCE;
+	}
+
 	@Override
 	public EntityClassifier get(DataFetchingEnvironment environment) throws Exception {
 		// we just pass the global entity as the target entity, because the global entity is the target entity on the server side

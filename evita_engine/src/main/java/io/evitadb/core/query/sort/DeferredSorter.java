@@ -29,6 +29,7 @@ import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.function.IntConsumer;
 import java.util.function.IntSupplier;
 import java.util.function.ToIntFunction;
 
@@ -62,10 +63,18 @@ public class DeferredSorter implements Sorter {
 	}
 
 	@Override
-	public int sortAndSlice(@Nonnull QueryExecutionContext queryContext, @Nonnull Formula input, int startIndex, int endIndex, @Nonnull int[] result, int peak) {
+	public int sortAndSlice(
+		@Nonnull QueryExecutionContext queryContext,
+		@Nonnull Formula input,
+		int startIndex,
+		int endIndex,
+		@Nonnull int[] result,
+		int peak,
+		@Nullable IntConsumer skippedRecordsConsumer
+	) {
 		return executionWrapper.applyAsInt(
 			() -> ConditionalSorter.getFirstApplicableSorter(queryContext, sorter)
-				.sortAndSlice(queryContext, input, startIndex, endIndex, result, peak)
+				.sortAndSlice(queryContext, input, startIndex, endIndex, result, peak, skippedRecordsConsumer)
 		);
 	}
 }

@@ -28,7 +28,6 @@ import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.store.spi.model.EntityCollectionHeader;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.List;
 import java.util.OptionalInt;
 
@@ -55,13 +54,20 @@ public interface HeaderInfoSupplier {
 	int getLastAssignedIndexKey();
 
 	/**
+	 * Returns the value of the last assigned internal price id in {@link EntityCollection}.
+	 *
+	 * @return the value of the last assigned internal price id
+	 */
+	int getLastAssignedInternalPriceId();
+
+	/**
 	 * Retrieves the value of the global index key. The global index key is a key that is assigned to the {@link GlobalEntityIndex}
 	 * within the {@link EntityCollection}. The index is created when the first entity is added to the collection.
 	 *
 	 * @return an optional integer representing the value of the global index key,
-	 *         or {@link OptionalInt#empty()} if the global index was not yet created (collection is empty)
+	 * or {@link OptionalInt#empty()} if the global index was not yet created (collection is empty)
 	 */
-	@Nullable
+	@Nonnull
 	OptionalInt getGlobalIndexKey();
 
 	/**

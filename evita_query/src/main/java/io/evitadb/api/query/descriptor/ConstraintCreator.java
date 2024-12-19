@@ -371,6 +371,22 @@ public class ConstraintCreator {
 	}
 
 	/**
+	 * Ancestor descriptor for parameter wrapping constraints or constraint containers.
+	 */
+	public interface ConstraintParameterDescriptor extends ParameterDescriptor {
+
+		/**
+		 * Constraint type of the parameter.
+		 */
+		@Nonnull Class<?> type();
+
+		/**
+		 * Specifies domain for the constraint.
+		 */
+		@Nonnull ConstraintDomain domain();
+	}
+
+	/**
 	 * Describes single constraint constructor parameter which holds single or multiple child constraints (of
 	 * same type as parent container).
 	 *
@@ -388,7 +404,7 @@ public class ConstraintCreator {
 	                                       @Nonnull ConstraintDomain domain,
 	                                       boolean uniqueChildren,
 	                                       @Nonnull Set<Class<? extends Constraint<?>>> allowedChildTypes,
-	                                       @Nonnull Set<Class<? extends Constraint<?>>> forbiddenChildTypes) implements ParameterDescriptor {}
+	                                       @Nonnull Set<Class<? extends Constraint<?>>> forbiddenChildTypes) implements ConstraintParameterDescriptor {}
 
 	/**
 	 * Describes single constraint constructor parameter which holds single or multiple additional child constraints (of different type
@@ -404,5 +420,5 @@ public class ConstraintCreator {
 	                                                 @Nonnull String name,
 	                                                 @Nonnull Class<?> type,
 	                                                 boolean required,
-	                                                 @Nonnull ConstraintDomain domain) implements ParameterDescriptor {}
+	                                                 @Nonnull ConstraintDomain domain) implements ConstraintParameterDescriptor {}
 }

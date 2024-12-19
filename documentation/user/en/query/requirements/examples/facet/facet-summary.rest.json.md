@@ -79,7 +79,7 @@
   ],
   "tags": [
     {
-      "count": 35,
+      "count": 18,
       "groupEntity": {
         "primaryKey": 0,
         "type": "tagCategory"
@@ -90,14 +90,6 @@
           "count": 2,
           "facetEntity": {
             "primaryKey": 9,
-            "type": "Tag"
-          }
-        },
-        {
-          "requested": false,
-          "count": 17,
-          "facetEntity": {
-            "primaryKey": 10,
             "type": "Tag"
           }
         },
@@ -119,25 +111,9 @@
         },
         {
           "requested": false,
-          "count": 5,
-          "facetEntity": {
-            "primaryKey": 13,
-            "type": "Tag"
-          }
-        },
-        {
-          "requested": false,
           "count": 1,
           "facetEntity": {
             "primaryKey": 14,
-            "type": "Tag"
-          }
-        },
-        {
-          "requested": false,
-          "count": 12,
-          "facetEntity": {
-            "primaryKey": 15,
             "type": "Tag"
           }
         },
@@ -154,6 +130,39 @@
           "count": 1,
           "facetEntity": {
             "primaryKey": 17,
+            "type": "Tag"
+          }
+        }
+      ]
+    },
+    {
+      "count": 29,
+      "groupEntity": {
+        "primaryKey": 9,
+        "type": "tagCategory"
+      },
+      "facetStatistics": [
+        {
+          "requested": false,
+          "count": 17,
+          "facetEntity": {
+            "primaryKey": 10,
+            "type": "Tag"
+          }
+        },
+        {
+          "requested": false,
+          "count": 5,
+          "facetEntity": {
+            "primaryKey": 13,
+            "type": "Tag"
+          }
+        },
+        {
+          "requested": false,
+          "count": 12,
+          "facetEntity": {
+            "primaryKey": 15,
             "type": "Tag"
           }
         }

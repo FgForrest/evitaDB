@@ -39,6 +39,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.IntConsumer;
 
 /**
  * This sorter requires list of pre-fetched entities in the {@link QueryPlanningContext}. If none is present the sorter is
@@ -96,7 +97,15 @@ public class PrefetchedRecordsSorter extends AbstractRecordsSorter implements Co
 	}
 
 	@Override
-	public int sortAndSlice(@Nonnull QueryExecutionContext queryContext, @Nonnull Formula input, int startIndex, int endIndex, @Nonnull int[] result, int peak) {
+	public int sortAndSlice(
+		@Nonnull QueryExecutionContext queryContext,
+		@Nonnull Formula input,
+		int startIndex,
+		int endIndex,
+		@Nonnull int[] result,
+		int peak,
+		@Nullable IntConsumer skippedRecordsConsumer
+	) {
 		final Bitmap selectedRecordIds = input.compute();
 		final OfInt it = selectedRecordIds.iterator();
 		final List<EntityContract> entities = new ArrayList<>(selectedRecordIds.size());
@@ -117,12 +126,18 @@ public class PrefetchedRecordsSorter extends AbstractRecordsSorter implements Co
 		}
 
 		final AtomicInteger index = new AtomicInteger();
-		entities.subList(0, selectedRecordIds.size() - notFoundRecordsCnt)
-			.stream()
-			.skip(startIndex)
-			.limit((long) endIndex - startIndex)
-			.mapToInt(queryContext::translateEntity)
-			.forEach(pk -> result[peak + index.getAndIncrement()] = pk);
+		final int entitiesCount = selectedRecordIds.size() - notFoundRecordsCnt;
+		final List<EntityContract> entityContracts = entities.subList(0, entitiesCount);
+		final int skippedItems = Math.min(startIndex, entitiesCount);
+		final int appendedItems = Math.min(entitiesCount, endIndex);
+		if (skippedRecordsConsumer != null) {
+			for (int i = 0; i < skippedItems; i++) {
+				skippedRecordsConsumer.accept(queryContext.translateEntity(entityContracts.get(i)));
+			}
+		}
+		for (int i = skippedItems; i < appendedItems; i++) {
+			result[peak + index.getAndIncrement()] = queryContext.translateEntity(entityContracts.get(i));
+		}
 
 		// pass them to another sorter
 		final int recomputedStartIndex = Math.max(0, startIndex - index.get());

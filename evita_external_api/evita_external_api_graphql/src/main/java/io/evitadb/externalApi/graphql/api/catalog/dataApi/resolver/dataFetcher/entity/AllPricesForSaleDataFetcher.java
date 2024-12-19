@@ -28,6 +28,8 @@ import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
 import io.evitadb.api.requestResponse.data.PricesContract.PriceForSaleWithAccompanyingPrices;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.dto.PrefetchedPriceForSale;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -41,7 +43,19 @@ import java.util.List;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class AllPricesForSaleDataFetcher extends AbstractPriceForSaleDataFetcher<List<? extends PriceContract>> {
+
+    @Nullable
+    private static AllPricesForSaleDataFetcher INSTANCE;
+
+    @Nonnull
+    public static AllPricesForSaleDataFetcher getInstance() {
+        if (INSTANCE == null) {
+            INSTANCE = new AllPricesForSaleDataFetcher();
+        }
+        return INSTANCE;
+    }
 
     @Nullable
     @Override

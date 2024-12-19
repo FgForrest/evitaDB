@@ -28,27 +28,32 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaFacetedMutation;
+import io.evitadb.store.wal.schema.MutationSerializationFunctions;
 
 /**
  * Serializer for {@link SetReferenceSchemaFacetedMutation}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class SetReferenceSchemaFacetedMutationSerializer extends Serializer<SetReferenceSchemaFacetedMutation> {
+public class SetReferenceSchemaFacetedMutationSerializer extends Serializer<SetReferenceSchemaFacetedMutation> implements MutationSerializationFunctions {
 
 	@Override
 	public void write(Kryo kryo, Output output, SetReferenceSchemaFacetedMutation mutation) {
 		output.writeString(mutation.getName());
-		final Boolean faceted = mutation.getFaceted();
-		output.writeBoolean(faceted != null);
-		output.writeBoolean(faceted);
+
+		if (mutation.getFacetedInScopes() == null) {
+			output.writeBoolean(false);
+		} else {
+			output.writeBoolean(true);
+			writeScopeArray(kryo, output, mutation.getFacetedInScopes());
+		}
 	}
 
 	@Override
 	public SetReferenceSchemaFacetedMutation read(Kryo kryo, Input input, Class<? extends SetReferenceSchemaFacetedMutation> type) {
 		return new SetReferenceSchemaFacetedMutation(
 			input.readString(),
-			input.readBoolean() ? input.readBoolean() : null
+			input.readBoolean() ? readScopeArray(kryo, input) : null
 		);
 	}
 

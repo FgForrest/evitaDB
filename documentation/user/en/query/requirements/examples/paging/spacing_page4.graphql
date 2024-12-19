@@ -1,0 +1,26 @@
+{
+  queryProduct {
+    recordPage(
+      number: 4
+      size: 5
+      spacing: [
+        {
+          gap: {
+            size: 1,
+            onPage: "'$pageNumber % 2 == 0 && $pageNumber <= 10'"
+          }
+        },
+        {
+          gap: {
+            size: 1,
+            onPage: "'$pageNumber == 1 || $pageNumber == 4'"
+          }
+        }
+      ]
+    ) {
+      data {
+        primaryKey
+      }
+    }
+  }
+}

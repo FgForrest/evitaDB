@@ -1,0 +1,13 @@
+query(
+  collection("Product"),
+  filterBy(
+    scope(LIVE, ARCHIVED),
+    attributeInSet("url", "/en/xiaomi-redmi-note-10-pro-8", "/en/apple-iphone-14"),
+    entityLocaleEquals("en")
+  ),
+  require(
+    entityFetch(
+      attributeContent("code")
+    )
+  )
+)

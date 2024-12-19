@@ -57,7 +57,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -108,7 +107,7 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 
 	@Nullable
 	@Override
-	public <T extends Serializable> EvitaResponseExtraResult fabricate(@Nonnull QueryExecutionContext context, @Nonnull List<T> entities) {
+	public <T extends Serializable> EvitaResponseExtraResult fabricate(@Nonnull QueryExecutionContext context) {
 		return new Hierarchy(
 			ofNullable(selfHierarchyRequest)
 				.map(it -> it.createStatistics(context, language))

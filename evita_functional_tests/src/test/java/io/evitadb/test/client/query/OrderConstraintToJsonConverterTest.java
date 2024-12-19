@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.GenericDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 import io.evitadb.test.Entities;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -54,7 +55,7 @@ class OrderConstraintToJsonConverterTest extends ConstraintToJsonConverterTest {
 		assertEquals(
 			new JsonConstraint("attributeCodeNatural", jsonNodeFactory.textNode("ASC")),
 			converter.convert(
-				new GenericDataLocator(Entities.PRODUCT),
+				new GenericDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				attributeNatural("CODE", OrderDirection.ASC)
 			).get()
 		);
@@ -75,7 +76,7 @@ class OrderConstraintToJsonConverterTest extends ConstraintToJsonConverterTest {
 		assertEquals(
 			new JsonConstraint("referenceCategoryProperty", referenceCategoryProperty),
 			converter.convert(
-				new GenericDataLocator(Entities.PRODUCT),
+				new GenericDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				referenceProperty(
 					"CATEGORY",
 					attributeNatural("CODE", OrderDirection.ASC),
@@ -110,7 +111,7 @@ class OrderConstraintToJsonConverterTest extends ConstraintToJsonConverterTest {
 		assertEquals(
 			new JsonConstraint("orderBy", orderBy),
 			converter.convert(
-				new GenericDataLocator(Entities.PRODUCT),
+				new GenericDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				orderBy(
 					attributeNatural("CODE", OrderDirection.ASC),
 					priceNatural(OrderDirection.DESC),

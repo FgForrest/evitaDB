@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,13 +31,14 @@ import io.evitadb.api.query.order.OrderGroupBy;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintSchemaBuilder;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiSimpleType;
 
 import javax.annotation.Nonnull;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
-
-import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
  * Implementation of {@link ConstraintSchemaBuilder} for building order query tree starting from {@link OrderBy}.
@@ -47,10 +48,11 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  */
 public class OrderConstraintSchemaBuilder extends OpenApiConstraintSchemaBuilder {
 
-	public OrderConstraintSchemaBuilder(@Nonnull OpenApiConstraintSchemaBuildingContext constraintSchemaBuildingCtx) {
+	public OrderConstraintSchemaBuilder(@Nonnull OpenApiConstraintSchemaBuildingContext constraintSchemaBuildingCtx,
+	                                    @Nonnull AtomicReference<FilterConstraintSchemaBuilder> filterConstraintSchemaBuilder) {
 		super(
 			constraintSchemaBuildingCtx,
-			createHashMap(0), // currently, we don't support any filter constraint with additional children
+			Map.of(ConstraintType.FILTER, filterConstraintSchemaBuilder),
 			Set.of(),
 			Set.of(OrderBy.class, OrderGroupBy.class)
 		);
@@ -58,7 +60,7 @@ public class OrderConstraintSchemaBuilder extends OpenApiConstraintSchemaBuilder
 
 	@Nonnull
 	public OpenApiSimpleType build(@Nonnull String rootEntityType) {
-		return build(new EntityDataLocator(rootEntityType));
+		return build(new EntityDataLocator(new ManagedEntityTypePointer(rootEntityType)));
 	}
 
 	@Nonnull
@@ -82,6 +84,6 @@ public class OrderConstraintSchemaBuilder extends OpenApiConstraintSchemaBuilder
 	@Nonnull
 	@Override
 	protected Predicate<AttributeSchemaContract> getAttributeSchemaFilter() {
-		return AttributeSchemaContract::isSortable;
+		return AttributeSchemaContract::isSortableInAnyScope;
 	}
 }

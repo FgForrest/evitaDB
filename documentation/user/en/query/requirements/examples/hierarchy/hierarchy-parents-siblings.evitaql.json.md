@@ -8,7 +8,7 @@
         "code": "portables"
       }
     },
-    "queriedEntityCount": 1396
+    "queriedEntityCount": 1332
   },
   {
     "childrenCount": 6,

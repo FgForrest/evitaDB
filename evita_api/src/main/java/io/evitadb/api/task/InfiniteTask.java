@@ -23,8 +23,6 @@
 
 package io.evitadb.api.task;
 
-import javax.annotation.Nonnull;
-
 /**
  * This interface extends the {@link ServerTask} interface and should be used for task, that doesn't have a fixed
  * duration and runs until it is stopped.
@@ -35,9 +33,7 @@ public interface InfiniteTask<S, T> extends ServerTask<S, T> {
 
 	/**
 	 * Stops the running task.
-	 * @return The result of the task.
 	 */
-	@Nonnull
-	T stop();
+	void stop();
 
 }

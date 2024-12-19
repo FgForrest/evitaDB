@@ -45,7 +45,7 @@ public interface GrpcRestoreCatalogResponseOrBuilder extends
    * the task that is used to restore the catalog and getting its progress
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 2;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 3;</code>
    * @return Whether the task field is set.
    */
   boolean hasTask();
@@ -54,7 +54,7 @@ public interface GrpcRestoreCatalogResponseOrBuilder extends
    * the task that is used to restore the catalog and getting its progress
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 2;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 3;</code>
    * @return The task.
    */
   io.evitadb.externalApi.grpc.generated.GrpcTaskStatus getTask();
@@ -63,7 +63,7 @@ public interface GrpcRestoreCatalogResponseOrBuilder extends
    * the task that is used to restore the catalog and getting its progress
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 2;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 3;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcTaskStatusOrBuilder getTaskOrBuilder();
 }

@@ -149,7 +149,9 @@ public class AttributeNaturalTranslator
 	@Override
 	public void createComparator(@Nonnull AttributeNatural attributeNatural, @Nonnull ReferenceOrderByVisitor orderByVisitor) {
 		final String attributeOrCompoundName = attributeNatural.getAttributeName();
-		final NamedSchemaContract attributeOrCompoundSchema = orderByVisitor.getAttributeSchemaOrSortableAttributeCompound(attributeOrCompoundName);
+		final NamedSchemaContract attributeOrCompoundSchema = orderByVisitor.getAttributeSchemaOrSortableAttributeCompound(
+			attributeOrCompoundName
+		);
 
 		final OrderDirection orderDirection = attributeNatural.getOrderDirection();
 		final Locale locale = orderByVisitor.getLocale();

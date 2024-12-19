@@ -37,6 +37,7 @@ import lombok.Getter;
 import lombok.ToString;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.NotThreadSafe;
 import javax.annotation.concurrent.ThreadSafe;
@@ -75,7 +76,7 @@ public class AssociatedDataStoragePart implements EntityStoragePart, RecordWithC
 	/**
 	 * Id used for lookups in persistent storage for this particular container.
 	 */
-	@Getter private Long storagePartPK;
+	@Getter @Nullable private Long storagePartPK;
 	/**
 	 * See {@link AssociatedDataValue#value()}.
 	 */
@@ -177,8 +178,8 @@ public class AssociatedDataStoragePart implements EntityStoragePart, RecordWithC
 	@ThreadSafe
 	public record EntityAssociatedDataKey(
 		int entityPrimaryKey,
-		String associatedDataName,
-		Locale locale
+		@Nonnull String associatedDataName,
+		@Nullable Locale locale
 	) implements Serializable, Comparable<EntityAssociatedDataKey> {
 		@Serial private static final long serialVersionUID = -4323213680699873995L;
 

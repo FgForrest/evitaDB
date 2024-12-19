@@ -40,12 +40,14 @@ import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.exception.ReferenceNotFacetedException;
+import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.facet.FacetGroupFormula;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
+import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor.ProcessingScope;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
 import io.evitadb.core.query.extraResult.translator.facet.producer.FacetSummaryProducer;
@@ -54,6 +56,7 @@ import io.evitadb.core.query.extraResult.translator.reference.EntityFetchTransla
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.sort.NestedContextSorter;
 import io.evitadb.core.query.sort.NoSorter;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.collection.BitmapIntoBitmapCollector;
@@ -75,7 +78,7 @@ import static java.util.Optional.ofNullable;
 /**
  * This implementation of {@link RequireConstraintTranslator} converts {@link FacetSummaryOfReference} to {@link FacetSummaryProducer}.
  * The producer instance has all pointer necessary to compute result. All operations in this translator are relatively
- * cheap comparing to final result computation, that is deferred to {@link ExtraResultProducer#fabricate(io.evitadb.core.query.QueryExecutionContext, List)} method.
+ * cheap comparing to final result computation, that is deferred to {@link ExtraResultProducer#fabricate(io.evitadb.core.query.QueryExecutionContext)} method.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -93,21 +96,28 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 	@Nullable
 	static IntPredicate createFacetGroupPredicate(
 		@Nonnull ExtraResultPlanningVisitor extraResultPlanningVisitor,
-		@Nullable FilterGroupBy filterGroupBy,
+		@Nonnull FilterGroupBy filterGroupBy,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		boolean required
 	) {
 		if (required) {
 			Assert.isTrue(
+				referenceSchema.getReferencedGroupType() != null,
+				() -> "Facet groups of reference `" + referenceSchema.getName() + "` cannot be filtered because they relate to " +
+					"non-grouped entity type `" + referenceSchema.getReferencedEntityType() + "`."
+			);
+			Assert.isTrue(
 				referenceSchema.isReferencedGroupTypeManaged(),
-				() -> "Facet groups of reference `" + referenceSchema.getName() + "` cannot be sorted because they relate to " +
+				() -> "Facet groups of reference `" + referenceSchema.getName() + "` cannot be filtered because they relate to " +
 					"non-managed entity type `" + referenceSchema.getReferencedGroupType() + "`."
 			);
-		} else if (!referenceSchema.isReferencedGroupTypeManaged()) {
+		} else if (referenceSchema.getReferencedGroupType() == null || !referenceSchema.isReferencedGroupTypeManaged()) {
 			return null;
 		}
+		final QueryPlanningContext queryContext = extraResultPlanningVisitor.getQueryContext();
 		return new FilteringFormulaPredicate(
-			extraResultPlanningVisitor.getQueryContext(),
+			queryContext,
+			extraResultPlanningVisitor.getProcessingScope().getScopes(),
 			new FilterBy(filterGroupBy.getChildren()),
 			referenceSchema.getReferencedGroupType(),
 			() -> "Facet summary of `" + referenceSchema.getName() + "` group filter: " + filterGroupBy
@@ -123,7 +133,7 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 	 * @param required                   Indicates if the facet is required.
 	 * @return The created facet predicate.
 	 */
-	@Nullable
+	@Nonnull
 	static IntPredicate createFacetPredicate(
 		@Nonnull ExtraResultPlanningVisitor extraResultPlanningVisitor,
 		@Nonnull FilterBy filterBy,
@@ -140,8 +150,10 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 			return pk -> false;
 		}
 
+		final QueryPlanningContext queryContext = extraResultPlanningVisitor.getQueryContext();
 		return new FilteringFormulaPredicate(
-			extraResultPlanningVisitor.getQueryContext(),
+			queryContext,
+			extraResultPlanningVisitor.getProcessingScope().getScopes(),
 			filterBy,
 			referenceSchema.getReferencedEntityType(),
 			() -> "Facet summary of `" + referenceSchema.getName() + "` facet filter: " + filterBy
@@ -203,7 +215,7 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 	@Nullable
 	static NestedContextSorter createFacetGroupSorter(
 		@Nonnull ExtraResultPlanningVisitor extraResultPlanningVisitor,
-		@Nullable OrderGroupBy orderBy,
+		@Nonnull OrderGroupBy orderBy,
 		@Nullable Locale locale,
 		@Nonnull ExtraResultPlanningVisitor extraResultPlanner,
 		@Nonnull ReferenceSchemaContract referenceSchema,
@@ -211,11 +223,16 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 	) {
 		if (required) {
 			Assert.isTrue(
+				referenceSchema.getReferencedGroupType() != null,
+				() -> "Facet groups of reference `" + referenceSchema.getName() + "` cannot be sorted because they relate to " +
+					"non-grouped entity type `" + referenceSchema.getReferencedEntityType() + "`."
+			);
+			Assert.isTrue(
 				referenceSchema.isReferencedGroupTypeManaged(),
 				() -> "Facet groups of reference `" + referenceSchema.getName() + "` cannot be sorted because they relate to " +
 					"non-managed entity type `" + referenceSchema.getReferencedGroupType() + "`."
 			);
-		} else if (!referenceSchema.isReferencedGroupTypeManaged()) {
+		} else if (referenceSchema.getReferencedGroupType() == null || !referenceSchema.isReferencedGroupTypeManaged()) {
 			return null;
 		}
 
@@ -272,13 +289,21 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 		return requirement;
 	}
 
+	@Nullable
 	@Override
-	public ExtraResultProducer apply(FacetSummaryOfReference facetSummaryOfReference, ExtraResultPlanningVisitor extraResultPlanner) {
+	public ExtraResultProducer createProducer(@Nonnull FacetSummaryOfReference facetSummaryOfReference, @Nonnull ExtraResultPlanningVisitor extraResultPlanner) {
 		final String referenceName = facetSummaryOfReference.getReferenceName();
 		final EntitySchemaContract entitySchema = extraResultPlanner.getSchema();
 		final ReferenceSchemaContract referenceSchema = entitySchema.getReference(referenceName)
 			.orElseThrow(() -> new ReferenceNotFoundException(referenceName, entitySchema));
-		isTrue(referenceSchema.isFaceted(), () -> new ReferenceNotFacetedException(referenceName, entitySchema));
+
+		final ProcessingScope processingScope = extraResultPlanner.getProcessingScope();
+		final Set<Scope> scopes = processingScope.getScopes();
+
+		isTrue(
+			scopes.stream().allMatch(referenceSchema::isFacetedInScope),
+			() -> new ReferenceNotFacetedException(referenceName, entitySchema)
+		);
 
 		// find user filters that enclose variable user defined part
 		final Set<Formula> formulaScope = extraResultPlanner.getUserFilteringFormula().isEmpty() ?

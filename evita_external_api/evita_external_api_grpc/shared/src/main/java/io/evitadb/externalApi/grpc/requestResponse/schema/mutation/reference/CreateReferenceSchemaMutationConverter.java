@@ -25,6 +25,7 @@ package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.reference;
 
 import com.google.protobuf.StringValue;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.grpc.generated.GrpcCreateReferenceSchemaMutation;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
@@ -32,6 +33,7 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.util.Arrays;
 
 /**
  * Converts between {@link CreateReferenceSchemaMutation} and {@link GrpcCreateReferenceSchemaMutation} in both directions.
@@ -44,6 +46,21 @@ public class CreateReferenceSchemaMutationConverter implements SchemaMutationCon
 
 	@Nonnull
 	public CreateReferenceSchemaMutation convert(@Nonnull GrpcCreateReferenceSchemaMutation mutation) {
+		final Scope[] indexedInScopes = mutation.getIndexedInScopesList().isEmpty() ?
+			(mutation.getFilterable() ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE)
+			:
+			mutation.getIndexedInScopesList()
+				.stream()
+				.map(EvitaEnumConverter::toScope)
+				.toArray(Scope[]::new);
+		final Scope[] facetedInScopes = mutation.getFacetedInScopesList().isEmpty() ?
+			(mutation.getFaceted() ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE)
+			:
+			mutation.getFacetedInScopesList()
+				.stream()
+				.map(EvitaEnumConverter::toScope)
+				.toArray(Scope[]::new);
+
 		return new CreateReferenceSchemaMutation(
 			mutation.getName(),
 			mutation.hasDescription() ? mutation.getDescription().getValue() : null,
@@ -53,8 +70,8 @@ public class CreateReferenceSchemaMutationConverter implements SchemaMutationCon
 			mutation.getReferencedEntityTypeManaged(),
 			mutation.hasReferencedGroupType() ? mutation.getReferencedGroupType().getValue() : null,
 			mutation.getReferencedGroupTypeManaged(),
-			mutation.getFilterable(),
-			mutation.getFaceted()
+			indexedInScopes,
+			facetedInScopes
 		);
 	}
 
@@ -67,7 +84,17 @@ public class CreateReferenceSchemaMutationConverter implements SchemaMutationCon
 			.setReferencedEntityTypeManaged(mutation.isReferencedEntityTypeManaged())
 			.setReferencedGroupTypeManaged(mutation.isReferencedGroupTypeManaged())
 			.setFilterable(mutation.isIndexed())
-			.setFaceted(mutation.isFaceted());
+			.addAllIndexedInScopes(
+				Arrays.stream(mutation.getIndexedInScopes())
+					.map(EvitaEnumConverter::toGrpcScope)
+					.toList()
+			)
+			.setFaceted(mutation.isFaceted())
+			.addAllFacetedInScopes(
+				Arrays.stream(mutation.getFacetedInScopes())
+					.map(EvitaEnumConverter::toGrpcScope)
+					.toList()
+			);
 
 		if (mutation.getDescription() != null) {
 			builder.setDescription(StringValue.of(mutation.getDescription()));

@@ -56,6 +56,7 @@ import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.offsetIndex.stream.RandomAccessFileInputStream;
 import io.evitadb.store.spi.OffHeapWithFileBackupReference;
+import io.evitadb.store.spi.exception.CatalogWriteAheadLastTransactionMismatchException;
 import io.evitadb.store.spi.model.reference.WalFileReference;
 import io.evitadb.store.wal.supplier.MutationSupplier;
 import io.evitadb.store.wal.supplier.ReverseMutationSupplier;
@@ -677,6 +678,8 @@ public class CatalogWriteAheadLog implements Closeable {
 			// write transaction mutation to memory buffer
 			this.transactionMutationOutputStream.reset();
 			final CurrentWalFile theCurrentWalFile = this.currentWalFile.get();
+			theCurrentWalFile.checkNextCatalogVersionMatch(transactionMutation.getCatalogVersion());
+
 			final ObservableOutput<ByteArrayOutputStream> output = theCurrentWalFile.getOutput();
 			output.reset();
 
@@ -1504,16 +1507,30 @@ public class CatalogWriteAheadLog implements Closeable {
 		 * @param writtenLength the length of the written record
 		 */
 		public void updateLastWrittenCatalogVersion(long catalogVersion, int writtenLength) {
+			checkNextCatalogVersionMatch(catalogVersion);
+			this.lastWrittenCatalogVersion.set(catalogVersion);
+			this.currentWalFileSize += writtenLength;
+		}
+
+		/**
+		 * Checks if the next catalog version matches the expected order.
+		 *
+		 * The method validates that the provided catalog version is either the start of a new sequence
+		 * (when the current last catalog version is -1) or the subsequent version of the last written one.
+		 * It throws a {@link GenericEvitaInternalError} if this condition is not met.
+		 *
+		 * @param catalogVersion the catalog version to verify against the expected sequence
+		 */
+		private void checkNextCatalogVersionMatch(long catalogVersion) {
 			final long currentLastCatalogVersion = this.lastWrittenCatalogVersion.get();
 			Assert.isPremiseValid(
 				currentLastCatalogVersion == -1 || currentLastCatalogVersion + 1 == catalogVersion,
-				() -> new GenericEvitaInternalError(
+				() -> new CatalogWriteAheadLastTransactionMismatchException(
+					currentLastCatalogVersion,
 					"Invalid catalog version to write to the WAL file!",
 					"Invalid catalog version `" + catalogVersion + "`! Expected: `" + (currentLastCatalogVersion + 1) + "`, but got `" + catalogVersion + "`!"
 				)
 			);
-			this.lastWrittenCatalogVersion.set(catalogVersion);
-			this.currentWalFileSize += writtenLength;
 		}
 
 		/**

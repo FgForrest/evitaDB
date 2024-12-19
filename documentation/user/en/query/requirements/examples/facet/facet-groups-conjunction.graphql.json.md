@@ -1,7 +1,7 @@
 ```json
 {
   "groups": {
-    "count": 2240,
+    "count": 2200,
     "facetStatistics": [
       {
         "requested": false,
@@ -35,7 +35,7 @@
       },
       {
         "requested": false,
-        "count": 807,
+        "count": 806,
         "impact": {
           "difference": -33,
           "matchCount": 6,
@@ -50,7 +50,7 @@
       },
       {
         "requested": false,
-        "count": 280,
+        "count": 277,
         "impact": {
           "difference": -38,
           "matchCount": 1,
@@ -65,7 +65,7 @@
       },
       {
         "requested": false,
-        "count": 807,
+        "count": 786,
         "impact": {
           "difference": -35,
           "matchCount": 4,
@@ -140,7 +140,7 @@
       },
       {
         "requested": false,
-        "count": 49,
+        "count": 34,
         "impact": {
           "difference": -39,
           "matchCount": 0,

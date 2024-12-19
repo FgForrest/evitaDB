@@ -60,295 +60,311 @@ import java.util.stream.StreamSupport;
 @ToString
 public class Value {
 
-    /**
-     * Concrete value of parsed literal or parameter in target data type.
-     */
-    @Nonnull
-    private final Object actualValue;
+	/**
+	 * Concrete value of parsed literal or parameter in target data type.
+	 */
+	@Nonnull
+	private final Object actualValue;
 
-    /**
-     * Target data type of parsed value
-     */
-    @Nonnull
-    private final Class<?> type;
+	/**
+	 * Target data type of parsed value
+	 */
+	@Nonnull
+	private final Class<?> type;
 
-    public Value(@Nonnull Object actualValue) {
-        this.actualValue = actualValue;
-        this.type = actualValue.getClass();
-    }
+	@Nonnull
+	private static <T> T variadicValueItemAsSpecificType(@Nonnull Object item, @Nonnull Class<T> type) {
+		// correct passed type from client should be checked at visitor level, here should be should correct checked type
+		// if everything is correct on parser side
+		Assert.isPremiseValid(
+			type.isInstance(item),
+			"Expected variadic value items of type `" + type.getName() + "` but got `" + item.getClass().getName() + "`."
+		);
+		return type.cast(item);
+	}
 
-    @Nonnull
-    public Serializable asSerializable() {
-        return asSpecificType(Serializable.class);
-    }
+	private static void assertValueIsOfType(@Nonnull Object theValue, @Nonnull Class<?> type) {
+		// correct passed type from client should be checked at visitor level, here should be should correct checked type
+		// if everything is correct on parser side
+		Assert.isPremiseValid(
+			type.isInstance(theValue),
+			"Expected value of type `" + type.getName() + "` but got `" + theValue.getClass().getName() + "`."
+		);
+	}
 
-    @Nonnull
-    public Comparable<?> asComparable() {
-        return asSpecificType(Comparable.class);
-    }
+	private static <T extends Enum<T>> @Nonnull T valueAsEnum(@Nonnull Object theValue, @Nonnull Class<T> enumType) {
+		if (theValue instanceof Enum<?>) {
+			return asSpecificType(theValue, enumType);
+		} else if (theValue instanceof EnumWrapper) {
+			return asSpecificType(theValue, EnumWrapper.class).toEnum(enumType);
+		} else {
+			throw new EvitaInvalidUsageException(
+				"Expected enum value but got `" + theValue.getClass().getName() + "`."
+			);
+		}
+	}
 
-    @Nonnull
-    public <T extends Serializable & Comparable<?>> T asSerializableAndComparable() {
-        assertValueIsOfType(Serializable.class);
-        assertValueIsOfType(Comparable.class);
-        //noinspection unchecked
-        return (T) actualValue;
-    }
+	@Nonnull
+	private static <T> T asSpecificType(@Nonnull Object theValue, @Nonnull Class<T> type) {
+		assertValueIsOfType(theValue, type);
+		return type.cast(theValue);
+	}
 
-    @Nonnull
-    public String asString() {
-        if (actualValue instanceof final Character characterValue) {
-            return characterValue.toString();
-        }
-        return asSpecificType(String.class);
-    }
+	public Value(@Nonnull Object actualValue) {
+		this.actualValue = actualValue;
+		this.type = actualValue.getClass();
+	}
 
-    @Nonnull
-    public Number asNumber() {
-        return asSpecificType(Number.class);
-    }
+	@Nonnull
+	public Serializable asSerializable() {
+		return asSpecificType(actualValue, Serializable.class);
+	}
 
-    /**
-     * Casts original value to {@link Number} and tries to convert that value into desired type.
-     */
-    @Nonnull
-    public <T extends Number> T asNumber(@Nonnull Class<T> numberType) {
-        return EvitaDataTypes.toTargetType(asNumber(), numberType);
-    }
+	@Nonnull
+	public Comparable<?> asComparable() {
+		return asSpecificType(actualValue, Comparable.class);
+	}
 
-    public int asInt() {
-        if (actualValue instanceof final Long longNumber) {
-            try {
-                return Math.toIntExact(longNumber);
-            } catch (ArithmeticException e) {
-                throw new EvitaInvalidUsageException(
-                    "`Long` number was passed when `Integer` desired but `" + actualValue + "` value is to big for `Integer`."
-                );
-            }
-        }
-        return asNumber().intValue();
-    }
+	@Nonnull
+	public <T extends Serializable & Comparable<?>> T asSerializableAndComparable() {
+		assertValueIsOfType(actualValue, Serializable.class);
+		assertValueIsOfType(actualValue, Comparable.class);
+		//noinspection unchecked
+		return (T) actualValue;
+	}
 
-    public long asLong() {
-        return asNumber().longValue();
-    }
+	@Nonnull
+	public String asString() {
+		if (actualValue instanceof final Character characterValue) {
+			return characterValue.toString();
+		}
+		return asSpecificType(actualValue, String.class);
+	}
 
-    public boolean asBoolean() {
-        return asSpecificType(Boolean.class);
-    }
+	@Nonnull
+	public Number asNumber() {
+		return asSpecificType(actualValue, Number.class);
+	}
 
-    @Nonnull
-    public BigDecimal asBigDecimal() {
-        return asSpecificType(BigDecimal.class);
-    }
+	/**
+	 * Casts original value to {@link Number} and tries to convert that value into desired type.
+	 */
+	@Nonnull
+	public <T extends Number> T asNumber(@Nonnull Class<T> numberType) {
+		return EvitaDataTypes.toTargetType(asNumber(), numberType);
+	}
 
-    @Nonnull
-    public OffsetDateTime asOffsetDateTime() {
-        return asSpecificType(OffsetDateTime.class);
-    }
+	public int asInt() {
+		if (actualValue instanceof final Long longNumber) {
+			try {
+				return Math.toIntExact(longNumber);
+			} catch (ArithmeticException e) {
+				throw new EvitaInvalidUsageException(
+					"`Long` number was passed when `Integer` desired but `" + actualValue + "` value is to big for `Integer`."
+				);
+			}
+		}
+		return asNumber().intValue();
+	}
 
-    @Nonnull
-    public LocalDateTime asLocalDateTime() {
-        return asSpecificType(LocalDateTime.class);
-    }
+	public long asLong() {
+		return asNumber().longValue();
+	}
 
-    @Nonnull
-    public LocalDate asLocalDate() {
-        return asSpecificType(LocalDate.class);
-    }
+	public boolean asBoolean() {
+		return asSpecificType(actualValue, Boolean.class);
+	}
 
-    @Nonnull
-    public LocalTime asLocalTime() {
-        return asSpecificType(LocalTime.class);
-    }
+	@Nonnull
+	public BigDecimal asBigDecimal() {
+		return asSpecificType(actualValue, BigDecimal.class);
+	}
 
-    @Nonnull
-    public DateTimeRange asDateTimeRange() {
-        return asSpecificType(DateTimeRange.class);
-    }
+	@Nonnull
+	public OffsetDateTime asOffsetDateTime() {
+		return asSpecificType(actualValue, OffsetDateTime.class);
+	}
 
-    @Nonnull
-    public BigDecimalNumberRange asBigDecimalNumberRange() {
-        return asSpecificType(BigDecimalNumberRange.class);
-    }
+	@Nonnull
+	public LocalDateTime asLocalDateTime() {
+		return asSpecificType(actualValue, LocalDateTime.class);
+	}
 
-    @Nonnull
-    public LongNumberRange asLongNumberRange() {
-        return asSpecificType(LongNumberRange.class);
-    }
+	@Nonnull
+	public LocalDate asLocalDate() {
+		return asSpecificType(actualValue, LocalDate.class);
+	}
 
-    @Nonnull
-    public <T extends Enum<T>> T asEnum(@Nonnull Class<T> enumType) {
-        if (actualValue instanceof Enum<?>) {
-            return asSpecificType(enumType);
-        } else if (actualValue instanceof EnumWrapper) {
-            return asSpecificType(EnumWrapper.class).toEnum(enumType);
-        } else {
-            throw new EvitaInvalidUsageException(
-                "Expected enum value but got `" + actualValue.getClass().getName() + "`."
-            );
-        }
-    }
+	@Nonnull
+	public LocalTime asLocalTime() {
+		return asSpecificType(actualValue, LocalTime.class);
+	}
 
-    @Nonnull
-    public Locale asLocale() {
-        if (actualValue instanceof Locale) {
-            return asSpecificType(Locale.class);
-        } else if (actualValue instanceof String) {
-            return EvitaDataTypes.toTargetType(asSpecificType(String.class), Locale.class);
-        } else {
-            // correct passed type from client should be checked at visitor level, here should be should correct checked type
-            // if everything is correct on parser side
-            throw new EvitaInvalidUsageException("Expected locale or string value but got `" + actualValue.getClass().getName() + "`.");
-        }
-    }
+	@Nonnull
+	public DateTimeRange asDateTimeRange() {
+		return asSpecificType(actualValue, DateTimeRange.class);
+	}
 
-    @Nonnull
-    public Currency asCurrency() {
-        if (actualValue instanceof Currency) {
-            return asSpecificType(Currency.class);
-        } else if (actualValue instanceof String) {
-            return EvitaDataTypes.toTargetType(asSpecificType(String.class), Currency.class);
-        } else {
-            throw new EvitaInvalidUsageException("Expected currency or string value but got `" + actualValue.getClass().getName() + "`.");
-        }
-    }
+	@Nonnull
+	public BigDecimalNumberRange asBigDecimalNumberRange() {
+		return asSpecificType(actualValue, BigDecimalNumberRange.class);
+	}
 
-    @Nonnull
-    public UUID asUuid() {
-        if (actualValue instanceof UUID) {
-            return asSpecificType(UUID.class);
-        } else if (actualValue instanceof String) {
-            return EvitaDataTypes.toTargetType(asSpecificType(String.class), UUID.class);
-        } else {
-            throw new EvitaInvalidUsageException("Expected UUID or string value but got `" + actualValue.getClass().getName() + "`.");
-        }
-    }
+	@Nonnull
+	public LongNumberRange asLongNumberRange() {
+		return asSpecificType(actualValue, LongNumberRange.class);
+	}
 
-    @Nonnull
-    public String[] asStringArray() {
-        try {
-            return asArray(
-                v -> variadicValueItemAsSpecificType(v, String.class),
-                String.class
-            );
-        } catch (ClassCastException e) {
-            throw new EvitaInvalidUsageException("Unexpected type of value array `" + actualValue.getClass().getName() + "`.");
-        }
-    }
+	@Nonnull
+	public <T extends Enum<T>> T asEnum(@Nonnull Class<T> enumType) {
+		return valueAsEnum(actualValue, enumType);
+	}
 
-    @Nonnull
-    public Serializable[] asSerializableArray() {
-        try {
-            return asArray(v -> (Serializable) v, Serializable.class);
-        } catch (ClassCastException e) {
-            throw new EvitaInvalidUsageException("Unexpected type of value array `" + actualValue.getClass().getName() + "`.");
-        }
-    }
+	@Nonnull
+	public <T extends Enum<T>> T[] asEnumArray(@Nonnull Class<T> enumType) {
+		try {
+			return asArray(
+				v -> valueAsEnum(v, enumType),
+				enumType
+			);
+		} catch (ClassCastException e) {
+			throw new EvitaInvalidUsageException("Unexpected type of value array `" + actualValue.getClass().getName() + "`.");
+		}
+	}
 
-    @Nonnull
-    public Integer[] asIntegerArray() {
-        try {
-            return asArray(
-                v -> {
-                    if (v instanceof final Long longNumber) {
-                        try {
-                            return Math.toIntExact(longNumber);
-                        } catch (ArithmeticException e) {
-                            throw new EvitaInvalidUsageException(
-                                "`Long` number was passed when `Integer` desired but `" + actualValue + "` value is to big for `Integer`."
-                            );
-                        }
-                    }
-                    return variadicValueItemAsSpecificType(v, Number.class).intValue();
-                },
-                Integer.class
-            );
-        } catch (ClassCastException e) {
-            // correct passed type from client should be checked at visitor level, here should be should correct checked type
-            // if everything is correct on parser side
-            throw new EvitaInvalidUsageException("Unexpected type of value array `" + actualValue.getClass().getName() + "`.");
-        }
-    }
+	@Nonnull
+	public Locale asLocale() {
+		if (actualValue instanceof Locale) {
+			return asSpecificType(actualValue, Locale.class);
+		} else if (actualValue instanceof String) {
+			return EvitaDataTypes.toTargetType(asSpecificType(actualValue, String.class), Locale.class);
+		} else {
+			// correct passed type from client should be checked at visitor level, here should be should correct checked type
+			// if everything is correct on parser side
+			throw new EvitaInvalidUsageException("Expected locale or string value but got `" + actualValue.getClass().getName() + "`.");
+		}
+	}
 
-    @Nonnull
-    public Locale[] asLocaleArray() {
-        try {
-            return asArray(
-                v -> {
-                    if (v instanceof Locale) {
-                        return variadicValueItemAsSpecificType(v, Locale.class);
-                    } else if (v instanceof String) {
-                        return EvitaDataTypes.toTargetType(variadicValueItemAsSpecificType(v, String.class), Locale.class);
-                    } else {
-                        throw new EvitaInvalidUsageException("Expected variadic value items of type locale or string value but got `" + v.getClass().getName() + "`.");
-                    }
-                },
-                Locale.class
-            );
-        } catch (ClassCastException e) {
-            throw new EvitaInvalidUsageException("Unexpected type of value array `" + actualValue.getClass().getName() + "`.");
-        }
-    }
+	@Nonnull
+	public Currency asCurrency() {
+		if (actualValue instanceof Currency) {
+			return asSpecificType(actualValue, Currency.class);
+		} else if (actualValue instanceof String) {
+			return EvitaDataTypes.toTargetType(asSpecificType(actualValue, String.class), Currency.class);
+		} else {
+			throw new EvitaInvalidUsageException("Expected currency or string value but got `" + actualValue.getClass().getName() + "`.");
+		}
+	}
 
-    private void assertValueIsOfType(@Nonnull Class<?> type) {
-        // correct passed type from client should be checked at visitor level, here should be should correct checked type
-        // if everything is correct on parser side
-        Assert.isPremiseValid(
-            type.isInstance(actualValue),
-            "Expected value of type `" + type.getName() + "` but got `" + actualValue.getClass().getName() + "`."
-        );
-    }
+	@Nonnull
+	public UUID asUuid() {
+		if (actualValue instanceof UUID) {
+			return asSpecificType(actualValue, UUID.class);
+		} else if (actualValue instanceof String) {
+			return EvitaDataTypes.toTargetType(asSpecificType(actualValue, String.class), UUID.class);
+		} else {
+			throw new EvitaInvalidUsageException("Expected UUID or string value but got `" + actualValue.getClass().getName() + "`.");
+		}
+	}
 
-    @Nonnull
-    private <T> T asSpecificType(@Nonnull Class<T> type) {
-        assertValueIsOfType(type);
-        return type.cast(actualValue);
-    }
+	@Nonnull
+	public String[] asStringArray() {
+		try {
+			return asArray(
+				v -> variadicValueItemAsSpecificType(v, String.class),
+				String.class
+			);
+		} catch (ClassCastException e) {
+			throw new EvitaInvalidUsageException("Unexpected type of value array `" + actualValue.getClass().getName() + "`.");
+		}
+	}
 
-    @Nonnull
-    private static <T> T variadicValueItemAsSpecificType(@Nonnull Object item, @Nonnull Class<T> type) {
-        // correct passed type from client should be checked at visitor level, here should be should correct checked type
-        // if everything is correct on parser side
-        Assert.isPremiseValid(
-            type.isInstance(item),
-            "Expected variadic value items of type `" + type.getName() + "` but got `" + item.getClass().getName() + "`."
-        );
-        return type.cast(item);
-    }
+	@Nonnull
+	public Serializable[] asSerializableArray() {
+		try {
+			return asArray(v -> (Serializable) v, Serializable.class);
+		} catch (ClassCastException e) {
+			throw new EvitaInvalidUsageException("Unexpected type of value array `" + actualValue.getClass().getName() + "`.");
+		}
+	}
 
-    @Nonnull
-    private <T> T[] asArray(@Nonnull Function<Object, T> itemTransformer, @Nonnull Class<T> expectedItemType) {
-        final Object values = actualValue;
-        if (values instanceof Iterable<?> iterableValues) {
-            if (!iterableValues.iterator().hasNext()) {
-                //noinspection unchecked
-                return (T[]) Array.newInstance(expectedItemType, 0);
-            }
+	@Nonnull
+	public Integer[] asIntegerArray() {
+		try {
+			return asArray(
+				v -> {
+					if (v instanceof final Long longNumber) {
+						try {
+							return Math.toIntExact(longNumber);
+						} catch (ArithmeticException e) {
+							throw new EvitaInvalidUsageException(
+								"`Long` number was passed when `Integer` desired but `" + actualValue + "` value is to big for `Integer`."
+							);
+						}
+					}
+					return variadicValueItemAsSpecificType(v, Number.class).intValue();
+				},
+				Integer.class
+			);
+		} catch (ClassCastException e) {
+			// correct passed type from client should be checked at visitor level, here should be should correct checked type
+			// if everything is correct on parser side
+			throw new EvitaInvalidUsageException("Unexpected type of value array `" + actualValue.getClass().getName() + "`.");
+		}
+	}
 
-            //noinspection unchecked
-            return StreamSupport.stream(iterableValues.spliterator(), false)
-                .map(itemTransformer)
-                .toArray(size -> (T[]) Array.newInstance(expectedItemType, size));
-        } else if (values.getClass().isArray()) {
-            final int length = Array.getLength(values);
+	@Nonnull
+	public Locale[] asLocaleArray() {
+		try {
+			return asArray(
+				v -> {
+					if (v instanceof Locale) {
+						return variadicValueItemAsSpecificType(v, Locale.class);
+					} else if (v instanceof String) {
+						return EvitaDataTypes.toTargetType(variadicValueItemAsSpecificType(v, String.class), Locale.class);
+					} else {
+						throw new EvitaInvalidUsageException("Expected variadic value items of type locale or string value but got `" + v.getClass().getName() + "`.");
+					}
+				},
+				Locale.class
+			);
+		} catch (ClassCastException e) {
+			throw new EvitaInvalidUsageException("Unexpected type of value array `" + actualValue.getClass().getName() + "`.");
+		}
+	}
 
-            if (length == 0) {
-                //noinspection unchecked
-                return (T[]) Array.newInstance(expectedItemType, 0);
-            }
+	@Nonnull
+	private <T> T[] asArray(@Nonnull Function<Object, T> itemTransformer, @Nonnull Class<T> expectedItemType) {
+		final Object values = actualValue;
+		if (values instanceof Iterable<?> iterableValues) {
+			if (!iterableValues.iterator().hasNext()) {
+				//noinspection unchecked
+				return (T[]) Array.newInstance(expectedItemType, 0);
+			}
 
-            final Object[] iterableValues = new Object[length];
-            for (int i = 0; i < length; i++) {
-                iterableValues[i] = Array.get(values, i);
-            }
+			//noinspection unchecked
+			return StreamSupport.stream(iterableValues.spliterator(), false)
+				.map(itemTransformer)
+				.toArray(size -> (T[]) Array.newInstance(expectedItemType, size));
+		} else if (values.getClass().isArray()) {
+			final int length = Array.getLength(values);
 
-            //noinspection unchecked
-            return Arrays.stream(iterableValues)
-                .map(itemTransformer)
-                .toArray(size -> (T[]) Array.newInstance(expectedItemType, size));
-        } else {
-            throw new EvitaInvalidUsageException("Expected value of iterable type or array but got `" + actualValue.getClass().getName() + "`.");
-        }
-    }
+			if (length == 0) {
+				//noinspection unchecked
+				return (T[]) Array.newInstance(expectedItemType, 0);
+			}
+
+			final Object[] iterableValues = new Object[length];
+			for (int i = 0; i < length; i++) {
+				iterableValues[i] = Array.get(values, i);
+			}
+
+			//noinspection unchecked
+			return Arrays.stream(iterableValues)
+				.map(itemTransformer)
+				.toArray(size -> (T[]) Array.newInstance(expectedItemType, size));
+		} else {
+			throw new EvitaInvalidUsageException("Expected value of iterable type or array but got `" + actualValue.getClass().getName() + "`.");
+		}
+	}
 }

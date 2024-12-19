@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -99,7 +99,10 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 
 		this.filterConstraintSchemaBuilder = new FilterConstraintSchemaBuilder(constraintBuildingContext, false);
 		this.localizedFilterConstraintSchemaBuilder = new FilterConstraintSchemaBuilder(constraintBuildingContext, true);
-		this.orderConstraintSchemaBuilder = new OrderConstraintSchemaBuilder(constraintBuildingContext);
+		this.orderConstraintSchemaBuilder = new OrderConstraintSchemaBuilder(
+			constraintBuildingContext,
+			new AtomicReference<>(this.filterConstraintSchemaBuilder)
+		);
 		this.listRequireConstraintSchemaBuilder = new RequireConstraintSchemaBuilder(
 			constraintBuildingContext,
 			ALLOWED_CONSTRAINTS_FOR_LIST,
@@ -219,7 +222,7 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 			.getAttributes()
 			.values()
 			.stream()
-			.filter(GlobalAttributeSchemaContract::isUniqueGlobally)
+			.filter(GlobalAttributeSchemaContract::isUniqueGloballyInAnyScope)
 			.toList();
 		if(!globallyUniqueAttributes.isEmpty()) {
 			endpointBuilder.buildGetUnknownEntityEndpoint(buildingContext, globallyUniqueAttributes, false)

@@ -6,6 +6,7 @@
         "primaryKey": 66468,
         "type": "Category",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "cs",
           "de",
@@ -21,6 +22,7 @@
         "primaryKey": 66480,
         "type": "Category",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],
@@ -34,6 +36,7 @@
         "primaryKey": 66481,
         "type": "Category",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],
@@ -47,6 +50,7 @@
         "primaryKey": 66482,
         "type": "Category",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],
@@ -60,6 +64,7 @@
         "primaryKey": 66483,
         "type": "Category",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],
@@ -73,6 +78,7 @@
         "primaryKey": 66484,
         "type": "Category",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],
@@ -86,6 +92,7 @@
         "primaryKey": 66486,
         "type": "Category",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "cs",
           "de",
@@ -101,6 +108,7 @@
         "primaryKey": 66487,
         "type": "Category",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],
@@ -114,6 +122,7 @@
         "primaryKey": 66488,
         "type": "Category",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],
@@ -127,6 +136,7 @@
         "primaryKey": 66489,
         "type": "Category",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],
@@ -140,6 +150,7 @@
         "primaryKey": 66490,
         "type": "Category",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],
@@ -153,6 +164,7 @@
         "primaryKey": 66491,
         "type": "Category",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],
@@ -166,6 +178,7 @@
         "primaryKey": 66492,
         "type": "Category",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],
@@ -179,6 +192,7 @@
         "primaryKey": 66494,
         "type": "Category",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],
@@ -192,6 +206,7 @@
         "primaryKey": 66495,
         "type": "Category",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],
@@ -205,6 +220,7 @@
         "primaryKey": 66496,
         "type": "Category",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],
@@ -218,6 +234,7 @@
         "primaryKey": 66497,
         "type": "Category",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],
@@ -231,6 +248,7 @@
         "primaryKey": 66498,
         "type": "Category",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],
@@ -244,6 +262,7 @@
         "primaryKey": 66499,
         "type": "Category",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],
@@ -257,6 +276,7 @@
         "primaryKey": 66500,
         "type": "Category",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],

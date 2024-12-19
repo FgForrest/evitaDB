@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,7 +29,9 @@ import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
 import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.query.filter.And;
 import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.ConstraintResolver;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.CollectionRestHandlingContext;
 
@@ -52,18 +54,18 @@ public class FilterConstraintResolver extends RestConstraintResolver<FilterConst
 
 	@Nonnull private final ConstraintDescriptor wrapperContainer;
 
-	public FilterConstraintResolver(@Nonnull CollectionRestHandlingContext restHandlingContext) {
+	public FilterConstraintResolver(@Nonnull CatalogSchemaContract catalogSchema) {
 		super(
-			restHandlingContext,
+			catalogSchema,
 			createHashMap(0) // currently, we don't support any filter constraint with additional children
 		);
 		wrapperContainer = ConstraintDescriptorProvider.getConstraint(And.class);
 	}
 
 	@Nullable
-	public FilterConstraint resolve(@Nonnull String key, @Nullable Object value) {
+	public FilterConstraint resolve(@Nonnull String rootEntityType, @Nonnull String key, @Nullable Object value) {
 		return resolve(
-			new EntityDataLocator(restHandlingContext.getEntityType()),
+			new EntityDataLocator(new ManagedEntityTypePointer(rootEntityType)),
 			key,
 			value
 		);

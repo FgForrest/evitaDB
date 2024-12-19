@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.attribute.Ap
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.attribute.RemoveAttributeMutationConverter;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.attribute.UpsertAttributeMutationConverter;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.entity.RemoveParentMutationConverter;
+import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.entity.SetEntityScopeMutationConverter;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.entity.SetParentMutationConverter;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.price.RemovePriceMutationConverter;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.price.SetPriceInnerRecordHandlingMutationConverter;
@@ -86,6 +87,7 @@ public class LocalMutationAggregateConverter extends MutationAggregateConverter<
 		// entity
 		this.resolvers.put(REMOVE_PARENT_MUTATION.name(), new RemoveParentMutationConverter(objectParser, exceptionFactory));
 		this.resolvers.put(SET_PARENT_MUTATION.name(), new SetParentMutationConverter(objectParser, exceptionFactory));
+		this.resolvers.put(SET_ENTITY_SCOPE_MUTATION.name(), new SetEntityScopeMutationConverter(objectParser, exceptionFactory));
 		// price
 		this.resolvers.put(SET_PRICE_INNER_RECORD_HANDLING_MUTATION.name(), new SetPriceInnerRecordHandlingMutationConverter(objectParser, exceptionFactory));
 		this.resolvers.put(REMOVE_PRICE_MUTATION.name(), new RemovePriceMutationConverter(objectParser, exceptionFactory));

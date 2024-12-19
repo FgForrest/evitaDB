@@ -108,14 +108,12 @@ public class NetworkUtils {
 		@Nullable Consumer<String> timeoutConsumer
 	) {
 		try {
-			try (
-				final Response response = getHttpClient(timeoutInMillis).newCall(
-					new Builder()
-						.url(url)
-						.get()
-						.build()
-				).execute()
-			) {
+			final Request request = new Builder()
+				.url(url)
+				.get()
+				.build();
+
+			try (final Response response = getHttpClient(timeoutInMillis).newCall(request).execute()) {
 				if (!response.isSuccessful()) {
 					ofNullable(errorConsumer)
 						.ifPresent(it -> it.accept("Error fetching content from URL: " + url + " HTTP status " + response.code() + " - " + response.message()));
@@ -159,16 +157,15 @@ public class NetworkUtils {
 			final RequestBody requestBody = ofNullable(body)
 				.map(theBody -> RequestBody.create(theBody, MediaType.parse(contentType)))
 				.orElse(null);
-			try (
-				final Response response = getHttpClient(timeoutInMillis).newCall(
-					new Request.Builder()
-						.url(url)
-						.addHeader("Accept", contentType)
-						.addHeader("Content-Type", contentType)
-						.method(method != null ? method : "GET", requestBody)
-						.build()
-				).execute()
-			) {
+
+			final Request request = new Request.Builder()
+				.url(url)
+				.method(method != null ? method : "GET", requestBody)
+				.addHeader("Accept", contentType)
+				.addHeader("Content-Type", contentType)
+				.build();
+
+			try (final Response response = getHttpClient(timeoutInMillis).newCall(request).execute()) {
 				if (!response.isSuccessful()) {
 					ofNullable(errorConsumer)
 						.ifPresent(it -> it.accept(

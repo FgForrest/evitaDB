@@ -9,7 +9,7 @@
             "code": "phones"
           }
         },
-        "queriedEntityCount": 977
+        "queriedEntityCount": 913
       },
       {
         "entity": {
@@ -36,7 +36,7 @@
         "code": "portables"
       }
     },
-    "queriedEntityCount": 1396
+    "queriedEntityCount": 1332
   },
   {
     "children": [

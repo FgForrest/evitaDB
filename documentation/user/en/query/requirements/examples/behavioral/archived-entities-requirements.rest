@@ -1,0 +1,39 @@
+POST /rest/evita/Product/query
+
+{
+  "filterBy" : {
+    "scope" : [
+      "LIVE",
+      "ARCHIVED"
+    ],
+    "entityLocaleEquals" : "en",
+    "inScope" : {
+      "scope" : "LIVE",
+      "filtering" : [
+        {
+          "hierarchyCategoriesWithin" : {
+            "ofParent" : {
+              "attributeUrlEquals" : "/en/cell-phones"
+            }
+          },
+          "priceInPriceLists" : [
+            "basic"
+          ],
+          "priceInCurrency" : "EUR",
+          "priceValidInNow" : true
+        }
+      ]
+    }
+  },
+  "require" : {
+    "inScope" : {
+      "scope" : "LIVE",
+      "require" : {
+        "priceHistogram" : {
+          "requestedBucketCount" : 5,
+          "behavior" : "STANDARD"
+        }
+      }
+    }
+  }
+}

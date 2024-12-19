@@ -24,6 +24,7 @@
 package io.evitadb.index.mutation.index;
 
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.utils.Assert;
 
@@ -45,17 +46,20 @@ public interface HierarchyPlacementMutator {
 	 */
 	static void setParent(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull EntityIndex index,
+		@Nonnull EntityIndex entityIndex,
 		int primaryKeyToIndex,
 		@Nullable Integer parentPrimaryKey,
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
-		final EntitySchema schema = executor.getEntitySchema();
-		Assert.isTrue(schema.isWithHierarchy(), "Hierarchy is not enabled by schema - cannot set hierarchical placement for " + schema.getName() + "!");
+		final EntitySchema entitySchema = executor.getEntitySchema();
+		Assert.isTrue(entitySchema.isWithHierarchy(), "Hierarchy is not enabled by schema - cannot set hierarchical placement for " + entitySchema.getName() + "!");
 
-		index.addNode(primaryKeyToIndex, parentPrimaryKey);
-		if (undoActionConsumer != null) {
-			undoActionConsumer.accept(() -> index.removeNode(primaryKeyToIndex));
+		final Scope scope = entityIndex.getIndexKey().scope();
+		if (entitySchema.isHierarchyIndexedInScope(scope)) {
+			entityIndex.addNode(primaryKeyToIndex, parentPrimaryKey);
+			if (undoActionConsumer != null) {
+				undoActionConsumer.accept(() -> entityIndex.removeNode(primaryKeyToIndex));
+			}
 		}
 	}
 
@@ -65,16 +69,19 @@ public interface HierarchyPlacementMutator {
 	 */
 	static void removeParent(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull EntityIndex index,
+		@Nonnull EntityIndex entityIndex,
 		int primaryKeyToIndex,
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
-		final EntitySchema schema = executor.getEntitySchema();
-		Assert.isTrue(schema.isWithHierarchy(), "Hierarchy is not enabled by schema - cannot remove hierarchical placement for " + schema.getName() + "!");
+		final EntitySchema entitySchema = executor.getEntitySchema();
+		Assert.isTrue(entitySchema.isWithHierarchy(), "Hierarchy is not enabled by schema - cannot remove hierarchical placement for " + entitySchema.getName() + "!");
 
-		final Integer parentNodePk = index.removeNode(primaryKeyToIndex);
-		if (undoActionConsumer != null) {
-			undoActionConsumer.accept(() -> index.addNode(primaryKeyToIndex, parentNodePk));
+		final Scope scope = entityIndex.getIndexKey().scope();
+		if (entitySchema.isHierarchyIndexedInScope(scope)) {
+			final Integer parentNodePk = entityIndex.removeNode(primaryKeyToIndex);
+			if (undoActionConsumer != null) {
+				undoActionConsumer.accept(() -> entityIndex.addNode(primaryKeyToIndex, parentNodePk));
+			}
 		}
 	}
 

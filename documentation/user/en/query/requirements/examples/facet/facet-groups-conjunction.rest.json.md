@@ -1,7 +1,7 @@
 ```json
 {
   "groups": {
-    "count": 2240,
+    "count": 2200,
     "facetStatistics": [
       {
         "requested": false,
@@ -15,6 +15,7 @@
           "primaryKey": 66503,
           "type": "Group",
           "version": 1,
+          "scope": "LIVE",
           "allLocales": [
             "en"
           ],
@@ -37,6 +38,7 @@
           "primaryKey": 66505,
           "type": "Group",
           "version": 1,
+          "scope": "LIVE",
           "allLocales": [
             "en"
           ],
@@ -49,7 +51,7 @@
       },
       {
         "requested": false,
-        "count": 807,
+        "count": 806,
         "impact": {
           "difference": -33,
           "matchCount": 6,
@@ -59,6 +61,7 @@
           "primaryKey": 112769,
           "type": "Group",
           "version": 1,
+          "scope": "LIVE",
           "allLocales": [
             "en"
           ],
@@ -71,7 +74,7 @@
       },
       {
         "requested": false,
-        "count": 280,
+        "count": 277,
         "impact": {
           "difference": -38,
           "matchCount": 1,
@@ -81,6 +84,7 @@
           "primaryKey": 112770,
           "type": "Group",
           "version": 1,
+          "scope": "LIVE",
           "allLocales": [
             "en"
           ],
@@ -93,7 +97,7 @@
       },
       {
         "requested": false,
-        "count": 807,
+        "count": 786,
         "impact": {
           "difference": -35,
           "matchCount": 4,
@@ -103,6 +107,7 @@
           "primaryKey": 112771,
           "type": "Group",
           "version": 1,
+          "scope": "LIVE",
           "allLocales": [
             "en"
           ],
@@ -125,6 +130,7 @@
           "primaryKey": 112772,
           "type": "Group",
           "version": 1,
+          "scope": "LIVE",
           "allLocales": [
             "en"
           ],
@@ -147,6 +153,7 @@
           "primaryKey": 112773,
           "type": "Group",
           "version": 1,
+          "scope": "LIVE",
           "allLocales": [
             "en"
           ],
@@ -169,6 +176,7 @@
           "primaryKey": 112774,
           "type": "Group",
           "version": 1,
+          "scope": "LIVE",
           "allLocales": [
             "en"
           ],
@@ -191,6 +199,7 @@
           "primaryKey": 112775,
           "type": "Group",
           "version": 1,
+          "scope": "LIVE",
           "allLocales": [
             "en"
           ],
@@ -203,7 +212,7 @@
       },
       {
         "requested": false,
-        "count": 49,
+        "count": 34,
         "impact": {
           "difference": -39,
           "matchCount": 0,
@@ -213,6 +222,7 @@
           "primaryKey": 112776,
           "type": "Group",
           "version": 1,
+          "scope": "LIVE",
           "allLocales": [
             "en"
           ],

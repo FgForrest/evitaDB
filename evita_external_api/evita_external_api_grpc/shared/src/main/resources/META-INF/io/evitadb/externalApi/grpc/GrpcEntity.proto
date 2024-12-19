@@ -93,6 +93,8 @@ message GrpcSealedEntity {
   // Contains set of all locales that were used for localized attributes or associated data of
   // this particular entity.
   repeated GrpcLocale locales = 16;
+  // Identifies scope where the entity resides (either live or archived scope).
+  GrpcEntityScope scope = 17;
 }
 
 // Response carries entities in a binary format and is part of the PRIVATE API that is used by Java driver. The client

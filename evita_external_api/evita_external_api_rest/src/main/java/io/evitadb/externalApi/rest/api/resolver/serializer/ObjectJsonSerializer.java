@@ -34,6 +34,7 @@ import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Range;
 import io.evitadb.dataType.data.ComplexDataObjectToJsonConverter;
+import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import lombok.Getter;
@@ -109,6 +110,7 @@ public class ObjectJsonSerializer {
 		if (value instanceof UUID uuid) return jsonNodeFactory.textNode(serialize(uuid));
 		if (value instanceof Predecessor predecessor) return jsonNodeFactory.numberNode(serialize(predecessor));
 		if (value instanceof PriceContract price) return serialize(price);
+		if (value instanceof ExpressionNode expression) return jsonNodeFactory.textNode(expression.toString());
 		if (value.getClass().isEnum()) return jsonNodeFactory.textNode(serialize((Enum<?>) value));
 
 		throw new RestInternalError("Serialization of value of class: " + value.getClass().getName() + " is not implemented yet.");

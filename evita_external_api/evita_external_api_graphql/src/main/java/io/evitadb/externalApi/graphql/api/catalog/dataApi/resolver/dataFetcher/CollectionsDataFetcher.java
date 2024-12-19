@@ -29,8 +29,11 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
 import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Set;
 
 /**
@@ -38,7 +41,19 @@ import java.util.Set;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class CollectionsDataFetcher implements DataFetcher<Set<String>>, ReadDataFetcher {
+
+    @Nullable
+    private static CollectionsDataFetcher INSTANCE;
+
+    @Nonnull
+    public static CollectionsDataFetcher getInstance() {
+        if (INSTANCE == null) {
+            INSTANCE = new CollectionsDataFetcher();
+        }
+        return INSTANCE;
+    }
 
     @Nonnull
     @Override

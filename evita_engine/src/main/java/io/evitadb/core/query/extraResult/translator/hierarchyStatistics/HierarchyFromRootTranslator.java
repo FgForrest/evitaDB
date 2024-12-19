@@ -35,8 +35,9 @@ import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.RootStatisticsComputer;
 import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.EnumSet;
-import java.util.List;
 import java.util.Optional;
 
 /**
@@ -44,7 +45,7 @@ import java.util.Optional;
  * {@link RootStatisticsComputer} registered inside {@link HierarchyStatisticsProducer}. The computer instance has
  * all pointer necessary to compute result.
  * All operations in this translator are relatively cheap comparing to final result computation, that is deferred to
- * {@link ExtraResultProducer#fabricate(io.evitadb.core.query.QueryExecutionContext, List)} method.
+ * {@link ExtraResultProducer#fabricate(io.evitadb.core.query.QueryExecutionContext)} method.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -52,8 +53,9 @@ public class HierarchyFromRootTranslator
 	extends AbstractHierarchyTranslator
 	implements RequireConstraintTranslator<HierarchyFromRoot>, SelfTraversingTranslator {
 
+	@Nullable
 	@Override
-	public ExtraResultProducer apply(HierarchyFromRoot fromRoot, ExtraResultPlanningVisitor extraResultPlanningVisitor) {
+	public ExtraResultProducer createProducer(@Nonnull HierarchyFromRoot fromRoot, @Nonnull ExtraResultPlanningVisitor extraResultPlanningVisitor) {
 		final HierarchyStatisticsProducer producer = getHierarchyStatisticsProducer(extraResultPlanningVisitor);
 		final Optional<HierarchyStatistics> statistics = fromRoot.getStatistics();
 		final HierarchyProducerContext context = producer.getContext(fromRoot.getName());

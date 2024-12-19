@@ -39,57 +39,57 @@ public final class GrpcEntitySchemaMutations {
   }
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcAllowCurrencyInEntitySchemaMutation_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcAllowCurrencyInEntitySchemaMutation_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcAllowEvolutionModeInEntitySchemaMutation_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcAllowEvolutionModeInEntitySchemaMutation_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcAllowLocaleInEntitySchemaMutation_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcAllowLocaleInEntitySchemaMutation_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcDisallowCurrencyInEntitySchemaMutation_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcDisallowCurrencyInEntitySchemaMutation_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcDisallowEvolutionModeInEntitySchemaMutation_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcDisallowEvolutionModeInEntitySchemaMutation_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcDisallowLocaleInEntitySchemaMutation_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcDisallowLocaleInEntitySchemaMutation_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcModifyEntitySchemaDeprecationNoticeMutation_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcModifyEntitySchemaDeprecationNoticeMutation_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcModifyEntitySchemaDescriptionMutation_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcModifyEntitySchemaDescriptionMutation_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetEntitySchemaWithGeneratedPrimaryKeyMutation_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetEntitySchemaWithGeneratedPrimaryKeyMutation_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetEntitySchemaWithHierarchyMutation_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetEntitySchemaWithHierarchyMutation_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetEntitySchemaWithPriceMutation_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetEntitySchemaWithPriceMutation_fieldAccessorTable;
 
@@ -130,11 +130,15 @@ public final class GrpcEntitySchemaMutations {
       "(\0132\034.google.protobuf.StringValue\"U\n2Grpc" +
       "SetEntitySchemaWithGeneratedPrimaryKeyMu" +
       "tation\022\037\n\027withGeneratedPrimaryKey\030\001 \001(\010\"" +
-      "A\n(GrpcSetEntitySchemaWithHierarchyMutat" +
-      "ion\022\025\n\rwithHierarchy\030\001 \001(\010\"U\n$GrpcSetEnt" +
-      "itySchemaWithPriceMutation\022\021\n\twithPrice\030" +
-      "\001 \001(\010\022\032\n\022indexedPricePlaces\030\002 \001(\005B\014P\001\252\002\007" +
-      "EvitaDBb\006proto3"
+      "\222\001\n(GrpcSetEntitySchemaWithHierarchyMuta" +
+      "tion\022\025\n\rwithHierarchy\030\001 \001(\010\022O\n\017indexedIn" +
+      "Scopes\030\002 \003(\01626.io.evitadb.externalApi.gr" +
+      "pc.generated.GrpcEntityScope\"\246\001\n$GrpcSet" +
+      "EntitySchemaWithPriceMutation\022\021\n\twithPri" +
+      "ce\030\001 \001(\010\022\032\n\022indexedPricePlaces\030\002 \001(\005\022O\n\017" +
+      "indexedInScopes\030\003 \003(\01626.io.evitadb.exter" +
+      "nalApi.grpc.generated.GrpcEntityScopeB\014P" +
+      "\001\252\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
@@ -202,13 +206,13 @@ public final class GrpcEntitySchemaMutations {
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetEntitySchemaWithHierarchyMutation_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetEntitySchemaWithHierarchyMutation_descriptor,
-        new java.lang.String[] { "WithHierarchy", });
+        new java.lang.String[] { "WithHierarchy", "IndexedInScopes", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetEntitySchemaWithPriceMutation_descriptor =
       getDescriptor().getMessageTypes().get(10);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetEntitySchemaWithPriceMutation_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetEntitySchemaWithPriceMutation_descriptor,
-        new java.lang.String[] { "WithPrice", "IndexedPricePlaces", });
+        new java.lang.String[] { "WithPrice", "IndexedPricePlaces", "IndexedInScopes", });
     io.evitadb.externalApi.grpc.generated.GrpcEvitaDataTypes.getDescriptor();
     io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor();
     com.google.protobuf.WrappersProto.getDescriptor();

@@ -27,6 +27,7 @@ import io.evitadb.api.CatalogStatistics.EntityCollectionStatistics;
 import io.evitadb.api.exception.EntityAlreadyRemovedException;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
+import io.evitadb.api.query.filter.EntityScope;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.DeletedHierarchy;
@@ -41,6 +42,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nonnull;
@@ -240,6 +242,68 @@ public interface EntityCollectionContract {
 	 */
 	@Nonnull
 	SealedEntity[] deleteEntitiesAndReturnThem(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session);
+
+	/**
+	 * Method archives existing active (living) entity in collection by its primary key. Archiving in evitaDB resembles
+	 * soft-delete in the sense that the entity is not removed from the collection but is marked as archived and is not
+	 * visible in the regular queries. The entity can be restored back to the active state by calling {@link #restoreEntity(int)}.
+	 * Archived entities can still be retrieved using query using {@link EntityScope} requirement with {@link Scope#ARCHIVED}.
+	 * Archived entities have the same schema structure, but by default none of their data (except for primary key) are
+	 * indexed so that soft-deleted entities consume only minimal space in the memory. Set of indexed data can be
+	 * extended using schema definition process.
+	 *
+	 * All entities of other entity types that reference removed entity in their {@link SealedEntity#getReference(String, int)}
+	 * still keep the data untouched. Automatically created - bi-directional references in the archived entity and
+	 * the entities on the opposite side are automatically removed along with the entity.
+	 *
+	 * @return true if entity existed in living scope and was archived
+	 */
+	boolean archiveEntity(int primaryKey);
+
+	/**
+	 * Method archives existing active (living) entity in collection by its primary key. Archiving in evitaDB resembles
+	 * soft-delete in the sense that the entity is not removed from the collection but is marked as archived and is not
+	 * visible in the regular queries. The entity can be restored back to the active state by calling {@link #restoreEntity(int)}.
+	 * Archived entities can still be retrieved using query using {@link EntityScope} requirement with {@link Scope#ARCHIVED}.
+	 * Archived entities have the same schema structure, but by default none of their data (except for primary key) are
+	 * indexed so that soft-deleted entities consume only minimal space in the memory. Set of indexed data can be
+	 * extended using schema definition process.
+	 *
+	 * All entities of other entity types that reference removed entity in their {@link SealedEntity#getReference(String, int)}
+	 * still keep the data untouched. Automatically created - bi-directional references in the archived entity and
+	 * the entities on the opposite side are automatically removed along with the entity.
+	 *
+	 * @param evitaRequest allowing to propagate instructions for fetching the archived entity
+	 * @param session      that connect this request with an opened session
+	 * @return archived entity fetched according to `require` definition
+	 */
+	@Nonnull
+	<T extends Serializable> Optional<T> archiveEntity(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session);
+
+	/**
+	 * Method restores existing archived entity in collection by its primary key. Restoring process reverts the effects
+	 * of the archiving.
+	 *
+	 * The automatically created - bi-directional references in the restored entity and the entities on the opposite
+	 * side are automatically recreated along with the entity.
+	 *
+	 * @return true if entity was found in archive and was restored back to the living scope
+	 */
+	boolean restoreEntity(int primaryKey);
+
+	/**
+	 * Method restores existing archived entity in collection by its primary key. Restoring process reverts the effects
+	 * of the archiving.
+	 *
+	 * The automatically created - bi-directional references in the restored entity and the entities on the opposite
+	 * side are automatically recreated along with the entity.
+	 *
+	 * @param evitaRequest allowing to propagate instructions for fetching the deleted entity
+	 * @param session      that connect this request with an opened session
+	 * @return removed entity fetched according to `require` definition
+	 */
+	@Nonnull
+	<T extends Serializable> Optional<T> restoreEntity(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session);
 
 	/**
 	 * Method returns true if there is no single entity in the collection.

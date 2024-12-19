@@ -29,7 +29,7 @@ import io.evitadb.api.query.parser.ParseContext;
 import io.evitadb.api.query.parser.ParseMode;
 import io.evitadb.api.query.parser.ParserExecutor;
 import io.evitadb.api.query.parser.ParserFactory;
-import io.evitadb.api.query.parser.error.EvitaQLInvalidQueryError;
+import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -269,15 +269,15 @@ class EvitaQLQueryVisitorTest {
 
     @Test
     void shouldNotParseQuery() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseQuery("query(require(attributeContentAll()),collection('a'),orderBy(attributeNatural('c')),filterBy(attributeEquals('a',1)))"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseQueryUnsafe("query"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseQueryUnsafe("query()"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseQueryUnsafe("query(collection('a'),attributeEquals('b',1))"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseQueryUnsafe("query(collection('a'),attributeContent('b'))"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseQueryUnsafe("query(collection('a'),attributeContentAll())"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseQueryUnsafe("query(collection('a'),filterBy(attributeEquals('b',1)),attributeEquals('c',1))"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseQueryUnsafe("query(collection('a'),orderBy(attributeContent('c')),attributeContent('b'))"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseQueryUnsafe("query(collection('a'),require(entityFetch()),attributeContentAll())"));
+        assertThrows(EvitaSyntaxException.class, () -> parseQuery("query(require(attributeContentAll()),collection('a'),orderBy(attributeNatural('c')),filterBy(attributeEquals('a',1)))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseQueryUnsafe("query"));
+        assertThrows(EvitaSyntaxException.class, () -> parseQueryUnsafe("query()"));
+        assertThrows(EvitaSyntaxException.class, () -> parseQueryUnsafe("query(collection('a'),attributeEquals('b',1))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseQueryUnsafe("query(collection('a'),attributeContent('b'))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseQueryUnsafe("query(collection('a'),attributeContentAll())"));
+        assertThrows(EvitaSyntaxException.class, () -> parseQueryUnsafe("query(collection('a'),filterBy(attributeEquals('b',1)),attributeEquals('c',1))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseQueryUnsafe("query(collection('a'),orderBy(attributeContent('c')),attributeContent('b'))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseQueryUnsafe("query(collection('a'),require(entityFetch()),attributeContentAll())"));
     }
 
 

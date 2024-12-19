@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -22,6 +22,8 @@
  */
 
 package io.evitadb.function;
+
+import javax.annotation.Nullable;
 
 /**
  * Interface similar to {@link java.util.function.BiConsumer} but for three arguments.
@@ -39,7 +41,7 @@ public interface TriConsumer <T, U, V> {
 	 * @param u the second input argument
 	 * @param v the third input argument
 	 */
-	void accept(T t, U u, V v);
+	void accept(@Nullable T t, @Nullable U u, @Nullable V v);
 
 }
 

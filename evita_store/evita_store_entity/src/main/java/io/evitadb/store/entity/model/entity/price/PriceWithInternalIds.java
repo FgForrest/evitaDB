@@ -45,13 +45,12 @@ import java.util.Optional;
  */
 public record PriceWithInternalIds(
 	@Nonnull PriceContract delegate,
-	@Nullable Integer internalPriceId
+	int internalPriceId
 ) implements PriceContract, PriceInternalIdContainer {
-	@Serial private static final long serialVersionUID = 5008194525461751557L;
+	@Serial private static final long serialVersionUID = -5728988992763911321L;
 
 	@Override
-	@Nullable
-	public Integer getInternalPriceId() {
+	public int getInternalPriceId() {
 		return internalPriceId;
 	}
 

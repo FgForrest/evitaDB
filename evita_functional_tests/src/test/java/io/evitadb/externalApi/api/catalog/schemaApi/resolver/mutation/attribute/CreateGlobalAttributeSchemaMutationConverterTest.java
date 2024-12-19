@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,16 +26,22 @@ package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute
 import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateGlobalAttributeSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.AttributeSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.CreateGlobalAttributeSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedGlobalAttributeUniquenessTypeDescriptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
+import static io.evitadb.test.builder.ListBuilder.list;
 import static io.evitadb.test.builder.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -60,10 +66,14 @@ class CreateGlobalAttributeSchemaMutationConverterTest {
 			"code",
 			"desc",
 			"depr",
-			AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION,
-			null,
-			true,
-			false,
+			new ScopedAttributeUniquenessType[] {
+				new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
+			},
+			new ScopedGlobalAttributeUniquenessType[] {
+				new ScopedGlobalAttributeUniquenessType(Scope.LIVE, GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG)
+			},
+			new Scope[] { Scope.LIVE },
+			new Scope[] { Scope.LIVE },
 			true,
 			false,
 			true,
@@ -77,10 +87,18 @@ class CreateGlobalAttributeSchemaMutationConverterTest {
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.DESCRIPTION.name(), "desc")
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.DEPRECATION_NOTICE.name(), "depr")
-				.e(CreateGlobalAttributeSchemaMutationDescriptor.UNIQUENESS_TYPE.name(), AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
-				.e(CreateGlobalAttributeSchemaMutationDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), GlobalAttributeUniquenessType.NOT_UNIQUE)
-				.e(CreateGlobalAttributeSchemaMutationDescriptor.FILTERABLE.name(), true)
-				.e(CreateGlobalAttributeSchemaMutationDescriptor.SORTABLE.name(), false)
+				.e(CreateGlobalAttributeSchemaMutationDescriptor.UNIQUE_IN_SCOPES.name(), list()
+					.i(map()
+						.e(ScopedAttributeUniquenessTypeDescriptor.SCOPE.name(), Scope.LIVE)
+						.e(ScopedAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)))
+				.e(CreateGlobalAttributeSchemaMutationDescriptor.UNIQUE_GLOBALLY_IN_SCOPES.name(), list()
+					.i(map()
+						.e(ScopedGlobalAttributeUniquenessTypeDescriptor.SCOPE.name(), Scope.LIVE)
+						.e(ScopedGlobalAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG)))
+				.e(CreateGlobalAttributeSchemaMutationDescriptor.FILTERABLE_IN_SCOPES.name(), list()
+					.i(Scope.LIVE))
+				.e(CreateGlobalAttributeSchemaMutationDescriptor.SORTABLE_IN_SCOPES.name(), list()
+					.i(Scope.LIVE))
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.LOCALIZED.name(), true)
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.NULLABLE.name(), false)
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.REPRESENTATIVE.name(), true)
@@ -96,10 +114,18 @@ class CreateGlobalAttributeSchemaMutationConverterTest {
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.DESCRIPTION.name(), "desc")
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.DEPRECATION_NOTICE.name(), "depr")
-				.e(CreateGlobalAttributeSchemaMutationDescriptor.UNIQUENESS_TYPE.name(), AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION.name())
-				.e(CreateGlobalAttributeSchemaMutationDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), GlobalAttributeUniquenessType.NOT_UNIQUE.name())
-				.e(CreateGlobalAttributeSchemaMutationDescriptor.FILTERABLE.name(), "true")
-				.e(CreateGlobalAttributeSchemaMutationDescriptor.SORTABLE.name(), "false")
+				.e(CreateGlobalAttributeSchemaMutationDescriptor.UNIQUE_IN_SCOPES.name(), list()
+					.i(map()
+						.e(ScopedAttributeUniquenessTypeDescriptor.SCOPE.name(), Scope.LIVE.name())
+						.e(ScopedAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION.name())))
+				.e(CreateGlobalAttributeSchemaMutationDescriptor.UNIQUE_GLOBALLY_IN_SCOPES.name(), list()
+					.i(map()
+						.e(ScopedGlobalAttributeUniquenessTypeDescriptor.SCOPE.name(), Scope.LIVE.name())
+						.e(ScopedGlobalAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG.name())))
+				.e(CreateGlobalAttributeSchemaMutationDescriptor.FILTERABLE_IN_SCOPES.name(), list()
+					.i(Scope.LIVE.name()))
+				.e(CreateGlobalAttributeSchemaMutationDescriptor.SORTABLE_IN_SCOPES.name(), list()
+					.i(Scope.LIVE.name()))
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.LOCALIZED.name(), "true")
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.NULLABLE.name(), "false")
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.REPRESENTATIVE.name(), "true")
@@ -116,10 +142,10 @@ class CreateGlobalAttributeSchemaMutationConverterTest {
 			"code",
 			null,
 			null,
+			(ScopedAttributeUniquenessType[]) null,
 			null,
 			null,
-			false,
-			false,
+			null,
 			false,
 			false,
 			false,

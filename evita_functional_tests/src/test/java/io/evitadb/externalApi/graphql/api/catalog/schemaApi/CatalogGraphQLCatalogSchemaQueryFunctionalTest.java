@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -161,8 +161,14 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 									}
 									description
 									deprecationNotice
-									uniquenessType
-									globalUniquenessType
+									uniquenessType {
+										scope
+										uniquenessType
+									}
+									globalUniquenessType {
+										scope
+										uniquenessType
+									}
 									filterable
 									sortable
 									localized
@@ -198,10 +204,10 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 									.build())
 								.e(NamedSchemaDescriptor.DESCRIPTION.name(), urlSchema.getDescription())
 								.e(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), urlSchema.getDeprecationNotice())
-								.e(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), urlSchema.getUniquenessType().name())
-								.e(GlobalAttributeSchemaDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), urlSchema.getGlobalUniquenessType().name())
-								.e(AttributeSchemaDescriptor.FILTERABLE.name(), urlSchema.isFilterable())
-								.e(AttributeSchemaDescriptor.SORTABLE.name(), urlSchema.isSortable())
+								.e(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), createAttributeUniquenessTypeDto(urlSchema))
+								.e(GlobalAttributeSchemaDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), createGlobalAttributeUniquenessTypeDto(urlSchema))
+								.e(AttributeSchemaDescriptor.FILTERABLE.name(), createAttributeFilterableDto(urlSchema))
+								.e(AttributeSchemaDescriptor.SORTABLE.name(), createAttributeSortableDto(urlSchema))
 								.e(AttributeSchemaDescriptor.LOCALIZED.name(), urlSchema.isLocalized())
 								.e(AttributeSchemaDescriptor.NULLABLE.name(), urlSchema.isNullable())
 								.e(AttributeSchemaDescriptor.DEFAULT_VALUE.name(), urlSchema.getDefaultValue() == null ? null : urlSchema.getDefaultValue().toString())

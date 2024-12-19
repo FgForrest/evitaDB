@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,14 +23,20 @@
 
 package io.evitadb.externalApi.api.catalog.dataApi.builder.constraint;
 
+import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocatorWithReference;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityTypePointer;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ExternalEntityTypePointer;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
+import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import lombok.Data;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Ancestor for keys representing cacheable elements in a constraint tree.
@@ -63,20 +69,62 @@ public abstract class CacheableElementKey {
 
 	protected long hashDataLocator(@Nonnull LongHashFunction hashFunction) {
 		final long dataLocatorNameHash = hashFunction.hashChars(getDataLocator().getClass().getName());
-		final long entityTypeHash = hashFunction.hashChars(getDataLocator().entityType());
+		final long entityTypePointerHash = hashEntityTypePointer(hashFunction);
 		final long dataLocatorHash;
 		if (getDataLocator() instanceof final DataLocatorWithReference dataLocatorWithReference) {
 			dataLocatorHash = hashFunction.hashLongs(new long[] {
 				dataLocatorNameHash,
-				entityTypeHash,
+				entityTypePointerHash,
 				hashFunction.hashChars(
 					Optional.ofNullable(dataLocatorWithReference.referenceName())
 						.orElse("")
 				)
 			});
 		} else {
-			dataLocatorHash = hashFunction.hashLongs(new long[] { dataLocatorNameHash, entityTypeHash });
+			dataLocatorHash = hashFunction.hashLongs(new long[] { dataLocatorNameHash, entityTypePointerHash });
 		}
 		return dataLocatorHash;
+	}
+
+	protected long hashEntityTypePointer(@Nonnull LongHashFunction hashFunction) {
+		final EntityTypePointer entityTypePointer = getDataLocator().entityTypePointer();
+
+		final long entityTypeHash = hashFunction.hashChars(entityTypePointer.entityType());
+		if (entityTypePointer instanceof ManagedEntityTypePointer) {
+			return entityTypeHash;
+		} else if (entityTypePointer instanceof ExternalEntityTypePointer) {
+			return hashFunction.hashLongs(new long[] {
+				entityTypeHash,
+				hashFunction.hashChars(NonManagedEntityTypeHashFlag.EXTERNAL.name())
+			});
+		} else {
+			throw new ExternalApiInternalError("Unsupported entity type pointer '" + entityTypePointer.getClass().getName() + "'");
+		}
+	}
+
+	protected long hashAllowedConstraintPredicate(@Nonnull LongHashFunction hashFunction,
+	                                              @Nonnull AllowedConstraintPredicate allowedConstraintPredicate) {
+		return hashFunction.hashLongs(new long[] {
+			hashFunction.hashChars(allowedConstraintPredicate.getBaseConstraintType().getSimpleName()),
+			hashConstraintSet(hashFunction, allowedConstraintPredicate.getLocallyAllowedConstraints()),
+			hashConstraintSet(hashFunction, allowedConstraintPredicate.getGloballyAllowedConstraints()),
+			hashConstraintSet(hashFunction, allowedConstraintPredicate.getForbiddenConstraints())
+		});
+	}
+
+	private long hashConstraintSet(@Nonnull LongHashFunction hashFunction,
+	                               @Nonnull Set<Class<? extends Constraint<?>>> constraintSet) {
+		return hashFunction.hashLongs(
+			constraintSet
+				.stream()
+				.map(Class::getSimpleName)
+				.sorted()
+				.mapToLong(hashFunction::hashChars)
+				.toArray()
+		);
+	}
+
+	private enum NonManagedEntityTypeHashFlag {
+		EXTERNAL
 	}
 }

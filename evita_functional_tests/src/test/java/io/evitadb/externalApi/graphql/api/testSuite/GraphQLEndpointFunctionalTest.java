@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -58,12 +58,17 @@ public abstract class GraphQLEndpointFunctionalTest {
 
 	@DataSet(value = TestDataGenerator.GRAPHQL_THOUSAND_PRODUCTS, openWebApi = GraphQLProvider.CODE)
 	protected DataCarrier setUp(Evita evita) {
-		return setUpData(evita, 1000);
+		return setUpData(evita, 1000, false);
+	}
+
+	@DataSet(value = TestDataGenerator.GRAPHQL_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE, openWebApi = GraphQLProvider.CODE)
+	protected DataCarrier setUpForArchival(Evita evita) {
+		return setUpData(evita, 100, true);
 	}
 
 	@Nonnull
-	protected DataCarrier setUpData(Evita evita, int productCount) {
+	protected DataCarrier setUpData(Evita evita, int productCount, boolean archiveSomeProducts) {
 		TestDataGenerator.generateMockCatalogs(evita);
-		return TestDataGenerator.generateMainCatalogEntities(evita, productCount);
+		return TestDataGenerator.generateMainCatalogEntities(evita, productCount, archiveSomeProducts);
 	}
 }

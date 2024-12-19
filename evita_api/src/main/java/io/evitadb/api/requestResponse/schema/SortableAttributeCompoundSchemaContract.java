@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,10 +25,13 @@ package io.evitadb.api.requestResponse.schema;
 
 import io.evitadb.api.query.order.AttributeNatural;
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.dataType.Scope;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Sortable attribute compounds are used to sort entities or references by multiple attributes at once. evitaDB
@@ -48,6 +51,46 @@ public interface SortableAttributeCompoundSchemaContract
 	 */
 	@Nonnull
 	List<AttributeElement> getAttributeElements();
+
+	/**
+	 * When attribute sortable compound is indexed, it is possible to sort entities by this calculated attribute compound.
+	 *
+	 * This method returns true only if the attribute is indexed in the default (i.e. {@link Scope#LIVE}) scope.
+	 *
+	 * @return true if attribute is indexed in the default (i.e. {@link Scope#LIVE}) scope
+	 */
+	default boolean isIndexed() {
+		return isIndexedInScope(Scope.DEFAULT_SCOPE);
+	}
+
+	/**
+	 * When attribute sortable compound is indexed, it is possible to sort entities by this calculated attribute compound.
+	 *
+	 * This method returns true only if the attribute compound is sortable in any scope
+	 *
+	 * @return true if attribute is indexed in the default (i.e. {@link Scope#LIVE}) scope
+	 */
+	default boolean isIndexedInAnyScope() {
+		return Arrays.stream(Scope.values()).anyMatch(this::isIndexedInScope);
+	}
+
+	/**
+	 * When attribute sortable compound is indexed, it is possible to sort entities by this calculated attribute compound.
+	 *
+	 * This method returns true only if the attribute compound is sortable in a particular scope.
+	 *
+	 * @return true if attribute is indexed in a particular scope
+	 */
+	boolean isIndexedInScope(@Nonnull Scope scope);
+
+	/**
+	 * When attribute sortable compound is indexed, it is possible to sort entities by this calculated attribute compound.
+	 * This method returns set of all scopes this attribute compound is indexed in.
+	 *
+	 * @return set of all scopes this attribute compound is indexed in
+	 */
+	@Nonnull
+	Set<Scope> getIndexedInScopes();
 
 	/**
 	 * Attribute element is a part of the sortable compound. It defines the attribute name, the direction of the

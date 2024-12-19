@@ -599,7 +599,7 @@ public class DataGenerator {
 			} else {
 				throw new IllegalArgumentException("Unsupported auto-generated value type: " + type);
 			}
-			if (valueGenerator == null && attribute.isSortable()) {
+			if (valueGenerator == null && attribute.isSortable() && !(value instanceof Currency || value instanceof Locale)) {
 				value = sortableAttributesChecker.getUniqueAttribute(attributeName, value);
 			}
 		} while (value == null && sanityCheck++ < 1000);

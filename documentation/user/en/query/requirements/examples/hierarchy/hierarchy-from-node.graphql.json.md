@@ -10,7 +10,7 @@
         }
       },
       "requested": false,
-      "queriedEntityCount": 1396,
+      "queriedEntityCount": 1332,
       "childrenCount": 3
     },
     {
@@ -22,7 +22,7 @@
         }
       },
       "requested": false,
-      "queriedEntityCount": 977,
+      "queriedEntityCount": 913,
       "childrenCount": 0
     },
     {

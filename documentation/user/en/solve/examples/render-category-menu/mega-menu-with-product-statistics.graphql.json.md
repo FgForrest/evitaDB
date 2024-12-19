@@ -9,7 +9,7 @@
       }
     },
     "requested": false,
-    "queriedEntityCount": 1396
+    "queriedEntityCount": 1332
   },
   {
     "level": 2,
@@ -20,7 +20,7 @@
       }
     },
     "requested": false,
-    "queriedEntityCount": 977
+    "queriedEntityCount": 913
   },
   {
     "level": 2,

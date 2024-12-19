@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -46,10 +46,10 @@ public final class EntityReferenceAttributeExtractor implements AttributeExtract
 
 	@Nullable
 	@Override
-	public Comparable<?> extract(@Nonnull EntityContract entity, @Nonnull String attributeName) {
+	public Object extract(@Nonnull EntityContract entity, @Nonnull String attributeName) {
 		return entity.getReferences(referenceName)
 			.stream()
-			.map(it -> (Comparable<?>)it.getAttribute(attributeName))
+			.map(it -> it.getAttribute(attributeName))
 			.filter(Objects::nonNull)
 			.findFirst()
 			.orElse(null);
@@ -57,11 +57,11 @@ public final class EntityReferenceAttributeExtractor implements AttributeExtract
 
 	@Nullable
 	@Override
-	public Comparable<?> extract(@Nonnull EntityContract entity, @Nonnull String attributeName, @Nonnull Locale locale) {
+	public Object extract(@Nonnull EntityContract entity, @Nonnull String attributeName, @Nonnull Locale locale) {
 		//noinspection ConstantConditions
 		return entity.getReferences(referenceName)
 			.stream()
-			.map(it -> (Comparable<?>)it.getAttribute(attributeName, locale))
+			.map(it -> it.getAttribute(attributeName, locale))
 			.findFirst()
 			.orElse(null);
 	}

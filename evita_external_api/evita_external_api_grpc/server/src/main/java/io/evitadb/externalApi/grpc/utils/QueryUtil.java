@@ -26,6 +26,7 @@ package io.evitadb.externalApi.grpc.utils;
 import com.google.protobuf.GeneratedMessageV3;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryParser;
+import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.parser.DefaultQueryParser;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -55,6 +56,33 @@ public class QueryUtil {
 	private static final QueryParser parser = DefaultQueryParser.getInstance();
 
 	/**
+	 * Parse list of {@link RequireConstraint} from {@link String}.
+	 *
+	 * @param requireConstraints to be parsed
+	 * @return list of {@link EntityContentRequire}s
+	 */
+	@Nonnull
+	public static <T extends GeneratedMessageV3> List<RequireConstraint> parseRequireContents(
+		@Nonnull String requireConstraints,
+		@Nonnull List<GrpcQueryParam> queryParams,
+		@Nonnull Map<String, GrpcQueryParam> namedQueryParams,
+		@Nullable StreamObserver<T> responseObserver
+	) {
+		try {
+			return parser.parseRequireConstraintList(
+					requireConstraints,
+					QueryConverter.convertQueryParamsMap(namedQueryParams),
+					QueryConverter.convertQueryParamsList(queryParams)
+				);
+		} catch (EvitaInvalidUsageException ex) {
+			if (responseObserver != null) {
+				sendErrorToClient(ex, responseObserver);
+			}
+			throw ex;
+		}
+	}
+
+	/**
 	 * Parse array of {@link EntityContentRequire} from {@link String}.
 	 *
 	 * @param requireConstraints to be parsed
@@ -67,26 +95,15 @@ public class QueryUtil {
 		@Nonnull Map<String, GrpcQueryParam> namedQueryParams,
 		@Nullable StreamObserver<T> responseObserver
 	) {
-		try {
-			return parser.parseRequireConstraintList(
-				requireConstraints,
-				QueryConverter.convertQueryParamsMap(namedQueryParams),
-				QueryConverter.convertQueryParamsList(queryParams)
-			)
-				.stream()
-				.map(c -> {
-					if (!(c instanceof EntityContentRequire)) {
-						throw new EvitaInvalidUsageException("Only content require constraints are supported.");
-					}
-					return (EntityContentRequire) c;
-				})
-				.toArray(EntityContentRequire[]::new);
-		} catch (EvitaInvalidUsageException ex) {
-			if (responseObserver != null) {
-				sendErrorToClient(ex, responseObserver);
-			}
-			throw ex;
-		}
+		return parseRequireContents(requireConstraints, queryParams, namedQueryParams, responseObserver)
+			.stream()
+			.map(c -> {
+				if (!(c instanceof EntityContentRequire)) {
+					throw new EvitaInvalidUsageException("Only content require constraints are supported.");
+				}
+				return (EntityContentRequire) c;
+			})
+			.toArray(EntityContentRequire[]::new);
 	}
 
 	/**

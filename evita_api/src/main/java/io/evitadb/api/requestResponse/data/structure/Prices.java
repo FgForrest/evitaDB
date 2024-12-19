@@ -165,19 +165,21 @@ public class Prices implements PricesContract, Versioned, ContentComparator<Pric
 		this.entitySchema = entitySchema;
 		this.withPrice = withPrice;
 		this.version = version;
-		this.priceIndex = Collections.unmodifiableMap(
-			prices
-				.stream()
-				.collect(
-					Collectors.toMap(
-						PriceContract::priceKey, Function.identity(),
-						(oldValue, newValue) -> {
-							throw new GenericEvitaInternalError("Duplicate price key " + oldValue.priceKey());
-						},
-						() -> new LinkedHashMap<>(prices.size())
+		this.priceIndex = prices.isEmpty() ?
+			Collections.emptyMap() :
+			Collections.unmodifiableMap(
+				prices
+					.stream()
+					.collect(
+						Collectors.toMap(
+							PriceContract::priceKey, Function.identity(),
+							(oldValue, newValue) -> {
+								throw new GenericEvitaInternalError("Duplicate price key " + oldValue.priceKey());
+							},
+							() -> new LinkedHashMap<>(prices.size())
+						)
 					)
-				)
-		);
+			);
 		this.priceInnerRecordHandling = priceInnerRecordHandling;
 	}
 

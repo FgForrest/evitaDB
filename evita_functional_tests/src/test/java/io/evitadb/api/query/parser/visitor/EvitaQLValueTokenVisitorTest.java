@@ -29,7 +29,7 @@ import io.evitadb.api.query.parser.ParseMode;
 import io.evitadb.api.query.parser.ParserExecutor;
 import io.evitadb.api.query.parser.ParserFactory;
 import io.evitadb.api.query.parser.Value;
-import io.evitadb.api.query.parser.error.EvitaQLInvalidQueryError;
+import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.DateTimeRange;
@@ -106,9 +106,9 @@ class EvitaQLValueTokenVisitorTest {
 
     @Test
     void shouldNotParseVariadicPositionalParameterAsValue() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseVariadicValue("?"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseVariadicValue("?", Integer.class, (Object) new String[] { "a" }));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseVariadicValue("?", Integer.class, List.of("a")));
+        assertThrows(EvitaSyntaxException.class, () -> parseVariadicValue("?"));
+        assertThrows(EvitaSyntaxException.class, () -> parseVariadicValue("?", Integer.class, (Object) new String[] { "a" }));
+        assertThrows(EvitaSyntaxException.class, () -> parseVariadicValue("?", Integer.class, List.of("a")));
     }
 
     @Test
@@ -132,9 +132,9 @@ class EvitaQLValueTokenVisitorTest {
 
     @Test
     void shouldNotParseVariadicNamedParameterAsValue() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseVariadicValue("@values"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseVariadicValue("@values", Integer.class, Map.of("values", new String[] { "a" })));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseVariadicValue("@values", Integer.class, Map.of("values", List.of("a"))));
+        assertThrows(EvitaSyntaxException.class, () -> parseVariadicValue("@values"));
+        assertThrows(EvitaSyntaxException.class, () -> parseVariadicValue("@values", Integer.class, Map.of("values", new String[] { "a" })));
+        assertThrows(EvitaSyntaxException.class, () -> parseVariadicValue("@values", Integer.class, Map.of("values", List.of("a"))));
     }
 
     @Test
@@ -150,7 +150,7 @@ class EvitaQLValueTokenVisitorTest {
 
     @Test
     void shouldNotParseVariadicExplicitValuesAsValue() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseVariadicValueUnsafe("'a','b'", Integer.class));
+        assertThrows(EvitaSyntaxException.class, () -> parseVariadicValueUnsafe("'a','b'", Integer.class));
     }
 
     @Test
@@ -162,8 +162,8 @@ class EvitaQLValueTokenVisitorTest {
 
     @Test
     void shouldNotParsePositionalParameterAsValue() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValue("?", String.class, 1));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValue("?"));
+        assertThrows(EvitaSyntaxException.class, () -> parseValue("?", String.class, 1));
+        assertThrows(EvitaSyntaxException.class, () -> parseValue("?"));
     }
 
     @Test
@@ -175,9 +175,9 @@ class EvitaQLValueTokenVisitorTest {
 
     @Test
     void shouldNotParseNamedParameterAsValue() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValue("@name", int.class, Map.of("name", "code")));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValue("@name"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValue("@name", Map.of("something", "code")));
+        assertThrows(EvitaSyntaxException.class, () -> parseValue("@name", int.class, Map.of("name", "code")));
+        assertThrows(EvitaSyntaxException.class, () -> parseValue("@name"));
+        assertThrows(EvitaSyntaxException.class, () -> parseValue("@name", Map.of("something", "code")));
     }
 
     @ParameterizedTest
@@ -206,10 +206,10 @@ class EvitaQLValueTokenVisitorTest {
 
     @Test
     void shouldNotParseStringLiteral() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValue("'hello all'"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValueUnsafe("'hello all'", int.class));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValueUnsafe("hello all"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValueUnsafe("'hello\""));
+        assertThrows(EvitaSyntaxException.class, () -> parseValue("'hello all'"));
+        assertThrows(EvitaSyntaxException.class, () -> parseValueUnsafe("'hello all'", int.class));
+        assertThrows(EvitaSyntaxException.class, () -> parseValueUnsafe("hello all"));
+        assertThrows(EvitaSyntaxException.class, () -> parseValueUnsafe("'hello\""));
     }
 
     @Test
@@ -236,8 +236,8 @@ class EvitaQLValueTokenVisitorTest {
         final Value value = parseValueUnsafe("100.0");
         assertNotEquals(Long.class, value.getType());
 
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValue("10"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValueUnsafe("10", String.class));
+        assertThrows(EvitaSyntaxException.class, () -> parseValue("10"));
+        assertThrows(EvitaSyntaxException.class, () -> parseValueUnsafe("10", String.class));
     }
 
     @Test
@@ -264,8 +264,8 @@ class EvitaQLValueTokenVisitorTest {
         final Value value = parseValueUnsafe("100");
         assertNotEquals(BigDecimal.class, value.getType());
 
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValue("10.55"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValueUnsafe("10.55", String.class));
+        assertThrows(EvitaSyntaxException.class, () -> parseValue("10.55"));
+        assertThrows(EvitaSyntaxException.class, () -> parseValueUnsafe("10.55", String.class));
     }
 
     @Test
@@ -289,9 +289,9 @@ class EvitaQLValueTokenVisitorTest {
 
     @Test
     void shouldNotParseBoolean() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValue("true"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValueUnsafe("true", String.class));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValueUnsafe("something"));
+        assertThrows(EvitaSyntaxException.class, () -> parseValue("true"));
+        assertThrows(EvitaSyntaxException.class, () -> parseValueUnsafe("true", String.class));
+        assertThrows(EvitaSyntaxException.class, () -> parseValueUnsafe("something"));
     }
 
     @Test
@@ -310,8 +310,8 @@ class EvitaQLValueTokenVisitorTest {
         final Value value = parseValueUnsafe("2020-02-8");
         assertNotEquals(LocalDate.class, value.getType());
 
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValue("2020-02-08"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValueUnsafe("2020-02-08", String.class));
+        assertThrows(EvitaSyntaxException.class, () -> parseValue("2020-02-08"));
+        assertThrows(EvitaSyntaxException.class, () -> parseValueUnsafe("2020-02-08", String.class));
     }
 
     @Test
@@ -342,8 +342,8 @@ class EvitaQLValueTokenVisitorTest {
         final Value value = parseValueUnsafe("5:30");
         assertNotEquals(LocalTime.class, value.getType());
 
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValue("13:30:55"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValueUnsafe("13:30:55", String.class));
+        assertThrows(EvitaSyntaxException.class, () -> parseValue("13:30:55"));
+        assertThrows(EvitaSyntaxException.class, () -> parseValueUnsafe("13:30:55", String.class));
     }
 
     @Test
@@ -389,8 +389,8 @@ class EvitaQLValueTokenVisitorTest {
         final Value value = parseValueUnsafe("2020-Jan-08T13:30:55");
         assertNotEquals(LocalDateTime.class, value.getType());
 
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValue("2020-02-08T13:30:55"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValueUnsafe("2020-02-08T13:30:55", String.class));
+        assertThrows(EvitaSyntaxException.class, () -> parseValue("2020-02-08T13:30:55"));
+        assertThrows(EvitaSyntaxException.class, () -> parseValueUnsafe("2020-02-08T13:30:55", String.class));
     }
 
     @Test
@@ -436,8 +436,8 @@ class EvitaQLValueTokenVisitorTest {
         final Value value1 = parseValueUnsafe("2020-02-08T13:30:55");
         assertNotEquals(OffsetDateTime.class, value1.getType());
 
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValue("2020-02-08T13:30:55+01:00"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValueUnsafe("2020-02-08T13:30:55+01:00", String.class));
+        assertThrows(EvitaSyntaxException.class, () -> parseValue("2020-02-08T13:30:55+01:00"));
+        assertThrows(EvitaSyntaxException.class, () -> parseValueUnsafe("2020-02-08T13:30:55+01:00", String.class));
     }
 
     @Test
@@ -457,12 +457,12 @@ class EvitaQLValueTokenVisitorTest {
 
     @Test
     void shouldNotParseFloatNumberRangeLiteral() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValue("[102.2,500.1]"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValueUnsafe("[102.2,500.1]", String.class));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValueUnsafe("[858]"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValueUnsafe("[858.2]"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValueUnsafe("['a','b']"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValueUnsafe("[]"));
+        assertThrows(EvitaSyntaxException.class, () -> parseValue("[102.2,500.1]"));
+        assertThrows(EvitaSyntaxException.class, () -> parseValueUnsafe("[102.2,500.1]", String.class));
+        assertThrows(EvitaSyntaxException.class, () -> parseValueUnsafe("[858]"));
+        assertThrows(EvitaSyntaxException.class, () -> parseValueUnsafe("[858.2]"));
+        assertThrows(EvitaSyntaxException.class, () -> parseValueUnsafe("['a','b']"));
+        assertThrows(EvitaSyntaxException.class, () -> parseValueUnsafe("[]"));
     }
 
     @Test
@@ -482,12 +482,12 @@ class EvitaQLValueTokenVisitorTest {
 
     @Test
     void shouldNotParseIntNumberRangeLiteral() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValue("[102,500]"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValueUnsafe("[102,500]", String.class));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValueUnsafe("[858]"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValueUnsafe("[858.2]"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValueUnsafe("['a','b']"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValueUnsafe("[]"));
+        assertThrows(EvitaSyntaxException.class, () -> parseValue("[102,500]"));
+        assertThrows(EvitaSyntaxException.class, () -> parseValueUnsafe("[102,500]", String.class));
+        assertThrows(EvitaSyntaxException.class, () -> parseValueUnsafe("[858]"));
+        assertThrows(EvitaSyntaxException.class, () -> parseValueUnsafe("[858.2]"));
+        assertThrows(EvitaSyntaxException.class, () -> parseValueUnsafe("['a','b']"));
+        assertThrows(EvitaSyntaxException.class, () -> parseValueUnsafe("[]"));
     }
 
     @Test
@@ -589,11 +589,11 @@ class EvitaQLValueTokenVisitorTest {
 
     @Test
     void shouldNotParseOffsetDateTimeRangeLiteral() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValue("[2020-02-08T13:30:55+01:00,2020-02-09T13:30:55+01:00]"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValueUnsafe("[2020-02-08T13:30:55+01:00,2020-02-09T13:30:55+01:00]", String.class));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValueUnsafe("[2020-02-08T13:30:55,2020-02-09T13:30:55]"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValueUnsafe("[2020-02-08T13:30:55+1:00]"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValueUnsafe("[]"));
+        assertThrows(EvitaSyntaxException.class, () -> parseValue("[2020-02-08T13:30:55+01:00,2020-02-09T13:30:55+01:00]"));
+        assertThrows(EvitaSyntaxException.class, () -> parseValueUnsafe("[2020-02-08T13:30:55+01:00,2020-02-09T13:30:55+01:00]", String.class));
+        assertThrows(EvitaSyntaxException.class, () -> parseValueUnsafe("[2020-02-08T13:30:55,2020-02-09T13:30:55]"));
+        assertThrows(EvitaSyntaxException.class, () -> parseValueUnsafe("[2020-02-08T13:30:55+1:00]"));
+        assertThrows(EvitaSyntaxException.class, () -> parseValueUnsafe("[]"));
     }
 
     @Test
@@ -605,10 +605,10 @@ class EvitaQLValueTokenVisitorTest {
 
     @Test
     void shouldNotParseEnumLiteral() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValue("WITH_TAX"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValueUnsafe("WITH_TAX", String.class));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValueUnsafe("withTax"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValueUnsafe("_WITH-TAX"));
+        assertThrows(EvitaSyntaxException.class, () -> parseValue("WITH_TAX"));
+        assertThrows(EvitaSyntaxException.class, () -> parseValueUnsafe("WITH_TAX", String.class));
+        assertThrows(EvitaSyntaxException.class, () -> parseValueUnsafe("withTax"));
+        assertThrows(EvitaSyntaxException.class, () -> parseValueUnsafe("_WITH-TAX"));
     }
 
     @Test
@@ -620,10 +620,10 @@ class EvitaQLValueTokenVisitorTest {
 
     @Test
     void shouldNotParseUuidLiteral() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValue("'2fbbfcf2-d4bb-4db9-9658-acf1d287cbe9'"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValue("2fbbfcf2-d4bb-4db9-9658-acf1d287c%be9"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValue("2fbbfcf2-d4bb-4db9-9658-acf1d287Cbe9"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValueUnsafe("2fbbfcf2-d4bb-4db9", String.class));
+        assertThrows(EvitaSyntaxException.class, () -> parseValue("'2fbbfcf2-d4bb-4db9-9658-acf1d287cbe9'"));
+        assertThrows(EvitaSyntaxException.class, () -> parseValue("2fbbfcf2-d4bb-4db9-9658-acf1d287c%be9"));
+        assertThrows(EvitaSyntaxException.class, () -> parseValue("2fbbfcf2-d4bb-4db9-9658-acf1d287Cbe9"));
+        assertThrows(EvitaSyntaxException.class, () -> parseValueUnsafe("2fbbfcf2-d4bb-4db9", String.class));
     }
 
     /**

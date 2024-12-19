@@ -179,7 +179,8 @@ public class FacetSummary extends AbstractRequireConstraintContainer
 	@Creator
 	public FacetSummary(
 		@Nonnull FacetStatisticsDepth statisticsDepth,
-		@Nonnull @Child(uniqueChildren = true) EntityFetchRequire... requirements) {
+		@Nonnull @Child(uniqueChildren = true) EntityFetchRequire... requirements
+	) {
 		this(new Serializable[]{statisticsDepth}, requirements);
 	}
 

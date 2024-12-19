@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -44,9 +44,10 @@ import java.util.stream.Collectors;
 @EqualsAndHashCode
 public final class PaginatedList<T extends Serializable> implements DataChunk<T> {
 	@Serial private static final long serialVersionUID = -480346362810326452L;
-	private static final PaginatedList<? extends Serializable> EMPTY_LIST = new PaginatedList<>(1, 20, 0, Collections.emptyList());
+	private static final PaginatedList<? extends Serializable> EMPTY_LIST = new PaginatedList<>(1, 1, 20, 0, Collections.emptyList());
 	private final int pageSize;
 	private final int pageNumber;
+	private final int lastPageNumber;
 	private final int totalRecordCount;
 	private final List<T> data;
 
@@ -84,7 +85,20 @@ public final class PaginatedList<T extends Serializable> implements DataChunk<T>
 	 * @param totalRecordCount total number of records
 	 */
 	public PaginatedList(int pageNumber, int pageSize, int totalRecordCount) {
+		this(pageNumber, (int) Math.ceil((float) (totalRecordCount) / (float) pageSize), pageSize, totalRecordCount);
+	}
+
+	/**
+	 * Constructor. This one doesn't require target data to be known. It is handy if you want to compute pagination
+	 * data for execution via methods {@link #getFirstPageItemNumber()} and {@link #getLastPageItemNumber()}.
+	 *
+	 * @param pageNumber       current page number (indexed from 1)
+	 * @param pageSize         number of records per page
+	 * @param totalRecordCount total number of records
+	 */
+	public PaginatedList(int pageNumber, int lastPageNumber, int pageSize, int totalRecordCount) {
 		this.pageNumber = pageNumber;
+		this.lastPageNumber = lastPageNumber;
 		this.pageSize = pageSize;
 		this.totalRecordCount = totalRecordCount;
 		this.data = Collections.emptyList();
@@ -99,7 +113,20 @@ public final class PaginatedList<T extends Serializable> implements DataChunk<T>
 	 * @param data             list of records
 	 */
 	public PaginatedList(int pageNumber, int pageSize, int totalRecordCount, List<T> data) {
+		this(pageNumber, (int) Math.ceil((float) (totalRecordCount) / (float) pageSize), pageSize, totalRecordCount, data);
+	}
+
+	/**
+	 * Constructor that completely initializes the DTO object.
+	 *
+	 * @param pageNumber       current page number (indexed from 1)
+	 * @param pageSize         number of records per page
+	 * @param totalRecordCount total number of records
+	 * @param data             list of records
+	 */
+	public PaginatedList(int pageNumber, int lastPageNumber, int pageSize, int totalRecordCount, List<T> data) {
 		this.pageSize = pageSize;
+		this.lastPageNumber = lastPageNumber;
 		this.pageNumber = pageNumber;
 		this.totalRecordCount = totalRecordCount;
 		this.data = data;
@@ -124,7 +151,7 @@ public final class PaginatedList<T extends Serializable> implements DataChunk<T>
 	 * Returns -1 when offset/limit was used for creating paginated list.
 	 */
 	public int getLastPageNumber() {
-		return (int) Math.ceil((float) (totalRecordCount) / (float) pageSize);
+		return lastPageNumber;
 	}
 
 	/**

@@ -84,7 +84,8 @@ public class ConstraintProcessingUtils {
 		ConstraintDomain.REFERENCE, ConstraintPropertyType.REFERENCE,
 		ConstraintDomain.INLINE_REFERENCE, ConstraintPropertyType.REFERENCE,
 		ConstraintDomain.HIERARCHY, ConstraintPropertyType.HIERARCHY,
-		ConstraintDomain.FACET, ConstraintPropertyType.FACET
+		ConstraintDomain.FACET, ConstraintPropertyType.FACET,
+		ConstraintDomain.SEGMENT, ConstraintPropertyType.GENERIC
 	);
 
 	private static final Map<ConstraintPropertyType, ConstraintDomain> PROPERTY_TYPE_TO_DOMAIN = Map.of(

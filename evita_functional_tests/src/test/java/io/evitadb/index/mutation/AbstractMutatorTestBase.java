@@ -38,6 +38,7 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.core.EvitaSession;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
@@ -52,6 +53,7 @@ import javax.annotation.Nonnull;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * This class contains shared variables and logic for mutation specific tests in this package.
@@ -95,7 +97,7 @@ abstract class AbstractMutatorTestBase {
 		alterCatalogSchema(catalogSchemaBuilder);
 		catalogSchema = (CatalogSchema) catalogSchemaBuilder.toInstance();
 		sealedCatalogSchema = new CatalogSchemaDecorator(catalogSchema);
-		catalogIndex = new CatalogIndex();
+		catalogIndex = new CatalogIndex(Scope.LIVE);
 		catalogIndex.attachToCatalog(null, catalog);
 
 		final EvitaSession mockSession = Mockito.mock(EvitaSession.class);
@@ -110,13 +112,17 @@ abstract class AbstractMutatorTestBase {
 			)
 		);
 		productIndex = new GlobalEntityIndex(1, productSchema.getName(), new EntityIndexKey(EntityIndexType.GLOBAL));
+		final AtomicInteger sequencer = new AtomicInteger(1);
 		executor = new EntityIndexLocalMutationExecutor(
 			containerAccessor, 1,
 			new MockEntityIndexCreator<>(productIndex),
 			new MockEntityIndexCreator<>(catalogIndex),
 			() -> productSchema,
-			entityType -> entityType.equals(productSchema.getName()) ? productSchema : null,
-			false
+			sequencer::getAndIncrement,
+			false,
+			() -> {
+				throw new UnsupportedOperationException("Not supported in the test.");
+			}
 		);
 
 		final EntityCollection productCollection = Mockito.mock(EntityCollection.class);

@@ -31,19 +31,13 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaDefaultValueMutation;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaDeprecationNoticeMutation;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaDescriptionMutation;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaTypeMutation;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaFilterableMutation;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaLocalizedMutation;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaNullableMutation;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaSortableMutation;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaUniqueMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.*;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
 
@@ -51,7 +45,9 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Currency;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.BooleanSupplier;
@@ -127,105 +123,135 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 
 	@Override
 	@Nonnull
-	public T filterable() {
+	public T filterableInScope(@Nonnull Scope... inScope) {
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
 			addMutations(
 				new SetAttributeSchemaFilterableMutation(
 					baseSchema.getName(),
-					true
+					inScope
 				)
 			)
 		);
 		return (T) this;
 	}
 
-	@Override
 	@Nonnull
-	public T filterable(@Nonnull BooleanSupplier decider) {
+	@Override
+	public T nonFilterableInScope(@Nonnull Scope... inScope) {
+		final EnumSet<Scope> excludedScopes = ArrayUtils.toEnumSet(Scope.class, inScope);
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
 			addMutations(
 				new SetAttributeSchemaFilterableMutation(
 					baseSchema.getName(),
-					decider.getAsBoolean()
+					Arrays.stream(Scope.values())
+						.filter(it -> !isFilterableInScope(it) || !excludedScopes.contains(it))
+						.toArray(Scope[]::new)
 				)
 			)
 		);
 		return (T) this;
 	}
 
-	@Override
 	@Nonnull
-	public T unique() {
+	@Override
+	public T uniqueInScope(@Nonnull Scope... inScope) {
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
 			addMutations(
 				new SetAttributeSchemaUniqueMutation(
 					baseSchema.getName(),
-					AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION
+					Arrays.stream(inScope)
+						.map(it -> new ScopedAttributeUniquenessType(it, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION))
+						.toArray(ScopedAttributeUniquenessType[]::new)
 				)
 			)
 		);
 		return (T) this;
 	}
 
-	@Override
 	@Nonnull
-	public T uniqueWithinLocale() {
-		this.updatedSchemaDirty = updateMutationImpact(
-			this.updatedSchemaDirty,
-			addMutations(
-				new SetAttributeSchemaUniqueMutation(
-					baseSchema.getName(),
-					AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE
-				)
-			)
-		);
-		return (T) this;
-	}
-
 	@Override
-	@Nonnull
-	public T unique(@Nonnull BooleanSupplier decider) {
-		this.updatedSchemaDirty = updateMutationImpact(
-			this.updatedSchemaDirty,
-			addMutations(
-				new SetAttributeSchemaUniqueMutation(
-					baseSchema.getName(),
-					decider.getAsBoolean() ?
-						AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION : AttributeUniquenessType.NOT_UNIQUE
-				)
-			)
-		);
-		return (T) this;
-	}
-
-	@Override
-	@Nonnull
-	public T uniqueWithinLocale(@Nonnull BooleanSupplier decider) {
-		this.updatedSchemaDirty = updateMutationImpact(
-			this.updatedSchemaDirty,
-			addMutations(
-				new SetAttributeSchemaUniqueMutation(
-					baseSchema.getName(),
-					decider.getAsBoolean() ?
-						AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE : AttributeUniquenessType.NOT_UNIQUE
-				)
-			)
-		);
-		return (T) this;
-	}
-
-	@Override
-	@Nonnull
-	public T sortable() {
+	public T nonUniqueInScope(@Nonnull Scope... inScope) {
+		final EnumSet<Scope> excludedScopes = ArrayUtils.toEnumSet(Scope.class, inScope);
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
 			addMutations(
 				new SetAttributeSchemaSortableMutation(
 					baseSchema.getName(),
-					true
+					Arrays.stream(Scope.values())
+						.filter(it -> !isUniqueInScope(it) || !excludedScopes.contains(it))
+						.toArray(Scope[]::new)
+				)
+			)
+		);
+		return (T) this;
+	}
+
+	@Override
+	@Nonnull
+	public T uniqueWithinLocaleInScope(@Nonnull Scope... inScope) {
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new SetAttributeSchemaUniqueMutation(
+					baseSchema.getName(),
+					Arrays.stream(inScope)
+						.map(it -> new ScopedAttributeUniquenessType(it, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE))
+						.toArray(ScopedAttributeUniquenessType[]::new)
+				)
+			)
+		);
+		return (T) this;
+	}
+
+	@Nonnull
+	@Override
+	public T nonUniqueWithinLocaleInScope(@Nonnull Scope... inScope) {
+		final EnumSet<Scope> excludedScopes = ArrayUtils.toEnumSet(Scope.class, inScope);
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new SetAttributeSchemaUniqueMutation(
+					baseSchema.getName(),
+					Arrays.stream(Scope.values())
+						.filter(it -> !isUniqueWithinLocaleInScope(it) || !excludedScopes.contains(it))
+						.map(it -> new ScopedAttributeUniquenessType(it, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE))
+						.toArray(ScopedAttributeUniquenessType[]::new)
+				)
+			)
+		);
+		return (T) this;
+	}
+
+	@Nonnull
+	@Override
+	public T sortableInScope(@Nonnull Scope... inScope) {
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new SetAttributeSchemaSortableMutation(
+					baseSchema.getName(),
+					inScope
+				)
+			)
+		);
+		return (T) this;
+	}
+
+	@Nonnull
+	@Override
+	public T nonSortableInScope(@Nonnull Scope... inScope) {
+		final EnumSet<Scope> excludedScopes = ArrayUtils.toEnumSet(Scope.class, inScope);
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new SetAttributeSchemaSortableMutation(
+					baseSchema.getName(),
+					Arrays.stream(Scope.values())
+						.filter(it -> !isSortableInScope(it) || !excludedScopes.contains(it))
+						.toArray(Scope[]::new)
 				)
 			)
 		);
@@ -240,7 +266,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 			addMutations(
 				new SetAttributeSchemaSortableMutation(
 					baseSchema.getName(),
-					decider.getAsBoolean()
+					decider.getAsBoolean() ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE
 				)
 			)
 		);
@@ -278,6 +304,20 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 	}
 
 	@Override
+	public T nonLocalized() {
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new SetAttributeSchemaLocalizedMutation(
+					baseSchema.getName(),
+					false
+				)
+			)
+		);
+		return (T) this;
+	}
+
+	@Override
 	@Nonnull
 	public T nullable() {
 		this.updatedSchemaDirty = updateMutationImpact(
@@ -301,6 +341,21 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 				new SetAttributeSchemaNullableMutation(
 					baseSchema.getName(),
 					decider.getAsBoolean()
+				)
+			)
+		);
+		return (T) this;
+	}
+
+	@Nonnull
+	@Override
+	public T nonNullable() {
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new SetAttributeSchemaNullableMutation(
+					baseSchema.getName(),
+					false
 				)
 			)
 		);
@@ -432,19 +487,21 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 	private void validate(@Nonnull S currentSchema) {
 		final Class<?> plainType = ReflectionLookup.getSimpleType(currentSchema.getType());
 		Assert.isTrue(
-			!currentSchema.isSortable() ||
+			!currentSchema.isSortableInAnyScope() ||
 				plainType.isPrimitive() ||
 				Comparable.class.isAssignableFrom(plainType) ||
+				Currency.class.isAssignableFrom(plainType) ||
+				Locale.class.isAssignableFrom(plainType) ||
 				Predecessor.class.isAssignableFrom(plainType) ||
 				ReferencedEntityPredecessor.class.isAssignableFrom(plainType),
 			() -> new InvalidSchemaMutationException("Data type `" + currentSchema.getType() + "` in attribute schema `" + currentSchema.getName() + "` must implement Comparable (or must be Predecessor/ReferencedEntityPredecessor) in order to be usable for sort index!")
 		);
 		Assert.isTrue(
-			!(currentSchema.isSortable() && currentSchema.getType().isArray()),
+			!(currentSchema.isSortableInAnyScope() && currentSchema.getType().isArray()),
 			() -> new InvalidSchemaMutationException("Attribute `" + currentSchema.getName() + "` is sortable but also an array. Arrays cannot be handled by sorting algorithm!")
 		);
 		Assert.isTrue(
-			!(currentSchema.isFilterable() || currentSchema.isUnique()) ||
+			!(currentSchema.isFilterableInAnyScope() || currentSchema.isUniqueInAnyScope()) ||
 				plainType.isPrimitive() ||
 				Comparable.class.isAssignableFrom(plainType) ||
 				Currency.class.isAssignableFrom(plainType) ||
@@ -452,7 +509,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 			() -> new InvalidSchemaMutationException("Data type `" + currentSchema.getType() + "` in attribute schema `" + currentSchema.getName() + "` must implement Comparable in order to be usable for filter / unique index!")
 		);
 		Assert.isTrue(
-			!(currentSchema.isFilterable() && currentSchema.isUnique()),
+			!(currentSchema.isFilterableInAnyScope() && currentSchema.isUniqueInAnyScope()),
 			() -> new InvalidSchemaMutationException("Attribute `" + currentSchema.getName() + "` cannot be both unique and filterable. Unique attributes are implicitly filterable!")
 		);
 	}

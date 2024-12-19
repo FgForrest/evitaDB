@@ -5,6 +5,7 @@
       "primaryKey": 105703,
       "type": "Product",
       "version": 1,
+      "scope": "LIVE",
       "allLocales": [
         "cs",
         "en"
@@ -22,6 +23,7 @@
           "referencedPrimaryKey": 66472,
           "attributes": {
             "global": {
+              "categoryPriority": 0,
               "orderInCategory": -1
             }
           }
@@ -411,7 +413,7 @@
         {
           "referencedPrimaryKey": 10,
           "groupEntity": {
-            "primaryKey": 0,
+            "primaryKey": 9,
             "type": "tagCategory"
           }
         }

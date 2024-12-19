@@ -63,7 +63,14 @@ public class ModifyReflectedReferenceAttributeInheritanceSchemaMutation
 	extends AbstractModifyReferenceDataSchemaMutation
 	implements CombinableLocalEntitySchemaMutation {
 	@Serial private static final long serialVersionUID = 2119334468800302361L;
+
+	/**
+	 * Behavior of the attribute inheritance.
+	 */
 	@Nonnull @Getter private final AttributeInheritanceBehavior attributesInheritanceBehavior;
+	/**
+	 * Filter of the attributes that should be inherited.
+	 */
 	@Nonnull @Getter private final String[] attributeInheritanceFilter;
 
 	public ModifyReflectedReferenceAttributeInheritanceSchemaMutation(
@@ -104,15 +111,15 @@ public class ModifyReflectedReferenceAttributeInheritanceSchemaMutation
 		);
 	}
 
-	@Nullable
+	@Nonnull
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		final Optional<ReferenceSchemaContract> existingReferenceSchema = entitySchema.getReference(name);
+		final Optional<ReferenceSchemaContract> existingReferenceSchema = entitySchema.getReference(this.name);
 		if (existingReferenceSchema.isEmpty()) {
 			// ups, the associated data is missing
 			throw new InvalidSchemaMutationException(
-				"The reference `" + name + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
+				"The reference `" + this.name + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
 			);
 		} else {
 			final ReferenceSchemaContract theSchema = existingReferenceSchema.get();

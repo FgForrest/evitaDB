@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,9 +31,12 @@ import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.AssociatedDataFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityQueryContext;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Locale;
 
 /**
@@ -42,8 +45,19 @@ import java.util.Locale;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-@RequiredArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class AssociatedDataDataFetcher implements DataFetcher<DataFetcherResult<AssociatedDataContract>> {
+
+    @Nullable
+    private static AssociatedDataDataFetcher INSTANCE;
+
+    @Nonnull
+    public static AssociatedDataDataFetcher getInstance() {
+        if (INSTANCE == null) {
+            INSTANCE = new AssociatedDataDataFetcher();
+        }
+        return INSTANCE;
+    }
 
     @Nonnull
     @Override

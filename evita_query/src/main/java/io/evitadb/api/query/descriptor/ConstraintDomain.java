@@ -82,7 +82,11 @@ public enum ConstraintDomain {
 	 * Facet domain should contain all constraints that can filter or order by facet reference properties.
 	 * Usually linked to {@link ConstraintPropertyType#FACET}.
 	 */
-	FACET;
+	FACET,
+	/**
+	 * Domain for segmentation of containers where a segment contains part of the main container.
+	 */
+	SEGMENT;
 
 	/**
 	 * Dynamic domain should be used directly because it doesn't point to any specific data until a context is known.

@@ -48,38 +48,38 @@ import java.util.Objects;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
-public class ValueToRecordBitmap<T extends Comparable<T>> implements TransactionalObject<ValueToRecordBitmap<T>, Void>,
-	VoidTransactionMemoryProducer<ValueToRecordBitmap<T>>,
-	TransactionalLayerProducer<Void, ValueToRecordBitmap<T>>,
+public class ValueToRecordBitmap implements TransactionalObject<ValueToRecordBitmap, Void>,
+	VoidTransactionMemoryProducer<ValueToRecordBitmap>,
+	TransactionalLayerProducer<Void, ValueToRecordBitmap>,
 	TransactionalCreatorMaintainer,
-	Comparable<ValueToRecordBitmap<T>>,
+	Comparable<ValueToRecordBitmap>,
 	Serializable {
 	@Serial private static final long serialVersionUID = 8584161806399686698L;
 	/**
 	 * The value.
 	 */
-	private final T value;
+	private final Serializable value;
 	/**
 	 * Bitmap of all records ids that has this value.
 	 */
 	private final TransactionalBitmap recordIds;
 
-	public ValueToRecordBitmap(@Nonnull T value) {
+	public ValueToRecordBitmap(@Nonnull Serializable value) {
 		this.value = value;
 		this.recordIds = new TransactionalBitmap(EmptyBitmap.INSTANCE);
 	}
 
-	public ValueToRecordBitmap(@Nonnull T value, @Nonnull Bitmap recordIds) {
+	public ValueToRecordBitmap(@Nonnull Serializable value, @Nonnull Bitmap recordIds) {
 		this.value = value;
 		this.recordIds = new TransactionalBitmap(recordIds);
 	}
 
-	public ValueToRecordBitmap(@Nonnull T value, @Nonnull TransactionalBitmap recordIds) {
+	public ValueToRecordBitmap(@Nonnull Serializable value, @Nonnull TransactionalBitmap recordIds) {
 		this.value = value;
 		this.recordIds = recordIds;
 	}
 
-	public ValueToRecordBitmap(@Nonnull T value, @Nonnull int... recordIds) {
+	public ValueToRecordBitmap(@Nonnull Serializable value, @Nonnull int... recordIds) {
 		this.value = value;
 		this.recordIds = new TransactionalBitmap(new BaseBitmap(recordIds));
 	}
@@ -88,7 +88,7 @@ public class ValueToRecordBitmap<T extends Comparable<T>> implements Transaction
 	 * Returns comparable value that represents this bucket.
 	 */
 	@Nonnull
-	public T getValue() {
+	public Serializable getValue() {
 		return value;
 	}
 
@@ -112,8 +112,8 @@ public class ValueToRecordBitmap<T extends Comparable<T>> implements Transaction
 	 * Merges record ids of passed histogram point to this histogram point.
 	 * Histogram point in the argument is required to have same value as this point.
 	 */
-	public void add(@Nonnull ValueToRecordBitmap<T> histogramBucket) {
-		Assert.isTrue(value.compareTo(histogramBucket.value) == 0, "Values of the histogram point differs: " + value + " vs. " + histogramBucket.value);
+	public void add(@Nonnull ValueToRecordBitmap histogramBucket) {
+		Assert.isTrue(value.equals(histogramBucket.value), "Values of the histogram point differs: " + value + " vs. " + histogramBucket.value);
 		this.recordIds.addAll(histogramBucket.getRecordIds());
 	}
 
@@ -121,8 +121,8 @@ public class ValueToRecordBitmap<T extends Comparable<T>> implements Transaction
 	 * Subtracts record ids of passed histogram point from this histogram point.
 	 * Histogram point in the argument is required to have same value as this point.
 	 */
-	public void remove(@Nonnull ValueToRecordBitmap<T> histogramBucket) {
-		Assert.isTrue(value.compareTo(histogramBucket.value) == 0, "Values of the histogram point differs: " + value + " vs. " + histogramBucket.value);
+	public void remove(@Nonnull ValueToRecordBitmap histogramBucket) {
+		Assert.isTrue(value.equals(histogramBucket.value), "Values of the histogram point differs: " + value + " vs. " + histogramBucket.value);
 		this.recordIds.removeAll(histogramBucket.getRecordIds());
 	}
 
@@ -145,8 +145,9 @@ public class ValueToRecordBitmap<T extends Comparable<T>> implements Transaction
 	 * Compares {@link #value} of this and passed histogram point.
 	 */
 	@Override
-	public int compareTo(@Nonnull ValueToRecordBitmap<T> o) {
-		return value.compareTo(o.value);
+	public int compareTo(@Nonnull ValueToRecordBitmap o) {
+		//noinspection unchecked,rawtypes
+		return ((Comparable)value).compareTo(o.value);
 	}
 
 	/**
@@ -155,7 +156,7 @@ public class ValueToRecordBitmap<T extends Comparable<T>> implements Transaction
 	public boolean deepEquals(Object o) {
 		if (this == o) return true;
 		if (o == null || getClass() != o.getClass()) return false;
-		@SuppressWarnings("unchecked") final ValueToRecordBitmap<T> that = (ValueToRecordBitmap<T>) o;
+		final ValueToRecordBitmap that = (ValueToRecordBitmap) o;
 		return value.equals(that.value) && recordIds.equals(that.recordIds);
 	}
 
@@ -168,8 +169,8 @@ public class ValueToRecordBitmap<T extends Comparable<T>> implements Transaction
 	public boolean equals(Object o) {
 		if (this == o) return true;
 		if (o == null || getClass() != o.getClass()) return false;
-		@SuppressWarnings("unchecked") final ValueToRecordBitmap<T> that = (ValueToRecordBitmap<T>) o;
-		return value.compareTo(that.value) == 0;
+		final ValueToRecordBitmap that = (ValueToRecordBitmap) o;
+		return value.equals(that.value);
 	}
 
 	@Override
@@ -186,8 +187,8 @@ public class ValueToRecordBitmap<T extends Comparable<T>> implements Transaction
 
 	@Nonnull
 	@Override
-	public ValueToRecordBitmap<T> createCopyWithMergedTransactionalMemory(Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		return new ValueToRecordBitmap<>(
+	public ValueToRecordBitmap createCopyWithMergedTransactionalMemory(Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+		return new ValueToRecordBitmap(
 			value,
 			transactionalLayer.getStateCopyWithCommittedChanges(recordIds)
 		);
@@ -201,8 +202,8 @@ public class ValueToRecordBitmap<T extends Comparable<T>> implements Transaction
 
 	@Nonnull
 	@Override
-	public ValueToRecordBitmap<T> makeClone() {
-		return new ValueToRecordBitmap<>(value, new TransactionalBitmap(recordIds));
+	public ValueToRecordBitmap makeClone() {
+		return new ValueToRecordBitmap(value, new TransactionalBitmap(recordIds));
 	}
 
 	@Nonnull

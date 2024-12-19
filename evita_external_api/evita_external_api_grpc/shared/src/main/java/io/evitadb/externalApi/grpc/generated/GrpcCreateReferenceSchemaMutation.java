@@ -47,6 +47,8 @@ private static final long serialVersionUID = 0L;
     name_ = "";
     cardinality_ = 0;
     referencedEntityType_ = "";
+    indexedInScopes_ = java.util.Collections.emptyList();
+    facetedInScopes_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -69,6 +71,7 @@ private static final long serialVersionUID = 0L;
     if (extensionRegistry == null) {
       throw new java.lang.NullPointerException();
     }
+    int mutable_bitField0_ = 0;
     com.google.protobuf.UnknownFieldSet.Builder unknownFields =
         com.google.protobuf.UnknownFieldSet.newBuilder();
     try {
@@ -156,6 +159,52 @@ private static final long serialVersionUID = 0L;
             faceted_ = input.readBool();
             break;
           }
+          case 88: {
+            int rawValue = input.readEnum();
+            if (!((mutable_bitField0_ & 0x00000001) != 0)) {
+              indexedInScopes_ = new java.util.ArrayList<java.lang.Integer>();
+              mutable_bitField0_ |= 0x00000001;
+            }
+            indexedInScopes_.add(rawValue);
+            break;
+          }
+          case 90: {
+            int length = input.readRawVarint32();
+            int oldLimit = input.pushLimit(length);
+            while(input.getBytesUntilLimit() > 0) {
+              int rawValue = input.readEnum();
+              if (!((mutable_bitField0_ & 0x00000001) != 0)) {
+                indexedInScopes_ = new java.util.ArrayList<java.lang.Integer>();
+                mutable_bitField0_ |= 0x00000001;
+              }
+              indexedInScopes_.add(rawValue);
+            }
+            input.popLimit(oldLimit);
+            break;
+          }
+          case 96: {
+            int rawValue = input.readEnum();
+            if (!((mutable_bitField0_ & 0x00000002) != 0)) {
+              facetedInScopes_ = new java.util.ArrayList<java.lang.Integer>();
+              mutable_bitField0_ |= 0x00000002;
+            }
+            facetedInScopes_.add(rawValue);
+            break;
+          }
+          case 98: {
+            int length = input.readRawVarint32();
+            int oldLimit = input.pushLimit(length);
+            while(input.getBytesUntilLimit() > 0) {
+              int rawValue = input.readEnum();
+              if (!((mutable_bitField0_ & 0x00000002) != 0)) {
+                facetedInScopes_ = new java.util.ArrayList<java.lang.Integer>();
+                mutable_bitField0_ |= 0x00000002;
+              }
+              facetedInScopes_.add(rawValue);
+            }
+            input.popLimit(oldLimit);
+            break;
+          }
           default: {
             if (!parseUnknownField(
                 input, unknownFields, extensionRegistry, tag)) {
@@ -171,6 +220,12 @@ private static final long serialVersionUID = 0L;
       throw new com.google.protobuf.InvalidProtocolBufferException(
           e).setUnfinishedMessage(this);
     } finally {
+      if (((mutable_bitField0_ & 0x00000001) != 0)) {
+        indexedInScopes_ = java.util.Collections.unmodifiableList(indexedInScopes_);
+      }
+      if (((mutable_bitField0_ & 0x00000002) != 0)) {
+        facetedInScopes_ = java.util.Collections.unmodifiableList(facetedInScopes_);
+      }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
     }
@@ -204,7 +259,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       name_ = s;
@@ -224,7 +279,7 @@ private static final long serialVersionUID = 0L;
       getNameBytes() {
     java.lang.Object ref = name_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       name_ = b;
@@ -368,7 +423,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       referencedEntityType_ = s;
@@ -389,7 +444,7 @@ private static final long serialVersionUID = 0L;
       getReferencedEntityTypeBytes() {
     java.lang.Object ref = referencedEntityType_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       referencedEntityType_ = b;
@@ -483,13 +538,15 @@ private static final long serialVersionUID = 0L;
    * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
    * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
    * alongside other references if requested.
+   * deprecated in favor of `indexedInScopes`
    * </pre>
    *
-   * <code>bool filterable = 9;</code>
+   * <code>bool filterable = 9 [deprecated = true];</code>
+   * @deprecated
    * @return The filterable.
    */
   @java.lang.Override
-  public boolean getFilterable() {
+  @java.lang.Deprecated public boolean getFilterable() {
     return filterable_;
   }
 
@@ -503,15 +560,228 @@ private static final long serialVersionUID = 0L;
    * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
    * occupies (memory/disk) space in the form of index.
    * Reference that was marked as faceted is called Facet.
+   * deprecated in favor of `facetedInScopes`
    * </pre>
    *
-   * <code>bool faceted = 10;</code>
+   * <code>bool faceted = 10 [deprecated = true];</code>
+   * @deprecated
    * @return The faceted.
    */
   @java.lang.Override
-  public boolean getFaceted() {
+  @java.lang.Deprecated public boolean getFaceted() {
     return faceted_;
   }
+
+  public static final int INDEXEDINSCOPES_FIELD_NUMBER = 11;
+  private java.util.List<java.lang.Integer> indexedInScopes_;
+  private static final com.google.protobuf.Internal.ListAdapter.Converter<
+      java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope> indexedInScopes_converter_ =
+          new com.google.protobuf.Internal.ListAdapter.Converter<
+              java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope>() {
+            public io.evitadb.externalApi.grpc.generated.GrpcEntityScope convert(java.lang.Integer from) {
+              @SuppressWarnings("deprecation")
+              io.evitadb.externalApi.grpc.generated.GrpcEntityScope result = io.evitadb.externalApi.grpc.generated.GrpcEntityScope.valueOf(from);
+              return result == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityScope.UNRECOGNIZED : result;
+            }
+          };
+  /**
+   * <pre>
+   * Whether the index for this reference should be created and maintained allowing to filter by
+   * `referenceHaving` filtering constraints. Index is also required when reference is
+   * `faceted`.
+   * Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
+   * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
+   * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
+   * alongside other references if requested.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11;</code>
+   * @return A list containing the indexedInScopes.
+   */
+  @java.lang.Override
+  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getIndexedInScopesList() {
+    return new com.google.protobuf.Internal.ListAdapter<
+        java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope>(indexedInScopes_, indexedInScopes_converter_);
+  }
+  /**
+   * <pre>
+   * Whether the index for this reference should be created and maintained allowing to filter by
+   * `referenceHaving` filtering constraints. Index is also required when reference is
+   * `faceted`.
+   * Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
+   * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
+   * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
+   * alongside other references if requested.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11;</code>
+   * @return The count of indexedInScopes.
+   */
+  @java.lang.Override
+  public int getIndexedInScopesCount() {
+    return indexedInScopes_.size();
+  }
+  /**
+   * <pre>
+   * Whether the index for this reference should be created and maintained allowing to filter by
+   * `referenceHaving` filtering constraints. Index is also required when reference is
+   * `faceted`.
+   * Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
+   * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
+   * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
+   * alongside other references if requested.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11;</code>
+   * @param index The index of the element to return.
+   * @return The indexedInScopes at the given index.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcEntityScope getIndexedInScopes(int index) {
+    return indexedInScopes_converter_.convert(indexedInScopes_.get(index));
+  }
+  /**
+   * <pre>
+   * Whether the index for this reference should be created and maintained allowing to filter by
+   * `referenceHaving` filtering constraints. Index is also required when reference is
+   * `faceted`.
+   * Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
+   * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
+   * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
+   * alongside other references if requested.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11;</code>
+   * @return A list containing the enum numeric values on the wire for indexedInScopes.
+   */
+  @java.lang.Override
+  public java.util.List<java.lang.Integer>
+  getIndexedInScopesValueList() {
+    return indexedInScopes_;
+  }
+  /**
+   * <pre>
+   * Whether the index for this reference should be created and maintained allowing to filter by
+   * `referenceHaving` filtering constraints. Index is also required when reference is
+   * `faceted`.
+   * Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
+   * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
+   * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
+   * alongside other references if requested.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11;</code>
+   * @param index The index of the value to return.
+   * @return The enum numeric value on the wire of indexedInScopes at the given index.
+   */
+  @java.lang.Override
+  public int getIndexedInScopesValue(int index) {
+    return indexedInScopes_.get(index);
+  }
+  private int indexedInScopesMemoizedSerializedSize;
+
+  public static final int FACETEDINSCOPES_FIELD_NUMBER = 12;
+  private java.util.List<java.lang.Integer> facetedInScopes_;
+  private static final com.google.protobuf.Internal.ListAdapter.Converter<
+      java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope> facetedInScopes_converter_ =
+          new com.google.protobuf.Internal.ListAdapter.Converter<
+              java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope>() {
+            public io.evitadb.externalApi.grpc.generated.GrpcEntityScope convert(java.lang.Integer from) {
+              @SuppressWarnings("deprecation")
+              io.evitadb.externalApi.grpc.generated.GrpcEntityScope result = io.evitadb.externalApi.grpc.generated.GrpcEntityScope.valueOf(from);
+              return result == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityScope.UNRECOGNIZED : result;
+            }
+          };
+  /**
+   * <pre>
+   * Whether the statistics data for this reference should be maintained and this allowing to get
+   * `facetSummary` for this reference or use `facetInSet`
+   * filtering query.
+   * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
+   * occupies (memory/disk) space in the form of index.
+   * Reference that was marked as faceted is called Facet.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope facetedInScopes = 12;</code>
+   * @return A list containing the facetedInScopes.
+   */
+  @java.lang.Override
+  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getFacetedInScopesList() {
+    return new com.google.protobuf.Internal.ListAdapter<
+        java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope>(facetedInScopes_, facetedInScopes_converter_);
+  }
+  /**
+   * <pre>
+   * Whether the statistics data for this reference should be maintained and this allowing to get
+   * `facetSummary` for this reference or use `facetInSet`
+   * filtering query.
+   * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
+   * occupies (memory/disk) space in the form of index.
+   * Reference that was marked as faceted is called Facet.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope facetedInScopes = 12;</code>
+   * @return The count of facetedInScopes.
+   */
+  @java.lang.Override
+  public int getFacetedInScopesCount() {
+    return facetedInScopes_.size();
+  }
+  /**
+   * <pre>
+   * Whether the statistics data for this reference should be maintained and this allowing to get
+   * `facetSummary` for this reference or use `facetInSet`
+   * filtering query.
+   * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
+   * occupies (memory/disk) space in the form of index.
+   * Reference that was marked as faceted is called Facet.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope facetedInScopes = 12;</code>
+   * @param index The index of the element to return.
+   * @return The facetedInScopes at the given index.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcEntityScope getFacetedInScopes(int index) {
+    return facetedInScopes_converter_.convert(facetedInScopes_.get(index));
+  }
+  /**
+   * <pre>
+   * Whether the statistics data for this reference should be maintained and this allowing to get
+   * `facetSummary` for this reference or use `facetInSet`
+   * filtering query.
+   * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
+   * occupies (memory/disk) space in the form of index.
+   * Reference that was marked as faceted is called Facet.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope facetedInScopes = 12;</code>
+   * @return A list containing the enum numeric values on the wire for facetedInScopes.
+   */
+  @java.lang.Override
+  public java.util.List<java.lang.Integer>
+  getFacetedInScopesValueList() {
+    return facetedInScopes_;
+  }
+  /**
+   * <pre>
+   * Whether the statistics data for this reference should be maintained and this allowing to get
+   * `facetSummary` for this reference or use `facetInSet`
+   * filtering query.
+   * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
+   * occupies (memory/disk) space in the form of index.
+   * Reference that was marked as faceted is called Facet.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope facetedInScopes = 12;</code>
+   * @param index The index of the value to return.
+   * @return The enum numeric value on the wire of facetedInScopes at the given index.
+   */
+  @java.lang.Override
+  public int getFacetedInScopesValue(int index) {
+    return facetedInScopes_.get(index);
+  }
+  private int facetedInScopesMemoizedSerializedSize;
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
@@ -527,6 +797,7 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
+    getSerializedSize();
     if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(name_)) {
       com.google.protobuf.GeneratedMessageV3.writeString(output, 1, name_);
     }
@@ -556,6 +827,20 @@ private static final long serialVersionUID = 0L;
     }
     if (faceted_ != false) {
       output.writeBool(10, faceted_);
+    }
+    if (getIndexedInScopesList().size() > 0) {
+      output.writeUInt32NoTag(90);
+      output.writeUInt32NoTag(indexedInScopesMemoizedSerializedSize);
+    }
+    for (int i = 0; i < indexedInScopes_.size(); i++) {
+      output.writeEnumNoTag(indexedInScopes_.get(i));
+    }
+    if (getFacetedInScopesList().size() > 0) {
+      output.writeUInt32NoTag(98);
+      output.writeUInt32NoTag(facetedInScopesMemoizedSerializedSize);
+    }
+    for (int i = 0; i < facetedInScopes_.size(); i++) {
+      output.writeEnumNoTag(facetedInScopes_.get(i));
     }
     unknownFields.writeTo(output);
   }
@@ -604,6 +889,30 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeBoolSize(10, faceted_);
     }
+    {
+      int dataSize = 0;
+      for (int i = 0; i < indexedInScopes_.size(); i++) {
+        dataSize += com.google.protobuf.CodedOutputStream
+          .computeEnumSizeNoTag(indexedInScopes_.get(i));
+      }
+      size += dataSize;
+      if (!getIndexedInScopesList().isEmpty()) {  size += 1;
+        size += com.google.protobuf.CodedOutputStream
+          .computeUInt32SizeNoTag(dataSize);
+      }indexedInScopesMemoizedSerializedSize = dataSize;
+    }
+    {
+      int dataSize = 0;
+      for (int i = 0; i < facetedInScopes_.size(); i++) {
+        dataSize += com.google.protobuf.CodedOutputStream
+          .computeEnumSizeNoTag(facetedInScopes_.get(i));
+      }
+      size += dataSize;
+      if (!getFacetedInScopesList().isEmpty()) {  size += 1;
+        size += com.google.protobuf.CodedOutputStream
+          .computeUInt32SizeNoTag(dataSize);
+      }facetedInScopesMemoizedSerializedSize = dataSize;
+    }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
     return size;
@@ -647,6 +956,8 @@ private static final long serialVersionUID = 0L;
         != other.getFilterable()) return false;
     if (getFaceted()
         != other.getFaceted()) return false;
+    if (!indexedInScopes_.equals(other.indexedInScopes_)) return false;
+    if (!facetedInScopes_.equals(other.facetedInScopes_)) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -688,6 +999,14 @@ private static final long serialVersionUID = 0L;
     hash = (37 * hash) + FACETED_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
         getFaceted());
+    if (getIndexedInScopesCount() > 0) {
+      hash = (37 * hash) + INDEXEDINSCOPES_FIELD_NUMBER;
+      hash = (53 * hash) + indexedInScopes_.hashCode();
+    }
+    if (getFacetedInScopesCount() > 0) {
+      hash = (37 * hash) + FACETEDINSCOPES_FIELD_NUMBER;
+      hash = (53 * hash) + facetedInScopes_.hashCode();
+    }
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -858,6 +1177,10 @@ private static final long serialVersionUID = 0L;
 
       faceted_ = false;
 
+      indexedInScopes_ = java.util.Collections.emptyList();
+      bitField0_ = (bitField0_ & ~0x00000001);
+      facetedInScopes_ = java.util.Collections.emptyList();
+      bitField0_ = (bitField0_ & ~0x00000002);
       return this;
     }
 
@@ -884,6 +1207,7 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcCreateReferenceSchemaMutation buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcCreateReferenceSchemaMutation result = new io.evitadb.externalApi.grpc.generated.GrpcCreateReferenceSchemaMutation(this);
+      int from_bitField0_ = bitField0_;
       result.name_ = name_;
       if (descriptionBuilder_ == null) {
         result.description_ = description_;
@@ -906,6 +1230,16 @@ private static final long serialVersionUID = 0L;
       result.referencedGroupTypeManaged_ = referencedGroupTypeManaged_;
       result.filterable_ = filterable_;
       result.faceted_ = faceted_;
+      if (((bitField0_ & 0x00000001) != 0)) {
+        indexedInScopes_ = java.util.Collections.unmodifiableList(indexedInScopes_);
+        bitField0_ = (bitField0_ & ~0x00000001);
+      }
+      result.indexedInScopes_ = indexedInScopes_;
+      if (((bitField0_ & 0x00000002) != 0)) {
+        facetedInScopes_ = java.util.Collections.unmodifiableList(facetedInScopes_);
+        bitField0_ = (bitField0_ & ~0x00000002);
+      }
+      result.facetedInScopes_ = facetedInScopes_;
       onBuilt();
       return result;
     }
@@ -986,6 +1320,26 @@ private static final long serialVersionUID = 0L;
       if (other.getFaceted() != false) {
         setFaceted(other.getFaceted());
       }
+      if (!other.indexedInScopes_.isEmpty()) {
+        if (indexedInScopes_.isEmpty()) {
+          indexedInScopes_ = other.indexedInScopes_;
+          bitField0_ = (bitField0_ & ~0x00000001);
+        } else {
+          ensureIndexedInScopesIsMutable();
+          indexedInScopes_.addAll(other.indexedInScopes_);
+        }
+        onChanged();
+      }
+      if (!other.facetedInScopes_.isEmpty()) {
+        if (facetedInScopes_.isEmpty()) {
+          facetedInScopes_ = other.facetedInScopes_;
+          bitField0_ = (bitField0_ & ~0x00000002);
+        } else {
+          ensureFacetedInScopesIsMutable();
+          facetedInScopes_.addAll(other.facetedInScopes_);
+        }
+        onChanged();
+      }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
       return this;
@@ -1014,6 +1368,7 @@ private static final long serialVersionUID = 0L;
       }
       return this;
     }
+    private int bitField0_;
 
     private java.lang.Object name_ = "";
     /**
@@ -1048,7 +1403,7 @@ private static final long serialVersionUID = 0L;
         getNameBytes() {
       java.lang.Object ref = name_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         name_ = b;
@@ -1071,7 +1426,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-  
+
       name_ = value;
       onChanged();
       return this;
@@ -1085,7 +1440,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearName() {
-      
+
       name_ = getDefaultInstance().getName();
       onChanged();
       return this;
@@ -1105,7 +1460,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      
+
       name_ = value;
       onChanged();
       return this;
@@ -1233,7 +1588,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue description = 2;</code>
      */
     public com.google.protobuf.StringValue.Builder getDescriptionBuilder() {
-      
+
       onChanged();
       return getDescriptionFieldBuilder().getBuilder();
     }
@@ -1262,7 +1617,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue description = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
         getDescriptionFieldBuilder() {
       if (descriptionBuilder_ == null) {
         descriptionBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1397,7 +1752,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      */
     public com.google.protobuf.StringValue.Builder getDeprecationNoticeBuilder() {
-      
+
       onChanged();
       return getDeprecationNoticeFieldBuilder().getBuilder();
     }
@@ -1426,7 +1781,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
         getDeprecationNoticeFieldBuilder() {
       if (deprecationNoticeBuilder_ == null) {
         deprecationNoticeBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1469,7 +1824,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setCardinalityValue(int value) {
-      
+
       cardinality_ = value;
       onChanged();
       return this;
@@ -1509,7 +1864,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-      
+
       cardinality_ = value.getNumber();
       onChanged();
       return this;
@@ -1527,7 +1882,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearCardinality() {
-      
+
       cardinality_ = 0;
       onChanged();
       return this;
@@ -1568,7 +1923,7 @@ private static final long serialVersionUID = 0L;
         getReferencedEntityTypeBytes() {
       java.lang.Object ref = referencedEntityType_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         referencedEntityType_ = b;
@@ -1592,7 +1947,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-  
+
       referencedEntityType_ = value;
       onChanged();
       return this;
@@ -1607,7 +1962,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearReferencedEntityType() {
-      
+
       referencedEntityType_ = getDefaultInstance().getReferencedEntityType();
       onChanged();
       return this;
@@ -1628,7 +1983,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      
+
       referencedEntityType_ = value;
       onChanged();
       return this;
@@ -1659,7 +2014,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setReferencedEntityTypeManaged(boolean value) {
-      
+
       referencedEntityTypeManaged_ = value;
       onChanged();
       return this;
@@ -1674,7 +2029,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearReferencedEntityTypeManaged() {
-      
+
       referencedEntityTypeManaged_ = false;
       onChanged();
       return this;
@@ -1802,7 +2157,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue referencedGroupType = 7;</code>
      */
     public com.google.protobuf.StringValue.Builder getReferencedGroupTypeBuilder() {
-      
+
       onChanged();
       return getReferencedGroupTypeFieldBuilder().getBuilder();
     }
@@ -1831,7 +2186,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue referencedGroupType = 7;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
         getReferencedGroupTypeFieldBuilder() {
       if (referencedGroupTypeBuilder_ == null) {
         referencedGroupTypeBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1869,7 +2224,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setReferencedGroupTypeManaged(boolean value) {
-      
+
       referencedGroupTypeManaged_ = value;
       onChanged();
       return this;
@@ -1884,7 +2239,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearReferencedGroupTypeManaged() {
-      
+
       referencedGroupTypeManaged_ = false;
       onChanged();
       return this;
@@ -1900,13 +2255,15 @@ private static final long serialVersionUID = 0L;
      * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
      * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
      * alongside other references if requested.
+     * deprecated in favor of `indexedInScopes`
      * </pre>
      *
-     * <code>bool filterable = 9;</code>
+     * <code>bool filterable = 9 [deprecated = true];</code>
+     * @deprecated
      * @return The filterable.
      */
     @java.lang.Override
-    public boolean getFilterable() {
+    @java.lang.Deprecated public boolean getFilterable() {
       return filterable_;
     }
     /**
@@ -1918,14 +2275,16 @@ private static final long serialVersionUID = 0L;
      * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
      * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
      * alongside other references if requested.
+     * deprecated in favor of `indexedInScopes`
      * </pre>
      *
-     * <code>bool filterable = 9;</code>
+     * <code>bool filterable = 9 [deprecated = true];</code>
+     * @deprecated
      * @param value The filterable to set.
      * @return This builder for chaining.
      */
-    public Builder setFilterable(boolean value) {
-      
+    @java.lang.Deprecated public Builder setFilterable(boolean value) {
+
       filterable_ = value;
       onChanged();
       return this;
@@ -1939,13 +2298,15 @@ private static final long serialVersionUID = 0L;
      * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
      * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
      * alongside other references if requested.
+     * deprecated in favor of `indexedInScopes`
      * </pre>
      *
-     * <code>bool filterable = 9;</code>
+     * <code>bool filterable = 9 [deprecated = true];</code>
+     * @deprecated
      * @return This builder for chaining.
      */
-    public Builder clearFilterable() {
-      
+    @java.lang.Deprecated public Builder clearFilterable() {
+
       filterable_ = false;
       onChanged();
       return this;
@@ -1960,14 +2321,328 @@ private static final long serialVersionUID = 0L;
      * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
      * occupies (memory/disk) space in the form of index.
      * Reference that was marked as faceted is called Facet.
+     * deprecated in favor of `facetedInScopes`
      * </pre>
      *
-     * <code>bool faceted = 10;</code>
+     * <code>bool faceted = 10 [deprecated = true];</code>
+     * @deprecated
      * @return The faceted.
      */
     @java.lang.Override
-    public boolean getFaceted() {
+    @java.lang.Deprecated public boolean getFaceted() {
       return faceted_;
+    }
+    /**
+     * <pre>
+     * Whether the statistics data for this reference should be maintained and this allowing to get
+     * `facetSummary` for this reference or use `facetInSet`
+     * filtering query.
+     * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
+     * occupies (memory/disk) space in the form of index.
+     * Reference that was marked as faceted is called Facet.
+     * deprecated in favor of `facetedInScopes`
+     * </pre>
+     *
+     * <code>bool faceted = 10 [deprecated = true];</code>
+     * @deprecated
+     * @param value The faceted to set.
+     * @return This builder for chaining.
+     */
+    @java.lang.Deprecated public Builder setFaceted(boolean value) {
+
+      faceted_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Whether the statistics data for this reference should be maintained and this allowing to get
+     * `facetSummary` for this reference or use `facetInSet`
+     * filtering query.
+     * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
+     * occupies (memory/disk) space in the form of index.
+     * Reference that was marked as faceted is called Facet.
+     * deprecated in favor of `facetedInScopes`
+     * </pre>
+     *
+     * <code>bool faceted = 10 [deprecated = true];</code>
+     * @deprecated
+     * @return This builder for chaining.
+     */
+    @java.lang.Deprecated public Builder clearFaceted() {
+
+      faceted_ = false;
+      onChanged();
+      return this;
+    }
+
+    private java.util.List<java.lang.Integer> indexedInScopes_ =
+      java.util.Collections.emptyList();
+    private void ensureIndexedInScopesIsMutable() {
+      if (!((bitField0_ & 0x00000001) != 0)) {
+        indexedInScopes_ = new java.util.ArrayList<java.lang.Integer>(indexedInScopes_);
+        bitField0_ |= 0x00000001;
+      }
+    }
+    /**
+     * <pre>
+     * Whether the index for this reference should be created and maintained allowing to filter by
+     * `referenceHaving` filtering constraints. Index is also required when reference is
+     * `faceted`.
+     * Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
+     * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
+     * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
+     * alongside other references if requested.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11;</code>
+     * @return A list containing the indexedInScopes.
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getIndexedInScopesList() {
+      return new com.google.protobuf.Internal.ListAdapter<
+          java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope>(indexedInScopes_, indexedInScopes_converter_);
+    }
+    /**
+     * <pre>
+     * Whether the index for this reference should be created and maintained allowing to filter by
+     * `referenceHaving` filtering constraints. Index is also required when reference is
+     * `faceted`.
+     * Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
+     * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
+     * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
+     * alongside other references if requested.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11;</code>
+     * @return The count of indexedInScopes.
+     */
+    public int getIndexedInScopesCount() {
+      return indexedInScopes_.size();
+    }
+    /**
+     * <pre>
+     * Whether the index for this reference should be created and maintained allowing to filter by
+     * `referenceHaving` filtering constraints. Index is also required when reference is
+     * `faceted`.
+     * Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
+     * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
+     * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
+     * alongside other references if requested.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11;</code>
+     * @param index The index of the element to return.
+     * @return The indexedInScopes at the given index.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcEntityScope getIndexedInScopes(int index) {
+      return indexedInScopes_converter_.convert(indexedInScopes_.get(index));
+    }
+    /**
+     * <pre>
+     * Whether the index for this reference should be created and maintained allowing to filter by
+     * `referenceHaving` filtering constraints. Index is also required when reference is
+     * `faceted`.
+     * Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
+     * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
+     * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
+     * alongside other references if requested.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11;</code>
+     * @param index The index to set the value at.
+     * @param value The indexedInScopes to set.
+     * @return This builder for chaining.
+     */
+    public Builder setIndexedInScopes(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcEntityScope value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      ensureIndexedInScopesIsMutable();
+      indexedInScopes_.set(index, value.getNumber());
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Whether the index for this reference should be created and maintained allowing to filter by
+     * `referenceHaving` filtering constraints. Index is also required when reference is
+     * `faceted`.
+     * Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
+     * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
+     * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
+     * alongside other references if requested.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11;</code>
+     * @param value The indexedInScopes to add.
+     * @return This builder for chaining.
+     */
+    public Builder addIndexedInScopes(io.evitadb.externalApi.grpc.generated.GrpcEntityScope value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      ensureIndexedInScopesIsMutable();
+      indexedInScopes_.add(value.getNumber());
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Whether the index for this reference should be created and maintained allowing to filter by
+     * `referenceHaving` filtering constraints. Index is also required when reference is
+     * `faceted`.
+     * Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
+     * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
+     * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
+     * alongside other references if requested.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11;</code>
+     * @param values The indexedInScopes to add.
+     * @return This builder for chaining.
+     */
+    public Builder addAllIndexedInScopes(
+        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityScope> values) {
+      ensureIndexedInScopesIsMutable();
+      for (io.evitadb.externalApi.grpc.generated.GrpcEntityScope value : values) {
+        indexedInScopes_.add(value.getNumber());
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Whether the index for this reference should be created and maintained allowing to filter by
+     * `referenceHaving` filtering constraints. Index is also required when reference is
+     * `faceted`.
+     * Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
+     * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
+     * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
+     * alongside other references if requested.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearIndexedInScopes() {
+      indexedInScopes_ = java.util.Collections.emptyList();
+      bitField0_ = (bitField0_ & ~0x00000001);
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Whether the index for this reference should be created and maintained allowing to filter by
+     * `referenceHaving` filtering constraints. Index is also required when reference is
+     * `faceted`.
+     * Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
+     * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
+     * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
+     * alongside other references if requested.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11;</code>
+     * @return A list containing the enum numeric values on the wire for indexedInScopes.
+     */
+    public java.util.List<java.lang.Integer>
+    getIndexedInScopesValueList() {
+      return java.util.Collections.unmodifiableList(indexedInScopes_);
+    }
+    /**
+     * <pre>
+     * Whether the index for this reference should be created and maintained allowing to filter by
+     * `referenceHaving` filtering constraints. Index is also required when reference is
+     * `faceted`.
+     * Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
+     * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
+     * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
+     * alongside other references if requested.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11;</code>
+     * @param index The index of the value to return.
+     * @return The enum numeric value on the wire of indexedInScopes at the given index.
+     */
+    public int getIndexedInScopesValue(int index) {
+      return indexedInScopes_.get(index);
+    }
+    /**
+     * <pre>
+     * Whether the index for this reference should be created and maintained allowing to filter by
+     * `referenceHaving` filtering constraints. Index is also required when reference is
+     * `faceted`.
+     * Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
+     * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
+     * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
+     * alongside other references if requested.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11;</code>
+     * @param index The index of the value to return.
+     * @return The enum numeric value on the wire of indexedInScopes at the given index.
+     * @return This builder for chaining.
+     */
+    public Builder setIndexedInScopesValue(
+        int index, int value) {
+      ensureIndexedInScopesIsMutable();
+      indexedInScopes_.set(index, value);
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Whether the index for this reference should be created and maintained allowing to filter by
+     * `referenceHaving` filtering constraints. Index is also required when reference is
+     * `faceted`.
+     * Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
+     * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
+     * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
+     * alongside other references if requested.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11;</code>
+     * @param value The enum numeric value on the wire for indexedInScopes to add.
+     * @return This builder for chaining.
+     */
+    public Builder addIndexedInScopesValue(int value) {
+      ensureIndexedInScopesIsMutable();
+      indexedInScopes_.add(value);
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Whether the index for this reference should be created and maintained allowing to filter by
+     * `referenceHaving` filtering constraints. Index is also required when reference is
+     * `faceted`.
+     * Do not mark reference as faceted unless you know that you'll need to filter/sort entities by this reference.
+     * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
+     * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
+     * alongside other references if requested.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11;</code>
+     * @param values The enum numeric values on the wire for indexedInScopes to add.
+     * @return This builder for chaining.
+     */
+    public Builder addAllIndexedInScopesValue(
+        java.lang.Iterable<java.lang.Integer> values) {
+      ensureIndexedInScopesIsMutable();
+      for (int value : values) {
+        indexedInScopes_.add(value);
+      }
+      onChanged();
+      return this;
+    }
+
+    private java.util.List<java.lang.Integer> facetedInScopes_ =
+      java.util.Collections.emptyList();
+    private void ensureFacetedInScopesIsMutable() {
+      if (!((bitField0_ & 0x00000002) != 0)) {
+        facetedInScopes_ = new java.util.ArrayList<java.lang.Integer>(facetedInScopes_);
+        bitField0_ |= 0x00000002;
+      }
     }
     /**
      * <pre>
@@ -1979,13 +2654,68 @@ private static final long serialVersionUID = 0L;
      * Reference that was marked as faceted is called Facet.
      * </pre>
      *
-     * <code>bool faceted = 10;</code>
-     * @param value The faceted to set.
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope facetedInScopes = 12;</code>
+     * @return A list containing the facetedInScopes.
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getFacetedInScopesList() {
+      return new com.google.protobuf.Internal.ListAdapter<
+          java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope>(facetedInScopes_, facetedInScopes_converter_);
+    }
+    /**
+     * <pre>
+     * Whether the statistics data for this reference should be maintained and this allowing to get
+     * `facetSummary` for this reference or use `facetInSet`
+     * filtering query.
+     * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
+     * occupies (memory/disk) space in the form of index.
+     * Reference that was marked as faceted is called Facet.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope facetedInScopes = 12;</code>
+     * @return The count of facetedInScopes.
+     */
+    public int getFacetedInScopesCount() {
+      return facetedInScopes_.size();
+    }
+    /**
+     * <pre>
+     * Whether the statistics data for this reference should be maintained and this allowing to get
+     * `facetSummary` for this reference or use `facetInSet`
+     * filtering query.
+     * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
+     * occupies (memory/disk) space in the form of index.
+     * Reference that was marked as faceted is called Facet.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope facetedInScopes = 12;</code>
+     * @param index The index of the element to return.
+     * @return The facetedInScopes at the given index.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcEntityScope getFacetedInScopes(int index) {
+      return facetedInScopes_converter_.convert(facetedInScopes_.get(index));
+    }
+    /**
+     * <pre>
+     * Whether the statistics data for this reference should be maintained and this allowing to get
+     * `facetSummary` for this reference or use `facetInSet`
+     * filtering query.
+     * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
+     * occupies (memory/disk) space in the form of index.
+     * Reference that was marked as faceted is called Facet.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope facetedInScopes = 12;</code>
+     * @param index The index to set the value at.
+     * @param value The facetedInScopes to set.
      * @return This builder for chaining.
      */
-    public Builder setFaceted(boolean value) {
-      
-      faceted_ = value;
+    public Builder setFacetedInScopes(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcEntityScope value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      ensureFacetedInScopesIsMutable();
+      facetedInScopes_.set(index, value.getNumber());
       onChanged();
       return this;
     }
@@ -1999,12 +2729,157 @@ private static final long serialVersionUID = 0L;
      * Reference that was marked as faceted is called Facet.
      * </pre>
      *
-     * <code>bool faceted = 10;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope facetedInScopes = 12;</code>
+     * @param value The facetedInScopes to add.
      * @return This builder for chaining.
      */
-    public Builder clearFaceted() {
-      
-      faceted_ = false;
+    public Builder addFacetedInScopes(io.evitadb.externalApi.grpc.generated.GrpcEntityScope value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      ensureFacetedInScopesIsMutable();
+      facetedInScopes_.add(value.getNumber());
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Whether the statistics data for this reference should be maintained and this allowing to get
+     * `facetSummary` for this reference or use `facetInSet`
+     * filtering query.
+     * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
+     * occupies (memory/disk) space in the form of index.
+     * Reference that was marked as faceted is called Facet.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope facetedInScopes = 12;</code>
+     * @param values The facetedInScopes to add.
+     * @return This builder for chaining.
+     */
+    public Builder addAllFacetedInScopes(
+        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityScope> values) {
+      ensureFacetedInScopesIsMutable();
+      for (io.evitadb.externalApi.grpc.generated.GrpcEntityScope value : values) {
+        facetedInScopes_.add(value.getNumber());
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Whether the statistics data for this reference should be maintained and this allowing to get
+     * `facetSummary` for this reference or use `facetInSet`
+     * filtering query.
+     * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
+     * occupies (memory/disk) space in the form of index.
+     * Reference that was marked as faceted is called Facet.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope facetedInScopes = 12;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearFacetedInScopes() {
+      facetedInScopes_ = java.util.Collections.emptyList();
+      bitField0_ = (bitField0_ & ~0x00000002);
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Whether the statistics data for this reference should be maintained and this allowing to get
+     * `facetSummary` for this reference or use `facetInSet`
+     * filtering query.
+     * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
+     * occupies (memory/disk) space in the form of index.
+     * Reference that was marked as faceted is called Facet.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope facetedInScopes = 12;</code>
+     * @return A list containing the enum numeric values on the wire for facetedInScopes.
+     */
+    public java.util.List<java.lang.Integer>
+    getFacetedInScopesValueList() {
+      return java.util.Collections.unmodifiableList(facetedInScopes_);
+    }
+    /**
+     * <pre>
+     * Whether the statistics data for this reference should be maintained and this allowing to get
+     * `facetSummary` for this reference or use `facetInSet`
+     * filtering query.
+     * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
+     * occupies (memory/disk) space in the form of index.
+     * Reference that was marked as faceted is called Facet.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope facetedInScopes = 12;</code>
+     * @param index The index of the value to return.
+     * @return The enum numeric value on the wire of facetedInScopes at the given index.
+     */
+    public int getFacetedInScopesValue(int index) {
+      return facetedInScopes_.get(index);
+    }
+    /**
+     * <pre>
+     * Whether the statistics data for this reference should be maintained and this allowing to get
+     * `facetSummary` for this reference or use `facetInSet`
+     * filtering query.
+     * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
+     * occupies (memory/disk) space in the form of index.
+     * Reference that was marked as faceted is called Facet.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope facetedInScopes = 12;</code>
+     * @param index The index of the value to return.
+     * @return The enum numeric value on the wire of facetedInScopes at the given index.
+     * @return This builder for chaining.
+     */
+    public Builder setFacetedInScopesValue(
+        int index, int value) {
+      ensureFacetedInScopesIsMutable();
+      facetedInScopes_.set(index, value);
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Whether the statistics data for this reference should be maintained and this allowing to get
+     * `facetSummary` for this reference or use `facetInSet`
+     * filtering query.
+     * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
+     * occupies (memory/disk) space in the form of index.
+     * Reference that was marked as faceted is called Facet.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope facetedInScopes = 12;</code>
+     * @param value The enum numeric value on the wire for facetedInScopes to add.
+     * @return This builder for chaining.
+     */
+    public Builder addFacetedInScopesValue(int value) {
+      ensureFacetedInScopesIsMutable();
+      facetedInScopes_.add(value);
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Whether the statistics data for this reference should be maintained and this allowing to get
+     * `facetSummary` for this reference or use `facetInSet`
+     * filtering query.
+     * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
+     * occupies (memory/disk) space in the form of index.
+     * Reference that was marked as faceted is called Facet.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope facetedInScopes = 12;</code>
+     * @param values The enum numeric values on the wire for facetedInScopes to add.
+     * @return This builder for chaining.
+     */
+    public Builder addAllFacetedInScopesValue(
+        java.lang.Iterable<java.lang.Integer> values) {
+      ensureFacetedInScopesIsMutable();
+      for (int value : values) {
+        facetedInScopes_.add(value);
+      }
       onChanged();
       return this;
     }

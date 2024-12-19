@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.rest.api.catalog.dataApi;
 
+import com.github.javafaker.Faker;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
@@ -36,21 +37,28 @@ import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.core.Evita;
 import io.evitadb.externalApi.ExternalApiFunctionTestsSupport;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
+import io.evitadb.externalApi.rest.RestProvider;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.RestEntityDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.SectionedAssociatedDataDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.SectionedAttributesDescriptor;
 import io.evitadb.externalApi.rest.api.testSuite.RestEndpointFunctionalTest;
+import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.builder.MapBuilder;
+import io.evitadb.test.extension.DataCarrier;
+import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NamingConvention;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
@@ -59,11 +67,17 @@ import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
+import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 import static io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.EntityJsonSerializer.separateAssociatedDataKeysByLocale;
 import static io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.EntityJsonSerializer.separateAttributeKeysByLocale;
+import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_EAN;
+import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
+import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_QUANTITY;
 
 /**
  * Ancestor for tests for REST catalog endpoint.
@@ -72,6 +86,77 @@ import static io.evitadb.test.builder.MapBuilder.map;
  * @author Martin Veska, FG Forrest a.s. (c) 2022
  */
 public abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctionalTest implements ExternalApiFunctionTestsSupport {
+
+	protected static final int SEED = 40;
+
+	protected static final String REST_HUNDRED_PRODUCTS_FOR_SEGMENTS = "RestHundredProductsForSegments";
+
+	@DataSet(value = REST_HUNDRED_PRODUCTS_FOR_SEGMENTS, openWebApi = RestProvider.CODE, readOnly = false, destroyAfterClass = true)
+	DataCarrier setUpForSegments(Evita evita) {
+		return evita.updateCatalog(TEST_CATALOG, session -> {
+			final DataGenerator dataGenerator = new DataGenerator();
+			final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> {
+				final int entityCount = session.getEntityCollectionSize(entityType);
+				final int primaryKey = entityCount == 0 ? 0 : faker.random().nextInt(1, entityCount);
+				return primaryKey == 0 ? null : primaryKey;
+			};
+			dataGenerator.generateEntities(
+					dataGenerator.getSampleBrandSchema(session),
+					randomEntityPicker,
+					SEED
+				)
+				.limit(5)
+				.forEach(session::upsertEntity);
+
+			dataGenerator.generateEntities(
+					dataGenerator.getSampleCategorySchema(session),
+					randomEntityPicker,
+					SEED
+				)
+				.limit(10)
+				.forEach(session::upsertEntity);
+
+			dataGenerator.generateEntities(
+					dataGenerator.getSamplePriceListSchema(session),
+					randomEntityPicker,
+					SEED
+				)
+				.limit(4)
+				.forEach(session::upsertEntity);
+
+			dataGenerator.generateEntities(
+					dataGenerator.getSampleStoreSchema(session),
+					randomEntityPicker,
+					SEED
+				)
+				.limit(12)
+				.forEach(session::upsertEntity);
+
+			final List<EntityReference> storedProducts = dataGenerator.generateEntities(
+					dataGenerator.getSampleProductSchema(
+						session,
+						builder -> {
+							builder
+								.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized(() -> false).filterable().sortable().nullable(() -> false))
+								.withAttribute(ATTRIBUTE_EAN, String.class, whichIs -> whichIs.filterable().sortable().nullable(() -> false))
+								.withAttribute(ATTRIBUTE_QUANTITY, BigDecimal.class, whichIs -> whichIs.filterable().sortable().nullable(() -> false));
+						}
+					),
+					randomEntityPicker,
+					SEED
+				)
+				.limit(100)
+				.map(session::upsertEntity)
+				.toList();
+
+			return new DataCarrier(
+				"originalProductEntities",
+				storedProducts.stream()
+					.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), entityFetchAllContent()).orElseThrow())
+					.collect(Collectors.toList())
+			);
+		});
+	}
 
 	@Nonnull
 	public static List<Map<String, Object>> createEntityDtos(@Nonnull List<? extends EntityClassifier> entityClassifiers) {
@@ -116,6 +201,7 @@ public abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpoint
 
 	public static void createEntityBodyDto(@Nonnull MapBuilder entityDto, @Nonnull SealedEntity entity, boolean localized) {
 		entityDto.e(EntityDescriptor.VERSION.name(), entity.version());
+		entityDto.e(EntityDescriptor.SCOPE.name(), entity.getScope().name());
 
 		if (entity.parentAvailable()) {
 			entity.getParentEntity().ifPresent(parent -> entityDto.e(RestEntityDescriptor.PARENT_ENTITY.name(), createEntityDto(parent, localized)));

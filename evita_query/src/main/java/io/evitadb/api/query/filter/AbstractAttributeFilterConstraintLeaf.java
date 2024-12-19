@@ -35,7 +35,7 @@ import java.io.Serializable;
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */
-abstract class AbstractAttributeFilterConstraintLeaf extends AbstractFilterConstraintLeaf
+public abstract class AbstractAttributeFilterConstraintLeaf extends AbstractFilterConstraintLeaf
 	implements AttributeConstraint<FilterConstraint>, FilterConstraint {
 	@Serial private static final long serialVersionUID = 3153809771456358624L;
 

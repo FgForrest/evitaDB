@@ -55,6 +55,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public class Scheduler implements ObservableExecutorService, ScheduledExecutorService {
 	private static final int FINISHED_TASKS_KEEP_INTERVAL_MILLIS = 300_000; // 5 minutes
+	private static final int WAITING_TASKS_KEEP_INTERVAL_MILLIS = 600_000; // 10 minutes
 	private static final int BUFFER_CAPACITY = 512;
 	/**
 	 * Buffer used for purging finished tasks.
@@ -132,7 +133,7 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 			null,
 			"Scheduler queue purging task",
 			this,
-			this::purgeFinishedTasks,
+			this::purgeFinishedAndLongWaitingTasks,
 			1, TimeUnit.MINUTES
 		).schedule();
 	}
@@ -269,6 +270,9 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	@Nonnull
 	@Override
 	public <T> Future<T> submit(@Nonnull Callable<T> task) {
+		if (task instanceof ServerTask<?, ?> st) {
+			st.transitionToIssued();
+		}
 		final Future<T> future = executorService.submit(task);
 		this.submittedTaskCount.incrementAndGet();
 		return future;
@@ -277,6 +281,9 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	@Nonnull
 	@Override
 	public <T> Future<T> submit(@Nonnull Runnable task, T result) {
+		if (task instanceof ServerTask<?, ?> st) {
+			st.transitionToIssued();
+		}
 		final Future<T> future = executorService.submit(task, result);
 		this.submittedTaskCount.incrementAndGet();
 		return future;
@@ -285,6 +292,9 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	@Nonnull
 	@Override
 	public Future<?> submit(@Nonnull Runnable task) {
+		if (task instanceof ServerTask<?, ?> st) {
+			st.transitionToIssued();
+		}
 		final Future<?> future = executorService.submit(task);
 		this.submittedTaskCount.incrementAndGet();
 		return future;
@@ -293,6 +303,11 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	@Nonnull
 	@Override
 	public <T> List<Future<T>> invokeAll(@Nonnull Collection<? extends Callable<T>> tasks) throws InterruptedException {
+		for (Callable<T> task : tasks) {
+			if (task instanceof ServerTask<?, ?> st) {
+				st.transitionToIssued();
+			}
+		}
 		final List<Future<T>> futures = executorService.invokeAll(tasks);
 		this.submittedTaskCount.addAndGet(futures.size());
 		return futures;
@@ -301,6 +316,11 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	@Nonnull
 	@Override
 	public <T> List<Future<T>> invokeAll(@Nonnull Collection<? extends Callable<T>> tasks, long timeout, @Nonnull TimeUnit unit) throws InterruptedException {
+		for (Callable<T> task : tasks) {
+			if (task instanceof ServerTask<?, ?> st) {
+				st.transitionToIssued();
+			}
+		}
 		final List<Future<T>> futures = executorService.invokeAll(tasks, timeout, unit);
 		this.submittedTaskCount.addAndGet(futures.size());
 		return futures;
@@ -309,6 +329,11 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	@Nonnull
 	@Override
 	public <T> T invokeAny(@Nonnull Collection<? extends Callable<T>> tasks) throws InterruptedException, ExecutionException {
+		for (Callable<T> task : tasks) {
+			if (task instanceof ServerTask<?, ?> st) {
+				st.transitionToIssued();
+			}
+		}
 		final T result = executorService.invokeAny(tasks);
 		this.submittedTaskCount.incrementAndGet();
 		return result;
@@ -316,6 +341,11 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 
 	@Override
 	public <T> T invokeAny(@Nonnull Collection<? extends Callable<T>> tasks, long timeout, @Nonnull TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
+		for (Callable<T> task : tasks) {
+			if (task instanceof AbstractServerTask<?, ?> ast) {
+				ast.transitionToIssued();
+			}
+		}
 		final T result = executorService.invokeAny(tasks, timeout, unit);
 		this.submittedTaskCount.incrementAndGet();
 		return result;
@@ -324,14 +354,7 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	@Nonnull
 	public <T> CompletableFuture<T> submit(@Nonnull ServerTask<?, T> task) {
 		addTaskToQueue(task);
-		if (task.getClass().isAnnotationPresent(InternallyScheduledTask.class)) {
-			// if the task is internally scheduled, we can execute it immediately
-			task.execute();
-		} else {
-			this.executorService.submit(task::execute);
-		}
-		this.submittedTaskCount.incrementAndGet();
-		return task.getFutureResult();
+		return submitTaskInQueue(task);
 	}
 
 	/**
@@ -362,7 +385,7 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 		return new PaginatedList<>(
 			page, pageSize, tasks.size(),
 			tasks.stream()
-				.sorted((o1, o2) -> o2.getStatus().issued().compareTo(o1.getStatus().issued()))
+				.sorted((o1, o2) -> o2.getStatus().created().compareTo(o1.getStatus().created()))
 				.skip(PaginatedList.getFirstItemNumberForPage(page, pageSize))
 				.limit(pageSize)
 				.map(Task::getStatus)
@@ -432,6 +455,53 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	}
 
 	/**
+	 * Registers a task to be kept in the waiting queue until it can be executed.
+	 *
+	 * @param task The task to be registered and added to the waiting queue.
+	 */
+	public void registerWaitingTask(@Nonnull ServerTask<?, ?> task) {
+		this.addTaskToQueue(task);
+	}
+
+	/**
+	 * Retrieves a task from the waiting queue based on the provided registration identifier.
+	 *
+	 * @param taskPredicate predicate to filter the task
+	 * @return An {@link Optional} containing the {@link ServerTask} if found, otherwise an empty {@link Optional}.
+	 */
+	public Optional<ServerTask<?, ?>> findTask(@Nonnull Predicate<ServerTask<?, ?>> taskPredicate) {
+		return this.queue.stream().filter(task -> task.matches(taskPredicate)).findFirst();
+	}
+
+	/**
+	 * Submits a task from the waiting queue based on the provided registration identifier.
+	 *
+	 * @param taskPredicate predicate to filter the task
+	 */
+	public void submitWaitingTask(@Nonnull Predicate<ServerTask<?, ?>> taskPredicate) {
+		this.queue.stream().filter(task -> task.matches(taskPredicate)).findFirst()
+			.ifPresent(this::submitTaskInQueue);
+	}
+
+	/**
+	 * Submits a given server task to the internal queue for execution.
+	 *
+	 * @param task The server task to be submitted. Must not be null.
+	 * @return A CompletableFuture representing the result of the submitted task.
+	 */
+	private <T> @Nonnull CompletableFuture<T> submitTaskInQueue(@Nonnull ServerTask<?, T> task) {
+		task.transitionToIssued();
+		if (task.getClass().isAnnotationPresent(InternallyScheduledTask.class)) {
+			// if the task is internally scheduled, we can execute it immediately
+			task.execute();
+		} else {
+			this.executorService.submit(task::execute);
+		}
+		this.submittedTaskCount.incrementAndGet();
+		return task.getFutureResult();
+	}
+
+	/**
 	 * Wraps the task into an observable task and adds it to the queue. Returns the same type as the input argument
 	 * to allow for fluent chaining.
 	 *
@@ -446,7 +516,7 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 			this.queue.add(task);
 		} catch (IllegalStateException e) {
 			// this means the queue is full, so we need to remove some tasks
-			this.purgeFinishedTasks();
+			this.purgeFinishedAndLongWaitingTasks();
 			// and try adding the task again
 			try {
 				this.queue.add(task);
@@ -467,14 +537,15 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	 * Iterates over all tasks in {@link #queue} in a batch manner and removes all finished tasks. Tasks that are
 	 * still waiting or running are added to the tail of the queue again.
 	 */
-	private long purgeFinishedTasks() {
+	private long purgeFinishedAndLongWaitingTasks() {
 		if (this.bufferLock.tryLock()) {
 			try {
 				// go through the entire queue, but only once
 				final int queueSize = this.queue.size();
 				//noinspection rawtypes
 				CompositeObjectArray<Task> finishedTaskInDefensePeriod = null;
-				final OffsetDateTime threshold = OffsetDateTime.now().minus(FINISHED_TASKS_KEEP_INTERVAL_MILLIS, ChronoUnit.MILLIS);
+				final OffsetDateTime waitingThreshold = OffsetDateTime.now().minus(FINISHED_TASKS_KEEP_INTERVAL_MILLIS, ChronoUnit.MILLIS);
+				final OffsetDateTime threshold = OffsetDateTime.now().minus(WAITING_TASKS_KEEP_INTERVAL_MILLIS, ChronoUnit.MILLIS);
 				final int batches = queueSize / BUFFER_CAPACITY + 1;
 				for (int i = 0; i < batches; i++) {
 					// effectively withdraw first block of tasks from the queue
@@ -485,9 +556,11 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 						final Task<?, ?> task = it.next();
 						final TaskStatus<?, ?> status = task.getStatus();
 						final TaskSimplifiedState taskState = status.simplifiedState();
-						if (taskState == TaskSimplifiedState.FINISHED || taskState == TaskSimplifiedState.FAILED) {
-							// if task is finished, remove it from the queue
+						if (taskState == TaskSimplifiedState.WAITING_FOR_PRECONDITION && status.created().isBefore(waitingThreshold)) {
+							// if task is waiting for precondition and its issued time is older than the threshold, remove it
 							log.info("Task {} is waiting for precondition for too long, removing it from the queue.", status.taskId());
+							it.remove();
+						} else if (taskState == TaskSimplifiedState.FINISHED || taskState == TaskSimplifiedState.FAILED) {
 							it.remove();
 							// if its defense period hasn't perished add it to list, that might end up in the queue again
 							if (status.finished().isAfter(threshold)) {

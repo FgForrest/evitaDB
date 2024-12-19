@@ -36,15 +36,12 @@ import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.index.price.model.priceRecord.PriceRecordInnerRecordSpecific;
-import io.evitadb.store.entity.model.entity.price.MinimalPriceInternalIdContainer;
-import io.evitadb.store.entity.model.entity.price.PriceInternalIdContainer;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 import static java.util.Optional.ofNullable;
@@ -71,41 +68,13 @@ public class PriceSuperIndex extends AbstractPriceIndex<PriceListAndCurrencyPric
 	 * and currency combination.
 	 */
 	protected final TransactionalMap<PriceIndexKey, PriceListAndCurrencyPriceSuperIndex> priceIndexes;
-	/**
-	 * Contains the sequence for assigning {@link PriceInternalIdContainer#getInternalPriceId()} to a newly encountered
-	 * prices in the input data. See {@link PriceInternalIdContainer} to see the reasons behind it.
-	 */
-	private final AtomicInteger internalPriceIdSequence;
 
 	public PriceSuperIndex() {
-		this.internalPriceIdSequence = new AtomicInteger(0);
 		this.priceIndexes = new TransactionalMap<>(new HashMap<>(), PriceListAndCurrencyPriceSuperIndex.class, Function.identity());
 	}
 
-	public PriceSuperIndex(int internalPriceIdSequenceSeed, @Nonnull Map<PriceIndexKey, PriceListAndCurrencyPriceSuperIndex> priceIndexes) {
-		this.internalPriceIdSequence = new AtomicInteger(internalPriceIdSequenceSeed);
+	public PriceSuperIndex(@Nonnull Map<PriceIndexKey, PriceListAndCurrencyPriceSuperIndex> priceIndexes) {
 		this.priceIndexes = new TransactionalMap<>(priceIndexes, PriceListAndCurrencyPriceSuperIndex.class, Function.identity());
-	}
-
-	private PriceSuperIndex(AtomicInteger internalPriceIdSequenceSeed, @Nonnull Map<PriceIndexKey, PriceListAndCurrencyPriceSuperIndex> priceIndexes) {
-		this.internalPriceIdSequence = internalPriceIdSequenceSeed;
-		this.priceIndexes = new TransactionalMap<>(priceIndexes, PriceListAndCurrencyPriceSuperIndex.class, Function.identity());
-	}
-
-	/**
-	 * Returns the last used id in the sequence for assigning {@link PriceInternalIdContainer#getInternalPriceId()} to
-	 * a newly encountered prices in the input data. See {@link PriceInternalIdContainer} to see the reasons behind it.
-	 */
-	public int getLastAssignedInternalPriceId() {
-		return internalPriceIdSequence.get();
-	}
-
-	/**
-	 * Returns new, unique {@link PriceInternalIdContainer#getInternalPriceId()} from the sequence.
-	 * See {@link PriceInternalIdContainer} to see the reasons behind it.
-	 */
-	public int nextInternalPriceId() {
-		return internalPriceIdSequence.incrementAndGet();
 	}
 
 	/*
@@ -121,9 +90,6 @@ public class PriceSuperIndex extends AbstractPriceIndex<PriceListAndCurrencyPric
 	@Override
 	public PriceSuperIndex createCopyWithMergedTransactionalMemory(@Nullable PriceIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		final PriceSuperIndex priceIndex = new PriceSuperIndex(
-			// we need to pass the atomic integer here because there may be updates pending, and we don't want to lose them
-			// the sequences don't work transactionally
-			internalPriceIdSequence,
 			transactionalLayer.getStateCopyWithCommittedChanges(this.priceIndexes)
 		);
 		ofNullable(layer).ifPresent(it -> it.clean(transactionalLayer));
@@ -158,19 +124,18 @@ public class PriceSuperIndex extends AbstractPriceIndex<PriceListAndCurrencyPric
 	}
 
 	@Override
-	protected PriceInternalIdContainer addPrice(
+	protected int addPrice(
 		@Nonnull PriceListAndCurrencyPriceSuperIndex priceListIndex, int entityPrimaryKey,
-		@Nullable Integer internalPriceId, int priceId, @Nullable Integer innerRecordId,
+		int internalPriceId, int priceId, @Nullable Integer innerRecordId,
 		@Nullable DateTimeRange validity, int priceWithoutTax, int priceWithTax
 	) {
-		final int usedInternalPriceId = ofNullable(internalPriceId).orElseGet(this::nextInternalPriceId);
 		final PriceRecordContract priceRecord = innerRecordId == null ?
-			new PriceRecord(usedInternalPriceId, priceId, entityPrimaryKey, priceWithTax, priceWithoutTax) :
+			new PriceRecord(internalPriceId, priceId, entityPrimaryKey, priceWithTax, priceWithoutTax) :
 			new PriceRecordInnerRecordSpecific(
-				usedInternalPriceId, priceId, entityPrimaryKey, innerRecordId, priceWithTax, priceWithoutTax
+				internalPriceId, priceId, entityPrimaryKey, innerRecordId, priceWithTax, priceWithoutTax
 			);
 		priceListIndex.addPrice(priceRecord, validity);
-		return new MinimalPriceInternalIdContainer(priceRecord.internalPriceId());
+		return priceRecord.internalPriceId();
 	}
 
 	@Override

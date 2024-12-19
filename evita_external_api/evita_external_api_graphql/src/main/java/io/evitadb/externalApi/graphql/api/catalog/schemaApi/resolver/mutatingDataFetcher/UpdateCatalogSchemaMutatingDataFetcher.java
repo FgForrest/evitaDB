@@ -36,8 +36,11 @@ import io.evitadb.externalApi.graphql.api.catalog.resolver.mutation.GraphQLMutat
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.model.UpdateCatalogSchemaQueryHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.WriteDataFetcher;
 import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Map;
 
@@ -48,7 +51,19 @@ import java.util.Map;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class UpdateCatalogSchemaMutatingDataFetcher implements DataFetcher<CatalogSchemaContract>, WriteDataFetcher {
+
+	@Nullable
+	private static UpdateCatalogSchemaMutatingDataFetcher INSTANCE;
+
+	@Nonnull
+	public static UpdateCatalogSchemaMutatingDataFetcher getInstance() {
+		if (INSTANCE == null) {
+			INSTANCE = new UpdateCatalogSchemaMutatingDataFetcher();
+		}
+		return INSTANCE;
+	}
 
 	@Nonnull
 	private final LocalCatalogSchemaMutationAggregateConverter mutationAggregateResolver = new LocalCatalogSchemaMutationAggregateConverter(

@@ -39,11 +39,9 @@ import java.util.stream.Collectors;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link EntityCollectionHeader} from/to binary format.
- * TOBEDONE #538 - Remove this class in the future.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-@Deprecated
 public class EntityCollectionHeaderSerializer extends AbstractPersistentStorageHeaderSerializer<EntityCollectionHeader> {
 
 	@Override
@@ -54,6 +52,7 @@ public class EntityCollectionHeaderSerializer extends AbstractPersistentStorageH
 		output.writeVarLong(object.version(), true);
 		output.writeVarInt(object.lastPrimaryKey(), true);
 		output.writeVarInt(object.lastEntityIndexPrimaryKey(), true);
+		output.writeVarInt(object.lastInternalPriceId(), true);
 		output.writeVarInt(object.recordCount(), true);
 		output.writeDouble(object.activeRecordShare());
 
@@ -74,6 +73,7 @@ public class EntityCollectionHeaderSerializer extends AbstractPersistentStorageH
 		final long version = input.readVarLong(true);
 		final int lastPrimaryKey = input.readVarInt(true);
 		final int lastEntityIndexPrimaryKey = input.readVarInt(true);
+		final int lastInternalPriceId = input.readVarInt(true);
 		final int entityCount = input.readVarInt(true);
 		final double activeRecordShare = input.readDouble();
 		final FileLocation fileOffsetIndexLocation = new FileLocation(
@@ -92,6 +92,7 @@ public class EntityCollectionHeaderSerializer extends AbstractPersistentStorageH
 			entityCount,
 			lastPrimaryKey,
 			lastEntityIndexPrimaryKey,
+			lastInternalPriceId,
 			activeRecordShare,
 			new PersistentStorageHeader(version, fileOffsetIndexLocation, keys),
 			globalIndexKey,

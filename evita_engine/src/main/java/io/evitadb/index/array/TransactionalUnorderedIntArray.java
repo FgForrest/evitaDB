@@ -30,6 +30,7 @@ import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.dataType.iterator.ConstantIntIterator;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.utils.ArrayUtils;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -63,7 +64,7 @@ public class TransactionalUnorderedIntArray implements TransactionalLayerProduce
 	private final UnorderedLookup lookup;
 
 	public TransactionalUnorderedIntArray() {
-		this.lookup = new UnorderedLookup(new int[0]);
+		this.lookup = new UnorderedLookup(ArrayUtils.EMPTY_INT_ARRAY);
 	}
 
 	public TransactionalUnorderedIntArray(int[] delegate) {

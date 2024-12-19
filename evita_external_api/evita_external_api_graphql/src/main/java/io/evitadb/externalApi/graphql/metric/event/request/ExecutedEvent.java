@@ -45,7 +45,7 @@ import java.util.function.Supplier;
 /**
  * JFR Event fired when GQL request is full executed and its response sent to client.
  *
- * @author Lukáš Hornych, 2024
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
 @Name(AbstractGraphQLRequestEvent.PACKAGE_NAME + ".Executed")
 @Description("Event that is fired when a GraphQL request is executed.")

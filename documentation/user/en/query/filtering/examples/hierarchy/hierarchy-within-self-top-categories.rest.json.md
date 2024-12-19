@@ -6,6 +6,7 @@
         "primaryKey": 66466,
         "type": "Category",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],
@@ -19,6 +20,7 @@
         "primaryKey": 66467,
         "type": "Category",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],
@@ -32,6 +34,7 @@
         "primaryKey": 66468,
         "type": "Category",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "cs",
           "de",
@@ -47,6 +50,7 @@
         "primaryKey": 66469,
         "type": "Category",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],
@@ -60,6 +64,7 @@
         "primaryKey": 66470,
         "type": "Category",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],
@@ -73,6 +78,7 @@
         "primaryKey": 347154,
         "type": "Category",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],

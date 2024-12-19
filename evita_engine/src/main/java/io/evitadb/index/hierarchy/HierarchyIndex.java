@@ -88,7 +88,6 @@ import static java.util.Optional.ofNullable;
  */
 public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMemoryProducer<HierarchyIndex>, IndexDataStructure, Serializable {
 	@Serial private static final long serialVersionUID = 4121668650337515744L;
-	private static final int[] EMPTY_ARRAY = new int[0];
 
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
@@ -130,7 +129,7 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 
 	public HierarchyIndex() {
 		this.dirty = new TransactionalBoolean();
-		this.roots = new TransactionalIntArray(EMPTY_ARRAY);
+		this.roots = new TransactionalIntArray(ArrayUtils.EMPTY_INT_ARRAY);
 		this.levelIndex = new TransactionalMap<>(new HashMap<>(32), TransactionalIntArray.class, TransactionalIntArray::new);
 		this.itemIndex = new TransactionalMap<>(new HashMap<>(32));
 		this.orphans = new TransactionalIntArray();

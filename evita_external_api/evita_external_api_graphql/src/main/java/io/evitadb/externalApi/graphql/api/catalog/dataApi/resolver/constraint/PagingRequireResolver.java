@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,12 +25,19 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint;
 
 import graphql.schema.SelectedField;
 import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.require.Spacing;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.SegmentDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ResponseHeaderDescriptor.RecordPageFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ResponseHeaderDescriptor.RecordStripFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
+import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+
+import java.util.Optional;
 
 import static io.evitadb.api.query.QueryConstraints.page;
 import static io.evitadb.api.query.QueryConstraints.strip;
@@ -42,14 +49,25 @@ import static io.evitadb.api.query.QueryConstraints.strip;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@RequiredArgsConstructor
 public class PagingRequireResolver {
+
+	@Nonnull private final EntitySchemaContract entitySchema;
+	@Nonnull private final RequireConstraintResolver requireConstraintResolver;
 
 	@Nonnull
 	public RequireConstraint resolve(@Nonnull SelectedField recordField) {
 		if (recordField.getName().equals(ResponseDescriptor.RECORD_PAGE.name())) {
 			final Integer pageNumber = (Integer) recordField.getArguments().getOrDefault(RecordPageFieldHeaderDescriptor.NUMBER.name(), 1);
 			final Integer pageSize = (Integer) recordField.getArguments().getOrDefault(RecordPageFieldHeaderDescriptor.SIZE.name(), 20);
-			return page(pageNumber, pageSize);
+			final Spacing spacing = (Spacing) Optional.ofNullable(recordField.getArguments().get(RecordPageFieldHeaderDescriptor.SPACING.name()))
+				.map(it -> requireConstraintResolver.resolve(
+					new SegmentDataLocator(new ManagedEntityTypePointer(entitySchema.getName())),
+					RecordPageFieldHeaderDescriptor.SPACING.name(),
+					it
+				))
+				.orElse(null);
+			return page(pageNumber, pageSize, spacing);
 		} else if (recordField.getName().equals(ResponseDescriptor.RECORD_STRIP.name())) {
 			final Integer offset = (Integer) recordField.getArguments().getOrDefault(RecordStripFieldHeaderDescriptor.OFFSET.name(), 0);
 			final Integer limit = (Integer) recordField.getArguments().getOrDefault(RecordStripFieldHeaderDescriptor.LIMIT.name(), 20);

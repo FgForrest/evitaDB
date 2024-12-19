@@ -21,4 +21,4 @@
 | 104744           | 🔗 104008: 'alternativeProduct'                                                                   | 📄 Product: 104008                                         |
 | 104761           | 🔗 104526: 'alternativeProduct', 🔗 104843: 'alternativeProduct'                                  | 📄 Product: 104526, 📄 Product: 104843                     |
 
-###### **Page** 1/146 **(Total number of results: 2918)**
+###### **Page** 1/145 **(Total number of results: 2892)**

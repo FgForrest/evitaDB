@@ -28,6 +28,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.ValueNode;
+import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ByteNumberRange;
 import io.evitadb.dataType.DateTimeRange;
@@ -37,6 +38,7 @@ import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.ShortNumberRange;
+import io.evitadb.dataType.expression.Expression;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiConstants;
 import io.evitadb.externalApi.rest.api.openApi.SchemaUtils;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
@@ -169,6 +171,8 @@ public class DataDeserializer {
 			return (T) new Predecessor(value.intValue());
 		} else if (ReferencedEntityPredecessor.class.isAssignableFrom(targetClass)) {
 			return (T) new ReferencedEntityPredecessor(value.intValue());
+		} else if (Expression.class.isAssignableFrom(targetClass)) {
+			return (T) ExpressionFactory.parse(value.asText());
 		} else if (targetClass.isEnum()) {
 			return deserializeEnum(targetClass, value);
 		}
@@ -260,8 +264,12 @@ public class DataDeserializer {
 	private <T extends Serializable> T deserializeValue(@Nonnull Class<T> requestedType, @Nonnull String data) {
 		if (requestedType.isEnum()) {
 			return deserializeEnum(requestedType, data);
+		} else if (Expression.class.isAssignableFrom(requestedType)) {
+			//noinspection unchecked
+			return (T) ExpressionFactory.parse(data);
+		} else {
+			return EvitaDataTypes.toTargetType(data, requestedType);
 		}
-		return EvitaDataTypes.toTargetType(data, requestedType);
 	}
 
 
@@ -442,6 +450,7 @@ public class DataDeserializer {
 				case OpenApiConstants.FORMAT_CHAR -> Character.class;
 				case OpenApiConstants.FORMAT_DECIMAL -> BigDecimal.class;
 				case OpenApiConstants.FORMAT_INT_64 -> Long.class;
+				case OpenApiConstants.FORMAT_EXPRESSION -> Expression.class;
 				default -> throw new RestInternalError("Unknown schema format " + schema.getFormat() + " for String type.");
 			};
 		}

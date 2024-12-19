@@ -36,6 +36,7 @@ import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.store.service.KryoFactory;
+import io.evitadb.store.service.SharedClassesConfigurer;
 import io.evitadb.test.Entities;
 import io.evitadb.test.TestConstants;
 import io.evitadb.utils.NamingConvention;
@@ -67,7 +68,7 @@ class SchemaSerializationServiceTest {
 	void shouldSerializeAndDeserializeSchema() {
 		final EntitySchema productSchema = EntitySchema._internalBuild(Entities.PRODUCT);
 		final ByteArrayOutputStream baos = new ByteArrayOutputStream(2048);
-		final Kryo kryo = KryoFactory.createKryo(SchemaKryoConfigurer.INSTANCE);
+		final Kryo kryo = KryoFactory.createKryo(SchemaKryoConfigurer.INSTANCE.andThen(SharedClassesConfigurer.INSTANCE));
 		final EntitySchemaContract createdSchema = constructSomeSchema(
 				new InternalEntitySchemaBuilder(
 						CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, NamingConvention.generate(TestConstants.TEST_CATALOG), EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE),

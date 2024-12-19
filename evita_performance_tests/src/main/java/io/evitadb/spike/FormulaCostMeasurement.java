@@ -237,7 +237,7 @@ public class FormulaCostMeasurement {
 
 	@Benchmark
 	public void histogramBitmapSupplier(BucketsRecordState bucketDataSet, Blackhole blackhole) {
-		final HistogramBitmapSupplier<Integer> testedFormula = new HistogramBitmapSupplier<>(
+		final HistogramBitmapSupplier testedFormula = new HistogramBitmapSupplier(
 			bucketDataSet.getBuckets()
 		);
 		blackhole.consume(testedFormula.get());

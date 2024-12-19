@@ -72,7 +72,7 @@ public class ModifyEntitySchemaDescriptionMutation implements CombinableLocalEnt
 		}
 	}
 
-	@Nullable
+	@Nonnull
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
@@ -84,11 +84,13 @@ public class ModifyEntitySchemaDescriptionMutation implements CombinableLocalEnt
 				entitySchema.version() + 1,
 				entitySchema.getName(),
 				entitySchema.getNameVariants(),
-				description,
+				this.description,
 				entitySchema.getDeprecationNotice(),
 				entitySchema.isWithGeneratedPrimaryKey(),
 				entitySchema.isWithHierarchy(),
+				entitySchema.getHierarchyIndexedInScopes(),
 				entitySchema.isWithPrice(),
+				entitySchema.getPriceIndexedInScopes(),
 				entitySchema.getIndexedPricePlaces(),
 				entitySchema.getLocales(),
 				entitySchema.getCurrencies(),
@@ -110,6 +112,6 @@ public class ModifyEntitySchemaDescriptionMutation implements CombinableLocalEnt
 	@Override
 	public String toString() {
 		return "Modify entity schema: " +
-			"description='" + description + '\'';
+			"description='" + this.description + '\'';
 	}
 }

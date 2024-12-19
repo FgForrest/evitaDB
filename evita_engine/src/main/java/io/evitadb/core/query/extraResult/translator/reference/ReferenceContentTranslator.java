@@ -35,6 +35,7 @@ import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Optional;
@@ -53,7 +54,7 @@ public class ReferenceContentTranslator implements RequireConstraintTranslator<R
 
 	@Nullable
 	@Override
-	public ExtraResultProducer apply(ReferenceContent referenceContent, ExtraResultPlanningVisitor extraResultPlanningVisitor) {
+	public ExtraResultProducer createProducer(@Nonnull ReferenceContent referenceContent, @Nonnull ExtraResultPlanningVisitor extraResultPlanningVisitor) {
 		if (extraResultPlanningVisitor.isEntityTypeKnown()) {
 			final Optional<EntitySchemaContract> entitySchema = extraResultPlanningVisitor.getCurrentEntitySchema();
 

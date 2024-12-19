@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.configuration;
 
+import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NetworkUtils;
 import lombok.Getter;
@@ -125,7 +126,7 @@ public abstract class AbstractApiConfiguration {
 	protected AbstractApiConfiguration(
 		@Nullable Boolean enabled,
 		@Nonnull String host,
-		@Nonnull String exposeOn,
+		@Nullable String exposeOn,
 		@Nullable String tlsMode,
 		@Nullable Boolean keepAlive
 	) {
@@ -159,6 +160,28 @@ public abstract class AbstractApiConfiguration {
 			.map(it -> it.contains("://") ? it : (getTlsMode() == TlsMode.FORCE_NO_TLS ? "http://" : "https://") + it)
 			.map(it -> it + (this instanceof ApiWithSpecificPrefix withSpecificPrefix ? "/" + withSpecificPrefix.getPrefix() + "/" : "/"))
 			.toArray(String[]::new);
+	}
+
+	/**
+	 * Returns URL on which the API is exposed on based on config.
+	 */
+	@Nonnull
+	public String getResolvedExposeOnUrl() {
+		return Stream.concat(
+				Arrays.stream(getHost())
+					.map(HostDefinition::port)
+					.distinct()
+					.flatMap(
+						port -> ofNullable(getExposeOn())
+							.map(it -> it.contains(":") ? it : it + ":" + port)
+							.stream()
+					),
+				Arrays.stream(getHost())
+					.map(HostDefinition::hostAddressWithPort)
+			)
+			.map(it -> it.contains("://") ? it : (getTlsMode() == TlsMode.FORCE_NO_TLS ? "http://" : "https://") + it)
+			.findFirst()
+			.orElseThrow(() -> new ExternalApiInternalError("No API access URL found."));
 	}
 
 	/**

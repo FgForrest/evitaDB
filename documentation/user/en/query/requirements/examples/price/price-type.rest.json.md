@@ -5,6 +5,7 @@
       "primaryKey": 105148,
       "type": "Product",
       "version": 1,
+      "scope": "LIVE",
       "allLocales": [
         "en"
       ],
@@ -42,7 +43,8 @@
     {
       "primaryKey": 106105,
       "type": "Product",
-      "version": 1,
+      "version": 2,
+      "scope": "LIVE",
       "allLocales": [
         "en"
       ],
@@ -93,6 +95,7 @@
       "primaryKey": 106106,
       "type": "Product",
       "version": 1,
+      "scope": "LIVE",
       "allLocales": [
         "en"
       ],
@@ -131,6 +134,7 @@
       "primaryKey": 107130,
       "type": "Product",
       "version": 1,
+      "scope": "LIVE",
       "allLocales": [
         "en"
       ],
@@ -169,6 +173,7 @@
       "primaryKey": 108599,
       "type": "Product",
       "version": 1,
+      "scope": "LIVE",
       "allLocales": [
         "en"
       ],
@@ -207,6 +212,7 @@
       "primaryKey": 113110,
       "type": "Product",
       "version": 1,
+      "scope": "LIVE",
       "allLocales": [
         "en"
       ],
@@ -245,6 +251,7 @@
       "primaryKey": 113302,
       "type": "Product",
       "version": 1,
+      "scope": "LIVE",
       "allLocales": [
         "en"
       ],
@@ -283,6 +290,7 @@
       "primaryKey": 113660,
       "type": "Product",
       "version": 1,
+      "scope": "LIVE",
       "allLocales": [
         "en"
       ],
@@ -321,6 +329,7 @@
       "primaryKey": 113725,
       "type": "Product",
       "version": 1,
+      "scope": "LIVE",
       "allLocales": [
         "en"
       ],
@@ -359,6 +368,7 @@
       "primaryKey": 113762,
       "type": "Product",
       "version": 1,
+      "scope": "LIVE",
       "allLocales": [
         "en"
       ],

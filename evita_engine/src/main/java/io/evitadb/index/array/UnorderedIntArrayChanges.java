@@ -41,6 +41,7 @@ import java.util.Arrays;
  */
 @NotThreadSafe
 public class UnorderedIntArrayChanges implements ArrayChangesIteratorSupport {
+	private static final UnorderedLookup[] EMPTY_LOOKUP_ARRAY = new UnorderedLookup[0];
 	/**
 	 * The lookup from {@link TransactionalUnorderedIntArray}.
 	 */
@@ -48,16 +49,16 @@ public class UnorderedIntArrayChanges implements ArrayChangesIteratorSupport {
 	/**
 	 * Array of positions (indexes) in delegate array where insertions are expected to occur.
 	 */
-	private int[] insertions = new int[0];
+	private int[] insertions = ArrayUtils.EMPTY_INT_ARRAY;
 	/**
 	 * Array where there are recordIds expected to be inserted at particular position in delegate. The position is
 	 * retrieved from {@link #insertions} on the same index as index in this array.
 	 */
-	private UnorderedLookup[] insertedValues = new UnorderedLookup[0];
+	private UnorderedLookup[] insertedValues = EMPTY_LOOKUP_ARRAY;
 	/**
 	 * Array of positions (indexes) in delegate array where removals are expected to occur.
 	 */
-	private int[] removals = new int[0];
+	private int[] removals = ArrayUtils.EMPTY_INT_ARRAY;
 	/**
 	 * Temporary intermediate result of the last {@link #getMergedArray()} operation. Nullified
 	 * immediately with next change.

@@ -35,6 +35,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.GlobalAttributeSchemaD
 import io.evitadb.externalApi.api.catalog.schemaApi.model.GlobalAttributeSchemasDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalCatalogSchemaMutationAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.CreateGlobalAttributeSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedGlobalAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.SetAttributeSchemaGloballyUniqueMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.AllowEvolutionModeInCatalogSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.DisallowEvolutionModeInCatalogSchemaMutationDescriptor;
@@ -109,7 +110,7 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 		return new BuiltFieldDescriptor(
 			CatalogSchemaApiRootDescriptor.GET_CATALOG_SCHEMA.to(staticEndpointBuilderTransformer).build(),
 			new AsyncDataFetcher(
-				new CatalogSchemaDataFetcher(),
+				CatalogSchemaDataFetcher.getInstance(),
 				buildingContext.getConfig(),
 				buildingContext.getTracingContext(),
 				buildingContext.getEvita()
@@ -135,7 +136,7 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 		buildingContext.registerDataFetcher(
 			CatalogSchemaDescriptor.THIS,
 			CatalogSchemaDescriptor.ALL_ATTRIBUTES,
-			new AllAttributeSchemasDataFetcher()
+			AllAttributeSchemasDataFetcher.getInstance()
 		);
 
 		if (!buildingContext.getEntitySchemas().isEmpty()) {
@@ -148,7 +149,7 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 		buildingContext.registerDataFetcher(
 			CatalogSchemaDescriptor.THIS,
 			CatalogSchemaDescriptor.ALL_ENTITY_SCHEMAS,
-			new AllEntitySchemasDataFetcher()
+			AllEntitySchemasDataFetcher.getInstance()
 		);
 
 		return schemaObjectBuilder.build();
@@ -169,7 +170,7 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 
 		return new BuiltFieldDescriptor(
 			attributeSchemasField,
-			new AttributeSchemasDataFetcher()
+			AttributeSchemasDataFetcher.getInstance()
 		);
 	}
 
@@ -221,7 +222,7 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 
 		return new BuiltFieldDescriptor(
 			entitySchemasField,
-			new CatalogEntitySchemasDataFetcher()
+			CatalogEntitySchemasDataFetcher.getInstance()
 		);
 	}
 
@@ -255,17 +256,17 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 		buildingContext.registerDataFetcher(
 			EntitySchemaDescriptor.THIS_GENERIC,
 			EntitySchemaDescriptor.ALL_ATTRIBUTES,
-			new AllAttributeSchemasDataFetcher()
+			AllAttributeSchemasDataFetcher.getInstance()
 		);
 		buildingContext.registerDataFetcher(
 			EntitySchemaDescriptor.THIS_GENERIC,
 			EntitySchemaDescriptor.ALL_ASSOCIATED_DATA,
-			new AllAssociatedDataSchemasDataFetcher()
+			AllAssociatedDataSchemasDataFetcher.getInstance()
 		);
 		buildingContext.registerDataFetcher(
 			EntitySchemaDescriptor.THIS_GENERIC,
 			EntitySchemaDescriptor.ALL_REFERENCES,
-			new AllReferenceSchemasDataFetcher()
+			AllReferenceSchemasDataFetcher.getInstance()
 		);
 
 		return EntitySchemaDescriptor.THIS_GENERIC
@@ -287,7 +288,7 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 		return new BuiltFieldDescriptor(
 			catalogSchemaField,
 			new AsyncDataFetcher(
-				new UpdateCatalogSchemaMutatingDataFetcher(),
+				UpdateCatalogSchemaMutatingDataFetcher.getInstance(),
 				buildingContext.getConfig(),
 				buildingContext.getTracingContext(),
 				buildingContext.getEvita()

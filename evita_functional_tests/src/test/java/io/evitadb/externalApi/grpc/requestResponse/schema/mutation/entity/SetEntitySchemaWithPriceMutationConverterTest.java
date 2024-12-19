@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.entity;
 
 import io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWithPriceMutation;
+import io.evitadb.dataType.Scope;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -41,7 +42,7 @@ class SetEntitySchemaWithPriceMutationConverterTest {
 	@Test
 	void shouldConvertMutation() {
 		final SetEntitySchemaWithPriceMutation mutation1 = new SetEntitySchemaWithPriceMutation(
-			true, 2
+			true, new Scope[] { Scope.LIVE }, 2
 		);
 		assertEquals(mutation1, converter.convert(converter.convert(mutation1)));
 	}

@@ -26,14 +26,15 @@ package io.evitadb.store.spi;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
-import io.evitadb.core.async.ClientRunnableTask;
+import io.evitadb.api.task.ServerTask;
 import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.file.ExportFileService;
 import io.evitadb.store.exception.InvalidStoragePathException;
 import io.evitadb.store.spi.exception.DirectoryNotEmptyException;
 
 import javax.annotation.Nonnull;
-import java.io.InputStream;
+import java.nio.file.Path;
+import java.util.UUID;
 
 /**
  * This interface and layer of abstraction was introduced because we want to split data storage / serialization and
@@ -92,19 +93,38 @@ public interface CatalogPersistenceServiceFactory {
 	 *
 	 * @param catalogName name of the catalog
 	 * @param storageOptions storage options
+	 * @param fileId			   The ID of the file to be restored.
+	 * @param pathToFile path to the file to be restored
 	 * @param totalBytesExpected total bytes expected to be read from the input stream
-	 * @param inputStream input stream with the catalog data
+	 * @param deleteAfterRestore whether to delete the ZIP file after restore
 	 * @return normalized name of the catalog to be created in storage directory
 	 *
 	 * @throws DirectoryNotEmptyException if the directory is not empty
 	 * @throws InvalidStoragePathException if the storage path is invalid
 	 */
 	@Nonnull
-	ClientRunnableTask<?> restoreCatalogTo(
+	ServerTask<? extends FileIdCarrier, Void> restoreCatalogTo(
 		@Nonnull String catalogName,
 		@Nonnull StorageOptions storageOptions,
+		@Nonnull UUID fileId,
+		@Nonnull Path pathToFile,
 		long totalBytesExpected,
-		@Nonnull InputStream inputStream
+		boolean deleteAfterRestore
 	) throws DirectoryNotEmptyException, InvalidStoragePathException;
+
+	/**
+	 * This interface is implemented by a task settings that take care of catalog restoration.
+	 */
+	interface FileIdCarrier {
+
+		/**
+		 * Retrieves the unique identifier for the file associated with this task settings.
+		 *
+		 * @return A non-null UUID representing the unique identifier of the file.
+		 */
+		@Nonnull
+		UUID fileId();
+
+	}
 
 }

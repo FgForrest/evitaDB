@@ -3,7 +3,7 @@
   "width": {
     "min": "15.90",
     "max": "508.00",
-    "overallCount": 2195,
+    "overallCount": 2163,
     "buckets": [
       {
         "threshold": "15.90",
@@ -17,7 +17,7 @@
       },
       {
         "threshold": "65.12",
-        "occurrences": 249,
+        "occurrences": 217,
         "requested": true
       },
       {
@@ -110,7 +110,7 @@
   "height": {
     "min": "25.00",
     "max": "293.00",
-    "overallCount": 503,
+    "overallCount": 495,
     "buckets": [
       {
         "threshold": "25.00",
@@ -164,7 +164,7 @@
       },
       {
         "threshold": "159.00",
-        "occurrences": 230,
+        "occurrences": 222,
         "requested": true
       },
       {

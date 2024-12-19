@@ -82,7 +82,7 @@ public class ModifyEntitySchemaNameMutation implements LocalCatalogSchemaMutatio
 		return new CatalogSchemaWithImpactOnEntitySchemas(catalogSchema);
 	}
 
-	@Nullable
+	@Nonnull
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.notNull(
@@ -101,7 +101,9 @@ public class ModifyEntitySchemaNameMutation implements LocalCatalogSchemaMutatio
 				entitySchema.getDeprecationNotice(),
 				entitySchema.isWithGeneratedPrimaryKey(),
 				entitySchema.isWithHierarchy(),
+				entitySchema.getHierarchyIndexedInScopes(),
 				entitySchema.isWithPrice(),
+				entitySchema.getPriceIndexedInScopes(),
 				entitySchema.getIndexedPricePlaces(),
 				entitySchema.getLocales(),
 				entitySchema.getCurrencies(),

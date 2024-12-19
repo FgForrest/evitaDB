@@ -27,16 +27,20 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaRepresentativeMutation;
+import io.evitadb.dataType.Scope;
 import lombok.experimental.Delegate;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
@@ -72,9 +76,13 @@ public final class EntityAttributeSchemaBuilder
 				baseSchema.getName(),
 				baseSchema.getDescription(),
 				baseSchema.getDeprecationNotice(),
-				baseSchema.getUniquenessType(),
-				baseSchema.isFilterable(),
-				baseSchema.isSortable(),
+				Arrays.stream(Scope.values())
+					.map(scope -> new ScopedAttributeUniquenessType(scope, baseSchema.getUniquenessType(scope)))
+					// filter out default values
+					.filter(it -> it.uniquenessType() != AttributeUniquenessType.NOT_UNIQUE)
+					.toArray(ScopedAttributeUniquenessType[]::new),
+				Arrays.stream(Scope.values()).filter(baseSchema::isFilterableInScope).toArray(Scope[]::new),
+				Arrays.stream(Scope.values()).filter(baseSchema::isSortableInScope).toArray(Scope[]::new),
 				baseSchema.isLocalized(),
 				baseSchema.isNullable(),
 				baseSchema.isRepresentative(),

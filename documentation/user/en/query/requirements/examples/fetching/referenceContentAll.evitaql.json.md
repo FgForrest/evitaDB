@@ -99,7 +99,7 @@
         ],
         "tags": [
           {
-            "group": 0,
+            "group": 9,
             "referencedKey": 15
           }
         ]

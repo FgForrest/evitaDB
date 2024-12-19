@@ -99,11 +99,11 @@ public class RemoveSortableAttributeCompoundSchemaMutation
 		return null;
 	}
 
-	@Nullable
+	@Nonnull
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		final Optional<SortableAttributeCompoundSchemaContract> existingAttributeSchema = entitySchema.getSortableAttributeCompound(name);
+		final Optional<SortableAttributeCompoundSchemaContract> existingAttributeSchema = entitySchema.getSortableAttributeCompound(this.name);
 		if (existingAttributeSchema.isEmpty()) {
 			// the sortable attribute compound schema was already removed - or just doesn't exist,
 			// so we can simply return current schema
@@ -117,7 +117,9 @@ public class RemoveSortableAttributeCompoundSchemaMutation
 				entitySchema.getDeprecationNotice(),
 				entitySchema.isWithGeneratedPrimaryKey(),
 				entitySchema.isWithHierarchy(),
+				entitySchema.getHierarchyIndexedInScopes(),
 				entitySchema.isWithPrice(),
+				entitySchema.getPriceIndexedInScopes(),
 				entitySchema.getIndexedPricePlaces(),
 				entitySchema.getLocales(),
 				entitySchema.getCurrencies(),
@@ -128,7 +130,7 @@ public class RemoveSortableAttributeCompoundSchemaMutation
 				entitySchema.getSortableAttributeCompounds()
 					.entrySet()
 					.stream()
-					.filter(it -> !Objects.equals(name, it.getKey()))
+					.filter(it -> !Objects.equals(this.name, it.getKey()))
 					.collect(
 						Collectors.toMap(
 							Map.Entry::getKey,
@@ -143,7 +145,7 @@ public class RemoveSortableAttributeCompoundSchemaMutation
 	@Override
 	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
-		final Optional<SortableAttributeCompoundSchemaContract> existingCompoundSchema = getReferenceSortableAttributeCompoundSchema(referenceSchema, name);
+		final Optional<SortableAttributeCompoundSchemaContract> existingCompoundSchema = getReferenceSortableAttributeCompoundSchema(referenceSchema, this.name);
 		if (existingCompoundSchema.isEmpty()) {
 			// the attribute schema was already removed - or just doesn't exist,
 			// so we can simply return current schema
@@ -155,7 +157,7 @@ public class RemoveSortableAttributeCompoundSchemaMutation
 						reflectedReferenceSchema.getDeclaredSortableAttributeCompounds()
 							.entrySet()
 							.stream()
-							.filter(it -> !Objects.equals(name, it.getKey()))
+							.filter(it -> !Objects.equals(this.name, it.getKey()))
 							.collect(
 								Collectors.toMap(
 									Map.Entry::getKey,
@@ -169,20 +171,20 @@ public class RemoveSortableAttributeCompoundSchemaMutation
 					referenceSchema.getNameVariants(),
 					referenceSchema.getDescription(),
 					referenceSchema.getDeprecationNotice(),
+					referenceSchema.getCardinality(),
 					referenceSchema.getReferencedEntityType(),
 					referenceSchema.getEntityTypeNameVariants(entityType -> null),
 					referenceSchema.isReferencedEntityTypeManaged(),
-					referenceSchema.getCardinality(),
 					referenceSchema.getReferencedGroupType(),
 					referenceSchema.getGroupTypeNameVariants(entityType -> null),
 					referenceSchema.isReferencedGroupTypeManaged(),
-					referenceSchema.isIndexed(),
-					referenceSchema.isFaceted(),
+					referenceSchema.getIndexedInScopes(),
+					referenceSchema.getFacetedInScopes(),
 					referenceSchema.getAttributes(),
 					referenceSchema.getSortableAttributeCompounds()
 						.entrySet()
 						.stream()
-						.filter(it -> !Objects.equals(name, it.getKey()))
+						.filter(it -> !Objects.equals(this.name, it.getKey()))
 						.collect(
 							Collectors.toMap(
 								Map.Entry::getKey,
@@ -203,7 +205,7 @@ public class RemoveSortableAttributeCompoundSchemaMutation
 	@Override
 	public String toString() {
 		return "Remove sortable attribute compound schema: " +
-			"name='" + name + '\'';
+			"name='" + this.name + '\'';
 	}
 
 }

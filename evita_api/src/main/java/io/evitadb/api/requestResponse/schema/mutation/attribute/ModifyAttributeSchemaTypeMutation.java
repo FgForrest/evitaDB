@@ -139,17 +139,19 @@ public class ModifyAttributeSchemaTypeMutation
 		Assert.isPremiseValid(attributeSchema != null, "Attribute schema is mandatory!");
 		@SuppressWarnings("rawtypes")
 		final Class newType = EvitaDataTypes.toWrappedForm(type);
-		if (attributeSchema instanceof GlobalAttributeSchema globalAttributeSchema) {
+		if (newType.equals(attributeSchema.getType()) && indexedDecimalPlaces == attributeSchema.getIndexedDecimalPlaces()) {
+			return attributeSchema;
+		} else if (attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema) {
 			//noinspection unchecked
 			return (S) GlobalAttributeSchema._internalBuild(
 				name,
 				globalAttributeSchema.getNameVariants(),
 				globalAttributeSchema.getDescription(),
 				globalAttributeSchema.getDeprecationNotice(),
-				globalAttributeSchema.getUniquenessType(),
-				globalAttributeSchema.getGlobalUniquenessType(),
-				globalAttributeSchema.isFilterable(),
-				globalAttributeSchema.isSortable(),
+				globalAttributeSchema.getUniquenessTypeInScopes(),
+				globalAttributeSchema.getGlobalUniquenessTypeInScopes(),
+				globalAttributeSchema.getFilterableInScopes(),
+				globalAttributeSchema.getSortableInScopes(),
 				globalAttributeSchema.isLocalized(),
 				globalAttributeSchema.isNullable(),
 				globalAttributeSchema.isRepresentative(),
@@ -159,16 +161,16 @@ public class ModifyAttributeSchemaTypeMutation
 					.orElse(null),
 				indexedDecimalPlaces
 			);
-		} else if (attributeSchema instanceof EntityAttributeSchema entityAttributeSchema) {
+		} else if (attributeSchema instanceof EntityAttributeSchemaContract entityAttributeSchema) {
 			//noinspection unchecked
 			return (S) EntityAttributeSchema._internalBuild(
-				name,
+				this.name,
 				entityAttributeSchema.getNameVariants(),
 				entityAttributeSchema.getDescription(),
 				entityAttributeSchema.getDeprecationNotice(),
-				entityAttributeSchema.getUniquenessType(),
-				entityAttributeSchema.isFilterable(),
-				entityAttributeSchema.isSortable(),
+				entityAttributeSchema.getUniquenessTypeInScopes(),
+				entityAttributeSchema.getFilterableInScopes(),
+				entityAttributeSchema.getSortableInScopes(),
 				entityAttributeSchema.isLocalized(),
 				entityAttributeSchema.isNullable(),
 				entityAttributeSchema.isRepresentative(),
@@ -176,25 +178,25 @@ public class ModifyAttributeSchemaTypeMutation
 				ofNullable(entityAttributeSchema.getDefaultValue())
 					.map(it -> EvitaDataTypes.toTargetType(it, newType))
 					.orElse(null),
-				indexedDecimalPlaces
+				this.indexedDecimalPlaces
 			);
-		} else {
+		} else  {
 			//noinspection unchecked
 			return (S) AttributeSchema._internalBuild(
-				name,
+				this.name,
 				attributeSchema.getNameVariants(),
 				attributeSchema.getDescription(),
 				attributeSchema.getDeprecationNotice(),
-				attributeSchema.getUniquenessType(),
-				attributeSchema.isFilterable(),
-				attributeSchema.isSortable(),
+				attributeSchema.getUniquenessTypeInScopes(),
+				attributeSchema.getFilterableInScopes(),
+				attributeSchema.getSortableInScopes(),
 				attributeSchema.isLocalized(),
 				attributeSchema.isNullable(),
 				newType,
 				ofNullable(attributeSchema.getDefaultValue())
 					.map(it -> EvitaDataTypes.toTargetType(it, newType))
 					.orElse(null),
-				indexedDecimalPlaces
+				this.indexedDecimalPlaces
 			);
 		}
 	}
@@ -215,7 +217,7 @@ public class ModifyAttributeSchemaTypeMutation
 		);
 	}
 
-	@Nullable
+	@Nonnull
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");

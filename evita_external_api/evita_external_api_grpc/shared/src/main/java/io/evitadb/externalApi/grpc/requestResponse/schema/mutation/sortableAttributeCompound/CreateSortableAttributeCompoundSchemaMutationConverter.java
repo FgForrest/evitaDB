@@ -26,7 +26,9 @@ package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.sortableAttr
 import com.google.protobuf.StringValue;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.CreateSortableAttributeCompoundSchemaMutation;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation;
+import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.EntitySchemaConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
 import lombok.AccessLevel;
@@ -45,19 +47,14 @@ public class CreateSortableAttributeCompoundSchemaMutationConverter implements S
 	public static final CreateSortableAttributeCompoundSchemaMutationConverter INSTANCE = new CreateSortableAttributeCompoundSchemaMutationConverter();
 
 	@Nonnull
-	public CreateSortableAttributeCompoundSchemaMutation convert(@Nonnull GrpcCreateSortableAttributeCompoundSchemaMutation mutation) {
-		return new CreateSortableAttributeCompoundSchemaMutation(
-			mutation.getName(),
-			mutation.hasDescription() ? mutation.getDescription().getValue() : null,
-			mutation.hasDeprecationNotice() ? mutation.getDeprecationNotice().getValue() : null,
-			EntitySchemaConverter.toAttributeElement(mutation.getAttributeElementsList()).toArray(AttributeElement[]::new)
-		);
-	}
-
-	@Nonnull
 	public GrpcCreateSortableAttributeCompoundSchemaMutation convert(@Nonnull CreateSortableAttributeCompoundSchemaMutation mutation) {
 		final GrpcCreateSortableAttributeCompoundSchemaMutation.Builder builder = GrpcCreateSortableAttributeCompoundSchemaMutation.newBuilder()
 			.setName(mutation.getName())
+			.addAllIndexedInScopes(
+				Arrays.stream(mutation.getIndexedInScopes())
+					.map(EvitaEnumConverter::toGrpcScope)
+					.toList()
+			)
 			.addAllAttributeElements(EntitySchemaConverter.toGrpcAttributeElement(Arrays.asList(mutation.getAttributeElements())));
 
 		if (mutation.getDescription() != null) {
@@ -68,5 +65,19 @@ public class CreateSortableAttributeCompoundSchemaMutationConverter implements S
 		}
 
 		return builder.build();
+	}
+
+	@Nonnull
+	public CreateSortableAttributeCompoundSchemaMutation convert(@Nonnull GrpcCreateSortableAttributeCompoundSchemaMutation mutation) {
+		return new CreateSortableAttributeCompoundSchemaMutation(
+			mutation.getName(),
+			mutation.hasDescription() ? mutation.getDescription().getValue() : null,
+			mutation.hasDeprecationNotice() ? mutation.getDeprecationNotice().getValue() : null,
+			mutation.getIndexedInScopesList()
+				.stream()
+				.map(EvitaEnumConverter::toScope)
+				.toArray(Scope[]::new),
+			EntitySchemaConverter.toAttributeElement(mutation.getAttributeElementsList()).toArray(AttributeElement[]::new)
+		);
 	}
 }

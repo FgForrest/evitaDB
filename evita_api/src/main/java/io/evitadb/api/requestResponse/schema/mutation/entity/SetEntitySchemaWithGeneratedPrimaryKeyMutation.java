@@ -73,7 +73,7 @@ public class SetEntitySchemaWithGeneratedPrimaryKeyMutation implements Combinabl
 		}
 	}
 
-	@Nullable
+	@Nonnull
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
@@ -87,9 +87,11 @@ public class SetEntitySchemaWithGeneratedPrimaryKeyMutation implements Combinabl
 				entitySchema.getNameVariants(),
 				entitySchema.getDescription(),
 				entitySchema.getDeprecationNotice(),
-				withGeneratedPrimaryKey,
+				this.withGeneratedPrimaryKey,
 				entitySchema.isWithHierarchy(),
+				entitySchema.getHierarchyIndexedInScopes(),
 				entitySchema.isWithPrice(),
+				entitySchema.getPriceIndexedInScopes(),
 				entitySchema.getIndexedPricePlaces(),
 				entitySchema.getLocales(),
 				entitySchema.getCurrencies(),
@@ -111,6 +113,6 @@ public class SetEntitySchemaWithGeneratedPrimaryKeyMutation implements Combinabl
 	@Override
 	public String toString() {
 		return "Set entity schema: " +
-			"withGeneratedPrimaryKey=" + withGeneratedPrimaryKey;
+			"withGeneratedPrimaryKey=" + this.withGeneratedPrimaryKey;
 	}
 }

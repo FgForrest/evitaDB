@@ -6,7 +6,8 @@
       "groupEntity": {
         "primaryKey": 66514,
         "type": "Parameter",
-        "version": 1,
+        "version": 2,
+        "scope": "LIVE",
         "allLocales": [
           "cs",
           "en"
@@ -24,7 +25,8 @@
           "facetEntity": {
             "primaryKey": 104630,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -41,7 +43,8 @@
           "facetEntity": {
             "primaryKey": 108443,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],
@@ -58,7 +61,8 @@
           "facetEntity": {
             "primaryKey": 108475,
             "type": "ParameterValue",
-            "version": 1,
+            "version": 2,
+            "scope": "LIVE",
             "allLocales": [
               "en"
             ],

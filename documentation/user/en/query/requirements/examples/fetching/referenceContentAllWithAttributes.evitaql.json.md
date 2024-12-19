@@ -16,6 +16,7 @@
           {
             "referencedKey": 66472,
             "attributes": {
+              "categoryPriority": 0,
               "orderInCategory": "Predecessor[predecessorPk=-1]"
             }
           }
@@ -252,7 +253,7 @@
         ],
         "tags": [
           {
-            "group": 0,
+            "group": 9,
             "referencedKey": 10
           }
         ]

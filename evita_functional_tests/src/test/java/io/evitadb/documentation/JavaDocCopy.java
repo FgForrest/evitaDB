@@ -173,7 +173,7 @@ public class JavaDocCopy implements EvitaTestSupport {
 			final String javaDocToReplace = getJavaDocForReplacing(descriptor);
 
 			// replace the JavaDoc in the block
-			final String result = JAVA_DOC_REPLACE.matcher(originalCode).replaceFirst(javaDocToReplace);
+			final String result = JAVA_DOC_REPLACE.matcher(Matcher.quoteReplacement(originalCode)).replaceFirst(Matcher.quoteReplacement(javaDocToReplace));
 			final String[] newLines = result.split("\n");
 
 			// clear original block of code

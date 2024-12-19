@@ -234,7 +234,7 @@ abstract class ExistingAttributesBuilder<S extends AttributeSchemaContract, T ex
 	@Nonnull
 	public T removeAttribute(@Nonnull String attributeName) {
 		final AttributeKey attributeKey = new AttributeKey(attributeName);
-		if (this.baseAttributes.getAttributeValueWithoutSchemaCheck(attributeKey).isEmpty()) {
+		if (this.baseAttributes.getAttributeValueWithoutSchemaCheck(attributeKey).filter(Droppable::exists).isEmpty()) {
 			this.attributeMutations.remove(attributeKey);
 		} else {
 			this.attributeMutations.put(attributeKey, new RemoveAttributeMutation(attributeName));
@@ -289,7 +289,7 @@ abstract class ExistingAttributesBuilder<S extends AttributeSchemaContract, T ex
 	@Nonnull
 	public T removeAttribute(@Nonnull String attributeName, @Nonnull Locale locale) {
 		final AttributeKey attributeKey = new AttributeKey(attributeName, locale);
-		if (this.baseAttributes.getAttributeValueWithoutSchemaCheck(attributeKey).isEmpty()) {
+		if (this.baseAttributes.getAttributeValueWithoutSchemaCheck(attributeKey).filter(Droppable::exists).isEmpty()) {
 			this.attributeMutations.remove(attributeKey);
 		} else {
 			this.attributeMutations.put(attributeKey, new RemoveAttributeMutation(attributeKey));

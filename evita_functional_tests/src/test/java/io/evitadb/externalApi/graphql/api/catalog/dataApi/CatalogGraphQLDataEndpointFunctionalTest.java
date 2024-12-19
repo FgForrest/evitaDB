@@ -23,27 +23,35 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi;
 
+import com.github.javafaker.Faker;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
 import io.evitadb.api.requestResponse.data.PricesContract.PriceForSaleWithAccompanyingPrices;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
+import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.core.Evita;
 import io.evitadb.externalApi.ExternalApiFunctionTestsSupport;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AssociatedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
+import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GlobalEntityDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceForSaleDescriptor;
 import io.evitadb.externalApi.graphql.api.testSuite.GraphQLEndpointFunctionalTest;
 import io.evitadb.test.Entities;
+import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.builder.MapBuilder;
+import io.evitadb.test.extension.DataCarrier;
+import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.test.tester.GraphQLTester;
 import io.evitadb.utils.StringUtils;
 
 import javax.annotation.Nonnull;
+import java.math.BigDecimal;
 import java.text.NumberFormat;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
@@ -56,7 +64,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.BiFunction;
+import java.util.stream.Collectors;
 
+import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.*;
@@ -71,6 +82,77 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEndpointFunctionalTest implements ExternalApiFunctionTestsSupport {
+
+	protected static final int SEED = 40;
+
+	protected static final String GRAPHQL_HUNDRED_PRODUCTS_FOR_SEGMENTS = "GraphQLHundredProductsForSegments";
+
+	@DataSet(value = GRAPHQL_HUNDRED_PRODUCTS_FOR_SEGMENTS, openWebApi = GraphQLProvider.CODE, readOnly = false, destroyAfterClass = true)
+	DataCarrier setUpForSegments(Evita evita) {
+		return evita.updateCatalog(TEST_CATALOG, session -> {
+			final DataGenerator dataGenerator = new DataGenerator();
+			final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> {
+				final int entityCount = session.getEntityCollectionSize(entityType);
+				final int primaryKey = entityCount == 0 ? 0 : faker.random().nextInt(1, entityCount);
+				return primaryKey == 0 ? null : primaryKey;
+			};
+			dataGenerator.generateEntities(
+					dataGenerator.getSampleBrandSchema(session),
+					randomEntityPicker,
+					SEED
+				)
+				.limit(5)
+				.forEach(session::upsertEntity);
+
+			dataGenerator.generateEntities(
+					dataGenerator.getSampleCategorySchema(session),
+					randomEntityPicker,
+					SEED
+				)
+				.limit(10)
+				.forEach(session::upsertEntity);
+
+			dataGenerator.generateEntities(
+					dataGenerator.getSamplePriceListSchema(session),
+					randomEntityPicker,
+					SEED
+				)
+				.limit(4)
+				.forEach(session::upsertEntity);
+
+			dataGenerator.generateEntities(
+					dataGenerator.getSampleStoreSchema(session),
+					randomEntityPicker,
+					SEED
+				)
+				.limit(12)
+				.forEach(session::upsertEntity);
+
+			final List<EntityReference> storedProducts = dataGenerator.generateEntities(
+					dataGenerator.getSampleProductSchema(
+						session,
+						builder -> {
+							builder
+								.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized(() -> false).filterable().sortable().nullable(() -> false))
+								.withAttribute(ATTRIBUTE_EAN, String.class, whichIs -> whichIs.filterable().sortable().nullable(() -> false))
+								.withAttribute(ATTRIBUTE_QUANTITY, BigDecimal.class, whichIs -> whichIs.filterable().sortable().nullable(() -> false));
+						}
+					),
+					randomEntityPicker,
+					SEED
+				)
+				.limit(100)
+				.map(session::upsertEntity)
+				.toList();
+
+			return new DataCarrier(
+				"originalProductEntities",
+				storedProducts.stream()
+					.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), entityFetchAllContent()).orElseThrow())
+					.collect(Collectors.toList())
+			);
+		});
+	}
 
 	/**
 	 * Inserts product with only mandatory attributes so it passes validation, otherwise it's empty.

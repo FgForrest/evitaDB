@@ -116,7 +116,7 @@ public class ModifyEntitySchemaMutation implements CombinableCatalogSchemaMutati
 		);
 	}
 
-	@Nullable
+	@Nonnull
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		EntitySchemaContract alteredSchema = entitySchema;

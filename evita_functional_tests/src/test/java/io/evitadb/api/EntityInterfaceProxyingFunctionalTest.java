@@ -38,6 +38,7 @@ import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
+import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.data.ReflectionCachingBehaviour;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
@@ -428,6 +429,7 @@ if (currency != null) {
 		assertEquals(originalProduct.getPrimaryKey(), product.getId());
 		assertEquals(Entities.PRODUCT, product.getType());
 		assertEquals(TestEntity.PRODUCT, product.getEntityType());
+		assertEquals(Scope.LIVE, product.getScope());
 	}
 
 	private static void assertProductAttributes(@Nonnull SealedEntity originalProduct, @Nonnull ProductInterface product, @Nullable Locale locale) {
@@ -1124,6 +1126,46 @@ if (currency != null) {
 		);
 	}
 
+	@DisplayName("Should archive entity")
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void x_archiveEntity(
+		EvitaContract evita,
+		List<SealedEntity> originalProducts
+	) {
+		final SealedEntity theProduct = originalProducts
+			.stream()
+			.filter(it -> it.getPrimaryKey() == 49)
+			.findFirst()
+			.orElseThrow();
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				final SealedEntity productToArchive = session.queryOneSealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(49)
+						),
+						require(
+							entityFetchAll()
+						)
+					)
+				).orElseThrow();
+				assertEquals(theProduct, productToArchive);
+
+				productToArchive
+					.openForWrite()
+					.setScope(Scope.ARCHIVED)
+					.upsertVia(session);
+
+				assertTrue(session.getEntity(Entities.PRODUCT, 49, entityFetchAllContent()).isEmpty());
+				assertTrue(session.getEntity(Entities.PRODUCT, 49, new Scope[] { Scope.ARCHIVED }, entityFetchAllContent()).isPresent());
+			}
+		);
+	}
+
 	@DisplayName("Should delete entity with hierarchy")
 	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)
@@ -1134,7 +1176,7 @@ if (currency != null) {
 		final SealedEntity theCategory = originalCategories
 			.values()
 			.stream()
-			.max(Comparator.comparingInt(EntityContract::getPrimaryKey))
+			.max(Comparator.comparingInt(EntityContract::getPrimaryKeyOrThrowException))
 			.orElseThrow();
 
 		evita.updateCatalog(

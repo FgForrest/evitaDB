@@ -36,7 +36,6 @@ import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
@@ -156,8 +155,8 @@ public class HierarchyWithinRoot extends AbstractFilterConstraintContainer
 		this(new Serializable[]{referenceName}, with);
 	}
 
+	@Nonnull
 	@Override
-	@Nullable
 	public Optional<String> getReferenceName() {
 		final Serializable[] arguments = getArguments();
 		final Serializable firstArgument = arguments.length > 0 ? arguments[0] : null;

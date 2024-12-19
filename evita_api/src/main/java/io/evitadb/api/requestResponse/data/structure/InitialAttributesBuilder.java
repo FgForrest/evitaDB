@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -91,7 +91,7 @@ abstract class InitialAttributesBuilder<S extends AttributeSchemaContract, T ext
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull String attributeName,
 		@Nullable Class<? extends Serializable> aClass,
-		@Nonnull Locale locale,
+		@Nullable Locale locale,
 		@Nonnull Supplier<String> locationResolver
 	) {
 		final AttributeSchemaContract attributeSchema = entitySchema.getAttribute(attributeName).orElse(null);
@@ -125,7 +125,7 @@ abstract class InitialAttributesBuilder<S extends AttributeSchemaContract, T ext
 						attributeSchema.getType(), aClass
 					)
 				);
-				if (attributeSchema.isSortable()) {
+				if (attributeSchema.isSortableInAnyScope()) {
 					Assert.isTrue(
 						!aClass.isArray(),
 						() -> new InvalidDataTypeMutationException(

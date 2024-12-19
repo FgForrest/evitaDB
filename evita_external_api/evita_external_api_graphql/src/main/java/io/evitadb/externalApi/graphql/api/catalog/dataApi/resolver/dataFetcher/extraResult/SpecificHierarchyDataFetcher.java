@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,8 +30,11 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.dto.LevelInfoDto;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.HierarchyRequireOutputNameResolver;
 import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
 import io.evitadb.utils.Assert;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -41,7 +44,19 @@ import java.util.Map;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class SpecificHierarchyDataFetcher implements DataFetcher<List<LevelInfoDto>> {
+
+	@Nullable
+	private static SpecificHierarchyDataFetcher INSTANCE;
+
+	@Nonnull
+	public static SpecificHierarchyDataFetcher getInstance() {
+		if (INSTANCE == null) {
+			INSTANCE = new SpecificHierarchyDataFetcher();
+		}
+		return INSTANCE;
+	}
 
 	@Nonnull
 	@Override

@@ -25,6 +25,7 @@ package io.evitadb.externalApi.api.catalog.dataApi.model;
 
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
@@ -62,6 +63,14 @@ public interface EntityDescriptor extends VersionedDescriptor, AttributesProvide
             entity type entity is uniquely represented by primary key.
             """)
         .type(nonNull(String.class))
+        .build();
+    PropertyDescriptor SCOPE = PropertyDescriptor.builder()
+        .name("scope")
+        .description("""
+            The scope the entity is part of.
+            There are two scopes: `LIVE` for regular and `ARCHIVED` for "soft-deleted" entities.
+            """)
+        .type(nonNull(Scope.class))
         .build();
     PropertyDescriptor LOCALES = PropertyDescriptor.builder()
         .name("locales")
@@ -133,6 +142,7 @@ public interface EntityDescriptor extends VersionedDescriptor, AttributesProvide
         .staticField(PRIMARY_KEY)
         .staticField(TYPE)
         .staticField(VERSION)
+        .staticField(SCOPE)
         .build();
     /**
      * Used only to distinguish from entity classifier for clarity, that this is a final object that just references an
