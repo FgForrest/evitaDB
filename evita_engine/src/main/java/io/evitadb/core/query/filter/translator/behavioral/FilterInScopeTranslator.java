@@ -43,7 +43,7 @@ import javax.annotation.Nonnull;
 import java.util.EnumSet;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Supplier;
+import java.util.function.Function;
 
 /**
  * This implementation of {@link FilteringConstraintTranslator} converts {@link FilterInScope} to {@link AbstractFormula}.
@@ -140,7 +140,7 @@ public class FilterInScopeTranslator implements FilteringConstraintTranslator<Fi
 		/**
 		 * Supplier that provides the super set formula.
 		 */
-		private final Supplier<Formula> superSetFormulaSupplier;
+		private final Function<Scope, Formula> superSetFormulaSupplier;
 		/**
 		 * Final formula that will be returned.
 		 */
@@ -166,21 +166,27 @@ public class FilterInScopeTranslator implements FilteringConstraintTranslator<Fi
 									// if the formula is a ScopeContainerFormula and the scope matches, return the inner formulas
 									// otherwise skip the container including the inner formulas
 									if (examinedFormula instanceof ScopeContainerFormula scf) {
-										return scf.getScope() == scope ?
-											FormulaFactory.and(scf.getInnerFormulas()) : null;
+										if (scf.getScope() == scope) {
+											final Formula[] innerFormulas = scf.getInnerFormulas();
+											// if the inner formulas are empty, we need to use super set formula instead
+											// if we'd use the AND factory, it would produce an empty formula, which is not correct
+											return innerFormulas.length == 0 ?
+												this.superSetFormulaSupplier.apply(scope) : FormulaFactory.and(innerFormulas);
+										} else {
+											// the same applies here - if the scope doesn't match, we need to provide
+											// the super set formula instead
+											return this.superSetFormulaSupplier.apply(scope);
+										}
 									} else {
 										return examinedFormula;
 									}
 								}
 							);
+							// if the result formula is empty - it means that for particular scope there are no constraints set
+							// we need to use super set formula instead - i.e. all entities in the scope match the "zero" constraints
 							return clonedFormula == null ?
-								null : new ScopeContainerFormula(scope, clonedFormula);
+								this.superSetFormulaSupplier.apply(scope) : new ScopeContainerFormula(scope, clonedFormula);
 						}
-					)
-					.map(
-						// if the result formula is empty - it means that for particular scope there are no constraints set
-						// we need to use super set formula instead - i.e. all entities in the scope match the "zero" constraints
-						it -> it == null ? this.superSetFormulaSupplier.get() : it
 					)
 					.toArray(Formula[]::new)
 			);
