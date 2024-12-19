@@ -61,7 +61,7 @@ public record TrafficRecordingOptions(
 	int trafficSamplingPercentage
 ) {
 	public static final long DEFAULT_TRAFFIC_MEMORY_BUFFER = 4_194_304L;
-	public static final long DEFAULT_TRAFFIC_DISK_BUFFER = 26_214_400L;
+	public static final long DEFAULT_TRAFFIC_DISK_BUFFER = 33_554_432L;
 	public static final int DEFAULT_TRAFFIC_SAMPLING_PERCENTAGE = 100;
 	public static final boolean DEFAULT_TRAFFIC_RECORDING = false;
 	public static final boolean DEFAULT_TRAFFIC_SOURCE_QUERY_TRACKING = false;

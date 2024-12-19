@@ -33,6 +33,12 @@ server:                                           # [see Server configuration](#
   closeSessionsAfterSecondsOfInactivity: 60
   readOnly: false
   quiet: false
+  trafficRecording:
+    enabled: false
+    sourceQueryTracking: false
+    trafficMemoryBufferSizeInBytes: 4MB
+    trafficDiskBufferSizeInBytes: 32MB
+    trafficSamplingPercentage: 100
 
 storage:                                          # [see Storage configuration](#storage-configuration)
   storageDirectory: "./data"
@@ -422,6 +428,48 @@ This section contains general settings for the evitaDB server. It allows configu
         <p>It defines the maximum number of tasks that can accumulate in the queue waiting for the free thread from 
         the thread pool to process them. Tasks that exceed this limit will be discarded (new requests/other tasks will 
         fail with an exception).</p>
+    </dd>
+</dl>
+
+### Traffic recording configuration
+
+<dl>
+    <dt>enabled</dt>
+    <dd>
+        <p>**Default:** `false`</p>
+        <p>When set to `true`, the server records all traffic to the database (all catalogues) in a single shared memory
+        and disk buffer, which can optionally be persisted to file. If traffic recording is disabled, it can still be 
+        enabled on demand via the API (but won't be automatically enabled and recorded). Recording is optimised for low 
+        performance overhead, but should not be enabled on production systems (hence the default is `false`).</p>
+    </dd>
+    <dt>sourceQueryTracking</dt>
+    <dd>
+        <p>**Default:** `false`</p>
+        <p>When set to `true`, the server will record the query in its original form (GraphQL / REST / gRPC) and track 
+        sub-queries related to the original query. This is useful for debugging and performance analysis, but isn't
+        necessary for traffic replay.</p>
+    </dd>
+    <dt>trafficMemoryBufferSizeInBytes</dt>
+    <dd>
+        <p>**Default:** `4MB`</p>
+        <p>Sets the size in bytes of the memory buffer used for traffic recording. Even if `enabled` is set to `false`,
+        this property is used when on-demand traffic recording is requested. This property affects the number of 
+        parallel sessions that are recorded. All requests made in the same session must first be collected in this 
+        memory buffer before they're persisted sequentially to the disk buffer.</p> 
+    </dd>
+    <dt>trafficDiskBufferSizeInBytes</dt>
+    <dd>
+        <p>**Default:** `32MB`</p>
+        <p>Sets the size in bytes of the disk buffer used for traffic recording. Even if `enabled` is set to `false`,
+        this property will be used when on-demand traffic recording is requested. The disk buffer represents a ring
+        buffer that is indexed and available for viewing in the evitaLab interface. The larger the buffer, the more 
+        historical data it can hold.</p>
+    </dd>
+    <dt>trafficSamplingPercentage</dt>
+    <dd>
+        <p>**Default:** `100`</p>
+        <p>Specifies the percentage of traffic to be captured. The value is between 0 and 100 - zero means that no 
+           traffic is captured (equivalent to `enabled: false`) and 100 means that all traffic is attempted to be captured.</p>
     </dd>
 </dl>
 

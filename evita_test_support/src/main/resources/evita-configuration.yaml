@@ -21,6 +21,12 @@ server:
   closeSessionsAfterSecondsOfInactivity: ${server.closeSessionsAfterSecondsOfInactivity:60}
   readOnly: ${server.readOnly:false}
   quiet: ${server.quiet:false}
+  trafficRecording:
+    enabled: ${server.trafficRecording.enabled:false}
+    sourceQueryTracking: ${server.trafficRecording.sourceQueryTracking:false}
+    trafficMemoryBufferSizeInBytes: ${server.trafficRecording.trafficMemoryBufferSizeInBytes:4MB}
+    trafficDiskBufferSizeInBytes: ${server.trafficRecording.trafficDiskBufferSizeInBytes:32MB}
+    trafficSamplingPercentage: ${server.trafficRecording.trafficSamplingPercentage:100}
 
 storage:
   storageDirectory: ${storage.storageDirectory:null}
