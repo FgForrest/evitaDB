@@ -53,6 +53,12 @@ abstract class AbstractModifyReferenceDataSchemaMutation implements ReferenceSch
 	@Serial private static final long serialVersionUID = 3160594356938000407L;
 	@Getter @Nonnull protected final String name;
 
+	@Nonnull
+	@Override
+	public Operation operation() {
+		return Operation.UPSERT;
+	}
+
 	/**
 	 * Replaces existing reference schema with updated one but only when those schemas differ. Otherwise,
 	 * the non-changed, original entity schema is returned.
@@ -75,7 +81,9 @@ abstract class AbstractModifyReferenceDataSchemaMutation implements ReferenceSch
 				entitySchema.getDeprecationNotice(),
 				entitySchema.isWithGeneratedPrimaryKey(),
 				entitySchema.isWithHierarchy(),
+				entitySchema.getHierarchyIndexedInScopes(),
 				entitySchema.isWithPrice(),
+				entitySchema.getPriceIndexedInScopes(),
 				entitySchema.getIndexedPricePlaces(),
 				entitySchema.getLocales(),
 				entitySchema.getCurrencies(),
@@ -95,12 +103,6 @@ abstract class AbstractModifyReferenceDataSchemaMutation implements ReferenceSch
 				entitySchema.getSortableAttributeCompounds()
 			);
 		}
-	}
-
-	@Nonnull
-	@Override
-	public Operation operation() {
-		return Operation.UPSERT;
 	}
 
 }

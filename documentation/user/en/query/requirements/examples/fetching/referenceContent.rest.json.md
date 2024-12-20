@@ -5,6 +5,7 @@
       "primaryKey": 103885,
       "type": "Product",
       "version": 1,
+      "scope": "LIVE",
       "allLocales": [
         "cs",
         "en"

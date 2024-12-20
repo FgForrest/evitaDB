@@ -35,14 +35,15 @@ import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaCont
 import io.evitadb.core.exception.AttributeNotFilterableException;
 import io.evitadb.core.exception.AttributeNotSortableException;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 
 import static io.evitadb.utils.Assert.notNull;
@@ -74,9 +75,27 @@ public class AttributeSchemaAccessor {
 	 */
 	@Nullable private final Function<EntitySchemaContract, ReferenceSchemaContract> referenceSchemaAccessor;
 
+	/**
+	 * Verifies that the provided attribute schema meets the required traits and returns it.
+	 * Throws specific exceptions if the criteria are not met.
+	 *
+	 * @param attributeName   the name of the attribute to verify
+	 * @param requestedScopes the scopes requested in the input query
+	 * @param attributeSchema the attribute schema to verify
+	 * @param catalogSchema   the catalog schema used for attribute lookup
+	 * @param entitySchema    the optional entity schema used for additional context
+	 * @param referenceSchema the optional reference schema used for additional context
+	 * @param requiredTrait   the required traits that the attribute must satisfy
+	 * @return the verified attribute schema
+	 * @throws AttributeNotFoundException       when the attribute is not found
+	 * @throws AttributeNotFilterableException  when filterable traits are requested but the attribute does not support them
+	 * @throws AttributeNotSortableException    when sortable traits are requested but the attribute does not support them
+	 * @throws ReferenceNotIndexedException     when a reference schema is provided but is not indexed in the requested scopes
+	 */
 	@Nonnull
-	private static AttributeSchemaContract verifyAndReturn(
+	public static AttributeSchemaContract verifyAndReturn(
 		@Nonnull String attributeName,
+		@Nonnull Set<Scope> requestedScopes,
 		@Nullable AttributeSchemaContract attributeSchema,
 		@Nonnull CatalogSchemaContract catalogSchema,
 		@Nullable EntitySchemaContract entitySchema,
@@ -91,17 +110,44 @@ public class AttributeSchemaAccessor {
 		);
 		EvitaInvalidUsageException exception = null;
 		for (AttributeTrait attributeTrait : requiredTrait) {
-			Assert.isTrue(
-				referenceSchema == null || referenceSchema.isIndexed(),
-				() -> new ReferenceNotIndexedException(referenceSchema.getName(), entitySchema)
-			);
+			if (referenceSchema != null) {
+				for (Scope scope : requestedScopes) {
+					if (!referenceSchema.isIndexedInScope(scope)) {
+						throw new ReferenceNotIndexedException(referenceSchema.getName(), entitySchema, scope);
+					}
+				}
+			}
 			switch (attributeTrait) {
 				case UNIQUE ->
-					exception = attributeSchema.isUnique() ? null : ofNullable(referenceSchema).map(it -> new AttributeNotFilterableException(attributeName, it, entitySchema)).orElseGet(() -> ofNullable(entitySchema).map(it -> new AttributeNotFilterableException(attributeName, it)).orElseGet(() -> new AttributeNotFilterableException(attributeName, catalogSchema)));
+					exception = requestedScopes.stream().allMatch(attributeSchema::isUniqueInScope) ?
+						null :
+						ofNullable(referenceSchema)
+							.map(it -> new AttributeNotFilterableException(attributeName, it, Objects.requireNonNull(entitySchema)))
+							.orElseGet(
+								() -> ofNullable(entitySchema)
+									.map(it -> new AttributeNotFilterableException(attributeName, it))
+									.orElseGet(() -> new AttributeNotFilterableException(attributeName, catalogSchema))
+							);
 				case FILTERABLE ->
-					exception = attributeSchema.isFilterable() || attributeSchema.isUnique() ? null : ofNullable(referenceSchema).map(it -> new AttributeNotFilterableException(attributeName, it, entitySchema)).orElseGet(() -> ofNullable(entitySchema).map(it -> new AttributeNotFilterableException(attributeName, it)).orElseGet(() -> new AttributeNotFilterableException(attributeName, catalogSchema)));
+					exception = requestedScopes.stream().allMatch(attributeSchema::isFilterableInScope) || requestedScopes.stream().allMatch(attributeSchema::isUniqueInScope) ?
+						null :
+						ofNullable(referenceSchema)
+							.map(it -> new AttributeNotFilterableException(attributeName, it, Objects.requireNonNull(entitySchema)))
+							.orElseGet(
+								() -> ofNullable(entitySchema)
+									.map(it -> new AttributeNotFilterableException(attributeName, it))
+									.orElseGet(() -> new AttributeNotFilterableException(attributeName, catalogSchema))
+							);
 				case SORTABLE ->
-					exception = attributeSchema.isSortable() ? null : ofNullable(referenceSchema).map(it -> new AttributeNotSortableException(attributeName, it, entitySchema)).orElseGet(() -> ofNullable(entitySchema).map(it -> new AttributeNotSortableException(attributeName, it)).orElseGet(() -> new AttributeNotSortableException(attributeName, catalogSchema)));
+					exception = requestedScopes.stream().allMatch(attributeSchema::isSortableInScope) ?
+						null :
+						ofNullable(referenceSchema)
+							.map(it -> new AttributeNotSortableException(attributeName, it, Objects.requireNonNull(entitySchema)))
+							.orElseGet(
+								() -> ofNullable(entitySchema)
+									.map(it -> new AttributeNotSortableException(attributeName, it))
+									.orElseGet(() -> new AttributeNotSortableException(attributeName, catalogSchema))
+							);
 			}
 		}
 		if (exception != null) {
@@ -132,6 +178,7 @@ public class AttributeSchemaAccessor {
 	 * the schema from outside.
 	 *
 	 * @param attributeName name of the looked up attribute
+	 * @param requestedScopes set of scopes that are requested in the input query
 	 * @param requiredTrait set of required attribute traits to check before returning
 	 * @return attribute schema
 	 * @throws AttributeNotFoundException      when attribute is not found
@@ -141,19 +188,20 @@ public class AttributeSchemaAccessor {
 	@Nonnull
 	public AttributeSchemaContract getAttributeSchema(
 		@Nonnull String attributeName,
+		@Nonnull Set<Scope> requestedScopes,
 		@Nonnull AttributeTrait... requiredTrait
 	) {
-		if (entitySchema == null && referenceSchemaAccessor == null) {
+		if (this.entitySchema == null && this.referenceSchemaAccessor == null) {
 			return verifyAndReturn(
-				attributeName, catalogSchema.getAttribute(attributeName).orElse(null),
-				catalogSchema, null, null, requiredTrait
+				attributeName, requestedScopes, this.catalogSchema.getAttribute(attributeName).orElse(null),
+				this.catalogSchema, null, null, requiredTrait
 			);
 		} else {
-			final ReferenceSchemaContract referenceSchema = referenceSchemaAccessor == null ? null : referenceSchemaAccessor.apply(this.entitySchema);
-			final AttributeSchemaProvider<?> attributeSchemaProvider = referenceSchema == null ? entitySchema : referenceSchema;
+			final ReferenceSchemaContract referenceSchema = this.referenceSchemaAccessor == null ? null : this.referenceSchemaAccessor.apply(this.entitySchema);
+			final AttributeSchemaProvider<?> attributeSchemaProvider = Objects.requireNonNull(referenceSchema == null ? this.entitySchema : referenceSchema);
 			return verifyAndReturn(
-				attributeName, attributeSchemaProvider.getAttribute(attributeName).orElse(null),
-				catalogSchema, this.entitySchema,
+				attributeName, requestedScopes, attributeSchemaProvider.getAttribute(attributeName).orElse(null),
+				this.catalogSchema, this.entitySchema,
 				referenceSchema,
 				requiredTrait
 			);
@@ -165,6 +213,7 @@ public class AttributeSchemaAccessor {
 	 *
 	 * @param entitySchema  the entity schema that should be used for attribute lookup
 	 * @param attributeName name of the looked up attribute
+	 * @param requestedScopes set of scopes that are requested in the input query
 	 * @param requiredTrait set of required attribute traits to check before returning
 	 * @return attribute schema
 	 * @throws AttributeNotFoundException      when attribute is not found
@@ -175,13 +224,14 @@ public class AttributeSchemaAccessor {
 	public AttributeSchemaContract getAttributeSchema(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull String attributeName,
+		@Nonnull Set<Scope> requestedScopes,
 		@Nonnull AttributeTrait... requiredTrait
 	) {
-		final ReferenceSchemaContract referenceSchema = ofNullable(referenceSchemaAccessor)
+		final ReferenceSchemaContract referenceSchema = ofNullable(this.referenceSchemaAccessor)
 			.map(it -> it.apply(entitySchema))
 			.orElse(null);
 		final AttributeSchemaContract attributeSchema;
-		final Optional<GlobalAttributeSchemaContract> globalAttributeSchema = catalogSchema.getAttribute(attributeName);
+		final Optional<GlobalAttributeSchemaContract> globalAttributeSchema = this.catalogSchema.getAttribute(attributeName);
 		if (globalAttributeSchema.isPresent()) {
 			attributeSchema = globalAttributeSchema.get();
 		} else {
@@ -190,7 +240,7 @@ public class AttributeSchemaAccessor {
 				.orElse(null);
 		}
 		return verifyAndReturn(
-			attributeName, attributeSchema, catalogSchema, entitySchema, referenceSchema, requiredTrait
+			attributeName, requestedScopes, attributeSchema, this.catalogSchema, entitySchema, referenceSchema, requiredTrait
 		);
 	}
 
@@ -200,18 +250,22 @@ public class AttributeSchemaAccessor {
 	 * doesn't allow provisioning of the schema from outside.
 	 *
 	 * @param attributeName name of the looked up attribute
+	 * @param requestedScopes set of scopes that are requested in the input query
 	 * @return attribute schema
 	 * @throws AttributeNotFoundException      when attribute is not found
 	 * @throws AttributeNotSortableException   when sortable traits are requested but the attribute does not
 	 */
 	@Nonnull
-	public NamedSchemaContract getAttributeSchemaOrSortableAttributeCompound(@Nonnull String attributeName) {
-		if (entitySchema != null) {
-			return getAttributeSchemaOrSortableAttributeCompound(this.entitySchema, attributeName);
+	public NamedSchemaContract getAttributeSchemaOrSortableAttributeCompound(
+		@Nonnull String attributeName,
+		@Nonnull Set<Scope> requestedScopes
+	) {
+		if (this.entitySchema != null) {
+			return getAttributeSchemaOrSortableAttributeCompound(this.entitySchema, attributeName, requestedScopes);
 		} else {
 			return verifyAndReturn(
-				attributeName, catalogSchema.getAttribute(attributeName).orElse(null),
-				catalogSchema, null, null, new AttributeTrait[] {AttributeTrait.SORTABLE}
+				attributeName, requestedScopes, this.catalogSchema.getAttribute(attributeName).orElse(null),
+				this.catalogSchema, null, null, new AttributeTrait[] {AttributeTrait.SORTABLE}
 			);
 		}
 	}
@@ -222,6 +276,7 @@ public class AttributeSchemaAccessor {
 	 *
 	 * @param entitySchema  the entity schema that should be used for attribute lookup
 	 * @param attributeName name of the looked up attribute
+	 * @param requestedScopes set of scopes that are requested in the input query
 	 * @return attribute schema
 	 * @throws AttributeNotFoundException      when attribute is not found
 	 * @throws AttributeNotSortableException   when sortable traits are requested but the attribute does not
@@ -229,9 +284,10 @@ public class AttributeSchemaAccessor {
 	@Nonnull
 	public NamedSchemaContract getAttributeSchemaOrSortableAttributeCompound(
 		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull String attributeName
+		@Nonnull String attributeName,
+		@Nonnull Set<Scope> requestedScopes
 	) {
-		final ReferenceSchemaContract referenceSchema = ofNullable(referenceSchemaAccessor)
+		final ReferenceSchemaContract referenceSchema = ofNullable(this.referenceSchemaAccessor)
 			.map(it -> it.apply(entitySchema))
 			.orElse(null);
 		final SortableAttributeCompoundSchemaContract compoundSchema;
@@ -244,7 +300,7 @@ public class AttributeSchemaAccessor {
 		}
 
 		final AttributeSchemaContract resultSchema;
-		final Optional<GlobalAttributeSchemaContract> globalAttributeSchema = catalogSchema.getAttribute(attributeName);
+		final Optional<GlobalAttributeSchemaContract> globalAttributeSchema = this.catalogSchema.getAttribute(attributeName);
 		if (globalAttributeSchema.isPresent()) {
 			resultSchema = globalAttributeSchema.get();
 		} else {
@@ -253,7 +309,7 @@ public class AttributeSchemaAccessor {
 				.orElse(null);
 		}
 		return verifyAndReturn(
-			attributeName, resultSchema, catalogSchema, entitySchema, referenceSchema,
+			attributeName, requestedScopes, resultSchema, this.catalogSchema, entitySchema, referenceSchema,
 			new AttributeTrait[] {AttributeTrait.SORTABLE}
 		);
 	}

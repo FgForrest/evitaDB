@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.data;
 
+import io.evitadb.api.exception.PrimaryKeyNotAssignedException;
 import io.evitadb.api.query.filter.EntityPrimaryKeyInSet;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 
@@ -54,5 +55,20 @@ public interface EntityClassifier extends Serializable {
 	 */
 	@Nullable
 	Integer getPrimaryKey();
+
+	/**
+	 * Retrieves the primary key of the entity. If the primary key is not assigned, throws a PrimaryKeyNotAssignedException.
+	 *
+	 * @return the primary key of the entity.
+	 * @throws PrimaryKeyNotAssignedException if the primary key is not assigned.
+	 */
+	default int getPrimaryKeyOrThrowException() {
+		final Integer pk = getPrimaryKey();
+		if (pk == null) {
+			throw new PrimaryKeyNotAssignedException(getType());
+		} else {
+			return pk;
+		}
+	}
 
 }

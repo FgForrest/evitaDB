@@ -30,6 +30,7 @@ import io.evitadb.api.query.filter.Not;
 import io.evitadb.api.query.filter.Or;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.core.exception.ReferenceNotFacetedException;
 import io.evitadb.core.query.QueryPlanner.FutureNotFormula;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
@@ -42,8 +43,10 @@ import io.evitadb.core.query.algebra.facet.FacetGroupOrFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
+import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.Index;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.ArrayUtils;
 
@@ -70,9 +73,13 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 	@Nonnull
 	@Override
 	public Formula translate(@Nonnull FacetHaving facetHaving, @Nonnull FilterByVisitor filterByVisitor) {
-		final EntitySchemaContract entitySchema = filterByVisitor.getProcessingScope().getEntitySchema();
+		final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
+		final EntitySchemaContract entitySchema = processingScope.getEntitySchemaOrThrowException();
 		final ReferenceSchemaContract referenceSchema = entitySchema.getReferenceOrThrowException(facetHaving.getReferenceName());
-		isTrue(referenceSchema.isFaceted(), "Reference of type `" + facetHaving.getReferenceName() + "` is not marked as faceted.");
+		isTrue(
+			processingScope.getScopes().stream().anyMatch(referenceSchema::isFacetedInScope),
+			() -> new ReferenceNotFacetedException(facetHaving.getReferenceName(), entitySchema)
+		);
 
 		final List<Formula> collectedFormulas = filterByVisitor.collectFromIndexes(
 			entityIndex -> {
@@ -85,7 +92,7 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 				return entityIndex.getFacetReferencingEntityIdsFormula(
 					facetHaving.getReferenceName(),
 					(groupId, theFacetIds, recordIdBitmaps) -> {
-						if ((referenceSchema.isReferencedGroupTypeManaged() || groupId == null) && filterByVisitor.isFacetGroupConjunction(referenceSchema, groupId)) {
+						if (filterByVisitor.isFacetGroupConjunction(referenceSchema, groupId)) {
 							// AND relation is requested for facet of this group
 							return new FacetGroupAndFormula(
 								facetHaving.getReferenceName(), groupId, theFacetIds, recordIdBitmaps

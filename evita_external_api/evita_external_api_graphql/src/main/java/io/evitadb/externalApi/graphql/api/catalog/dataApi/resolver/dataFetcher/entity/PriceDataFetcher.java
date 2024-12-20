@@ -31,8 +31,11 @@ import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityQueryContext;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.Currency;
@@ -51,7 +54,19 @@ import java.util.Optional;
  */
 // TOBEDONE #538: deprecated, remove
 @Deprecated
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class PriceDataFetcher implements DataFetcher<DataFetcherResult<PriceContract>> {
+
+    @Nullable
+    private static PriceDataFetcher INSTANCE;
+
+    @Nonnull
+    public static PriceDataFetcher getInstance() {
+        if (INSTANCE == null) {
+            INSTANCE = new PriceDataFetcher();
+        }
+        return INSTANCE;
+    }
 
     @Nonnull
     @Override

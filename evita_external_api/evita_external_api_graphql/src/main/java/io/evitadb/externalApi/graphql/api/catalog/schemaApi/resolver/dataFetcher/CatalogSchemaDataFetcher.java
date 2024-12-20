@@ -29,15 +29,30 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * Returns currently available catalog schema.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class CatalogSchemaDataFetcher implements DataFetcher<CatalogSchemaContract>, ReadDataFetcher {
+
+	@Nullable
+	private static CatalogSchemaDataFetcher INSTANCE;
+
+	@Nonnull
+	public static CatalogSchemaDataFetcher getInstance() {
+		if (INSTANCE == null) {
+			INSTANCE = new CatalogSchemaDataFetcher();
+		}
+		return INSTANCE;
+	}
 
 	@Nonnull
 	@Override

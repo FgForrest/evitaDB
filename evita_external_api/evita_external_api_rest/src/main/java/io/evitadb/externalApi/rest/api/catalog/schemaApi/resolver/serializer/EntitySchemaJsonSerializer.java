@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -72,7 +72,9 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 		rootNode.put(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), entitySchema.getDeprecationNotice());
 		rootNode.put(EntitySchemaDescriptor.WITH_GENERATED_PRIMARY_KEY.name(), entitySchema.isWithGeneratedPrimaryKey());
 		rootNode.put(EntitySchemaDescriptor.WITH_HIERARCHY.name(), entitySchema.isWithHierarchy());
+		rootNode.set(EntitySchemaDescriptor.HIERARCHY_INDEXED.name(), serializeFlagInScopes(entitySchema::isHierarchyIndexedInScope));
 		rootNode.put(EntitySchemaDescriptor.WITH_PRICE.name(), entitySchema.isWithPrice());
+		rootNode.set(EntitySchemaDescriptor.PRICE_INDEXED.name(), serializeFlagInScopes(entitySchema::isPriceIndexedInScope));
 		rootNode.put(EntitySchemaDescriptor.INDEXED_PRICE_PLACES.name(), entitySchema.getIndexedPricePlaces());
 		rootNode.set(EntitySchemaDescriptor.LOCALES.name(), objectJsonSerializer.serializeCollection(entitySchema.getLocales().stream().map(Locale::toLanguageTag).toList()));
 		rootNode.set(EntitySchemaDescriptor.CURRENCIES.name(), objectJsonSerializer.serializeCollection(entitySchema.getCurrencies().stream().map(Currency::toString).toList()));
@@ -108,12 +110,12 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 		attributeSchemaNode.set(NamedSchemaDescriptor.NAME_VARIANTS.name(), serializeNameVariants(attributeSchema.getNameVariants()));
 		attributeSchemaNode.put(NamedSchemaDescriptor.DESCRIPTION.name(), attributeSchema.getDescription());
 		attributeSchemaNode.put(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), attributeSchema.getDeprecationNotice());
-		attributeSchemaNode.put(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), attributeSchema.getUniquenessType().toString());
+		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), serializeUniquenessType(attributeSchema::getUniquenessType));
 		if (attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema) {
-			attributeSchemaNode.put(GlobalAttributeSchemaDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), globalAttributeSchema.getGlobalUniquenessType().toString());
+			attributeSchemaNode.putIfAbsent(GlobalAttributeSchemaDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), serializeGlobalUniquenessType(globalAttributeSchema::getGlobalUniquenessType));
 		}
-		attributeSchemaNode.put(AttributeSchemaDescriptor.FILTERABLE.name(), attributeSchema.isFilterable());
-		attributeSchemaNode.put(AttributeSchemaDescriptor.SORTABLE.name(), attributeSchema.isSortable());
+		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.FILTERABLE.name(), serializeFlagInScopes(attributeSchema::isFilterableInScope));
+		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.SORTABLE.name(), serializeFlagInScopes(attributeSchema::isSortableInScope));
 		attributeSchemaNode.put(AttributeSchemaDescriptor.LOCALIZED.name(), attributeSchema.isLocalized());
 		attributeSchemaNode.put(AttributeSchemaDescriptor.NULLABLE.name(), attributeSchema.isNullable());
 		if (attributeSchema instanceof EntityAttributeSchemaContract entityAttributeSchema) {
@@ -158,6 +160,8 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 		sortableAttributeCompoundSchema.getAttributeElements()
 			.forEach(it -> sortableAttributeCompoundArray.add(serializeAttributeElement(it)));
 		schemaNode.putIfAbsent(SortableAttributeCompoundSchemaDescriptor.ATTRIBUTE_ELEMENTS.name(), sortableAttributeCompoundArray);
+
+		schemaNode.set(SortableAttributeCompoundSchemaDescriptor.INDEXED.name(), serializeFlagInScopes(sortableAttributeCompoundSchema::isIndexedInScope));
 
 		return schemaNode;
 	}
@@ -217,8 +221,10 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 	}
 
 	@Nonnull
-	private ObjectNode serializeReferenceSchema(@Nonnull Function<String, EntitySchemaContract> entitySchemaFetcher,
-	                                            @Nonnull ReferenceSchemaContract referenceSchema) {
+	private ObjectNode serializeReferenceSchema(
+		@Nonnull Function<String, EntitySchemaContract> entitySchemaFetcher,
+        @Nonnull ReferenceSchemaContract referenceSchema
+	) {
 		final ObjectNode referenceSchemaNode = objectJsonSerializer.objectNode();
 		referenceSchemaNode.put(NamedSchemaDescriptor.NAME.name(), referenceSchema.getName());
 		referenceSchemaNode.set(NamedSchemaDescriptor.NAME_VARIANTS.name(), serializeNameVariants(referenceSchema.getNameVariants()));
@@ -231,13 +237,12 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 		referenceSchemaNode.put(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE.name(), referenceSchema.getReferencedGroupType());
 		referenceSchemaNode.set(ReferenceSchemaDescriptor.GROUP_TYPE_NAME_VARIANTS.name(), serializeNameVariants(referenceSchema.getGroupTypeNameVariants(entitySchemaFetcher)));
 		referenceSchemaNode.put(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), referenceSchema.isReferencedGroupTypeManaged());
-		referenceSchemaNode.put(ReferenceSchemaDescriptor.INDEXED.name(), referenceSchema.isIndexed());
-		referenceSchemaNode.put(ReferenceSchemaDescriptor.FACETED.name(), referenceSchema.isFaceted());
+		referenceSchemaNode.set(ReferenceSchemaDescriptor.INDEXED.name(), serializeFlagInScopes(referenceSchema::isIndexedInScope));
+		referenceSchemaNode.set(ReferenceSchemaDescriptor.FACETED.name(), serializeFlagInScopes(referenceSchema::isFacetedInScope));
 
 		referenceSchemaNode.set(ReferenceSchemaDescriptor.ATTRIBUTES.name(), serializeAttributeSchemas(referenceSchema));
 		referenceSchemaNode.set(SortableAttributeCompoundsSchemaProviderDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), serializeSortableAttributeCompoundSchemas(referenceSchema));
 
 		return referenceSchemaNode;
 	}
-
 }

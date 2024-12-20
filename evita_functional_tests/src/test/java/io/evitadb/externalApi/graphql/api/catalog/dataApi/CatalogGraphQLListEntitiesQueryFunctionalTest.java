@@ -23,14 +23,21 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi;
 
+import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.query.Query;
+import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.query.order.Segments;
+import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
@@ -53,18 +60,17 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.not;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.order.OrderDirection.DESC;
-import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.ATTRIBUTE_CREATED;
-import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.ATTRIBUTE_MANUFACTURED;
-import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.ATTRIBUTE_MARKET_SHARE;
-import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRAPHQL_THOUSAND_PRODUCTS;
+import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.*;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.*;
+import static io.evitadb.utils.AssertionUtils.assertSortedResultEquals;
 import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -76,8 +82,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQLDataEndpointFunctionalTest {
 
-	private static final int SEED = 40;
-
 	private static final String PRODUCT_LIST_PATH = "data.listProduct";
 	public static final String CATEGORY_LIST_PATH = "data.listCategory";
 
@@ -85,7 +89,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 
 	@DataSet(value = GRAPHQL_THOUSAND_PRODUCTS_FOR_EMPTY_LIST, openWebApi = GraphQLProvider.CODE, readOnly = false, destroyAfterClass = true)
 	protected DataCarrier setUpForEmptyList(Evita evita) {
-		return super.setUpData(evita, 0);
+		return super.setUpData(evita, 0, false);
 	}
 
 	@Test
@@ -194,6 +198,316 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.body(PRODUCT_LIST_PATH, equalTo(expectedBody));
 	}
 
+	@Test
+	@UseDataSet(GRAPHQL_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE)
+	@DisplayName("Should return archived entities")
+	void shouldReturnArchivedEntities(Evita evita, GraphQLTester tester) {
+		final List<SealedEntity> archivedEntities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					scope(Scope.ARCHIVED)
+				),
+				require(
+					page(1, 2),
+					entityFetch()
+				)
+			),
+			SealedEntity.class
+		);
+
+		final var expectedBodyOfArchivedEntities = archivedEntities.stream()
+			.map(entity ->
+				map()
+					.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+					.e(EntityDescriptor.SCOPE.name(), Scope.ARCHIVED.name())
+					.build())
+			.toList();
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    listProduct(
+	                        filterBy: {
+	                            entityPrimaryKeyInSet: [%d, %d],
+	                            scope: ARCHIVED
+	                        }
+	                    ) {
+                            primaryKey
+	                        scope
+	                    }
+	                }
+					""",
+				archivedEntities.get(0).getPrimaryKey(),
+				archivedEntities.get(1).getPrimaryKey()
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(PRODUCT_LIST_PATH, equalTo(expectedBodyOfArchivedEntities));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE)
+	@DisplayName("Should return both live and archived entities explicitly")
+	void shouldReturnBothLiveAndArchivedEntitiesExplicitly(Evita evita, GraphQLTester tester) {
+		final List<SealedEntity> liveEntities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					scope(Scope.LIVE)
+				),
+				require(
+					page(1, 2),
+					entityFetch()
+				)
+			),
+			SealedEntity.class
+		);
+		final List<SealedEntity> archivedEntities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					scope(Scope.ARCHIVED)
+				),
+				require(
+					page(1, 2),
+					entityFetch()
+				)
+			),
+			SealedEntity.class
+		);
+
+		final var expectedBodyOfArchivedEntities = Stream.concat(liveEntities.stream(), archivedEntities.stream())
+			.map(entity ->
+				map()
+					.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+					.e(EntityDescriptor.SCOPE.name(), entity.getScope().name())
+					.build())
+			.toList();
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    listProduct(
+	                        filterBy: {
+	                            entityPrimaryKeyInSet: [%d, %d, %d, %d],
+	                            scope: [LIVE, ARCHIVED]
+	                        }
+	                    ) {
+                            primaryKey
+	                        scope
+	                    }
+	                }
+					""",
+				liveEntities.get(0).getPrimaryKey(),
+				liveEntities.get(1).getPrimaryKey(),
+				archivedEntities.get(0).getPrimaryKey(),
+				archivedEntities.get(1).getPrimaryKey()
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(PRODUCT_LIST_PATH, containsInAnyOrder(expectedBodyOfArchivedEntities.toArray()));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE)
+	@DisplayName("Should not return archived entity without scope")
+	void shouldNotReturnArchivedEntityWithoutScope(Evita evita, GraphQLTester tester) {
+		final SealedEntity archivedEntity = getEntity(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					scope(Scope.ARCHIVED)
+				),
+				require(
+					page(1, 1),
+					entityFetch()
+				)
+			),
+			SealedEntity.class
+		);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    listProduct(
+	                         filterBy: {
+							     entityPrimaryKeyInSet: %d
+							 }
+                        ) {
+                            primaryKey
+	                        scope
+	                    }
+	                }
+					""",
+				archivedEntity.getPrimaryKey()
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(PRODUCT_LIST_PATH, emptyIterable());
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE)
+	@DisplayName("Should return data based on scope")
+	void shouldReturnDataBasedOnScope(Evita evita, GraphQLTester tester) {
+		final List<SealedEntity> liveEntities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					scope(Scope.LIVE)
+				),
+				require(
+					page(1, 2),
+					entityFetch(attributeContent(ATTRIBUTE_CODE))
+				)
+			),
+			SealedEntity.class
+		);
+		final List<SealedEntity> archivedEntities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					scope(Scope.ARCHIVED)
+				),
+				require(
+					page(1, 2),
+					entityFetch()
+				)
+			),
+			SealedEntity.class
+		);
+
+		var expectedBody = Stream.concat(Stream.of(liveEntities.get(0)), archivedEntities.stream())
+			.map(entity -> map()
+				.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+				.e(EntityDescriptor.SCOPE.name(), entity.getScope().name())
+				.build())
+			.toList();
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					listProduct(
+						filterBy: {
+							entityPrimaryKeyInSet: [%d, %d, %d, %d],
+							inScope: {
+								scope: LIVE,
+								filtering: {
+									attributeCodeEquals: "%s"
+								}
+							}
+							scope: [LIVE, ARCHIVED]
+						}
+					) {
+						primaryKey
+						scope
+					}
+				}
+				""",
+				liveEntities.get(0).getPrimaryKey(),
+				liveEntities.get(1).getPrimaryKey(),
+				archivedEntities.get(0).getPrimaryKey(),
+				archivedEntities.get(1).getPrimaryKey(),
+				liveEntities.get(0).getAttribute(ATTRIBUTE_CODE))
+			.executeAndExpectOkAndThen()
+			.body(ERRORS_PATH, nullValue())
+			.body(PRODUCT_LIST_PATH, containsInAnyOrder(expectedBody.toArray()));
+	}
+
+
+	@Test
+	@UseDataSet(GRAPHQL_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE)
+	@DisplayName("Should order data based on scope")
+	void shouldOrderDataBasedOnScope(Evita evita, GraphQLTester tester) {
+		final List<EntityClassifier> liveEntities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(scope(Scope.LIVE)),
+				require(page(1, 2))
+			),
+			EntityClassifier.class
+		);
+		final List<EntityClassifier> archivedEntities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(scope(Scope.ARCHIVED)),
+				require(page(1, 2))
+			),
+			EntityClassifier.class
+		);
+
+		final EvitaResponse<EntityClassifier> expectedEntities = queryEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					entityPrimaryKeyInSet(
+						Stream.concat(liveEntities.stream(), archivedEntities.stream())
+							.map(EntityClassifier::getPrimaryKey)
+							.toArray(Integer[]::new)
+					),
+					scope(Scope.LIVE, Scope.ARCHIVED)
+				),
+				orderBy(
+					inScope(
+						Scope.LIVE,
+						attributeNatural(ATTRIBUTE_PRIORITY, DESC)
+					)
+				)
+			),
+			EntityClassifier.class
+		);
+		var expectedBody = expectedEntities.getRecordData()
+			.stream()
+			.map(entity -> map()
+				.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+				.build())
+			.toList();
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					listProduct(
+						filterBy: {
+							entityPrimaryKeyInSet: [%d, %d, %d, %d],
+							scope: [LIVE, ARCHIVED]
+						},
+						orderBy: {
+							inScope: {
+								scope: LIVE,
+								ordering: {
+									attributePriorityNatural: DESC
+								}
+							}
+						}
+					) {
+						primaryKey
+					}
+				}
+				""",
+				liveEntities.get(0).getPrimaryKey(),
+				liveEntities.get(1).getPrimaryKey(),
+				archivedEntities.get(0).getPrimaryKey(),
+				archivedEntities.get(1).getPrimaryKey())
+			.executeAndExpectOkAndThen()
+			.body(ERRORS_PATH, nullValue())
+			.body(PRODUCT_LIST_PATH, containsInAnyOrder(expectedBody.toArray()));
+	}
 
 	@Test
 	@UseDataSet(value = GRAPHQL_THOUSAND_PRODUCTS_FOR_EMPTY_LIST, destroyAfterTest = true)
@@ -2507,6 +2821,218 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.body(PRODUCT_LIST_PATH + "." + EntityDescriptor.PRIMARY_KEY.name(), contains(expectedEntities.stream().limit(5).toArray(Integer[]::new)));
 	}
 
+	@Test
+	@UseDataSet(GRAPHQL_HUNDRED_PRODUCTS_FOR_SEGMENTS)
+	@DisplayName("Should return entities in manually crafter segmented order")
+	void shouldReturnDifferentlySortedSegments(Evita evita, GraphQLTester tester) {
+		final Segments evitaQLSegments = segments(
+			segment(
+				orderBy(
+					attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC)
+				),
+				limit(5)
+			),
+			segment(
+				orderBy(
+					attributeNatural(ATTRIBUTE_EAN, OrderDirection.DESC)
+				),
+				limit(2)
+			),
+			segment(
+				orderBy(
+					attributeNatural(ATTRIBUTE_QUANTITY, OrderDirection.ASC)
+				),
+				limit(2)
+			)
+		);
+		final String graphQLSegments = """
+			segments: [
+			  {
+			    segment: {
+			      orderBy: {
+			        attributeNameNatural: DESC
+			      },
+			      limit: 5
+			    }
+			  },
+			  {
+			    segment: {
+			      orderBy: {
+			        attributeEanNatural: DESC
+			      },
+			      limit: 2
+			    }
+			  },
+			  {
+			    segment: {
+			      orderBy: {
+			        attributeQuantityNatural: ASC
+			      },
+			      limit: 2
+			    }
+			  }
+			]
+			""";
+
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertGraphQLSegmentedQuery(
+					"First page must be sorted by name in descending order.",
+					session, tester,
+					fabricateEvitaQLSegmentedQuery(0, 5, evitaQLSegments),
+					fabricateGraphQLSegmentedQuery(0, 5, graphQLSegments)
+				);
+
+				assertGraphQLSegmentedQuery(
+					"Second page must be sorted by ean in descending order and quantity in asceding order.",
+					session, tester,
+					fabricateEvitaQLSegmentedQuery(5, 5, evitaQLSegments),
+					fabricateGraphQLSegmentedQuery(5, 5, graphQLSegments)
+				);
+
+				assertGraphQLSegmentedQuery(
+					"Third page must be sorted by PK in ascending order.",
+					session, tester,
+					fabricateEvitaQLSegmentedQuery(10, 5, evitaQLSegments),
+					fabricateGraphQLSegmentedQuery(10, 5, graphQLSegments)
+				);
+
+				return null;
+			}
+		);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_HUNDRED_PRODUCTS_FOR_SEGMENTS)
+	@DisplayName("Should return filtered entities in manually crafter segmented order")
+	void shouldReturnDifferentlySortedAndFilteredSegments(Evita evita, GraphQLTester tester) {
+		final Segments evitaQLSegments = segments(
+			segment(
+				entityHaving(
+					attributeLessThanEquals(ATTRIBUTE_NAME, "L")
+				),
+				orderBy(
+					attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC)
+				),
+				limit(10)
+			),
+			segment(
+				entityHaving(
+					attributeLessThanEquals(ATTRIBUTE_NAME, "P")
+				),
+				orderBy(
+					attributeNatural(ATTRIBUTE_EAN, OrderDirection.DESC)
+				),
+				limit(8)
+			),
+			segment(
+				entityHaving(
+					attributeLessThanEquals(ATTRIBUTE_NAME, "T")
+				),
+				orderBy(
+					attributeNatural(ATTRIBUTE_QUANTITY, OrderDirection.ASC)
+				),
+				limit(6)
+			)
+		);
+		final String graphQLSegments = """
+			segments: [
+			  {
+			    segment: {
+			      entityHaving: {
+			        attributeNameLessThanEquals: "L"
+			      },
+			      orderBy: {
+			        attributeNameNatural: DESC
+			      },
+			      limit: 10
+			    }
+			  },
+			  {
+			    segment: {
+			      entityHaving: {
+			        attributeNameLessThanEquals: "P"
+			      },
+			      orderBy: {
+			        attributeEanNatural: DESC
+			      },
+			      limit: 8
+			    }
+			  },
+			  {
+			    segment: {
+			      entityHaving: {
+			        attributeNameLessThanEquals: "T"
+			      },
+			      orderBy: {
+			        attributeQuantityNatural: ASC
+			      },
+			      limit: 6
+			    }
+			  }
+			]
+			""";
+
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertGraphQLSegmentedQuery(
+					"First page must be sorted by name in descending order.",
+					session, tester,
+					fabricateEvitaQLSegmentedQuery(0, 5, evitaQLSegments),
+					fabricateGraphQLSegmentedQuery(0, 5, graphQLSegments)
+				);
+
+				assertGraphQLSegmentedQuery(
+					"Second page must be sorted by name in descending order.",
+					session, tester,
+					fabricateEvitaQLSegmentedQuery(5, 5, evitaQLSegments),
+					fabricateGraphQLSegmentedQuery(5, 5, graphQLSegments)
+				);
+
+				assertGraphQLSegmentedQuery(
+					"Third page must be sorted by EAN in descending order (excluding items on first two pages).",
+					session, tester,
+					fabricateEvitaQLSegmentedQuery(10, 5, evitaQLSegments),
+					fabricateGraphQLSegmentedQuery(10, 5, graphQLSegments)
+				);
+
+				assertGraphQLSegmentedQuery(
+					"Fourth page contains 3 entities sorted according to EAN in descending order and ends with first 2 entities sorted according to quantity in ascending order.",
+					session, tester,
+					fabricateEvitaQLSegmentedQuery(15, 5, evitaQLSegments),
+					fabricateGraphQLSegmentedQuery(15, 5, graphQLSegments)
+				);
+
+				assertGraphQLSegmentedQuery(
+					"Fifth page must have only 4 entities be sorted by quantity in ascending order and must end with first entity sorted by PK in ascending order.",
+					session, tester,
+					fabricateEvitaQLSegmentedQuery(20, 5, evitaQLSegments),
+					fabricateGraphQLSegmentedQuery(20, 5, graphQLSegments)
+				);
+
+				assertGraphQLSegmentedQuery(
+					"Sixth page must be sorted by PK in ascending order (but only from those entities that hasn't been already provided).",
+					session, tester,
+					fabricateEvitaQLSegmentedQuery(25, 5, evitaQLSegments),
+					fabricateGraphQLSegmentedQuery(25, 5, graphQLSegments)
+				);
+
+				assertGraphQLSegmentedQuery(
+					"Seventh page must be sorted by PK in ascending order (but only from those entities that hasn't been already provided).",
+					session, tester,
+					fabricateEvitaQLSegmentedQuery(30, 5, evitaQLSegments),
+					fabricateGraphQLSegmentedQuery(30, 5, graphQLSegments)
+				);
+
+				return null;
+			}
+		);
+	}
+
 
 	@Nonnull
 	private List<SealedEntity> findEntities(@Nonnull List<SealedEntity> originalProductEntities,
@@ -2540,6 +3066,70 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 		return findEntities(
 			originalProductEntities,
 			it -> Arrays.stream(priceLists).allMatch(pl -> it.getPrices(CURRENCY_CZK, pl).size() == 1)
+		);
+	}
+
+
+	@Nonnull
+	private static Query fabricateEvitaQLSegmentedQuery(int offset, int limit, @Nonnull Segments segments) {
+		return query(
+			collection(Entities.PRODUCT),
+			filterBy(entityLocaleEquals(Locale.ENGLISH)),
+			orderBy(segments),
+			require(
+				strip(offset, limit),
+				debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+			)
+		);
+	}
+
+	@Nonnull
+	private static String fabricateGraphQLSegmentedQuery(int offset, int limit, @Nonnull String segments) {
+		return String.format(
+			"""
+			{
+			  listProduct(
+			    filterBy: {
+			      entityLocaleEquals: en
+			    }
+			    orderBy: {
+			      %s
+			    }
+			    offset: %d
+			    limit: %d
+			  ) {
+		        primaryKey
+			  }
+			}
+			""",
+			segments,
+			offset,
+			limit
+		);
+	}
+
+	private void assertGraphQLSegmentedQuery(@Nonnull String message,
+	                                         @Nonnull EvitaSessionContract session,
+	                                         @Nonnull GraphQLTester tester,
+	                                         @Nonnull Query sampleEvitaQLQuery,
+	                                         @Nonnull String targetGraphQLQuery) {
+		final int[] expectedEntities = session.query(sampleEvitaQLQuery, EntityReference.class)
+			.getRecordData()
+			.stream()
+			.mapToInt(EntityReference::getPrimaryKey)
+			.toArray();
+		assertEquals(5, expectedEntities.length);
+		final List<Integer> actualEntities = tester.test(TEST_CATALOG)
+			.document(targetGraphQLQuery)
+			.executeAndExpectOkAndThen()
+			.extract()
+			.body()
+			.jsonPath()
+			.getList(resultPath(PRODUCT_LIST_PATH, EntityDescriptor.PRIMARY_KEY.name()), Integer.class);
+		assertSortedResultEquals(
+			message,
+			actualEntities,
+			expectedEntities
 		);
 	}
 }

@@ -170,6 +170,12 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		final MapChanges<K, V> changes = transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 		ofNullable(changes).ifPresent(it -> it.cleanAll(transactionalLayer));
+		for (Entry<K, V> entry : mapDelegate.entrySet()) {
+			V value = entry.getValue();
+			if (value instanceof TransactionalLayerProducer<?,?> transactionalLayerProducer) {
+				transactionalLayerProducer.removeLayer(transactionalLayer);
+			}
+		}
 	}
 
 	/*

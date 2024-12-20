@@ -27,12 +27,12 @@ import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.exception.EntityMissingException;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.MandatoryAssociatedDataNotProvidedException;
 import io.evitadb.api.exception.MandatoryAttributesNotProvidedException;
 import io.evitadb.api.exception.ReferenceCardinalityViolatedException;
 import io.evitadb.api.exception.UniqueValueViolationException;
-import io.evitadb.api.query.Query;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
@@ -55,6 +55,7 @@ import io.evitadb.core.EntityCollection;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
+import io.evitadb.dataType.Scope;
 import io.evitadb.function.TriConsumer;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
@@ -92,20 +93,19 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 class EvitaIndexingTest implements EvitaTestSupport {
-	public static final String REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY = "productsInCategory";
-	public static final String REFERENCE_PRODUCT_CATEGORY = "productCategory";
+	private static final String DIR_EVITA_INDEXING_TEST = "evitaIndexingTest";
+	private static final String REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY = "productsInCategory";
+	private static final String REFERENCE_PRODUCT_CATEGORY = "productCategory";
 
-	public static final String ATTRIBUTE_CODE = "code";
-	public static final String ATTRIBUTE_NAME = "name";
-	public static final String ATTRIBUTE_URL = "url";
-	public static final String ATTRIBUTE_DESCRIPTION = "description";
-	public static final String ATTRIBUTE_EAN = "ean";
+	private static final String ATTRIBUTE_CODE = "code";
+	private static final String ATTRIBUTE_NAME = "name";
+	private static final String ATTRIBUTE_DESCRIPTION = "description";
+	private static final String ATTRIBUTE_EAN = "ean";
 
-	public static final String ATTRIBUTE_BRAND_NAME = "brandName";
-	public static final String ATTRIBUTE_BRAND_DESCRIPTION = "brandDescription";
-	public static final String ATTRIBUTE_BRAND_EAN = "brandEan";
-	public static final String ATTRIBUTE_CATEGORY_PRIORITY = "categoryPriority";
-	public static final String DIR_EVITA_INDEXING_TEST = "evitaIndexingTest";
+	private static final String ATTRIBUTE_BRAND_NAME = "brandName";
+	private static final String ATTRIBUTE_BRAND_DESCRIPTION = "brandDescription";
+	private static final String ATTRIBUTE_BRAND_EAN = "brandEan";
+	private static final String ATTRIBUTE_CATEGORY_PRIORITY = "categoryPriority";
 	private static final Locale LOCALE_CZ = new Locale("cs", "CZ");
 	private static final Currency CURRENCY_CZK = Currency.getInstance("CZK");
 	private static final Currency CURRENCY_EUR = Currency.getInstance("EUR");
@@ -288,30 +288,30 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	}
 
 	@Nullable
-	private static EntityIndex getGlobalIndex(EntityCollectionContract collection) {
+	static EntityIndex getGlobalIndex(@Nonnull EntityCollectionContract collection) {
+		return getGlobalIndex(collection, Scope.LIVE);
+	}
+
+	@Nullable
+	static EntityIndex getGlobalIndex(@Nonnull EntityCollectionContract collection, @Nonnull Scope scope) {
 		Assert.isTrue(collection instanceof EntityCollection, "Unexpected entity collection type!");
 		return ((EntityCollection) collection).getIndexByKeyIfExists(
-			new EntityIndexKey(EntityIndexType.GLOBAL)
+			new EntityIndexKey(EntityIndexType.GLOBAL, scope)
 		);
 	}
 
 	@Nullable
-	private static EntityIndex getHierarchyIndex(EntityCollectionContract collection, String entityType, int recordId) {
-		Assert.isTrue(collection instanceof EntityCollection, "Unexpected entity collection type!");
-		return ((EntityCollection) collection).getIndexByKeyIfExists(
-			new EntityIndexKey(
-				EntityIndexType.REFERENCED_HIERARCHY_NODE,
-				new ReferenceKey(entityType, recordId)
-			)
-		);
+	static EntityIndex getReferencedEntityIndex(@Nonnull EntityCollectionContract collection, @Nonnull String entityType, int recordId) {
+		return getReferencedEntityIndex(collection, Scope.LIVE, entityType, recordId);
 	}
 
 	@Nullable
-	private static EntityIndex getReferencedEntityIndex(EntityCollectionContract collection, String entityType, int recordId) {
+	static EntityIndex getReferencedEntityIndex(@Nonnull EntityCollectionContract collection, @Nonnull Scope scope, @Nonnull String entityType, int recordId) {
 		Assert.isTrue(collection instanceof EntityCollection, "Unexpected entity collection type!");
 		return ((EntityCollection) collection).getIndexByKeyIfExists(
 			new EntityIndexKey(
 				EntityIndexType.REFERENCED_ENTITY,
+				scope,
 				new ReferenceKey(entityType, recordId)
 			)
 		);
@@ -640,7 +640,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				TEST_CATALOG,
 				session -> {
 					return session.queryOneSealedEntity(
-						Query.query(
+						query(
 							collection(Entities.PRODUCT),
 							filterBy(
 								and(
@@ -1881,69 +1881,6 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	}
 
 	@Test
-	void shouldFailToMarkCurrencyAsSortable() {
-		assertThrows(
-			InvalidSchemaMutationException.class,
-			() -> evita.updateCatalog(
-				TEST_CATALOG,
-				session -> {
-					session.getCatalogSchema()
-						.openForWrite()
-						.withEntitySchema(
-							"whatever",
-							whichIs -> whichIs.withAttribute("whatever", Currency.class, AttributeSchemaEditor::sortable)
-						)
-						.updateVia(session);
-				}
-			)
-		);
-	}
-
-	@Test
-	void shouldMarkLocaleAsFilterable() {
-		evita.updateCatalog(
-			TEST_CATALOG,
-			session -> {
-				session.getCatalogSchema()
-					.openForWrite()
-					.withEntitySchema(
-						"whatever",
-						whichIs -> whichIs.withAttribute("whatever", Locale.class, AttributeSchemaEditor::filterable)
-					)
-					.updateVia(session);
-			}
-		);
-
-		evita.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				assertTrue(
-					session.getEntitySchemaOrThrow("whatever").getAttribute("whatever").orElseThrow().isFilterable()
-				);
-			}
-		);
-	}
-
-	@Test
-	void shouldFailToMarkLocaleAsSortable() {
-		assertThrows(
-			InvalidSchemaMutationException.class,
-			() -> evita.updateCatalog(
-				TEST_CATALOG,
-				session -> {
-					session.getCatalogSchema()
-						.openForWrite()
-						.withEntitySchema(
-							"whatever",
-							whichIs -> whichIs.withAttribute("whatever", Locale.class, AttributeSchemaEditor::sortable)
-						)
-						.updateVia(session);
-				}
-			)
-		);
-	}
-
-	@Test
 	void shouldFailToSetNonNullableAssociatedDataToNull() {
 		try {
 			evita.updateCatalog(
@@ -2339,7 +2276,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				final EntityCollectionContract productCollection = catalog.getCollectionForEntity(Entities.PRODUCT)
 					.orElseThrow();
 
-				assertNull(getHierarchyIndex(productCollection, Entities.CATEGORY, 1));
+				assertNull(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 1));
 				assertNull(getReferencedEntityIndex(productCollection, Entities.BRAND, 1));
 
 				// load it and add references
@@ -2351,11 +2288,11 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					.upsertVia(session);
 
 				// assert data from global index were propagated
-				assertNull(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 1));
-				final EntityIndex categoryIndex = getHierarchyIndex(productCollection, Entities.CATEGORY, 1);
+				assertNotNull(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 1));
+				final EntityIndex categoryIndex = getReferencedEntityIndex(productCollection, Entities.CATEGORY, 1);
 				assertDataWasPropagated(categoryIndex, 1);
 
-				assertNull(getHierarchyIndex(productCollection, Entities.BRAND, 1));
+				assertNotNull(getReferencedEntityIndex(productCollection, Entities.BRAND, 1));
 				final EntityIndex brandIndex = getReferencedEntityIndex(productCollection, Entities.BRAND, 1);
 				assertDataWasPropagated(brandIndex, 1);
 
@@ -2366,10 +2303,9 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					.removeReference(Entities.BRAND, 1)
 					.removeReference(Entities.CATEGORY, 1)
 					.upsertVia(session);
-				;
 
 				// assert indexes were emptied and removed
-				assertNull(getHierarchyIndex(productCollection, Entities.CATEGORY, 1));
+				assertNull(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 1));
 				assertNull(getReferencedEntityIndex(productCollection, Entities.BRAND, 1));
 			}
 		);
@@ -2423,7 +2359,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				final EntityCollectionContract productCollection = catalog.getCollectionForEntity(Entities.PRODUCT)
 					.orElseThrow();
 
-				assertNull(getHierarchyIndex(productCollection, Entities.CATEGORY, 1));
+				assertNull(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 1));
 				assertNull(getReferencedEntityIndex(productCollection, Entities.BRAND, 1));
 			}
 		);
@@ -2744,8 +2680,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(new Comparable<?>[]{"ABC", "123"}).getArray());
 				};
 
-				verifyIndexContents.accept(getHierarchyIndex(productCollection, Entities.CATEGORY, 10));
-				verifyIndexContents.accept(getHierarchyIndex(productCollection, Entities.CATEGORY, 11));
+				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10));
+				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 11));
 				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.BRAND, 20));
 				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.BRAND, 21));
 			}
@@ -2781,8 +2717,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(new Comparable<?>[]{"ABC", "123"}).getArray());
 				};
 
-				assertNull(getHierarchyIndex(productCollection, Entities.CATEGORY, 10));
-				verifyIndexContentsContains.accept(getHierarchyIndex(productCollection, Entities.CATEGORY, 11));
+				assertNull(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10));
+				verifyIndexContentsContains.accept(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 11));
 				assertNull(getReferencedEntityIndex(productCollection, Entities.BRAND, 20));
 				verifyIndexContentsContains.accept(getReferencedEntityIndex(productCollection, Entities.BRAND, 21));
 			}
@@ -2856,7 +2792,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(expected).getArray());
 				};
 
-				verifyIndexContents.accept(getHierarchyIndex(productCollection, Entities.CATEGORY, 10), new Comparable<?>[]{null, null});
+				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10), new Comparable<?>[]{null, null});
 				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.BRAND, 20), new Comparable<?>[]{null, null});
 
 				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), referenceContentAll())
@@ -2876,7 +2812,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					)
 					.upsertVia(session);
 
-				verifyIndexContents.accept(getHierarchyIndex(productCollection, Entities.CATEGORY, 10), new Comparable<?>[]{"ABC", "123"});
+				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10), new Comparable<?>[]{"ABC", "123"});
 				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.BRAND, 20), new Comparable<?>[]{"ABC", "123"});
 			}
 		);
@@ -2899,8 +2835,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				final EntityIndex globalIndex = getGlobalIndex(productCollection);
 				assertNotNull(globalIndex);
 
-				assertNull(getHierarchyIndex(productCollection, Entities.CATEGORY, 10));
-				assertNull(getHierarchyIndex(productCollection, Entities.CATEGORY, 11));
+				assertNull(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10));
+				assertNull(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 11));
 				assertNull(getReferencedEntityIndex(productCollection, Entities.BRAND, 20));
 				assertNull(getReferencedEntityIndex(productCollection, Entities.BRAND, 21));
 			}
@@ -2966,7 +2902,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				final EntityCollectionContract productCollection = catalog.getCollectionForEntity(Entities.PRODUCT)
 					.orElseThrow();
 
-				assertNull(getHierarchyIndex(productCollection, Entities.CATEGORY, 10).getSortIndex(new AttributeKey(attributeCodeEan)));
+				assertNull(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10).getSortIndex(new AttributeKey(attributeCodeEan)));
 				assertNull(getReferencedEntityIndex(productCollection, Entities.BRAND, 20).getSortIndex(new AttributeKey(attributeCodeEan, Locale.ENGLISH)));
 
 				// this function allows us to repeatedly verify index contents
@@ -2990,7 +2926,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					)
 					.upsertVia(session);
 
-				verifyIndexContents.accept(getHierarchyIndex(productCollection, Entities.CATEGORY, 10), Locale.ENGLISH, new Comparable<?>[]{null, null});
+				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10), Locale.ENGLISH, new Comparable<?>[]{null, null});
 				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.BRAND, 20), Locale.CANADA, new Comparable<?>[]{null, null});
 
 				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), referenceContentAll(), dataInLocalesAll())
@@ -3006,7 +2942,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					)
 					.upsertVia(session);
 
-				verifyIndexContents.accept(getHierarchyIndex(productCollection, Entities.CATEGORY, 10), Locale.ENGLISH, new Comparable<?>[]{"The product", "123"});
+				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10), Locale.ENGLISH, new Comparable<?>[]{"The product", "123"});
 				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.BRAND, 20), Locale.CANADA, new Comparable<?>[]{"The CA product", "456"});
 			}
 		);
@@ -3053,7 +2989,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				final EntityCollectionContract productCollection = catalog.getCollectionForEntity(Entities.PRODUCT)
 					.orElseThrow();
 
-				verifyIndexContents.accept(getHierarchyIndex(productCollection, Entities.CATEGORY, 10), Locale.ENGLISH, new Comparable<?>[]{"Whatever", "567"});
+				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10), Locale.ENGLISH, new Comparable<?>[]{"Whatever", "567"});
 				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.BRAND, 20), Locale.CANADA, new Comparable<?>[]{"Else", "624"});
 			}
 		);
@@ -3082,7 +3018,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				final EntityCollectionContract productCollection = catalog.getCollectionForEntity(Entities.PRODUCT)
 					.orElseThrow();
 
-				assertNull(getHierarchyIndex(productCollection, Entities.CATEGORY, 10).getSortIndex(new AttributeKey(attributeCodeEan, Locale.ENGLISH)));
+				assertNull(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10).getSortIndex(new AttributeKey(attributeCodeEan, Locale.ENGLISH)));
 				assertNotNull(getReferencedEntityIndex(productCollection, Entities.BRAND, 20).getSortIndex(new AttributeKey(attributeCodeEan, Locale.CANADA)));
 
 				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), referenceContentAll(), dataInLocalesAll())
@@ -3094,7 +3030,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					)
 					.upsertVia(session);
 
-				assertNull(getHierarchyIndex(productCollection, Entities.CATEGORY, 10).getSortIndex(new AttributeKey(attributeCodeEan, Locale.ENGLISH)));
+				assertNull(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10).getSortIndex(new AttributeKey(attributeCodeEan, Locale.ENGLISH)));
 				assertNull(getReferencedEntityIndex(productCollection, Entities.BRAND, 20).getSortIndex(new AttributeKey(attributeCodeEan, Locale.CANADA)));
 			}
 		);
@@ -3343,12 +3279,12 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				createEntangledSchema(session);
 
 				session.upsertEntity(
-					session.createNewEntity(Entities.CATEGORY, 1)
-						.setReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10)
+					session.createNewEntity(Entities.PRODUCT, 10)
 				);
 
 				session.upsertEntity(
-					session.createNewEntity(Entities.PRODUCT, 10)
+					session.createNewEntity(Entities.CATEGORY, 1)
+						.setReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10)
 				);
 
 				assertReferencesAreEntangled(session);
@@ -3364,6 +3300,10 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				createEntangledSchemaWithInheritedAttributes(session);
 
 				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+				);
+
+				session.upsertEntity(
 					session.createNewEntity(Entities.CATEGORY, 1)
 						.setReference(
 							REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10,
@@ -3372,12 +3312,51 @@ class EvitaIndexingTest implements EvitaTestSupport {
 						)
 				);
 
-				session.upsertEntity(
-					session.createNewEntity(Entities.PRODUCT, 10)
-				);
-
 				assertReferencesAreEntangled(session);
 				assertInheritedAttributesValues(session, "default", "ABC", "CZ");
+			}
+		);
+	}
+
+	@Test
+	void shouldFailToCreateReflectedReferencesWhenBaseEntityIsNotPresentDuringCreation() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				createEntangledSchema(session);
+
+				assertThrows(
+					EntityMissingException.class,
+					() -> session.upsertEntity(
+						session.createNewEntity(Entities.CATEGORY, 1)
+							.setReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10)
+					)
+				);
+			}
+		);
+	}
+
+	@Test
+	void shouldFailToCreateReflectedReferencesWhenBaseEntityIsNotPresentDuringUpdate() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				createEntangledSchema(session);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, 1)
+				);
+
+				assertThrows(
+					EntityMissingException.class,
+					() -> session.upsertEntity(
+						session.getEntity(Entities.CATEGORY, 1, entityFetchAllContent())
+							.orElseThrow()
+							.openForWrite()
+							.setReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10)
+							.upsertVia(session)
+					)
+				);
 			}
 		);
 	}
@@ -3607,15 +3586,15 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 				// first create both entities with particular reference
 				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+				);
+
+				session.upsertEntity(
 					session.createNewEntity(Entities.CATEGORY, 1)
 						.setReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10)
 				);
 
-				session.upsertEntity(
-					session.createNewEntity(Entities.PRODUCT, 10)
-				);
-
-				// then add regular reference
+				// then remove reflected reference
 				session.getEntity(Entities.CATEGORY, 1, entityFetchAllContent())
 					.orElseThrow()
 					.openForWrite()
@@ -3636,15 +3615,15 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 				// first create both entities with particular reference
 				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+				);
+
+				session.upsertEntity(
 					session.createNewEntity(Entities.CATEGORY, 1)
 						.setReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10)
 				);
 
-				session.upsertEntity(
-					session.createNewEntity(Entities.PRODUCT, 10)
-				);
-
-				// then add regular reference
+				// then remove regular reference
 				session.getEntity(Entities.PRODUCT, 10, entityFetchAllContent())
 					.orElseThrow()
 					.openForWrite()
@@ -3665,15 +3644,15 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 				// first create both entities with particular reference
 				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+				);
+
+				session.upsertEntity(
 					session.createNewEntity(Entities.CATEGORY, 1)
 						.setReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10)
 				);
 
-				session.upsertEntity(
-					session.createNewEntity(Entities.PRODUCT, 10)
-				);
-
-				// then add regular reference
+				// then delete entity
 				session.deleteEntity(Entities.PRODUCT, 10, entityFetchAllContent());
 
 				assertEntitiesAreNotEntangled(session);
@@ -3690,15 +3669,15 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 				// first create both entities with particular reference
 				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+				);
+
+				session.upsertEntity(
 					session.createNewEntity(Entities.CATEGORY, 1)
 						.setReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10)
 				);
 
-				session.upsertEntity(
-					session.createNewEntity(Entities.PRODUCT, 10)
-				);
-
-				// then add regular reference
+				// then delete entity
 				session.deleteEntity(Entities.CATEGORY, 1, entityFetchAllContent());
 
 				assertEntitiesAreNotEntangled(session);

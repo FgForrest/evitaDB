@@ -24,6 +24,7 @@
 package io.evitadb.index;
 
 import io.evitadb.api.requestResponse.data.Versioned;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.core.query.algebra.Formula;
@@ -34,6 +35,8 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.AttributeIndexContract;
+import io.evitadb.index.attribute.AttributeIndexScopeSpecificContract;
+import io.evitadb.index.attribute.UniqueIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.bool.TransactionalBoolean;
@@ -44,13 +47,13 @@ import io.evitadb.index.hierarchy.HierarchyIndexContract;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.price.PriceIndexContract;
 import io.evitadb.index.price.PriceListAndCurrencyPriceIndex;
-import io.evitadb.index.price.PriceSuperIndex;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.store.spi.model.storageParts.index.EntityIndexStoragePart;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.StringUtils;
 import lombok.Getter;
 import lombok.experimental.Delegate;
 
@@ -98,7 +101,7 @@ public abstract class EntityIndex implements
 	 * data that are necessary for constructing {@link Formula} tree for the constraints
 	 * related to the attributes.
 	 */
-	@Delegate(types = AttributeIndexContract.class)
+	@Delegate(types = AttributeIndexContract.class, excludes = AttributeIndexScopeSpecificContract.class)
 	protected final AttributeIndex attributeIndex;
 	/**
 	 * This is internal flag that tracks whether the index contents became dirty and needs to be persisted.
@@ -144,12 +147,6 @@ public abstract class EntityIndex implements
 	 */
 	protected final boolean originalHierarchyIndexEmpty;
 	/**
-	 * This field captures the original state of the price id sequence when this index was created.
-	 * This information is used along with {@link #dirty} flag to determine whether {@link EntityIndexStoragePart}
-	 * should be persisted.
-	 */
-	protected final Integer originalInternalPriceIdSequence;
-	/**
 	 * This field captures the original state of the attribute index when this index was created.
 	 * This information is used along with {@link #dirty} flag to determine whether {@link EntityIndexStoragePart}
 	 * should be persisted.
@@ -183,7 +180,6 @@ public abstract class EntityIndex implements
 		this.hierarchyIndex = new HierarchyIndex();
 		this.facetIndex = new FacetIndex();
 		this.originalHierarchyIndexEmpty = true;
-		this.originalInternalPriceIdSequence = null;
 		this.originalAttributeIndexes = Collections.emptySet();
 		this.originalPriceIndexes = Collections.emptySet();
 		this.originalFacetIndexes = Collections.emptySet();
@@ -215,7 +211,6 @@ public abstract class EntityIndex implements
 		this.hierarchyIndex = hierarchyIndex;
 		this.facetIndex = facetIndex;
 		this.originalHierarchyIndexEmpty = this.hierarchyIndex.isHierarchyIndexEmpty();
-		this.originalInternalPriceIdSequence = getInternalPriceIdSequence(priceIndex);
 		this.originalAttributeIndexes = getAttributeIndexStorageKeys();
 		this.originalPriceIndexes = getPriceIndexKeys(priceIndex);
 		this.originalFacetIndexes = getFacetIndexReferencedEntities();
@@ -231,7 +226,6 @@ public abstract class EntityIndex implements
 		@Nonnull HierarchyIndex hierarchyIndex,
 		@Nonnull FacetIndex facetIndex,
 		boolean originalHierarchyIndexEmpty,
-		@Nonnull Integer originalInternalPriceIdSequence,
 		@Nonnull Set<AttributeIndexStorageKey> originalAttributeIndexes,
 		@Nonnull Set<PriceIndexKey> originalPriceIndexes,
 		@Nonnull Set<String> originalFacetIndexes
@@ -246,7 +240,6 @@ public abstract class EntityIndex implements
 		this.hierarchyIndex = hierarchyIndex;
 		this.facetIndex = facetIndex;
 		this.originalHierarchyIndexEmpty = originalHierarchyIndexEmpty;
-		this.originalInternalPriceIdSequence = originalInternalPriceIdSequence;
 		this.originalAttributeIndexes = originalAttributeIndexes;
 		this.originalPriceIndexes = originalPriceIndexes;
 		this.originalFacetIndexes = originalFacetIndexes;
@@ -328,8 +321,9 @@ public abstract class EntityIndex implements
 	 */
 	public boolean removeLanguage(@Nonnull Locale locale, int recordId) {
 		final TransactionalBitmap recordIdsWithLanguage = this.entityIdsByLanguage.get(locale);
+		final boolean removed = recordIdsWithLanguage != null && recordIdsWithLanguage.remove(recordId);
 		Assert.isTrue(
-			recordIdsWithLanguage != null && recordIdsWithLanguage.remove(recordId),
+			removed,
 			"Entity `" + recordId + "` has unexpectedly not indexed localized data for language `" + locale + "`!"
 		);
 		if (recordIdsWithLanguage.isEmpty()) {
@@ -337,10 +331,20 @@ public abstract class EntityIndex implements
 			this.dirty.setToTrue();
 			// remove the changes container - the bitmap got removed entirely
 			removeTransactionalMemoryLayerIfExists(recordIdsWithLanguage);
-			return true;
-		} else {
-			return false;
 		}
+		return true;
+	}
+
+	/**
+	 * Retrieves a unique index for the given attribute schema and optional locale.
+	 *
+	 * @param attributeSchema The schema of the attribute for which the unique index is being retrieved. Must not be null.
+	 * @param locale The locale for which the unique index is sought, can be null.
+	 * @return The unique index corresponding to the specified attribute schema and locale, or null if it does not exist.
+	 */
+	@Nullable
+	public UniqueIndex getUniqueIndex(@Nonnull AttributeSchemaContract attributeSchema, @Nullable Locale locale) {
+		return this.attributeIndex.getUniqueIndex(attributeSchema, this.indexKey.scope(), locale);
 	}
 
 	/**
@@ -366,14 +370,16 @@ public abstract class EntityIndex implements
 	 * Returns true if index contains no data whatsoever.
 	 */
 	public boolean isEmpty() {
-		return entityIds.isEmpty() &&
-			attributeIndex.isAttributeIndexEmpty() &&
-			hierarchyIndex.isHierarchyIndexEmpty();
+		return this.entityIds.isEmpty() &&
+			this.entityIdsByLanguage.isEmpty() &&
+			this.facetIndex.isEmpty() &&
+			this.attributeIndex.isAttributeIndexEmpty() &&
+			this.hierarchyIndex.isHierarchyIndexEmpty();
 	}
 
 	@Override
 	public int version() {
-		return version;
+		return this.version;
 	}
 
 	/**
@@ -387,18 +393,15 @@ public abstract class EntityIndex implements
 		final Set<AttributeIndexStorageKey> attributeIndexStorageKeys = getAttributeIndexStorageKeys();
 		final Set<PriceIndexKey> priceIndexKeys = getPriceIndexKeys(priceIndex);
 		final Set<String> facetIndexReferencedEntities = getFacetIndexReferencedEntities();
-		final Integer internalPriceIdSequence = getInternalPriceIdSequence(priceIndex);
 		if (dirty.isTrue() ||
 			this.originalHierarchyIndexEmpty != hierarchyIndexEmpty ||
-			!Objects.equals(this.originalInternalPriceIdSequence, internalPriceIdSequence) ||
 			!Objects.equals(this.originalAttributeIndexes, attributeIndexStorageKeys) ||
 			!Objects.equals(this.originalPriceIndexes, priceIndexKeys) ||
 			!Objects.equals(this.originalFacetIndexes, facetIndexReferencedEntities)
 		) {
 			dirtyList.add(
 				createStoragePart(
-					hierarchyIndexEmpty, internalPriceIdSequence,
-					attributeIndexStorageKeys, priceIndexKeys, facetIndexReferencedEntities
+					hierarchyIndexEmpty, attributeIndexStorageKeys, priceIndexKeys, facetIndexReferencedEntities
 				)
 			);
 		}
@@ -417,6 +420,12 @@ public abstract class EntityIndex implements
 		this.facetIndex.resetDirty();
 	}
 
+	/**
+	 * Removes the transactional memory layers of various referenced producers associated with the given transactional
+	 * layer. This method is used when index is removed to clear all orphaned transactional memory layers.
+	 *
+	 * @param transactionalLayer the instance of TransactionalLayerMaintainer whose layers are to be removed from the referenced producers
+	 */
 	public void removeTransactionalMemoryOfReferencedProducers(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		this.dirty.removeLayer(transactionalLayer);
 		this.entityIds.removeLayer(transactionalLayer);
@@ -426,29 +435,47 @@ public abstract class EntityIndex implements
 		this.facetIndex.removeLayer(transactionalLayer);
 	}
 
+	/**
+	 * Retrieves the price index for the implementing entity.
+	 *
+	 * @return an instance of the price index conforming to the PriceIndexContract.
+	 */
 	@Nonnull
 	public abstract <S extends PriceIndexContract> S getPriceIndex();
+
+	/**
+	 * Checks if the given primary key is present in the set of entity IDs.
+	 *
+	 * @param primaryKey the primary key to check for presence in the entity index
+	 * @return true if the primary key is present, false otherwise
+	 */
+	public boolean contains(int primaryKey) {
+		return this.entityIds.contains(primaryKey);
+	}
 
 	/**
 	 * Method creates container that is possible to serialize and store into persistent storage.
 	 */
 	protected StoragePart createStoragePart(
 		boolean hierarchyIndexEmpty,
-		@Nullable Integer internalPriceIdSequence,
 		@Nonnull Set<AttributeIndexStorageKey> attributeIndexStorageKeys,
 		@Nonnull Set<PriceIndexKey> priceIndexKeys,
 		@Nonnull Set<String> facetIndexReferencedEntities
 	) {
 		return new EntityIndexStoragePart(
-			primaryKey, version, indexKey,
-			entityIds, entityIdsByLanguage,
+			this.primaryKey, this.version, this.indexKey,
+			this.entityIds, this.entityIdsByLanguage,
 			attributeIndexStorageKeys,
-			internalPriceIdSequence,
 			priceIndexKeys,
 			!hierarchyIndexEmpty,
 			facetIndexReferencedEntities,
 			null
 		);
+	}
+
+	@Override
+	public String toString() {
+		return "EntityIndex (" + StringUtils.uncapitalize(getIndexKey().toString()) + ")";
 	}
 
 	/*
@@ -478,19 +505,6 @@ public abstract class EntityIndex implements
 			.stream()
 			.map(PriceListAndCurrencyPriceIndex::getPriceIndexKey)
 			.collect(Collectors.toSet());
-	}
-
-	/**
-	 * Returns the internal price ID sequence for the given PriceIndex.
-	 * If the PriceIndex is an instance of PriceSuperIndex, it returns the last assigned internal price ID.
-	 * Otherwise, it returns null.
-	 *
-	 * @param priceIndex the PriceIndex to retrieve the internal price ID sequence from
-	 * @return the internal price ID sequence if the PriceIndex is an instance of PriceSuperIndex, null otherwise
-	 */
-	@Nullable
-	private static Integer getInternalPriceIdSequence(@Nonnull PriceIndexContract priceIndex) {
-		return priceIndex instanceof PriceSuperIndex ? ((PriceSuperIndex) priceIndex).getLastAssignedInternalPriceId() : null;
 	}
 
 	/**

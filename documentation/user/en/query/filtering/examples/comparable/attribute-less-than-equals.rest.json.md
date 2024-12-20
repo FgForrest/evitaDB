@@ -6,6 +6,7 @@
         "primaryKey": 108473,
         "type": "Product",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],
@@ -20,6 +21,7 @@
         "primaryKey": 108480,
         "type": "Product",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],
@@ -34,6 +36,7 @@
         "primaryKey": 108557,
         "type": "Product",
         "version": 1,
+        "scope": "LIVE",
         "allLocales": [
           "en"
         ],

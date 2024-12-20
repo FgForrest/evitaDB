@@ -1,0 +1,102 @@
+{
+  queryProduct(
+    filterBy: {
+      priceInPriceLists: ["basic"],
+      priceInCurrency: EUR,
+      priceBetween: ["100", "103"]
+    },
+    orderBy: [
+      {
+        segments: [
+          {
+            segment: {
+              orderBy: [
+                {
+                  attributePublishedNatural: DESC
+                }
+              ],
+              limit: 1
+            }
+          },
+          {
+            segment: {
+              entityHaving: {
+                priceBetween: ["500", "10000"]
+              },
+              orderBy: [
+                {
+                  attributeOrderedQuantityNatural: DESC
+                }
+              ],
+              limit: 1
+            }
+          },
+          {
+            segment: {
+              entityHaving: {
+                priceBetween: ["0", "500"]
+              },
+              orderBy: [
+                {
+                  attributeOrderedQuantityNatural: DESC
+                }
+              ],
+              limit: 1
+            }
+          },
+          {
+            segment: {
+              entityHaving: {
+                referenceStocksHaving: [
+                  {
+                    attributeQuantityOnStockGreaterThan: "0"
+                  }
+                ]
+              },
+              orderBy: [
+                {
+                  attributeOrderedQuantityNatural: DESC
+                }
+              ],
+              limit: 1
+            }
+          },
+          {
+            segment: {
+              orderBy: [
+                {
+                  attributeOrderedQuantityNatural: DESC
+                }
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  ) {
+    recordPage(
+      number: 1
+      size: 10
+    ) {
+      data {
+        primaryKey
+        attributes {
+          code
+          published
+          orderedQuantity
+        }
+        stocks {
+          referencedPrimaryKey
+          attributes {
+            quantityOnStock
+          }
+        },
+        priceForSale {
+          priceWithoutTax
+          priceWithTax
+          taxRate
+        }
+      }
+    }
+  }
+}

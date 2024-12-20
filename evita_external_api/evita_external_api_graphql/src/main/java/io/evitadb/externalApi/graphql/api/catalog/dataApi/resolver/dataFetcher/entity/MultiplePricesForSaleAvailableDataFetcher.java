@@ -33,6 +33,8 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.MultipleP
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityQueryContext;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -46,7 +48,19 @@ import java.util.Optional;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class MultiplePricesForSaleAvailableDataFetcher implements DataFetcher<Boolean> {
+
+    @Nullable
+    private static MultiplePricesForSaleAvailableDataFetcher INSTANCE;
+
+    @Nonnull
+    public static MultiplePricesForSaleAvailableDataFetcher getInstance() {
+        if (INSTANCE == null) {
+            INSTANCE = new MultiplePricesForSaleAvailableDataFetcher();
+        }
+        return INSTANCE;
+    }
 
     @Nonnull
     @Override

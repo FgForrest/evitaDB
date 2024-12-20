@@ -40,6 +40,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.InlineReferenceDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AssociatedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
@@ -88,6 +89,10 @@ import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRoo
  */
 public class EntityObjectBuilder {
 
+	private static final PriceBigDecimalDataFetcher PRICE_WITH_VAT_DATA_FETCHER = new PriceBigDecimalDataFetcher(PriceForSaleDescriptor.PRICE_WITH_TAX.name());
+	private static final PriceBigDecimalDataFetcher PRICE_WITHOUT_VAT_DATA_FETCHER = new PriceBigDecimalDataFetcher(PriceForSaleDescriptor.PRICE_WITHOUT_TAX.name());
+	private static final PriceBigDecimalDataFetcher TAX_RATE_DATA_FETCHER = new PriceBigDecimalDataFetcher(PriceForSaleDescriptor.TAX_RATE.name());
+
 	@Nonnull private final CatalogGraphQLSchemaBuildingContext buildingContext;
 	@Nonnull private final FilterConstraintSchemaBuilder filterConstraintSchemaBuilder;
 	@Nonnull private final OrderConstraintSchemaBuilder orderConstraintSchemaBuilder;
@@ -112,7 +117,7 @@ public class EntityObjectBuilder {
 		this.buildingContext = buildingContext;
 		this.filterConstraintSchemaBuilder = filterConstraintSchemaBuilder;
 		this.orderConstraintSchemaBuilder = orderConstraintSchemaBuilder;
-		this.hierarchyRequireConstraintSchemaBuilder = RequireConstraintSchemaBuilder.forHierarchyRequire(
+		this.hierarchyRequireConstraintSchemaBuilder = RequireConstraintSchemaBuilder.forComplementaryRequire(
 			constraintSchemaBuildingContext,
 			new AtomicReference<>(filterConstraintSchemaBuilder)
 		);
@@ -162,6 +167,9 @@ public class EntityObjectBuilder {
 			.name(objectName)
 			.description(entitySchema.getDescription())
 			.withInterface(typeRef(GraphQLEntityDescriptor.THIS_CLASSIFIER.name()));
+
+		// build top level fields
+		entityObjectBuilder.field(GraphQLEntityDescriptor.SCOPE.to(fieldBuilderTransformer));
 
 		// build locale fields
 		if (!entitySchema.getLocales().isEmpty()) {
@@ -270,7 +278,7 @@ public class EntityObjectBuilder {
 		buildingContext.registerDataFetcher(
 			GlobalEntityDescriptor.THIS,
 			GlobalEntityDescriptor.TARGET_ENTITY,
-			new TargetEntityDataFetcher()
+			TargetEntityDataFetcher.getInstance()
 		);
 
 		return globalEntityObjectBuilder.build();
@@ -280,15 +288,7 @@ public class EntityObjectBuilder {
 	private BuiltFieldDescriptor buildEntityParentPrimaryKeyField() {
 		return new BuiltFieldDescriptor(
 			GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.to(fieldBuilderTransformer).build(),
-			new ParentPrimaryKeyDataFetcher()
-		);
-	}
-
-	@Nonnull
-	private BuiltFieldDescriptor buildNonHierarchicalEntityParentPrimaryKeyField() {
-		return new BuiltFieldDescriptor(
-			GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.to(fieldBuilderTransformer).build(),
-			new NonHierarchicalParentPrimaryKeyDataFetcher()
+			ParentPrimaryKeyDataFetcher.getInstance()
 		);
 	}
 
@@ -296,7 +296,9 @@ public class EntityObjectBuilder {
 	private BuiltFieldDescriptor buildEntityParentsField(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext) {
 		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
 
-		final DataLocator selfHierarchyConstraintDataLocator = new HierarchyDataLocator(entitySchema.getName());
+		final DataLocator selfHierarchyConstraintDataLocator = new HierarchyDataLocator(
+			new ManagedEntityTypePointer(entitySchema.getName())
+		);
 		final GraphQLInputType stopAtConstraint = hierarchyRequireConstraintSchemaBuilder.build(
 			selfHierarchyConstraintDataLocator,
 			HierarchyStopAt.class
@@ -312,13 +314,13 @@ public class EntityObjectBuilder {
 
 		return new BuiltFieldDescriptor(
 			field,
-			new ParentsDataFetcher()
+			ParentsDataFetcher.getInstance()
 		);
 	}
 
 	@Nonnull
 	private BuiltFieldDescriptor buildEntityPriceForSaleField() {
-		final GraphQLFieldDefinition field = GraphQLEntityDescriptor.PRICE_FOR_SALE
+		final GraphQLFieldDefinition.Builder fieldBuilder = GraphQLEntityDescriptor.PRICE_FOR_SALE
 			.to(fieldBuilderTransformer)
 			// TOBEDONE #538: deprecated, remove
 			.argument(PriceForSaleFieldHeaderDescriptor.PRICE_LIST
@@ -331,13 +333,15 @@ public class EntityObjectBuilder {
 			.argument(PriceForSaleFieldHeaderDescriptor.VALID_IN
 				.to(argumentBuilderTransformer))
 			.argument(PriceForSaleFieldHeaderDescriptor.VALID_NOW
-				.to(argumentBuilderTransformer))
-			.argument(PriceForSaleFieldHeaderDescriptor.LOCALE
-				.to(argumentBuilderTransformer)
-				.type(typeRef(LOCALE_ENUM.name())))
-			.build();
+				.to(argumentBuilderTransformer));
 
-		return new BuiltFieldDescriptor(field, new PriceForSaleDataFetcher());
+		if (!buildingContext.getSupportedLocales().isEmpty()) {
+			fieldBuilder.argument(PriceForSaleFieldHeaderDescriptor.LOCALE
+				.to(argumentBuilderTransformer)
+				.type(typeRef(LOCALE_ENUM.name())));
+		}
+
+		return new BuiltFieldDescriptor(fieldBuilder.build(), PriceForSaleDataFetcher.getInstance());
 	}
 
 	@Nonnull
@@ -355,13 +359,13 @@ public class EntityObjectBuilder {
 				.argument(MultiplePricesForSaleAvailableFieldHeaderDescriptor.VALID_NOW
 					.to(argumentBuilderTransformer))
 				.build(),
-			new MultiplePricesForSaleAvailableDataFetcher()
+			MultiplePricesForSaleAvailableDataFetcher.getInstance()
 		);
 	}
 
 	@Nonnull
 	private BuiltFieldDescriptor buildEntityAllPricesForSaleField() {
-		final GraphQLFieldDefinition field = GraphQLEntityDescriptor.ALL_PRICES_FOR_SALE
+		final GraphQLFieldDefinition.Builder fieldBuilder = GraphQLEntityDescriptor.ALL_PRICES_FOR_SALE
 			.to(fieldBuilderTransformer)
 			// TOBEDONE #538: deprecated, remove
 			.argument(PriceForSaleFieldHeaderDescriptor.PRICE_LIST
@@ -374,48 +378,54 @@ public class EntityObjectBuilder {
 			.argument(PriceForSaleFieldHeaderDescriptor.VALID_IN
 				.to(argumentBuilderTransformer))
 			.argument(PriceForSaleFieldHeaderDescriptor.VALID_NOW
-				.to(argumentBuilderTransformer))
-			.argument(PriceForSaleFieldHeaderDescriptor.LOCALE
-				.to(argumentBuilderTransformer)
-				.type(typeRef(LOCALE_ENUM.name())))
-			.build();
+				.to(argumentBuilderTransformer));
 
-		return new BuiltFieldDescriptor(field, new AllPricesForSaleDataFetcher());
+		if (!buildingContext.getSupportedLocales().isEmpty()) {
+			fieldBuilder.argument(PriceForSaleFieldHeaderDescriptor.LOCALE
+				.to(argumentBuilderTransformer)
+				.type(typeRef(LOCALE_ENUM.name())));
+		}
+
+		return new BuiltFieldDescriptor(fieldBuilder.build(), AllPricesForSaleDataFetcher.getInstance());
 	}
 
 	// TOBEDONE #538: deprecated, remove
 	@Nonnull
 	private BuiltFieldDescriptor buildEntityPriceField() {
-		final GraphQLFieldDefinition field = GraphQLEntityDescriptor.PRICE
+		final GraphQLFieldDefinition.Builder fieldBuilder = GraphQLEntityDescriptor.PRICE
 			.to(fieldBuilderTransformer)
 			.argument(PriceFieldHeaderDescriptor.PRICE_LIST
 				.to(argumentBuilderTransformer))
 			.argument(PriceFieldHeaderDescriptor.CURRENCY
 				.to(argumentBuilderTransformer)
-				.type(typeRef(CURRENCY_ENUM.name())))
-			.argument(PriceFieldHeaderDescriptor.LOCALE
-				.to(argumentBuilderTransformer)
-				.type(typeRef(LOCALE_ENUM.name())))
-			.build();
+				.type(typeRef(CURRENCY_ENUM.name())));
 
-		return new BuiltFieldDescriptor(field, new PriceDataFetcher());
+		if (!buildingContext.getSupportedLocales().isEmpty()) {
+			fieldBuilder.argument(PriceFieldHeaderDescriptor.LOCALE
+				.to(argumentBuilderTransformer)
+				.type(typeRef(LOCALE_ENUM.name())));
+		}
+
+		return new BuiltFieldDescriptor(fieldBuilder.build(), PriceDataFetcher.getInstance());
 	}
 
 	@Nonnull
 	private BuiltFieldDescriptor buildEntityPricesField() {
-		final GraphQLFieldDefinition field = GraphQLEntityDescriptor.PRICES
+		final GraphQLFieldDefinition.Builder fieldBuilder = GraphQLEntityDescriptor.PRICES
 			.to(fieldBuilderTransformer)
 			.argument(PricesFieldHeaderDescriptor.PRICE_LISTS
 				.to(argumentBuilderTransformer))
 			.argument(PricesFieldHeaderDescriptor.CURRENCY
 				.to(argumentBuilderTransformer)
-				.type(typeRef(CURRENCY_ENUM.name())))
-			.argument(PricesFieldHeaderDescriptor.LOCALE
-				.to(argumentBuilderTransformer)
-				.type(typeRef(LOCALE_ENUM.name())))
-			.build();
+				.type(typeRef(CURRENCY_ENUM.name())));
 
-		return new BuiltFieldDescriptor(field, new PricesDataFetcher());
+		if (!buildingContext.getSupportedLocales().isEmpty()) {
+			fieldBuilder.argument(PricesFieldHeaderDescriptor.LOCALE
+				.to(argumentBuilderTransformer)
+				.type(typeRef(LOCALE_ENUM.name())));
+		}
+
+		return new BuiltFieldDescriptor(fieldBuilder.build(), PricesDataFetcher.getInstance());
 	}
 
 	@Nonnull
@@ -439,7 +449,7 @@ public class EntityObjectBuilder {
 
 		return new BuiltFieldDescriptor(
 			attributesFieldBuilder.build(),
-			new AttributesDataFetcher()
+			AttributesDataFetcher.getInstance()
 		);
 	}
 
@@ -469,7 +479,7 @@ public class EntityObjectBuilder {
 
 		return new BuiltFieldDescriptor(
 			attributesFieldBuilder.build(),
-			new AttributesDataFetcher()
+			AttributesDataFetcher.getInstance()
 		);
 	}
 
@@ -544,7 +554,7 @@ public class EntityObjectBuilder {
 
 		return new BuiltFieldDescriptor(
 			associatedDataFieldBuilder.build(),
-			new AssociatedDataDataFetcher()
+			AssociatedDataDataFetcher.getInstance()
 		);
 	}
 
@@ -614,7 +624,7 @@ public class EntityObjectBuilder {
 				};
 
 				final InlineReferenceDataLocator referenceDataLocator = new InlineReferenceDataLocator(
-					collectionBuildingContext.getSchema().getName(),
+					new ManagedEntityTypePointer(collectionBuildingContext.getSchema().getName()),
 					referenceSchema.getName()
 				);
 				final GraphQLInputType referenceFilter = filterConstraintSchemaBuilder.build(referenceDataLocator);
@@ -703,7 +713,7 @@ public class EntityObjectBuilder {
 
 		return new BuiltFieldDescriptor(
 			attributesField,
-			new AttributesDataFetcher()
+			AttributesDataFetcher.getInstance()
 		);
 	}
 
@@ -726,7 +736,7 @@ public class EntityObjectBuilder {
 
 		return new BuiltFieldDescriptor(
 			referencedEntityField,
-			new ReferencedEntityDataFetcher()
+			ReferencedEntityDataFetcher.getInstance()
 		);
 	}
 
@@ -749,7 +759,7 @@ public class EntityObjectBuilder {
 
 		return new BuiltFieldDescriptor(
 			referencedEntityField,
-			new ReferencedGroupDataFetcher()
+			ReferencedGroupDataFetcher.getInstance()
 		);
 	}
 
@@ -768,22 +778,22 @@ public class EntityObjectBuilder {
 		buildingContext.registerDataFetcher(
 			PriceForSaleDescriptor.THIS,
 			PriceForSaleDescriptor.PRICE_WITH_TAX,
-			new PriceBigDecimalDataFetcher(PriceForSaleDescriptor.PRICE_WITH_TAX.name())
+			PRICE_WITH_VAT_DATA_FETCHER
 		);
 		buildingContext.registerDataFetcher(
 			PriceForSaleDescriptor.THIS,
 			PriceForSaleDescriptor.PRICE_WITHOUT_TAX,
-			new PriceBigDecimalDataFetcher(PriceForSaleDescriptor.PRICE_WITHOUT_TAX.name())
+			PRICE_WITHOUT_VAT_DATA_FETCHER
 		);
 		buildingContext.registerDataFetcher(
 			PriceForSaleDescriptor.THIS,
 			PriceForSaleDescriptor.TAX_RATE,
-			new PriceBigDecimalDataFetcher(PriceForSaleDescriptor.TAX_RATE.name())
+			TAX_RATE_DATA_FETCHER
 		);
 		buildingContext.registerDataFetcher(
 			PriceForSaleDescriptor.THIS,
 			PriceForSaleDescriptor.ACCOMPANYING_PRICE,
-			new AccompanyingPriceDataFetcher()
+			AccompanyingPriceDataFetcher.getInstance()
 		);
 
 		return PriceForSaleDescriptor.THIS
@@ -802,17 +812,17 @@ public class EntityObjectBuilder {
 		buildingContext.registerDataFetcher(
 			PriceDescriptor.THIS,
 			PriceDescriptor.PRICE_WITH_TAX,
-			new PriceBigDecimalDataFetcher(PriceDescriptor.PRICE_WITH_TAX.name())
+			PRICE_WITH_VAT_DATA_FETCHER
 		);
 		buildingContext.registerDataFetcher(
 			PriceDescriptor.THIS,
 			PriceDescriptor.PRICE_WITHOUT_TAX,
-			new PriceBigDecimalDataFetcher(PriceDescriptor.PRICE_WITHOUT_TAX.name())
+			PRICE_WITHOUT_VAT_DATA_FETCHER
 		);
 		buildingContext.registerDataFetcher(
 			PriceDescriptor.THIS,
 			PriceDescriptor.TAX_RATE,
-			new PriceBigDecimalDataFetcher(PriceDescriptor.TAX_RATE.name())
+			TAX_RATE_DATA_FETCHER
 		);
 
 		return PriceDescriptor.THIS

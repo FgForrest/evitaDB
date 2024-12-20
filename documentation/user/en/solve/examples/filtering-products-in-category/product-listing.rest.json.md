@@ -5,7 +5,8 @@
       {
         "primaryKey": 107891,
         "type": "Product",
-        "version": 1,
+        "version": 2,
+        "scope": "LIVE",
         "locales": [
           "en"
         ],
@@ -82,6 +83,7 @@
         "primaryKey": 107893,
         "type": "Product",
         "version": 1,
+        "scope": "LIVE",
         "locales": [
           "en"
         ],
@@ -135,6 +137,7 @@
         "primaryKey": 107894,
         "type": "Product",
         "version": 1,
+        "scope": "LIVE",
         "locales": [
           "en"
         ],
@@ -188,6 +191,7 @@
         "primaryKey": 107895,
         "type": "Product",
         "version": 1,
+        "scope": "LIVE",
         "locales": [
           "en"
         ],
@@ -240,7 +244,8 @@
       {
         "primaryKey": 107899,
         "type": "Product",
-        "version": 1,
+        "version": 2,
+        "scope": "LIVE",
         "locales": [
           "en"
         ],
@@ -317,6 +322,7 @@
         "primaryKey": 107900,
         "type": "Product",
         "version": 1,
+        "scope": "LIVE",
         "locales": [
           "en"
         ],
@@ -370,6 +376,7 @@
         "primaryKey": 107901,
         "type": "Product",
         "version": 1,
+        "scope": "LIVE",
         "locales": [
           "en"
         ],
@@ -423,6 +430,7 @@
         "primaryKey": 107902,
         "type": "Product",
         "version": 1,
+        "scope": "LIVE",
         "locales": [
           "en"
         ],
@@ -475,7 +483,8 @@
       {
         "primaryKey": 107911,
         "type": "Product",
-        "version": 1,
+        "version": 2,
+        "scope": "LIVE",
         "locales": [
           "en"
         ],
@@ -563,6 +572,7 @@
         "primaryKey": 107913,
         "type": "Product",
         "version": 1,
+        "scope": "LIVE",
         "locales": [
           "en"
         ],
@@ -616,6 +626,7 @@
         "primaryKey": 107915,
         "type": "Product",
         "version": 1,
+        "scope": "LIVE",
         "locales": [
           "en"
         ],
@@ -669,6 +680,7 @@
         "primaryKey": 107917,
         "type": "Product",
         "version": 1,
+        "scope": "LIVE",
         "locales": [
           "en"
         ],
@@ -722,6 +734,7 @@
         "primaryKey": 107919,
         "type": "Product",
         "version": 1,
+        "scope": "LIVE",
         "locales": [
           "en"
         ],
@@ -774,7 +787,8 @@
       {
         "primaryKey": 107923,
         "type": "Product",
-        "version": 1,
+        "version": 2,
+        "scope": "LIVE",
         "locales": [
           "en"
         ],
@@ -851,6 +865,7 @@
         "primaryKey": 107924,
         "type": "Product",
         "version": 1,
+        "scope": "LIVE",
         "locales": [
           "en"
         ],
@@ -904,6 +919,7 @@
         "primaryKey": 107925,
         "type": "Product",
         "version": 1,
+        "scope": "LIVE",
         "locales": [
           "en"
         ],

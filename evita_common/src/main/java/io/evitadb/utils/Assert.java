@@ -28,6 +28,7 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.function.Supplier;
 
 /**
@@ -49,7 +50,7 @@ public class Assert {
 	 * @param message the exception message to use if the assertion fails
 	 * @throws IllegalArgumentException if the object is NULL
 	 */
-	public static void notNull(Object object, @Nonnull String message) {
+	public static void notNull(@Nullable Object object, @Nonnull String message) {
 		if (object == null) {
 			throw new EvitaInvalidUsageException(message);
 		}
@@ -62,7 +63,7 @@ public class Assert {
 	 * @param message the exception message to use if the assertion fails
 	 * @throws IllegalArgumentException if the object is NULL
 	 */
-	public static void notNull(Object object, @Nonnull Supplier<String> message) {
+	public static void notNull(@Nullable Object object, @Nonnull Supplier<String> message) {
 		if (object == null) {
 			throw new EvitaInvalidUsageException(message.get());
 		}
@@ -75,7 +76,7 @@ public class Assert {
 	 * @param exceptionFactory the exception to use if the assertion fails
 	 * @throws IllegalArgumentException if the object is NULL
 	 */
-	public static void notNull(Object object, @Nonnull InvalidUsageExceptionFactory<?> exceptionFactory) {
+	public static void notNull(@Nullable Object object, @Nonnull InvalidUsageExceptionFactory<?> exceptionFactory) {
 		if (object == null) {
 			throw exceptionFactory.get();
 		}

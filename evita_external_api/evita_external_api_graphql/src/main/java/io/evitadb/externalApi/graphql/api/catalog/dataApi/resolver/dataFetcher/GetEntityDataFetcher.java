@@ -29,8 +29,8 @@ import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.FilterBy;
-import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.query.require.Require;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
@@ -39,6 +39,7 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GetEntityHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.EntityFetchRequireResolver;
@@ -57,6 +58,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
+import java.util.Arrays;
 import java.util.Currency;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -93,8 +95,14 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
 	                            @Nonnull EntitySchemaContract entitySchema) {
 		this.entitySchema = entitySchema;
 		final FilterConstraintResolver filterConstraintResolver = new FilterConstraintResolver(catalogSchema);
-		final OrderConstraintResolver orderConstraintResolver = new OrderConstraintResolver(catalogSchema);
-		final RequireConstraintResolver requireConstraintResolver = new RequireConstraintResolver(catalogSchema, new AtomicReference<>(filterConstraintResolver));
+		final OrderConstraintResolver orderConstraintResolver = new OrderConstraintResolver(
+			catalogSchema,
+			new AtomicReference<>(filterConstraintResolver)
+		);
+		final RequireConstraintResolver requireConstraintResolver = new RequireConstraintResolver(
+			catalogSchema,
+			new AtomicReference<>(filterConstraintResolver)
+		);
 		this.entityFetchRequireResolver = new EntityFetchRequireResolver(
 			catalogSchema::getEntitySchemaOrThrowException,
 			filterConstraintResolver,
@@ -157,23 +165,25 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
             filterConstraints.add(priceValidInNow());
         }
 
-		return filterBy(
-			and(
-				filterConstraints.toArray(FilterConstraint[]::new)
-			)
-		);
+		 filterConstraints.add(scope(arguments.scopes()));
+
+		return filterBy(filterConstraints.toArray(FilterConstraint[]::new));
 	}
 
     @Nonnull
     private Require buildRequire(@Nonnull DataFetchingEnvironment environment, @Nonnull Arguments arguments) {
-	    final EntityFetch entityFetch = entityFetchRequireResolver.resolveEntityFetch(
+		final List<RequireConstraint> requireConstraints = new LinkedList<>();
+
+	    entityFetchRequireResolver.resolveEntityFetch(
 		    SelectionSetAggregator.from(environment.getSelectionSet()),
 		    arguments.locale(),
 		    entitySchema
 	    )
-		    .orElse(null);
+		    .ifPresent(requireConstraints::add);
 
-	    return require(entityFetch, priceType(arguments.priceType()));
+		requireConstraints.add(priceType(arguments.priceType()));
+
+	    return require(requireConstraints.toArray(RequireConstraint[]::new));
     }
 
     @Nonnull
@@ -197,6 +207,7 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
                              @Nullable OffsetDateTime priceValidIn,
                              boolean priceValidInNow,
 							 @Nonnull QueryPriceMode priceType,
+							 @Nonnull Scope[] scopes,
                              @Nonnull Map<AttributeSchemaContract, Object> uniqueAttributes) {
 
 		private static Arguments from(@Nonnull DataFetchingEnvironment environment, @Nonnull EntitySchemaContract entitySchema) {
@@ -216,8 +227,13 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
 			final QueryPriceMode priceType = (QueryPriceMode) Optional.ofNullable(arguments.remove(GetEntityHeaderDescriptor.PRICE_TYPE.name()))
 				.orElse(QueryPriceMode.WITH_TAX);
 
+			//noinspection unchecked
+			final Scope[] scopes = Optional.ofNullable((List<Scope>) arguments.remove(GetEntityHeaderDescriptor.SCOPE.name()))
+				.map(it -> it.toArray(Scope[]::new))
+				.orElse(Scope.DEFAULT_SCOPES);
+
 			// left over arguments are unique attribute filters as defined by schema
-			final Map<AttributeSchemaContract, Object> uniqueAttributes = extractUniqueAttributesFromArguments(arguments, entitySchema);
+			final Map<AttributeSchemaContract, Object> uniqueAttributes = extractUniqueAttributesFromArguments(scopes, arguments, entitySchema);
 
 			// validate that arguments contain at least one entity identifier
 			if (primaryKey == null && uniqueAttributes.isEmpty()) {
@@ -234,17 +250,19 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
                 priceValidIn,
                 priceValidInNow,
 				priceType,
+	            scopes,
                 uniqueAttributes
             );
         }
 
         private static Map<AttributeSchemaContract, Object> extractUniqueAttributesFromArguments(
-            @Nonnull HashMap<String, Object> arguments,
+			@Nonnull Scope[] requestedScopes,
+            @Nonnull HashMap<String, Object> remainingArguments,
             @Nonnull EntitySchemaContract entitySchema
         ) {
-            final Map<AttributeSchemaContract, Object> uniqueAttributes = createHashMap(arguments.size());
+            final Map<AttributeSchemaContract, Object> uniqueAttributes = createHashMap(remainingArguments.size());
 
-			for (Map.Entry<String, Object> argument : arguments.entrySet()) {
+			for (Map.Entry<String, Object> argument : remainingArguments.entrySet()) {
 				final String attributeName = argument.getKey();
 				final AttributeSchemaContract attributeSchema = entitySchema
 					.getAttributeByName(attributeName, ARGUMENT_NAME_NAMING_CONVENTION)
@@ -254,7 +272,7 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
 					continue;
 				}
 				Assert.isPremiseValid(
-					attributeSchema.isUnique(),
+					Arrays.stream(requestedScopes).anyMatch(attributeSchema::isUniqueInScope),
 					() -> new GraphQLQueryResolvingInternalError(
 						"Cannot find entity by non-unique attribute `" + attributeName + "`."
 					)

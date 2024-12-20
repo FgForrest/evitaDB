@@ -37,6 +37,7 @@ import java.util.EnumSet;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 /**
@@ -62,6 +63,7 @@ public class SequentialTask<T> implements ServerTask<Void, T> {
 				UUIDUtil.randomUUID(),
 				catalogName,
 				OffsetDateTime.now(),
+				null,
 				null,
 				null,
 				0,
@@ -95,6 +97,22 @@ public class SequentialTask<T> implements ServerTask<Void, T> {
 			currentStatus.progress() == newProgress ?
 				currentStatus :
 				this.status.updateAndGet(current -> current.updateProgress(newProgress));
+	}
+
+	/**
+	 * Transitions the task to the issued state.
+	 */
+	@Override
+	public void transitionToIssued() {
+		this.status.updateAndGet(TaskStatus::transitionToIssued);
+		for (ServerTask<?, ?> step : this.steps) {
+			step.transitionToIssued();
+		}
+	}
+
+	@Override
+	public boolean matches(@Nonnull Predicate<ServerTask<?, ?>> taskPredicate) {
+		return taskPredicate.test(this) || Stream.of(this.steps).anyMatch(taskPredicate);
 	}
 
 	@Nonnull

@@ -49,6 +49,7 @@ import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.function.IntConsumer;
 
 /**
  * This sorter implementation executes sorting by price according to passed {@link PriceNatural} and {@link QueryPriceMode}.
@@ -157,7 +158,15 @@ public class FilteredPricesSorter implements Sorter {
 	}
 
 	@Override
-	public int sortAndSlice(@Nonnull QueryExecutionContext queryContext, @Nonnull Formula input, int startIndex, int endIndex, @Nonnull int[] result, int peak) {
+	public int sortAndSlice(
+		@Nonnull QueryExecutionContext queryContext,
+		@Nonnull Formula input,
+		int startIndex,
+		int endIndex,
+		@Nonnull int[] result,
+		int peak,
+		@Nullable IntConsumer skippedRecordsConsumer
+	) {
 		// compute entire set of entity pks that needs to be sorted
 		final Bitmap computeResult = input.compute();
 		final RoaringBitmap computeResultBitmap = RoaringBitmapBackedBitmap.getRoaringBitmap(computeResult);

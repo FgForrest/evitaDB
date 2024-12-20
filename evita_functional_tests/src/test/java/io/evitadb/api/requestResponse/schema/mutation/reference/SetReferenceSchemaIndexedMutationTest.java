@@ -29,6 +29,8 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.dataType.Scope;
+import io.evitadb.utils.ArrayUtils;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -47,7 +49,7 @@ public class SetReferenceSchemaIndexedMutationTest {
 	@Test
 	void shouldOverrideIndexedFlagOfPreviousMutationIfNamesMatch() {
 		SetReferenceSchemaIndexedMutation mutation = new SetReferenceSchemaIndexedMutation(
-			REFERENCE_NAME, false
+			REFERENCE_NAME, Scope.NO_SCOPE
 		);
 		SetReferenceSchemaIndexedMutation existingMutation = new SetReferenceSchemaIndexedMutation(REFERENCE_NAME, true);
 		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
@@ -57,13 +59,13 @@ public class SetReferenceSchemaIndexedMutationTest {
 		assertNull(result.origin());
 		assertNotNull(result.current());
 		assertInstanceOf(SetReferenceSchemaIndexedMutation.class, result.current()[0]);
-		assertFalse(((SetReferenceSchemaIndexedMutation) result.current()[0]).getIndexed());
+		assertTrue(ArrayUtils.isEmpty(((SetReferenceSchemaIndexedMutation) result.current()[0]).getIndexedInScopes()));
 	}
 
 	@Test
 	void shouldLeaveBothMutationsIfTheNameOfNewMutationDoesntMatch() {
 		SetReferenceSchemaIndexedMutation mutation = new SetReferenceSchemaIndexedMutation(
-			REFERENCE_NAME, false
+			REFERENCE_NAME, Scope.NO_SCOPE
 		);
 		SetReferenceSchemaIndexedMutation existingMutation = new SetReferenceSchemaIndexedMutation("differentName", true);
 		assertNull(mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), Mockito.mock(EntitySchemaContract.class), existingMutation));
@@ -72,17 +74,17 @@ public class SetReferenceSchemaIndexedMutationTest {
 	@Test
 	void shouldMutateReferenceSchema() {
 		SetReferenceSchemaIndexedMutation mutation = new SetReferenceSchemaIndexedMutation(
-			REFERENCE_NAME, true
+			REFERENCE_NAME, Scope.DEFAULT_SCOPES
 		);
 		final ReferenceSchemaContract mutatedSchema = mutation.mutate(Mockito.mock(EntitySchemaContract.class), createExistingReferenceSchema(false));
 		assertNotNull(mutatedSchema);
-		assertTrue(mutatedSchema.isIndexed());
+		assertArrayEquals(Scope.DEFAULT_SCOPES, mutatedSchema.getIndexedInScopes().toArray(Scope[]::new));
 	}
 
 	@Test
 	void shouldMutateEntitySchema() {
 		SetReferenceSchemaIndexedMutation mutation = new SetReferenceSchemaIndexedMutation(
-			REFERENCE_NAME, true
+			REFERENCE_NAME, Scope.DEFAULT_SCOPES
 		);
 		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
 		Mockito.when(entitySchema.getReference(REFERENCE_NAME)).thenReturn(of(createExistingReferenceSchema(false)));
@@ -93,13 +95,13 @@ public class SetReferenceSchemaIndexedMutationTest {
 		);
 		assertEquals(2, newEntitySchema.version());
 		final ReferenceSchemaContract newReferenceSchema = newEntitySchema.getReference(REFERENCE_NAME).orElseThrow();
-		assertTrue(newReferenceSchema.isIndexed());
+		assertArrayEquals(Scope.DEFAULT_SCOPES, newReferenceSchema.getIndexedInScopes().toArray(Scope[]::new));
 	}
 
 	@Test
 	void shouldThrowExceptionWhenMutatingEntitySchemaWithNonExistingReference() {
 		SetReferenceSchemaIndexedMutation mutation = new SetReferenceSchemaIndexedMutation(
-			REFERENCE_NAME, false
+			REFERENCE_NAME, Scope.NO_SCOPE
 		);
 		assertThrows(
 			InvalidSchemaMutationException.class,

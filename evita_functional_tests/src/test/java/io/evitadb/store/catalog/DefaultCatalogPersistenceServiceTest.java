@@ -24,9 +24,11 @@
 package io.evitadb.store.catalog;
 
 import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryo.util.Pool;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.exception.EntityTypeAlreadyPresentInCatalogSchemaException;
 import io.evitadb.api.mock.EmptyEntitySchemaAccessor;
@@ -108,6 +110,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
@@ -215,17 +218,25 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	@Disabled("This test is not meant to be run in CI, it is for manual post-mortem analysis of the catalog data file remnants.")
 	@Test
 	void postMortemAnalysis() {
-		final String catalogName = "INSERT_HERE";
+		final String catalogName = "decodoma_cz";
 		final Path basePath = Path.of("/www/oss/evitaDB/data/");
 		final Path catalogFilePath = basePath.resolve(catalogName);
 		final OffsetIndexRecordTypeRegistry recordRegistry = new OffsetIndexRecordTypeRegistry();
 		final StorageOptions storageOptions = StorageOptions.builder().storageDirectory(basePath).build();
+		final TransactionOptions transactionOptions = TransactionOptions.builder().build();
+		final AtomicReference<CatalogHeader> catalogHeaderRef = new AtomicReference<>();
+		final Pool<Kryo> catalogKryoPool = new Pool<>(true, false, 16) {
+			@Override
+			protected Kryo create() {
+				return KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
+			}
+		};
+
 		getCatalogBootstrapRecordStream(
 			catalogName,
 			storageOptions
 		).forEach(it -> {
 			System.out.print(it.catalogFileIndex() + "/" + it.catalogVersion() + ": " + it.timestamp() + " (" + it.fileLocation() + ")");
-			final AtomicReference<CatalogHeader> catalogHeaderRef = new AtomicReference<>();
 			try {
 				final OffsetIndex indexRead = new OffsetIndex(
 					it.catalogVersion(),
@@ -258,6 +269,30 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				System.out.println(" -> ERROR: " + e.getMessage());
 			}
 		});
+
+		final CatalogHeader catalogHeader = catalogHeaderRef.get();
+		try (
+			final CatalogWriteAheadLog wal = createWalIfAnyWalFilePresent(
+				catalogHeader.version(), catalogName, storageOptions, transactionOptions, new Scheduler(ThreadPoolOptions.transactionThreadPoolBuilder().build()),
+				position -> System.out.println("Trim attempted: " + position),
+				() -> firstActiveCatalogVersion -> System.out.println("Purge attempted: " + firstActiveCatalogVersion),
+				catalogFilePath, catalogKryoPool
+			)
+		) {
+			if (wal != null) {
+				final AtomicReference<UUID> lastTransactionId = new AtomicReference<>();
+				wal.getCommittedMutationStream(catalogHeader.version())
+					.forEach(mutation -> {
+						if (mutation instanceof TransactionMutation txMut && !Objects.equals(lastTransactionId.get(), txMut.getTransactionId())) {
+							System.out.println("\n\n>>>>  Transaction " + txMut.getTransactionId() + " at " + txMut.getCommitTimestamp() + "\n\n");
+							lastTransactionId.set(txMut.getTransactionId());
+						}
+						System.out.println("  " + mutation);
+					});
+			}
+		} catch (IOException e) {
+			throw new RuntimeException(e);
+		}
 	}
 
 	@Test
@@ -448,7 +483,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	void shouldDeleteCatalog() throws IOException {
 		shouldSerializeAndDeserializeCatalogHeader();
 
-		final Path catalogDirectory = getStorageOptions().storageDirectoryOrDefault().resolve(TEST_CATALOG);
+		final Path catalogDirectory = getStorageOptions().storageDirectory().resolve(TEST_CATALOG);
 		try (
 			var cps = new DefaultCatalogPersistenceService(
 				Mockito.mock(CatalogContract.class),
@@ -852,8 +887,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				),
 				OffsetDateTime.now(),
 				EntityClassifier.class,
-				null,
-				EvitaRequest.CONVERSION_NOT_SUPPORTED
+				null
 			);
 			final SealedEntity deserializedEntity = collection.getEntity(primaryKey, request, mockSession).orElseThrow();
 			final SealedEntity originEntity = entityCollection.getEntity(primaryKey, request, mockSession).orElseThrow();

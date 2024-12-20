@@ -212,7 +212,6 @@ api:
       host: ${api.endpoints.observability.host:":5555"}
       exposeOn: ${api.endpoints.observability.exposeOn:"localhost:5555"}
       tlsMode: ${api.endpoints.observability.tlsMode:FORCE_NO_TLS}
-      allowedOrigins: ${api.endpoints.observability.allowedOrigins:null}
       allowedEvents: !include ${api.endpoints.observability.allowedEvents:null}
 ```
 
@@ -436,7 +435,6 @@ Observability:
   host: ${api.endpoints.observability.host:":5555"}
   exposeOn: ${api.endpoints.observability.exposeOn:"localhost:5555"}
   tlsMode: ${api.endpoints.observability.tlsMode:FORCE_NO_TLS}
-  allowedOrigins: ${api.endpoints.observability.allowedOrigins:null}
   tracing:
     endpoint: ${api.endpoints.observability.tracing.endpoint:null}
     protocol: ${api.endpoints.observability.tracing.protocol:grpc}

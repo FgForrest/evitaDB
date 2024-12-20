@@ -165,28 +165,28 @@ public final class EvitaManagementServiceGrpc {
   }
 
   private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryRequest,
-      io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse> getRestoreCatalogUnaryMethod;
+      io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryResponse> getRestoreCatalogUnaryMethod;
 
   @io.grpc.stub.annotations.RpcMethod(
       fullMethodName = SERVICE_NAME + '/' + "RestoreCatalogUnary",
       requestType = io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryRequest.class,
-      responseType = io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse.class,
+      responseType = io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryResponse.class,
       methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
   public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryRequest,
-      io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse> getRestoreCatalogUnaryMethod() {
-    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryRequest, io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse> getRestoreCatalogUnaryMethod;
+      io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryResponse> getRestoreCatalogUnaryMethod() {
+    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryRequest, io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryResponse> getRestoreCatalogUnaryMethod;
     if ((getRestoreCatalogUnaryMethod = EvitaManagementServiceGrpc.getRestoreCatalogUnaryMethod) == null) {
       synchronized (EvitaManagementServiceGrpc.class) {
         if ((getRestoreCatalogUnaryMethod = EvitaManagementServiceGrpc.getRestoreCatalogUnaryMethod) == null) {
           EvitaManagementServiceGrpc.getRestoreCatalogUnaryMethod = getRestoreCatalogUnaryMethod =
-              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryRequest, io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse>newBuilder()
+              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryRequest, io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryResponse>newBuilder()
               .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
               .setFullMethodName(generateFullMethodName(SERVICE_NAME, "RestoreCatalogUnary"))
               .setSampledToLocalTracing(true)
               .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
                   io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryRequest.getDefaultInstance()))
               .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
-                  io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse.getDefaultInstance()))
+                  io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryResponse.getDefaultInstance()))
               .setSchemaDescriptor(new EvitaManagementServiceMethodDescriptorSupplier("RestoreCatalogUnary"))
               .build();
         }
@@ -603,7 +603,7 @@ public final class EvitaManagementServiceGrpc {
      * </pre>
      */
     public void restoreCatalogUnary(io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryRequest request,
-        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse> responseObserver) {
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getRestoreCatalogUnaryMethod(), responseObserver);
     }
 
@@ -742,7 +742,7 @@ public final class EvitaManagementServiceGrpc {
             io.grpc.stub.ServerCalls.asyncUnaryCall(
               new MethodHandlers<
                 io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryRequest,
-                io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse>(
+                io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryResponse>(
                   this, METHODID_RESTORE_CATALOG_UNARY)))
           .addMethod(
             getRestoreCatalogFromServerFileMethod(),
@@ -886,7 +886,7 @@ public final class EvitaManagementServiceGrpc {
      * </pre>
      */
     public void restoreCatalogUnary(io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryRequest request,
-        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse> responseObserver) {
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryResponse> responseObserver) {
       io.grpc.stub.ClientCalls.asyncUnaryCall(
           getChannel().newCall(getRestoreCatalogUnaryMethod(), getCallOptions()), request, responseObserver);
     }
@@ -1055,7 +1055,7 @@ public final class EvitaManagementServiceGrpc {
      * Procedure used to restore a catalog from backup (unary version for gRPC/web).
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse restoreCatalogUnary(io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryRequest request) {
+    public io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryResponse restoreCatalogUnary(io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryRequest request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
           getChannel(), getRestoreCatalogUnaryMethod(), getCallOptions(), request);
     }
@@ -1218,7 +1218,7 @@ public final class EvitaManagementServiceGrpc {
      * Procedure used to restore a catalog from backup (unary version for gRPC/web).
      * </pre>
      */
-    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse> restoreCatalogUnary(
+    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryResponse> restoreCatalogUnary(
         io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryRequest request) {
       return io.grpc.stub.ClientCalls.futureUnaryCall(
           getChannel().newCall(getRestoreCatalogUnaryMethod(), getCallOptions()), request);
@@ -1371,7 +1371,7 @@ public final class EvitaManagementServiceGrpc {
           break;
         case METHODID_RESTORE_CATALOG_UNARY:
           serviceImpl.restoreCatalogUnary((io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryRequest) request,
-              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse>) responseObserver);
+              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryResponse>) responseObserver);
           break;
         case METHODID_RESTORE_CATALOG_FROM_SERVER_FILE:
           serviceImpl.restoreCatalogFromServerFile((io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogFromServerFileRequest) request,

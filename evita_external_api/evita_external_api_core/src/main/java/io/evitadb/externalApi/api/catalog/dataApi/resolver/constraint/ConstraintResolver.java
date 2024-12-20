@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -222,6 +222,12 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 	private C reconstructConstraint(@Nonnull ConstraintResolveContext resolveContext,
 	                                @Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
 	                                @Nullable Object value) {
+		if (value == null) {
+			// Excludes the entire constraint if its value is undefined.
+			// It makes writing queries with client-side conditional constraints much simpler.
+			return null;
+		}
+
 		final List<Object> instantiationArgs = resolveValueToInstantiationArgs(resolveContext, parsedConstraintDescriptor, value);
 		if (instantiationArgs == null) {
 			return null;
@@ -233,7 +239,7 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 	@Nullable
 	private List<Object> resolveValueToInstantiationArgs(@Nonnull ConstraintResolveContext resolveContext,
 	                                                     @Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
-	                                                     @Nullable Object value) {
+	                                                     @Nonnull Object value) {
 		final ConstraintValueStructure valueStructure = parsedConstraintDescriptor.constraintDescriptor().creator().valueStructure();
 
 		if (valueStructure == ConstraintValueStructure.NONE &&
@@ -263,7 +269,7 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 	}
 
 	private boolean resolveNoneParameter(@Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
-	                                     @Nullable Object value) {
+	                                     @Nonnull Object value) {
 		Assert.notNull(
 			value,
 			() -> createInvalidArgumentException("Constraint `" + parsedConstraintDescriptor.originalKey() + "` requires non-null value.")
@@ -300,7 +306,7 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 	private Object resolveValueParameter(@Nonnull ValueParameterDescriptor parameterDescriptor,
 	                                     @Nonnull ConstraintValueStructure constraintValueStructure,
 	                                     @Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
-	                                     @Nullable Object value) {
+	                                     @Nonnull Object value) {
 		final Object argument = extractValueParameterFromValue(
 			parsedConstraintDescriptor,
 			value,
@@ -315,9 +321,9 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 	 */
 	@Nullable
 	private Object extractValueParameterFromValue(@Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
-	                                         @Nullable Object value,
-	                                         @Nonnull ValueParameterDescriptor parameterDescriptor,
-	                                         @Nonnull ConstraintValueStructure constraintValueStructure) {
+	                                              @Nonnull Object value,
+	                                              @Nonnull ValueParameterDescriptor parameterDescriptor,
+	                                              @Nonnull ConstraintValueStructure constraintValueStructure) {
 		Object argument;
 		final String parameterName = parameterDescriptor.name();
 
@@ -373,10 +379,10 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 	/**
 	 * Should extract raw argument from wrapper object `value`.
 	 */
-	@Nullable
+	@Nonnull
 	private Object extractValueArgumentFromWrapperObject(@Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
-	                                                       @Nullable Object value,
-	                                                       @Nonnull ValueParameterDescriptor parameterDescriptor) {
+	                                                     @Nonnull Object value,
+	                                                     @Nonnull ValueParameterDescriptor parameterDescriptor) {
 		return extractArgumentFromWrapperObject(parsedConstraintDescriptor, value, parameterDescriptor.name());
 	}
 
@@ -384,7 +390,7 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 	 * Should extract raw `from` argument from wrapper range `value`.
 	 */
 	@Nullable
-	private Object extractFromArgumentFromWrapperRange(@Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor, @Nullable Object value) {
+	private Object extractFromArgumentFromWrapperRange(@Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor, @Nonnull Object value) {
 		return extractRangeFromWrapperRange(parsedConstraintDescriptor, value).get(0);
 	}
 
@@ -392,13 +398,13 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 	 * Should extract raw `to` argument from wrapper range `value`.
 	 */
 	@Nullable
-	private Object extractToArgumentFromWrapperRange(@Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor, @Nullable Object value) {
+	private Object extractToArgumentFromWrapperRange(@Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor, @Nonnull Object value) {
 		return extractRangeFromWrapperRange(parsedConstraintDescriptor, value).get(1);
 	}
 
-	@Nullable
+	@Nonnull
 	private Object extractArgumentFromWrapperObject(@Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
-	                                                @Nullable Object value,
+	                                                @Nonnull Object value,
 	                                                @Nonnull String parameterName) {
 		final Map<String, Object> wrapperObject;
 		try {
@@ -409,16 +415,12 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 				"Constraint `" + parsedConstraintDescriptor + "` expected to be wrapper object but found `" + value + "`."
 			);
 		}
-		if (wrapperObject == null) {
-			return null;
-		} else {
-			return wrapperObject.get(parameterName);
-		}
+		return wrapperObject.get(parameterName);
 	}
 
 	@Nonnull
 	private List<Object> extractRangeFromWrapperRange(@Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
-	                                                  @Nullable Object value) {
+	                                                  @Nonnull Object value) {
 		final List<Object> range;
 		try {
 			//noinspection unchecked
@@ -483,7 +485,7 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 	                                     @Nonnull ChildParameterDescriptor childParameterDescriptor,
 	                                     @Nonnull ConstraintValueStructure constraintValueStructure,
 	                                     @Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
-	                                     @Nullable Object value) {
+	                                     @Nonnull Object value) {
 		final Optional<DataLocator> childDataLocator = resolveChildDataLocator(resolveContext, parsedConstraintDescriptor, childParameterDescriptor.domain());
 		if (childDataLocator.isEmpty()) {
 			// we don't have data for the switch, thus we don't want to build this child parameter
@@ -504,10 +506,10 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 	/**
 	 * Tries to extract raw argument for children descriptor from client value
 	 */
-	@Nullable
+	@Nonnull
 	private ResolvedChildParameterArgument extractChildParameterFromValue(@Nonnull ConstraintResolveContext resolveContext,
 	                                                                      @Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
-	                                                                      @Nullable Object value,
+	                                                                      @Nonnull Object value,
 	                                                                      @Nonnull ConstraintValueStructure constraintValueStructure,
 	                                                                      @Nonnull ChildParameterDescriptor parameterDescriptor) {
 		String argumentName = parameterDescriptor.name();
@@ -561,9 +563,9 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 	/**
 	 * Should extract raw children argument from wrapper object `value`.
 	 */
-	@Nullable
+	@Nonnull
 	private Object extractChildArgumentFromWrapperObject(@Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
-                                                         @Nullable Object value,
+                                                         @Nonnull Object value,
                                                          @Nonnull String parameterName) {
 		return extractArgumentFromWrapperObject(parsedConstraintDescriptor, value, parameterName);
 	}
@@ -575,7 +577,7 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 	@SuppressWarnings("unchecked")
 	@Nullable
 	private Object convertChildParameterArgumentToInstantiationArg(@Nonnull ConstraintResolveContext resolveContext,
-	                                                               @Nullable ResolvedChildParameterArgument argument,
+	                                                               @Nonnull ResolvedChildParameterArgument argument,
 	                                                               @Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
 	                                                               @Nonnull ChildParameterDescriptor parameterDescriptor) {
 		final Object argumentValue = argument.argument();
@@ -684,7 +686,7 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 	                                               @Nonnull AdditionalChildParameterDescriptor additionalChildParameterDescriptor,
 	                                               @Nonnull ConstraintValueStructure constraintValueStructure,
 	                                               @Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
-	                                               @Nullable Object value) {
+	                                               @Nonnull Object value) {
 		final Object argument = extractAdditionalChildParameterFromValue(
 			parsedConstraintDescriptor,
 			value,
@@ -704,9 +706,9 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 	/**
 	 * Tries to extract raw argument for additional child descriptor from client value
 	 */
-	@Nullable
+	@Nonnull
 	private Object extractAdditionalChildParameterFromValue(@Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
-	                                                        @Nullable Object value,
+	                                                        @Nonnull Object value,
 	                                                        @Nonnull ConstraintValueStructure constraintValueStructure,
 	                                                        @Nonnull AdditionalChildParameterDescriptor parameterDescriptor) {
 		if (constraintValueStructure != ConstraintValueStructure.COMPLEX) {
@@ -727,9 +729,9 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 	/**
 	 * Should extract raw children argument from wrapper object `value`.
 	 */
-	@Nullable
+	@Nonnull
 	private Object extractAdditionalChildArgumentFromWrapperObject(@Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
-	                                                               @Nullable Object value,
+	                                                               @Nonnull Object value,
 	                                                               @Nonnull AdditionalChildParameterDescriptor parameterDescriptor) {
 		return extractArgumentFromWrapperObject(parsedConstraintDescriptor, value, parameterDescriptor.name());
 	}

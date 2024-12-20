@@ -26,6 +26,7 @@ package io.evitadb.api.requestResponse.schema;
 import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.query.filter.FacetHaving;
 import io.evitadb.api.query.filter.ReferenceHaving;
+import io.evitadb.api.query.order.EntityProperty;
 import io.evitadb.api.query.order.ReferenceProperty;
 import io.evitadb.api.query.require.FacetSummary;
 import io.evitadb.api.query.require.ReferenceContent;
@@ -34,12 +35,15 @@ import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Reference;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetStatistics;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.dataType.Scope;
 import io.evitadb.utils.NamingConvention;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -179,28 +183,117 @@ public interface ReferenceSchemaContract extends
 	boolean isReferencedGroupTypeManaged();
 
 	/**
-	 * Contains TRUE if the index for this reference should be created and maintained allowing to filter by
-	 * {@link ReferenceHaving} filtering and sorted by {@link ReferenceProperty} constraints. Index is also required
-	 * when reference is {@link #isFaceted() faceted}.
+	 * Returns TRUE if the index in any scope for this reference should be created and maintained allowing to
+	 * filter by {@link ReferenceHaving} filtering and sorted by {@link ReferenceProperty} constraints. Index is also
+	 * required when reference is {@link #isFaceted() faceted} - but it has to be indexed in the same scope as faceted.
 	 *
 	 * Do not mark reference as indexed unless you know that you'll need to filter / sort entities by this reference.
 	 * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
 	 * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
 	 * alongside other references and is available by calling {@link SealedEntity#getReferences()} method.
+	 *
+	 * @return true if reference is indexed in any scope
 	 */
-	boolean isIndexed();
+	default boolean isIndexedInAnyScope() {
+		return Arrays.stream(Scope.values()).anyMatch(this::isIndexedInScope);
+	}
 
 	/**
-	 * Contains TRUE if the statistics data for this reference should be maintained and this allowing to get
-	 * {@link FacetSummary} for this reference or use {@link FacetHaving}
-	 * filtering query.
+	 * Returns TRUE if the index in {@link Scope#DEFAULT_SCOPE} for this reference should be created and maintained allowing to
+	 * filter by {@link ReferenceHaving} filtering and sorted by {@link ReferenceProperty} constraints. Index is also
+	 * required when reference is {@link #isFaceted() faceted} - but it has to be indexed in the same scope as faceted.
+	 *
+	 * Do not mark reference as indexed unless you know that you'll need to filter / sort entities by this reference.
+	 * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
+	 * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
+	 * alongside other references and is available by calling {@link SealedEntity#getReferences()} method.
+	 *
+	 * @return true if reference is indexed in {@link Scope#DEFAULT_SCOPE} scope
+	 */
+	default boolean isIndexed() {
+		return isIndexedInScope(Scope.DEFAULT_SCOPE);
+	}
+
+	/**
+	 * Returns TRUE if the index in particular {@link Scope} for this reference should be created and maintained
+	 * allowing to filter by {@link ReferenceHaving} filtering and sorted by {@link ReferenceProperty} constraints.
+	 * Index is also required when reference is {@link #isFaceted() faceted}.
+	 *
+	 * Do not mark reference as indexed unless you know that you'll need to filter / sort entities by this reference.
+	 * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
+	 * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
+	 * alongside other references and is available by calling {@link SealedEntity#getReferences()} method.
+	 *
+	 * @param scope to check reference is indexed in
+	 * @return true if reference is indexed in particular scope
+	 */
+	boolean isIndexedInScope(@Nonnull Scope scope);
+
+	/**
+	 * Returns set of all scopes the reference information is indexed in and can be used for filtering entities and computation
+	 * of extra data. If the reference information is not indexed, it is still available on the entity itself (i.e. entity
+	 * can define its references of this type), but it is not possible to work with the reference information in any
+	 * other way (filtering by {@link ReferenceHaving}, sorting by {@link EntityProperty}, or calculating {@link FacetSummary}).
+	 *
+	 * Beware - non indexed references are automatically non-faceted.
+	 *
+	 * @return set of all scopes the reference information is indexed in
+	 */
+	@Nonnull
+	Set<Scope> getIndexedInScopes();
+
+	/**
+	 * Returns TRUE if the statistics data in any scope for this reference should be maintained and this
+	 * allowing to get {@link FacetSummary} for this reference or use {@link FacetHaving} filtering query.
 	 *
 	 * Do not mark reference as faceted unless you want it among {@link FacetStatistics}. Each faceted reference
 	 * occupies (memory/disk) space in the form of index.
 	 *
 	 * Reference that was marked as faceted is called Facet.
+	 *
+	 * @return true if reference is faceted in any of the scopes
 	 */
-	boolean isFaceted();
+	default boolean isFacetedInAnyScope() {
+		return Arrays.stream(Scope.values()).anyMatch(this::isFacetedInScope);
+	}
+
+	/**
+	 * Returns TRUE if the statistics data in {@link Scope#DEFAULT_SCOPE} for this reference should be maintained and this
+	 * allowing to get {@link FacetSummary} for this reference or use {@link FacetHaving} filtering query.
+	 *
+	 * Do not mark reference as faceted unless you want it among {@link FacetStatistics}. Each faceted reference
+	 * occupies (memory/disk) space in the form of index.
+	 *
+	 * Reference that was marked as faceted is called Facet.
+	 *
+	 * @return true if reference is faceted in {@link Scope#DEFAULT_SCOPE}
+	 */
+	default boolean isFaceted() {
+		return isFacetedInScope(Scope.DEFAULT_SCOPE);
+	}
+
+	/**
+	 * Returns TRUE if the statistics data in particular {@link Scope} for this reference should be maintained and this
+	 * allowing to get {@link FacetSummary} for this reference or use {@link FacetHaving} filtering query.
+	 *
+	 * Do not mark reference as faceted unless you want it among {@link FacetStatistics}. Each faceted reference
+	 * occupies (memory/disk) space in the form of index.
+	 *
+	 * Reference that was marked as faceted is called Facet.
+	 *
+	 * @param scope to check reference is faceted in
+	 * @return true if reference is faceted in particular scope
+	 */
+	boolean isFacetedInScope(@Nonnull Scope scope);
+
+	/**
+	 * Returns set of all scopes the facet information is indexed in and can be used for filtering entities and computation
+	 * of extra data.
+	 *
+	 * @return set of all scopes the facet information is indexed in
+	 */
+	@Nonnull
+	Set<Scope> getFacetedInScopes();
 
 	/**
 	 * Validates current reference schema for invalid settings using the information from current catalog schema.

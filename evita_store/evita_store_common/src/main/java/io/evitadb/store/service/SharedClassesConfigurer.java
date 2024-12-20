@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,6 +29,9 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.key.CompressiblePriceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
+import io.evitadb.dataType.Scope;
 import io.evitadb.store.dataType.serializer.EnumNameSerializer;
 import io.evitadb.store.dataType.serializer.SerialVersionBasedSerializer;
 import io.evitadb.store.serializer.AssociatedDataKeySerializer;
@@ -57,6 +60,9 @@ public class SharedClassesConfigurer implements Consumer<Kryo> {
 		kryo.register(CompressiblePriceKey.class, new SerialVersionBasedSerializer<>(new CompressiblePriceKeySerializer(), CompressiblePriceKey.class), index++);
 		kryo.register(ReferenceKey.class, new SerialVersionBasedSerializer<>(new ReferenceKeySerializer(), ReferenceKey.class), index++);
 		kryo.register(PriceInnerRecordHandling.class, new EnumNameSerializer<PriceInnerRecordHandling>(), index++);
+		kryo.register(AttributeUniquenessType.class, new EnumNameSerializer<AttributeUniquenessType>(), index++);
+		kryo.register(GlobalAttributeUniquenessType.class, new EnumNameSerializer<GlobalAttributeUniquenessType>(), index++);
+		kryo.register(Scope.class, new EnumNameSerializer<Scope>(), index++);
 
 		Assert.isPremiseValid(index < 400, "Index count overflow.");
 	}

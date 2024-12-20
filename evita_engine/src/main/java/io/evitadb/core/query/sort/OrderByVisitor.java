@@ -28,6 +28,7 @@ import io.evitadb.api.query.ConstraintContainer;
 import io.evitadb.api.query.ConstraintLeaf;
 import io.evitadb.api.query.ConstraintVisitor;
 import io.evitadb.api.query.OrderConstraint;
+import io.evitadb.api.query.order.Random;
 import io.evitadb.api.query.order.*;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.data.EntityContract;
@@ -55,8 +56,11 @@ import io.evitadb.core.query.sort.primaryKey.translator.EntityPrimaryKeyExactTra
 import io.evitadb.core.query.sort.primaryKey.translator.EntityPrimaryKeyInFilterTranslator;
 import io.evitadb.core.query.sort.primaryKey.translator.EntityPrimaryKeyNaturalTranslator;
 import io.evitadb.core.query.sort.random.translator.RandomTranslator;
+import io.evitadb.core.query.sort.segment.SegmentsTranslator;
 import io.evitadb.core.query.sort.translator.OrderByTranslator;
+import io.evitadb.core.query.sort.translator.OrderInScopeTranslator;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.attribute.SortIndex;
@@ -66,12 +70,7 @@ import lombok.experimental.Delegate;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayDeque;
-import java.util.Deque;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -87,7 +86,6 @@ import static java.util.Optional.ofNullable;
  */
 public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	private static final Map<Class<? extends OrderConstraint>, OrderingConstraintTranslator<? extends OrderConstraint>> TRANSLATORS;
-	private static final EntityIndex[] EMPTY_INDEX_ARRAY = new EntityIndex[0];
 
 	/* initialize list of all FilterableConstraint handlers once for a lifetime */
 	static {
@@ -103,6 +101,8 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 		TRANSLATORS.put(EntityPrimaryKeyExact.class, new EntityPrimaryKeyExactTranslator());
 		TRANSLATORS.put(AttributeSetInFilter.class, new AttributeSetInFilterTranslator());
 		TRANSLATORS.put(AttributeSetExact.class, new AttributeSetExactTranslator());
+		TRANSLATORS.put(Segments.class, new SegmentsTranslator());
+		TRANSLATORS.put(OrderInScope.class, new OrderInScopeTranslator());
 	}
 
 	/**
@@ -157,17 +157,25 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 		this.targetIndexes = targetIndexes;
 		this.filterByVisitor = filterByVisitor;
 		this.filteringFormula = filteringFormula;
+		final LinkedList<Set<Scope>> scopes = new LinkedList<>();
+		final Set<Scope> requestedScopes = this.queryContext.getScopes();
+		scopes.add(requestedScopes);
 		this.scope.push(
 			new ProcessingScope(
-				this.queryContext.getGlobalEntityIndexIfExists()
-					.map(it -> new EntityIndex[]{it})
-					.orElse(EMPTY_INDEX_ARRAY),
+				scopes,
+				Arrays.stream(Scope.values())
+					.filter(requestedScopes::contains)
+					.map(this.queryContext::getGlobalEntityIndexIfExists)
+					.filter(Optional::isPresent)
+					.map(Optional::get)
+					.toArray(EntityIndex[]::new),
 				this.queryContext.isEntityTypeKnown() ?
 					this.queryContext.getSchema().getName() : null,
 				null,
 				null,
 				attributeSchemaAccessor,
-				EntityAttributeExtractor.INSTANCE
+				EntityAttributeExtractor.INSTANCE,
+				this.sorters
 			)
 		);
 	}
@@ -177,27 +185,63 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	 */
 	@Nonnull
 	public Sorter getSorter() {
-		if (sorters.isEmpty()) {
+		final ProcessingScope currentScope = getProcessingScope();
+		final Deque<Sorter> currentSorters = currentScope.sorters();
+		if (currentSorters.isEmpty()) {
 			return NoSorter.INSTANCE;
 		} else {
-			boolean canUseCache = !queryContext.isDebugModeEnabled(DebugMode.VERIFY_POSSIBLE_CACHING_TREES) &&
-				queryContext.isEntityTypeKnown();
+			boolean canUseCache = !this.queryContext.isDebugModeEnabled(DebugMode.VERIFY_POSSIBLE_CACHING_TREES) &&
+				this.queryContext.isEntityTypeKnown();
 
-			final CacheSupervisor cacheSupervisor = queryContext.getCacheSupervisor();
+			final CacheSupervisor cacheSupervisor = this.queryContext.getCacheSupervisor();
 			Sorter composedSorter = null;
-			final Iterator<Sorter> it = sorters.descendingIterator();
+			final Iterator<Sorter> it = currentSorters.descendingIterator();
 			while (it.hasNext()) {
 				final Sorter nextSorter = it.next();
 				final Sorter possiblyCachedSorter = canUseCache && nextSorter instanceof CacheableSorter cacheableSorter ?
 					cacheSupervisor.analyse(
-						queryContext.getEvitaSession(),
-						queryContext.getSchema().getName(),
+						this.queryContext.getEvitaSession(),
+						this.queryContext.getSchema().getName(),
 						cacheableSorter
 					) : nextSorter;
 				composedSorter = composedSorter == null ? possiblyCachedSorter : possiblyCachedSorter.andThen(composedSorter);
 			}
 
-			return composedSorter;
+			return composedSorter == null ? NoSorter.INSTANCE : composedSorter;
+		}
+	}
+
+	/**
+	 * Collects and isolates a new sorter within a new processing scope.
+	 * It temporarily pushes a new {@link ProcessingScope} onto the current scope stack,
+	 * assigns it the current context values, and subsequently pops it after the sorter is retrieved.
+	 *
+	 * @param lambda the lambda to execute within the isolated scope that creates and registers the sorter chain
+	 * @return the created {@link Sorter} from the ordering query source tree or default {@link NoSorter} instance
+	 */
+	@Nonnull
+	public final Sorter collectIsolatedSorter(@Nonnull Runnable lambda) {
+		try {
+			final ProcessingScope currentScope = getProcessingScope();
+			final LinkedList<Set<Scope>> requestedScopes = new LinkedList<>();
+			requestedScopes.push(currentScope.getScopes());
+			this.scope.push(
+				new ProcessingScope(
+					// the requested scopes never change
+					requestedScopes,
+					currentScope.entityIndex(),
+					currentScope.entityType(),
+					currentScope.referenceSchema(),
+					currentScope.locale(),
+					currentScope.attributeSchemaAccessor(),
+					currentScope.attributeEntityAccessor(),
+					new ArrayDeque<>(16)
+				)
+			);
+			lambda.run();
+			return getSorter();
+		} finally {
+			this.scope.pop();
 		}
 	}
 
@@ -213,14 +257,19 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 		@Nonnull Supplier<T> lambda
 	) {
 		try {
+			final ProcessingScope processingScope = getProcessingScope();
+			final LinkedList<Set<Scope>> requestedScopes = new LinkedList<>();
+			requestedScopes.push(processingScope.getScopes());
 			this.scope.push(
 				new ProcessingScope(
+					requestedScopes,
 					entityIndex,
 					entityType,
 					null,
 					locale,
 					attributeSchemaAccessor,
-					attributeSchemaEntityAccessor
+					attributeSchemaEntityAccessor,
+					processingScope.sorters()
 				)
 			);
 			return lambda.get();
@@ -234,21 +283,26 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	 */
 	public final <T> T executeInContext(
 		@Nonnull EntityIndex[] entityIndex,
-		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nullable Locale locale,
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
 		@Nonnull AttributeExtractor attributeSchemaEntityAccessor,
 		@Nonnull Supplier<T> lambda
 	) {
 		try {
+			final ProcessingScope processingScope = getProcessingScope();
+			final LinkedList<Set<Scope>> requestedScopes = new LinkedList<>();
+			requestedScopes.push(processingScope.getScopes());
 			this.scope.push(
 				new ProcessingScope(
+					requestedScopes,
 					entityIndex,
 					referenceSchema.getReferencedEntityType(),
 					referenceSchema,
 					locale,
 					attributeSchemaAccessor,
-					attributeSchemaEntityAccessor
+					attributeSchemaEntityAccessor,
+					processingScope.sorters()
 				)
 			);
 			return lambda.get();
@@ -262,10 +316,10 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	 */
 	@Nonnull
 	public ProcessingScope getProcessingScope() {
-		if (scope.isEmpty()) {
+		if (this.scope.isEmpty()) {
 			throw new GenericEvitaInternalError("Scope should never be empty");
 		} else {
-			return scope.peek();
+			return this.scope.peek();
 		}
 	}
 
@@ -283,9 +337,9 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	 * Returns locale valid for this processing scope or the entire query context.
 	 */
 	@Override
-	@Nonnull
+	@Nullable
 	public Locale getLocale() {
-		return ofNullable(getProcessingScope().locale()).orElseGet(queryContext::getLocale);
+		return ofNullable(getProcessingScope().locale()).orElseGet(this.queryContext::getLocale);
 	}
 
 	@Override
@@ -319,7 +373,8 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 			throw new GenericEvitaInternalError("Should never happen");
 		}
 		// compose sorters one after another
-		currentSorters.forEach(this.sorters::add);
+		final Deque<Sorter> sortersQueue = getProcessingScope().sorters();
+		currentSorters.forEach(sortersQueue::add);
 	}
 
 	/**
@@ -327,20 +382,24 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	 * implementations to exchange indexes that are being used, suppressing certain query evaluation or accessing
 	 * attribute schema information.
 	 *
+	 * @param requiredScopes          contains set of scopes that are requested in input query
 	 * @param entityIndex             contains index, that should be used for accessing {@link SortIndex}.
 	 * @param entityType              contains entity type the context refers to
 	 * @param referenceSchema         contains reference schema the scope relates to
 	 * @param locale                  contains locale the context refers to
 	 * @param attributeSchemaAccessor consumer verifies prerequisites in attribute schema via {@link AttributeSchemaContract}
 	 * @param attributeEntityAccessor function provides access to the attribute content via {@link EntityContract}
+	 * @param sorters                 contains the stack of sorters that are being composed on particular level of the query
 	 */
 	public record ProcessingScope(
+		@Nonnull Deque<Set<Scope>> requiredScopes,
 		@Nonnull EntityIndex[] entityIndex,
 		@Nullable String entityType,
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nullable Locale locale,
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
-		@Nonnull AttributeExtractor attributeEntityAccessor
+		@Nonnull AttributeExtractor attributeEntityAccessor,
+		@Nonnull Deque<Sorter> sorters
 	) {
 
 		/**
@@ -348,7 +407,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 		 */
 		@Nonnull
 		public AttributeSchemaContract getAttributeSchema(@Nonnull String theAttributeName, @Nonnull AttributeTrait... attributeTraits) {
-			return attributeSchemaAccessor.getAttributeSchema(theAttributeName, attributeTraits);
+			return this.attributeSchemaAccessor.getAttributeSchema(theAttributeName, getScopes(), attributeTraits);
 		}
 
 		/**
@@ -356,7 +415,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 		 */
 		@Nonnull
 		public NamedSchemaContract getAttributeSchemaOrSortableAttributeCompound(@Nonnull String theAttributeName) {
-			return attributeSchemaAccessor.getAttributeSchemaOrSortableAttributeCompound(theAttributeName);
+			return this.attributeSchemaAccessor.getAttributeSchemaOrSortableAttributeCompound(theAttributeName, getScopes());
 		}
 
 		/**
@@ -365,7 +424,35 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 		 */
 		@Nonnull
 		public AttributeSchemaAccessor withReferenceSchemaAccessor(@Nonnull String referenceName) {
-			return attributeSchemaAccessor.withReferenceSchemaAccessor(referenceName);
+			return this.attributeSchemaAccessor.withReferenceSchemaAccessor(referenceName);
+		}
+
+		/**
+		 * Retrieves the set of requested scopes from the processing context.
+		 *
+		 * @return A non-null set of {@link Scope} that are required for the current processing context.
+		 */
+		@Nonnull
+		public Set<Scope> getScopes() {
+			return Objects.requireNonNull(this.requiredScopes.peek());
+		}
+
+		/**
+		 * Executes the given supplier within the context of the specified scope. This method ensures that
+		 * the specified scope is applied for the duration of the supplier's execution and then restores
+		 * the previous scope afterwards.
+		 *
+		 * @param scopeToUse the scope to be applied during the execution of the supplier
+		 * @param lambda the supplier function to be executed within the specified scope
+		 * @return the result produced by the supplier
+		 */
+		public <S> S doWithScope(@Nonnull Scope scopeToUse, @Nonnull Supplier<S> lambda) {
+			try {
+				this.requiredScopes.push(EnumSet.of(scopeToUse));
+				return lambda.get();
+			} finally {
+				this.requiredScopes.pop();
+			}
 		}
 
 	}

@@ -67,7 +67,7 @@ public class TransactionalIntArray implements TransactionalLayerProducer<IntArra
 	private int[] delegate;
 
 	public TransactionalIntArray() {
-		this.delegate = new int[0];
+		this.delegate = ArrayUtils.EMPTY_INT_ARRAY;
 	}
 
 	public TransactionalIntArray(int[] delegate) {

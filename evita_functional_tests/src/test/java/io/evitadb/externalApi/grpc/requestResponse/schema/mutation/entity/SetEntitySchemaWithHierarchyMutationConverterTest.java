@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.entity;
 
 import io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWithHierarchyMutation;
+import io.evitadb.dataType.Scope;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -41,7 +42,7 @@ class SetEntitySchemaWithHierarchyMutationConverterTest {
 	@Test
 	void shouldConvertMutation() {
 		final SetEntitySchemaWithHierarchyMutation mutation1 = new SetEntitySchemaWithHierarchyMutation(
-			true
+			true, new Scope[] { Scope.LIVE }
 		);
 		assertEquals(mutation1, converter.convert(converter.convert(mutation1)));
 	}

@@ -104,7 +104,7 @@ public class AttributeInRange extends AbstractAttributeFilterConstraintLeaf impl
 	}
 
 	@Creator
-	private <T extends Serializable & Comparable<?>> AttributeInRange(
+	private <T extends Serializable> AttributeInRange(
 		@Nonnull @Classifier String attributeName,
 		@Nonnull @Value(requiresPlainType = true) T value
 	) {

@@ -26,6 +26,8 @@ package io.evitadb.core.query;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.EvitaRequest;
+import io.evitadb.api.requestResponse.EvitaRequest.ConditionalGap;
+import io.evitadb.api.requestResponse.EvitaRequest.ResultForm;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
@@ -45,6 +47,7 @@ import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.policy.BitmapFavouringNoCachePolicy;
 import io.evitadb.core.query.policy.CacheEnforcingPolicy;
 import io.evitadb.core.query.policy.PrefetchFavouringNoCachePolicy;
+import io.evitadb.core.query.slice.ExpressionBasedSlicer;
 import io.evitadb.core.query.sort.NoSorter;
 import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.Sorter;
@@ -138,12 +141,14 @@ public class QueryPlanner {
 				// create sorter and computers for all plans
 				createSorter(context, targetIndexes, queryPlanBuilders);
 				createExtraResultProducers(context, queryPlanBuilders);
+				createSlicer(context, queryPlanBuilders);
 				// and verify consistent results
 				verifyConsistentResultsInAllPlans(context, targetIndexes, queryPlanBuilders, preferredPlan);
 			} else {
 				// create sorter and computers only for preferred plan
 				final List<QueryPlanBuilder> preferredPlanBuilderCollection = Collections.singletonList(preferredPlan);
 				createSorter(context, targetIndexes, preferredPlanBuilderCollection);
+				createSlicer(context, queryPlanBuilders);
 				createExtraResultProducers(context, preferredPlanBuilderCollection);
 			}
 
@@ -218,8 +223,8 @@ public class QueryPlanner {
 	 * Method analyzes the input query and picks multiple {@link EntityIndex} sets that can be interchangeably used to
 	 * construct response to the query. Currently, the logic is quite stupid - it searches the filter for all constraints
 	 * within AND relation and when relation or hierarchy query is encountered, it adds specific
-	 * {@link EntityIndexType#REFERENCED_ENTITY} or {@link EntityIndexType#REFERENCED_HIERARCHY_NODE} that contains
-	 * limited subset of the entities related to that placement/relation.
+	 * {@link EntityIndexType#REFERENCED_ENTITY} that contains limited subset of the entities related to that
+	 * placement/relation.
 	 */
 	private static IndexSelectionResult<?> selectIndexes(@Nonnull QueryPlanningContext queryContext) {
 		queryContext.pushStep(QueryPhase.PLANNING_INDEX_USAGE);
@@ -257,10 +262,9 @@ public class QueryPlanner {
 						targetIndex
 					);
 
-					final PrefetchFormulaVisitor prefetchFormulaVisitor = new PrefetchFormulaVisitor(targetIndex);
-					filterByVisitor.registerFormulaPostProcessor(PrefetchFormulaVisitor.class, () -> prefetchFormulaVisitor);
+					final PrefetchFormulaVisitor prefetchFormulaVisitor = new PrefetchFormulaVisitor(queryContext, targetIndex);
 					ofNullable(queryContext.getFilterBy()).ifPresent(filterByVisitor::visit);
-					adeptFormula = queryContext.analyse(filterByVisitor.getFormula());
+					adeptFormula = queryContext.analyse(filterByVisitor.getFormula(prefetchFormulaVisitor));
 
 					final QueryPlanBuilder queryPlanBuilder = new QueryPlanBuilder(
 						queryContext, adeptFormula, filterByVisitor, targetIndex, prefetchFormulaVisitor
@@ -364,6 +368,31 @@ public class QueryPlanner {
 			}
 		} finally {
 			queryContext.popStep();
+		}
+	}
+
+	/**
+	 * Configures a slicer for each QueryPlanBuilder if the result form of the EvitaRequest is a paginated list
+	 * and any conditional gaps are specified. Slicer is used to accurately calculate the offset of the record on
+	 * particular page and its size based on the gap rules definition.
+	 *
+	 * @param queryContext  The context of the current query, containing the EvitaRequest.
+	 * @param builders      A list of QueryPlanBuilder instances to configure the slicer.
+	 */
+	private static void createSlicer(
+		@Nonnull QueryPlanningContext queryContext,
+		@Nonnull List<QueryPlanBuilder> builders
+	) {
+		final EvitaRequest evitaRequest = queryContext.getEvitaRequest();
+		final ResultForm resultForm = evitaRequest.getResultForm();
+		if (resultForm == ResultForm.PAGINATED_LIST) {
+			final ConditionalGap[] conditionalGaps = evitaRequest.getConditionalGaps();
+			if (!ArrayUtils.isEmpty(conditionalGaps)) {
+				final ExpressionBasedSlicer slicer = new ExpressionBasedSlicer(conditionalGaps);
+				for (QueryPlanBuilder builder : builders) {
+					builder.setSlicer(slicer);
+				}
+			}
 		}
 	}
 

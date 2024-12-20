@@ -54,6 +54,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 
 /**
  * Histogram index is based on <a href="https://en.wikipedia.org/wiki/Histogram">Histogram data structure</a>. It's
@@ -79,12 +80,13 @@ import java.util.function.BiFunction;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
+@SuppressWarnings("rawtypes")
 @ThreadSafe
 @EqualsAndHashCode(exclude = {"dirty", "comparator"})
-public class InvertedIndex<T extends Comparable<T>> implements
+public class InvertedIndex implements
 	IndexDataStructure,
 	ConsistencySensitiveDataStructure,
-	VoidTransactionMemoryProducer<InvertedIndex<T>>,
+	VoidTransactionMemoryProducer<InvertedIndex>,
 	Serializable
 {
 	@Serial private static final long serialVersionUID = 3019703951858227807L;
@@ -95,24 +97,26 @@ public class InvertedIndex<T extends Comparable<T>> implements
 	/**
 	 * The buckets contain ordered comparable values with bitmaps of all records with such value.
 	 */
-	private final TransactionalComplexObjArray<ValueToRecordBitmap<T>> valueToRecordBitmap;
+	private final TransactionalComplexObjArray<ValueToRecordBitmap> valueToRecordBitmap;
+	/**
+	 * Normalizer is used to convert objects to serializable form.
+	 */
+	@Nonnull private final Function<Object, Serializable> normalizer;
 	/**
 	 * Instance of comparator that should be used for values in {@link #valueToRecordBitmap}
 	 */
-	@Nonnull @Getter private final Comparator<T> comparator;
+	@Nonnull @Getter private final Comparator comparator;
 
 	/**
 	 * This lambda lay out records by {@link ValueToRecordBitmap#getValue()} one after another.
 	 */
-	@SuppressWarnings({"rawtypes", "unchecked"})
 	private static final BiFunction<Long, ValueToRecordBitmap[], Formula> UNSORTED_AGGREGATION_LAMBDA = (indexTransactionId, histogramBuckets) -> new DeferredFormula(
-		new HistogramBitmapSupplier<>(histogramBuckets)
+		new HistogramBitmapSupplier(histogramBuckets)
 	);
 
 	/**
 	 * This lambda lay out records in natural ascending order.
 	 */
-	@SuppressWarnings("rawtypes")
 	private static final BiFunction<Long, ValueToRecordBitmap[], Formula> SORTED_AGGREGATION_LAMBDA = (indexTransactionId, histogramBuckets) -> {
 		final Bitmap[] bitmaps = new Bitmap[histogramBuckets.length];
 		for (int i = 0; i < histogramBuckets.length; i++) {
@@ -132,11 +136,12 @@ public class InvertedIndex<T extends Comparable<T>> implements
 	 * no duplicities.
 	 */
 	@Nonnull
-	private static <T extends Comparable<T>> ConsistencyReport checkConsistency(@Nonnull ValueToRecordBitmap<T>[] points, @Nonnull Comparator<T> comparator) {
+	private static ConsistencyReport checkConsistency(@Nonnull ValueToRecordBitmap[] points, @Nonnull Comparator comparator) {
 		final StringBuilder report = new StringBuilder(256);
-		T previous = null;
-		for (ValueToRecordBitmap<T> bucket : points) {
-			T finalPrevious = previous;
+		Serializable previous = null;
+		for (ValueToRecordBitmap bucket : points) {
+			Serializable finalPrevious = previous;
+			//noinspection unchecked
 			if (!(previous == null || comparator.compare(previous, bucket.getValue()) < 0)) {
 				report.append("Histogram values are not monotonic - conflicting values: ").append(finalPrevious).append(", ").append(bucket.getValue()).append(".\n");
 			}
@@ -149,25 +154,38 @@ public class InvertedIndex<T extends Comparable<T>> implements
 		}
 	}
 
-	public InvertedIndex(@Nonnull Comparator<T> comparator) {
-		//noinspection unchecked, rawtypes
+	public InvertedIndex(
+		@Nonnull Function<Object, Serializable> normalizer,
+		@Nonnull Comparator comparator
+	) {
+		//noinspection unchecked
 		this.valueToRecordBitmap = new TransactionalComplexObjArray<>(
 			new ValueToRecordBitmap[0],
 			ValueToRecordBitmap::add,
 			ValueToRecordBitmap::remove,
 			ValueToRecordBitmap::isEmpty,
-			(Comparator<ValueToRecordBitmap<T>>) (o1, o2) -> comparator.compare(o1.getValue(), o2.getValue()),
+			(o1, o2) -> comparator.compare(o1.getValue(), o2.getValue()),
 			ValueToRecordBitmap::deepEquals
 		);
+		this.normalizer = normalizer;
 		this.comparator = comparator;
 		this.dirty = new TransactionalBoolean(false);
 	}
 
-	public InvertedIndex(@Nonnull ValueToRecordBitmap<T>[] buckets, @Nonnull Comparator<T> comparator) {
-		this(buckets, comparator, false);
+	public InvertedIndex(
+		@Nonnull ValueToRecordBitmap[] buckets,
+		@Nonnull Function<Object, Serializable> normalizer,
+		@Nonnull Comparator comparator
+	) {
+		this(buckets, normalizer, comparator, false);
 	}
 
-	private InvertedIndex(@Nonnull ValueToRecordBitmap<T>[] buckets, @Nonnull Comparator<T> comparator, boolean internal) {
+	private InvertedIndex(
+		@Nonnull ValueToRecordBitmap[] buckets,
+		@Nonnull Function<Object, Serializable> normalizer,
+		@Nonnull Comparator comparator,
+		boolean internal
+	) {
 		// contract check
 		if (!internal) {
 			final ConsistencyReport consistencyReport = checkConsistency(buckets, comparator);
@@ -175,6 +193,7 @@ public class InvertedIndex<T extends Comparable<T>> implements
 				throw new MonotonicRowCorruptedException(consistencyReport.report());
 			}
 		}
+		//noinspection unchecked
 		this.valueToRecordBitmap = new TransactionalComplexObjArray<>(
 			buckets,
 			ValueToRecordBitmap::add,
@@ -183,6 +202,7 @@ public class InvertedIndex<T extends Comparable<T>> implements
 			(o1, o2) -> comparator.compare(o1.getValue(), o2.getValue()),
 			ValueToRecordBitmap::deepEquals
 		);
+		this.normalizer = normalizer;
 		this.comparator = comparator;
 		this.dirty = new TransactionalBoolean(false);
 	}
@@ -199,23 +219,23 @@ public class InvertedIndex<T extends Comparable<T>> implements
 	 *
 	 * @return position where insertion happened
 	 */
-	public int addRecord(@Nonnull T value, int recordId) {
-		final ValueToRecordBitmap<T> bucket = new ValueToRecordBitmap<>(value, EmptyBitmap.INSTANCE);
+	public int addRecord(@Nonnull Serializable value, int recordId) {
+		final ValueToRecordBitmap bucket = new ValueToRecordBitmap(this.normalizer.apply(value), EmptyBitmap.INSTANCE);
 		bucket.addRecord(recordId);
 		this.dirty.setToTrue();
-		return valueToRecordBitmap.addReturningIndex(bucket);
+		return this.valueToRecordBitmap.addReturningIndex(bucket);
 	}
 
 	/**
 	 * Adds multiple records id into the bucket with specified `value`. If no bucket with this value exists, it is automatically
 	 * created and first record ida are assigned to it.
 	 */
-	public void addRecord(@Nonnull T value, int... recordId) {
-		Assert.isTrue(!ArrayUtils.isEmpty(recordId), "Record ids must be not null and non empty!");
-		final ValueToRecordBitmap<T> bucket = new ValueToRecordBitmap<>(value, EmptyBitmap.INSTANCE);
+	public void addRecord(@Nonnull Serializable value, int... recordId) {
+		Assert.isTrue(!ArrayUtils.isEmpty(recordId), "Record ids must be not null and non-empty!");
+		final ValueToRecordBitmap bucket = new ValueToRecordBitmap(this.normalizer.apply(value), EmptyBitmap.INSTANCE);
 		bucket.addRecord(recordId);
 		this.dirty.setToTrue();
-		valueToRecordBitmap.add(bucket);
+		this.valueToRecordBitmap.add(bucket);
 	}
 
 	/**
@@ -225,19 +245,19 @@ public class InvertedIndex<T extends Comparable<T>> implements
 	 *
 	 * @return position where removal occurred or -1 if no removal occurred
 	 */
-	public int removeRecord(@Nonnull T value, int... recordId) {
+	public int removeRecord(@Nonnull Serializable value, int... recordId) {
 		Assert.isTrue(!ArrayUtils.isEmpty(recordId), "Record ids must be not null and non-empty!");
 		this.dirty.setToTrue();
-		return valueToRecordBitmap.remove(new ValueToRecordBitmap<>(value, new BaseBitmap(recordId)));
+		return this.valueToRecordBitmap.remove(new ValueToRecordBitmap(this.normalizer.apply(value), new BaseBitmap(recordId)));
 	}
 
 	/**
 	 * Method returns ture if histogram contains no records (i.e. no, or empty buckets).
 	 */
 	public boolean isEmpty() {
-		final Iterator<ValueToRecordBitmap<T>> it = valueToRecordBitmap.iterator();
+		final Iterator<ValueToRecordBitmap> it = this.valueToRecordBitmap.iterator();
 		while (it.hasNext()) {
-			final ValueToRecordBitmap<T> bucket = it.next();
+			final ValueToRecordBitmap bucket = it.next();
 			if (!bucket.isEmpty()) {
 				return false;
 			}
@@ -248,12 +268,12 @@ public class InvertedIndex<T extends Comparable<T>> implements
 	/**
 	 * Returns true if there is a bucket related to passed `value`.
 	 */
-	public boolean contains(@Nullable T value) {
+	public boolean contains(@Nullable Serializable value) {
 		if (value == null) {
 			return false;
 		}
-		final ValueToRecordBitmap<T>[] pointsArray = valueToRecordBitmap.getArray();
-		final int index = Arrays.binarySearch(pointsArray, new ValueToRecordBitmap<>(value));
+		final ValueToRecordBitmap[] pointsArray = this.valueToRecordBitmap.getArray();
+		final int index = Arrays.binarySearch(pointsArray, new ValueToRecordBitmap(this.normalizer.apply(value)));
 		return index >= 0;
 	}
 
@@ -262,7 +282,7 @@ public class InvertedIndex<T extends Comparable<T>> implements
 	 */
 	@Nonnull
 	public Bitmap getRecordsAtIndex(int index) {
-		final ValueToRecordBitmap<T>[] pointsArray = valueToRecordBitmap.getArray();
+		final ValueToRecordBitmap[] pointsArray = this.valueToRecordBitmap.getArray();
 		if (index >= 0) {
 			return pointsArray[index].getRecordIds();
 		} else {
@@ -274,7 +294,7 @@ public class InvertedIndex<T extends Comparable<T>> implements
 	 * Returns array of "buckets" ordered by {@link ValueToRecordBitmap#getValue()} that contain record ids assigned in them.
 	 */
 	@Nonnull
-	public ValueToRecordBitmap<T>[] getValueToRecordBitmap() {
+	public ValueToRecordBitmap[] getValueToRecordBitmap() {
 		return this.valueToRecordBitmap.getArray();
 	}
 
@@ -291,7 +311,7 @@ public class InvertedIndex<T extends Comparable<T>> implements
 	 * Will return subset providing record ids bitmap in form of: [3, 2, 9, 1, 4]
 	 */
 	@Nonnull
-	public InvertedIndexSubSet<T> getRecords() {
+	public InvertedIndexSubSet getRecords() {
 		return getRecords(null, null);
 	}
 
@@ -302,8 +322,8 @@ public class InvertedIndex<T extends Comparable<T>> implements
 	 *
 	 * @see #getRecords()
 	 */
-	public InvertedIndexSubSet<T> getRecords(@Nullable T moreThanEq, @Nullable T lessThanEq) {
-		final ValueToRecordBitmap<T>[] records = getRecordsInternal(moreThanEq, lessThanEq, BoundsHandling.INCLUSIVE);
+	public InvertedIndexSubSet getRecords(@Nullable Serializable moreThanEq, @Nullable Serializable lessThanEq) {
+		final ValueToRecordBitmap[] records = getRecordsInternal(moreThanEq, lessThanEq, BoundsHandling.INCLUSIVE);
 		return convertToUnSortedResult(records);
 	}
 
@@ -319,7 +339,7 @@ public class InvertedIndex<T extends Comparable<T>> implements
 	 * Will return subset providing record ids bitmap in form of: [1, 2, 3, 4, 9]
 	 */
 	@Nonnull
-	public InvertedIndexSubSet<T> getSortedRecords() {
+	public InvertedIndexSubSet getSortedRecords() {
 		return getSortedRecords(null, null);
 	}
 
@@ -330,8 +350,8 @@ public class InvertedIndex<T extends Comparable<T>> implements
 	 * @see #getSortedRecords()
 	 */
 	@Nonnull
-	public InvertedIndexSubSet<T> getSortedRecords(@Nullable T moreThanEq, @Nullable T lessThanEq) {
-		final ValueToRecordBitmap<T>[] records = getRecordsInternal(moreThanEq, lessThanEq, BoundsHandling.INCLUSIVE);
+	public InvertedIndexSubSet getSortedRecords(@Nullable Serializable moreThanEq, @Nullable Serializable lessThanEq) {
+		final ValueToRecordBitmap[] records = getRecordsInternal(moreThanEq, lessThanEq, BoundsHandling.INCLUSIVE);
 		return convertToSortedResult(records);
 	}
 
@@ -342,8 +362,8 @@ public class InvertedIndex<T extends Comparable<T>> implements
 	 * @see #getSortedRecords()
 	 */
 	@Nonnull
-	public InvertedIndexSubSet<T> getSortedRecordsExclusive(@Nullable T moreThan, @Nullable T lessThan) {
-		final ValueToRecordBitmap<T>[] records = getRecordsInternal(moreThan, lessThan, BoundsHandling.EXCLUSIVE);
+	public InvertedIndexSubSet getSortedRecordsExclusive(@Nullable Serializable moreThan, @Nullable Serializable lessThan) {
+		final ValueToRecordBitmap[] records = getRecordsInternal(moreThan, lessThan, BoundsHandling.EXCLUSIVE);
 		return convertToSortedResult(records);
 	}
 
@@ -355,10 +375,10 @@ public class InvertedIndex<T extends Comparable<T>> implements
 	 */
 	@Nonnull
 	public <S> S[] getValuesForRecord(int recordId, @Nonnull Class<S> type) {
-		final Iterator<ValueToRecordBitmap<T>> it = this.valueToRecordBitmap.iterator();
+		final Iterator<ValueToRecordBitmap> it = this.valueToRecordBitmap.iterator();
 		final CompositeObjectArray<S> result = new CompositeObjectArray<>(type);
 		while (it.hasNext()) {
-			final ValueToRecordBitmap<T> bitmap = it.next();
+			final ValueToRecordBitmap bitmap = it.next();
 			if (bitmap.getRecordIds().contains(recordId)) {
 				//noinspection unchecked
 				result.add((S) bitmap.getValue());
@@ -371,7 +391,7 @@ public class InvertedIndex<T extends Comparable<T>> implements
 	 * Returns count of the buckets in the histogram.
 	 */
 	public int getBucketCount() {
-		return valueToRecordBitmap.getLength();
+		return this.valueToRecordBitmap.getLength();
 	}
 
 	/**
@@ -379,7 +399,7 @@ public class InvertedIndex<T extends Comparable<T>> implements
 	 */
 	public int getLength() {
 		int count = 0;
-		for (ValueToRecordBitmap<T> bucket : this.valueToRecordBitmap.getArray()) {
+		for (ValueToRecordBitmap bucket : this.valueToRecordBitmap.getArray()) {
 			count += bucket.getRecordIds().size();
 		}
 		return count;
@@ -388,7 +408,7 @@ public class InvertedIndex<T extends Comparable<T>> implements
 	@Override
 	public String toString() {
 		return "InvertedIndex{" +
-			"points=" + valueToRecordBitmap +
+			"points=" + this.valueToRecordBitmap +
 			'}';
 	}
 
@@ -403,11 +423,12 @@ public class InvertedIndex<T extends Comparable<T>> implements
 
 	@Nonnull
 	@Override
-	public InvertedIndex<T> createCopyWithMergedTransactionalMemory(Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+	public InvertedIndex createCopyWithMergedTransactionalMemory(Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		final Boolean isDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
 		if (isDirty) {
-			return new InvertedIndex<>(
+			return new InvertedIndex(
 				transactionalLayer.getStateCopyWithCommittedChanges(this.valueToRecordBitmap),
+				this.normalizer,
 				this.comparator,
 				true
 			);
@@ -431,9 +452,8 @@ public class InvertedIndex<T extends Comparable<T>> implements
 	 * Returns subset that aggregates inner record ids by {@link ValueToRecordBitmap#getValue()} and thus the result may
 	 * look unsorted on first look.
 	 */
-	@SuppressWarnings({"unchecked", "rawtypes"})
 	@Nonnull
-	private InvertedIndexSubSet<T> convertToUnSortedResult(@Nonnull ValueToRecordBitmap<T>[] records) {
+	private InvertedIndexSubSet convertToUnSortedResult(@Nonnull ValueToRecordBitmap[] records) {
 		return new InvertedIndexSubSet(
 			getId(),
 			records,
@@ -444,9 +464,8 @@ public class InvertedIndex<T extends Comparable<T>> implements
 	/**
 	 * Returns subset that aggregates inner record ids by natural ascending ordering.
 	 */
-	@SuppressWarnings({"unchecked", "rawtypes"})
 	@Nonnull
-	private InvertedIndexSubSet<T> convertToSortedResult(@Nonnull ValueToRecordBitmap<T>[] records) {
+	private InvertedIndexSubSet convertToSortedResult(@Nonnull ValueToRecordBitmap[] records) {
 		return new InvertedIndexSubSet(
 			getId(),
 			records,
@@ -459,13 +478,19 @@ public class InvertedIndex<T extends Comparable<T>> implements
 	 * Returns array of all {@link ValueToRecordBitmap} in the range.
 	 */
 	@Nonnull
-	private ValueToRecordBitmap<T>[] getRecordsInternal(@Nullable T moreThanEq, @Nullable T lessThanEq, @Nonnull BoundsHandling boundsHandling) {
-		final HistogramBounds<T> histogramBounds = new HistogramBounds<>(this.valueToRecordBitmap.getArray(), moreThanEq, lessThanEq, boundsHandling, this.comparator);
-		@SuppressWarnings("unchecked") final ValueToRecordBitmap<T>[] result = new ValueToRecordBitmap[histogramBounds.getNormalizedEndIndex() - histogramBounds.getNormalizedStartIndex()];
+	private ValueToRecordBitmap[] getRecordsInternal(@Nullable Serializable moreThanEq, @Nullable Serializable lessThanEq, @Nonnull BoundsHandling boundsHandling) {
+		final HistogramBounds histogramBounds = new HistogramBounds(
+			this.valueToRecordBitmap.getArray(),
+			this.normalizer.apply(moreThanEq),
+			this.normalizer.apply(lessThanEq),
+			boundsHandling,
+			this.comparator
+		);
+		final ValueToRecordBitmap[] result = new ValueToRecordBitmap[histogramBounds.getNormalizedEndIndex() - histogramBounds.getNormalizedStartIndex()];
 		int index = -1;
-		final Iterator<ValueToRecordBitmap<T>> it = this.valueToRecordBitmap.iterator();
+		final Iterator<ValueToRecordBitmap> it = this.valueToRecordBitmap.iterator();
 		while (it.hasNext()) {
-			final ValueToRecordBitmap<T> bucket = it.next();
+			final ValueToRecordBitmap bucket = it.next();
 			index++;
 			if (index >= histogramBounds.getNormalizedStartIndex() && index < histogramBounds.getNormalizedEndIndex()) {
 				result[index - histogramBounds.getNormalizedStartIndex()] = bucket;
@@ -489,7 +514,7 @@ public class InvertedIndex<T extends Comparable<T>> implements
 	/**
 	 * Class is used to search for the bucked bounds defined by `moreThanEq` and `lessThanEq` constraints.
 	 */
-	private static class HistogramBounds<T extends Comparable<T>> {
+	private static class HistogramBounds {
 		/**
 		 * Index of the first bucket to be included in search result.
 		 */
@@ -499,14 +524,26 @@ public class InvertedIndex<T extends Comparable<T>> implements
 		 */
 		@Getter private final int normalizedEndIndex;
 
-		HistogramBounds(@Nonnull ValueToRecordBitmap<T>[] points, @Nullable T moreThanEq, @Nullable T lessThanEq, @Nonnull BoundsHandling boundsHandling, @Nonnull Comparator<T> comparator) {
+		HistogramBounds(
+			@Nonnull ValueToRecordBitmap[] points,
+			@Nullable Serializable moreThanEq,
+			@Nullable Serializable lessThanEq,
+			@Nonnull BoundsHandling boundsHandling,
+			@SuppressWarnings("rawtypes") @Nonnull Comparator comparator
+		) {
+			//noinspection unchecked
 			Assert.isTrue(
 				moreThanEq == null || lessThanEq == null || comparator.compare(moreThanEq, lessThanEq) <= 0,
 				"From must be lower than to: " + moreThanEq + " vs. " + lessThanEq
 			);
 
 			if (moreThanEq != null) {
-				final int startIndex = ArrayUtils.binarySearch(points, new ValueToRecordBitmap<>(moreThanEq), (b1, b2) -> comparator.compare(b1.getValue(), b2.getValue()));
+				//noinspection unchecked
+				final int startIndex = ArrayUtils.binarySearch(
+					points,
+					new ValueToRecordBitmap(moreThanEq),
+					(b1, b2) -> comparator.compare(b1.getValue(), b2.getValue())
+				);
 				if (boundsHandling == BoundsHandling.EXCLUSIVE) {
 					normalizedStartIndex = startIndex >= 0 ? startIndex + 1 : -1 * (startIndex) - 1;
 				} else {
@@ -517,7 +554,12 @@ public class InvertedIndex<T extends Comparable<T>> implements
 			}
 
 			if (lessThanEq != null) {
-				final int endIndex = ArrayUtils.binarySearch(points, new ValueToRecordBitmap<>(lessThanEq), (b1, b2) -> comparator.compare(b1.getValue(), b2.getValue()));
+				//noinspection unchecked
+				final int endIndex = ArrayUtils.binarySearch(
+					points,
+					new ValueToRecordBitmap(lessThanEq),
+					(b1, b2) -> comparator.compare(b1.getValue(), b2.getValue())
+				);
 				if (boundsHandling == BoundsHandling.EXCLUSIVE) {
 					normalizedEndIndex = endIndex >= 0 ? endIndex : (-1 * (endIndex) - 1);
 				} else {

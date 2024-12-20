@@ -3,8 +3,8 @@ Facet summary:
 	brand: non-grouped [41]:
 		[ ] 'caterpillar' (2)
 		[ ] 'garmin' (39)
-	categories: non-grouped [435]:
-		[ ] 'prepared-products' (92)
+	categories: non-grouped [433]:
+		[ ] 'prepared-products' (90)
 		[ ] 'keyboards' (16)
 		[ ] 'smartwatches' (269)
 		[ ] 'smartglasses' (3)

@@ -229,7 +229,7 @@ public ReferenceContent(@Nonnull @Classifier String referenceName,
 ## Registration
 
 An annotation constraint must be registered manually in
-the `io.evitadb.api.query.descriptor.RegisteredConstraintProvider` whose only job is to gather registered constraints
+the `io.evitadb.api.query.descriptor.ConstraintRegistry` whose only job is to gather registered constraints
 for processing. The order of registered constraint doesn't matter.
 
 ## Processing

@@ -31,6 +31,9 @@ import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
+import io.evitadb.dataType.Scope;
 import io.evitadb.test.TestConstants;
 import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.Test;
@@ -78,10 +81,14 @@ class CatalogSchemaConverterTest {
 					"code",
 					"description",
 					"depr",
-					AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION,
-					GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG,
-					true,
-					true,
+					new ScopedAttributeUniquenessType[] {
+						new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
+					},
+					new ScopedGlobalAttributeUniquenessType[]{
+						new ScopedGlobalAttributeUniquenessType(Scope.LIVE, GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG)
+					},
+					new Scope[] { Scope.LIVE },
+					new Scope[] { Scope.LIVE },
 					true,
 					true,
 					false,

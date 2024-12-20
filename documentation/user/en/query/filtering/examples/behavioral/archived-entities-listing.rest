@@ -1,0 +1,22 @@
+POST /rest/evita/Product/query
+
+{
+  "filterBy" : {
+    "scope" : [
+      "LIVE",
+      "ARCHIVED"
+    ],
+    "attributeUrlInSet" : [
+      "/en/xiaomi-redmi-note-10-pro-8",
+      "/en/apple-iphone-14"
+    ],
+    "entityLocaleEquals" : "en"
+  },
+  "require" : {
+    "entityFetch" : {
+      "attributeContent" : [
+        "code"
+      ]
+    }
+  }
+}

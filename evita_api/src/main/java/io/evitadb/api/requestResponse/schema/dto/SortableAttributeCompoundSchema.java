@@ -25,6 +25,9 @@ package io.evitadb.api.requestResponse.schema.dto;
 
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
+import io.evitadb.dataType.Scope;
+import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
 import lombok.Getter;
 
@@ -34,9 +37,11 @@ import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -50,11 +55,12 @@ import static io.evitadb.utils.Assert.notNull;
 @Immutable
 @ThreadSafe
 public class SortableAttributeCompoundSchema implements SortableAttributeCompoundSchemaContract {
-	@Serial private static final long serialVersionUID = 1640604843846015381L;
+	@Serial private static final long serialVersionUID = 7627820481493748749L;
 	@Getter @Nonnull private final String name;
 	@Getter @Nonnull private final Map<NamingConvention, String> nameVariants;
 	@Getter @Nullable private final String description;
 	@Getter @Nullable private final String deprecationNotice;
+	@Getter @Nonnull private final Set<Scope> indexedInScopes;
 	@Getter @Nonnull private final List<AttributeElement> attributeElements;
 	private Boolean memoizedLocalized;
 
@@ -69,6 +75,7 @@ public class SortableAttributeCompoundSchema implements SortableAttributeCompoun
 		@Nonnull String name,
 		@Nullable String description,
 		@Nullable String deprecationNotice,
+		@Nullable Scope[] indexedInScopes,
 		@Nonnull List<AttributeElement> attributeElements
 	) {
 		return new SortableAttributeCompoundSchema(
@@ -76,6 +83,7 @@ public class SortableAttributeCompoundSchema implements SortableAttributeCompoun
 			NamingConvention.generate(name),
 			description,
 			deprecationNotice,
+			ArrayUtils.toEnumSet(Scope.class, indexedInScopes),
 			attributeElements
 		);
 	}
@@ -92,6 +100,7 @@ public class SortableAttributeCompoundSchema implements SortableAttributeCompoun
 		@Nonnull Map<NamingConvention, String> nameVariants,
 		@Nullable String description,
 		@Nullable String deprecationNotice,
+		@Nullable Set<Scope> indexedInScopes,
 		@Nonnull List<AttributeElement> attributeElements
 	) {
 		return new SortableAttributeCompoundSchema(
@@ -99,6 +108,31 @@ public class SortableAttributeCompoundSchema implements SortableAttributeCompoun
 			nameVariants,
 			description,
 			deprecationNotice,
+			indexedInScopes,
+			attributeElements
+		);
+	}
+	/**
+	 * This method is for internal purposes only. It could be used for reconstruction of ReferenceSchema from
+	 * different package than current, but still internal code of the Evita ecosystems.
+	 *
+	 * Do not use this method from in the client code!
+	 */
+	@Nonnull
+	public static SortableAttributeCompoundSchema _internalBuild(
+		@Nonnull String name,
+		@Nonnull Map<NamingConvention, String> nameVariants,
+		@Nullable String description,
+		@Nullable String deprecationNotice,
+		@Nullable Scope[] indexedInScopes,
+		@Nonnull List<AttributeElement> attributeElements
+	) {
+		return new SortableAttributeCompoundSchema(
+			name,
+			nameVariants,
+			description,
+			deprecationNotice,
+			ArrayUtils.toEnumSet(Scope.class, indexedInScopes),
 			attributeElements
 		);
 	}
@@ -108,13 +142,22 @@ public class SortableAttributeCompoundSchema implements SortableAttributeCompoun
 		@Nonnull Map<NamingConvention, String> nameVariants,
 		@Nullable String description,
 		@Nullable String deprecationNotice,
+		@Nullable Set<Scope> indexedInScopes,
 		@Nonnull List<AttributeElement> attributeElements
 	) {
 		this.name = name;
 		this.nameVariants = Collections.unmodifiableMap(nameVariants);
 		this.description = description;
 		this.deprecationNotice = deprecationNotice;
+		this.indexedInScopes = CollectionUtils.toUnmodifiableSet(
+			indexedInScopes == null ? EnumSet.noneOf(Scope.class) : indexedInScopes
+		);
 		this.attributeElements = Collections.unmodifiableList(attributeElements);
+	}
+
+	@Override
+	public boolean isIndexedInScope(@Nonnull Scope scope) {
+		return this.indexedInScopes.contains(scope);
 	}
 
 	/**
@@ -153,7 +196,7 @@ public class SortableAttributeCompoundSchema implements SortableAttributeCompoun
 		if (!Objects.equals(description, that.description)) return false;
 		if (!Objects.equals(deprecationNotice, that.deprecationNotice))
 			return false;
-		return attributeElements.equals(that.attributeElements);
+		return attributeElements.equals(that.attributeElements) && indexedInScopes.equals(that.indexedInScopes);
 	}
 
 	@Override
@@ -162,6 +205,7 @@ public class SortableAttributeCompoundSchema implements SortableAttributeCompoun
 		result = 31 * result + (description != null ? description.hashCode() : 0);
 		result = 31 * result + (deprecationNotice != null ? deprecationNotice.hashCode() : 0);
 		result = 31 * result + attributeElements.hashCode();
+		result = 31 * result + indexedInScopes.hashCode();
 		return result;
 	}
 
@@ -171,6 +215,7 @@ public class SortableAttributeCompoundSchema implements SortableAttributeCompoun
 			attributeElements
 				.stream()
 				.map(AttributeElement::toString)
-				.collect(Collectors.joining(", "));
+				.collect(Collectors.joining(", ")) +
+			", indexed=" + (this.indexedInScopes.isEmpty() ? "no" : "(in scopes: " + this.indexedInScopes.stream().map(Enum::name).collect(Collectors.joining(", ")) + ")");
 	}
 }

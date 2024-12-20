@@ -641,6 +641,30 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override public void enterFilterInScopeConstraint(EvitaQLParser.FilterInScopeConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitFilterInScopeConstraint(EvitaQLParser.FilterInScopeConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterEntityScopeConstraint(EvitaQLParser.EntityScopeConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitEntityScopeConstraint(EvitaQLParser.EntityScopeConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterOrderByConstraint(EvitaQLParser.OrderByConstraintContext ctx) { }
 	/**
 	 * {@inheritDoc}
@@ -737,6 +761,18 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override public void enterRandomWithSeedConstraint(EvitaQLParser.RandomWithSeedConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitRandomWithSeedConstraint(EvitaQLParser.RandomWithSeedConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterReferencePropertyConstraint(EvitaQLParser.ReferencePropertyConstraintContext ctx) { }
 	/**
 	 * {@inheritDoc}
@@ -804,6 +840,54 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitEntityGroupPropertyConstraint(EvitaQLParser.EntityGroupPropertyConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterSegmentsConstraint(EvitaQLParser.SegmentsConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitSegmentsConstraint(EvitaQLParser.SegmentsConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterSegmentConstraint(EvitaQLParser.SegmentConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitSegmentConstraint(EvitaQLParser.SegmentConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterSegmentLimitConstraint(EvitaQLParser.SegmentLimitConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitSegmentLimitConstraint(EvitaQLParser.SegmentLimitConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterOrderInScopeConstraint(EvitaQLParser.OrderInScopeConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitOrderInScopeConstraint(EvitaQLParser.OrderInScopeConstraintContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
@@ -1601,6 +1685,30 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override public void enterSpacingConstraint(EvitaQLParser.SpacingConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitSpacingConstraint(EvitaQLParser.SpacingConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterGapConstraint(EvitaQLParser.GapConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitGapConstraint(EvitaQLParser.GapConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterHierarchyParentsConstraint(EvitaQLParser.HierarchyParentsConstraintContext ctx) { }
 	/**
 	 * {@inheritDoc}
@@ -1692,6 +1800,18 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitQueryTelemetryConstraint(EvitaQLParser.QueryTelemetryConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterRequireInScopeConstraint(EvitaQLParser.RequireInScopeConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitRequireInScopeConstraint(EvitaQLParser.RequireInScopeConstraintContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
@@ -2640,6 +2760,78 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitFullHierarchyOfReferenceWithBehaviourArgs(EvitaQLParser.FullHierarchyOfReferenceWithBehaviourArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterSpacingRequireConstraintArgs(EvitaQLParser.SpacingRequireConstraintArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitSpacingRequireConstraintArgs(EvitaQLParser.SpacingRequireConstraintArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterGapRequireConstraintArgs(EvitaQLParser.GapRequireConstraintArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitGapRequireConstraintArgs(EvitaQLParser.GapRequireConstraintArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterSegmentArgs(EvitaQLParser.SegmentArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitSegmentArgs(EvitaQLParser.SegmentArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterInScopeFilterArgs(EvitaQLParser.InScopeFilterArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitInScopeFilterArgs(EvitaQLParser.InScopeFilterArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterInScopeOrderArgs(EvitaQLParser.InScopeOrderArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitInScopeOrderArgs(EvitaQLParser.InScopeOrderArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterInScopeRequireArgs(EvitaQLParser.InScopeRequireArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitInScopeRequireArgs(EvitaQLParser.InScopeRequireArgsContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *

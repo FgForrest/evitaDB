@@ -96,7 +96,7 @@ public class MultipleEntityFormula extends AbstractFormula {
 
 	@Override
 	public String toString() {
-		return "PREFEFETCH: " + directEntityReferences;
+		return "PREFETCH: " + directEntityReferences;
 	}
 
 }

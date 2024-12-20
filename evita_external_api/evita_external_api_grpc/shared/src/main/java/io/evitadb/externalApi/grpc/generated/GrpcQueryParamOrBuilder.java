@@ -614,6 +614,63 @@ public interface GrpcQueryParamOrBuilder extends
 
   /**
    * <pre>
+   * The expression
+   * </pre>
+   *
+   * <code>string expressionValue = 23;</code>
+   * @return Whether the expressionValue field is set.
+   */
+  boolean hasExpressionValue();
+  /**
+   * <pre>
+   * The expression
+   * </pre>
+   *
+   * <code>string expressionValue = 23;</code>
+   * @return The expressionValue.
+   */
+  java.lang.String getExpressionValue();
+  /**
+   * <pre>
+   * The expression
+   * </pre>
+   *
+   * <code>string expressionValue = 23;</code>
+   * @return The bytes for expressionValue.
+   */
+  com.google.protobuf.ByteString
+      getExpressionValueBytes();
+
+  /**
+   * <pre>
+   * The scope enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScope scope = 24;</code>
+   * @return Whether the scope field is set.
+   */
+  boolean hasScope();
+  /**
+   * <pre>
+   * The scope enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScope scope = 24;</code>
+   * @return The enum numeric value on the wire for scope.
+   */
+  int getScopeValue();
+  /**
+   * <pre>
+   * The scope enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScope scope = 24;</code>
+   * @return The scope.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcEntityScope getScope();
+
+  /**
+   * <pre>
    * The string array value.
    * </pre>
    *
@@ -1166,6 +1223,33 @@ public interface GrpcQueryParamOrBuilder extends
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray histogramBehaviorTypeArrayValue = 121;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArrayOrBuilder getHistogramBehaviorTypeArrayValueOrBuilder();
+
+  /**
+   * <pre>
+   * The scope enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray scopeArrayValue = 122;</code>
+   * @return Whether the scopeArrayValue field is set.
+   */
+  boolean hasScopeArrayValue();
+  /**
+   * <pre>
+   * The scope enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray scopeArrayValue = 122;</code>
+   * @return The scopeArrayValue.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray getScopeArrayValue();
+  /**
+   * <pre>
+   * The scope enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray scopeArrayValue = 122;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArrayOrBuilder getScopeArrayValueOrBuilder();
 
   public io.evitadb.externalApi.grpc.generated.GrpcQueryParam.QueryParamCase getQueryParamCase();
 }

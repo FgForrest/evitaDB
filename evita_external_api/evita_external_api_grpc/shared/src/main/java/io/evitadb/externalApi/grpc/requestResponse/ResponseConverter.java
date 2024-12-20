@@ -72,6 +72,7 @@ import java.util.stream.Collectors;
 
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toBigDecimal;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toQueryPhase;
+import static io.evitadb.externalApi.grpc.requestResponse.data.EntityConverter.SEALED_ENTITY_TYPE_CONVERTER;
 import static io.evitadb.externalApi.grpc.requestResponse.data.EntityConverter.toEntityReference;
 
 /**
@@ -95,6 +96,7 @@ public class ResponseConverter {
 			final GrpcPaginatedList grpcPaginatedList = grpcRecordPage.getPaginatedList();
 			return new PaginatedList<>(
 				grpcPaginatedList.getPageNumber(),
+				grpcPaginatedList.getLastPageNumber(),
 				grpcPaginatedList.getPageSize(),
 				grpcRecordPage.getTotalRecordCount(),
 				converter.apply(grpcRecordPage)
@@ -263,7 +265,8 @@ public class ResponseConverter {
 						grpcFacetGroupStatistics.getGroupEntity().getEntityType(), entityGroupFetch
 					),
 					grpcFacetGroupStatistics.getGroupEntity(),
-					SealedEntity.class
+					SealedEntity.class,
+					SEALED_ENTITY_TYPE_CONVERTER
 				) :
 				(grpcFacetGroupStatistics.hasGroupEntityReference() ? toEntityReference(grpcFacetGroupStatistics.getGroupEntityReference()) : null),
 			grpcFacetGroupStatistics.getCount(),
@@ -301,7 +304,8 @@ public class ResponseConverter {
 					entitySchemaFetcher,
 					evitaRequest.deriveCopyWith(grpcFacetStatistics.getFacetEntity().getEntityType(), entityFetch),
 					grpcFacetStatistics.getFacetEntity(),
-					SealedEntity.class
+					SealedEntity.class,
+					SEALED_ENTITY_TYPE_CONVERTER
 				) :
 				toEntityReference(grpcFacetStatistics.getFacetEntityReference()),
 			grpcFacetStatistics.getRequested(),
@@ -367,7 +371,8 @@ public class ResponseConverter {
 						entityFetch
 					),
 					grpcLevelInfo.getEntity(),
-					SealedEntity.class
+					SealedEntity.class,
+					SEALED_ENTITY_TYPE_CONVERTER
 				) :
 				toEntityReference(grpcLevelInfo.getEntityReference()),
 			grpcLevelInfo.getRequested(),

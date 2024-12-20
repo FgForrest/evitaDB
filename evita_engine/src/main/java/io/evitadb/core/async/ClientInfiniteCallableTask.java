@@ -76,26 +76,12 @@ public abstract class ClientInfiniteCallableTask<S, T> extends ClientCallableTas
 		super(taskType, taskName, settings, callable, exceptionHandler, traits);
 	}
 
-	@Nonnull
 	@Override
-	protected T executeAndCompleteFuture() {
-		return this.executeInternal();
-	}
-
-	@Nonnull
-	@Override
-	public final T stop() {
+	public final void stop() {
 		final TaskStatus<S, T> theStatus = getStatus();
 		try {
-			final T result = this.stopInternal();
-			if (this.future.isDone()) {
-				return null;
-			} else {
-				this.status.updateAndGet(
-					currentStatus -> currentStatus.transitionToFinished(result)
-				);
-				this.future.complete(result);
-				return result;
+			if (!this.future.isDone()) {
+				this.stopInternal();
 			}
 		} catch (Throwable e) {
 			log.error("Task failed: {}", theStatus.taskName(), e);
@@ -106,7 +92,6 @@ public abstract class ClientInfiniteCallableTask<S, T> extends ClientCallableTas
 				try {
 					final T defaultResult = this.exceptionHandler.apply(e);
 					this.future.complete(defaultResult);
-					return defaultResult;
 				} catch (Throwable e2) {
 					this.future.completeExceptionally(e2);
 					throw e2;
@@ -120,10 +105,7 @@ public abstract class ClientInfiniteCallableTask<S, T> extends ClientCallableTas
 
 	/**
 	 * Stops the running task.
-	 *
-	 * @return The result of the task.
 	 */
-	@Nonnull
-	protected abstract T stopInternal();
+	protected abstract void stopInternal();
 
 }

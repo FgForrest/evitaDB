@@ -24,6 +24,8 @@
 package io.evitadb.api.task;
 
 import io.evitadb.exception.EvitaError;
+import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -57,7 +59,8 @@ public record TaskStatus<S, T>(
 	@Nonnull String taskName,
 	@Nonnull UUID taskId,
 	@Nullable String catalogName,
-	@Nonnull OffsetDateTime issued,
+	@Nonnull OffsetDateTime created,
+	@Nullable OffsetDateTime issued,
 	@Nullable OffsetDateTime started,
 	@Nullable OffsetDateTime finished,
 	int progress,
@@ -81,8 +84,10 @@ public record TaskStatus<S, T>(
 			return TaskSimplifiedState.FINISHED;
 		} else if (started != null) {
 			return TaskSimplifiedState.RUNNING;
-		} else {
+		} else if (issued != null) {
 			return TaskSimplifiedState.QUEUED;
+		} else {
+			return TaskSimplifiedState.WAITING_FOR_PRECONDITION;
 		}
 	}
 
@@ -100,6 +105,7 @@ public record TaskStatus<S, T>(
 				this.taskName,
 				this.taskId,
 				this.catalogName,
+				this.created,
 				this.issued,
 				this.started,
 				this.finished,
@@ -116,6 +122,65 @@ public record TaskStatus<S, T>(
 	}
 
 	/**
+	 * Updates the name of the task and returns a new instance of {@link TaskStatus}
+	 * with the updated task name, if the new name is different from the current name.
+	 *
+	 * @param taskName The new name for the task.
+	 * @param traits  The traits of the task.
+	 * @return The new instance of {@link TaskStatus} with the updated task name.
+	 */
+	@Nonnull
+	public TaskStatus<S, T> updateTaskNameAndTraits(@Nonnull String taskName, @Nonnull TaskTrait... traits) {
+		if (!taskName.equals(this.taskName) || !ArrayUtils.equals(traits, this.traits)) {
+			return new TaskStatus<>(
+				this.taskType,
+				taskName,
+				this.taskId,
+				this.catalogName,
+				this.created,
+				this.issued,
+				this.started,
+				this.finished,
+				this.progress,
+				this.settings,
+				this.result,
+				this.publicExceptionMessage,
+				this.exceptionWithStackTrace,
+				ArrayUtils.isEmpty(traits) ?
+					EnumSet.noneOf(TaskTrait.class) : EnumSet.of(traits[0], traits)
+			);
+		} else {
+			return this;
+		}
+	}
+
+	/**
+	 * Returns new instance of {@link TaskStatus} with updated issue time.
+	 *
+	 * @return The new instance of {@link TaskStatus} with updated issue time.
+	 */
+	@Nonnull
+	public TaskStatus<S, T> transitionToIssued() {
+		Assert.isTrue(this.issued == null, "Task is already issued.");
+		return new TaskStatus<>(
+			this.taskType,
+			this.taskName,
+			this.taskId,
+			this.catalogName,
+			this.created,
+			OffsetDateTime.now(),
+			null,
+			null,
+			0,
+			this.settings,
+			this.result,
+			this.publicExceptionMessage,
+			this.exceptionWithStackTrace,
+			this.traits
+		);
+	}
+
+	/**
 	 * Returns new instance of {@link TaskStatus} with updated started time and progress.
 	 *
 	 * @return The new instance of {@link TaskStatus} with updated started time and progress.
@@ -127,6 +192,7 @@ public record TaskStatus<S, T>(
 			this.taskName,
 			this.taskId,
 			this.catalogName,
+			this.created,
 			this.issued,
 			OffsetDateTime.now(),
 			null,
@@ -152,6 +218,7 @@ public record TaskStatus<S, T>(
 			this.taskName,
 			this.taskId,
 			this.catalogName,
+			this.created,
 			this.issued,
 			this.started,
 			OffsetDateTime.now(),
@@ -190,6 +257,7 @@ public record TaskStatus<S, T>(
 			this.taskName,
 			this.taskId,
 			this.catalogName,
+			this.created,
 			this.issued,
 			this.started,
 			OffsetDateTime.now(),
@@ -206,6 +274,10 @@ public record TaskStatus<S, T>(
 	 * State aggregates the possible states of a task into a simple enumeration.
 	 */
 	public enum TaskSimplifiedState {
+		/**
+		 * Task is waiting in for precondition to be fulfilled.
+		 */
+		WAITING_FOR_PRECONDITION,
 		/**
 		 * Task is waiting in the queue to be executed.
 		 */

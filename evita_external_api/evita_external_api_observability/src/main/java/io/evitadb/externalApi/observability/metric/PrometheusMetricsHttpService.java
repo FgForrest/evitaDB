@@ -63,7 +63,6 @@ public class PrometheusMetricsHttpService implements HttpService {
 	private final PrometheusScrapeHandler prometheusScrapeHandler;
 	private final List<Runnable> metricActuators;
 
-
 	/**
 	 * Monitors various metrics of a given ThreadPoolExecutor and returns a stream of
 	 * Runnable tasks that can be used to update these metrics.
@@ -236,4 +235,5 @@ public class PrometheusMetricsHttpService implements HttpService {
 			)
 		);
 	}
+
 }

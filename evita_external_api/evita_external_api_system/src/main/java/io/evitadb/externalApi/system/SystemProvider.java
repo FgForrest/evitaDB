@@ -43,6 +43,7 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Predicate;
 
 import static io.evitadb.externalApi.system.SystemProviderRegistrar.ENDPOINT_SERVER_NAME;

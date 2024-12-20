@@ -1432,7 +1432,7 @@ public class EvitaDataTypesConverter {
 			.setTaskType(taskStatus.taskType())
 			.setTaskName(taskStatus.taskName())
 			.setTaskId(toGrpcUuid(taskStatus.taskId()))
-			.setIssued(toGrpcOffsetDateTime(taskStatus.issued()))
+			.setCreated(toGrpcOffsetDateTime(taskStatus.created()))
 			.setSimplifiedState(EvitaEnumConverter.toGrpcSimplifiedStatus(taskStatus.simplifiedState()))
 			.setProgress(taskStatus.progress());
 		ofNullable(taskStatus.catalogName())
@@ -1443,6 +1443,8 @@ public class EvitaDataTypesConverter {
 						.build()
 				)
 			);
+		ofNullable(taskStatus.issued())
+			.ifPresent(issued -> builder.setIssued(toGrpcOffsetDateTime(issued)));
 		ofNullable(taskStatus.started())
 			.ifPresent(started -> builder.setStarted(toGrpcOffsetDateTime(started)));
 		ofNullable(taskStatus.finished())
@@ -1487,7 +1489,8 @@ public class EvitaDataTypesConverter {
 			taskStatus.getTaskName(),
 			toUuid(taskStatus.getTaskId()),
 			taskStatus.hasCatalogName() ? taskStatus.getCatalogName().getValue() : null,
-			toOffsetDateTime(taskStatus.getIssued()),
+			toOffsetDateTime(taskStatus.getCreated()),
+			taskStatus.hasIssued() ? EvitaDataTypesConverter.toOffsetDateTime(taskStatus.getIssued()) : null,
 			taskStatus.hasStarted() ? EvitaDataTypesConverter.toOffsetDateTime(taskStatus.getStarted()) : null,
 			taskStatus.hasFinished() ? EvitaDataTypesConverter.toOffsetDateTime(taskStatus.getFinished()) : null,
 			taskStatus.getProgress(),

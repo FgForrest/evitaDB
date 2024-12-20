@@ -28,6 +28,7 @@ import com.github.javafaker.Faker;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
 import io.evitadb.core.async.Scheduler;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.store.entity.EntityStoragePartConfigurer;
 import io.evitadb.store.entity.model.entity.EntityBodyStoragePart;
@@ -116,7 +117,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 		}
 
 		return new EntityBodyStoragePart(
-			1, recPrimaryKey, null, Set.of(), Set.of(), associatedData, 0
+			1, recPrimaryKey, Scope.LIVE, null, Set.of(), Set.of(), associatedData, 0
 		);
 	}
 
@@ -133,7 +134,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 		// retry if this id was picked already in this round
 		return touchedInThisRound.contains(adept) ?
 			getExisting(records, touchedInThisRound, random) :
-			new EntityBodyStoragePart(records.get(adept).getVersion() + 1, adept, null, Set.of(), Set.of(), Set.of(), 0);
+			new EntityBodyStoragePart(records.get(adept).getVersion() + 1, adept, Scope.LIVE, null, Set.of(), Set.of(), Set.of(), 0);
 	}
 
 	@Nonnull

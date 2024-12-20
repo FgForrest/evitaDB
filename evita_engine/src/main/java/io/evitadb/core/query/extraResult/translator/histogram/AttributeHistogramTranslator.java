@@ -26,6 +26,7 @@ package io.evitadb.core.query.extraResult.translator.histogram;
 import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.query.require.AttributeHistogram;
 import io.evitadb.api.query.require.HistogramBehavior;
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.extraResult.Histogram;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -35,15 +36,18 @@ import io.evitadb.core.query.algebra.attribute.AttributeFormula;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
+import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor.ProcessingScope;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
 import io.evitadb.core.query.extraResult.translator.histogram.producer.AttributeHistogramProducer;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -54,21 +58,26 @@ import java.util.stream.Collectors;
 /**
  * This implementation of {@link RequireConstraintTranslator} converts {@link AttributeHistogram} to {@link Histogram}.
  * The producer instance has all pointer necessary to compute result. All operations in this translator are relatively
- * cheap comparing to final result computation, that is deferred to {@link ExtraResultProducer#fabricate(io.evitadb.core.query.QueryExecutionContext, List)}
+ * cheap comparing to final result computation, that is deferred to {@link ExtraResultProducer#fabricate(io.evitadb.core.query.QueryExecutionContext)}
  * method.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class AttributeHistogramTranslator implements RequireConstraintTranslator<AttributeHistogram> {
 
+	@Nullable
 	@Override
-	public ExtraResultProducer apply(AttributeHistogram attributeHistogram, ExtraResultPlanningVisitor extraResultPlanner) {
+	public ExtraResultProducer createProducer(@Nonnull AttributeHistogram attributeHistogram, @Nonnull ExtraResultPlanningVisitor extraResultPlanner) {
 		// initialize basic data necessary for th computation
 		final Locale language = extraResultPlanner.getEvitaRequest().getLocale();
 		final EntitySchemaContract schema = extraResultPlanner.getSchema();
 		final String[] attributeNames = attributeHistogram.getAttributeNames();
 		final int bucketCount = attributeHistogram.getRequestedBucketCount();
 		final HistogramBehavior behavior = attributeHistogram.getBehavior();
+
+		// get scopes the histogram will be created from
+		final ProcessingScope processingScope = extraResultPlanner.getProcessingScope();
+		final Set<Scope> scopes = processingScope.getScopes();
 
 		// find user filters that enclose variable user defined part
 		final Set<Formula> userFilters = extraResultPlanner.getUserFilteringFormula();
@@ -82,6 +91,9 @@ public class AttributeHistogramTranslator implements RequireConstraintTranslator
 		// find existing AttributeHistogramProducer for potential reuse
 		AttributeHistogramProducer attributeHistogramProducer = extraResultPlanner.findExistingProducer(AttributeHistogramProducer.class);
 		for (String attributeName : attributeNames) {
+			// retrieve attribute schema for requested attribute
+			final AttributeSchemaContract attributeSchema = getAttributeSchema(schema, scopes, attributeName);
+
 			// if there was no producer ready, create new one
 			if (attributeHistogramProducer == null) {
 				attributeHistogramProducer = new AttributeHistogramProducer(
@@ -97,29 +109,40 @@ public class AttributeHistogramTranslator implements RequireConstraintTranslator
 				.filter(Objects::nonNull)
 				.collect(Collectors.toList());
 
-			// retrieve attribute schema for requested attribute
-			final AttributeSchemaContract attributeSchema = getAttributeSchema(schema, attributeName);
-
 			// register computational lambda for producing attribute histogram
 			attributeHistogramProducer.addAttributeHistogramRequest(
-				attributeSchema, attributeIndexes, attributeFormulas.get(attributeName)
+				attributeSchema,
+				FilterIndex.getComparator(
+					new AttributeKey(attributeName, extraResultPlanner.getLocale()),
+					attributeSchema.getPlainType()
+				),
+				attributeIndexes,
+				attributeFormulas.get(attributeName)
 			);
 		}
+
+		Assert.isPremiseValid(
+			attributeHistogramProducer != null,
+			"AttributeHistogramProducer must be initialized!"
+		);
 		return attributeHistogramProducer;
 	}
 
 	@Nonnull
-	private static AttributeSchemaContract getAttributeSchema(@Nonnull EntitySchemaContract schema, @Nonnull String attributeName) {
+	private static AttributeSchemaContract getAttributeSchema(@Nonnull EntitySchemaContract schema, @Nonnull Set<Scope> scopes, @Nonnull String attributeName) {
 		final AttributeSchemaContract attributeSchema = schema.getAttribute(attributeName)
 			.orElseThrow(() -> new AttributeNotFoundException(attributeName, schema));
 		Assert.isTrue(
 			Number.class.isAssignableFrom(attributeSchema.getPlainType()),
 			"Attribute `" + attributeName + "` must be a number in order to compute histogram!"
 		);
-		Assert.isTrue(
-			attributeSchema.isFilterable(),
-			() -> new AttributeNotFilterableException(attributeName, "\"filterable\"", schema)
-		);
+		// verify that the attribute is indexed in all required scopes
+		for (Scope scope : scopes) {
+			Assert.isTrue(
+				attributeSchema.isFilterableInScope(scope),
+				() -> new AttributeNotFilterableException(attributeName, "filterable in scope `" + scope.name() + "`", schema)
+			);
+		}
 		return attributeSchema;
 	}
 

@@ -108,7 +108,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 	private static final String ATTRIBUTE_CREATED = "created";
 	private static final String ATTRIBUTE_CURRENCY = "currency";
 	private static final String ATTRIBUTE_UUID = "uuid";
-	private static final String ATTRIBUTE_LOCALE = "localizedInto";
+	private static final String ATTRIBUTE_LOCALE = "localizedInfo";
 	private static final String ATTRIBUTE_MANUFACTURED = "manufactured";
 	private static final String ATTRIBUTE_COMBINED_PRIORITY = "combinedPriority";
 	private static final String ATTRIBUTE_VISIBLE = "visible";
@@ -281,17 +281,15 @@ public class EntityByAttributeFilteringFunctionalTest {
 			final List<EntityReference> storedBrands = dataGenerator.generateEntities(
 					dataGenerator.getSampleBrandSchema(
 						session,
-						schemaBuilder -> {
-							return schemaBuilder
-								.withReflectedReferenceToEntity(
-									REFERENCE_BRAND_PRODUCTS,
-									Entities.PRODUCT,
-									Entities.BRAND,
-									whichIs -> whichIs
-										.withCardinality(Cardinality.ZERO_OR_MORE)
-										.withAttributesInherited()
-								).updateAndFetchVia(session);
-						}
+						schemaBuilder -> schemaBuilder
+							.withReflectedReferenceToEntity(
+								REFERENCE_BRAND_PRODUCTS,
+								Entities.PRODUCT,
+								Entities.BRAND,
+								whichIs -> whichIs
+									.withCardinality(Cardinality.ZERO_OR_MORE)
+									.withAttributesInherited()
+							).updateAndFetchVia(session)
 					),
 					randomEntityPicker,
 					SEED
@@ -335,10 +333,10 @@ public class EntityByAttributeFilteringFunctionalTest {
 								.withAttribute(ATTRIBUTE_SIZE, IntegerNumberRange[].class, whichIs -> whichIs.filterable().nullable())
 								.withAttribute(ATTRIBUTE_CREATED, OffsetDateTime.class, whichIs -> whichIs.filterable().sortable())
 								.withAttribute(ATTRIBUTE_MANUFACTURED, LocalDate.class, whichIs -> whichIs.filterable().sortable())
-								.withAttribute(ATTRIBUTE_CURRENCY, Currency.class, whichIs -> whichIs.filterable())
-								.withAttribute(ATTRIBUTE_UUID, UUID.class, whichIs -> whichIs.unique())
+								.withAttribute(ATTRIBUTE_CURRENCY, Currency.class, whichIs -> whichIs.filterable().sortable())
+								.withAttribute(ATTRIBUTE_UUID, UUID.class, whichIs -> whichIs.unique().sortable())
 								.withAttribute(ATTRIBUTE_NATIONAL_CODE, String.class, whichIs -> whichIs.localized().uniqueWithinLocale())
-								.withAttribute(ATTRIBUTE_LOCALE, Locale.class, whichIs -> whichIs.filterable())
+								.withAttribute(ATTRIBUTE_LOCALE, Locale.class, whichIs -> whichIs.filterable().sortable())
 								.withSortableAttributeCompound(
 									ATTRIBUTE_COMBINED_PRIORITY,
 									attributeElement(ATTRIBUTE_PRIORITY, DESC, OrderBehaviour.NULLS_LAST),
@@ -555,6 +553,59 @@ public class EntityByAttributeFilteringFunctionalTest {
 			session -> {
 				final EvitaResponse<EntityReference> result = session.query(
 					query(
+						filterBy(
+							and(
+								attributeEquals(ATTRIBUTE_CODE, selectedEntity.getAttribute(ATTRIBUTE_CODE)),
+								ofNullable(selectedEntity.getAttribute(ATTRIBUTE_ALIAS))
+									.map(it -> attributeIsNotNull(ATTRIBUTE_ALIAS))
+									.orElse(attributeIsNull(ATTRIBUTE_ALIAS)),
+								or(
+									// this cannot be ever true
+									ofNullable(selectedEntity.getAttribute(ATTRIBUTE_ALIAS))
+										.map(it -> attributeIsNull(ATTRIBUTE_ALIAS))
+										.orElse(attributeIsNotNull(ATTRIBUTE_ALIAS)),
+									// but this will
+									attributeGreaterThanEquals(
+										ATTRIBUTE_QUANTITY,
+										selectedEntity.getAttribute(ATTRIBUTE_QUANTITY)
+									)
+								)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> Objects.equals(selectedEntity.getPrimaryKey(), sealedEntity.getPrimaryKey()),
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return entities of explicit type by equals to global attribute (String) and filtering by additional attributes")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnEntitiesOfExplicitTypeByGlobalAttributeEqualToStringAndAdditionalConstraints(Evita evita, List<SealedEntity> originalProductEntities) {
+		final Random rnd = new Random(SEED);
+		final SealedEntity selectedEntity = originalProductEntities.stream()
+			.filter(it -> it.getAttribute(ATTRIBUTE_CODE) != null && it.getAttribute(ATTRIBUTE_QUANTITY) != null)
+			.filter(it -> rnd.nextInt(100) > 85)
+			.findFirst()
+			.orElseThrow();
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
 						filterBy(
 							and(
 								attributeEquals(ATTRIBUTE_CODE, selectedEntity.getAttribute(ATTRIBUTE_CODE)),
@@ -818,6 +869,544 @@ public class EntityByAttributeFilteringFunctionalTest {
 					originalProductEntities,
 					sealedEntity -> codeAttribute.equals(sealedEntity.getAttribute(ATTRIBUTE_CODE)),
 					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return entities sorted and filtered by currency")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldFilterAndSortByCurrencyAttribute(Evita evita, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							attributeInSet(ATTRIBUTE_CURRENCY, CURRENCY_EUR, CURRENCY_CZK)
+						),
+						orderBy(
+							attributeNatural(ATTRIBUTE_CURRENCY, ASC)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+				assertSortedResultIs(
+					originalProductEntities,
+					result.getRecordData(),
+					sealedEntity -> CURRENCY_CZK.equals(sealedEntity.getAttribute(ATTRIBUTE_CURRENCY)) ||
+						CURRENCY_EUR.equals(sealedEntity.getAttribute(ATTRIBUTE_CURRENCY)),
+					(o1, o2) -> {
+						final Currency c1 = o1.getAttribute(ATTRIBUTE_CURRENCY);
+						final Currency c2 = o2.getAttribute(ATTRIBUTE_CURRENCY);
+						final int cmpResult = c1.getCurrencyCode().compareTo(c2.getCurrencyCode());
+						return cmpResult == 0 ? o1.getPrimaryKey().compareTo(o2.getPrimaryKey()) : cmpResult;
+					}
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return entities sorted and filtered by currency in prefetch")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldFilterAndSortByCurrencyAttributeInPrefetch(Evita evita, List<SealedEntity> originalProductEntities) {
+		final int[] pks = originalProductEntities.stream()
+			.filter(it -> CURRENCY_EUR.equals(it.getAttribute(ATTRIBUTE_CURRENCY)) || CURRENCY_CZK.equals(it.getAttribute(ATTRIBUTE_CURRENCY)))
+			.mapToInt(EntityContract::getPrimaryKey)
+			.limit(10)
+			.toArray();
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(pks),
+							attributeInSet(ATTRIBUTE_CURRENCY, CURRENCY_EUR, CURRENCY_CZK)
+						),
+						orderBy(
+							attributeNatural(ATTRIBUTE_CURRENCY, ASC)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.PREFER_PREFETCHING)
+						)
+					),
+					EntityReference.class
+				);
+
+				Set<Integer> pksAsSet = Arrays.stream(pks).boxed().collect(Collectors.toSet());
+				assertSortedResultIs(
+					originalProductEntities,
+					result.getRecordData(),
+					sealedEntity -> pksAsSet.contains(sealedEntity.getPrimaryKey()) && (
+						CURRENCY_CZK.equals(sealedEntity.getAttribute(ATTRIBUTE_CURRENCY)) ||
+							CURRENCY_EUR.equals(sealedEntity.getAttribute(ATTRIBUTE_CURRENCY))
+					),
+					(o1, o2) -> {
+						final Currency c1 = o1.getAttribute(ATTRIBUTE_CURRENCY);
+						final Currency c2 = o2.getAttribute(ATTRIBUTE_CURRENCY);
+						final int cmpResult = c1.getCurrencyCode().compareTo(c2.getCurrencyCode());
+						return cmpResult == 0 ? o1.getPrimaryKey().compareTo(o2.getPrimaryKey()) : cmpResult;
+					}
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return entities filtered by currency (greater than)")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldFilterByGreaterThanCurrencyAttribute(Evita evita, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							attributeGreaterThanEquals(ATTRIBUTE_CURRENCY, CURRENCY_EUR)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> !CURRENCY_CZK.equals(sealedEntity.getAttribute(ATTRIBUTE_CURRENCY)),
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return entities filtered by currency (greater by) in prefetch")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldFilterByCurrencyGreaterThanAttributeInPrefetch(Evita evita, List<SealedEntity> originalProductEntities) {
+		final int[] pks = originalProductEntities.stream()
+			.filter(it -> CURRENCY_EUR.equals(it.getAttribute(ATTRIBUTE_CURRENCY)) || CURRENCY_CZK.equals(it.getAttribute(ATTRIBUTE_CURRENCY)))
+			.mapToInt(EntityContract::getPrimaryKey)
+			.limit(10)
+			.toArray();
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(pks),
+							attributeGreaterThanEquals(ATTRIBUTE_CURRENCY, CURRENCY_EUR)
+						),
+						orderBy(
+							attributeNatural(ATTRIBUTE_CURRENCY, ASC)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.PREFER_PREFETCHING)
+						)
+					),
+					EntityReference.class
+				);
+
+				Set<Integer> pksAsSet = Arrays.stream(pks).boxed().collect(Collectors.toSet());
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> pksAsSet.contains(sealedEntity.getPrimaryKey()) && (
+						!CURRENCY_CZK.equals(sealedEntity.getAttribute(ATTRIBUTE_CURRENCY))
+					),
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return entities filtered by currency (greater than) in prefetch")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldFilterByGreaterThanCurrencyAttributeInPrefetch(Evita evita, List<SealedEntity> originalProductEntities) {
+		final int[] pks = originalProductEntities.stream()
+			.filter(it -> CURRENCY_EUR.equals(it.getAttribute(ATTRIBUTE_CURRENCY)) || CURRENCY_USD.equals(it.getAttribute(ATTRIBUTE_CURRENCY)))
+			.mapToInt(EntityContract::getPrimaryKey)
+			.limit(10)
+			.toArray();
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(pks),
+							attributeGreaterThanEquals(ATTRIBUTE_CURRENCY, CURRENCY_EUR)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.PREFER_PREFETCHING)
+						)
+					),
+					EntityReference.class
+				);
+
+				Set<Integer> pksAsSet = Arrays.stream(pks).boxed().collect(Collectors.toSet());
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> pksAsSet.contains(sealedEntity.getPrimaryKey()) &&
+						!CURRENCY_CZK.equals(sealedEntity.getAttribute(ATTRIBUTE_CURRENCY)),
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return entities sorted and filtered by locale")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldFilterAndSortByLocaleAttribute(Evita evita, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							attributeInSet(ATTRIBUTE_LOCALE, Locale.ENGLISH, CZECH_LOCALE)
+						),
+						orderBy(
+							attributeNatural(ATTRIBUTE_LOCALE, ASC)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+				assertSortedResultIs(
+					originalProductEntities,
+					result.getRecordData(),
+					sealedEntity -> CZECH_LOCALE.equals(sealedEntity.getAttribute(ATTRIBUTE_LOCALE)) ||
+						Locale.ENGLISH.equals(sealedEntity.getAttribute(ATTRIBUTE_LOCALE)),
+					(o1, o2) -> {
+						final Locale l1 = o1.getAttribute(ATTRIBUTE_LOCALE);
+						final Locale l2 = o2.getAttribute(ATTRIBUTE_LOCALE);
+						final int cmpResult = l1.toLanguageTag().compareTo(l2.toLanguageTag());
+						return cmpResult == 0 ? o1.getPrimaryKey().compareTo(o2.getPrimaryKey()) : cmpResult;
+					}
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return entities sorted and filtered by locale in prefetch")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldFilterAndSortByLocaleAttributeInPrefetch(Evita evita, List<SealedEntity> originalProductEntities) {
+		final int[] pks = originalProductEntities.stream()
+			.filter(it -> CZECH_LOCALE.equals(it.getAttribute(ATTRIBUTE_LOCALE)) || Locale.ENGLISH.equals(it.getAttribute(ATTRIBUTE_LOCALE)))
+			.mapToInt(EntityContract::getPrimaryKey)
+			.limit(10)
+			.toArray();
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(pks),
+							attributeInSet(ATTRIBUTE_LOCALE, Locale.ENGLISH, CZECH_LOCALE)
+						),
+						orderBy(
+							attributeNatural(ATTRIBUTE_LOCALE, ASC)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.PREFER_PREFETCHING)
+						)
+					),
+					EntityReference.class
+				);
+
+				Set<Integer> pksAsSet = Arrays.stream(pks).boxed().collect(Collectors.toSet());
+				assertSortedResultIs(
+					originalProductEntities,
+					result.getRecordData(),
+					sealedEntity -> pksAsSet.contains(sealedEntity.getPrimaryKey()) && (
+						Locale.ENGLISH.equals(sealedEntity.getAttribute(ATTRIBUTE_LOCALE)) ||
+							CZECH_LOCALE.equals(sealedEntity.getAttribute(ATTRIBUTE_LOCALE))
+					),
+					(o1, o2) -> {
+						final Locale l1 = o1.getAttribute(ATTRIBUTE_LOCALE);
+						final Locale l2 = o2.getAttribute(ATTRIBUTE_LOCALE);
+						final int cmpResult = l1.toLanguageTag().compareTo(l2.toLanguageTag());
+						return cmpResult == 0 ? o1.getPrimaryKey().compareTo(o2.getPrimaryKey()) : cmpResult;
+					}
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return entities filtered (greater than) by locale")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldFilterByLocaleGreaterThanAttribute(Evita evita, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							attributeGreaterThanEquals(ATTRIBUTE_LOCALE, Locale.ENGLISH)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> Locale.ENGLISH.equals(sealedEntity.getAttribute(ATTRIBUTE_LOCALE))
+						|| Locale.FRENCH.equals(sealedEntity.getAttribute(ATTRIBUTE_LOCALE)),
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return entities filtered (greater than) by locale in prefetch")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldFilterByLocaleGreaterThanAttributeInPrefetch(Evita evita, List<SealedEntity> originalProductEntities) {
+		final int[] pks = originalProductEntities.stream()
+			.filter(it -> CZECH_LOCALE.equals(it.getAttribute(ATTRIBUTE_LOCALE)) || Locale.ENGLISH.equals(it.getAttribute(ATTRIBUTE_LOCALE)))
+			.mapToInt(EntityContract::getPrimaryKey)
+			.limit(10)
+			.toArray();
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(pks),
+							attributeGreaterThanEquals(ATTRIBUTE_LOCALE, Locale.ENGLISH)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.PREFER_PREFETCHING)
+						)
+					),
+					EntityReference.class
+				);
+
+				Set<Integer> pksAsSet = Arrays.stream(pks).boxed().collect(Collectors.toSet());
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> pksAsSet.contains(sealedEntity.getPrimaryKey()) &&
+						(Locale.ENGLISH.equals(sealedEntity.getAttribute(ATTRIBUTE_LOCALE))
+							|| Locale.FRENCH.equals(sealedEntity.getAttribute(ATTRIBUTE_LOCALE))),
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return entities sorted and filtered by UUID")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldFilterAndSortByUuidAttribute(Evita evita, List<SealedEntity> originalProductEntities) {
+		final UUID uuidAttribute1 = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_UUID, 5);
+		final UUID uuidAttribute2 = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_UUID, 10);
+		final UUID uuidAttribute3 = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_UUID, 15);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							attributeInSet(ATTRIBUTE_UUID, uuidAttribute1, uuidAttribute2, uuidAttribute3)
+						),
+						orderBy(
+							attributeNatural(ATTRIBUTE_UUID, ASC)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+				final Set<UUID> uuidsAsSet = Set.of(
+					uuidAttribute1,
+					uuidAttribute2,
+					uuidAttribute3
+				);
+				assertSortedResultIs(
+					originalProductEntities,
+					result.getRecordData(),
+					sealedEntity -> uuidsAsSet.contains(sealedEntity.getAttribute(ATTRIBUTE_UUID, UUID.class)),
+					Comparator.comparing(o -> o.getAttribute(ATTRIBUTE_UUID, UUID.class))
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return entities sorted and filtered by UUID in prefetch")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldFilterAndSortByUUIDAttributeInPrefetch(Evita evita, List<SealedEntity> originalProductEntities) {
+		final UUID uuidAttribute1 = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_UUID, 5);
+		final UUID uuidAttribute2 = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_UUID, 10);
+		final UUID uuidAttribute3 = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_UUID, 15);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							attributeInSet(ATTRIBUTE_UUID, uuidAttribute1, uuidAttribute2, uuidAttribute3)
+						),
+						orderBy(
+							attributeNatural(ATTRIBUTE_UUID, ASC)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.PREFER_PREFETCHING)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Set<UUID> uuidsAsSet = Set.of(
+					uuidAttribute1,
+					uuidAttribute2,
+					uuidAttribute3
+				);
+				assertSortedResultIs(
+					originalProductEntities,
+					result.getRecordData(),
+					sealedEntity -> uuidsAsSet.contains(sealedEntity.getAttribute(ATTRIBUTE_UUID, UUID.class)),
+					Comparator.comparing(o -> o.getAttribute(ATTRIBUTE_UUID, UUID.class))
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return entities filtered by UUID greater than in prefetch")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldFilterByGreaterThanByUUIDAttribute(Evita evita, List<SealedEntity> originalProductEntities) {
+		final UUID uuidAttribute = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_UUID);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							attributeGreaterThanEquals(ATTRIBUTE_UUID, uuidAttribute)
+						),
+						orderBy(
+							attributeNatural(ATTRIBUTE_UUID, ASC)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+
+				assertSortedResultIs(
+					originalProductEntities,
+					result.getRecordData(),
+					sealedEntity -> sealedEntity.getAttribute(ATTRIBUTE_UUID, UUID.class).compareTo(uuidAttribute) >= 0,
+					Comparator.comparing(o -> o.getAttribute(ATTRIBUTE_UUID, UUID.class))
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return entities filtered by UUID greater than in prefetch")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldFilterByGreaterThanByUUIDAttributeInPrefetch(Evita evita, List<SealedEntity> originalProductEntities) {
+		final UUID uuidAttribute1 = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_UUID, 5);
+		final UUID uuidAttribute2 = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_UUID, 10);
+		final UUID uuidAttribute3 = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_UUID, 15);
+		final UUID[] sortedUuids = Arrays.stream(new UUID[]{uuidAttribute1, uuidAttribute2, uuidAttribute3})
+			.sorted()
+			.toArray(UUID[]::new);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							attributeInSet(ATTRIBUTE_UUID, uuidAttribute1, uuidAttribute2, uuidAttribute3),
+							attributeGreaterThanEquals(ATTRIBUTE_UUID, sortedUuids[1])
+						),
+						orderBy(
+							attributeNatural(ATTRIBUTE_UUID, ASC)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.PREFER_PREFETCHING)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Set<UUID> uuidsAsSet = Set.of(
+					Arrays.copyOfRange(sortedUuids, 1, sortedUuids.length)
+				);
+				assertSortedResultIs(
+					originalProductEntities,
+					result.getRecordData(),
+					sealedEntity -> uuidsAsSet.contains(sealedEntity.getAttribute(ATTRIBUTE_UUID, UUID.class)),
+					Comparator.comparing(o -> o.getAttribute(ATTRIBUTE_UUID, UUID.class))
 				);
 				return null;
 			}
@@ -1595,9 +2184,9 @@ public class EntityByAttributeFilteringFunctionalTest {
 										attributeEquals(ATTRIBUTE_ALIAS, false),
 										attributeInSet(
 											ATTRIBUTE_PRIORITY,
-											(Long) withFalseAlias.get(0).getAttribute(ATTRIBUTE_PRIORITY),
-											(Long) withFalseAlias.get(1).getAttribute(ATTRIBUTE_PRIORITY),
-											(Long) withFalseAlias.get(2).getAttribute(ATTRIBUTE_PRIORITY),
+											withFalseAlias.get(0).getAttribute(ATTRIBUTE_PRIORITY),
+											withFalseAlias.get(1).getAttribute(ATTRIBUTE_PRIORITY),
+											withFalseAlias.get(2).getAttribute(ATTRIBUTE_PRIORITY),
 											(Long) withFalseAlias.get(3).getAttribute(ATTRIBUTE_PRIORITY)
 										)
 									)
@@ -1829,8 +2418,8 @@ public class EntityByAttributeFilteringFunctionalTest {
 			one = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CREATED, rnd.nextInt(originalProductEntities.size()));
 			two = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CREATED, rnd.nextInt(originalProductEntities.size()));
 		} while (Objects.equals(one, two));
-		final OffsetDateTime from = one.compareTo(two) < 0 ? one : two;
-		final OffsetDateTime to = one.compareTo(two) < 0 ? two : one;
+		final OffsetDateTime from = one.isBefore(two) ? one : two;
+		final OffsetDateTime to = one.isBefore(two) ? two : one;
 
 		evita.queryCatalog(
 			TEST_CATALOG,
@@ -1872,8 +2461,8 @@ public class EntityByAttributeFilteringFunctionalTest {
 			one = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CREATED, rnd.nextInt(originalProductEntities.size()));
 			two = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CREATED, rnd.nextInt(originalProductEntities.size()));
 		} while (Objects.equals(one, two));
-		final OffsetDateTime from = one.compareTo(two) < 0 ? one : two;
-		final OffsetDateTime to = one.compareTo(two) < 0 ? two : one;
+		final OffsetDateTime from = one.isBefore(two) ? one : two;
+		final OffsetDateTime to = one.isBefore(two) ? two : one;
 
 		evita.queryCatalog(
 			TEST_CATALOG,
@@ -3643,6 +4232,42 @@ public class EntityByAttributeFilteringFunctionalTest {
 		Arrays.sort(results[0]);
 		Arrays.sort(results[1]);
 		assertArrayEquals(results[0], results[1], "After sorting arrays should be equal.");
+	}
+
+	@DisplayName("Should return entities randomly in consistent way using seed")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldSortEntitiesRandomlyUsingProvidedSeed(Evita evita) {
+		final int[][] results = new int[2][];
+		for (int i = 0; i < 2; i++) {
+			results[i] = evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final EvitaResponse<EntityReference> result = session.query(
+						query(
+							collection(Entities.PRODUCT),
+							orderBy(
+								randomWithSeed(42)
+							),
+							require(
+								page(1, Integer.MAX_VALUE),
+								debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+							)
+						),
+						EntityReference.class
+					);
+					return result
+						.getRecordData()
+						.stream()
+						.mapToInt(EntityReference::getPrimaryKey)
+						.toArray();
+				}
+			);
+		}
+		assertArrayEquals(results[0], results[1]);
+		Arrays.sort(results[0]);
+		// sorted array must differ from random one
+		assertArrayAreDifferent(results[0], results[1]);
 	}
 
 	@DisplayName("Should return entities sorted by String attribute (combined with filtering)")

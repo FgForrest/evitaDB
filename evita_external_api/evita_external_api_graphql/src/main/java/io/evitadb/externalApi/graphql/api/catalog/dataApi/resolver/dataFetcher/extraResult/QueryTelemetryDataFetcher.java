@@ -30,7 +30,8 @@ import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.externalApi.api.catalog.dataApi.dto.QueryTelemetryDto;
-import lombok.RequiredArgsConstructor;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -42,11 +43,22 @@ import java.util.Optional;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-@RequiredArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class QueryTelemetryDataFetcher implements DataFetcher<JsonNode> {
 
+	// TOBEDONE LHO: use some shared object mapper
+	private static final ObjectMapper QUERY_TELEMETRY_OBJECT_MAPPER = new ObjectMapper();
+
+	@Nullable
+	private static QueryTelemetryDataFetcher INSTANCE;
+
 	@Nonnull
-	private final ObjectMapper objectMapper;
+	public static QueryTelemetryDataFetcher getInstance() {
+		if (INSTANCE == null) {
+			INSTANCE = new QueryTelemetryDataFetcher();
+		}
+		return INSTANCE;
+	}
 
 	@Nullable
 	@Override
@@ -54,7 +66,7 @@ public class QueryTelemetryDataFetcher implements DataFetcher<JsonNode> {
 		final EvitaResponse<?> response = environment.getSource();
 		final QueryTelemetry queryTelemetry = response.getExtraResult(QueryTelemetry.class);
 		return Optional.ofNullable(queryTelemetry)
-			.map(it -> (JsonNode) objectMapper.valueToTree(QueryTelemetryDto.from(it)))
+			.map(it -> (JsonNode) QUERY_TELEMETRY_OBJECT_MAPPER.valueToTree(QueryTelemetryDto.from(it)))
 			.orElse(null);
 	}
 }

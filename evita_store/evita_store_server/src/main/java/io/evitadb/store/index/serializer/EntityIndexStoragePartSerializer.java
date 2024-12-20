@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.key.CompressiblePriceKey;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
@@ -42,6 +43,7 @@ import io.evitadb.store.service.KeyCompressor;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.store.spi.model.storageParts.index.EntityIndexStoragePart;
+import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 import java.io.Serializable;
@@ -68,12 +70,18 @@ public class EntityIndexStoragePartSerializer extends Serializer<EntityIndexStor
 		output.writeVarInt(entityIndex.getVersion(), true);
 
 		final EntityIndexKey entityIndexKey = entityIndex.getEntityIndexKey();
-		kryo.writeObject(output, entityIndexKey.getType());
-		if (entityIndexKey.getDiscriminator() == null) {
+		Assert.isPremiseValid(
+			entityIndexKey.type() != EntityIndexType.REFERENCED_HIERARCHY_NODE,
+			"Referenced hierarchy node index is deprecated and should no longer be stored!"
+		);
+
+		kryo.writeObject(output, entityIndexKey.type());
+		kryo.writeObject(output, entityIndexKey.scope());
+		if (entityIndexKey.discriminator() == null) {
 			output.writeBoolean(false);
 		} else {
 			output.writeBoolean(true);
-			kryo.writeClassAndObject(output, entityIndexKey.getDiscriminator());
+			kryo.writeClassAndObject(output, entityIndexKey.discriminator());
 		}
 
 		final Bitmap entityIds = entityIndex.getEntityIds();
@@ -92,8 +100,6 @@ public class EntityIndexStoragePartSerializer extends Serializer<EntityIndexStor
 			kryo.writeObject(output, attributeIndexKey.indexType());
 			output.writeVarInt(keyCompressor.getId(attributeIndexKey.attribute()), true);
 		}
-
-		kryo.writeObjectOrNull(output, entityIndex.getInternalPriceIdSequence(), Integer.class);
 
 		final Set<PriceIndexKey> priceIndexes = entityIndex.getPriceIndexes();
 		output.writeVarInt(priceIndexes.size(), true);
@@ -130,9 +136,10 @@ public class EntityIndexStoragePartSerializer extends Serializer<EntityIndexStor
 		final int version = input.readVarInt(true);
 
 		final EntityIndexType entityIndexType = kryo.readObject(input, EntityIndexType.class);
+		final Scope entityIndexScope = kryo.readObject(input, Scope.class);
 		final Serializable discriminator = input.readBoolean() ? (Serializable) kryo.readClassAndObject(input) : null;
 		final EntityIndexKey entityIndexKey = discriminator == null ?
-			new EntityIndexKey(entityIndexType) : new EntityIndexKey(entityIndexType, discriminator);
+			new EntityIndexKey(entityIndexType, entityIndexScope) : new EntityIndexKey(entityIndexType, entityIndexScope, discriminator);
 
 		final TransactionalBitmap entityIds = kryo.readObject(input, TransactionalBitmap.class);
 
@@ -151,8 +158,6 @@ public class EntityIndexStoragePartSerializer extends Serializer<EntityIndexStor
 			final AttributeKey attributeKey = keyCompressor.getKeyForId(input.readVarInt(true));
 			attributeIndexes.add(new AttributeIndexStorageKey(entityIndexKey, attributeIndexType, attributeKey));
 		}
-
-		final Integer internalPriceIdSequenceSeed = kryo.readObjectOrNull(input, Integer.class);
 
 		final int priceIndexesCount = input.readVarInt(true);
 		final Set<PriceIndexKey> priceIndexes = createHashSet(priceIndexesCount);
@@ -193,7 +198,7 @@ public class EntityIndexStoragePartSerializer extends Serializer<EntityIndexStor
 			primaryKey, version, entityIndexKey,
 			entityIds, entityIdsByLocale,
 			attributeIndexes,
-			internalPriceIdSequenceSeed, priceIndexes,
+			priceIndexes,
 			hierarchyIndex, facetIndexes, primaryKeyCardinality
 		);
 	}

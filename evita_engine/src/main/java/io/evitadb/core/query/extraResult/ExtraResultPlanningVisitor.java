@@ -54,6 +54,7 @@ import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
+import io.evitadb.core.query.extraResult.translator.RequireInScopeTranslator;
 import io.evitadb.core.query.extraResult.translator.RequireTranslator;
 import io.evitadb.core.query.extraResult.translator.facet.FacetSummaryOfReferenceTranslator;
 import io.evitadb.core.query.extraResult.translator.facet.FacetSummaryTranslator;
@@ -81,8 +82,11 @@ import io.evitadb.core.query.sort.NoSorter;
 import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.attribute.translator.EntityAttributeExtractor;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
+import io.evitadb.index.EntityIndexKey;
+import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.utils.ArrayUtils;
 import lombok.Getter;
@@ -101,7 +105,6 @@ import static io.evitadb.api.query.QueryConstraints.entityHaving;
 import static io.evitadb.api.query.QueryConstraints.not;
 import static io.evitadb.utils.Assert.isPremiseValid;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
-import static java.util.Optional.empty;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -136,6 +139,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 		TRANSLATORS.put(PriceContent.class, new PriceContentTranslator());
 		TRANSLATORS.put(AttributeContent.class, new AttributeContentTranslator());
 		TRANSLATORS.put(AssociatedDataContent.class, new AssociatedDataContentTranslator());
+		TRANSLATORS.put(RequireInScope.class, new RequireInScopeTranslator());
 	}
 
 	/**
@@ -211,6 +215,16 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 		this.filterByVisitor = filterByVisitor;
 		this.sorter = sorter;
 		this.attributeSchemaAccessor = new AttributeSchemaAccessor(queryContext);
+		final LinkedList<Set<Scope>> requestedScopes = new LinkedList<>();
+		requestedScopes.add(queryContext.getScopes());
+		this.scope.push(
+			new ProcessingScope(
+				null,
+				requestedScopes,
+				() -> null,
+				() -> null
+			)
+		);
 	}
 
 	/**
@@ -379,26 +393,32 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 		@Nonnull Supplier<String> stepDescriptionSupplier
 	) {
 		try {
-			queryContext.pushStep(
+			this.queryContext.pushStep(
 				QueryPhase.PLANNING_SORT,
 				stepDescriptionSupplier
 			);
+			final Set<Scope> scopes = getProcessingScope().getScopes();
 			// we have to create and trap the nested query context here to carry it along with the sorter
 			// otherwise the sorter will target and use the incorrectly originally queried (prefetched) entities
 			final QueryPlanningContext nestedQueryContext = entityCollection.createQueryContext(
-				queryContext,
-				queryContext.getEvitaRequest().deriveCopyWith(
+				this.queryContext,
+				this.queryContext.getEvitaRequest().deriveCopyWith(
 					entityType,
 					null,
 					new OrderBy(orderBy.getChildren()),
-					queryContext.getLocale()
+					this.queryContext.getLocale(),
+					scopes
 				),
-				queryContext.getEvitaSession()
+				this.queryContext.getEvitaSession()
 			);
 
-			final GlobalEntityIndex entityIndex = entityCollection.getGlobalIndexIfExists().orElse(null);
+			final GlobalEntityIndex[] entityIndexes = scopes.stream()
+				.map(scope -> entityCollection.getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL, scope)))
+				.map(GlobalEntityIndex.class::cast)
+				.filter(Objects::nonNull)
+				.toArray(GlobalEntityIndex[]::new);
 			final Sorter sorter;
-			if (entityIndex == null) {
+			if (entityIndexes.length == 0) {
 				sorter = NoSorter.INSTANCE;
 			} else {
 				// create a visitor
@@ -410,7 +430,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 				);
 				// now analyze the filter by in a nested context with exchanged primary entity index
 				sorter = orderByVisitor.executeInContext(
-					new EntityIndex[]{entityIndex},
+					entityIndexes,
 					entityType,
 					locale,
 					new AttributeSchemaAccessor(nestedQueryContext.getCatalogSchema(), entityCollection.getSchema()),
@@ -480,11 +500,11 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 						child.accept(this);
 					}
 				} else {
-					registerProducer(translator.apply(requireConstraint, this));
+					registerProducer(translator.createProducer(requireConstraint, this));
 				}
 			} else if (requireConstraint instanceof ConstraintLeaf) {
 				// process the leaf query
-				registerProducer(translator.apply(requireConstraint, this));
+				registerProducer(translator.createProducer(requireConstraint, this));
 			} else {
 				// sanity check only
 				throw new GenericEvitaInternalError("Should never happen");
@@ -494,7 +514,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 				(RequireConstraintTranslator<RequireConstraint>) TRANSLATORS.get(requireConstraint.getClass());
 
 			if (translator != null) {
-				translator.apply(requireConstraint, this);
+				translator.createProducer(requireConstraint, this);
 			}
 
 			if (requireConstraint instanceof ConstraintContainer && !(translator instanceof SelfTraversingTranslator)) {
@@ -523,9 +543,12 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 		@Nonnull Supplier<T> lambda
 	) {
 		try {
+			final LinkedList<Set<Scope>> scopes = new LinkedList<>();
+			scopes.add(getProcessingScope().getScopes());
 			this.scope.push(
 				new ProcessingScope(
 					requirement,
+					scopes,
 					referenceSchemaSupplier,
 					entitySchemaSupplier
 				)
@@ -541,10 +564,10 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 */
 	@Nonnull
 	public ProcessingScope getProcessingScope() {
-		if (isScopeEmpty()) {
+		if (this.scope.isEmpty()) {
 			throw new GenericEvitaInternalError("Scope should never be empty");
 		} else {
-			return scope.peek();
+			return Objects.requireNonNull(this.scope.peek());
 		}
 	}
 
@@ -553,17 +576,16 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 */
 	@Nonnull
 	public Stream<RequireConstraint> getEntityContentRequireChain(@Nonnull EntityContentRequire current) {
-		if (isScopeEmpty()) {
-			return Stream.of(current);
-		} else {
-			return Stream.concat(
-				StreamSupport.stream(
+		return Stream.concat(
+			StreamSupport
+				.stream(
 					Spliterators.spliteratorUnknownSize(this.scope.descendingIterator(), Spliterator.ORDERED),
 					false
-				).map(ProcessingScope::requirement),
-				Stream.of(current)
-			);
-		}
+				)
+				.map(ProcessingScope::requirement)
+				.filter(Objects::nonNull),
+			Stream.of(current)
+		);
 	}
 
 	/**
@@ -571,12 +593,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 */
 	@Nonnull
 	public Optional<ReferenceSchemaContract> getCurrentReferenceSchema() {
-		if (isScopeEmpty()) {
-			return Optional.empty();
-		} else {
-			final ProcessingScope scope = this.scope.peek();
-			return scope.getReferenceSchema();
-		}
+		return getProcessingScope().getReferenceSchema();
 	}
 
 	/**
@@ -584,19 +601,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 */
 	@Nonnull
 	public Optional<EntitySchemaContract> getCurrentEntitySchema() {
-		if (isScopeEmpty()) {
-			return empty();
-		} else {
-			final ProcessingScope scope = this.scope.peek();
-			return scope.getEntitySchema();
-		}
-	}
-
-	/**
-	 * Returns true if no context switch occurred in the visitor yet.
-	 */
-	public boolean isScopeEmpty() {
-		return scope.isEmpty();
+		return getProcessingScope().getEntitySchema();
 	}
 
 	/**
@@ -607,12 +612,22 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	}
 
 	/**
+	 * Returns true if the scope relates to top entity.
+	 *
+	 * @return true if the scope relates to top entity
+	 */
+	public boolean isRootScope() {
+		return this.scope.size() == 1;
+	}
+
+	/**
 	 * Processing scope contains contextual information that could be overridden in {@link RequireConstraintTranslator}
 	 * implementations to exchange schema that is being used, suppressing certain query evaluation or accessing
 	 * attribute schema information.
 	 */
 	public record ProcessingScope(
-		@Nonnull RequireConstraint requirement,
+		@Nullable RequireConstraint requirement,
+		@Nonnull Deque<Set<Scope>> requiredScopes,
 		@Nonnull Supplier<ReferenceSchemaContract> referenceSchemaAccessor,
 		@Nonnull Supplier<EntitySchemaContract> entitySchemaAccessor
 	) {
@@ -620,7 +635,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 		/**
 		 * Returns reference schema if any.
 		 */
-		@Nullable
+		@Nonnull
 		public Optional<ReferenceSchemaContract> getReferenceSchema() {
 			return ofNullable(referenceSchemaAccessor.get());
 		}
@@ -631,6 +646,34 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 		@Nonnull
 		public Optional<EntitySchemaContract> getEntitySchema() {
 			return ofNullable(entitySchemaAccessor.get());
+		}
+
+		/**
+		 * Retrieves the set of requested scopes from the processing context.
+		 *
+		 * @return A non-null set of {@link Scope} that are required for the current processing context.
+		 */
+		@Nonnull
+		public Set<Scope> getScopes() {
+			return Objects.requireNonNull(this.requiredScopes.peek());
+		}
+
+		/**
+		 * Executes the given supplier within the context of the specified scope. This method ensures that
+		 * the specified scope is applied for the duration of the supplier's execution and then restores
+		 * the previous scope afterwards.
+		 *
+		 * @param scopeToUse the scope to be applied during the execution of the supplier
+		 * @param lambda the supplier function to be executed within the specified scope
+		 * @return the result produced by the supplier
+		 */
+		public <S> S doWithScope(@Nonnull Scope scopeToUse, @Nonnull Supplier<S> lambda) {
+			try {
+				this.requiredScopes.push(EnumSet.of(scopeToUse));
+				return lambda.get();
+			} finally {
+				this.requiredScopes.pop();
+			}
 		}
 
 	}

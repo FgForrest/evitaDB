@@ -30,6 +30,7 @@ import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.core.exception.HierarchyNotIndexedException;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
@@ -39,7 +40,10 @@ import io.evitadb.core.query.algebra.hierarchy.HierarchyFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
+import io.evitadb.index.EntityIndexKey;
+import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.utils.Assert;
@@ -50,6 +54,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 import static io.evitadb.api.query.QueryConstraints.entityLocaleEquals;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
@@ -80,7 +85,13 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 			.map(it -> filterByVisitor.getSchema(it.getReferencedEntityType()))
 			.orElse(entitySchema);
 
-		return queryContext.getGlobalEntityIndexIfExists(targetEntitySchema.getName())
+		// we use only the first applicable scope here - if LIVE scope is present it always takes precedence
+		final Set<Scope> scopesToLookup = filterByVisitor.getProcessingScope().getScopes();
+		return Arrays.stream(Scope.values())
+			.filter(scopesToLookup::contains)
+			.map(scope -> queryContext.getIndex(targetEntitySchema.getName(), new EntityIndexKey(EntityIndexType.GLOBAL, scope), EntityIndex.class))
+			.filter(Optional::isPresent)
+			.map(Optional::get)
 			.map(
 				targetEntityIndex -> queryContext.computeOnlyOnce(
 					Collections.singletonList(targetEntityIndex),
@@ -94,9 +105,15 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 							)
 						);
 
+						Assert.isTrue(
+							scopesToLookup.stream().allMatch(targetEntitySchema::isHierarchyIndexedInScope),
+							() -> new HierarchyNotIndexedException(targetEntitySchema)
+						);
+
 						final FilterConstraint parentFilter = hierarchyWithin.getParentFilter();
 						final Formula hierarchyParentFormula = createFormulaForTheFilter(
 							queryContext,
+							scopesToLookup,
 							createFilter(queryContext, parentFilter),
 							targetEntitySchema.getName(),
 							() -> "Finding hierarchy parent node: " + parentFilter
@@ -114,6 +131,7 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 								createAndStoreHavingPredicate(
 									nodeIds,
 									queryContext,
+									scopesToLookup,
 									of(new FilterBy(hierarchyWithin.getHavingChildrenFilter()))
 										.filter(ConstraintContainer::isApplicable)
 										.orElse(null),
@@ -131,6 +149,8 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 						);
 					}
 				))
+			.filter(it -> it != EmptyFormula.INSTANCE)
+			.findFirst()
 			.orElse(EmptyFormula.INSTANCE);
 	}
 

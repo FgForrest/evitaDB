@@ -27,7 +27,7 @@ import io.evitadb.api.query.parser.EnumWrapper;
 import io.evitadb.api.query.parser.ParseMode;
 import io.evitadb.api.query.parser.ParserExecutor;
 import io.evitadb.api.query.parser.Value;
-import io.evitadb.api.query.parser.error.EvitaQLInvalidQueryError;
+import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
 import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ByteNumberRange;
@@ -397,7 +397,7 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
         final ParseMode mode = ParserExecutor.getContext().getMode();
         Assert.isTrue(
             mode == ParseMode.UNSAFE,
-            () -> new EvitaQLInvalidQueryError(
+            () -> new EvitaSyntaxException(
                 ctx,
                 "Literal value is forbidden in mode `" + mode + "`. For literal use mode `" + ParseMode.UNSAFE + "` but check documentation for potential risks."
             )
@@ -415,7 +415,7 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
             return;
         }
 
-        throw new EvitaQLInvalidQueryError(
+        throw new EvitaSyntaxException(
             ctx,
             String.format(
                 "Data type `%s` is not allowed in `%s`.",
@@ -436,7 +436,7 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
             return;
         }
 
-        throw new EvitaQLInvalidQueryError(
+        throw new EvitaSyntaxException(
             ctx,
             String.format(
                 "Data type `%s` is not allowed in `%s`.",

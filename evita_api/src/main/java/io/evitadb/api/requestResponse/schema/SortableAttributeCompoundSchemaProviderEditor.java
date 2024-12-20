@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -81,6 +81,7 @@ public interface SortableAttributeCompoundSchemaProviderEditor<T extends Sortabl
 	 * @param attributeElements array allowing to refer existing attributes and their behaviour in the compound sorting
 	 * @param whichIs           lambda that allows to specify properties of the sortable attribute compound itself
 	 */
+	@Nonnull
 	T withSortableAttributeCompound(
 		@Nonnull String name,
 		@Nonnull AttributeElement[] attributeElements,

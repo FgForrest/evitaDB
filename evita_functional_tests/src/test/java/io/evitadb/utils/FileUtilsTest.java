@@ -32,11 +32,11 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.time.OffsetDateTime;
 import java.util.Arrays;
+import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Test verifies behaviour of {@link FileUtils}.
@@ -106,5 +106,81 @@ class FileUtilsTest {
 	@Test
 	void shouldConvertToSafeFileName() {
 		assertEquals("Abc-d784_2.z1p", FileUtils.convertToSupportedName("Abc   +-_ d784 2 .z1p"));
+	}
+
+	@Test
+	void shouldDeleteFileIfExists() throws IOException {
+		// Create a file in the temp directory
+		Path testFile = directoryTest.resolve("testFile.txt");
+		Files.write(testFile, "test content".getBytes(), StandardOpenOption.CREATE);
+
+		// Assert the file exists
+		assertTrue(testFile.toFile().exists());
+
+		// Call the method under test
+		FileUtils.deleteFileIfExists(testFile);
+
+		// Assert the file was deleted
+		assertFalse(testFile.toFile().exists());
+	}
+
+	/**
+	 * Test to verify behavior when there is extension in the given file name.
+	 */
+	@Test
+	void shouldGetFileNameWithoutExtensionWhenInputIsValid() {
+		String fileNameWithExtension = "testFile.txt";
+		String expectedOutput = "testFile";
+
+		String result = FileUtils.getFileNameWithoutExtension(fileNameWithExtension);
+
+		assertEquals(expectedOutput, result);
+	}
+
+	/**
+	 * Test to verify behavior when there is no extension in the given file name.
+	 */
+	@Test
+	void shouldGetFileNameWhenThereIsNoExtension() {
+		String fileNameWithoutExtension = "testFile";
+		String expectedOutput = "testFile";
+
+		String result = FileUtils.getFileNameWithoutExtension(fileNameWithoutExtension);
+
+		assertEquals(expectedOutput, result);
+	}
+
+	/**
+	 * Test to verify behavior when there is multiple periods in the given file name.
+	 */
+	@Test
+	void shouldGetFileNameUntilLastPeriodWhenThereAreMultiplePeriods() {
+		String fileNameWithMultiplePeriods = "test.File.txt";
+		String expectedOutput = "test.File";
+
+		String result = FileUtils.getFileNameWithoutExtension(fileNameWithMultiplePeriods);
+
+		assertEquals(expectedOutput, result);
+	}
+	@Test
+	void shouldGetLastModifiedTimeWhenFileExists() {
+		Path testFile = directoryTest.resolve("testFile.txt");
+		try {
+			Files.write(testFile, "test content".getBytes(), StandardOpenOption.CREATE);
+			Optional<OffsetDateTime> lastModifiedTimeOpt = FileUtils.getFileLastModifiedTime(testFile);
+			assertTrue(lastModifiedTimeOpt.isPresent());
+			OffsetDateTime lastModifiedTime = lastModifiedTimeOpt.get();
+			OffsetDateTime now = OffsetDateTime.now();
+			assertTrue(now.isAfter(lastModifiedTime) || now.isEqual(lastModifiedTime));
+		} catch (IOException e) {
+			fail("Unexpected error occurred: " + e.getMessage());
+		}
+	}
+
+	@Test
+	void shouldReturnEmptyWhenFileNotExists() {
+		Path nonExistentFile = directoryTest.resolve("nonExistentFile.txt");
+		Optional<OffsetDateTime> lastModifiedTimeOpt = FileUtils.getFileLastModifiedTime(nonExistentFile);
+		assertTrue(lastModifiedTimeOpt.isEmpty());
 	}
 }

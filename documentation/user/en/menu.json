@@ -98,44 +98,44 @@
 		"title": "Filtering",
 		"children": [
 		  {
-			"title": "Constant",
-			"path": "/query/filtering/constant.md"
-		  },
-		  {
-			"title": "Logical",
-			"path": "/query/filtering/logical.md"
+			"title": "Behavioral",
+			"path": "/query/filtering/behavioral.md"
 		  },
 		  {
 			"title": "Comparable",
 			"path": "/query/filtering/comparable.md"
 		  },
 		  {
-			"title": "String",
-			"path": "/query/filtering/string.md"
+			"title": "Constant",
+			"path": "/query/filtering/constant.md"
 		  },
 		  {
 			"title": "Locale",
 			"path": "/query/filtering/locale.md"
 		  },
 		  {
-			"title": "Range",
-			"path": "/query/filtering/range.md"
-		  },
-		  {
-			"title": "Price",
-			"path": "/query/filtering/price.md"
-		  },
-		  {
-			"title": "References",
-			"path": "/query/filtering/references.md"
+			"title": "Logical",
+			"path": "/query/filtering/logical.md"
 		  },
 		  {
 			"title": "Hierarchy",
 			"path": "/query/filtering/hierarchy.md"
 		  },
 		  {
-			"title": "Behavioral",
-			"path": "/query/filtering/behavioral.md"
+			"title": "Price",
+			"path": "/query/filtering/price.md"
+		  },
+		  {
+			"title": "Range",
+			"path": "/query/filtering/range.md"
+		  },
+		  {
+			"title": "References",
+			"path": "/query/filtering/references.md"
+		  },
+		  {
+			"title": "String",
+			"path": "/query/filtering/string.md"
 		  }
 		]
 	  },
@@ -143,12 +143,20 @@
 		"title": "Ordering",
 		"children": [
 		  {
-			"title": "Constant",
-			"path": "/query/ordering/constant.md"
+			"title": "Behavioral",
+			"path": "/query/ordering/behavioral.md"
 		  },
 		  {
 			"title": "Comparable",
 			"path": "/query/ordering/comparable.md"
+		  },
+		  {
+			"title": "Constant",
+			"path": "/query/ordering/constant.md"
+		  },
+		  {
+			"title": "Random",
+			"path": "/query/ordering/random.md"
 		  },
 		  {
 			"title": "Price",
@@ -159,8 +167,8 @@
 			"path": "/query/ordering/reference.md"
 		  },
 		  {
-			"title": "Random",
-			"path": "/query/ordering/random.md"
+			"title": "Segmentation",
+			"path": "/query/ordering/segment.md"
 		  }
 		]
 	  },
@@ -168,28 +176,32 @@
 		"title": "Requirements",
 		"children": [
 		  {
-			"title": "Paging",
-			"path": "/query/requirements/paging.md"
-		  },
-		  {
-			"title": "Fetching",
-			"path": "/query/requirements/fetching.md"
-		  },
-		  {
-			"title": "Price",
-			"path": "/query/requirements/price.md"
-		  },
-		  {
-			"title": "Hierarchy",
-			"path": "/query/requirements/hierarchy.md"
+			"title": "Behavioral",
+			"path": "/query/requirements/behavioral.md"
 		  },
 		  {
 			"title": "Facet",
 			"path": "/query/requirements/facet.md"
 		  },
 		  {
+			"title": "Fetching",
+			"path": "/query/requirements/fetching.md"
+		  },
+		  {
+			"title": "Hierarchy",
+			"path": "/query/requirements/hierarchy.md"
+		  },
+		  {
 			"title": "Histogram",
 			"path": "/query/requirements/histogram.md"
+		  },
+		  {
+			"title": "Paging",
+			"path": "/query/requirements/paging.md"
+		  },
+		  {
+			"title": "Price",
+			"path": "/query/requirements/price.md"
 		  },
 		  {
 			"title": "Telemetry",

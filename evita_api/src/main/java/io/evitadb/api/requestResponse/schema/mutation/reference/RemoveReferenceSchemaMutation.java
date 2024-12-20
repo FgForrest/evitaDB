@@ -85,11 +85,11 @@ public class RemoveReferenceSchemaMutation implements ReferenceSchemaMutation, C
 		return null;
 	}
 
-	@Nullable
+	@Nonnull
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		final Optional<ReferenceSchemaContract> existingReferenceSchema = entitySchema.getReference(name);
+		final Optional<ReferenceSchemaContract> existingReferenceSchema = entitySchema.getReference(this.name);
 		if (existingReferenceSchema.isEmpty()) {
 			// the reference schema was already removed - or just doesn't exist,
 			// so we can simply return current schema
@@ -103,7 +103,9 @@ public class RemoveReferenceSchemaMutation implements ReferenceSchemaMutation, C
 				entitySchema.getDeprecationNotice(),
 				entitySchema.isWithGeneratedPrimaryKey(),
 				entitySchema.isWithHierarchy(),
+				entitySchema.getHierarchyIndexedInScopes(),
 				entitySchema.isWithPrice(),
+				entitySchema.getPriceIndexedInScopes(),
 				entitySchema.getIndexedPricePlaces(),
 				entitySchema.getLocales(),
 				entitySchema.getCurrencies(),
@@ -111,7 +113,7 @@ public class RemoveReferenceSchemaMutation implements ReferenceSchemaMutation, C
 				entitySchema.getAssociatedData(),
 				entitySchema.getReferences().values()
 					.stream()
-					.filter(it -> !it.getName().equals(name))
+					.filter(it -> !it.getName().equals(this.name))
 					.collect(
 						Collectors.toMap(
 							ReferenceSchemaContract::getName,
@@ -133,6 +135,6 @@ public class RemoveReferenceSchemaMutation implements ReferenceSchemaMutation, C
 	@Override
 	public String toString() {
 		return "Remove entity reference schema: " +
-			"name='" + name + '\'';
+			"name='" + this.name + '\'';
 	}
 }

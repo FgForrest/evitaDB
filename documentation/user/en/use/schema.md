@@ -70,6 +70,7 @@ There are following types of schemas:
 - [catalog schema](#catalog)
 - [entity schema](#entity)
 - [attribute schema](#attributes)
+- [sortable attribute compound schema](#sortable-attribute-compounds)
 - [associated data schema](#associated-data)
 - [reference schema](#reference)
 
@@ -182,6 +183,7 @@ Entity schema contains information about the `name`, `description` and the:
 - [enabling hierarchical structure](#hierarchy-placement)
 - [enabling price information](#prices)
 - [attributes](#attribute)
+- [sortable attribute compound](#sortable-attribute-compounds)
 - [associated data](#associated-data)
 - [references](#reference)
 
@@ -485,6 +487,7 @@ Within `ModifyEntitySchemaMutation` you can use mutation:
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/sortableAttributeCompound/ModifySortableAttributeCompoundSchemaNameMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/SortableAttributeCompounds/ModifySortableAttributeCompoundSchemaNameMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/sortableAttributeCompound/ModifySortableAttributeCompoundSchemaDescriptionMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/SortableAttributeCompounds/ModifySortableAttributeCompoundSchemaDescriptionMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/sortableAttributeCompound/ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/SortableAttributeCompounds/ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation.cs</SourceClass></LS>**
+- **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/sortableAttributeCompound/SetSortableAttributeCompoundIndexedMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/SortableAttributeCompounds/SetSortableAttributeCompoundIndexedMutation.cs</SourceClass></LS>**
 
 The sortable attribute compound schema is described by:
 <LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/SortableAttributeCompoundSchemaContract.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/ISortableAttributeCompoundSchema.cs</SourceClass></LS>
@@ -561,8 +564,20 @@ erDiagram
 ```
 
 Reflected references are automatically created, updated, and removed when the original reference is manipulated. It also 
-works the other way around - when the reflected reference is manipulated, the original reference is updated. If
-the reference contains an attribute that is not defined on the other side, and the reference is created - the missing 
+works the other way around - when the reflected reference is manipulated, the original reference is updated.
+
+<Note type="warning">
+
+There is a subtle difference between the original reference and the reflected reference. The original reference can 
+exist even if the referenced entity does not (yet) exist (the reference is orphaned). On the other hand, when you create 
+a reflected reference, the referenced entity must exist. This is because the reflected reference immediately creates 
+the original reference, and the original reference must have a valid target. This behaviour is needed to maintain 
+consistency when moving entities between different [scopes](#scopes) that treat original and reflected references 
+differently.
+
+</Note>
+
+If the reference contains an attribute that is not defined on the other side, and the reference is created - the missing 
 attribute on the other side is created with its default value (if no such default value is defined, an exception is thrown).
 
 When another entity references an entity and the reference is marked as *indexed*, the special
@@ -594,6 +609,7 @@ conforms to the creator's mental model.
 Within `ModifyEntitySchemaMutation` you can use mutation:
 
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/CreateReferenceSchemaMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/References/CreateReferenceSchemaMutation.cs</SourceClass></LS>**
+- **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/CreateReflectedReferenceSchemaMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/References/CreateReflectedReferenceSchemaMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/CreateReflectedReferenceSchemaMutation.java</SourceClass></LS><LS to="c"><SourceClass>(not yet supported in C# driver - see [issue 8](https://github.com/FgForrest/evitaDB-C-Sharp-client/issues/8))</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/RemoveReferenceSchemaMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/References/RemoveReferenceSchemaMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/ModifyReferenceSchemaNameMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/References/ModifyReferenceSchemaNameMutation.cs</SourceClass></LS>**
@@ -602,6 +618,7 @@ Within `ModifyEntitySchemaMutation` you can use mutation:
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/ModifyReferenceSchemaCardinalityMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/References/ModifyReferenceSchemaCardinalityMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/ModifyReferenceSchemaRelatedEntityMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/References/ModifyReferenceSchemaRelatedEntityMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/ModifyReferenceSchemaRelatedEntityGroupMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/References/ModifyReferenceSchemaRelatedEntityGroupMutation.cs</SourceClass></LS>**
+- **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/ModifyReflectedReferenceAttributeInheritanceSchemaMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/References/ModifyReflectedReferenceAttributeInheritanceSchemaMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/SetReferenceSchemaIndexedMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/References/SetReferenceSchemaIndexedMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/SetReferenceSchemaFacetedMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/References/SetReferenceSchemaFacetedMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/ModifyReferenceAttributeSchemaMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/References/ModifyReferenceAttributeSchemaMutation.cs</SourceClass></LS>**
@@ -613,11 +630,41 @@ The `ModifyReferenceAttributeSchemaMutation` expect nested [attribute mutation](
 
 The reference schema is described by:
 <LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/ReferenceSchemaContract.java</SourceClass></LS>
-<LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/IReferenceSchema.cs</SourceClass></LS>>
+<LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/IReferenceSchema.cs</SourceClass></LS>> and
+<LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/ReflectedReferenceSchemaContract.java</SourceClass></LS>
+<LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/IReflectedReferenceSchema.cs</SourceClass></LS>>
 
 </LS>
 
 </Note>
+
+## Scopes
+
+Scopes are separate areas of memory where entity indexes are stored. Scopes are used to separate live data from archived 
+data. Scopes are used to handle so-called "soft deletes" - the application can choose between a hard delete and 
+archiving the entity, which simply moves the entity to the archive scope. The reasons for this feature are explained in 
+the [dedicated blog post](https://evitadb.io/blog/15-soft-delete).
+
+By default, archived entities have no indexes other than the primary key index. This is because archived entities are 
+not normally queried and are only looked up by their primary key. By not maintaining the indexes of archived entities, 
+we save memory and CPU resources. There may be cases where you want to query the archived entities and therefore you 
+have full control over which indexes are maintained in the archive scope when you define the entity schema. Note that 
+the more indexes you maintain, the more memory and CPU resources you will consume as the list of archived entities grows.
+
+### Changes in reference behavior
+
+When you move an entity from one scope to another, the original references are retained, while the reflected references 
+are removed if either of the following conditions is not met
+
+- the reflected reference schema is not marked as *indexed* in the target scope
+- the primary reference schema (i.e. the original reference being reflected) is not marked as *indexed* in the target scope.
+
+Reflected references are something that is maintained by the evitaDB engine, and it requires appropriate indexes to be 
+present in the target scope in order to work. By default, the archive scope does not maintain any indexes other than 
+the primary key and a few others explicitly specified by you in the entity schema.
+
+Therefore, the reflected references are usually removed when the entity is moved to the archive scope. The engine can 
+recreate them if the entity is moved back to the live scope where appropriate indexes exist.
 
 ## What's next?
 

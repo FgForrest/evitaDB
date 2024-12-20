@@ -2,7 +2,7 @@
 {
   "parameterValues": [
     {
-      "count": 525,
+      "count": 494,
       "groupEntity": {
         "primaryKey": 66463,
         "attributes": {
@@ -12,10 +12,10 @@
       "facetStatistics": [
         {
           "requested": false,
-          "count": 4214,
+          "count": 4150,
           "impact": {
             "difference": -11,
-            "matchCount": 4214,
+            "matchCount": 4150,
             "hasSense": true
           },
           "facetEntity": {
@@ -27,10 +27,10 @@
         },
         {
           "requested": false,
-          "count": 4118,
+          "count": 4054,
           "impact": {
             "difference": -107,
-            "matchCount": 4118,
+            "matchCount": 4054,
             "hasSense": true
           },
           "facetEntity": {
@@ -42,10 +42,10 @@
         },
         {
           "requested": false,
-          "count": 3820,
+          "count": 3787,
           "impact": {
-            "difference": -405,
-            "matchCount": 3820,
+            "difference": -374,
+            "matchCount": 3787,
             "hasSense": true
           },
           "facetEntity": {
@@ -57,10 +57,10 @@
         },
         {
           "requested": false,
-          "count": 4223,
+          "count": 4159,
           "impact": {
             "difference": -2,
-            "matchCount": 4223,
+            "matchCount": 4159,
             "hasSense": true
           },
           "facetEntity": {
@@ -73,7 +73,7 @@
       ]
     },
     {
-      "count": 1527,
+      "count": 1506,
       "groupEntity": {
         "primaryKey": 66464,
         "attributes": {
@@ -83,10 +83,10 @@
       "facetStatistics": [
         {
           "requested": false,
-          "count": 267,
+          "count": 246,
           "impact": {
-            "difference": -3958,
-            "matchCount": 267,
+            "difference": -3915,
+            "matchCount": 246,
             "hasSense": true
           },
           "facetEntity": {
@@ -100,7 +100,7 @@
           "requested": false,
           "count": 83,
           "impact": {
-            "difference": -4142,
+            "difference": -4078,
             "matchCount": 83,
             "hasSense": true
           },
@@ -115,7 +115,7 @@
           "requested": false,
           "count": 6,
           "impact": {
-            "difference": -4219,
+            "difference": -4155,
             "matchCount": 6,
             "hasSense": true
           },
@@ -130,7 +130,7 @@
           "requested": false,
           "count": 912,
           "impact": {
-            "difference": -3313,
+            "difference": -3249,
             "matchCount": 912,
             "hasSense": true
           },
@@ -145,7 +145,7 @@
           "requested": false,
           "count": 20,
           "impact": {
-            "difference": -4205,
+            "difference": -4141,
             "matchCount": 20,
             "hasSense": true
           },
@@ -160,7 +160,7 @@
           "requested": false,
           "count": 365,
           "impact": {
-            "difference": -3860,
+            "difference": -3796,
             "matchCount": 365,
             "hasSense": true
           },
