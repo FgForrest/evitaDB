@@ -72,6 +72,9 @@ api:
     exposeOn: ${api.endpointDefaults.exposeOn:"localhost"}
     tlsMode: ${api.endpointDefaults.tlsMode:FORCE_TLS}
     keepAlive: ${api.endpointDefaults.keepAlive:null}
+    mTLS:
+      enabled: ${api.endpointDefaults.mTLS.enabled:false}
+      allowedClientCertificatePaths: ${api.endpointDefaults.mTLS.allowedClientCertificatesPaths:[]}
   endpoints:
     system:
       enabled: ${api.endpoints.system.enabled:null}
@@ -79,6 +82,9 @@ api:
       exposeOn: ${api.endpoints.system.exposeOn:null}
       tlsMode: ${api.endpoints.system.tlsMode:FORCE_NO_TLS}
       keepAlive: ${api.endpoints.system.keepAlive:null}
+      mTLS:
+        enabled: ${api.endpoints.system.mTLS.enabled:null}
+        allowedClientCertificatePaths: ${api.endpoints.system.mTLS.allowedClientCertificatesPaths:null}
     graphQL:
       enabled: ${api.endpoints.graphQL.enabled:null}
       host: ${api.endpoints.graphQL.host:null}
@@ -86,12 +92,18 @@ api:
       tlsMode: ${api.endpoints.graphQL.tlsMode:null}
       keepAlive: ${api.endpoints.graphQL.keepAlive:null}
       parallelize: ${api.endpoints.graphQL.parallelize:true}
+      mTLS:
+        enabled: ${api.endpoints.graphQL.mTLS.enabled:null}
+        allowedClientCertificatePaths: ${api.endpoints.graphQL.mTLS.allowedClientCertificatesPaths:null}
     rest:
       enabled: ${api.endpoints.rest.enabled:null}
       host: ${api.endpoints.rest.host:null}
       exposeOn: ${api.endpoints.rest.exposeOn:null}
       tlsMode: ${api.endpoints.rest.tlsMode:null}
       keepAlive: ${api.endpoints.rest.keepAlive:null}
+      mTLS:
+        enabled: ${api.endpoints.rest.mTLS.enabled:null}
+        allowedClientCertificatePaths: ${api.endpoints.rest.mTLS.allowedClientCertificatesPaths:null}
     gRPC:
       enabled: ${api.endpoints.gRPC.enabled:true}
       host: ${api.endpoints.gRPC.host:null}
@@ -100,8 +112,8 @@ api:
       keepAlive: ${api.endpoints.gRPC.keepAlive:null}
       exposeDocsService: ${api.endpoints.gRPC.exposeDocsService:false}
       mTLS:
-        enabled: ${api.endpoints.gRPC.mTLS.enabled:false}
-        allowedClientCertificatePaths: ${api.endpoints.gRPC.mTLS.allowedClientCertificatesPaths:[]}
+        enabled: ${api.endpoints.gRPC.mTLS.enabled:null}
+        allowedClientCertificatePaths: ${api.endpoints.gRPC.mTLS.allowedClientCertificatesPaths:null}
     lab:
       enabled: ${api.endpoints.lab.enabled:null}
       host: ${api.endpoints.lab.host:null}
@@ -111,6 +123,9 @@ api:
       gui:
         enabled: false
         readOnly: ${api.endpoints.lab.gui.readOnly:false}
+      mTLS:
+        enabled: ${api.endpoints.lab.mTLS.enabled:null}
+        allowedClientCertificatePaths: ${api.endpoints.lab.mTLS.allowedClientCertificatesPaths:null}
     observability:
       enabled: ${api.endpoints.observability.enabled:false}
       host: ${api.endpoints.observability.host:null}
@@ -121,3 +136,6 @@ api:
         endpoint: ${api.endpoints.observability.tracing.endpoint:null}
         protocol: ${api.endpoints.observability.tracing.protocol:grpc}
       allowedEvents: !include ${api.endpoints.observability.allowedEvents:null}
+      mTLS:
+        enabled: ${api.endpoints.observability.mTLS.enabled:null}
+        allowedClientCertificatePaths: ${api.endpoints.observability.mTLS.allowedClientCertificatesPaths:null}

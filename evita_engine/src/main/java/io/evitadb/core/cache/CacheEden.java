@@ -23,8 +23,8 @@
 
 package io.evitadb.core.cache;
 
+import com.carrotsearch.hppc.CharObjectHashMap;
 import com.carrotsearch.hppc.CharObjectMap;
-import com.carrotsearch.hppc.CharObjectWormMap;
 import com.carrotsearch.hppc.cursors.CharObjectCursor;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.CacheOptions;
@@ -313,7 +313,7 @@ public class CacheEden {
 						int adeptsPromoted = 0;
 						int survivingRecords = 0;
 						int coolDownRecords = 0;
-						final CharObjectMap<TypeStatistics> promotedTypes = new CharObjectWormMap<>(CacheRecordType.values().length);
+						final CharObjectMap<TypeStatistics> promotedTypes = new CharObjectHashMap<>(CacheRecordType.values().length);
 						for (int i = 0; i < evaluationSource.peek(); i++) {
 							final CacheAdeptKeyWithValue adept = evaluation[i];
 							final int adeptSizeInBytes = adept.estimatedSizeInBytes();

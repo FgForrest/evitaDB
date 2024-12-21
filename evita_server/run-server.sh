@@ -44,4 +44,4 @@ java \
         "api.endpoints.lab.tlsMode=RELAXED" \
         "api.endpoints.gRPC.tlsMode=RELAXED" \
         "api.endpoints.gRPC.exposeDocsService=true" \
-        "api.endpoints.gRPC.mTLS.enabled=false"
+        "api.endpoints.gRPC.mTLS.enabled=true"
