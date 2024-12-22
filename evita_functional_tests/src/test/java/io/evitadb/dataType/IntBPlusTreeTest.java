@@ -23,10 +23,8 @@
 
 package io.evitadb.dataType;
 
-import io.evitadb.dataType.IntBPlusTree.BPlusInternalTreeNode;
-import io.evitadb.dataType.IntBPlusTree.BPlusLeafTreeNode;
-import io.evitadb.dataType.IntBPlusTree.BPlusTreeNode;
-import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyReport;
+import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyState;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
@@ -37,15 +35,16 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import javax.annotation.Nonnull;
-import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.Random;
 
 import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * This test verifies the correctness of the {@link IntBPlusTree} implementation.
@@ -54,130 +53,14 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class IntBPlusTreeTest implements TimeBoundedTestSupport {
 
-	private static void verifyTreeConsistency(@Nonnull IntBPlusTree<?> bPlusTree, int... keys) {
-		int height = verifyAndReturnHeight(bPlusTree);
-		verifyMinimalCountOfValuesInNodes(bPlusTree.getRoot(), bPlusTree.getMinBlockSize(), true);
-		verifyInternalNodeKeys(bPlusTree.getRoot());
-		verifyPreviousAndNextNodesOnEachLevel(bPlusTree, height);
-		verifyForwardKeyIterator(bPlusTree, keys);
-		verifyReverseKeyIterator(bPlusTree, keys);
-	}
-
-	private static void verifyPreviousAndNextNodesOnEachLevel(@Nonnull IntBPlusTree<?> bPlusTree, int height) {
-		for (int i = 0; i <= height; i++) {
-			final List<BPlusTreeNode<?>> nodesOnLevel = getNodesOnLevel(bPlusTree, i);
-			BPlusTreeNode<?> previousNode = null;
-			for (int j = 0; j < nodesOnLevel.size(); j++) {
-				final BPlusTreeNode<?> node = nodesOnLevel.get(j);
-				assertSame(previousNode, node.getPreviousNode(), "Node " + node + " has a wrong previous node!");
-				if (previousNode != null) {
-					assertSame(previousNode.getNextNode(), node, "Node " + node + " has a wrong next node!");
-					assertSame(previousNode.getClass(), node.getClass(), "Node " + node + " has a different class than the previous node!");
-				}
-				previousNode = node;
-				if (j == nodesOnLevel.size() - 1) {
-					assertNull(node.getNextNode(), "Last node on level " + i + " has a next node!");
-				}
-			}
-		}
-	}
-
-	private static void verifyInternalNodeKeys(@Nonnull BPlusTreeNode<?> node) {
-		if (node instanceof BPlusInternalTreeNode internalNode) {
-			final int[] keys = internalNode.getKeys();
-			final BPlusTreeNode<?>[] children = internalNode.getChildren();
-			if (internalNode.getPeek() >= 0) {
-				verifyInternalNodeKeys(children[0]);
-			}
-			for (int i = 0; i < internalNode.getPeek(); i++) {
-				final int key = keys[i];
-				final BPlusTreeNode<?> child = children[i + 1];
-				if (child instanceof BPlusInternalTreeNode childInternalNode) {
-					assertEquals(childInternalNode.getLeftBoundaryKey(), key, "Internal node " + childInternalNode + " has a different left boundary key!");
-					verifyInternalNodeKeys(childInternalNode);
-				} else if (child instanceof BPlusLeafTreeNode<?> childLeafNode) {
-					assertEquals(childLeafNode.getKeys()[0], key, "Leaf node " + childLeafNode + " has a different key than the internal node key!");
-				} else {
-					fail("Unknown node type: " + child);
-				}
-			}
-		}
-	}
-
-	private static void verifyMinimalCountOfValuesInNodes(@Nonnull BPlusTreeNode<?> node, int minBlockSize, boolean isRoot) {
-		if (node instanceof BPlusInternalTreeNode internalNode) {
-			assertTrue(internalNode.size() >= minBlockSize + 1, "Internal node " + internalNode + " has less than " + minBlockSize + " values!");
-			for (int i = 0; i < internalNode.size(); i++) {
-				verifyMinimalCountOfValuesInNodes(internalNode.getChildren()[i], minBlockSize, false);
-			}
-		} else {
-			assertTrue(isRoot || node.size() >= minBlockSize, "Leaf node " + node + " has less than " + minBlockSize + " values!");
-		}
-	}
-
-	private static int verifyAndReturnHeight(@Nonnull IntBPlusTree<?> tree) {
-		final BPlusTreeNode<?> root = tree.getRoot();
-		if (root instanceof BPlusInternalTreeNode internalNode) {
-			final int resultHeight = verifyAndReturnHeight(internalNode, 0);
-			for (int i = 0; i <= internalNode.getPeek(); i++) {
-				verifyHeightOfAllChildren(internalNode.getChildren()[i], 1, resultHeight);
-			}
-			return resultHeight;
-		} else {
-			return 0;
-		}
-	}
-
-	private static void verifyHeightOfAllChildren(@Nonnull BPlusTreeNode<?> node, int nodeHeight, int maximalHeight) {
-		if (node instanceof BPlusInternalTreeNode internalNode) {
-			final int childHeight = nodeHeight + 1;
-			for (int i = 0; i <= internalNode.getPeek(); i++) {
-				verifyHeightOfAllChildren(internalNode.getChildren()[i], childHeight, maximalHeight);
-			}
-		} else {
-			assertEquals(maximalHeight, nodeHeight, "Leaf node " + node + " has a different height than the maximal height!");
-		}
-	}
-
-	private static int verifyAndReturnHeight(@Nonnull BPlusInternalTreeNode node, int currentHeight) {
-		final BPlusTreeNode<?> child = node.getChildren()[0];
-		if (child instanceof BPlusInternalTreeNode internalChild) {
-			return verifyAndReturnHeight(internalChild, currentHeight + 1);
-		} else {
-			return currentHeight + 1;
-		}
-	}
-
-	@Nonnull
-	private static List<BPlusTreeNode<?>> getNodesOnLevel(@Nonnull IntBPlusTree<?> tree, int level) {
-		if (level == 0) {
-			return List.of(tree.getRoot());
-		} else {
-			final List<BPlusTreeNode<?>> nodes = new ArrayList<>(32);
-			addNodesOnLevel(tree.getRoot(), level, 0, nodes);
-			return nodes;
-		}
-	}
-
-	private static void addNodesOnLevel(
-		@Nonnull BPlusTreeNode<?> currentNode,
-		int targetLevel,
-		int currentLevel,
-		@Nonnull List<BPlusTreeNode<?>> resultNodes
-	) {
-		if (currentNode instanceof IntBPlusTree.BPlusInternalTreeNode internalNode) {
-			if (currentLevel == targetLevel) {
-				resultNodes.add(internalNode);
-			} else {
-				for (int i = 0; i <= internalNode.getPeek(); i++) {
-					addNodesOnLevel(internalNode.getChildren()[i], targetLevel, currentLevel + 1, resultNodes);
-				}
-			}
-		} else if (currentLevel == targetLevel) {
-			resultNodes.add(currentNode);
-		} else {
-			throw new GenericEvitaInternalError("Level " + targetLevel + " not found in the tree!");
-		}
+	private static void verifyTreeConsistency(@Nonnull IntBPlusTree<String> bPlusTree, int... expectedArray) {
+		final ConsistencyReport consistencyReport = bPlusTree.getConsistencyReport();
+		assertEquals(
+			ConsistencyState.CONSISTENT, consistencyReport.state(),
+			consistencyReport.report()
+		);
+		verifyForwardKeyIterator(bPlusTree, expectedArray);
+		verifyReverseKeyIterator(bPlusTree, expectedArray);
 	}
 
 	private static void verifyForwardKeyIterator(@Nonnull IntBPlusTree<?> tree, @Nonnull int... expectedArray) {
@@ -192,8 +75,7 @@ class IntBPlusTreeTest implements TimeBoundedTestSupport {
 		assertThrows(NoSuchElementException.class, it::nextInt, "Iterator should be exhausted!");
 	}
 
-	@Nonnull
-	private static OfInt verifyReverseKeyIterator(@Nonnull IntBPlusTree<?> tree, @Nonnull int... expectedArray) {
+	private static void verifyReverseKeyIterator(@Nonnull IntBPlusTree<?> tree, @Nonnull int... expectedArray) {
 		int[] reconstructedArray = new int[expectedArray.length];
 		int index = expectedArray.length;
 		final OfInt it = tree.keyReverseIterator();
@@ -202,12 +84,19 @@ class IntBPlusTreeTest implements TimeBoundedTestSupport {
 		}
 
 		assertArrayEquals(expectedArray, reconstructedArray);
-		return it;
 	}
 
 	private static TreeTuple prepareRandomTree(long seed, int totalElements) {
+		return prepareRandomTree(3, 1, 3, 1, seed, totalElements);
+	}
+
+	private static TreeTuple prepareRandomTree(
+		int valueBlockSize, int minValueBlockSize,
+		int internalNodeSize, int minInternalNodeSize,
+		long seed, int totalElements
+	) {
 		final Random random = new Random(seed);
-		final IntBPlusTree<String> bPlusTree = new IntBPlusTree<>(3, String.class);
+		final IntBPlusTree<String> bPlusTree = new IntBPlusTree<>(valueBlockSize, minValueBlockSize, internalNodeSize, minInternalNodeSize, String.class);
 		int[] plainArray = new int[0];
 		do {
 			final int i = random.nextInt(totalElements * 2);
@@ -286,8 +175,7 @@ class IntBPlusTreeTest implements TimeBoundedTestSupport {
 	void shouldIterateThroughLeafNodeKeysFromRightToLeft() {
 		final TreeTuple testTree = prepareRandomTree(System.currentTimeMillis(), 100);
 
-		final OfInt it = verifyReverseKeyIterator(testTree.bPlusTree(), testTree.plainArray());
-		assertThrows(NoSuchElementException.class, it::nextInt);
+		verifyReverseKeyIterator(testTree.bPlusTree(), testTree.plainArray());
 		assertEquals(testTree.totalElements(), testTree.bPlusTree().size());
 	}
 

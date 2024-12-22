@@ -21,15 +21,14 @@
  *   limitations under the License.
  */
 
-package io.evitadb;
+package io.evitadb.dataType;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
- * All {@link io.evitadb.index.Index} and {@link io.evitadb.index.IndexDataStructure} that are sensitive to data
- * consistency should implement this interface. The interface provides a method to check the consistency of the index
- * and return a report about the state of the index.
+ * All data structures that are sensitive to data consistency should implement this interface. The interface provides
+ * a method to check the consistency of the data structure and return a report about it.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
@@ -64,9 +63,9 @@ public interface ConsistencySensitiveDataStructure {
 	}
 
 	/**
-	 * Describes the consistency state of the index.
+	 * Describes the consistency state of the data structure.
 	 *
-	 * @param state  enum signaling the state of the index
+	 * @param state  enum signaling the state of the data structure
 	 * @param report textual description of the state in English / Markdown format
 	 */
 	record ConsistencyReport(

@@ -52,15 +52,23 @@ import static io.evitadb.utils.ArrayUtils.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @NotThreadSafe
-public class IntBPlusTree<V> {
+public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 	/**
-	 * Maximum number of keys per leaf node. Use odd number. The number of keys in internal nodes is one more.
+	 * Maximum number of keys = values per leaf node. Use odd number. The number of keys in internal nodes is one less.
 	 */
-	@Getter private final int blockSize;
+	@Getter private final int valueBlockSize;
 	/**
-	 * Minimum number of keys per node.
+	 * Minimum number of keys = values per leaf node. Controls branching factor for leaf nodes.
 	 */
-	@Getter private final int minBlockSize;
+	@Getter private final int minValueBlockSize;
+	/**
+	 * Maximum number of keys per leaf node. Use odd number. The number of children in internal nodes is one more.
+	 */
+	@Getter private final int internalNodeBlockSize;
+	/**
+	 * Minimum number of keys per internal node. Controls branching factor for internal nodes.
+	 */
+	@Getter private final int minInternalNodeBlockSize;
 	/**
 	 * The type of the values stored in the tree.
 	 */
@@ -121,29 +129,75 @@ public class IntBPlusTree<V> {
 	}
 
 	/**
-	 * Constructor to initialize the B+ Tree.
+	 * Updates the keys in the parent nodes of a B+ Tree based on changes in a specific path.
+	 * This method propagates changes up the tree as necessary.
 	 *
-	 * @param blockSize maximum number of values in a leaf node
-	 * @param valueType the type of the values stored in the tree
+	 * @param path                  A list of B+ internal tree nodes representing the path from the root to the updated node.
+	 * @param indexToUpdate         The index of the key to be updated in the parent node.
+	 * @param previouslyUpdatedNode The child node that was previously updated and requires the parent node key to be aligned.
 	 */
-	public IntBPlusTree(int blockSize, @Nonnull Class<V> valueType) {
-		this(blockSize, blockSize / 2, valueType);
+	private static void updateParentKeys(
+		@Nonnull List<BPlusInternalTreeNode> path,
+		int indexToUpdate,
+		@Nonnull BPlusTreeNode<?> previouslyUpdatedNode,
+		int watermark
+	) {
+		// first child doesn't have a key in the parent
+		for (int i = path.size() - 1 - watermark; i >= 0; i--) {
+			BPlusInternalTreeNode immediateParent = path.get(i);
+			if (indexToUpdate > 0) {
+				immediateParent.updateKeyForNode(indexToUpdate, previouslyUpdatedNode);
+			}
+			previouslyUpdatedNode = immediateParent;
+			indexToUpdate = i > 0 ? path.get(i - 1).getChildIndex(immediateParent.getLeftBoundaryKey(), immediateParent) : 0;
+		}
 	}
 
 	/**
 	 * Constructor to initialize the B+ Tree.
 	 *
-	 * @param blockSize    maximum number of values in a leaf node
-	 * @param minBlockSize minimum number of values in a leaf node
-	 * @param valueType    the type of the values stored in the tree
+	 * @param valueBlockSize maximum number of values in a leaf node
+	 * @param valueType      the type of the values stored in the tree
 	 */
-	public IntBPlusTree(int blockSize, int minBlockSize, @Nonnull Class<V> valueType) {
-		Assert.isPremiseValid(blockSize >= 3, "Block size must be at least 3");
-		Assert.isPremiseValid(blockSize % 2 == 1, "Block size must be an odd number");
-		this.blockSize = blockSize;
-		this.minBlockSize = minBlockSize;
+	public IntBPlusTree(int valueBlockSize, @Nonnull Class<V> valueType) {
+		this(
+			valueBlockSize, valueBlockSize / 2,
+			valueBlockSize, valueBlockSize / 2,
+			valueType
+		);
+	}
+
+	/**
+	 * Constructor to initialize the B+ Tree.
+	 *
+	 * @param valueBlockSize           maximum number of values in a leaf node
+	 * @param minValueBlockSize        minimum number of values in a leaf node
+	 *                                 (controls branching factor for leaf nodes)
+	 * @param internalNodeBlockSize    maximum number of keys in an internal node
+	 * @param minInternalNodeBlockSize minimum number of keys in an internal node
+	 *                                 (controls branching factor for internal nodes)
+	 * @param valueType                the type of the values stored in the tree
+	 */
+	public IntBPlusTree(
+		int valueBlockSize,
+		int minValueBlockSize,
+		int internalNodeBlockSize,
+		int minInternalNodeBlockSize,
+		@Nonnull Class<V> valueType
+	) {
+		Assert.isPremiseValid(valueBlockSize >= 3, "Block size must be at least 3");
+		Assert.isPremiseValid(minValueBlockSize >= 1, "Minimum block size must be at least 1");
+		Assert.isPremiseValid(minValueBlockSize < valueBlockSize, "Minimum block size must be less than block size");
+		Assert.isPremiseValid(internalNodeBlockSize >= 3, "Internal node block size must be at least 3");
+		Assert.isPremiseValid(internalNodeBlockSize % 2 == 1, "Internal node block size must be an odd number");
+		Assert.isPremiseValid(minInternalNodeBlockSize >= 1, "Minimum internal node block size must be at least 1");
+		Assert.isPremiseValid(minInternalNodeBlockSize < internalNodeBlockSize, "Minimum internal node block size must be less than internal node block size");
+		this.valueBlockSize = valueBlockSize;
+		this.minValueBlockSize = minValueBlockSize;
+		this.internalNodeBlockSize = internalNodeBlockSize;
+		this.minInternalNodeBlockSize = minInternalNodeBlockSize;
 		this.valueType = valueType;
-		this.root = new BPlusLeafTreeNode<>(blockSize, valueType);
+		this.root = new BPlusLeafTreeNode<>(valueBlockSize, valueType);
 	}
 
 	/**
@@ -284,7 +338,7 @@ public class IntBPlusTree<V> {
 		int watermark
 	) {
 		// leaf node has less than minBlockSize keys, or internal nodes has less than two children
-		final boolean underFlowNode = node.keyCount() < this.minBlockSize;
+		final boolean underFlowNode = node.keyCount() < this.minValueBlockSize;
 		if (underFlowNode) {
 			if (path.size() > index && index >= 0) {
 				boolean nodeIsEmpty = node.size() == 0;
@@ -293,9 +347,9 @@ public class IntBPlusTree<V> {
 				final int previousNodeIndexInParent = previousNode == null ? -1 : parent.getChildIndex(previousNode.getKeys()[0], previousNode);
 				// if previous node with current node exists and shares the same parent
 				// and we can steal from the left sibling
-				if (previousNodeIndexInParent > -1 && previousNode.keyCount() > this.minBlockSize) {
+				if (previousNodeIndexInParent > -1 && previousNode.keyCount() > this.minValueBlockSize) {
 					// steal half of the surplus data from the left sibling
-					node.stealFromLeft(Math.max(1, (previousNode.keyCount() - this.minBlockSize) / 2));
+					node.stealFromLeft(Math.max(1, (previousNode.keyCount() - this.minValueBlockSize) / 2));
 					// update parent keys, but only if node was empty - which means first key was added
 					if (node instanceof BPlusInternalTreeNode || nodeIsEmpty) {
 						updateParentKeys(path, previousNodeIndexInParent + 1, node, watermark);
@@ -307,9 +361,9 @@ public class IntBPlusTree<V> {
 				final int nextNodeIndexInParent = nextNode == null ? -1 : parent.getChildIndex(nextNode.getKeys()[0], nextNode);
 				// if next node with current node exists and shares the same parent
 				// and we can steal from the right sibling
-				if (nextNodeIndexInParent > -1 && nextNode.keyCount() > this.minBlockSize) {
+				if (nextNodeIndexInParent > -1 && nextNode.keyCount() > this.minValueBlockSize) {
 					// steal half of the surplus data from the right sibling
-					node.stealFromRight(Math.max(1, (nextNode.keyCount() - this.minBlockSize) / 2));
+					node.stealFromRight(Math.max(1, (nextNode.keyCount() - this.minValueBlockSize) / 2));
 					// update parent keys of the next node - we've stolen its first key
 					updateParentKeys(path, nextNodeIndexInParent, nextNode, watermark);
 					// update parent keys, but only if node was empty - which means first key was added
@@ -320,7 +374,7 @@ public class IntBPlusTree<V> {
 				}
 
 				// if previous node with current node can be merged and share the same parent
-				if (previousNodeIndexInParent > -1 && previousNode.keyCount() + node.keyCount() < this.blockSize) {
+				if (previousNodeIndexInParent > -1 && previousNode.keyCount() + node.keyCount() < this.valueBlockSize) {
 					// merge nodes
 					node.mergeWithLeft();
 					// remove the removed child from the parent
@@ -333,7 +387,7 @@ public class IntBPlusTree<V> {
 				}
 
 				// if next node with current node can be merged and share the same parent
-				if (nextNodeIndexInParent > -1 && nextNode.keyCount() + node.keyCount() < this.blockSize) {
+				if (nextNodeIndexInParent > -1 && nextNode.keyCount() + node.keyCount() < this.valueBlockSize) {
 					// merge nodes
 					node.mergeWithRight();
 					// remove the removed child from the parent
@@ -347,31 +401,6 @@ public class IntBPlusTree<V> {
 				// replace the root with the only child
 				this.root = internalTreeNode.getChildren()[0];
 			}
-		}
-	}
-
-	/**
-	 * Updates the keys in the parent nodes of a B+ Tree based on changes in a specific path.
-	 * This method propagates changes up the tree as necessary.
-	 *
-	 * @param path A list of B+ internal tree nodes representing the path from the root to the updated node.
-	 * @param indexToUpdate The index of the key to be updated in the parent node.
-	 * @param previouslyUpdatedNode The child node that was previously updated and requires the parent node key to be aligned.
-	 */
-	private static void updateParentKeys(
-		@Nonnull List<BPlusInternalTreeNode> path,
-		int indexToUpdate,
-		@Nonnull BPlusTreeNode<?> previouslyUpdatedNode,
-		int watermark
-	) {
-		// first child doesn't have a key in the parent
-		for (int i = path.size() - 1 - watermark; i >= 0; i--) {
-			BPlusInternalTreeNode immediateParent = path.get(i);
-			if (indexToUpdate > 0) {
-				immediateParent.updateKeyForNode(indexToUpdate, previouslyUpdatedNode);
-			}
-			previouslyUpdatedNode = immediateParent;
-			indexToUpdate = i > 0 ? path.get(i - 1).getChildIndex(immediateParent.getLeftBoundaryKey(), immediateParent) : 0;
 		}
 	}
 
@@ -446,7 +475,7 @@ public class IntBPlusTree<V> {
 	 * @param leaf The leaf node to be split
 	 */
 	private void splitLeafNode(@Nonnull BPlusLeafTreeNode<V> leaf) {
-		final int mid = this.blockSize / 2;
+		final int mid = this.valueBlockSize / 2;
 		final int[] originKeys = leaf.getKeys();
 		final V[] originValues = leaf.getValues();
 
@@ -455,8 +484,8 @@ public class IntBPlusTree<V> {
 		final BPlusLeafTreeNode<V> leftLeaf = new BPlusLeafTreeNode<>(
 			originKeys,
 			originValues,
-			new int[this.blockSize],
-			(V[]) Array.newInstance(this.valueType, this.blockSize),
+			new int[this.valueBlockSize],
+			(V[]) Array.newInstance(this.valueType, this.valueBlockSize),
 			0,
 			mid
 		);
@@ -477,7 +506,7 @@ public class IntBPlusTree<V> {
 		// If the root splits, create a new root
 		if (leaf == this.root) {
 			this.root = new BPlusInternalTreeNode(
-				this.blockSize,
+				this.valueBlockSize,
 				rightLeaf.getKeys()[0],
 				leftLeaf, rightLeaf
 			);
@@ -533,7 +562,7 @@ public class IntBPlusTree<V> {
 	 *                 that necessitate splitting to maintain the B+ tree properties.
 	 */
 	private void splitInternalNode(@Nonnull BPlusInternalTreeNode internal) {
-		final int mid = (this.blockSize + 1) / 2;
+		final int mid = (this.valueBlockSize + 1) / 2;
 		final int[] originKeys = internal.getKeys();
 		final BPlusTreeNode<?>[] originChildren = internal.getChildren();
 
@@ -541,8 +570,8 @@ public class IntBPlusTree<V> {
 		final BPlusInternalTreeNode leftInternal = new BPlusInternalTreeNode(
 			originKeys,
 			originChildren,
-			new int[this.blockSize],
-			new BPlusTreeNode[this.blockSize + 1],
+			new int[this.valueBlockSize],
+			new BPlusTreeNode[this.valueBlockSize + 1],
 			0,
 			mid - 1,
 			0,
@@ -567,7 +596,7 @@ public class IntBPlusTree<V> {
 		// If the root splits, create a new root
 		if (internal == this.root) {
 			this.root = new BPlusInternalTreeNode(
-				this.blockSize,
+				this.valueBlockSize,
 				rightInternal.getLeftBoundaryKey(),
 				leftInternal, rightInternal
 			);
@@ -578,6 +607,290 @@ public class IntBPlusTree<V> {
 				rightInternal,
 				rightInternal.getLeftBoundaryKey()
 			);
+		}
+	}
+
+	@Nonnull
+	@Override
+	public ConsistencyReport getConsistencyReport() {
+		try {
+			int height = verifyAndReturnHeight(this);
+			verifyMinimalCountOfValuesInNodes(this.root, this.minValueBlockSize, this.minInternalNodeBlockSize, true);
+			verifyInternalNodeKeys(this.root);
+			verifyPreviousAndNextNodesOnEachLevel(this, height);
+			verifyForwardKeyIterator(this, this.size);
+			verifyReverseKeyIterator(this, this.size);
+			return new ConsistencyReport(
+				ConsistencyState.CONSISTENT,
+				"B+ tree is consistent with height of " + height + " levels and " + this.size + " elements."
+			);
+		} catch (IllegalStateException e) {
+			return new ConsistencyReport(ConsistencyState.BROKEN, e.getMessage());
+		}
+	}
+
+	/**
+	 * Verifies that the height of all tree branches is the same and returns the height of the tree. The B+ tree needs
+	 * to be balanced to achieve O(log n) complexity for search operations.
+	 *
+	 * @param tree the B+ tree to verify
+	 * @return the height of the tree
+	 */
+	private static int verifyAndReturnHeight(@Nonnull IntBPlusTree<?> tree) {
+		final BPlusTreeNode<?> root = tree.getRoot();
+		if (root instanceof BPlusInternalTreeNode internalNode) {
+			final int resultHeight = verifyAndReturnHeight(internalNode, 0);
+			for (int i = 0; i <= internalNode.getPeek(); i++) {
+				verifyHeightOfAllChildren(internalNode.getChildren()[i], 1, resultHeight);
+			}
+			return resultHeight;
+		} else {
+			return 0;
+		}
+	}
+
+	/**
+	 * Verifies that all children of the given BPlusTreeNode have the correct height.
+	 * For internal nodes, it recursively verifies the height of their child nodes.
+	 * For leaf nodes, it checks if their height matches the maximal height.
+	 *
+	 * @param node the BPlusTreeNode whose children are being verified, must not be null
+	 * @param nodeHeight the height of the current node
+	 * @param maximalHeight the maximal height value that should be matched by leaf nodes
+	 */
+	private static void verifyHeightOfAllChildren(@Nonnull BPlusTreeNode<?> node, int nodeHeight, int maximalHeight) {
+		if (node instanceof BPlusInternalTreeNode internalNode) {
+			final int childHeight = nodeHeight + 1;
+			for (int i = 0; i <= internalNode.getPeek(); i++) {
+				verifyHeightOfAllChildren(internalNode.getChildren()[i], childHeight, maximalHeight);
+			}
+		} else {
+			if (maximalHeight != nodeHeight) {
+				throw new IllegalStateException(
+					"Leaf node " + node + " has a different height (" + nodeHeight + ") " +
+						"than the maximal height (" + maximalHeight + ")!"
+				);
+			}
+		}
+	}
+
+	/**
+	 * Verifies and calculates the height of a B+ tree starting from the given internal node.
+	 *
+	 * @param node the internal node of the B+ tree to start height calculation from; must not be null
+	 * @param currentHeight the current height accumulated in the recursive process
+	 * @return the height of the B+ tree from the given node
+	 */
+	private static int verifyAndReturnHeight(@Nonnull BPlusInternalTreeNode node, int currentHeight) {
+		final BPlusTreeNode<?> child = node.getChildren()[0];
+		if (child instanceof BPlusInternalTreeNode internalChild) {
+			return verifyAndReturnHeight(internalChild, currentHeight + 1);
+		} else {
+			return currentHeight + 1;
+		}
+	}
+
+	/**
+	 * Verifies that the keys in the internal nodes of a B+ tree are consistent with the keys of their child nodes.
+	 * This method performs recursive checks to ensure the integrity of the structure of the B+ tree.
+	 *
+	 * @param node the B+ tree node to verify; should not be null. This can be an internal node or a leaf node.
+	 *             If the node is an internal node, its key consistency with its child nodes will be validated.
+	 *             For leaf nodes, no recursive checks are performed.
+	 * @throws IllegalStateException if any inconsistency is detected in the keys of the internal or leaf nodes.
+	 */
+	private static void verifyInternalNodeKeys(@Nonnull BPlusTreeNode<?> node) {
+		if (node instanceof BPlusInternalTreeNode internalNode) {
+			final int[] keys = internalNode.getKeys();
+			final BPlusTreeNode<?>[] children = internalNode.getChildren();
+			if (internalNode.getPeek() >= 0) {
+				verifyInternalNodeKeys(children[0]);
+			}
+			for (int i = 0; i < internalNode.getPeek(); i++) {
+				final int key = keys[i];
+				final BPlusTreeNode<?> child = children[i + 1];
+				if (child instanceof BPlusInternalTreeNode childInternalNode) {
+					if (childInternalNode.getLeftBoundaryKey() != key) {
+						throw new IllegalStateException(
+							"Internal node " + childInternalNode + " has a different left boundary key (" +
+								childInternalNode.getLeftBoundaryKey() + ") than the internal node key (" + key + ")!"
+						);
+					}
+					verifyInternalNodeKeys(childInternalNode);
+				} else if (child instanceof BPlusLeafTreeNode<?> childLeafNode) {
+					if (childLeafNode.getKeys()[0] != key) {
+						throw new IllegalStateException(
+							"Leaf node " + childLeafNode + " has a different key (" + childLeafNode.getKeys()[0] + ") " +
+								"than the internal node key (" + key + ")!"
+						);
+					}
+				} else {
+					throw new IllegalStateException("Unknown node type: " + child);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Verifies the previous and next node links for nodes at each level of a given B+ tree.
+	 * Ensures that the nodes on the same level are properly linked and validates the integrity
+	 * of the previous and next node references.
+	 *
+	 * @param bPlusTree the B+ tree whose node links on each level are to be verified
+	 * @param height the height of the B+ tree, indicating how many levels need to be checked
+	 * @throws IllegalStateException if any node fails validation for previous or next node links
+	 *                                or if nodes on the same level belong to different classes
+	 */
+	private static void verifyPreviousAndNextNodesOnEachLevel(@Nonnull IntBPlusTree<?> bPlusTree, int height) {
+		for (int i = 0; i <= height; i++) {
+			final List<BPlusTreeNode<?>> nodesOnLevel = getNodesOnLevel(bPlusTree, i);
+			BPlusTreeNode<?> previousNode = null;
+			for (int j = 0; j < nodesOnLevel.size(); j++) {
+				final BPlusTreeNode<?> node = nodesOnLevel.get(j);
+				if (previousNode != node.getPreviousNode()) {
+					throw new IllegalStateException("Node " + node + " has a wrong previous node!");
+				}
+				if (previousNode != null) {
+					if (previousNode.getNextNode() != node) {
+						throw new IllegalStateException("Node " + node + " has a wrong next node!");
+					}
+					if (previousNode.getClass() != node.getClass()) {
+						throw new IllegalStateException("Node " + node + " has a different class than the previous node!");
+					}
+				}
+				previousNode = node;
+				if (j == nodesOnLevel.size() - 1) {
+					if (node.getNextNode() != null) {
+						throw new IllegalStateException("Last node on level " + i + " has a next node!");
+					}
+				}
+			}
+		}
+	}
+
+	/**
+	 * Retrieves all nodes of a specific level in a BPlusTree.
+	 *
+	 * @param tree the BPlusTree from which nodes will be retrieved
+	 * @param level the level of the tree for which nodes are required
+	 * @return a list of nodes found at the specified level in the tree
+	 */
+	@Nonnull
+	private static List<BPlusTreeNode<?>> getNodesOnLevel(@Nonnull IntBPlusTree<?> tree, int level) {
+		if (level == 0) {
+			return List.of(tree.getRoot());
+		} else {
+			final List<BPlusTreeNode<?>> nodes = new ArrayList<>(32);
+			addNodesOnLevel(tree.getRoot(), level, 0, nodes);
+			return nodes;
+		}
+	}
+
+	/**
+	 * Verifies that the given B+ tree node and its child nodes satisfy the minimum required values
+	 * in their blocks. Throws an IllegalStateException if any node violates the minimum count condition.
+	 *
+	 * @param node the B+ tree node to verify, which can be an internal node or a leaf node. Must not be null.
+	 * @param minValueBlockSize the minimum number of values required in a leaf node that is not the root.
+	 * @param minInternalNodeBlockSize the minimum number of values required in an internal node.
+	 * @param isRoot a boolean indicating if the current node being verified is the root of the tree.
+	 */
+	private static void verifyMinimalCountOfValuesInNodes(@Nonnull BPlusTreeNode<?> node, int minValueBlockSize, int minInternalNodeBlockSize, boolean isRoot) {
+		if (node instanceof BPlusInternalTreeNode internalNode) {
+			if (internalNode.size() < minInternalNodeBlockSize) {
+				throw new IllegalStateException("Internal node " + internalNode + " has less than " + minInternalNodeBlockSize + " values (" + node.size() + ")!");
+			}
+			for (int i = 0; i < internalNode.size(); i++) {
+				verifyMinimalCountOfValuesInNodes(internalNode.getChildren()[i], minValueBlockSize, minInternalNodeBlockSize, false);
+			}
+		} else {
+			if (node.size() < minValueBlockSize && !isRoot) {
+				throw new IllegalStateException("Leaf node " + node + " has less than " + minValueBlockSize + " values (" + node.size() + ")!");
+			}
+		}
+	}
+
+	/**
+	 * Traverses the B+ tree and adds nodes present at the specified level to the provided result list.
+	 *
+	 * @param currentNode The current node being traversed in the B+ tree. Must not be null.
+	 * @param targetLevel The target level of the B+ tree whose nodes need to be collected.
+	 * @param currentLevel The current level of the tree during traversal.
+	 * @param resultNodes The list where nodes at the target level are collected. Must not be null.
+	 */
+	private static void addNodesOnLevel(
+		@Nonnull BPlusTreeNode<?> currentNode,
+		int targetLevel,
+		int currentLevel,
+		@Nonnull List<BPlusTreeNode<?>> resultNodes
+	) {
+		if (currentNode instanceof IntBPlusTree.BPlusInternalTreeNode internalNode) {
+			if (currentLevel == targetLevel) {
+				resultNodes.add(internalNode);
+			} else {
+				for (int i = 0; i <= internalNode.getPeek(); i++) {
+					addNodesOnLevel(internalNode.getChildren()[i], targetLevel, currentLevel + 1, resultNodes);
+				}
+			}
+		} else if (currentLevel == targetLevel) {
+			resultNodes.add(currentNode);
+		} else {
+			throw new IllegalStateException("Level " + targetLevel + " not found in the tree!");
+		}
+	}
+
+	/**
+	 * Verifies the integrity of the forward key iterator for a given {@link IntBPlusTree}.
+	 * Checks if the keys from the iterator are returned in strictly increasing order and
+	 * validates the total number of keys returned matches the expected size.
+	 *
+	 * @param tree the {@link IntBPlusTree} whose key iterator is to be verified
+	 * @param size the expected number of keys in the {@link IntBPlusTree}
+	 * @throws IllegalStateException if the iterator fails to return keys in increasing order
+	 *         or if the number of keys does not match the expected size
+	 */
+	private static void verifyForwardKeyIterator(@Nonnull IntBPlusTree<?> tree, int size) {
+		int actualSize = 0;
+		int previousKey = Integer.MIN_VALUE;
+		final OfInt it = tree.keyIterator();
+		while (it.hasNext()) {
+			final int key = it.nextInt();
+			if (key <= previousKey && previousKey != Integer.MIN_VALUE) {
+				throw new IllegalStateException("Forward iterator returned non-increasing keys!");
+			}
+			actualSize++;
+			previousKey = key;
+		}
+
+		if (actualSize != size) {
+			throw new IllegalStateException("Forward iterator returned " + actualSize + " keys, but the tree has " + size + " elements!");
+		}
+	}
+
+	/**
+	 * Verifies the reverse key iterator of an IntBPlusTree by checking if the keys are
+	 * returned in strictly decreasing order and the size of elements matches the expected size.
+	 *
+	 * @param tree the IntBPlusTree whose reverse key iterator is to be verified
+	 * @param size the expected number of elements in the tree
+	 * @throws IllegalStateException if the iterator returns non-decreasing keys or if the number of
+	 *                               keys returned by the iterator does not match the expected size
+	 */
+	private static void verifyReverseKeyIterator(@Nonnull IntBPlusTree<?> tree, int size) {
+		int actualSize = 0;
+		int previousKey = Integer.MIN_VALUE;
+		final OfInt it = tree.keyReverseIterator();
+		while (it.hasNext()) {
+			final int key = it.nextInt();
+			if (key >= previousKey && previousKey != Integer.MIN_VALUE) {
+				throw new IllegalStateException("Reverse iterator returned non-decreasing keys!");
+			}
+			actualSize++;
+			previousKey = key;
+		}
+
+		if (actualSize != size) {
+			throw new IllegalStateException("Reverse iterator returned " + actualSize + " keys, but the tree has " + size + " elements!");
 		}
 	}
 
@@ -785,6 +1098,103 @@ public class IntBPlusTree<V> {
 			return Math.max(this.peek, 0);
 		}
 
+		@Override
+		public boolean isFull() {
+			return this.peek == this.children.length - 1;
+		}
+
+		@Override
+		public void toVerboseString(@Nonnull StringBuilder sb, int level, int indentSpaces) {
+			sb.append(" ".repeat(level * indentSpaces)).append("< ").append(this.keys[0]).append(":\n");
+			this.children[0].toVerboseString(sb, level + 1, indentSpaces);
+			sb.append("\n");
+			for (int i = 1; i <= this.peek; i++) {
+				final int key = this.keys[i - 1];
+				final BPlusTreeNode<?> child = this.children[i];
+				sb.append(" ".repeat(level * indentSpaces)).append(">=").append(key).append(":\n");
+				child.toVerboseString(sb, level + 1, indentSpaces);
+				if (i < this.peek) {
+					sb.append("\n");
+				}
+			}
+		}
+
+		@Override
+		public void stealFromLeft(int numberOfTailValues) {
+			Assert.isPremiseValid(numberOfTailValues > 0, "Number of tail values to steal must be positive!");
+			final BPlusInternalTreeNode prevNode = Objects.requireNonNull(this.previousNode);
+			// we preserve all the current node children
+			System.arraycopy(this.children, 0, this.children, numberOfTailValues, this.peek + 1);
+			// then move the children from the previous node
+			System.arraycopy(prevNode.getChildren(), prevNode.size() - numberOfTailValues, this.children, 0, numberOfTailValues);
+			// we need to preserve all the current node keys
+			System.arraycopy(this.keys, 0, this.keys, numberOfTailValues - 1, this.peek);
+			// our original first child newly produces its own key
+			this.keys[numberOfTailValues - 1] = this.children[numberOfTailValues] instanceof BPlusInternalTreeNode ?
+				((BPlusInternalTreeNode) this.children[numberOfTailValues]).getLeftBoundaryKey() : this.children[numberOfTailValues].getKeys()[0];
+			// and now we can copy the keys from the previous node - but except the first one
+			System.arraycopy(prevNode.getKeys(), prevNode.size() - numberOfTailValues + 1, this.keys, 0, numberOfTailValues - 1);
+			// and update the peek indexes
+			this.peek += numberOfTailValues;
+			prevNode.setPeek(prevNode.getPeek() - numberOfTailValues);
+		}
+
+		@Override
+		public void stealFromRight(int numberOfHeadValues) {
+			Assert.isPremiseValid(numberOfHeadValues > 0, "Number of head values to steal must be positive!");
+			final BPlusInternalTreeNode nextNode = Objects.requireNonNull(this.nextNode);
+
+			// we move all the children
+			System.arraycopy(nextNode.getChildren(), 0, this.children, this.peek + 1, numberOfHeadValues);
+			System.arraycopy(nextNode.getChildren(), numberOfHeadValues, nextNode.getChildren(), 0, nextNode.size() - numberOfHeadValues);
+
+			// set the key for the first child of the next node
+			this.keys[this.peek] = this.children[this.peek + 1] instanceof BPlusInternalTreeNode internalTreeNode ?
+				internalTreeNode.getLeftBoundaryKey() : this.children[this.peek + 1].getKeys()[0];
+
+			// we move the keys from the next node for all copied children
+			System.arraycopy(nextNode.getKeys(), 0, this.keys, this.peek + 1, numberOfHeadValues - 1);
+			// we need to shift the keys in the next node
+			System.arraycopy(nextNode.getKeys(), numberOfHeadValues, nextNode.getKeys(), 0, nextNode.getKeys().length - numberOfHeadValues);
+
+			// and update the peek indexes
+			this.peek += numberOfHeadValues;
+			nextNode.setPeek(nextNode.getPeek() - numberOfHeadValues);
+		}
+
+		@Override
+		public void mergeWithLeft() {
+			final BPlusInternalTreeNode nodeToMergeWith = Objects.requireNonNull(this.previousNode);
+			final int mergePeek = nodeToMergeWith.getPeek();
+			System.arraycopy(this.keys, 0, this.keys, mergePeek + 1, this.peek);
+			this.keys[mergePeek] = this.children[0] instanceof BPlusInternalTreeNode ?
+				((BPlusInternalTreeNode) this.children[0]).getLeftBoundaryKey() : this.children[0].getKeys()[0];
+			System.arraycopy(this.children, 0, this.children, mergePeek + 1, this.peek + 1);
+			System.arraycopy(nodeToMergeWith.getKeys(), 0, this.keys, 0, mergePeek);
+			System.arraycopy(nodeToMergeWith.getChildren(), 0, this.children, 0, mergePeek + 1);
+			this.peek += mergePeek + 1;
+			nodeToMergeWith.setPeek(-1);
+		}
+
+		@Override
+		public void mergeWithRight() {
+			final BPlusInternalTreeNode nodeToMergeWith = Objects.requireNonNull(this.nextNode);
+			final int mergePeek = nodeToMergeWith.getPeek();
+			System.arraycopy(nodeToMergeWith.getChildren(), 0, this.children, this.peek + 1, mergePeek + 1);
+			final int offset;
+			if (this.peek >= 0) {
+				this.keys[this.peek] = nodeToMergeWith.getChildren()[0] instanceof BPlusInternalTreeNode ?
+					/* TODO JNO - left boundary key zobecnit i pro leaf a tím pádem nebudeme must vůbec castovat */
+					((BPlusInternalTreeNode) nodeToMergeWith.getChildren()[0]).getLeftBoundaryKey() : nodeToMergeWith.getChildren()[0].getKeys()[0];
+				offset = 1;
+			} else {
+				offset = 0;
+			}
+			System.arraycopy(nodeToMergeWith.getKeys(), 0, this.keys, this.peek + offset, mergePeek);
+			this.peek += mergePeek + 1;
+			nodeToMergeWith.setPeek(-1);
+		}
+
 		/**
 		 * Finds the parent node of the specified target node within the B+ tree.
 		 *
@@ -908,7 +1318,7 @@ public class IntBPlusTree<V> {
 		 *
 		 * @param keyIndex   The position of the key to be removed from the keys array.
 		 * @param childIndex The position of the child node to be removed from the children array.
-		 *              It must be within the bounds of the current number of children (peek).
+		 *                   It must be within the bounds of the current number of children (peek).
 		 */
 		public <N extends BPlusTreeNode<N>> void removeChildOnIndex(int keyIndex, int childIndex) {
 			//noinspection unchecked
@@ -948,103 +1358,6 @@ public class IntBPlusTree<V> {
 			);
 			this.keys[index - 1] = node instanceof BPlusInternalTreeNode internalNode ?
 				internalNode.getLeftBoundaryKey() : node.getKeys()[0];
-		}
-
-		@Override
-		public void stealFromLeft(int numberOfTailValues) {
-			Assert.isPremiseValid(numberOfTailValues > 0, "Number of tail values to steal must be positive!");
-			final BPlusInternalTreeNode prevNode = Objects.requireNonNull(this.previousNode);
-			// we preserve all the current node children
-			System.arraycopy(this.children, 0, this.children, numberOfTailValues, this.peek + 1);
-			// then move the children from the previous node
-			System.arraycopy(prevNode.getChildren(), prevNode.size() - numberOfTailValues, this.children, 0, numberOfTailValues);
-			// we need to preserve all the current node keys
-			System.arraycopy(this.keys, 0, this.keys, numberOfTailValues - 1, this.peek);
-			// our original first child newly produces its own key
-			this.keys[numberOfTailValues - 1] = this.children[numberOfTailValues] instanceof BPlusInternalTreeNode ?
-				((BPlusInternalTreeNode) this.children[numberOfTailValues]).getLeftBoundaryKey() : this.children[numberOfTailValues].getKeys()[0];
-			// and now we can copy the keys from the previous node - but except the first one
-			System.arraycopy(prevNode.getKeys(), prevNode.size() - numberOfTailValues + 1, this.keys, 0, numberOfTailValues - 1);
-			// and update the peek indexes
-			this.peek += numberOfTailValues;
-			prevNode.setPeek(prevNode.getPeek() - numberOfTailValues);
-		}
-
-		@Override
-		public void stealFromRight(int numberOfHeadValues) {
-			Assert.isPremiseValid(numberOfHeadValues > 0, "Number of head values to steal must be positive!");
-			final BPlusInternalTreeNode nextNode = Objects.requireNonNull(this.nextNode);
-
-			// we move all the children
-			System.arraycopy(nextNode.getChildren(), 0, this.children, this.peek + 1, numberOfHeadValues);
-			System.arraycopy(nextNode.getChildren(), numberOfHeadValues, nextNode.getChildren(), 0, nextNode.size() - numberOfHeadValues);
-
-			// set the key for the first child of the next node
-			this.keys[this.peek] = this.children[this.peek + 1] instanceof BPlusInternalTreeNode internalTreeNode ?
-				internalTreeNode.getLeftBoundaryKey() : this.children[this.peek + 1].getKeys()[0];
-
-			// we move the keys from the next node for all copied children
-			System.arraycopy(nextNode.getKeys(), 0, this.keys, this.peek + 1, numberOfHeadValues - 1);
-			// we need to shift the keys in the next node
-			System.arraycopy(nextNode.getKeys(), numberOfHeadValues, nextNode.getKeys(), 0, nextNode.getKeys().length - numberOfHeadValues);
-
-			// and update the peek indexes
-			this.peek += numberOfHeadValues;
-			nextNode.setPeek(nextNode.getPeek() - numberOfHeadValues);
-		}
-
-		@Override
-		public void mergeWithLeft() {
-			final BPlusInternalTreeNode nodeToMergeWith = Objects.requireNonNull(this.previousNode);
-			final int mergePeek = nodeToMergeWith.getPeek();
-			System.arraycopy(this.keys, 0, this.keys, mergePeek + 1, this.peek);
-			this.keys[mergePeek] = this.children[0] instanceof BPlusInternalTreeNode ?
-				((BPlusInternalTreeNode) this.children[0]).getLeftBoundaryKey() : this.children[0].getKeys()[0];
-			System.arraycopy(this.children, 0, this.children, mergePeek + 1, this.peek + 1);
-			System.arraycopy(nodeToMergeWith.getKeys(), 0, this.keys, 0, mergePeek);
-			System.arraycopy(nodeToMergeWith.getChildren(), 0, this.children, 0, mergePeek + 1);
-			this.peek += mergePeek + 1;
-			nodeToMergeWith.setPeek(-1);
-		}
-
-		@Override
-		public void mergeWithRight() {
-			final BPlusInternalTreeNode nodeToMergeWith = Objects.requireNonNull(this.nextNode);
-			final int mergePeek = nodeToMergeWith.getPeek();
-			System.arraycopy(nodeToMergeWith.getChildren(), 0, this.children, this.peek + 1, mergePeek + 1);
-			final int offset;
-			if (this.peek >= 0) {
-				this.keys[this.peek] = nodeToMergeWith.getChildren()[0] instanceof BPlusInternalTreeNode ?
-					/* TODO JNO - left boundary key zobecnit i pro leaf a tím pádem nebudeme must vůbec castovat */
-					((BPlusInternalTreeNode) nodeToMergeWith.getChildren()[0]).getLeftBoundaryKey() : nodeToMergeWith.getChildren()[0].getKeys()[0];
-				offset = 1;
-			} else {
-				offset = 0;
-			}
-			System.arraycopy(nodeToMergeWith.getKeys(), 0, this.keys, this.peek + offset, mergePeek);
-			this.peek += mergePeek + 1;
-			nodeToMergeWith.setPeek(-1);
-		}
-
-		@Override
-		public boolean isFull() {
-			return this.peek == this.children.length - 1;
-		}
-
-		@Override
-		public void toVerboseString(@Nonnull StringBuilder sb, int level, int indentSpaces) {
-			sb.append(" ".repeat(level * indentSpaces)).append("< ").append(this.keys[0]).append(":\n");
-			this.children[0].toVerboseString(sb, level + 1, indentSpaces);
-			sb.append("\n");
-			for (int i = 1; i <= this.peek; i++) {
-				final int key = this.keys[i - 1];
-				final BPlusTreeNode<?> child = this.children[i];
-				sb.append(" ".repeat(level * indentSpaces)).append(">=").append(key).append(":\n");
-				child.toVerboseString(sb, level + 1, indentSpaces);
-				if (i < this.peek) {
-					sb.append("\n");
-				}
-			}
 		}
 
 		@Override
@@ -1137,20 +1450,20 @@ public class IntBPlusTree<V> {
 			return this.peek + 1;
 		}
 
-		/**
-		 * Searches for a value in the node's key-value pairs by the specified key.
-		 * If the key is found, returns an Optional containing the associated value;
-		 * otherwise returns an empty Optional.
-		 *
-		 * @param key the key to search for in the leaf node
-		 * @return an Optional containing the value associated with the specified key if found;
-		 * otherwise, an empty Optional
-		 */
-		@Nonnull
-		public Optional<V> search(int key) {
-			final InsertionPosition insertionPosition = computeInsertPositionOfIntInOrderedArray(key, this.keys, 0, this.peek + 1);
-			return insertionPosition.alreadyPresent() ?
-				Optional.of(this.values[insertionPosition.position()]) : Optional.empty();
+		@Override
+		public boolean isFull() {
+			return this.peek == this.values.length - 1;
+		}
+
+		@Override
+		public void toVerboseString(@Nonnull StringBuilder sb, int level, int indentSpaces) {
+			sb.append(" ".repeat(level * indentSpaces));
+			for (int i = 0; i <= this.peek; i++) {
+				sb.append(this.keys[i]).append(":").append(this.values[i]);
+				if (i < this.peek) {
+					sb.append(", ");
+				}
+			}
 		}
 
 		@Override
@@ -1197,20 +1510,20 @@ public class IntBPlusTree<V> {
 			nodeToMergeWith.setPeek(-1);
 		}
 
-		@Override
-		public boolean isFull() {
-			return this.peek == this.values.length - 1;
-		}
-
-		@Override
-		public void toVerboseString(@Nonnull StringBuilder sb, int level, int indentSpaces) {
-			sb.append(" ".repeat(level * indentSpaces));
-			for (int i = 0; i <= this.peek; i++) {
-				sb.append(this.keys[i]).append(":").append(this.values[i]);
-				if (i < this.peek) {
-					sb.append(", ");
-				}
-			}
+		/**
+		 * Searches for a value in the node's key-value pairs by the specified key.
+		 * If the key is found, returns an Optional containing the associated value;
+		 * otherwise returns an empty Optional.
+		 *
+		 * @param key the key to search for in the leaf node
+		 * @return an Optional containing the value associated with the specified key if found;
+		 * otherwise, an empty Optional
+		 */
+		@Nonnull
+		public Optional<V> search(int key) {
+			final InsertionPosition insertionPosition = computeInsertPositionOfIntInOrderedArray(key, this.keys, 0, this.peek + 1);
+			return insertionPosition.alreadyPresent() ?
+				Optional.of(this.values[insertionPosition.position()]) : Optional.empty();
 		}
 
 		@Override
