@@ -48,10 +48,10 @@ proofreading: 'done'
 </NoteTitle>
 
 We don't want to make things complicated for developers and newcomers, but that doesn't mean that the default behavior
-is secure, because it can't be. The evitaDB server automatically generates a self-signed <Term>certificate authority</Term> and
-issues the server certificate required for TLS. This certificate will not be trusted by the clients unless you force
-them to. Usually it's just a matter of toggling some switches and for development purposes it's good enough. For
-production environments, we strongly recommend issuing your own <Term>certificate</Term> using the [Let's Encrypt](https://letsencrypt.org)
+is secure, because it can't be. The evitaDB server automatically generates a self-signed <Term name="certificate">server certificate</Term>.
+This certificate will not be trusted by the clients unless you force them to. Usually it's just a matter of toggling 
+some switches and for development purposes it's good enough. For production environments, we strongly recommend issuing 
+your own <Term>certificate</Term> using the [Let's Encrypt](https://letsencrypt.org)
 authority, which can be automated and is part of all certificate trust chains these days.
 
 </Note>
@@ -280,36 +280,23 @@ Both the server and the client can be provided with:
 </Table>
 </Note>
 
-## Mutual TLS for gRPC
+## Mutual TLS
 
-The gRPC API, and thus <SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/EvitaClient.java</SourceClass>,
+All the APIs - including gRPC, and thus <SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/EvitaClient.java</SourceClass>,
 also offers the possibility of authentication via [mutual TLS](https://en.wikipedia.org/wiki/Mutual_authentication), in
 which client and server verify their identities with the help of a certificate exchange.
 
-<Note type="question">
-
-<NoteTitle toggles="true">
-
-##### Why the mutual TLS is not supported in GraphQL or REST API?
-</NoteTitle>
-
-The gRPC API is used by evitaDB drivers and is expected to be a system API requiring a higher level of security. On the
-other hand, GraphQL and REST APIs are usually used by end clients - maybe even directly from browsers or client
-applications. From our point of view, these types of APIs are consumer level APIs with different authentication
-requirements.
-
-</Note>
-
 The mTLS can be controlled in the configuration file <SourceClass>evita_server/src/main/resources/evita-configuration.yaml</SourceClass> in the
-section `api.endpoints.gRPC.mTLS`. At the same place it is possible to configure the list of client certificates that
-are allowed to communicate with the gRPC server. The client that doesn't present itself with the accepted certificate
-will be rejected by the server.
+section `api.endpointDefaults.mTLS` (or in a particular section for each protocol separately). At the same place it is
+possible to configure the list of client certificates that are allowed to communicate with the gRPC server. 
+The client that doesn't present itself with the accepted certificate will be rejected by the server.
 
 The client needs to configure path to its <Term>certificate</Term>, <Term>private key</Term> and optionally password to
 a private key in [configuration](../use/connectors/java.md).
 
-We recommend the use of `mTLS` because it prevents a large number of attacks and thus emphasizes the security of
-the communication.
+We recommend the use of `mTLS`, when the communication is allowed from public domain, at least until proper authentication
+and authorization is implemented in evitaDB (see issue [#25](https://github.com/FgForrest/evitaDB/issues/25)).
+mTLS prevents a large number of attacks and thus emphasizes the security of the communication.
 
 Examples of attacks prevented:
 
@@ -322,20 +309,18 @@ Examples of attacks prevented:
 
 ### Default mTLS behaviour (not-secure)
 
-The `mTLS` is enabled by default but in a way that is not secure and should be used only in development. When the evitaDB
-starts and `generateAndUseSelfSigned` is set to `true` (default), it generates three public/private key pairs:
+mTLS is not enabled by default. If you enable it, the necessary certificates will be generated automatically, but it's 
+still **not secure** and should only be used in development. When evitaDB is started and `generateAndUseSelfSigned` is
+set to `true` (default), it generates three public/private key pairs:
 
-1. <Term>certificate authority</Term> in `evitaDB-CA-selfSigned.crt` and
-   its <Term>private key</Term> in `evitaDB-CA-selfSigned.key` files
-2. server <Term>certificate</Term> in `server.crt` and its <Term>private key</Term> in `server.key` files
-3. client <Term>certificate</Term> in `client.crt` and its <Term>private key</Term> in `client.key` files
+1. server <Term>certificate</Term> in `server.crt` and its <Term>private key</Term> in `server.key` files
+2. client <Term>certificate</Term> in `client.crt` and its <Term>private key</Term> in `client.key` files
 
 The `client.crt` is automatically added to the list of trusted client certificates. Both `client.crt` and `client.key`
 are available for downloading using `system` endpoint. You'll see those when the evitaDB server starts:
 
 ```plain
 API `system` listening on               http://your-domain:5555/system/
-   - server certificate served at:      http://your-domain:5555/system/evitaDB-CA-selfSigned.crt
    - client certificate served at:      http://your-domain:5555/system/client.crt
    - client private key served at:      http://your-domain:5555/system/client.key
 ```
@@ -347,7 +332,8 @@ When the gRPC client starts and has the following settings (all are defaults):
 
 It automatically downloads the default client certificate along with private key and use it for communication. We are
 aware, that this is **not secure** and defies the logic of `mTLS`, but it allows us to test entire process and avoid
-problems in test/production environments.
+problems in test/production environments. But this is good enough for local development environments and allow to test
+the mTLS functionality.
 
 <Note type="warning">
 
@@ -365,7 +351,7 @@ the used <Term>certificate authority</Term> both on the server side and the clie
 The fingerprint is written to the console output when the server starts - it looks like this:
 
 ```plain
-Root CA Certificate fingerprint: 84:F0:29:87:D8:F5:F6:92:B4:7B:AA:AE:F3:5A:29:A1:C1:86:C4:B2:4D:44:63:6B:2D:F2:AD:75:B7:C6:F2:7E
+Server certificate fingerprint: 84:F0:29:87:D8:F5:F6:92:B4:7B:AA:AE:F3:5A:29:A1:C1:86:C4:B2:4D:44:63:6B:2D:F2:AD:75:B7:C6:F2:7E
 ```
 
 **Client side fingerprint**
@@ -373,7 +359,7 @@ Root CA Certificate fingerprint: 84:F0:29:87:D8:F5:F6:92:B4:7B:AA:AE:F3:5A:29:A1
 Client logs the fingerprint using [configured logging library](run.md#control-logging) on `INFO` level in this form:
 
 ```plain
-16:11:18.712 INFO  i.e.d.c.ClientCertificateManager - Server's CA certificate fingerprint: 04:B0:9C:00:FB:32:D8:8A:7A:C9:34:19:5D:90:48:8A:BF:BF:E8:22:32:53:4C:4F:14:E1:EC:FA:C2:99:C3:DD
+16:11:18.712 INFO  i.e.d.c.ClientCertificateManager - Server's certificate fingerprint: 04:B0:9C:00:FB:32:D8:8A:7A:C9:34:19:5D:90:48:8A:BF:BF:E8:22:32:53:4C:4F:14:E1:EC:FA:C2:99:C3:DD
 ```
 </Note>
 
@@ -383,3 +369,17 @@ For each of the gRPC client generate their own <Term>certificate</Term> using tr
 (such as [Let's Encrypt](https://letsencrypt.org)), or your own [self-signed authority](#creating-certificate-authority).
 Disable `generateAndUseSelfSigned` and configure server certificate and each of client certificates in
 [configuration](configure.md#tls-configuration).
+
+<Note type="question">
+
+<NoteTitle toggles="true">
+
+##### Can the server certificate and allowed client certificates be changed without restarting the server?
+</NoteTitle>
+
+Yes, you can change the server certificate and valid client certificates without restarting the server. The server 
+periodically checks the timestamps of the last changes to the server certificate and the list of paths configured for 
+client certificates. If either of these files change, the server automatically reloads the new configuration. 
+This allows you to change the server certificate and client certificates without stopping the server.
+
+</Note>

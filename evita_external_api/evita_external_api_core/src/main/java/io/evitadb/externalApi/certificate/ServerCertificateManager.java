@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.certificate;
 
+import com.linecorp.armeria.common.TlsKeyPair;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.configuration.CertificatePath;
 import io.evitadb.externalApi.configuration.CertificateSettings;
@@ -30,44 +31,15 @@ import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CertificateUtils;
 import lombok.Getter;
-import org.bouncycastle.asn1.ASN1Encodable;
-import org.bouncycastle.asn1.DERSequence;
-import org.bouncycastle.asn1.x500.X500Name;
-import org.bouncycastle.asn1.x509.BasicConstraints;
-import org.bouncycastle.asn1.x509.Extension;
-import org.bouncycastle.asn1.x509.GeneralName;
-import org.bouncycastle.asn1.x509.KeyUsage;
-import org.bouncycastle.cert.X509CertificateHolder;
-import org.bouncycastle.cert.X509v3CertificateBuilder;
-import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
-import org.bouncycastle.cert.jcajce.JcaX509ExtensionUtils;
-import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
-import org.bouncycastle.operator.ContentSigner;
-import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
-import org.bouncycastle.pkcs.PKCS10CertificationRequest;
-import org.bouncycastle.pkcs.PKCS10CertificationRequestBuilder;
-import org.bouncycastle.pkcs.jcajce.JcaPKCS10CertificationRequestBuilder;
 import org.bouncycastle.util.io.pem.PemObject;
 import org.bouncycastle.util.io.pem.PemWriter;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.File;
 import java.io.FileWriter;
-import java.math.BigInteger;
-import java.net.InetAddress;
 import java.nio.file.Path;
-import java.security.KeyPair;
-import java.security.KeyPairGenerator;
-import java.security.SecureRandom;
-import java.security.Security;
-import java.security.cert.X509Certificate;
-import java.time.Duration;
-import java.time.Instant;
 import java.util.Arrays;
-import java.util.Date;
 import java.util.Optional;
 
 import static java.util.Optional.empty;
@@ -82,10 +54,6 @@ public class ServerCertificateManager {
 	 * Default path to the folder where the certificate related files will be stored.
 	 */
 	private static final String DEFAULT_SERVER_CERTIFICATE_FOLDER_PATH = System.getProperty("java.io.tmpdir") + File.separator + "evita-server-certificates" + File.separator;
-	private static final String SIGNATURE_ALGORITHM = "SHA256withRSA";
-	private static final String BC_PROVIDER = "BC";
-	private static final String KEY_ALGORITHM = "RSA";
-	private static final BouncyCastleProvider BOUNCY_CASTLE_PROVIDER = new BouncyCastleProvider();
 	/**
 	 * Variable that holds the path to the folder where the certificate related files will be stored.
 	 */
@@ -140,9 +108,8 @@ public class ServerCertificateManager {
 	 * Creates a new instance of {@link ServerCertificateManager} with the default path to the folder where the certificate
 	 * related files will be stored.
 	 */
-	public ServerCertificateManager(@Nullable CertificateSettings certificateSettings) {
-		certificateFolderPath = certificateSettings.getFolderPath();
-		Security.addProvider(BOUNCY_CASTLE_PROVIDER);
+	public ServerCertificateManager(@Nonnull CertificateSettings certificateSettings) {
+		this.certificateFolderPath = certificateSettings.getFolderPath();
 		final File file = this.certificateFolderPath.toFile();
 		if (!file.exists()) {
 			Assert.isTrue(file.mkdir(), "Failed to create directory: " + this.certificateFolderPath);
@@ -166,157 +133,44 @@ public class ServerCertificateManager {
 	}
 
 	/**
-	 * Get path to the server certificate private key with the default name and the default extension.
-	 */
-	@Nonnull
-	public Path getCertificatePrivateKeyPath() {
-		return certificateFolderPath.resolve(CertificateUtils.getServerCertName() + CertificateUtils.getCertificateKeyExtension());
-	}
-
-	/**
-	 * Get path to the root CA certificate with the default name and the default extension.
-	 */
-	@Nonnull
-	public Path getRootCaCertificatePath() {
-		return certificateFolderPath.resolve(CertificateUtils.getGeneratedRootCaCertificateFileName());
-	}
-
-	/**
-	 * Get path to the root CA certificate private key with the default name and the default extension.
-	 */
-	@Nonnull
-	public Path getRootCaCertificateKeyPath() {
-		return certificateFolderPath.resolve(CertificateUtils.getGeneratedRootCaCertificateKeyFileName());
-	}
-
-	/**
-	 * Generates a self-signed certificate using the BouncyCastle library.
+	 * Generates a self-signed certificate using the BouncyCastle library embedded inside Armeria library.
+	 *
+	 * @param type An array of {@link CertificateType} indicating the types of certificates to generate.
+	 *             If the array contains {@link CertificateType#SERVER}, a server certificate will be generated.
+	 *             If the array contains {@link CertificateType#CLIENT}, a client certificate will be generated.
+	 * @throws Exception If there is an error during the generation of the self-signed certificates.
 	 */
 	public void generateSelfSignedCertificate(@Nonnull CertificateType... type) throws Exception {
 		if (ArrayUtils.isEmpty(type)) {
 			return;
 		}
 
-		final KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance(KEY_ALGORITHM, BC_PROVIDER);
-		keyPairGenerator.initialize(2048, new SecureRandom());
-		final KeyPair keyPair = keyPairGenerator.generateKeyPair();
-
-		final Instant now = Instant.now();
-		final Date notBefore = Date.from(now);
-		final Date notAfter = Date.from(now.plus(Duration.ofDays(365)));
-		final ContentSigner contentSigner = new JcaContentSignerBuilder(SIGNATURE_ALGORITHM).build(keyPair.getPrivate());
-		final X500Name x500Name = new X500Name("CN=" + CertificateUtils.getGeneratedRootCaCertificateName());
-		final JcaX509ExtensionUtils rootCertExtUtils = new JcaX509ExtensionUtils();
-		final X509v3CertificateBuilder certificateBuilder =
-			new JcaX509v3CertificateBuilder(x500Name,
-				BigInteger.valueOf(now.toEpochMilli()),
-				notBefore,
-				notAfter,
-				x500Name,
-				keyPair.getPublic())
-				.addExtension(Extension.subjectKeyIdentifier, false, rootCertExtUtils.createSubjectKeyIdentifier(keyPair.getPublic()))
-				.addExtension(Extension.authorityKeyIdentifier, false, rootCertExtUtils.createAuthorityKeyIdentifier(keyPair.getPublic()))
-				.addExtension(Extension.basicConstraints, true, new BasicConstraints(true))
-				.addExtension(Extension.keyUsage, true, new KeyUsage(KeyUsage.digitalSignature | KeyUsage.keyCertSign));
-		final X509Certificate rootCert = new JcaX509CertificateConverter()
-			.setProvider(BC_PROVIDER).getCertificate(certificateBuilder.build(contentSigner));
-		rootCert.verify(keyPair.getPublic());
-		rootCert.verify(rootCert.getPublicKey());
-
-		try (final JcaPEMWriter pemWriter = new JcaPEMWriter(new FileWriter(getRootCaCertificatePath().toFile()))) {
-			pemWriter.writeObject(rootCert);
-		}
-
-		try (final PemWriter privateKeyWriter = new PemWriter(new FileWriter(getRootCaCertificateKeyPath().toFile()))) {
-			privateKeyWriter.writeObject(new PemObject("PRIVATE KEY", keyPair.getPrivate().getEncoded()));
-		}
-
 		// Issue server and client certificates
 		if (Arrays.stream(type).anyMatch(it -> it == CertificateType.SERVER)) {
-			issueCertificate(CertificateUtils.getServerCertName(), keyPairGenerator, keyPair, x500Name, notBefore, notAfter, rootCert, CertificateType.SERVER);
+			final TlsKeyPair serverKeyPair = TlsKeyPair.ofSelfSigned();
+			writeCertificateToFile(serverKeyPair, CertificateUtils.getServerCertName());
 		}
+
 		if (Arrays.stream(type).anyMatch(it -> it == CertificateType.CLIENT)) {
-			issueCertificate(CertificateUtils.getClientCertName(), keyPairGenerator, keyPair, x500Name, notBefore, notAfter, rootCert, CertificateType.CLIENT);
+			final TlsKeyPair serverKeyPair = TlsKeyPair.ofSelfSigned();
+			writeCertificateToFile(serverKeyPair, CertificateUtils.getClientCertName());
 		}
 	}
 
 	/**
-	 * Method that is used to issue a certificate by newly generated certificate authority.
+	 * Writes the certificate and private key of a given {@link TlsKeyPair} to separate files using the specified certificate name.
 	 *
-	 * @param certificateName  name of the certificate to be issued
-	 * @param keyPairGenerator key pair generator for getting public and private keys
-	 * @param keyPair          key pair of the certificate authority
-	 * @param x500Name         x500 name of the certificate authority
-	 * @param notBefore        date from which the certificate is valid
-	 * @param notAfter         date until which the certificate is valid
-	 * @param rootCert         certificate authority certificate
+	 * @param tlsKeyPair The {@link TlsKeyPair} object containing the certificate chain and private key to be written to files.
+	 * @param certificateName The name used to generate the file paths for the certificate and private key.
+	 * @throws Exception If an error occurs while writing the certificate or private key to file.
 	 */
-	private void issueCertificate(
-		@Nonnull String certificateName,
-		@Nonnull KeyPairGenerator keyPairGenerator,
-		@Nonnull KeyPair keyPair,
-		@Nonnull X500Name x500Name,
-		@Nonnull Date notBefore,
-		@Nonnull Date notAfter,
-		@Nonnull X509Certificate rootCert,
-		@Nonnull CertificateType certificateType
-	) throws Exception {
-		final X500Name issuedCertSubject = new X500Name("CN=" + certificateName);
-		final BigInteger issuedCertSerialNum = new BigInteger(Long.toString(new SecureRandom().nextLong()));
-		final KeyPair issuedCertKeyPair = keyPairGenerator.generateKeyPair();
-
-		final PKCS10CertificationRequestBuilder p10Builder = new JcaPKCS10CertificationRequestBuilder(issuedCertSubject, issuedCertKeyPair.getPublic());
-		final JcaContentSignerBuilder csrBuilder = new JcaContentSignerBuilder(SIGNATURE_ALGORITHM).setProvider(BC_PROVIDER);
-
-		// Sign the new KeyPair with the root cert Private Key
-		final ContentSigner csrContentSigner = csrBuilder.build(keyPair.getPrivate());
-		final PKCS10CertificationRequest csr = p10Builder.build(csrContentSigner);
-
-		// Use the Signed KeyPair and CSR to generate an issued Certificate
-		// Here serial number is randomly generated. In general, CAs use
-		// a sequence to generate Serial number and avoid collisions
-		final X509v3CertificateBuilder issuedCertBuilder = new X509v3CertificateBuilder(x500Name, issuedCertSerialNum, notBefore, notAfter, csr.getSubject(), csr.getSubjectPublicKeyInfo());
-
-		final JcaX509ExtensionUtils issuedCertExtUtils = new JcaX509ExtensionUtils();
-
-		// Add Extensions
-		// Use BasicConstraints to say that this Cert is not a CA
-		issuedCertBuilder.addExtension(Extension.basicConstraints, true, new BasicConstraints(false));
-
-		// Add Issuer cert identifier as Extension
-		issuedCertBuilder.addExtension(Extension.authorityKeyIdentifier, false, issuedCertExtUtils.createAuthorityKeyIdentifier(rootCert));
-		issuedCertBuilder.addExtension(Extension.subjectKeyIdentifier, false, issuedCertExtUtils.createSubjectKeyIdentifier(csr.getSubjectPublicKeyInfo()));
-
-		if (certificateType == CertificateType.SERVER) {
-			// Add DNS name to the cert to be used for SSL
-			issuedCertBuilder.addExtension(Extension.subjectAlternativeName, false, new DERSequence(new ASN1Encodable[]{
-				new GeneralName(GeneralName.dNSName, InetAddress.getLocalHost().getHostName()),
-				new GeneralName(GeneralName.iPAddress, InetAddress.getLocalHost().getHostAddress()),
-				new GeneralName(GeneralName.dNSName, "localhost")
-			}));
-		}
-
-		// Add intended key usage extension if needed
-		issuedCertBuilder.addExtension(Extension.keyUsage, false, new KeyUsage(KeyUsage.keyEncipherment | KeyUsage.digitalSignature));
-
-		// Add DNS name to the cert to be used for SSL
-		issuedCertBuilder.addExtension(Extension.subjectAlternativeName, false, new DERSequence(new ASN1Encodable[]{
-			new GeneralName(GeneralName.dNSName, InetAddress.getLocalHost().getHostName()),
-			new GeneralName(GeneralName.iPAddress, InetAddress.getLocalHost().getHostAddress())
-		}));
-
-		final X509CertificateHolder issuedCertHolder = issuedCertBuilder.build(csrContentSigner);
-		final X509Certificate issuedCert = new JcaX509CertificateConverter().setProvider(BC_PROVIDER).getCertificate(issuedCertHolder);
-
-		// Verify the issued cert signature against the root (issuer) cert
-		issuedCert.verify(rootCert.getPublicKey(), BC_PROVIDER);
-
+	private void writeCertificateToFile(@Nonnull TlsKeyPair tlsKeyPair, @Nonnull String certificateName) throws Exception {
 		try (final JcaPEMWriter pemWriterIssued = new JcaPEMWriter(new FileWriter(getCertificatePath(certificateName).toFile()))) {
-			pemWriterIssued.writeObject(issuedCert);
+			pemWriterIssued.writeObject(tlsKeyPair.certificateChain().get(0));
 		}
 
 		try (final PemWriter privateKeyWriter = new PemWriter(new FileWriter(getCertificatePrivateKeyPath(certificateName).toFile()))) {
-			privateKeyWriter.writeObject(new PemObject("PRIVATE KEY", issuedCertKeyPair.getPrivate().getEncoded()));
+			privateKeyWriter.writeObject(new PemObject("PRIVATE KEY", tlsKeyPair.privateKey().getEncoded()));
 		}
 	}
 
@@ -324,7 +178,13 @@ public class ServerCertificateManager {
 	 * The type of the certificate to generate.
 	 */
 	public enum CertificateType {
+		/**
+		 * Server certificate.
+		 */
 		SERVER,
+		/**
+		 * Client certificate.
+		 */
 		CLIENT
 	}
 

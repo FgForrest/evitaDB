@@ -23,8 +23,8 @@
 
 package io.evitadb.core.query.algebra.price.termination;
 
+import com.carrotsearch.hppc.IntObjectHashMap;
 import com.carrotsearch.hppc.IntObjectMap;
-import com.carrotsearch.hppc.IntObjectWormMap;
 import com.carrotsearch.hppc.ObjectContainer;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import io.evitadb.api.query.require.QueryPriceMode;
@@ -116,7 +116,7 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 	 * {@link PriceHistogramProducer} to avoid duplicate computation - price histogram must not take price predicate
 	 * into an account.
 	 */
-	@Getter private Bitmap recordsFilteredOutByPredicate;
+	@Nullable @Getter private Bitmap recordsFilteredOutByPredicate;
 
 	public LowestPriceTerminationFormula(
 		@Nonnull Formula containerFormula,
@@ -319,7 +319,7 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 			// create array for the lowest prices by entity
 			final CompositeObjectArray<PriceRecordContract> priceRecordsFunnel = new CompositeObjectArray<>(PriceRecordContract.class, false);
 			// create helper associative index for looking up index of the lowest price by entity id in the priceRecordsFunnel
-			final IntObjectMap<PriceRecordContract> entityInnerRecordPrice = new IntObjectWormMap<>();
+			final IntObjectMap<PriceRecordContract> entityInnerRecordPrice = new IntObjectHashMap<>();
 			// create new roaring bitmap builder
 			final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
 			// create new roaring bitmap builder for records excluded by predicate

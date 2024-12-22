@@ -21,22 +21,23 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.configuration;
+package io.evitadb.externalApi.exception;
+
 
 import javax.annotation.Nonnull;
+import java.io.Serial;
 
 /**
- * Interface is implemented by all APIs that support mutual TLS.
+ * Exception is raised when client accesses the API endpoint secured by client certificate (mTLS) with not allowed one
+ * on the server side.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public interface ApiConfigurationWithMutualTls {
+public class ClientCertificateNotAllowedException extends ExternalApiInvalidUsageException {
+	@Serial private static final long serialVersionUID = 3934858455674566277L;
 
-	/**
-	 * Returns configuration of mutual TLS.
-	 * @return configuration of mutual TLS
-	 */
-	@Nonnull
-	MtlsConfiguration getMtlsConfiguration();
+	public ClientCertificateNotAllowedException(@Nonnull String publicMessage) {
+		super(publicMessage);
+	}
 
 }

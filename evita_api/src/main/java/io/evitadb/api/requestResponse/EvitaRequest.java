@@ -29,15 +29,7 @@ import io.evitadb.api.exception.EntityCollectionRequiredException;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
-import io.evitadb.api.query.filter.EntityLocaleEquals;
-import io.evitadb.api.query.filter.EntityPrimaryKeyInSet;
-import io.evitadb.api.query.filter.EntityScope;
-import io.evitadb.api.query.filter.FilterBy;
-import io.evitadb.api.query.filter.HierarchyFilterConstraint;
-import io.evitadb.api.query.filter.HierarchyWithin;
-import io.evitadb.api.query.filter.PriceInCurrency;
-import io.evitadb.api.query.filter.PriceInPriceLists;
-import io.evitadb.api.query.filter.PriceValidIn;
+import io.evitadb.api.query.filter.*;
 import io.evitadb.api.query.head.Collection;
 import io.evitadb.api.query.head.Label;
 import io.evitadb.api.query.order.OrderBy;
@@ -1155,6 +1147,7 @@ public class EvitaRequest {
 		private final EntityScope enforcedScope;
 		private boolean scopeFound;
 
+		@Nullable
 		@Override
 		public Constraint<?> apply(ConstraintCloneVisitor constraintCloneVisitor, Constraint<?> constraint) {
 			if (constraint instanceof EntityScope) {
@@ -1163,6 +1156,9 @@ public class EvitaRequest {
 			} else if (constraint instanceof FilterBy && !this.scopeFound) {
 				constraintCloneVisitor.addOnCurrentLevel(this.enforcedScope);
 				return constraint;
+			} else if (constraint instanceof FilterInScope fis) {
+				// when the `inScope` doesn't match the enforced scope, exclude the container with its contents
+				return this.enforcedScope.getScope().contains(fis.getScope()) ? fis : null;
 			} else {
 				return constraint;
 			}

@@ -32,10 +32,8 @@ import java.util.EnumSet;
 import java.util.Locale;
 
 import static io.evitadb.api.query.Query.query;
-import static io.evitadb.api.query.QueryConstraints.collection;
-import static io.evitadb.api.query.QueryConstraints.entityLocaleEquals;
-import static io.evitadb.api.query.QueryConstraints.filterBy;
-import static io.evitadb.api.query.QueryConstraints.scope;
+import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.api.query.filter.AttributeSpecialValue.NOT_NULL;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
@@ -113,6 +111,39 @@ class EvitaRequestTest {
 				collection("a"),
 				filterBy(
 					scope(Scope.LIVE)
+				)
+			),
+			OffsetDateTime.now(),
+			SealedEntity.class,
+			null
+		);
+		final EvitaRequest copy = request.deriveCopyWith(
+			"b", null, null, Locale.ENGLISH, EnumSet.of(Scope.ARCHIVED)
+		);
+		assertEquals("b", copy.getEntityType());
+		assertEquals(Locale.ENGLISH, copy.getLocale());
+		assertEquals(EnumSet.of(Scope.ARCHIVED), copy.getScopes());
+		assertEquals(
+			"""
+				query(
+					collection('b'),
+					filterBy(
+						scope(ARCHIVED)
+					),
+					require()
+				)""",
+			copy.getQuery().prettyPrint()
+		);
+	}
+
+	@Test
+	void shouldReplaceScopeInRequestAndExcludeNonMatchingContainers() {
+		final EvitaRequest request = new EvitaRequest(
+			query(
+				collection("a"),
+				filterBy(
+					inScope(Scope.LIVE, attributeIs("code", NOT_NULL)),
+					scope(Scope.LIVE, Scope.ARCHIVED)
 				)
 			),
 			OffsetDateTime.now(),

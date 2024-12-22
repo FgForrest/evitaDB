@@ -21,24 +21,26 @@
  *   limitations under the License.
  */
 
+package io.evitadb.externalApi.certificate;
+
+import com.linecorp.armeria.common.TlsKeyPair;
+
+import javax.annotation.Nullable;
+import java.security.cert.X509Certificate;
+import java.util.List;
+
 /**
- * Module contains gRPC Java driver (gRPC client) observability extension realized via OpenTelemetry.
+ * A wrapper that holds references to currently loaded certificates.
+ *
+ * @param tlsKeyPair TLS key pair
+ * @param allowedClientCertificates List of allowed client certificates
+ *
+ * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
-module evita.java.driver.observability {
-	uses io.evitadb.driver.trace.ClientTracingContext;
-	uses io.evitadb.api.observability.trace.TracingContext;
+public record LoadedCertificates(
+	@Nullable TlsKeyPair tlsKeyPair,
+	@Nullable List<X509Certificate> allowedClientCertificates
+) {
 
-	provides io.evitadb.driver.trace.ClientTracingContext with io.evitadb.driver.observability.trace.DriverTracingContext;
-
-	requires static jsr305;
-	requires static lombok;
-
-	requires evita.api;
-	requires evita.java.driver;
-
-	requires io.opentelemetry.context;
-	requires io.opentelemetry.api;
-	requires evita.common;
-
-	exports io.evitadb.driver.observability.trace;
 }
+

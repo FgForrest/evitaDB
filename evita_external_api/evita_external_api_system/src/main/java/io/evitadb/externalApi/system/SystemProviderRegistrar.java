@@ -327,7 +327,7 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 				file = apiOptions.certificate()
 					.getFolderPath()
 					.toFile();
-				fileName = CertificateUtils.getGeneratedRootCaCertificateFileName();
+				fileName = CertificateUtils.getGeneratedServerCertificateFileName();
 			} else {
 				final CertificatePath certificatePath = certificateSettings.custom();
 				if (certificatePath == null || certificatePath.certificate() == null || certificatePath.privateKey() == null) {
@@ -347,17 +347,6 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 					(ctx, req) -> {
 						ctx.addAdditionalResponseHeader(HttpHeaderNames.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"");
 						return HttpFile.of(new File(file, fileName)).asService().serve(ctx, req);
-					}
-				)
-			);
-
-			router.add(
-				HttpMethod.GET,
-				"/" + CertificateUtils.getGeneratedServerCertificateFileName(),
-				createCorsWrapper(
-					(ctx, req) -> {
-						ctx.addAdditionalResponseHeader(HttpHeaderNames.CONTENT_DISPOSITION, "attachment; filename=\"" + CertificateUtils.getGeneratedServerCertificateFileName() + "\"");
-						return HttpFile.of(new File(file, CertificateUtils.getGeneratedServerCertificateFileName())).asService().serve(ctx, req);
 					}
 				)
 			);
@@ -395,14 +384,6 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 				.map(it -> it + ENDPOINT_SERVER_NAME)
 				.toArray(String[]::new)
 		);
-		if (fileName != null) {
-			endpoints.put(
-				SystemProvider.ROOT_CERTIFICATE_URL,
-				Arrays.stream(systemConfig.getBaseUrls())
-					.map(it -> it + fileName)
-					.toArray(String[]::new)
-			);
-		}
 		if (certificateSettings.generateAndUseSelfSigned() && atLeastOnEndpointRequiresTls) {
 			endpoints.put(
 				SystemProvider.SERVER_CERTIFICATE_URL,
