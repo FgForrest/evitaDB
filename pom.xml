@@ -25,7 +25,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>io.evitadb</groupId>
 	<artifactId>evita_root</artifactId>
-	<version>2024.12-SNAPSHOT</version> <!-- TODO tpz: revert to 2024.12-SNAPSHOT -->
+	<version>2025.1-SNAPSHOT</version>
 	<packaging>pom</packaging>
 	<name>evitaDB - Root &amp; modules aggregator</name>
 	<url>https://evitadb.io</url>
@@ -133,7 +133,7 @@
 		<maven.toolchains.version>3.0.0</maven.toolchains.version>
 		<lombok.version>1.18.36</lombok.version>
 		<grpc.version>1.68.1</grpc.version>
-		<bouncyCastle.version>1.78</bouncyCastle.version>
+		<bouncyCastle.version>1.79</bouncyCastle.version>
 		<swagger.version>2.2.25</swagger.version>
 		<armeria.version>1.31.2</armeria.version>
 		<!-- we should keep this in sync with armeria -->
