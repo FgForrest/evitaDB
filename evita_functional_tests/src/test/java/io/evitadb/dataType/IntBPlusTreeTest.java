@@ -633,7 +633,7 @@ class IntBPlusTreeTest implements TimeBoundedTestSupport {
 		verifyTreeConsistency(theTree, initialArray);
 
 		runFor(
-			new GenerationalTestInput(5, 42),
+			new GenerationalTestInput(5, 91),
 			1000,
 			new TestState(
 				new StringBuilder(),

@@ -84,25 +84,6 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 	private BPlusTreeNode<?> root;
 
 	/**
-	 * Finds the parent node of the specified target node within the B+ tree starting
-	 * from the given current node.
-	 *
-	 * @param current The current BPlusTreeNode from which the search begins.
-	 * @param target  The target BPlusTreeNode for which the parent needs to be found.
-	 * @return An Optional containing the parent BPlusInternalTreeNode if the parent
-	 * is found, or an empty Optional if the target node has no parent within
-	 * this subtree.
-	 */
-	@Nonnull
-	private static Optional<BPlusInternalTreeNode> findParent(@Nonnull BPlusTreeNode<?> current, @Nonnull BPlusTreeNode<?> target) {
-		if (current instanceof BPlusInternalTreeNode currentInternalNode) {
-			return currentInternalNode.findParentOf(target);
-		} else {
-			return Optional.empty();
-		}
-	}
-
-	/**
 	 * Rewires the sibling pointers of BPlusTreeNodes involved in a split operation.
 	 *
 	 * @param node       The original node that is being replaced during the sibling rewiring process.
@@ -208,12 +189,13 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 	 * @param value the value associated with the key, must not be null
 	 */
 	public void insert(int key, @Nonnull V value) {
-		final BPlusLeafTreeNode<V> leaf = findLeaf(key);
+		final LeafWithPath<V> leafWithPath = findLeafWithPath(key);
+		final BPlusLeafTreeNode<V> leaf = leafWithPath.leaf();
 		this.size += leaf.insert(key, value) ? 1 : 0;
 
 		// Split the leaf node if it exceeds the block size
 		if (leaf.isFull()) {
-			splitLeafNode(leaf);
+			splitLeafNode(leaf, leafWithPath.path());
 		}
 	}
 
@@ -474,8 +456,12 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 	 * If the split occurs at the root, a new root is created.
 	 *
 	 * @param leaf The leaf node to be split
+	 * @param parents The list of internal nodes representing the path from the root to the leaf node being split
 	 */
-	private void splitLeafNode(@Nonnull BPlusLeafTreeNode<V> leaf) {
+	private void splitLeafNode(
+		@Nonnull BPlusLeafTreeNode<V> leaf,
+		@Nonnull List<BPlusInternalTreeNode> parents
+	) {
 		final int mid = this.valueBlockSize / 2;
 		final int[] originKeys = leaf.getKeys();
 		final V[] originValues = leaf.getValues();
@@ -516,7 +502,8 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 				leaf,
 				leftLeaf,
 				rightLeaf,
-				rightLeaf.getKeys()[0]
+				rightLeaf.getKeys()[0],
+				parents
 			);
 		}
 	}
@@ -536,21 +523,15 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 		@Nonnull BPlusTreeNode<?> original,
 		@Nonnull BPlusTreeNode<?> left,
 		@Nonnull BPlusTreeNode<?> right,
-		int key
+		int key,
+		@Nonnull List<BPlusInternalTreeNode> parents
 	) {
-		findParent(this.root, original)
-			.ifPresentOrElse(
-				parent -> {
-					parent.adaptToLeafSplit(key, original, left, right);
+		final BPlusInternalTreeNode parent = parents.get(parents.size() - 1);
+		parent.adaptToLeafSplit(key, original, left, right);
 
-					if (parent.isFull()) {
-						splitInternalNode(parent);
-					}
-				},
-				() -> {
-					throw new GenericEvitaInternalError("Parent node not found for insertion");
-				}
-			);
+		if (parent.isFull()) {
+			splitInternalNode(parent, parents.subList(0, parents.size() - 1));
+		}
 	}
 
 	/**
@@ -561,8 +542,12 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 	 *
 	 * @param internal The internal node to be split. It must not be null and must contain a number of keys
 	 *                 that necessitate splitting to maintain the B+ tree properties.
+	 * @param parents  The list of internal nodes representing the path from the root to the internal node being split.
 	 */
-	private void splitInternalNode(@Nonnull BPlusInternalTreeNode internal) {
+	private void splitInternalNode(
+		@Nonnull BPlusInternalTreeNode internal,
+		@Nonnull List<BPlusInternalTreeNode> parents
+	) {
 		final int mid = (this.valueBlockSize + 1) / 2;
 		final int[] originKeys = internal.getKeys();
 		final BPlusTreeNode<?>[] originChildren = internal.getChildren();
@@ -606,7 +591,8 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 				internal,
 				leftInternal,
 				rightInternal,
-				rightInternal.getLeftBoundaryKey()
+				rightInternal.getLeftBoundaryKey(),
+				parents
 			);
 		}
 	}
@@ -1208,31 +1194,6 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 		public int getLeftBoundaryKey() {
 			return this.children[0] instanceof BPlusInternalTreeNode leftInternalNode ?
 				leftInternalNode.getLeftBoundaryKey() : this.children[0].getKeys()[0];
-		}
-
-		/**
-		 * Finds the parent node of the specified target node within the B+ tree.
-		 *
-		 * @param targetNode The target BPlusTreeNode for which the parent needs to be found.
-		 * @return An Optional containing the parent BPlusInternalTreeNode if the parent is found,
-		 * or an empty Optional if the target node has no parent within this subtree.
-		 */
-		@Nonnull
-		public Optional<BPlusInternalTreeNode> findParentOf(@Nonnull BPlusTreeNode<?> targetNode) {
-			for (final BPlusTreeNode<?> child : this.children) {
-				if (child == targetNode) {
-					// Parent found
-					return Optional.of(this);
-				}
-				if (child instanceof BPlusInternalTreeNode childInternalNode) {
-					final Optional<BPlusInternalTreeNode> possibleParent = childInternalNode.findParentOf(targetNode);
-					if (possibleParent.isPresent()) {
-						return possibleParent;
-					}
-				}
-			}
-			// Parent not found
-			return Optional.empty();
 		}
 
 		/**
