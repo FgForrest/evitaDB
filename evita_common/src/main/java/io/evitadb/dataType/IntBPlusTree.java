@@ -185,13 +185,13 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 		int minInternalNodeBlockSize,
 		@Nonnull Class<V> valueType
 	) {
-		Assert.isPremiseValid(valueBlockSize >= 3, "Block size must be at least 3");
-		Assert.isPremiseValid(minValueBlockSize >= 1, "Minimum block size must be at least 1");
-		Assert.isPremiseValid(minValueBlockSize < valueBlockSize, "Minimum block size must be less than block size");
-		Assert.isPremiseValid(internalNodeBlockSize >= 3, "Internal node block size must be at least 3");
-		Assert.isPremiseValid(internalNodeBlockSize % 2 == 1, "Internal node block size must be an odd number");
-		Assert.isPremiseValid(minInternalNodeBlockSize >= 1, "Minimum internal node block size must be at least 1");
-		Assert.isPremiseValid(minInternalNodeBlockSize < internalNodeBlockSize, "Minimum internal node block size must be less than internal node block size");
+		Assert.isPremiseValid(valueBlockSize >= 3, "Block size must be at least 3.");
+		Assert.isPremiseValid(minValueBlockSize >= 1, "Minimum block size must be at least 1.");
+		Assert.isPremiseValid(minValueBlockSize <= Math.ceil((float)valueBlockSize / 2.0) - 1, "Minimum block size must be less than half of the block size, otherwise the tree nodes might be immediately full after merges.");
+		Assert.isPremiseValid(internalNodeBlockSize >= 3, "Internal node block size must be at least 3.");
+		Assert.isPremiseValid(internalNodeBlockSize % 2 == 1, "Internal node block size must be an odd number.");
+		Assert.isPremiseValid(minInternalNodeBlockSize >= 1, "Minimum internal node block size must be at least 1.");
+		Assert.isPremiseValid(minInternalNodeBlockSize <= Math.ceil((float)internalNodeBlockSize / 2.0) - 1, "Minimum internal node block size must be less than half of the internal node block size, otherwise the tree nodes might be immediately full after merges.");
 		this.valueBlockSize = valueBlockSize;
 		this.minValueBlockSize = minValueBlockSize;
 		this.internalNodeBlockSize = internalNodeBlockSize;
@@ -320,16 +320,19 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 	}
 
 	/**
-	 * Consolidates a B+ tree node with its siblings if it has fewer keys
-	 * than the minimum block size. The method tries to merge the node
-	 * with its left or right siblings and adjusts the tree structure
-	 * accordingly.
+	 * Consolidates the provided B+ tree node to maintain the structural properties of the tree.
+	 * This method is responsible for handling scenarios where nodes might underflow in terms of
+	 * the minimum number of keys or children allowed, and attempts strategies such as borrowing
+	 * keys from sibling nodes or merging nodes. If changes propagate up the tree (e.g., through
+	 * node merges), the parent nodes are also consolidated.
 	 *
-	 * TODO JNO - update documentation
-	 *
-	 * @param node  the current B+ tree node to be consolidated
-	 * @param path  the path of internal tree nodes leading to the current node
-	 * @param index the index of the current node in the path
+	 * @param node  The node to consolidate, which could be a leaf node or an internal node.
+	 * @param path  A list representing the path from the root to the node being consolidated.
+	 *              This is used to update parent nodes as necessary when modifications occur.
+	 * @param index The index of the parent node in the path, indicating the relationship
+	 *              between the current node and its parent.
+	 * @param watermark Tracks the depth of recursion or the number of upward propagations
+	 *                  happening during consolidation.
 	 */
 	private <N extends BPlusTreeNode<N>> void consolidate(
 		@Nonnull N node,
@@ -1008,6 +1011,14 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 		 */
 		void mergeWithRight();
 
+		/**
+		 * Retrieves the left boundary key of the BPlusInternalTreeNode. This key is the smallest key contained
+		 * within the leftmost child of the current internal tree node. If the leftmost child is an internal node itself,
+		 * the method recursively retrieves the left boundary key of that internal node.
+		 *
+		 * @return the left boundary key of the BPlusInternalTreeNode.
+		 */
+		int getLeftBoundaryKey();
 	}
 
 	/**
@@ -1129,8 +1140,7 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 			// we need to preserve all the current node keys
 			System.arraycopy(this.keys, 0, this.keys, numberOfTailValues, this.peek);
 			// our original first child newly produces its own key
-			this.keys[numberOfTailValues - 1] = this.children[numberOfTailValues] instanceof BPlusInternalTreeNode ?
-				((BPlusInternalTreeNode) this.children[numberOfTailValues]).getLeftBoundaryKey() : this.children[numberOfTailValues].getKeys()[0];
+			this.keys[numberOfTailValues - 1] = this.children[numberOfTailValues].getLeftBoundaryKey();
 			// and now we can copy the keys from the previous node - but except the first one
 			System.arraycopy(prevNode.getKeys(), prevNode.keyCount() - numberOfTailValues + 1, this.keys, 0, numberOfTailValues - 1);
 			// and update the peek indexes
@@ -1168,8 +1178,7 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 			final BPlusInternalTreeNode nodeToMergeWith = Objects.requireNonNull(this.previousNode);
 			final int mergePeek = nodeToMergeWith.getPeek();
 			System.arraycopy(this.keys, 0, this.keys, mergePeek + 1, this.peek);
-			this.keys[mergePeek] = this.children[0] instanceof BPlusInternalTreeNode ?
-				((BPlusInternalTreeNode) this.children[0]).getLeftBoundaryKey() : this.children[0].getKeys()[0];
+			this.keys[mergePeek] = this.children[0].getLeftBoundaryKey();
 			System.arraycopy(this.children, 0, this.children, mergePeek + 1, this.peek + 1);
 			System.arraycopy(nodeToMergeWith.getKeys(), 0, this.keys, 0, mergePeek);
 			System.arraycopy(nodeToMergeWith.getChildren(), 0, this.children, 0, mergePeek + 1);
@@ -1185,9 +1194,7 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 			System.arraycopy(nodeToMergeWith.getChildren(), 0, this.children, this.peek + 1, mergePeek + 1);
 			final int offset;
 			if (this.peek >= 0) {
-				this.keys[this.peek] = nodeToMergeWith.getChildren()[0] instanceof BPlusInternalTreeNode ?
-					/* TODO JNO - left boundary key zobecnit i pro leaf a tím pádem nebudeme must vůbec castovat */
-					((BPlusInternalTreeNode) nodeToMergeWith.getChildren()[0]).getLeftBoundaryKey() : nodeToMergeWith.getChildren()[0].getKeys()[0];
+				this.keys[this.peek] = nodeToMergeWith.getChildren()[0].getLeftBoundaryKey();
 				offset = 1;
 			} else {
 				offset = 0;
@@ -1195,6 +1202,12 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 			System.arraycopy(nodeToMergeWith.getKeys(), 0, this.keys, this.peek + offset, mergePeek);
 			this.peek += mergePeek + 1;
 			nodeToMergeWith.setPeek(-1);
+		}
+
+		@Override
+		public int getLeftBoundaryKey() {
+			return this.children[0] instanceof BPlusInternalTreeNode leftInternalNode ?
+				leftInternalNode.getLeftBoundaryKey() : this.children[0].getKeys()[0];
 		}
 
 		/**
@@ -1303,18 +1316,6 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 					return keyIndex + 1;
 				}
 			}
-		}
-
-		/**
-		 * Retrieves the left boundary key of the BPlusInternalTreeNode. This key is the smallest key contained
-		 * within the leftmost child of the current internal tree node. If the leftmost child is an internal node itself,
-		 * the method recursively retrieves the left boundary key of that internal node.
-		 *
-		 * @return the left boundary key of the BPlusInternalTreeNode.
-		 */
-		public int getLeftBoundaryKey() {
-			return this.children[0] instanceof BPlusInternalTreeNode leftInternalNode ?
-				leftInternalNode.getLeftBoundaryKey() : this.children[0].getKeys()[0];
 		}
 
 		/**
@@ -1522,6 +1523,11 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 			System.arraycopy(nodeToMergeWith.getValues(), 0, this.values, this.peek + 1, mergePeek + 1);
 			this.peek += mergePeek + 1;
 			nodeToMergeWith.setPeek(-1);
+		}
+
+		@Override
+		public int getLeftBoundaryKey() {
+			return this.keys[0];
 		}
 
 		/**
