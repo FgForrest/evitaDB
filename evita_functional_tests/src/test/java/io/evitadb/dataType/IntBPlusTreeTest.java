@@ -626,13 +626,14 @@ class IntBPlusTreeTest implements TimeBoundedTestSupport {
 	@Tag(LONG_RUNNING_TEST)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalProofTest(GenerationalTestInput input) {
-		final int limitElements = 100;
-		final TreeTuple testTree = prepareRandomTree(input.randomSeed(), limitElements);
+		final int limitElements = 1000;
+		final TreeTuple testTree = prepareRandomTree(16, 7, 7, 3, 42, limitElements);
 		final IntBPlusTree<String> theTree = testTree.bPlusTree();
 		int[] initialArray = testTree.plainArray();
+		verifyTreeConsistency(theTree, initialArray);
 
 		runFor(
-			input,
+			new GenerationalTestInput(5, 42),
 			1000,
 			new TestState(
 				new StringBuilder(),
@@ -649,7 +650,7 @@ class IntBPlusTreeTest implements TimeBoundedTestSupport {
 				try {
 					if (delete) {
 						final int index = random.nextInt(startArray.length);
-						key = initialArray[index];
+						key = startArray[index];
 						endArray = ArrayUtils.removeIntFromOrderedArray(key, startArray);
 						theTree.delete(key);
 					} else {
@@ -663,7 +664,7 @@ class IntBPlusTreeTest implements TimeBoundedTestSupport {
 					return new TestState(
 						testState.code().append(delete ? "D:" : "I:").append(key),
 						endArray,
-						endArray.length >= limitElements
+						testState.limitReached() ? endArray.length > limitElements / 2 :  endArray.length >= limitElements
 					);
 				} catch (Exception ex) {
 					fail(

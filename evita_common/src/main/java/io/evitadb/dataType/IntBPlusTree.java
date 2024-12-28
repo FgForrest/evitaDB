@@ -351,9 +351,7 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 					// steal half of the surplus data from the left sibling
 					node.stealFromLeft(Math.max(1, (previousNode.keyCount() - this.minValueBlockSize) / 2));
 					// update parent keys, but only if node was empty - which means first key was added
-					if (node instanceof BPlusInternalTreeNode || nodeIsEmpty) {
-						updateParentKeys(path, previousNodeIndexInParent + 1, node, watermark);
-					}
+					updateParentKeys(path, previousNodeIndexInParent + 1, node, watermark);
 					return;
 				}
 
@@ -540,7 +538,7 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 		findParent(this.root, original)
 			.ifPresentOrElse(
 				parent -> {
-					parent.split(key, original, left, right);
+					parent.adaptToLeafSplit(key, original, left, right);
 
 					if (parent.isFull()) {
 						splitInternalNode(parent);
@@ -661,7 +659,7 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 	private static void verifyHeightOfAllChildren(@Nonnull BPlusTreeNode<?> node, int nodeHeight, int maximalHeight) {
 		if (node instanceof BPlusInternalTreeNode internalNode) {
 			final int childHeight = nodeHeight + 1;
-			for (int i = 0; i <= internalNode.getPeek(); i++) {
+			for (int i = 0; i < internalNode.size(); i++) {
 				verifyHeightOfAllChildren(internalNode.getChildren()[i], childHeight, maximalHeight);
 			}
 		} else {
@@ -796,7 +794,7 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 	 * @param isRoot a boolean indicating if the current node being verified is the root of the tree.
 	 */
 	private static void verifyMinimalCountOfValuesInNodes(@Nonnull BPlusTreeNode<?> node, int minValueBlockSize, int minInternalNodeBlockSize, boolean isRoot) {
-		if (node instanceof BPlusInternalTreeNode internalNode) {
+		if (node instanceof BPlusInternalTreeNode internalNode && !isRoot) {
 			if (internalNode.size() < minInternalNodeBlockSize) {
 				throw new IllegalStateException("Internal node " + internalNode + " has less than " + minInternalNodeBlockSize + " values (" + node.size() + ")!");
 			}
@@ -1121,6 +1119,7 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 
 		@Override
 		public void stealFromLeft(int numberOfTailValues) {
+			// System.out.println("Internal node - Stealing from left: " + numberOfTailValues);
 			Assert.isPremiseValid(numberOfTailValues > 0, "Number of tail values to steal must be positive!");
 			final BPlusInternalTreeNode prevNode = Objects.requireNonNull(this.previousNode);
 			// we preserve all the current node children
@@ -1128,12 +1127,12 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 			// then move the children from the previous node
 			System.arraycopy(prevNode.getChildren(), prevNode.size() - numberOfTailValues, this.children, 0, numberOfTailValues);
 			// we need to preserve all the current node keys
-			System.arraycopy(this.keys, 0, this.keys, numberOfTailValues - 1, this.peek);
+			System.arraycopy(this.keys, 0, this.keys, numberOfTailValues, this.peek);
 			// our original first child newly produces its own key
 			this.keys[numberOfTailValues - 1] = this.children[numberOfTailValues] instanceof BPlusInternalTreeNode ?
 				((BPlusInternalTreeNode) this.children[numberOfTailValues]).getLeftBoundaryKey() : this.children[numberOfTailValues].getKeys()[0];
 			// and now we can copy the keys from the previous node - but except the first one
-			System.arraycopy(prevNode.getKeys(), prevNode.size() - numberOfTailValues + 1, this.keys, 0, numberOfTailValues - 1);
+			System.arraycopy(prevNode.getKeys(), prevNode.keyCount() - numberOfTailValues + 1, this.keys, 0, numberOfTailValues - 1);
 			// and update the peek indexes
 			this.peek += numberOfTailValues;
 			prevNode.setPeek(prevNode.getPeek() - numberOfTailValues);
@@ -1141,6 +1140,7 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 
 		@Override
 		public void stealFromRight(int numberOfHeadValues) {
+			// System.out.println("Internal node - Stealing from right: " + numberOfHeadValues);
 			Assert.isPremiseValid(numberOfHeadValues > 0, "Number of head values to steal must be positive!");
 			final BPlusInternalTreeNode nextNode = Objects.requireNonNull(this.nextNode);
 
@@ -1164,6 +1164,7 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 
 		@Override
 		public void mergeWithLeft() {
+			// System.out.println("Internal node - Merging with left");
 			final BPlusInternalTreeNode nodeToMergeWith = Objects.requireNonNull(this.previousNode);
 			final int mergePeek = nodeToMergeWith.getPeek();
 			System.arraycopy(this.keys, 0, this.keys, mergePeek + 1, this.peek);
@@ -1178,6 +1179,7 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 
 		@Override
 		public void mergeWithRight() {
+			// System.out.println("Internal node - Merging with right");
 			final BPlusInternalTreeNode nodeToMergeWith = Objects.requireNonNull(this.nextNode);
 			final int mergePeek = nodeToMergeWith.getPeek();
 			System.arraycopy(nodeToMergeWith.getChildren(), 0, this.children, this.peek + 1, mergePeek + 1);
@@ -1230,12 +1232,18 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 		 * @param left     The left child BPlusTreeNode resulting from the split, containing keys less than the inserted key.
 		 * @param right    The right child BPlusTreeNode resulting from the split, containing keys greater than the inserted key.
 		 */
-		public void split(
+		public void adaptToLeafSplit(
 			int key,
 			@Nonnull BPlusTreeNode<?> original,
 			@Nonnull BPlusTreeNode<?> left,
 			@Nonnull BPlusTreeNode<?> right
 		) {
+			// System.out.println("Internal node - Splitting");
+			Assert.isPremiseValid(
+				!this.isFull(),
+				"Internal node must not be full to accommodate two leaf nodes after their split!"
+			);
+
 			// the peek relates to children, which are one more than keys, that's why we don't use peek + 1, but mere peek
 			final InsertionPosition insertionPosition = computeInsertPositionOfIntInOrderedArray(key, this.keys, 0, this.peek);
 			Assert.isPremiseValid(
@@ -1278,7 +1286,7 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 			if (this.getPeek() < 0) {
 				return -1;
 			} else {
-				final int keyIndex = Arrays.binarySearch(this.keys, 0, this.size(), key);
+				final int keyIndex = Arrays.binarySearch(this.keys, 0, this.keyCount(), key);
 				if (keyIndex < 0) {
 					// the key might have been removed - try to iterate over the children
 					for (int i = 0; i <= this.peek; i++) {
@@ -1468,16 +1476,20 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 
 		@Override
 		public void stealFromLeft(int numberOfTailValues) {
+			// System.out.println("Leaf node - Stealing from left: " + numberOfTailValues);
 			Assert.isPremiseValid(numberOfTailValues > 0, "Number of tail values to steal must be positive!");
 			final BPlusLeafTreeNode<V> prevNode = Objects.requireNonNull(this.previousNode);
-			System.arraycopy(prevNode.getKeys(), prevNode.size() - numberOfTailValues, this.keys, this.peek + 1, numberOfTailValues);
-			System.arraycopy(prevNode.getValues(), prevNode.size() - numberOfTailValues, this.values, this.peek + 1, numberOfTailValues);
+			System.arraycopy(this.keys, 0, this.keys, numberOfTailValues, this.peek + 1);
+			System.arraycopy(this.values, 0, this.values, numberOfTailValues, this.peek + 1);
+			System.arraycopy(prevNode.getKeys(), prevNode.size() - numberOfTailValues, this.keys, 0, numberOfTailValues);
+			System.arraycopy(prevNode.getValues(), prevNode.size() - numberOfTailValues, this.values, 0, numberOfTailValues);
 			this.peek += numberOfTailValues;
 			prevNode.setPeek(prevNode.getPeek() - numberOfTailValues);
 		}
 
 		@Override
 		public void stealFromRight(int numberOfHeadValues) {
+			// System.out.println("Leaf node - Stealing from left: " + numberOfHeadValues);
 			Assert.isPremiseValid(numberOfHeadValues > 0, "Number of head values to steal must be positive!");
 			final BPlusLeafTreeNode<V> nextNode = Objects.requireNonNull(this.nextNode);
 			System.arraycopy(nextNode.getKeys(), 0, this.keys, this.peek + 1, numberOfHeadValues);
@@ -1490,6 +1502,7 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 
 		@Override
 		public void mergeWithLeft() {
+			// System.out.println("Leaf node - Merging with left");
 			final BPlusLeafTreeNode<V> nodeToMergeWith = Objects.requireNonNull(this.previousNode);
 			final int mergePeek = nodeToMergeWith.getPeek();
 			System.arraycopy(this.keys, 0, this.keys, mergePeek + 1, this.peek + 1);
@@ -1502,6 +1515,7 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 
 		@Override
 		public void mergeWithRight() {
+			// System.out.println("Leaf node - Merging with right");
 			final BPlusLeafTreeNode<V> nodeToMergeWith = Objects.requireNonNull(this.nextNode);
 			final int mergePeek = nodeToMergeWith.getPeek();
 			System.arraycopy(nodeToMergeWith.getKeys(), 0, this.keys, this.peek + 1, mergePeek + 1);
