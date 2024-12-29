@@ -26,6 +26,7 @@ package io.evitadb.utils;
 import org.junit.jupiter.api.Test;
 
 import java.io.Serializable;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.function.IntBinaryOperator;
 import java.util.function.UnaryOperator;
@@ -570,4 +571,59 @@ class ArrayUtilsTest {
 	private enum TestEnum {
 		VALUE1, VALUE2, VALUE3
 	}
+
+	@Test
+	void shouldReturnCorrectPositionWhenObjectIsFound() {
+		String[] sortedArray = {"A", "B", "D", "E", "F"};
+		InsertionPosition position = computeInsertPositionOfObjInOrderedArray("D", sortedArray, String::compareTo);
+		assertEquals(2, position.position());
+		assertTrue(position.alreadyPresent());
+	}
+
+	@Test
+	void shouldReturnCorrectPositionWhenObjectIsFoundWithinRange() {
+		String[] sortedArray = {"A", "B", "D", "E", "F"};
+		InsertionPosition position = computeInsertPositionOfObjInOrderedArray("D", sortedArray, 0, 3);
+		assertEquals(2, position.position());
+		assertTrue(position.alreadyPresent());
+	}
+
+	@Test
+	void shouldNotReturnPositionWhenObjectIsOutsideRange() {
+		String[] sortedArray = {"A", "B", "D", "E", "F"};
+		InsertionPosition position = computeInsertPositionOfObjInOrderedArray("D", sortedArray, 0, 2);
+		assertEquals(2, position.position());
+		assertFalse(position.alreadyPresent());
+	}
+
+	@Test
+	void shouldReturnInsertionPositionForObjectNotInArray() {
+		String[] sortedArray = {"A", "B", "D", "E", "F"};
+		InsertionPosition position = computeInsertPositionOfObjInOrderedArray("C", sortedArray, String::compareTo);
+		assertEquals(2, position.position());
+		assertFalse(position.alreadyPresent());
+
+		position = computeInsertPositionOfObjInOrderedArray("Z", sortedArray, String::compareTo);
+		assertEquals(5, position.position());
+		assertFalse(position.alreadyPresent());
+
+		position = computeInsertPositionOfObjInOrderedArray("A", sortedArray, String::compareTo);
+		assertEquals(0, position.position());
+		assertTrue(position.alreadyPresent());
+	}
+
+	@Test
+	void shouldWorkWithComparator() {
+		String[] sortedArray = {"abc", "bcd", "cde", "def"};
+		Comparator<String> comparator = Comparator.comparing(String::length).thenComparing(String::compareTo);
+
+		InsertionPosition position = computeInsertPositionOfObjInOrderedArray("aaa", sortedArray, comparator);
+		assertEquals(0, position.position());
+		assertFalse(position.alreadyPresent());
+
+		position = computeInsertPositionOfObjInOrderedArray("cde", sortedArray, comparator);
+		assertEquals(2, position.position());
+		assertTrue(position.alreadyPresent());
+	}
+
 }
