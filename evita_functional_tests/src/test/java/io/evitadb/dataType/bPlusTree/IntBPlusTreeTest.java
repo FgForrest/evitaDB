@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.dataType;
+package io.evitadb.dataType.bPlusTree;
 
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyReport;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyState;
@@ -557,8 +557,6 @@ class IntBPlusTreeTest implements TimeBoundedTestSupport {
 		verifyTreeConsistency(theTree, expectedArray);
 	}
 
-	/* TODO JNO - write generational test! */
-
 	@Test
 	void shouldMergeCausingIntermediateParentToMergeLeft() {
 		final TreeTuple testTree = prepareRandomTree(42, 50);
@@ -622,7 +620,7 @@ class IntBPlusTreeTest implements TimeBoundedTestSupport {
 		assertEquals(0, theTree.size());
 	}
 
-	@ParameterizedTest(name = "TransactionalComplexObjArray should survive generational randomized test applying modifications on it")
+	@ParameterizedTest(name = "IntBPlusTreeTest should survive generational randomized test applying modifications on it")
 	@Tag(LONG_RUNNING_TEST)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalProofTest(GenerationalTestInput input) {
@@ -633,7 +631,7 @@ class IntBPlusTreeTest implements TimeBoundedTestSupport {
 		verifyTreeConsistency(theTree, initialArray);
 
 		runFor(
-			new GenerationalTestInput(5, 91),
+			input,
 			1000,
 			new TestState(
 				new StringBuilder(),

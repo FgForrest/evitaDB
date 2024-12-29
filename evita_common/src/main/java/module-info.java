@@ -14,6 +14,7 @@ module evita.common {
 	exports io.evitadb.utils;
 	exports io.evitadb.dataType.array;
 	exports io.evitadb.dataType.iterator;
+	exports io.evitadb.dataType.bPlusTree;
 
 	requires org.slf4j;
 	requires jsr305;
@@ -22,5 +23,6 @@ module evita.common {
 	requires zero.allocation.hashing;
 	requires okhttp3;
 	requires java.desktop;
+	requires jdk.compiler;
 
 }

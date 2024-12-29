@@ -24,8 +24,8 @@
 package io.evitadb.spike;
 
 
-import io.evitadb.dataType.IntBPlusTree;
 import io.evitadb.dataType.array.CompositeIntArray;
+import io.evitadb.dataType.bPlusTree.IntBPlusTree;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.StringUtils;
 

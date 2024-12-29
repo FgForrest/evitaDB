@@ -787,6 +787,20 @@ public class ArrayUtils {
 	 * Result object contains information about the position and whether the record is already in the array.
 	 */
 	@Nonnull
+	public static <T extends Comparable<T>> InsertionPosition computeInsertPositionOfObjInOrderedArray(@Nonnull T recId, @Nonnull T[] recordIds, int fromIndex, int toIndex) {
+		final int index = Arrays.binarySearch(recordIds, fromIndex, toIndex, recId);
+		if (index >= 0) {
+			return new InsertionPosition(index, true);
+		} else {
+			return new InsertionPosition(-1 * (index) - 1, false);
+		}
+	}
+
+	/**
+	 * Method computes insertion point of an arbitrary record into the ordered array.
+	 * Result object contains information about the position and whether the record is already in the array.
+	 */
+	@Nonnull
 	public static <T extends Comparable<T>> InsertionPosition computeInsertPositionOfObjInOrderedArray(@Nonnull T recId, @Nonnull T[] recordIds, @Nonnull Comparator<T> comparator) {
 		final int index = Arrays.binarySearch(recordIds, recId, comparator);
 		if (index >= 0) {
