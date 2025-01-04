@@ -41,6 +41,7 @@ storage:                                          # [see Storage configuration](
   waitOnCloseSeconds: 60
   outputBufferSize: 4MB
   maxOpenedReadHandles: 12
+  syncWrites: true
   computeCRC32C: true
   minimalActiveRecordShare: 0.5
   fileSizeCompactionThresholdBytes: 100MB
@@ -489,6 +490,14 @@ This section contains configuration options for the storage layer of the databas
             Read these articles for [Linux](https://www.baeldung.com/linux/limit-file-descriptors) or 
             [MacOS](https://gist.github.com/tombigel/d503800a282fcadbee14b537735d202c)            
         </Note>
+    </dd>
+    <dt>syncWrites</dt>
+    <dd>
+        <p>**Default:** `true`</p>
+        <p>Determines whether the storage layer forces the operating system to flush the internal buffers to disk at
+        regular "safe points" or not. The default is true, so that data is not lost in the event of a power failure. 
+        There are situations where disabling this feature can improve performance and the client can accept the risk
+        of data loss (e.g. when running automated tests, etc.).</p>
     </dd>
     <dt>computeCRC32C</dt>
     <dd>

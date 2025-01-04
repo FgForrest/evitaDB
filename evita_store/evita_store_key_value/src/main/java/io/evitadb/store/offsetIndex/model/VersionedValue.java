@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.offsetIndex.OffsetIndex;
 import io.evitadb.utils.MemoryMeasuringConstants;
 
-import javax.annotation.Nullable;
+import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
 
@@ -43,7 +43,7 @@ import java.io.Serializable;
 public record VersionedValue(
 	long primaryKey,
 	byte recordType,
-	@Nullable FileLocation fileLocation
+	@Nonnull FileLocation fileLocation
 ) implements Serializable {
 	@Serial private static final long serialVersionUID = -4467999274212489366L;
 	public static final long MEMORY_SIZE = 2 * MemoryMeasuringConstants.OBJECT_HEADER_SIZE +
