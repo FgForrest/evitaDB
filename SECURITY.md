@@ -14,7 +14,7 @@ evitaDB is currently in active development and fixes are back ported only to a f
 
 If you discover any vulnerability that could be exploited by malicious actors, please follow these steps:
 
-1. **Contact us:** Send an email to [novotny@fg.cz](mailto:novotny@fg.cz)
+1. **Contact us:** Send an email to [application_development@fg.cz](mailto:application_development@fg.cz)
 2. **Do not disclose publicly:** Refrain from publishing the vulnerability details until we’ve confirmed a fix or provided guidance.
 3. **Include details:** Provide clear information about the nature of the vulnerability, including steps to reproduce.
 
