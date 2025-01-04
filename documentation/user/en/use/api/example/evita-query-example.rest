@@ -1,37 +1,55 @@
 POST /rest/evita/Product/query
 
 {
-  "filterBy": {
-	"hierarchyCategoriesWithin": {
-	  "ofParent": {
-		"attributeUrlEquals": "/local-food"
-	  }
-	},
-	"entityLocaleEquals": "cs",
-	"priceValidInNow": true,
-	"priceInCurrency": "CZK",
-	"priceInPriceLists": ["vip", "loyal-customer", "regular-prices"],
-	"userFilter": [{
-	  "facetParameterValuesHaving": [{
-		"entityHaving": {
-		  "attributeCodeInSet": ["gluten-free", "original-recipe"]
-		}
-	  }],
-	  "priceBetween": ["600", "1600"]
-	}]
+  "filterBy" : {
+    "and" : [
+      {
+        "hierarchyCategoriesWithin" : {
+          "ofParent" : {
+            "attributeUrlEquals" : "/local-food"
+          }
+        },
+        "entityLocaleEquals" : "cs",
+        "priceValidInNow" : true,
+        "priceInCurrency" : "CZK",
+        "priceInPriceLists" : [
+          "vip",
+          "loyal-customer",
+          "regular-prices"
+        ],
+        "userFilter" : [
+          {
+            "facetParameterValuesHaving" : [
+              {
+                "entityHaving" : {
+                  "attributeCodeInSet" : [
+                    "gluten-free",
+                    "original-recipe"
+                  ]
+                }
+              }
+            ],
+            "priceBetween" : [
+              "600",
+              "1600"
+            ]
+          }
+        ]
+      }
+    ]
   },
-  "require": {
-	"page": {
-	  "number": 1,
-	  "size": 20
-	},
-	"facetSummary": {
-	  "statisticsDepth": "IMPACT"
-	},
-	"priceType": "WITH_TAX",
-	"priceHistogram": {
+  "require" : {
+    "page" : {
+      "number" : 1,
+      "size" : 20
+    },
+    "facetSummary" : {
+      "statisticsDepth" : "IMPACT"
+    },
+    "priceType" : "WITH_TAX",
+    "priceHistogram" : {
       "requestedBucketCount" : 30,
       "behavior" : "STANDARD"
-	}
+    }
   }
 }
