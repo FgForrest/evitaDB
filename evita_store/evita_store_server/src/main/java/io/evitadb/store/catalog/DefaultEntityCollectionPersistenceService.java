@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -763,6 +763,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 					catalogName,
 					FileType.ENTITY_COLLECTION,
 					this.entityCollectionFileReference.entityType(),
+					storageOptions.syncWrites(),
 					this.entityCollectionFile,
 					observableOutputKeeper
 				),
@@ -817,6 +818,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 					catalogName,
 					FileType.ENTITY_COLLECTION,
 					this.entityCollectionFileReference.entityType(),
+					storageOptions.syncWrites(),
 					this.entityCollectionFile,
 					this.observableOutputKeeper
 				),

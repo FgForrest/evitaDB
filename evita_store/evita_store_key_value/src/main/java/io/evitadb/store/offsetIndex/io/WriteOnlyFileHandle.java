@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -99,6 +99,11 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 	 */
 	private final long lockTimeoutSeconds;
 	/**
+	 * Execute fsync when asked. When set to false, methods simply flush the buffers, but doesn't explicitly sync
+	 * the data on the persistent storage - leaving it to the OS to decide when to do so.
+	 */
+	private final boolean fsSync;
+	/**
 	 * The path to the target file that this handle is associated with.
 	 * This handle provides write-only access to the file at this path.
 	 */
@@ -177,11 +182,13 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 	 * @param os The observable output stream to synchronize.
 	 * @throws SyncFailedException if the synchronization operation failed.
 	 */
-	private static void doSync(@Nonnull ObservableOutput<FileOutputStream> os) {
+	private static void doSync(@Nonnull ObservableOutput<FileOutputStream> os, boolean fsSync) {
 		// execute fsync so that data are really stored to the disk
 		try {
 			os.flush();
-			os.getOutputStream().getFD().sync();
+			if (fsSync) {
+				os.getOutputStream().getFD().sync();
+			}
 		} catch (IOException e) {
 			throw new SyncFailedException(e);
 		}
@@ -189,15 +196,17 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 
 	public WriteOnlyFileHandle(
 		@Nonnull Path targetFile,
+		boolean fsSync,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper
 	) {
-		this(null, null, null, targetFile, observableOutputKeeper);
+		this(null, null, null, fsSync, targetFile, observableOutputKeeper);
 	}
 
 	public WriteOnlyFileHandle(
 		@Nullable String catalogName,
 		@Nullable FileType fileType,
 		@Nullable String logicalName,
+		boolean fsSync,
 		@Nonnull Path targetFile,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper
 	) {
@@ -205,6 +214,7 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 		this.fileType = fileType;
 		this.logicalName = logicalName;
 		this.lockTimeoutSeconds = observableOutputKeeper.getLockTimeoutSeconds();
+		this.fsSync = fsSync;
 		this.targetFile = targetFile;
 		Assert.isPremiseValid(getTargetFile(targetFile) != null, "Target file should be created or exception thrown!");
 		this.observableOutputKeeper = observableOutputKeeper;
@@ -243,7 +253,7 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 						OUTPUT_FACTORY,
 						observableOutput -> {
 							logic.accept(observableOutput);
-							doSync(observableOutput);
+							doSync(observableOutput, this.fsSync);
 						}
 					);
 					return;
@@ -269,7 +279,7 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 						OUTPUT_FACTORY,
 						observableOutput -> {
 							final S result = logic.apply(observableOutput);
-							doSync(observableOutput);
+							doSync(observableOutput, this.fsSync);
 							return postExecutionLogic.apply(observableOutput, result);
 						}
 					);
