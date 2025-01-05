@@ -35,6 +35,7 @@ storage:
   waitOnCloseSeconds: ${storage.waitOnCloseSeconds:60}
   outputBufferSize: ${storage.outputBufferSize:4MB}
   maxOpenedReadHandles: ${storage.maxOpenedReadHandles:12}
+  syncWrites: ${storage.syncWrites:true}
   computeCRC32C: ${storage.computeCRC32C:true}
   minimalActiveRecordShare: ${storage.minimalActiveRecordShare:0.5}
   fileSizeCompactionThresholdBytes: ${storage.fileSizeCompactionThresholdBytes:100M}

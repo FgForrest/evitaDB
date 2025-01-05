@@ -39,6 +39,9 @@ java \
         "api.exposedOn=localhost" \
         "api.accessLog=true" \
         "cache.enabled=false" \
+        "api.certificate.generateAndUseSelfSigned=false" \
+        "api.certificate.custom.certificate=/www/oss/evitaDB-temporary/evita_server/evita-server-certificates/demo.evitadb.io-crt-chained.pem" \
+        "api.certificate.custom.privateKey=/www/oss/evitaDB-temporary/evita_server/evita-server-certificates/demo.evitadb.io-key.pem" \
         "api.endpoints.graphQL.tlsMode=RELAXED" \
         "api.endpoints.rest.tlsMode=RELAXED" \
         "api.endpoints.lab.tlsMode=RELAXED" \

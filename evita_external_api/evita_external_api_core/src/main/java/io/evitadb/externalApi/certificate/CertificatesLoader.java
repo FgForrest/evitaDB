@@ -66,6 +66,12 @@ public class CertificatesLoader {
 	private final CertificateFactory certificateFactory;
 	private final CertificatePath certificatePath;
 
+	static {
+		java.security.Security.addProvider(
+			new org.bouncycastle.jce.provider.BouncyCastleProvider()
+		);
+	}
+
 	/**
 	 * Loads a private key from the specified certificate path.
 	 *
