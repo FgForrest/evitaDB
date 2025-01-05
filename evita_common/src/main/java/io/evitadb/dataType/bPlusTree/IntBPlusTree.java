@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,6 +43,7 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.PrimitiveIterator.OfInt;
+import java.util.function.UnaryOperator;
 
 import static io.evitadb.utils.ArrayUtils.*;
 
@@ -464,6 +465,34 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 			splitLeafNode(leaf, leafWithPath.path());
 		}
 	}
+	/**
+	 * Updates an existing key-value pair or inserts a new one into the B+ tree.
+	 * If the key is already present, the value is updated based on the result of the updater function.
+	 * If the key is not present, a new key-value pair is inserted with the value returned by the updater function.
+	 * If the leaf node exceeds its block size after insertion, the node is split.
+	 *
+	 * @param key the key to update or insert, must not be null
+	 * @param updater a function to compute a new value, must not be null
+	 */
+	public void upsert(int key, @Nonnull UnaryOperator<V> updater) {
+		final LeafWithPath<V> leafWithPath = findLeafWithPath(key);
+		final BPlusLeafTreeNode<V> leaf = leafWithPath.leaf();
+
+		leaf.getValueWithIndex(key)
+			.ifPresentOrElse(
+				// update the value on specified index
+				result -> leaf.getValues()[result.index()] = updater.apply(result.value()),
+				// insert the new value
+				() -> {
+					this.size += leaf.insert(key, updater.apply(null)) ? 1 : 0;
+
+					// Split the leaf node if it exceeds the block size
+					if (leaf.isFull()) {
+						splitLeafNode(leaf, leafWithPath.path());
+					}
+				}
+			);
+	}
 
 	/**
 	 * Deletes the entry associated with the specified key from the B+ tree.
@@ -508,7 +537,7 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 	 */
 	@Nonnull
 	public Optional<V> search(int key) {
-		return findLeaf(key).search(key);
+		return findLeaf(key).getValue(key);
 	}
 
 	/**
@@ -548,6 +577,18 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 	@Nonnull
 	public Iterator<V> valueIterator() {
 		return new ForwardTreeValueIterator<>(findLeaf(Integer.MIN_VALUE));
+	}
+
+	/**
+	 * Returns an iterator that traverses the B+ tree values from left to right starting from the specified key or
+	 * a key that is immediately greater than the specified key. The key may not be present in the tree.
+	 *
+	 * @param key the key from which to start the iteration
+	 * @return an iterator that traverses the B+ tree values from left to right starting from the specified key
+	 */
+	@Nonnull
+	public Iterator<V> greaterOrEqualValueIterator(int key) {
+		return new ForwardTreeValueIterator<>(findLeaf(key), key);
 	}
 
 	/**
@@ -1494,10 +1535,26 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 		 * otherwise, an empty Optional
 		 */
 		@Nonnull
-		public Optional<V> search(int key) {
+		public Optional<V> getValue(int key) {
 			final InsertionPosition insertionPosition = computeInsertPositionOfIntInOrderedArray(key, this.keys, 0, this.peek + 1);
 			return insertionPosition.alreadyPresent() ?
 				Optional.of(this.values[insertionPosition.position()]) : Optional.empty();
+		}
+
+		/**
+		 * Searches for a value in the node's key-value pairs by the specified key.
+		 * If the key is found, returns an Optional containing the associated value;
+		 * otherwise returns an empty Optional.
+		 *
+		 * @param key the key to search for in the leaf node
+		 * @return an Optional containing the value associated with the specified key if found;
+		 * otherwise, an empty Optional
+		 */
+		@Nonnull
+		public Optional<ValueWithIndex<V>> getValueWithIndex(int key) {
+			final InsertionPosition insertionPosition = computeInsertPositionOfIntInOrderedArray(key, this.keys, 0, this.peek + 1);
+			return insertionPosition.alreadyPresent() ?
+				Optional.of(new ValueWithIndex<>(insertionPosition.position(), this.values[insertionPosition.position()])) : Optional.empty();
 		}
 
 		@Override
@@ -1574,6 +1631,20 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 	private record LeafWithPath<V>(
 		@Nonnull List<BPlusInternalTreeNode> path,
 		@Nonnull BPlusLeafTreeNode<V> leaf
+	) {
+	}
+
+	/**
+	 * Represents a value along with its associated index. This class is a record that holds an integer index
+	 * and a non-nullable value.
+	 *
+	 * @param <V> the type of the value
+	 * @param index the index associated with the value
+	 * @param value the non-null value associated with the index
+	 */
+	private record ValueWithIndex<V>(
+		int index,
+		@Nonnull V value
 	) {
 	}
 
@@ -1687,7 +1758,16 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 		public ForwardTreeValueIterator(@Nonnull BPlusLeafTreeNode<V> leaf) {
 			this.currentLeaf = leaf;
 			this.currentValueIndex = 0;
-			this.hasNext = this.currentLeaf.getPeek() >= 0;
+			this.hasNext = this.currentLeaf.getPeek() >= 0 || this.currentLeaf.getNextNode() != null;
+		}
+
+		public ForwardTreeValueIterator(@Nonnull BPlusLeafTreeNode<V> leaf, int key) {
+			this.currentLeaf = leaf;
+			final InsertionPosition insertionPosition = computeInsertPositionOfIntInOrderedArray(
+				key, this.currentLeaf.getKeys(), 0, this.currentLeaf.size()
+			);
+			this.currentValueIndex = insertionPosition.position();
+			this.hasNext = this.currentLeaf.getPeek() >= insertionPosition.position() || this.currentLeaf.getNextNode() != null;
 		}
 
 		@Override

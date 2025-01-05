@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.ArrayUtils.InsertionPosition;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -40,10 +41,7 @@ import java.util.NoSuchElementException;
 import java.util.Random;
 
 import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * This test verifies the correctness of the {@link IntBPlusTree} implementation.
@@ -195,6 +193,52 @@ class ObjectBPlusTreeTest implements TimeBoundedTestSupport {
 		assertArrayEquals(testTree.asStringArray(), reconstructedArray);
 		assertThrows(NoSuchElementException.class, it::next);
 		assertEquals(testTree.totalElements(), testTree.bPlusTree().size());
+	}
+
+	@Test
+	void shouldIterateThroughLeafNodeValuesLeftToRightFromExactPosition() {
+		final TreeTuple testTree = prepareRandomTree(42, 100);
+		final Iterator<String> it = testTree.bPlusTree().greaterOrEqualValueIterator(40);
+		final Integer[] plainFullArray = testTree.plainArray();
+		final InsertionPosition insertionPosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(40, plainFullArray);
+
+		assertTrue(insertionPosition.alreadyPresent());
+		final String[] partialCopy = new String[plainFullArray.length - insertionPosition.position()];
+		for (int i = insertionPosition.position(); i < plainFullArray.length; i++) {
+			partialCopy[i - insertionPosition.position()] = "Value" + plainFullArray[i];
+		}
+
+		final String[] reconstructedArray = new String[partialCopy.length];
+		int index = 0;
+		while (it.hasNext()) {
+			reconstructedArray[index++] = it.next();
+		}
+
+		assertArrayEquals(partialCopy, reconstructedArray);
+		assertThrows(NoSuchElementException.class, it::next);
+	}
+
+	@Test
+	void shouldIterateThroughLeafNodeValuesLeftToRightFromExactNonExistingPosition() {
+		final TreeTuple testTree = prepareRandomTree(42, 100);
+		final Iterator<String> it = testTree.bPlusTree().greaterOrEqualValueIterator(39);
+		final Integer[] plainFullArray = testTree.plainArray();
+		final InsertionPosition insertionPosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(39, plainFullArray);
+
+		assertFalse(insertionPosition.alreadyPresent());
+		final String[] partialCopy = new String[plainFullArray.length - insertionPosition.position()];
+		for (int i = insertionPosition.position(); i < plainFullArray.length; i++) {
+			partialCopy[i - insertionPosition.position()] = "Value" + plainFullArray[i];
+		}
+
+		final String[] reconstructedArray = new String[partialCopy.length];
+		int index = 0;
+		while (it.hasNext()) {
+			reconstructedArray[index++] = it.next();
+		}
+
+		assertArrayEquals(partialCopy, reconstructedArray);
+		assertThrows(NoSuchElementException.class, it::next);
 	}
 
 	@Test
@@ -602,6 +646,32 @@ class ObjectBPlusTreeTest implements TimeBoundedTestSupport {
 		expectedArray = ArrayUtils.removeRecordFromOrderedArray(30, expectedArray);
 
 		verifyTreeConsistency(theTree, expectedArray);
+	}
+
+	@Test
+	void shouldUpdateExistingValue() {
+		final TreeTuple testTree = prepareRandomTree(42, 50);
+		final ObjectBPlusTree<Integer, String> theTree = testTree.bPlusTree();
+		Integer[] expectedArray = testTree.plainArray();
+
+		assertEquals("Value13", theTree.search(13).orElse(null));
+		theTree.upsert(13, existingValue -> "NewValue18");
+		assertEquals("NewValue18", theTree.search(13).orElse(null));
+
+		verifyTreeConsistency(theTree, expectedArray);
+	}
+
+	@Test
+	void shouldInsertNonExistingValueViaUpsert() {
+		final TreeTuple testTree = prepareRandomTree(42, 50);
+		final ObjectBPlusTree<Integer, String> theTree = testTree.bPlusTree();
+		Integer[] expectedArray = testTree.plainArray();
+
+		assertNull(theTree.search(100).orElse(null));
+		theTree.upsert(100, existingValue -> "Value100");
+		assertEquals("Value100", theTree.search(100).orElse(null));
+
+		verifyTreeConsistency(theTree, ArrayUtils.insertRecordIntoOrderedArray(100, expectedArray));
 	}
 
 	@Test

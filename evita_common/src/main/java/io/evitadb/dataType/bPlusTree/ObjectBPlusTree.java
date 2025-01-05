@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -42,6 +42,7 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.UnaryOperator;
 
 import static io.evitadb.utils.ArrayUtils.InsertionPosition;
 import static io.evitadb.utils.ArrayUtils.computeInsertPositionOfObjInOrderedArray;
@@ -476,6 +477,35 @@ public class ObjectBPlusTree<K extends Comparable<K>, V> implements ConsistencyS
 	}
 
 	/**
+	 * Updates an existing key-value pair or inserts a new one into the B+ tree.
+	 * If the key is already present, the value is updated based on the result of the updater function.
+	 * If the key is not present, a new key-value pair is inserted with the value returned by the updater function.
+	 * If the leaf node exceeds its block size after insertion, the node is split.
+	 *
+	 * @param key the key to update or insert, must not be null
+	 * @param updater a function to compute a new value, must not be null
+	 */
+	public void upsert(@Nonnull K key, @Nonnull UnaryOperator<V> updater) {
+		final LeafWithPath<K, V> leafWithPath = findLeafWithPath(key);
+		final BPlusLeafTreeNode<K, V> leaf = leafWithPath.leaf();
+
+		leaf.getValueWithIndex(key)
+			.ifPresentOrElse(
+				// update the value on specified index
+				result -> leaf.getValues()[result.index()] = updater.apply(result.value()),
+				// insert the new value
+				() -> {
+					this.size += leaf.insert(key, updater.apply(null)) ? 1 : 0;
+
+					// Split the leaf node if it exceeds the block size
+					if (leaf.isFull()) {
+						splitLeafNode(leaf, leafWithPath.path());
+					}
+				}
+			);
+	}
+
+	/**
 	 * Deletes the entry associated with the specified key from the B+ tree.
 	 * The method locates the appropriate leaf node containing the key and
 	 * removes the entry from it, ensuring that the B+ tree properties are
@@ -518,7 +548,7 @@ public class ObjectBPlusTree<K extends Comparable<K>, V> implements ConsistencyS
 	 */
 	@Nonnull
 	public Optional<V> search(@Nonnull K key) {
-		return findLeaf(key).search(key);
+		return findLeaf(key).getValue(key);
 	}
 
 	/**
@@ -558,6 +588,18 @@ public class ObjectBPlusTree<K extends Comparable<K>, V> implements ConsistencyS
 	@Nonnull
 	public Iterator<V> valueIterator() {
 		return new ForwardTreeValueIterator<>(findLeftmostLeaf());
+	}
+
+	/**
+	 * Returns an iterator that traverses the B+ tree values from left to right starting from the specified key or
+	 * a key that is immediately greater than the specified key. The key may not be present in the tree.
+	 *
+	 * @param key the key from which to start the iteration
+	 * @return an iterator that traverses the B+ tree values from left to right starting from the specified key
+	 */
+	@Nonnull
+	public Iterator<V> greaterOrEqualValueIterator(@Nonnull K key) {
+		return new ForwardTreeValueIterator<>(findLeaf(key), key);
 	}
 
 	/**
@@ -1558,10 +1600,26 @@ public class ObjectBPlusTree<K extends Comparable<K>, V> implements ConsistencyS
 		 * otherwise, an empty Optional
 		 */
 		@Nonnull
-		public Optional<N> search(@Nonnull M key) {
+		public Optional<N> getValue(@Nonnull M key) {
 			final InsertionPosition insertionPosition = computeInsertPositionOfObjInOrderedArray(key, this.keys, 0, this.peek + 1);
 			return insertionPosition.alreadyPresent() ?
 				Optional.of(this.values[insertionPosition.position()]) : Optional.empty();
+		}
+
+		/**
+		 * Searches for a value in the node's key-value pairs by the specified key.
+		 * If the key is found, returns an Optional containing the associated value;
+		 * otherwise returns an empty Optional.
+		 *
+		 * @param key the key to search for in the leaf node
+		 * @return an Optional containing the value associated with the specified key if found;
+		 * otherwise, an empty Optional
+		 */
+		@Nonnull
+		public Optional<ValueWithIndex<N>> getValueWithIndex(@Nonnull M key) {
+			final InsertionPosition insertionPosition = computeInsertPositionOfObjInOrderedArray(key, this.keys, 0, this.peek + 1);
+			return insertionPosition.alreadyPresent() ?
+				Optional.of(new ValueWithIndex<>(insertionPosition.position(), this.values[insertionPosition.position()])) : Optional.empty();
 		}
 
 		@Override
@@ -1638,6 +1696,20 @@ public class ObjectBPlusTree<K extends Comparable<K>, V> implements ConsistencyS
 	private record LeafWithPath<M extends Comparable<M>, N>(
 		@Nonnull List<BPlusInternalTreeNode<M>> path,
 		@Nonnull BPlusLeafTreeNode<M, N> leaf
+	) {
+	}
+
+	/**
+	 * Represents a value along with its associated index. This class is a record that holds an integer index
+	 * and a non-nullable value.
+	 *
+	 * @param <V> the type of the value
+	 * @param index the index associated with the value
+	 * @param value the non-null value associated with the index
+	 */
+	private record ValueWithIndex<V>(
+		int index,
+		@Nonnull V value
 	) {
 	}
 
@@ -1751,7 +1823,16 @@ public class ObjectBPlusTree<K extends Comparable<K>, V> implements ConsistencyS
 		public ForwardTreeValueIterator(@Nonnull BPlusLeafTreeNode<M, N> leaf) {
 			this.currentLeaf = leaf;
 			this.currentValueIndex = 0;
-			this.hasNext = this.currentLeaf.getPeek() >= 0;
+			this.hasNext = this.currentLeaf.getPeek() >= 0 || this.currentLeaf.getNextNode() != null;
+		}
+
+		public ForwardTreeValueIterator(@Nonnull BPlusLeafTreeNode<M, N> leaf, @Nonnull M key) {
+			this.currentLeaf = leaf;
+			final InsertionPosition insertionPosition = computeInsertPositionOfObjInOrderedArray(
+				key, this.currentLeaf.getKeys(), 0, this.currentLeaf.size()
+			);
+			this.currentValueIndex = insertionPosition.position();
+			this.hasNext = this.currentLeaf.getPeek() >= insertionPosition.position() || this.currentLeaf.getNextNode() != null;
 		}
 
 		@Override
