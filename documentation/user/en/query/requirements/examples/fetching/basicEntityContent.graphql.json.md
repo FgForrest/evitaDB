@@ -1,9 +1,9 @@
 ```json
 {
-  "data": [
+  "data" : [
     {
-      "primaryKey": 64703,
-      "type": "Brand"
+      "primaryKey" : 64703,
+      "type" : "Brand"
     }
   ]
 }

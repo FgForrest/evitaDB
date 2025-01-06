@@ -1,501 +1,501 @@
 ```json
 {
-  "recordPage": {
-    "data": [
+  "recordPage" : {
+    "data" : [
       {
-        "primaryKey": 107827,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 107827,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "zte-axon-10"
+        "attributes" : {
+          "global" : {
+            "code" : "zte-axon-10"
           }
         },
-        "groups": [
+        "groups" : [
           {
-            "referencedPrimaryKey": 66505,
-            "attributes": {
-              "global": {
-                "orderInGroup": -1
+            "referencedPrimaryKey" : 66505,
+            "attributes" : {
+              "global" : {
+                "orderInGroup" : -1
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 108543,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 108543,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "xiaomi-mi-watch-lite"
+        "attributes" : {
+          "global" : {
+            "code" : "xiaomi-mi-watch-lite"
           }
         },
-        "groups": [
+        "groups" : [
           {
-            "referencedPrimaryKey": 66505,
-            "attributes": {
-              "global": {
-                "orderInGroup": 107827
+            "referencedPrimaryKey" : 66505,
+            "attributes" : {
+              "global" : {
+                "orderInGroup" : 107827
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 108540,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 108540,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "xiaomi-mi-watch"
+        "attributes" : {
+          "global" : {
+            "code" : "xiaomi-mi-watch"
           }
         },
-        "groups": [
+        "groups" : [
           {
-            "referencedPrimaryKey": 66505,
-            "attributes": {
-              "global": {
-                "orderInGroup": 108543
+            "referencedPrimaryKey" : 66505,
+            "attributes" : {
+              "global" : {
+                "orderInGroup" : 108543
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 113054,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 113054,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "xiaomi-buds-3-pro"
+        "attributes" : {
+          "global" : {
+            "code" : "xiaomi-buds-3-pro"
           }
         },
-        "groups": [
+        "groups" : [
           {
-            "referencedPrimaryKey": 66505,
-            "attributes": {
-              "global": {
-                "orderInGroup": 108540
+            "referencedPrimaryKey" : 66505,
+            "attributes" : {
+              "global" : {
+                "orderInGroup" : 108540
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 113172,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 113172,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "trust-kuza"
+        "attributes" : {
+          "global" : {
+            "code" : "trust-kuza"
           }
         },
-        "groups": [
+        "groups" : [
           {
-            "referencedPrimaryKey": 66505,
-            "attributes": {
-              "global": {
-                "orderInGroup": 113054
+            "referencedPrimaryKey" : 66505,
+            "attributes" : {
+              "global" : {
+                "orderInGroup" : 113054
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 113048,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 113048,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "sony-wh-ch710n"
+        "attributes" : {
+          "global" : {
+            "code" : "sony-wh-ch710n"
           }
         },
-        "groups": [
+        "groups" : [
           {
-            "referencedPrimaryKey": 66505,
-            "attributes": {
-              "global": {
-                "orderInGroup": 113172
+            "referencedPrimaryKey" : 66505,
+            "attributes" : {
+              "global" : {
+                "orderInGroup" : 113172
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 113035,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 113035,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "sony-inzone-h3"
+        "attributes" : {
+          "global" : {
+            "code" : "sony-inzone-h3"
           }
         },
-        "groups": [
+        "groups" : [
           {
-            "referencedPrimaryKey": 66505,
-            "attributes": {
-              "global": {
-                "orderInGroup": 113048
+            "referencedPrimaryKey" : 66505,
+            "attributes" : {
+              "global" : {
+                "orderInGroup" : 113048
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 113013,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 113013,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "skullcandy-hesh-anc"
+        "attributes" : {
+          "global" : {
+            "code" : "skullcandy-hesh-anc"
           }
         },
-        "groups": [
+        "groups" : [
           {
-            "referencedPrimaryKey": 66505,
-            "attributes": {
-              "global": {
-                "orderInGroup": 113035
+            "referencedPrimaryKey" : 66505,
+            "attributes" : {
+              "global" : {
+                "orderInGroup" : 113035
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 113010,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 113010,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "skullcandy-dime"
+        "attributes" : {
+          "global" : {
+            "code" : "skullcandy-dime"
           }
         },
-        "groups": [
+        "groups" : [
           {
-            "referencedPrimaryKey": 66505,
-            "attributes": {
-              "global": {
-                "orderInGroup": 113013
+            "referencedPrimaryKey" : 66505,
+            "attributes" : {
+              "global" : {
+                "orderInGroup" : 113013
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 107443,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 107443,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "samsung-galaxy-a32"
+        "attributes" : {
+          "global" : {
+            "code" : "samsung-galaxy-a32"
           }
         },
-        "groups": [
+        "groups" : [
           {
-            "referencedPrimaryKey": 66505,
-            "attributes": {
-              "global": {
-                "orderInGroup": 113010
+            "referencedPrimaryKey" : 66505,
+            "attributes" : {
+              "global" : {
+                "orderInGroup" : 113010
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 113134,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 113134,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "razer-deathadder-v2"
+        "attributes" : {
+          "global" : {
+            "code" : "razer-deathadder-v2"
           }
         },
-        "groups": [
+        "groups" : [
           {
-            "referencedPrimaryKey": 66505,
-            "attributes": {
-              "global": {
-                "orderInGroup": 107443
+            "referencedPrimaryKey" : 66505,
+            "attributes" : {
+              "global" : {
+                "orderInGroup" : 107443
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 105289,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 105289,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "rakuten-forma"
+        "attributes" : {
+          "global" : {
+            "code" : "rakuten-forma"
           }
         },
-        "groups": [
+        "groups" : [
           {
-            "referencedPrimaryKey": 66505,
-            "attributes": {
-              "global": {
-                "orderInGroup": 113134
+            "referencedPrimaryKey" : 66505,
+            "attributes" : {
+              "global" : {
+                "orderInGroup" : 113134
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 105238,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 105238,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "pocketbook-basic-lux-3"
+        "attributes" : {
+          "global" : {
+            "code" : "pocketbook-basic-lux-3"
           }
         },
-        "groups": [
+        "groups" : [
           {
-            "referencedPrimaryKey": 66505,
-            "attributes": {
-              "global": {
-                "orderInGroup": 105289
+            "referencedPrimaryKey" : 66505,
+            "attributes" : {
+              "global" : {
+                "orderInGroup" : 105289
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 104851,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 104851,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "panasonic-toughbook-a3-2020"
+        "attributes" : {
+          "global" : {
+            "code" : "panasonic-toughbook-a3-2020"
           }
         },
-        "groups": [
+        "groups" : [
           {
-            "referencedPrimaryKey": 66505,
-            "attributes": {
-              "global": {
-                "orderInGroup": 105238
+            "referencedPrimaryKey" : 66505,
+            "attributes" : {
+              "global" : {
+                "orderInGroup" : 105238
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 107008,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 107008,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "nokia-c2"
+        "attributes" : {
+          "global" : {
+            "code" : "nokia-c2"
           }
         },
-        "groups": [
+        "groups" : [
           {
-            "referencedPrimaryKey": 66505,
-            "attributes": {
-              "global": {
-                "orderInGroup": 104851
+            "referencedPrimaryKey" : 66505,
+            "attributes" : {
+              "global" : {
+                "orderInGroup" : 104851
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 110962,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 110962,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "msi-gp75-10sfsk-leopard"
+        "attributes" : {
+          "global" : {
+            "code" : "msi-gp75-10sfsk-leopard"
           }
         },
-        "groups": [
+        "groups" : [
           {
-            "referencedPrimaryKey": 66505,
-            "attributes": {
-              "global": {
-                "orderInGroup": 107008
+            "referencedPrimaryKey" : 66505,
+            "attributes" : {
+              "global" : {
+                "orderInGroup" : 107008
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 113104,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 113104,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "logitech-signature-m650"
+        "attributes" : {
+          "global" : {
+            "code" : "logitech-signature-m650"
           }
         },
-        "groups": [
+        "groups" : [
           {
-            "referencedPrimaryKey": 66505,
-            "attributes": {
-              "global": {
-                "orderInGroup": 110962
+            "referencedPrimaryKey" : 66505,
+            "attributes" : {
+              "global" : {
+                "orderInGroup" : 110962
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 106838,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 106838,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "lg-stylo-5x"
+        "attributes" : {
+          "global" : {
+            "code" : "lg-stylo-5x"
           }
         },
-        "groups": [
+        "groups" : [
           {
-            "referencedPrimaryKey": 66505,
-            "attributes": {
-              "global": {
-                "orderInGroup": 113104
+            "referencedPrimaryKey" : 66505,
+            "attributes" : {
+              "global" : {
+                "orderInGroup" : 113104
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 106823,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 106823,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "lg-k-series-k51"
+        "attributes" : {
+          "global" : {
+            "code" : "lg-k-series-k51"
           }
         },
-        "groups": [
+        "groups" : [
           {
-            "referencedPrimaryKey": 66505,
-            "attributes": {
-              "global": {
-                "orderInGroup": 106838
+            "referencedPrimaryKey" : 66505,
+            "attributes" : {
+              "global" : {
+                "orderInGroup" : 106838
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 113392,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 113392,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "32-uhd-hdr-monitor-with-usb-type-c"
+        "attributes" : {
+          "global" : {
+            "code" : "32-uhd-hdr-monitor-with-usb-type-c"
           }
         },
-        "groups": [
+        "groups" : [
           {
-            "referencedPrimaryKey": 66505,
-            "attributes": {
-              "global": {
-                "orderInGroup": 106823
+            "referencedPrimaryKey" : 66505,
+            "attributes" : {
+              "global" : {
+                "orderInGroup" : 106823
               }
             }
           }
         ]
       }
     ],
-    "empty": false,
-    "first": true,
-    "firstPageItemNumber": 0,
-    "hasNext": true,
-    "hasPrevious": false,
-    "last": false,
-    "lastPageItemNumber": 19,
-    "lastPageNumber": 2,
-    "pageNumber": 1,
-    "pageSize": 20,
-    "singlePage": false,
-    "totalRecordCount": 39,
-    "type": "PAGE"
+    "empty" : false,
+    "first" : true,
+    "firstPageItemNumber" : 0,
+    "hasNext" : true,
+    "hasPrevious" : false,
+    "last" : false,
+    "lastPageItemNumber" : 19,
+    "lastPageNumber" : 2,
+    "pageNumber" : 1,
+    "pageSize" : 20,
+    "singlePage" : false,
+    "totalRecordCount" : 39,
+    "type" : "PAGE"
   }
 }
 ```

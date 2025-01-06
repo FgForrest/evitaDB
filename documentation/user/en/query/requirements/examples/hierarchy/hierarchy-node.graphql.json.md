@@ -1,154 +1,154 @@
 ```json
 [
   {
-    "level": 1,
-    "entity": {
-      "primaryKey": 66468,
-      "attributes": {
-        "code": "accessories"
+    "level" : 1,
+    "entity" : {
+      "primaryKey" : 66468,
+      "attributes" : {
+        "code" : "accessories"
       }
     },
-    "requested": true
+    "requested" : true
   },
   {
-    "level": 2,
-    "entity": {
-      "primaryKey": 66480,
-      "attributes": {
-        "code": "christmas-electronics"
+    "level" : 2,
+    "entity" : {
+      "primaryKey" : 66480,
+      "attributes" : {
+        "code" : "christmas-electronics"
       }
     },
-    "requested": false
+    "requested" : false
   },
   {
-    "level": 2,
-    "entity": {
-      "primaryKey": 66481,
-      "attributes": {
-        "code": "smart-wearable"
+    "level" : 2,
+    "entity" : {
+      "primaryKey" : 66481,
+      "attributes" : {
+        "code" : "smart-wearable"
       }
     },
-    "requested": false
+    "requested" : false
   },
   {
-    "level": 3,
-    "entity": {
-      "primaryKey": 66486,
-      "attributes": {
-        "code": "smartwatches"
+    "level" : 3,
+    "entity" : {
+      "primaryKey" : 66486,
+      "attributes" : {
+        "code" : "smartwatches"
       }
     },
-    "requested": false
+    "requested" : false
   },
   {
-    "level": 3,
-    "entity": {
-      "primaryKey": 66487,
-      "attributes": {
-        "code": "smartglasses"
+    "level" : 3,
+    "entity" : {
+      "primaryKey" : 66487,
+      "attributes" : {
+        "code" : "smartglasses"
       }
     },
-    "requested": false
+    "requested" : false
   },
   {
-    "level": 3,
-    "entity": {
-      "primaryKey": 108126,
-      "attributes": {
-        "code": "bands"
+    "level" : 3,
+    "entity" : {
+      "primaryKey" : 108126,
+      "attributes" : {
+        "code" : "bands"
       }
     },
-    "requested": false
+    "requested" : false
   },
   {
-    "level": 2,
-    "entity": {
-      "primaryKey": 66482,
-      "attributes": {
-        "code": "audio"
+    "level" : 2,
+    "entity" : {
+      "primaryKey" : 66482,
+      "attributes" : {
+        "code" : "audio"
       }
     },
-    "requested": false
+    "requested" : false
   },
   {
-    "level": 3,
-    "entity": {
-      "primaryKey": 66488,
-      "attributes": {
-        "code": "wireless-headphones"
+    "level" : 3,
+    "entity" : {
+      "primaryKey" : 66488,
+      "attributes" : {
+        "code" : "wireless-headphones"
       }
     },
-    "requested": false
+    "requested" : false
   },
   {
-    "level": 3,
-    "entity": {
-      "primaryKey": 66489,
-      "attributes": {
-        "code": "wired-heaphones"
+    "level" : 3,
+    "entity" : {
+      "primaryKey" : 66489,
+      "attributes" : {
+        "code" : "wired-heaphones"
       }
     },
-    "requested": false
+    "requested" : false
   },
   {
-    "level": 3,
-    "entity": {
-      "primaryKey": 66490,
-      "attributes": {
-        "code": "microphones"
+    "level" : 3,
+    "entity" : {
+      "primaryKey" : 66490,
+      "attributes" : {
+        "code" : "microphones"
       }
     },
-    "requested": false
+    "requested" : false
   },
   {
-    "level": 3,
-    "entity": {
-      "primaryKey": 66491,
-      "attributes": {
-        "code": "repro"
+    "level" : 3,
+    "entity" : {
+      "primaryKey" : 66491,
+      "attributes" : {
+        "code" : "repro"
       }
     },
-    "requested": false
+    "requested" : false
   },
   {
-    "level": 2,
-    "entity": {
-      "primaryKey": 66483,
-      "attributes": {
-        "code": "monitors"
+    "level" : 2,
+    "entity" : {
+      "primaryKey" : 66483,
+      "attributes" : {
+        "code" : "monitors"
       }
     },
-    "requested": false
+    "requested" : false
   },
   {
-    "level": 2,
-    "entity": {
-      "primaryKey": 66484,
-      "attributes": {
-        "code": "keyboards"
+    "level" : 2,
+    "entity" : {
+      "primaryKey" : 66484,
+      "attributes" : {
+        "code" : "keyboards"
       }
     },
-    "requested": false
+    "requested" : false
   },
   {
-    "level": 3,
-    "entity": {
-      "primaryKey": 66492,
-      "attributes": {
-        "code": "cz-keyboards"
+    "level" : 3,
+    "entity" : {
+      "primaryKey" : 66492,
+      "attributes" : {
+        "code" : "cz-keyboards"
       }
     },
-    "requested": false
+    "requested" : false
   },
   {
-    "level": 2,
-    "entity": {
-      "primaryKey": 66537,
-      "attributes": {
-        "code": "mouses"
+    "level" : 2,
+    "entity" : {
+      "primaryKey" : 66537,
+      "attributes" : {
+        "code" : "mouses"
       }
     },
-    "requested": false
+    "requested" : false
   }
 ]
 ```

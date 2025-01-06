@@ -1,501 +1,501 @@
 ```json
 {
-  "recordPage": {
-    "data": [
+  "recordPage" : {
+    "data" : [
       {
-        "primaryKey": 113705,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 113705,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "emos-cold-base-set-for-interconnecting-chains"
+        "attributes" : {
+          "global" : {
+            "code" : "emos-cold-base-set-for-interconnecting-chains"
           }
         },
-        "categories": [
+        "categories" : [
           {
-            "referencedPrimaryKey": 66480,
-            "attributes": {
-              "global": {
-                "orderInCategory": -1
+            "referencedPrimaryKey" : 66480,
+            "attributes" : {
+              "global" : {
+                "orderInCategory" : -1
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 113709,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 113709,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "emos-warm-base-set-for-interconnecting-chains"
+        "attributes" : {
+          "global" : {
+            "code" : "emos-warm-base-set-for-interconnecting-chains"
           }
         },
-        "categories": [
+        "categories" : [
           {
-            "referencedPrimaryKey": 66480,
-            "attributes": {
-              "global": {
-                "orderInCategory": 113705
+            "referencedPrimaryKey" : 66480,
+            "attributes" : {
+              "global" : {
+                "orderInCategory" : 113705
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 113713,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 113713,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "emos-nativity-set"
+        "attributes" : {
+          "global" : {
+            "code" : "emos-nativity-set"
           }
         },
-        "categories": [
+        "categories" : [
           {
-            "referencedPrimaryKey": 66480,
-            "attributes": {
-              "global": {
-                "orderInCategory": 113709
+            "referencedPrimaryKey" : 66480,
+            "attributes" : {
+              "global" : {
+                "orderInCategory" : 113709
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 113714,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 113714,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "emos-candlestick"
+        "attributes" : {
+          "global" : {
+            "code" : "emos-candlestick"
           }
         },
-        "categories": [
+        "categories" : [
           {
-            "referencedPrimaryKey": 66480,
-            "attributes": {
-              "global": {
-                "orderInCategory": 113713
+            "referencedPrimaryKey" : 66480,
+            "attributes" : {
+              "global" : {
+                "orderInCategory" : 113713
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 113716,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 113716,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "retlux-warm-white-christmas-lightning"
+        "attributes" : {
+          "global" : {
+            "code" : "retlux-warm-white-christmas-lightning"
           }
         },
-        "categories": [
+        "categories" : [
           {
-            "referencedPrimaryKey": 66480,
-            "attributes": {
-              "global": {
-                "orderInCategory": 113714
+            "referencedPrimaryKey" : 66480,
+            "attributes" : {
+              "global" : {
+                "orderInCategory" : 113714
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 113718,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 113718,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "retlux-blue-christmas-lightning"
+        "attributes" : {
+          "global" : {
+            "code" : "retlux-blue-christmas-lightning"
           }
         },
-        "categories": [
+        "categories" : [
           {
-            "referencedPrimaryKey": 66480,
-            "attributes": {
-              "global": {
-                "orderInCategory": 113716
+            "referencedPrimaryKey" : 66480,
+            "attributes" : {
+              "global" : {
+                "orderInCategory" : 113716
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 113720,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 113720,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "retlux-cottage-acrylic-ornament"
+        "attributes" : {
+          "global" : {
+            "code" : "retlux-cottage-acrylic-ornament"
           }
         },
-        "categories": [
+        "categories" : [
           {
-            "referencedPrimaryKey": 66480,
-            "attributes": {
-              "global": {
-                "orderInCategory": 113718
+            "referencedPrimaryKey" : 66480,
+            "attributes" : {
+              "global" : {
+                "orderInCategory" : 113718
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 113721,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 113721,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "immax-neo-lite-smart-chain"
+        "attributes" : {
+          "global" : {
+            "code" : "immax-neo-lite-smart-chain"
           }
         },
-        "categories": [
+        "categories" : [
           {
-            "referencedPrimaryKey": 66480,
-            "attributes": {
-              "global": {
-                "orderInCategory": 113720
+            "referencedPrimaryKey" : 66480,
+            "attributes" : {
+              "global" : {
+                "orderInCategory" : 113720
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 113725,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 113725,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "immax-neo-lite-smart-christmas-led-tree"
+        "attributes" : {
+          "global" : {
+            "code" : "immax-neo-lite-smart-christmas-led-tree"
           }
         },
-        "categories": [
+        "categories" : [
           {
-            "referencedPrimaryKey": 66480,
-            "attributes": {
-              "global": {
-                "orderInCategory": 113721
+            "referencedPrimaryKey" : 66480,
+            "attributes" : {
+              "global" : {
+                "orderInCategory" : 113721
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 113727,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 113727,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "immax-neo-lite-smart-christmas-led-strip"
+        "attributes" : {
+          "global" : {
+            "code" : "immax-neo-lite-smart-christmas-led-strip"
           }
         },
-        "categories": [
+        "categories" : [
           {
-            "referencedPrimaryKey": 66480,
-            "attributes": {
-              "global": {
-                "orderInCategory": 113725
+            "referencedPrimaryKey" : 66480,
+            "attributes" : {
+              "global" : {
+                "orderInCategory" : 113725
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 107891,
-        "type": "Product",
-        "version": 2,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 107891,
+        "type" : "Product",
+        "version" : 2,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "amazfit-bip-3"
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-3"
           }
         },
-        "categories": [
+        "categories" : [
           {
-            "referencedPrimaryKey": 66486,
-            "attributes": {
-              "global": {
-                "orderInCategory": -1
+            "referencedPrimaryKey" : 66486,
+            "attributes" : {
+              "global" : {
+                "orderInCategory" : -1
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 107899,
-        "type": "Product",
-        "version": 2,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 107899,
+        "type" : "Product",
+        "version" : 2,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "amazfit-bip-3-pro"
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-3-pro"
           }
         },
-        "categories": [
+        "categories" : [
           {
-            "referencedPrimaryKey": 66486,
-            "attributes": {
-              "global": {
-                "orderInCategory": 107891
+            "referencedPrimaryKey" : 66486,
+            "attributes" : {
+              "global" : {
+                "orderInCategory" : 107891
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 107911,
-        "type": "Product",
-        "version": 2,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 107911,
+        "type" : "Product",
+        "version" : 2,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "amazfit-bip-s"
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-s"
           }
         },
-        "categories": [
+        "categories" : [
           {
-            "referencedPrimaryKey": 66486,
-            "attributes": {
-              "global": {
-                "orderInCategory": 107899
+            "referencedPrimaryKey" : 66486,
+            "attributes" : {
+              "global" : {
+                "orderInCategory" : 107899
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 107923,
-        "type": "Product",
-        "version": 2,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 107923,
+        "type" : "Product",
+        "version" : 2,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "amazfit-bip-s-lite"
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-s-lite"
           }
         },
-        "categories": [
+        "categories" : [
           {
-            "referencedPrimaryKey": 66486,
-            "attributes": {
-              "global": {
-                "orderInCategory": 107911
+            "referencedPrimaryKey" : 66486,
+            "attributes" : {
+              "global" : {
+                "orderInCategory" : 107911
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 107933,
-        "type": "Product",
-        "version": 2,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 107933,
+        "type" : "Product",
+        "version" : 2,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "amazfit-bip-u"
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-u"
           }
         },
-        "categories": [
+        "categories" : [
           {
-            "referencedPrimaryKey": 66486,
-            "attributes": {
-              "global": {
-                "orderInCategory": 107923
+            "referencedPrimaryKey" : 66486,
+            "attributes" : {
+              "global" : {
+                "orderInCategory" : 107923
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 107938,
-        "type": "Product",
-        "version": 2,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 107938,
+        "type" : "Product",
+        "version" : 2,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "amazfit-bip-u-pro"
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-u-pro"
           }
         },
-        "categories": [
+        "categories" : [
           {
-            "referencedPrimaryKey": 66486,
-            "attributes": {
-              "global": {
-                "orderInCategory": 107933
+            "referencedPrimaryKey" : 66486,
+            "attributes" : {
+              "global" : {
+                "orderInCategory" : 107933
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 107952,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 107952,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "amazfit-falcon"
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-falcon"
           }
         },
-        "categories": [
+        "categories" : [
           {
-            "referencedPrimaryKey": 66486,
-            "attributes": {
-              "global": {
-                "orderInCategory": 107938
+            "referencedPrimaryKey" : 66486,
+            "attributes" : {
+              "global" : {
+                "orderInCategory" : 107938
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 107961,
-        "type": "Product",
-        "version": 2,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 107961,
+        "type" : "Product",
+        "version" : 2,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "amazfit-gtr"
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-gtr"
           }
         },
-        "categories": [
+        "categories" : [
           {
-            "referencedPrimaryKey": 66486,
-            "attributes": {
-              "global": {
-                "orderInCategory": 107952
+            "referencedPrimaryKey" : 66486,
+            "attributes" : {
+              "global" : {
+                "orderInCategory" : 107952
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 107973,
-        "type": "Product",
-        "version": 2,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 107973,
+        "type" : "Product",
+        "version" : 2,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "amazfit-gtr-2"
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-gtr-2"
           }
         },
-        "categories": [
+        "categories" : [
           {
-            "referencedPrimaryKey": 66486,
-            "attributes": {
-              "global": {
-                "orderInCategory": 107961
+            "referencedPrimaryKey" : 66486,
+            "attributes" : {
+              "global" : {
+                "orderInCategory" : 107961
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 107981,
-        "type": "Product",
-        "version": 2,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 107981,
+        "type" : "Product",
+        "version" : 2,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "amazfit-gtr-2-2022"
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-gtr-2-2022"
           }
         },
-        "categories": [
+        "categories" : [
           {
-            "referencedPrimaryKey": 66486,
-            "attributes": {
-              "global": {
-                "orderInCategory": 107973
+            "referencedPrimaryKey" : 66486,
+            "attributes" : {
+              "global" : {
+                "orderInCategory" : 107973
               }
             }
           }
         ]
       }
     ],
-    "empty": false,
-    "first": true,
-    "firstPageItemNumber": 0,
-    "hasNext": true,
-    "hasPrevious": false,
-    "last": false,
-    "lastPageItemNumber": 19,
-    "lastPageNumber": 26,
-    "pageNumber": 1,
-    "pageSize": 20,
-    "singlePage": false,
-    "totalRecordCount": 501,
-    "type": "PAGE"
+    "empty" : false,
+    "first" : true,
+    "firstPageItemNumber" : 0,
+    "hasNext" : true,
+    "hasPrevious" : false,
+    "last" : false,
+    "lastPageItemNumber" : 19,
+    "lastPageNumber" : 26,
+    "pageNumber" : 1,
+    "pageSize" : 20,
+    "singlePage" : false,
+    "totalRecordCount" : 501,
+    "type" : "PAGE"
   }
 }
 ```

@@ -1,74 +1,74 @@
 ```json
 [
   {
-    "level": 1,
-    "entity": {
-      "primaryKey": 66468,
-      "attributes": {
-        "code": "accessories"
+    "level" : 1,
+    "entity" : {
+      "primaryKey" : 66468,
+      "attributes" : {
+        "code" : "accessories"
       }
     },
-    "requested": true
+    "requested" : true
   },
   {
-    "level": 2,
-    "entity": {
-      "primaryKey": 66480,
-      "attributes": {
-        "code": "christmas-electronics"
+    "level" : 2,
+    "entity" : {
+      "primaryKey" : 66480,
+      "attributes" : {
+        "code" : "christmas-electronics"
       }
     },
-    "requested": false
+    "requested" : false
   },
   {
-    "level": 2,
-    "entity": {
-      "primaryKey": 66481,
-      "attributes": {
-        "code": "smart-wearable"
+    "level" : 2,
+    "entity" : {
+      "primaryKey" : 66481,
+      "attributes" : {
+        "code" : "smart-wearable"
       }
     },
-    "requested": false
+    "requested" : false
   },
   {
-    "level": 2,
-    "entity": {
-      "primaryKey": 66482,
-      "attributes": {
-        "code": "audio"
+    "level" : 2,
+    "entity" : {
+      "primaryKey" : 66482,
+      "attributes" : {
+        "code" : "audio"
       }
     },
-    "requested": false
+    "requested" : false
   },
   {
-    "level": 2,
-    "entity": {
-      "primaryKey": 66483,
-      "attributes": {
-        "code": "monitors"
+    "level" : 2,
+    "entity" : {
+      "primaryKey" : 66483,
+      "attributes" : {
+        "code" : "monitors"
       }
     },
-    "requested": false
+    "requested" : false
   },
   {
-    "level": 2,
-    "entity": {
-      "primaryKey": 66484,
-      "attributes": {
-        "code": "keyboards"
+    "level" : 2,
+    "entity" : {
+      "primaryKey" : 66484,
+      "attributes" : {
+        "code" : "keyboards"
       }
     },
-    "requested": false
+    "requested" : false
   },
   {
-    "level": 2,
-    "entity": {
-      "primaryKey": 66537,
-      "attributes": {
-        "code": "mouses"
+    "level" : 2,
+    "entity" : {
+      "primaryKey" : 66537,
+      "attributes" : {
+        "code" : "mouses"
       }
     },
-    "requested": false
+    "requested" : false
   }
 ]
 ```
