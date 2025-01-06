@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -968,7 +968,8 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 			Stream.of(
 					Stream.of(
 						property("storage.storageDirectory", getTestDirectory().resolve(DIR_EVITA_SERVER_TEST).toString()),
-						property("cache.enabled", "false")
+						property("cache.enabled", "false"),
+						property("api.requestTimeoutInMillis", "10K")
 					),
 					allApis.stream()
 						.filter(apis::contains)
@@ -988,6 +989,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 								return Stream.of(
 									property("api.endpoints." + it + ".host", "localhost:" + allocatedPort),
 									property("api.endpoints." + it + ".exposeOn", "localhost:" + allocatedPort),
+									property("api.endpoints." + it + ".enabled", "true")
 									property("api.endpoints." + it + ".enabled", "true")
 								);
 							}
