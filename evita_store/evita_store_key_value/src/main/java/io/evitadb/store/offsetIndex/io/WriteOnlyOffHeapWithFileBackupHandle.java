@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -37,6 +37,7 @@ import io.evitadb.store.spi.OffHeapWithFileBackupReference;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -89,11 +90,16 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 	/**
 	 * OutputStream that is used to write data to the off-heap memory.
 	 */
-	private ObservableOutput<OffHeapMemoryOutputStream> offHeapMemoryOutput;
+	@Nullable private ObservableOutput<OffHeapMemoryOutputStream> offHeapMemoryOutput;
 	/**
 	 * OutputStream that is used to write data to the file.
 	 */
-	private ObservableOutput<FileOutputStream> fileOutput;
+	@Nullable private ObservableOutput<FileOutputStream> fileOutput;
+	/**
+	 * Execute fsync when asked. When set to false, methods simply flush the buffers, but doesn't explicitly sync
+	 * the data on the persistent storage - leaving it to the OS to decide when to do so.
+	 */
+	private final boolean fsSync;
 	/**
 	 * Contains the information about the last end byte of fully written record.
 	 */
@@ -105,11 +111,11 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 	 * @param os The observable output stream to synchronize.
 	 * @throws SyncFailedException if the synchronization operation failed.
 	 */
-	private static void doSync(@Nonnull ObservableOutput<?> os) {
+	private static void doSync(@Nonnull ObservableOutput<?> os, boolean fsSync) {
 		// execute fsync so that data are really stored to the disk
 		try {
 			os.flush();
-			if (os.getOutputStream() instanceof FileOutputStream fileOutputStream) {
+			if (fsSync && os.getOutputStream() instanceof FileOutputStream fileOutputStream) {
 				fileOutputStream.getFD().sync();
 			}
 		} catch (IOException e) {
@@ -119,11 +125,13 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 
 	public WriteOnlyOffHeapWithFileBackupHandle(
 		@Nonnull Path targetFile,
+		boolean fsSync,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper,
 		@Nonnull OffHeapMemoryManager offHeapMemoryManager
 	) {
-		this.offHeapMemoryManager = offHeapMemoryManager;
 		this.targetFile = targetFile;
+		this.fsSync = fsSync;
+		this.offHeapMemoryManager = offHeapMemoryManager;
 		this.observableOutputKeeper = observableOutputKeeper;
 	}
 
@@ -333,7 +341,7 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 	) {
 		final T result = logic.apply(output);
 		if (sync) {
-			doSync(output);
+			doSync(output, this.fsSync);
 		}
 		// update the last consistent written position
 		lastConsistentWrittenPosition = Math.toIntExact(output.total());

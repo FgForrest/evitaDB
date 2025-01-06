@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -159,6 +159,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	);
 	private final WriteOnlyOffHeapWithFileBackupHandle writeHandle = new WriteOnlyOffHeapWithFileBackupHandle(
 		getTestDirectory().resolve(transactionId.toString()),
+		false,
 		observableOutputKeeper,
 		new OffHeapMemoryManager(TEST_CATALOG, 512, 1)
 	);
@@ -248,6 +249,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 						catalogName,
 						FileType.CATALOG,
 						catalogName,
+						false,
 						catalogFilePath,
 						observableOutputKeeper
 					),
@@ -796,7 +798,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			getTestDirectory().resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST),
 			60, 60,
 			StorageOptions.DEFAULT_OUTPUT_BUFFER_SIZE, 1,
-			true, 1.0, 0L, false,
+			false, true, 1.0, 0L, false,
 			Long.MAX_VALUE, Long.MAX_VALUE
 		);
 	}

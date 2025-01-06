@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -858,6 +858,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				this.catalogName,
 				FileType.CATALOG,
 				this.catalogName,
+				storageOptions.syncWrites(),
 				this.catalogStoragePath.resolve(getCatalogBootstrapFileName(catalogName)),
 				this.observableOutputKeeper
 			)
@@ -940,6 +941,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				this.catalogName,
 				FileType.CATALOG,
 				this.catalogName,
+				storageOptions.syncWrites(),
 				this.catalogStoragePath.resolve(getCatalogBootstrapFileName(catalogName)),
 				this.observableOutputKeeper
 			)
@@ -1442,6 +1444,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				this.transactionOptions.transactionWorkDirectory()
 					.resolve(transactionId.toString())
 					.resolve(transactionId + ".wal"),
+				this.storageOptions.syncWrites(),
 				this.observableOutputKeeper,
 				this.offHeapMemoryManager
 			)
@@ -1614,6 +1617,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 					catalogNameToBeReplaced,
 					FileType.CATALOG,
 					catalogNameToBeReplaced,
+					storageOptions.syncWrites(),
 					newPath.resolve(getCatalogBootstrapFileName(catalogNameToBeReplaced)),
 					this.observableOutputKeeper
 				),
@@ -2221,6 +2225,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 						originalBootstrapHandle,
 						new WriteOnlyFileHandle(
 							originalBootstrapHandle.getTargetFile(),
+							storageOptions.syncWrites(),
 							this.observableOutputKeeper
 						)
 					),
@@ -2275,6 +2280,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 					originalBootstrapHandle,
 					new WriteOnlyFileHandle(
 						originalBootstrapHandle.getTargetFile(),
+						storageOptions.syncWrites(),
 						this.observableOutputKeeper
 					)
 				),
@@ -2498,6 +2504,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			// create new file and replace the former one with it
 			return new WriteOnlyFileHandle(
 				Files.createTempFile(CatalogPersistenceService.getCatalogBootstrapFileName(newCatalogName), ".tmp"),
+				storageOptions.syncWrites(),
 				this.observableOutputKeeper
 			);
 		} catch (IOException e) {

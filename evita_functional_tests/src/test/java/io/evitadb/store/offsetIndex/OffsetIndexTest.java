@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -69,6 +69,7 @@ import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.IntFunction;
+import java.util.function.Supplier;
 
 import static io.evitadb.store.offsetIndex.OffsetIndexSerializationService.computeExpectedRecordCount;
 import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
@@ -199,7 +200,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 			),
 			limitedBufferOptions,
 			offsetIndexRecordTypeRegistry,
-			new WriteOnlyFileHandle(targetFile, observableOutputKeeper),
+			new WriteOnlyFileHandle(targetFile, false, observableOutputKeeper),
 			nonFlushedBlock -> {},
 			oldestRecordTimestamp -> {}
 		);
@@ -221,7 +222,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 			),
 			limitedBufferOptions,
 			offsetIndexRecordTypeRegistry,
-			new WriteOnlyFileHandle(targetFile, observableOutputKeeper),
+			new WriteOnlyFileHandle(targetFile, false, observableOutputKeeper),
 			nonFlushedBlock -> {},
 			oldestRecordTimestamp -> {}
 		);
@@ -242,7 +243,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 				snapshotBootstrapDescriptor,
 				limitedBufferOptions,
 				offsetIndexRecordTypeRegistry,
-				new WriteOnlyFileHandle(snapshotPath, observableOutputKeeper),
+				new WriteOnlyFileHandle(snapshotPath, false, observableOutputKeeper),
 				nonFlushedBlock -> {},
 				oldestRecordTimestamp -> {}
 			);
@@ -284,7 +285,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 			),
 			options,
 			offsetIndexRecordTypeRegistry,
-			new WriteOnlyFileHandle(targetFile, observableOutputKeeper),
+			new WriteOnlyFileHandle(targetFile, false, observableOutputKeeper),
 			nonFlushedBlock -> {},
 			oldestRecordTimestamp -> {}
 		);
@@ -328,7 +329,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 			),
 			options,
 			offsetIndexRecordTypeRegistry,
-			new WriteOnlyFileHandle(targetFile, observableOutputKeeper),
+			new WriteOnlyFileHandle(targetFile, false, observableOutputKeeper),
 			nonFlushedBlock -> {},
 			oldestRecordTimestamp -> {}
 		);
@@ -384,7 +385,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 				i
 			);
 
-			final EntityBodyStoragePart entityBody = OffsetIndex.readSingleRecord(
+			final Supplier<EntityBodyStoragePart> entityBodySupplier = () -> OffsetIndex.readSingleRecord(
 				targetFile,
 				offsetIndexDescriptor.fileLocation(),
 				key,
@@ -395,8 +396,9 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 					.orElse(null)
 			);
 			if (i < recordCount * (iterationCount - 1) && i % recordCount < removedRecords && i % recordCount > 0) {
-				assertNull(entityBody);
+				assertThrows(NullPointerException.class, entityBodySupplier::get);
 			} else {
+				final EntityBodyStoragePart entityBody = entityBodySupplier.get();
 				assertNotNull(entityBody);
 				assertEquals(
 					new EntityBodyStoragePart(i),
@@ -418,7 +420,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 			),
 			options,
 			offsetIndexRecordTypeRegistry,
-			new WriteOnlyFileHandle(targetFile, observableOutputKeeper),
+			new WriteOnlyFileHandle(targetFile, false, observableOutputKeeper),
 			nonFlushedBlock -> {},
 			oldestRecordTimestamp -> {}
 		);
@@ -448,7 +450,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 				),
 				buildOptionsWithLimitedBuffer(),
 				offsetIndexRecordTypeRegistry,
-				new WriteOnlyFileHandle(targetFile, observableOutputKeeper),
+				new WriteOnlyFileHandle(targetFile, false, observableOutputKeeper),
 				nonFlushedBlock -> {},
 				oldestRecordTimestamp -> {}
 			)
@@ -522,7 +524,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 					),
 					options,
 					offsetIndexRecordTypeRegistry,
-					new WriteOnlyFileHandle(currentFilePath.get(), observableOutputKeeper),
+					new WriteOnlyFileHandle(currentFilePath.get(), false, observableOutputKeeper),
 					nonFlushedBlock -> {},
 					oldestRecordTimestamp -> {}
 				);
@@ -610,7 +612,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 						),
 						options,
 						offsetIndexRecordTypeRegistry,
-						new WriteOnlyFileHandle(newPath, observableOutputKeeper),
+						new WriteOnlyFileHandle(newPath, false, observableOutputKeeper),
 						nonFlushedBlock -> {},
 						oldestRecordTimestamp -> {}
 					);
@@ -653,7 +655,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 			),
 			storageOptions,
 			offsetIndexRecordTypeRegistry,
-			new WriteOnlyFileHandle(targetFile, observableOutputKeeper),
+			new WriteOnlyFileHandle(targetFile, false, observableOutputKeeper),
 			nonFlushedBlock -> {},
 			oldestRecordTimestamp -> {}
 		);
@@ -675,7 +677,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 			),
 			storageOptions,
 			offsetIndexRecordTypeRegistry,
-			new WriteOnlyFileHandle(targetFile, observableOutputKeeper),
+			new WriteOnlyFileHandle(targetFile, false, observableOutputKeeper),
 			nonFlushedBlock -> {},
 			oldestRecordTimestamp -> {}
 		);
@@ -718,7 +720,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 			),
 			options,
 			offsetIndexRecordTypeRegistry,
-			new WriteOnlyFileHandle(targetFile, observableOutputKeeper),
+			new WriteOnlyFileHandle(targetFile, false, observableOutputKeeper),
 			nonFlushedBlock -> {},
 			oldestRecordTimestamp -> {}
 		);
