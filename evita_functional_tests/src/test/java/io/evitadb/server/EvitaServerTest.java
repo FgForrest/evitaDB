@@ -990,7 +990,6 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 									property("api.endpoints." + it + ".host", "localhost:" + allocatedPort),
 									property("api.endpoints." + it + ".exposeOn", "localhost:" + allocatedPort),
 									property("api.endpoints." + it + ".enabled", "true")
-									property("api.endpoints." + it + ".enabled", "true")
 								);
 							}
 						),
