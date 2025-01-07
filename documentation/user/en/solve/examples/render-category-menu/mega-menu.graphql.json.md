@@ -1,224 +1,224 @@
 ```json
 [
   {
-    "level": 1,
-    "entity": {
-      "primaryKey": 66466,
-      "attributes": {
-        "code": "portables"
+    "level" : 1,
+    "entity" : {
+      "primaryKey" : 66466,
+      "attributes" : {
+        "code" : "portables"
       }
     },
-    "requested": false
+    "requested" : false
   },
   {
-    "level": 2,
-    "entity": {
-      "primaryKey": 66471,
-      "attributes": {
-        "code": "phones"
+    "level" : 2,
+    "entity" : {
+      "primaryKey" : 66471,
+      "attributes" : {
+        "code" : "phones"
       }
     },
-    "requested": false
+    "requested" : false
   },
   {
-    "level": 2,
-    "entity": {
-      "primaryKey": 66472,
-      "attributes": {
-        "code": "tablets"
+    "level" : 2,
+    "entity" : {
+      "primaryKey" : 66472,
+      "attributes" : {
+        "code" : "tablets"
       }
     },
-    "requested": false
+    "requested" : false
   },
   {
-    "level": 2,
-    "entity": {
-      "primaryKey": 66473,
-      "attributes": {
-        "code": "e-readers"
+    "level" : 2,
+    "entity" : {
+      "primaryKey" : 66473,
+      "attributes" : {
+        "code" : "e-readers"
       }
     },
-    "requested": false
+    "requested" : false
   },
   {
-    "level": 1,
-    "entity": {
-      "primaryKey": 66467,
-      "attributes": {
-        "code": "laptops"
+    "level" : 1,
+    "entity" : {
+      "primaryKey" : 66467,
+      "attributes" : {
+        "code" : "laptops"
       }
     },
-    "requested": false
+    "requested" : false
   },
   {
-    "level": 2,
-    "entity": {
-      "primaryKey": 66474,
-      "attributes": {
-        "code": "netbooks"
+    "level" : 2,
+    "entity" : {
+      "primaryKey" : 66474,
+      "attributes" : {
+        "code" : "netbooks"
       }
     },
-    "requested": false
+    "requested" : false
   },
   {
-    "level": 2,
-    "entity": {
-      "primaryKey": 66475,
-      "attributes": {
-        "code": "ultrabooks"
+    "level" : 2,
+    "entity" : {
+      "primaryKey" : 66475,
+      "attributes" : {
+        "code" : "ultrabooks"
       }
     },
-    "requested": false
+    "requested" : false
   },
   {
-    "level": 2,
-    "entity": {
-      "primaryKey": 66476,
-      "attributes": {
-        "code": "gaming"
+    "level" : 2,
+    "entity" : {
+      "primaryKey" : 66476,
+      "attributes" : {
+        "code" : "gaming"
       }
     },
-    "requested": false
+    "requested" : false
   },
   {
-    "level": 2,
-    "entity": {
-      "primaryKey": 66477,
-      "attributes": {
-        "code": "workstations"
+    "level" : 2,
+    "entity" : {
+      "primaryKey" : 66477,
+      "attributes" : {
+        "code" : "workstations"
       }
     },
-    "requested": false
+    "requested" : false
   },
   {
-    "level": 2,
-    "entity": {
-      "primaryKey": 66478,
-      "attributes": {
-        "code": "touch"
+    "level" : 2,
+    "entity" : {
+      "primaryKey" : 66478,
+      "attributes" : {
+        "code" : "touch"
       }
     },
-    "requested": false
+    "requested" : false
   },
   {
-    "level": 2,
-    "entity": {
-      "primaryKey": 66479,
-      "attributes": {
-        "code": "macbooks"
+    "level" : 2,
+    "entity" : {
+      "primaryKey" : 66479,
+      "attributes" : {
+        "code" : "macbooks"
       }
     },
-    "requested": false
+    "requested" : false
   },
   {
-    "level": 1,
-    "entity": {
-      "primaryKey": 66468,
-      "attributes": {
-        "code": "accessories"
+    "level" : 1,
+    "entity" : {
+      "primaryKey" : 66468,
+      "attributes" : {
+        "code" : "accessories"
       }
     },
-    "requested": false
+    "requested" : false
   },
   {
-    "level": 2,
-    "entity": {
-      "primaryKey": 66480,
-      "attributes": {
-        "code": "christmas-electronics"
+    "level" : 2,
+    "entity" : {
+      "primaryKey" : 66480,
+      "attributes" : {
+        "code" : "christmas-electronics"
       }
     },
-    "requested": false
+    "requested" : false
   },
   {
-    "level": 2,
-    "entity": {
-      "primaryKey": 66481,
-      "attributes": {
-        "code": "smart-wearable"
+    "level" : 2,
+    "entity" : {
+      "primaryKey" : 66481,
+      "attributes" : {
+        "code" : "smart-wearable"
       }
     },
-    "requested": false
+    "requested" : false
   },
   {
-    "level": 2,
-    "entity": {
-      "primaryKey": 66482,
-      "attributes": {
-        "code": "audio"
+    "level" : 2,
+    "entity" : {
+      "primaryKey" : 66482,
+      "attributes" : {
+        "code" : "audio"
       }
     },
-    "requested": false
+    "requested" : false
   },
   {
-    "level": 2,
-    "entity": {
-      "primaryKey": 66483,
-      "attributes": {
-        "code": "monitors"
+    "level" : 2,
+    "entity" : {
+      "primaryKey" : 66483,
+      "attributes" : {
+        "code" : "monitors"
       }
     },
-    "requested": false
+    "requested" : false
   },
   {
-    "level": 2,
-    "entity": {
-      "primaryKey": 66484,
-      "attributes": {
-        "code": "keyboards"
+    "level" : 2,
+    "entity" : {
+      "primaryKey" : 66484,
+      "attributes" : {
+        "code" : "keyboards"
       }
     },
-    "requested": false
+    "requested" : false
   },
   {
-    "level": 2,
-    "entity": {
-      "primaryKey": 66537,
-      "attributes": {
-        "code": "mouses"
+    "level" : 2,
+    "entity" : {
+      "primaryKey" : 66537,
+      "attributes" : {
+        "code" : "mouses"
       }
     },
-    "requested": false
+    "requested" : false
   },
   {
-    "level": 1,
-    "entity": {
-      "primaryKey": 66469,
-      "attributes": {
-        "code": "vouchers"
+    "level" : 1,
+    "entity" : {
+      "primaryKey" : 66469,
+      "attributes" : {
+        "code" : "vouchers"
       }
     },
-    "requested": false
+    "requested" : false
   },
   {
-    "level": 2,
-    "entity": {
-      "primaryKey": 66493,
-      "attributes": {
-        "code": "vouchers-for-shareholders"
+    "level" : 2,
+    "entity" : {
+      "primaryKey" : 66493,
+      "attributes" : {
+        "code" : "vouchers-for-shareholders"
       }
     },
-    "requested": false
+    "requested" : false
   },
   {
-    "level": 1,
-    "entity": {
-      "primaryKey": 66470,
-      "attributes": {
-        "code": "prepared-products"
+    "level" : 1,
+    "entity" : {
+      "primaryKey" : 66470,
+      "attributes" : {
+        "code" : "prepared-products"
       }
     },
-    "requested": false
+    "requested" : false
   },
   {
-    "level": 1,
-    "entity": {
-      "primaryKey": 347154,
-      "attributes": {
-        "code": "bargain-bundles"
+    "level" : 1,
+    "entity" : {
+      "primaryKey" : 347154,
+      "attributes" : {
+        "code" : "bargain-bundles"
       }
     },
-    "requested": false
+    "requested" : false
   }
 ]
 ```

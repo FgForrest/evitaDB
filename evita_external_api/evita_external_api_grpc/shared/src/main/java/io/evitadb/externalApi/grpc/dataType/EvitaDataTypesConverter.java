@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -59,6 +59,7 @@ import java.util.Arrays;
 import java.util.Currency;
 import java.util.EnumSet;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -959,7 +960,9 @@ public class EvitaDataTypesConverter {
 	@Nonnull
 	public static GrpcStringArray toGrpcStringArray(@Nonnull String[] stringArrayValues) {
 		final GrpcStringArray.Builder valueBuilder = GrpcStringArray.newBuilder();
-		Arrays.stream(stringArrayValues).forEach(valueBuilder::addValue);
+		Arrays.stream(stringArrayValues)
+			.filter(Objects::nonNull)
+			.forEach(valueBuilder::addValue);
 		return valueBuilder.build();
 	}
 
@@ -980,7 +983,9 @@ public class EvitaDataTypesConverter {
 	@Nonnull
 	public static GrpcBooleanArray toGrpcBooleanArray(@Nonnull Boolean[] booleanArrayValues) {
 		final GrpcBooleanArray.Builder valueBuilder = GrpcBooleanArray.newBuilder();
-		Arrays.stream(booleanArrayValues).forEach(valueBuilder::addValue);
+		Arrays.stream(booleanArrayValues)
+			.filter(Objects::nonNull)
+			.forEach(valueBuilder::addValue);
 		return valueBuilder.build();
 	}
 
@@ -996,7 +1001,9 @@ public class EvitaDataTypesConverter {
 	@Nonnull
 	public static GrpcLongArray toGrpcLongArray(@Nonnull Long[] longArrayValues) {
 		final GrpcLongArray.Builder valueBuilder = GrpcLongArray.newBuilder();
-		Arrays.stream(longArrayValues).forEach(valueBuilder::addValue);
+		Arrays.stream(longArrayValues)
+			.filter(Objects::nonNull)
+			.forEach(valueBuilder::addValue);
 		return valueBuilder.build();
 	}
 
@@ -1012,7 +1019,9 @@ public class EvitaDataTypesConverter {
 	@Nonnull
 	public static GrpcIntegerArray toGrpcByteArray(@Nonnull Byte[] byteArrayValues) {
 		final GrpcIntegerArray.Builder valueBuilder = GrpcIntegerArray.newBuilder();
-		Arrays.stream(byteArrayValues).forEach(valueBuilder::addValue);
+		Arrays.stream(byteArrayValues)
+			.filter(Objects::nonNull)
+			.forEach(valueBuilder::addValue);
 		return valueBuilder.build();
 	}
 
@@ -1028,7 +1037,9 @@ public class EvitaDataTypesConverter {
 	@Nonnull
 	public static GrpcIntegerArray toGrpcShortArray(@Nonnull Short[] shortArrayValues) {
 		final GrpcIntegerArray.Builder valueBuilder = GrpcIntegerArray.newBuilder();
-		Arrays.stream(shortArrayValues).forEach(valueBuilder::addValue);
+		Arrays.stream(shortArrayValues)
+			.filter(Objects::nonNull)
+			.forEach(valueBuilder::addValue);
 		return valueBuilder.build();
 	}
 
@@ -1044,7 +1055,9 @@ public class EvitaDataTypesConverter {
 	@Nonnull
 	public static GrpcIntegerArray toGrpcIntegerArray(@Nonnull Integer[] integerArrayValues) {
 		final GrpcIntegerArray.Builder valueBuilder = GrpcIntegerArray.newBuilder();
-		Arrays.stream(integerArrayValues).forEach(valueBuilder::addValue);
+		Arrays.stream(integerArrayValues)
+			.filter(Objects::nonNull)
+			.forEach(valueBuilder::addValue);
 		return valueBuilder.build();
 	}
 
@@ -1060,7 +1073,10 @@ public class EvitaDataTypesConverter {
 	@Nonnull
 	public static GrpcStringArray toGrpcCharacterArray(@Nonnull Character[] characterArrayValues) {
 		final GrpcStringArray.Builder valueBuilder = GrpcStringArray.newBuilder();
-		Arrays.stream(characterArrayValues).map(Object::toString).forEach(valueBuilder::addValue);
+		Arrays.stream(characterArrayValues)
+			.filter(Objects::nonNull)
+			.map(Object::toString)
+			.forEach(valueBuilder::addValue);
 		return valueBuilder.build();
 	}
 
@@ -1080,7 +1096,10 @@ public class EvitaDataTypesConverter {
 	@Nonnull
 	public static GrpcBigDecimalArray toGrpcBigDecimalArray(@Nonnull BigDecimal[] bigDecimalArrayValues) {
 		final GrpcBigDecimalArray.Builder valueBuilder = GrpcBigDecimalArray.newBuilder();
-		Arrays.stream(bigDecimalArrayValues).map(EvitaDataTypesConverter::toGrpcBigDecimal).forEach(valueBuilder::addValue);
+		Arrays.stream(bigDecimalArrayValues)
+			.filter(Objects::nonNull)
+			.map(EvitaDataTypesConverter::toGrpcBigDecimal)
+			.forEach(valueBuilder::addValue);
 		return valueBuilder.build();
 	}
 
@@ -1112,7 +1131,10 @@ public class EvitaDataTypesConverter {
 	@Nonnull
 	public static GrpcOffsetDateTimeArray toGrpcOffsetDateTimeArray(@Nonnull OffsetDateTime[] offsetDateTimeArrayValues) {
 		final GrpcOffsetDateTimeArray.Builder valueBuilder = GrpcOffsetDateTimeArray.newBuilder();
-		Arrays.stream(offsetDateTimeArrayValues).map(EvitaDataTypesConverter::toGrpcOffsetDateTime).forEach(valueBuilder::addValue);
+		Arrays.stream(offsetDateTimeArrayValues)
+			.filter(Objects::nonNull)
+			.map(EvitaDataTypesConverter::toGrpcOffsetDateTime)
+			.forEach(valueBuilder::addValue);
 		return valueBuilder.build();
 	}
 
@@ -1144,7 +1166,10 @@ public class EvitaDataTypesConverter {
 	@Nonnull
 	public static GrpcOffsetDateTimeArray toGrpcLocalDateTimeArray(@Nonnull LocalDateTime[] localDateTimeArrayValues) {
 		final GrpcOffsetDateTimeArray.Builder valueBuilder = GrpcOffsetDateTimeArray.newBuilder();
-		Arrays.stream(localDateTimeArrayValues).map(EvitaDataTypesConverter::toGrpcLocalDateTime).forEach(valueBuilder::addValue);
+		Arrays.stream(localDateTimeArrayValues)
+			.filter(Objects::nonNull)
+			.map(EvitaDataTypesConverter::toGrpcLocalDateTime)
+			.forEach(valueBuilder::addValue);
 		return valueBuilder.build();
 	}
 
@@ -1176,7 +1201,10 @@ public class EvitaDataTypesConverter {
 	@Nonnull
 	public static GrpcOffsetDateTimeArray toGrpcLocalDateArray(@Nonnull LocalDate[] localDateArrayValues) {
 		final GrpcOffsetDateTimeArray.Builder valueBuilder = GrpcOffsetDateTimeArray.newBuilder();
-		Arrays.stream(localDateArrayValues).map(EvitaDataTypesConverter::toGrpcLocalDate).forEach(valueBuilder::addValue);
+		Arrays.stream(localDateArrayValues)
+			.filter(Objects::nonNull)
+			.map(EvitaDataTypesConverter::toGrpcLocalDate)
+			.forEach(valueBuilder::addValue);
 		return valueBuilder.build();
 	}
 
@@ -1201,7 +1229,10 @@ public class EvitaDataTypesConverter {
 	@Nonnull
 	public static GrpcOffsetDateTimeArray toGrpcLocalTimeArray(@Nonnull LocalTime[] localeTimeArrayValues) {
 		final GrpcOffsetDateTimeArray.Builder valueBuilder = GrpcOffsetDateTimeArray.newBuilder();
-		Arrays.stream(localeTimeArrayValues).map(EvitaDataTypesConverter::toGrpcLocalTime).forEach(valueBuilder::addValue);
+		Arrays.stream(localeTimeArrayValues)
+			.filter(Objects::nonNull)
+			.map(EvitaDataTypesConverter::toGrpcLocalTime)
+			.forEach(valueBuilder::addValue);
 		return valueBuilder.build();
 	}
 
@@ -1226,7 +1257,10 @@ public class EvitaDataTypesConverter {
 	@Nonnull
 	public static GrpcDateTimeRangeArray toGrpcDateTimeRangeArray(@Nonnull DateTimeRange[] dateTimeRangeArrayValues) {
 		final GrpcDateTimeRangeArray.Builder valueBuilder = GrpcDateTimeRangeArray.newBuilder();
-		Arrays.stream(dateTimeRangeArrayValues).map(EvitaDataTypesConverter::toGrpcDateTimeRange).forEach(valueBuilder::addValue);
+		Arrays.stream(dateTimeRangeArrayValues)
+			.filter(Objects::nonNull)
+			.map(EvitaDataTypesConverter::toGrpcDateTimeRange)
+			.forEach(valueBuilder::addValue);
 		return valueBuilder.build();
 	}
 
@@ -1253,7 +1287,10 @@ public class EvitaDataTypesConverter {
 	@Nonnull
 	public static GrpcBigDecimalNumberRangeArray toGrpcBigDecimalNumberRangeArray(@Nonnull BigDecimalNumberRange[] bigDecimalNumberRangeArrayValues) {
 		final GrpcBigDecimalNumberRangeArray.Builder valueBuilder = GrpcBigDecimalNumberRangeArray.newBuilder();
-		Arrays.stream(bigDecimalNumberRangeArrayValues).map(EvitaDataTypesConverter::toGrpcBigDecimalNumberRange).forEach(valueBuilder::addValue);
+		Arrays.stream(bigDecimalNumberRangeArrayValues)
+			.filter(Objects::nonNull)
+			.map(EvitaDataTypesConverter::toGrpcBigDecimalNumberRange)
+			.forEach(valueBuilder::addValue);
 		return valueBuilder.build();
 	}
 
@@ -1278,7 +1315,10 @@ public class EvitaDataTypesConverter {
 	@Nonnull
 	public static GrpcLongNumberRangeArray toGrpcLongNumberRangeArray(@Nonnull LongNumberRange[] longNumberRangeArrayValues) {
 		final GrpcLongNumberRangeArray.Builder valueBuilder = GrpcLongNumberRangeArray.newBuilder();
-		Arrays.stream(longNumberRangeArrayValues).map(EvitaDataTypesConverter::toGrpcLongNumberRange).forEach(valueBuilder::addValue);
+		Arrays.stream(longNumberRangeArrayValues)
+			.filter(Objects::nonNull)
+			.map(EvitaDataTypesConverter::toGrpcLongNumberRange)
+			.forEach(valueBuilder::addValue);
 		return valueBuilder.build();
 	}
 
@@ -1304,21 +1344,30 @@ public class EvitaDataTypesConverter {
 	@Nonnull
 	public static GrpcIntegerNumberRangeArray toGrpcIntegerNumberRangeArray(@Nonnull IntegerNumberRange[] integerNumberRangeArrayValues) {
 		final GrpcIntegerNumberRangeArray.Builder valueBuilder = GrpcIntegerNumberRangeArray.newBuilder();
-		Arrays.stream(integerNumberRangeArrayValues).map(EvitaDataTypesConverter::toGrpcIntegerNumberRange).forEach(valueBuilder::addValue);
+		Arrays.stream(integerNumberRangeArrayValues)
+			.filter(Objects::nonNull)
+			.map(EvitaDataTypesConverter::toGrpcIntegerNumberRange)
+			.forEach(valueBuilder::addValue);
 		return valueBuilder.build();
 	}
 
 	@Nonnull
 	public static GrpcIntegerNumberRangeArray toGrpcByteNumberRangeArray(@Nonnull ByteNumberRange[] byteNumberRangeArrayValues) {
 		final GrpcIntegerNumberRangeArray.Builder valueBuilder = GrpcIntegerNumberRangeArray.newBuilder();
-		Arrays.stream(byteNumberRangeArrayValues).map(EvitaDataTypesConverter::toGrpcIntegerNumberRange).forEach(valueBuilder::addValue);
+		Arrays.stream(byteNumberRangeArrayValues)
+			.filter(Objects::nonNull)
+			.map(EvitaDataTypesConverter::toGrpcIntegerNumberRange)
+			.forEach(valueBuilder::addValue);
 		return valueBuilder.build();
 	}
 
 	@Nonnull
 	public static GrpcIntegerNumberRangeArray toGrpcShortNumberRangeArray(@Nonnull ShortNumberRange[] shortNumberRangeArrayValues) {
 		final GrpcIntegerNumberRangeArray.Builder valueBuilder = GrpcIntegerNumberRangeArray.newBuilder();
-		Arrays.stream(shortNumberRangeArrayValues).map(EvitaDataTypesConverter::toGrpcIntegerNumberRange).forEach(valueBuilder::addValue);
+		Arrays.stream(shortNumberRangeArrayValues)
+			.filter(Objects::nonNull)
+			.map(EvitaDataTypesConverter::toGrpcIntegerNumberRange)
+			.forEach(valueBuilder::addValue);
 		return valueBuilder.build();
 	}
 
@@ -1339,7 +1388,10 @@ public class EvitaDataTypesConverter {
 	@Nonnull
 	public static GrpcLocaleArray toGrpcLocaleArray(@Nonnull Locale[] localeArrayValues) {
 		final GrpcLocaleArray.Builder valueBuilder = GrpcLocaleArray.newBuilder();
-		Arrays.stream(localeArrayValues).map(EvitaDataTypesConverter::toGrpcLocale).forEach(valueBuilder::addValue);
+		Arrays.stream(localeArrayValues)
+			.filter(Objects::nonNull)
+			.map(EvitaDataTypesConverter::toGrpcLocale)
+			.forEach(valueBuilder::addValue);
 		return valueBuilder.build();
 	}
 
@@ -1357,7 +1409,10 @@ public class EvitaDataTypesConverter {
 	@Nonnull
 	public static GrpcCurrencyArray toGrpcCurrencyArray(@Nonnull Currency[] currencyArrayValues) {
 		final GrpcCurrencyArray.Builder valueBuilder = GrpcCurrencyArray.newBuilder();
-		Arrays.stream(currencyArrayValues).map(EvitaDataTypesConverter::toGrpcCurrency).forEach(valueBuilder::addValue);
+		Arrays.stream(currencyArrayValues)
+			.filter(Objects::nonNull)
+			.map(EvitaDataTypesConverter::toGrpcCurrency)
+			.forEach(valueBuilder::addValue);
 		return valueBuilder.build();
 	}
 
@@ -1378,7 +1433,10 @@ public class EvitaDataTypesConverter {
 	@Nonnull
 	public static GrpcUuidArray toGrpcUuidArray(@Nonnull UUID[] uuidArrayValues) {
 		final GrpcUuidArray.Builder valueBuilder = GrpcUuidArray.newBuilder();
-		Arrays.stream(uuidArrayValues).map(EvitaDataTypesConverter::toGrpcUuid).forEach(valueBuilder::addValue);
+		Arrays.stream(uuidArrayValues)
+			.filter(Objects::nonNull)
+			.map(EvitaDataTypesConverter::toGrpcUuid)
+			.forEach(valueBuilder::addValue);
 		return valueBuilder.build();
 	}
 
@@ -1564,6 +1622,7 @@ public class EvitaDataTypesConverter {
 			.setSizeOnDiskInBytes(catalogStatistics.sizeOnDiskInBytes())
 			.addAllEntityCollectionStatistics(
 				Arrays.stream(catalogStatistics.entityCollectionStatistics())
+					.filter(Objects::nonNull)
 					.map(EvitaDataTypesConverter::toGrpcEntityCollectionStatistics)
 					.collect(Collectors.toList())
 			);

@@ -1,7 +1,6 @@
 {
   queryProduct {
     recordPage(
-      number: 1
       size: 5
       spacing: [
         {

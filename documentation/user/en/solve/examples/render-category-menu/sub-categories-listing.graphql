@@ -9,10 +9,7 @@
       }
     }
   ) {
-    recordPage(
-      number: 1
-      size: 0
-    ) {
+    recordPage(size: 0) {
       data {
         primaryKey
       }

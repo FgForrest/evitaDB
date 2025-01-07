@@ -1,77 +1,77 @@
 ```json
 {
-  "directChildren": [
+  "directChildren" : [
     {
-      "level": 1,
-      "entity": {
-        "primaryKey": 66482,
-        "attributes": {
-          "code": "audio"
+      "level" : 1,
+      "entity" : {
+        "primaryKey" : 66482,
+        "attributes" : {
+          "code" : "audio"
         }
       },
-      "requested": true
+      "requested" : true
     },
     {
-      "level": 2,
-      "entity": {
-        "primaryKey": 66488,
-        "attributes": {
-          "code": "wireless-headphones"
+      "level" : 2,
+      "entity" : {
+        "primaryKey" : 66488,
+        "attributes" : {
+          "code" : "wireless-headphones"
         }
       },
-      "requested": false
+      "requested" : false
     },
     {
-      "level": 2,
-      "entity": {
-        "primaryKey": 66489,
-        "attributes": {
-          "code": "wired-heaphones"
+      "level" : 2,
+      "entity" : {
+        "primaryKey" : 66489,
+        "attributes" : {
+          "code" : "wired-heaphones"
         }
       },
-      "requested": false
+      "requested" : false
     },
     {
-      "level": 2,
-      "entity": {
-        "primaryKey": 66490,
-        "attributes": {
-          "code": "microphones"
+      "level" : 2,
+      "entity" : {
+        "primaryKey" : 66490,
+        "attributes" : {
+          "code" : "microphones"
         }
       },
-      "requested": false
+      "requested" : false
     },
     {
-      "level": 2,
-      "entity": {
-        "primaryKey": 66491,
-        "attributes": {
-          "code": "repro"
+      "level" : 2,
+      "entity" : {
+        "primaryKey" : 66491,
+        "attributes" : {
+          "code" : "repro"
         }
       },
-      "requested": false
+      "requested" : false
     }
   ],
-  "directParent": [
+  "directParent" : [
     {
-      "level": 1,
-      "entity": {
-        "primaryKey": 66468,
-        "attributes": {
-          "code": "accessories"
+      "level" : 1,
+      "entity" : {
+        "primaryKey" : 66468,
+        "attributes" : {
+          "code" : "accessories"
         }
       },
-      "requested": false
+      "requested" : false
     },
     {
-      "level": 2,
-      "entity": {
-        "primaryKey": 66482,
-        "attributes": {
-          "code": "audio"
+      "level" : 2,
+      "entity" : {
+        "primaryKey" : 66482,
+        "attributes" : {
+          "code" : "audio"
         }
       },
-      "requested": true
+      "requested" : true
     }
   ]
 }

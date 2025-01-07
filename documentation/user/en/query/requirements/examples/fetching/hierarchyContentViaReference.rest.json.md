@@ -1,86 +1,86 @@
 ```json
 {
-  "data": [
+  "data" : [
     {
-      "primaryKey": 107998,
-      "type": "Product",
-      "version": 2,
-      "scope": "LIVE",
-      "locales": [
+      "primaryKey" : 107998,
+      "type" : "Product",
+      "version" : 2,
+      "scope" : "LIVE",
+      "locales" : [
         "en"
       ],
-      "allLocales": [
+      "allLocales" : [
         "en"
       ],
-      "categories": [
+      "categories" : [
         {
-          "referencedPrimaryKey": 66486,
-          "referencedEntity": {
-            "primaryKey": 66486,
-            "type": "Category",
-            "version": 1,
-            "scope": "LIVE",
-            "parentEntity": {
-              "primaryKey": 66481,
-              "type": "Category",
-              "version": 1,
-              "scope": "LIVE",
-              "parentEntity": {
-                "primaryKey": 66468,
-                "type": "Category",
-                "version": 1,
-                "scope": "LIVE",
-                "locales": [
+          "referencedPrimaryKey" : 66486,
+          "referencedEntity" : {
+            "primaryKey" : 66486,
+            "type" : "Category",
+            "version" : 1,
+            "scope" : "LIVE",
+            "parentEntity" : {
+              "primaryKey" : 66481,
+              "type" : "Category",
+              "version" : 1,
+              "scope" : "LIVE",
+              "parentEntity" : {
+                "primaryKey" : 66468,
+                "type" : "Category",
+                "version" : 1,
+                "scope" : "LIVE",
+                "locales" : [
                   "en"
                 ],
-                "allLocales": [
+                "allLocales" : [
                   "cs",
                   "de",
                   "en"
                 ],
-                "attributes": {
-                  "global": {
-                    "code": "accessories"
+                "attributes" : {
+                  "global" : {
+                    "code" : "accessories"
                   },
-                  "localized": {
-                    "en": {
-                      "name": "Accessories"
+                  "localized" : {
+                    "en" : {
+                      "name" : "Accessories"
                     }
                   }
                 }
               },
-              "locales": [
+              "locales" : [
                 "en"
               ],
-              "allLocales": [
+              "allLocales" : [
                 "en"
               ],
-              "attributes": {
-                "global": {
-                  "code": "smart-wearable"
+              "attributes" : {
+                "global" : {
+                  "code" : "smart-wearable"
                 },
-                "localized": {
-                  "en": {
-                    "name": "Smart wearable"
+                "localized" : {
+                  "en" : {
+                    "name" : "Smart wearable"
                   }
                 }
               }
             },
-            "locales": [
+            "locales" : [
               "en"
             ],
-            "allLocales": [
+            "allLocales" : [
               "cs",
               "de",
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "smartwatches"
+            "attributes" : {
+              "global" : {
+                "code" : "smartwatches"
               },
-              "localized": {
-                "en": {
-                  "name": "Smartwatches"
+              "localized" : {
+                "en" : {
+                  "name" : "Smartwatches"
                 }
               }
             }
@@ -89,18 +89,18 @@
       ]
     }
   ],
-  "empty": false,
-  "first": true,
-  "firstPageItemNumber": 0,
-  "hasNext": false,
-  "hasPrevious": false,
-  "last": true,
-  "lastPageItemNumber": 1,
-  "lastPageNumber": 1,
-  "pageNumber": 1,
-  "pageSize": 20,
-  "singlePage": true,
-  "totalRecordCount": 1,
-  "type": "PAGE"
+  "empty" : false,
+  "first" : true,
+  "firstPageItemNumber" : 0,
+  "hasNext" : false,
+  "hasPrevious" : false,
+  "last" : true,
+  "lastPageItemNumber" : 1,
+  "lastPageNumber" : 1,
+  "pageNumber" : 1,
+  "pageSize" : 20,
+  "singlePage" : true,
+  "totalRecordCount" : 1,
+  "type" : "PAGE"
 }
 ```

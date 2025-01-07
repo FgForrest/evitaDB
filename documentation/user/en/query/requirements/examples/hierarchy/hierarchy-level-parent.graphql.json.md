@@ -1,34 +1,34 @@
 ```json
 [
   {
-    "level": 1,
-    "entity": {
-      "primaryKey": 66482,
-      "attributes": {
-        "code": "audio"
+    "level" : 1,
+    "entity" : {
+      "primaryKey" : 66482,
+      "attributes" : {
+        "code" : "audio"
       }
     },
-    "requested": false
+    "requested" : false
   },
   {
-    "level": 2,
-    "entity": {
-      "primaryKey": 66488,
-      "attributes": {
-        "code": "wireless-headphones"
+    "level" : 2,
+    "entity" : {
+      "primaryKey" : 66488,
+      "attributes" : {
+        "code" : "wireless-headphones"
       }
     },
-    "requested": false
+    "requested" : false
   },
   {
-    "level": 3,
-    "entity": {
-      "primaryKey": 66494,
-      "attributes": {
-        "code": "true-wireless"
+    "level" : 3,
+    "entity" : {
+      "primaryKey" : 66494,
+      "attributes" : {
+        "code" : "true-wireless"
       }
     },
-    "requested": true
+    "requested" : true
   }
 ]
 ```

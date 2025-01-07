@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -44,12 +44,14 @@ import java.nio.file.Path;
 import java.security.KeyFactory;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
+import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 
@@ -110,12 +112,13 @@ public class CertificatesLoader {
 	 * @throws NoSuchAlgorithmException if no Provider supports a CertificateFactorySpi implementation for the specified type (X.509).
 	 */
 	@Nonnull
-	private static X509Certificate loadCertificate(
+	private static X509Certificate[] loadCertificateChain(
 		@Nonnull CertificateFactory certificateFactory,
 		@Nonnull String certificatePath
 	) throws IOException, CertificateException, NoSuchAlgorithmException {
 		try (InputStream inputStream = new FileInputStream(certificatePath)) {
-			return (X509Certificate) certificateFactory.generateCertificate(inputStream);
+			 final Collection<? extends Certificate> certificateChain = certificateFactory.generateCertificates(inputStream);
+			 return certificateChain.stream().map(x -> (X509Certificate) x).toArray(X509Certificate[]::new);
 		}
 	}
 
@@ -144,13 +147,14 @@ public class CertificatesLoader {
 		try {
 			final TlsKeyPair tlsKeyPair = TlsKeyPair.of(
 				loadPrivateKey(certificatePath),
-				loadCertificate(certificateFactory, certificateFile)
+				loadCertificateChain(certificateFactory, certificateFile)
 			);
 
 			final List<X509Certificate> trustedCertificates = new ArrayList<>(clientAllowedCertificates.size());
 			final String certDirectoryPath = apiOptions.certificate().folderPath();
 			for (String clientCert : clientAllowedCertificates) {
-				final X509Certificate whitelistedClientCertificate = loadCertificate(certificateFactory, certDirectoryPath + clientCert);
+				final X509Certificate[] whitelistedClientCertificateChain = loadCertificateChain(certificateFactory, certDirectoryPath + clientCert);
+				final X509Certificate whitelistedClientCertificate = whitelistedClientCertificateChain[0];
 				log.info("Whitelisted client's certificate fingerprint: {}", CertificateUtils.getCertificateFingerprint(whitelistedClientCertificate));
 				trustedCertificates.add(
 					whitelistedClientCertificate

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -117,7 +117,7 @@ public class CertificateService {
 		final Path pathToWatch = getCertificateFolderPathPath();
 		final boolean wasModified;
 		try {
-			long millisOfCertDirectoryLatestUpdate = Files.getLastModifiedTime(pathToWatch).toMillis();
+			long millisOfCertDirectoryLatestUpdate = getNewestModifiedTimeMillis(pathToWatch.toFile());
 			if (isAnyCertificateFileChanged(pathToWatch)) {
 				log.info("Reinitializing modified certificates.");
 				this.loadedCertificates.set(this.certificatesLoader.reinitialize());
@@ -130,6 +130,30 @@ public class CertificateService {
 			throw new GenericEvitaInternalError("Failed to get last modified time of the certificate folder.", e);
 		}
 		return wasModified;
+	}
+
+	public static long getNewestModifiedTimeMillis(@Nullable File directory) {
+		if (directory == null || !directory.isDirectory()) {
+			throw new IllegalArgumentException("Invalid directory: " + directory);
+		}
+
+		long newestModified = directory.lastModified();
+
+		final File[] files = directory.listFiles();
+		if (files == null) {
+			// If we cannot list the files, just return the directory's own lastModified time
+			return newestModified;
+		}
+
+		for (File file : files) {
+			if (file.isDirectory()) {
+				newestModified = Math.max(newestModified, getNewestModifiedTimeMillis(file));
+			} else {
+				newestModified = Math.max(newestModified, file.lastModified());
+			}
+		}
+
+		return newestModified;
 	}
 
 	/**

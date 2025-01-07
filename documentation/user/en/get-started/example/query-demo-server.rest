@@ -1,19 +1,20 @@
-POST /rest/evita/Brand/list
+POST /rest/evita/Brand/query
 
 {
-  "filterBy": {
-    "attributeNameStartsWith": "A",
-    "entityLocaleEquals": "en"
+  "filterBy" : {
+    "and" : [
+      {
+        "attributeNameStartsWith" : "A",
+        "entityLocaleEquals" : "en"
+      }
+    ]
   },
-  "orderBy": [{
-    "attributeNameNatural": "ASC"
-  }],
-  "require": {
-    "entityFetch": {
-      "attributeContentAll": true,
-      "associatedDataContentAll": true,
-      "referenceContentAllWithAttributes": {},
-      "dataInLocales": []
+  "orderBy" : [
+    {
+      "attributeNameNatural" : "ASC"
     }
+  ],
+  "require" : {
+    "entityFetch" : { }
   }
 }

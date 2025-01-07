@@ -1,20 +1,32 @@
 POST /rest/evita/Product/query
 
 {
-  "filterBy": {
-    "entityPrimaryKeyInSet": [1, 2, 3],
-    "attributeStatusEquals": "VISIBLE"
+  "filterBy" : {
+    "and" : [
+      {
+        "entityPrimaryKeyInSet" : [
+          1,
+          2,
+          3
+        ],
+        "attributeStatusEquals" : "ACTIVE"
+      }
+    ]
   },
-  "orderBy": [
-    { "attributeCodeNatural": "ASC" },
-    { "attributeCatalogNumberNatural": "DESC" }
-  ],
-  "require": {
-    "entityFetch": {
-      "attributeContentAll": true,
-      "priceContentAll": true
+  "orderBy" : [
+    {
+      "attributeCodeNatural" : "ASC"
     },
-    "facetBrandSummary": {
+    {
+      "attributeCatalogNumberNatural" : "DESC"
+    }
+  ],
+  "require" : {
+    "entityFetch" : {
+      "attributeContentAll" : true,
+      "priceContentAll" : true
+    },
+    "facetSummary" : {
       "statisticsDepth" : "COUNTS"
     }
   }

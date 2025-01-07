@@ -1,116 +1,116 @@
 ```json
 {
-  "recordPage": {
-    "data": [
+  "recordPage" : {
+    "data" : [
       {
-        "primaryKey": 108550,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "locales": [
+        "primaryKey" : 108550,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "locales" : [
           "en"
         ],
-        "allLocales": [
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "localized": {
-            "en": {
-              "name": "Xiaomi Redmi Watch 2 Lite"
+        "attributes" : {
+          "localized" : {
+            "en" : {
+              "name" : "Xiaomi Redmi Watch 2 Lite"
             }
           }
         }
       },
       {
-        "primaryKey": 108547,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "locales": [
+        "primaryKey" : 108547,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "locales" : [
           "en"
         ],
-        "allLocales": [
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "localized": {
-            "en": {
-              "name": "Xiaomi Watch S1 Active"
+        "attributes" : {
+          "localized" : {
+            "en" : {
+              "name" : "Xiaomi Watch S1 Active"
             }
           }
         }
       },
       {
-        "primaryKey": 108545,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "locales": [
+        "primaryKey" : 108545,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "locales" : [
           "en"
         ],
-        "allLocales": [
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "localized": {
-            "en": {
-              "name": "Xiaomi Watch S1"
+        "attributes" : {
+          "localized" : {
+            "en" : {
+              "name" : "Xiaomi Watch S1"
             }
           }
         }
       },
       {
-        "primaryKey": 108543,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "locales": [
+        "primaryKey" : 108543,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "locales" : [
           "en"
         ],
-        "allLocales": [
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "localized": {
-            "en": {
-              "name": "Xiaomi Mi Watch Lite"
+        "attributes" : {
+          "localized" : {
+            "en" : {
+              "name" : "Xiaomi Mi Watch Lite"
             }
           }
         }
       },
       {
-        "primaryKey": 108540,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "locales": [
+        "primaryKey" : 108540,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "locales" : [
           "en"
         ],
-        "allLocales": [
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "localized": {
-            "en": {
-              "name": "Xiaomi Mi Watch"
+        "attributes" : {
+          "localized" : {
+            "en" : {
+              "name" : "Xiaomi Mi Watch"
             }
           }
         }
       }
     ],
-    "empty": false,
-    "first": true,
-    "firstPageItemNumber": 0,
-    "hasNext": true,
-    "hasPrevious": false,
-    "last": false,
-    "lastPageItemNumber": 4,
-    "lastPageNumber": 54,
-    "pageNumber": 1,
-    "pageSize": 5,
-    "singlePage": false,
-    "totalRecordCount": 269,
-    "type": "PAGE"
+    "empty" : false,
+    "first" : true,
+    "firstPageItemNumber" : 0,
+    "hasNext" : true,
+    "hasPrevious" : false,
+    "last" : false,
+    "lastPageItemNumber" : 4,
+    "lastPageNumber" : 54,
+    "pageNumber" : 1,
+    "pageSize" : 5,
+    "singlePage" : false,
+    "totalRecordCount" : 269,
+    "type" : "PAGE"
   }
 }
 ```

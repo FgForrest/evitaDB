@@ -1,155 +1,155 @@
 ```json
 {
-  "groups": {
-    "count": 22,
-    "facetStatistics": [
+  "groups" : {
+    "count" : 22,
+    "facetStatistics" : [
       {
-        "requested": false,
-        "count": 2,
-        "facetEntity": {
-          "primaryKey": 66505,
-          "type": "Group",
-          "version": 1,
-          "scope": "LIVE",
-          "allLocales": [
+        "requested" : false,
+        "count" : 2,
+        "facetEntity" : {
+          "primaryKey" : 66505,
+          "type" : "Group",
+          "version" : 1,
+          "scope" : "LIVE",
+          "allLocales" : [
             "en"
           ],
-          "attributes": {
-            "global": {
-              "code": "sale"
+          "attributes" : {
+            "global" : {
+              "code" : "sale"
             }
           }
         }
       },
       {
-        "requested": false,
-        "count": 11,
-        "facetEntity": {
-          "primaryKey": 112769,
-          "type": "Group",
-          "version": 1,
-          "scope": "LIVE",
-          "allLocales": [
+        "requested" : false,
+        "count" : 11,
+        "facetEntity" : {
+          "primaryKey" : 112769,
+          "type" : "Group",
+          "version" : 1,
+          "scope" : "LIVE",
+          "allLocales" : [
             "en"
           ],
-          "attributes": {
-            "global": {
-              "code": "special-offer-group"
+          "attributes" : {
+            "global" : {
+              "code" : "special-offer-group"
             }
           }
         }
       },
       {
-        "requested": false,
-        "count": 1,
-        "facetEntity": {
-          "primaryKey": 112770,
-          "type": "Group",
-          "version": 1,
-          "scope": "LIVE",
-          "allLocales": [
+        "requested" : false,
+        "count" : 1,
+        "facetEntity" : {
+          "primaryKey" : 112770,
+          "type" : "Group",
+          "version" : 1,
+          "scope" : "LIVE",
+          "allLocales" : [
             "en"
           ],
-          "attributes": {
-            "global": {
-              "code": "sell-off-group"
+          "attributes" : {
+            "global" : {
+              "code" : "sell-off-group"
             }
           }
         }
       },
       {
-        "requested": false,
-        "count": 5,
-        "facetEntity": {
-          "primaryKey": 112771,
-          "type": "Group",
-          "version": 1,
-          "scope": "LIVE",
-          "allLocales": [
+        "requested" : false,
+        "count" : 5,
+        "facetEntity" : {
+          "primaryKey" : 112771,
+          "type" : "Group",
+          "version" : 1,
+          "scope" : "LIVE",
+          "allLocales" : [
             "en"
           ],
-          "attributes": {
-            "global": {
-              "code": "recommended-group"
+          "attributes" : {
+            "global" : {
+              "code" : "recommended-group"
             }
           }
         }
       },
       {
-        "requested": false,
-        "count": 1,
-        "facetEntity": {
-          "primaryKey": 112772,
-          "type": "Group",
-          "version": 1,
-          "scope": "LIVE",
-          "allLocales": [
+        "requested" : false,
+        "count" : 1,
+        "facetEntity" : {
+          "primaryKey" : 112772,
+          "type" : "Group",
+          "version" : 1,
+          "scope" : "LIVE",
+          "allLocales" : [
             "en"
           ],
-          "attributes": {
-            "global": {
-              "code": "valentine-group"
+          "attributes" : {
+            "global" : {
+              "code" : "valentine-group"
             }
           }
         }
       },
       {
-        "requested": false,
-        "count": 4,
-        "facetEntity": {
-          "primaryKey": 112774,
-          "type": "Group",
-          "version": 1,
-          "scope": "LIVE",
-          "allLocales": [
+        "requested" : false,
+        "count" : 4,
+        "facetEntity" : {
+          "primaryKey" : 112774,
+          "type" : "Group",
+          "version" : 1,
+          "scope" : "LIVE",
+          "allLocales" : [
             "en"
           ],
-          "attributes": {
-            "global": {
-              "code": "for-women-group"
+          "attributes" : {
+            "global" : {
+              "code" : "for-women-group"
             }
           }
         }
       },
       {
-        "requested": false,
-        "count": 1,
-        "facetEntity": {
-          "primaryKey": 112775,
-          "type": "Group",
-          "version": 1,
-          "scope": "LIVE",
-          "allLocales": [
+        "requested" : false,
+        "count" : 1,
+        "facetEntity" : {
+          "primaryKey" : 112775,
+          "type" : "Group",
+          "version" : 1,
+          "scope" : "LIVE",
+          "allLocales" : [
             "en"
           ],
-          "attributes": {
-            "global": {
-              "code": "for-men-group"
+          "attributes" : {
+            "global" : {
+              "code" : "for-men-group"
             }
           }
         }
       }
     ]
   },
-  "stocks": [
+  "stocks" : [
     {
-      "count": 41,
-      "groupEntity": null,
-      "facetStatistics": [
+      "count" : 41,
+      "groupEntity" : null,
+      "facetStatistics" : [
         {
-          "requested": false,
-          "count": 41,
-          "facetEntity": {
-            "primaryKey": 119334,
-            "type": "Stock",
-            "version": 1,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 41,
+          "facetEntity" : {
+            "primaryKey" : 119334,
+            "type" : "Stock",
+            "version" : 1,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "evita"
+            "attributes" : {
+              "global" : {
+                "code" : "evita"
               }
             }
           }
@@ -157,130 +157,130 @@
       ]
     }
   ],
-  "tags": [
+  "tags" : [
     {
-      "count": 18,
-      "groupEntity": {
-        "primaryKey": 0,
-        "type": "tagCategory"
+      "count" : 18,
+      "groupEntity" : {
+        "primaryKey" : 0,
+        "type" : "tagCategory"
       },
-      "facetStatistics": [
+      "facetStatistics" : [
         {
-          "requested": false,
-          "count": 2,
-          "facetEntity": {
-            "primaryKey": 9,
-            "type": "Tag",
-            "version": 1,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 2,
+          "facetEntity" : {
+            "primaryKey" : 9,
+            "type" : "Tag",
+            "version" : 1,
+            "scope" : "LIVE",
+            "allLocales" : [
               "cs",
               "de",
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "sale"
+            "attributes" : {
+              "global" : {
+                "code" : "sale"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 11,
-          "facetEntity": {
-            "primaryKey": 11,
-            "type": "Tag",
-            "version": 1,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 11,
+          "facetEntity" : {
+            "primaryKey" : 11,
+            "type" : "Tag",
+            "version" : 1,
+            "scope" : "LIVE",
+            "allLocales" : [
               "cs",
               "de",
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "special-offer"
+            "attributes" : {
+              "global" : {
+                "code" : "special-offer"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 12,
-            "type": "Tag",
-            "version": 1,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 12,
+            "type" : "Tag",
+            "version" : 1,
+            "scope" : "LIVE",
+            "allLocales" : [
               "cs",
               "de",
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "sell-off"
+            "attributes" : {
+              "global" : {
+                "code" : "sell-off"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 14,
-            "type": "Tag",
-            "version": 1,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 14,
+            "type" : "Tag",
+            "version" : 1,
+            "scope" : "LIVE",
+            "allLocales" : [
               "cs",
               "de",
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "valentine"
+            "attributes" : {
+              "global" : {
+                "code" : "valentine"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 4,
-          "facetEntity": {
-            "primaryKey": 16,
-            "type": "Tag",
-            "version": 1,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 4,
+          "facetEntity" : {
+            "primaryKey" : 16,
+            "type" : "Tag",
+            "version" : 1,
+            "scope" : "LIVE",
+            "allLocales" : [
               "cs",
               "de",
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "for-women"
+            "attributes" : {
+              "global" : {
+                "code" : "for-women"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 17,
-            "type": "Tag",
-            "version": 1,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 17,
+            "type" : "Tag",
+            "version" : 1,
+            "scope" : "LIVE",
+            "allLocales" : [
               "cs",
               "de",
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "for-men"
+            "attributes" : {
+              "global" : {
+                "code" : "for-men"
               }
             }
           }
@@ -288,68 +288,68 @@
       ]
     },
     {
-      "count": 29,
-      "groupEntity": {
-        "primaryKey": 9,
-        "type": "tagCategory"
+      "count" : 29,
+      "groupEntity" : {
+        "primaryKey" : 9,
+        "type" : "tagCategory"
       },
-      "facetStatistics": [
+      "facetStatistics" : [
         {
-          "requested": false,
-          "count": 17,
-          "facetEntity": {
-            "primaryKey": 10,
-            "type": "Tag",
-            "version": 1,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 17,
+          "facetEntity" : {
+            "primaryKey" : 10,
+            "type" : "Tag",
+            "version" : 1,
+            "scope" : "LIVE",
+            "allLocales" : [
               "cs",
               "de",
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "new"
+            "attributes" : {
+              "global" : {
+                "code" : "new"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 5,
-          "facetEntity": {
-            "primaryKey": 13,
-            "type": "Tag",
-            "version": 1,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 5,
+          "facetEntity" : {
+            "primaryKey" : 13,
+            "type" : "Tag",
+            "version" : 1,
+            "scope" : "LIVE",
+            "allLocales" : [
               "cs",
               "de",
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "recommended"
+            "attributes" : {
+              "global" : {
+                "code" : "recommended"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 12,
-          "facetEntity": {
-            "primaryKey": 15,
-            "type": "Tag",
-            "version": 1,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 12,
+          "facetEntity" : {
+            "primaryKey" : 15,
+            "type" : "Tag",
+            "version" : 1,
+            "scope" : "LIVE",
+            "allLocales" : [
               "cs",
               "de",
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "gift"
+            "attributes" : {
+              "global" : {
+                "code" : "gift"
               }
             }
           }
@@ -357,212 +357,212 @@
       ]
     }
   ],
-  "categories": {
-    "count": 41,
-    "facetStatistics": [
+  "categories" : {
+    "count" : 41,
+    "facetStatistics" : [
       {
-        "requested": false,
-        "count": 41,
-        "facetEntity": {
-          "primaryKey": 66473,
-          "type": "Category",
-          "version": 1,
-          "scope": "LIVE",
-          "allLocales": [
+        "requested" : false,
+        "count" : 41,
+        "facetEntity" : {
+          "primaryKey" : 66473,
+          "type" : "Category",
+          "version" : 1,
+          "scope" : "LIVE",
+          "allLocales" : [
             "en"
           ],
-          "attributes": {
-            "global": {
-              "code": "e-readers"
+          "attributes" : {
+            "global" : {
+              "code" : "e-readers"
             }
           }
         }
       }
     ]
   },
-  "brand": {
-    "count": 41,
-    "facetStatistics": [
+  "brand" : {
+    "count" : 41,
+    "facetStatistics" : [
       {
-        "requested": false,
-        "count": 6,
-        "facetEntity": {
-          "primaryKey": 105140,
-          "type": "Brand",
-          "version": 1,
-          "scope": "LIVE",
-          "allLocales": [
+        "requested" : false,
+        "count" : 6,
+        "facetEntity" : {
+          "primaryKey" : 105140,
+          "type" : "Brand",
+          "version" : 1,
+          "scope" : "LIVE",
+          "allLocales" : [
             "en"
           ],
-          "attributes": {
-            "global": {
-              "code": "amazon"
+          "attributes" : {
+            "global" : {
+              "code" : "amazon"
             }
           }
         }
       },
       {
-        "requested": false,
-        "count": 18,
-        "facetEntity": {
-          "primaryKey": 105168,
-          "type": "Brand",
-          "version": 1,
-          "scope": "LIVE",
-          "allLocales": [
+        "requested" : false,
+        "count" : 18,
+        "facetEntity" : {
+          "primaryKey" : 105168,
+          "type" : "Brand",
+          "version" : 1,
+          "scope" : "LIVE",
+          "allLocales" : [
             "en"
           ],
-          "attributes": {
-            "global": {
-              "code": "onyx-boox"
+          "attributes" : {
+            "global" : {
+              "code" : "onyx-boox"
             }
           }
         }
       },
       {
-        "requested": false,
-        "count": 11,
-        "facetEntity": {
-          "primaryKey": 105239,
-          "type": "Brand",
-          "version": 1,
-          "scope": "LIVE",
-          "allLocales": [
+        "requested" : false,
+        "count" : 11,
+        "facetEntity" : {
+          "primaryKey" : 105239,
+          "type" : "Brand",
+          "version" : 1,
+          "scope" : "LIVE",
+          "allLocales" : [
             "en"
           ],
-          "attributes": {
-            "global": {
-              "code": "pocketbook"
+          "attributes" : {
+            "global" : {
+              "code" : "pocketbook"
             }
           }
         }
       },
       {
-        "requested": false,
-        "count": 6,
-        "facetEntity": {
-          "primaryKey": 105281,
-          "type": "Brand",
-          "version": 1,
-          "scope": "LIVE",
-          "allLocales": [
+        "requested" : false,
+        "count" : 6,
+        "facetEntity" : {
+          "primaryKey" : 105281,
+          "type" : "Brand",
+          "version" : 1,
+          "scope" : "LIVE",
+          "allLocales" : [
             "en"
           ],
-          "attributes": {
-            "global": {
-              "code": "kobo"
+          "attributes" : {
+            "global" : {
+              "code" : "kobo"
             }
           }
         }
       }
     ]
   },
-  "parameterValues": [
+  "parameterValues" : [
     {
-      "count": 41,
-      "groupEntity": {
-        "primaryKey": 66514,
-        "type": "Parameter",
-        "version": 2,
-        "scope": "LIVE",
-        "allLocales": [
+      "count" : 41,
+      "groupEntity" : {
+        "primaryKey" : 66514,
+        "type" : "Parameter",
+        "version" : 2,
+        "scope" : "LIVE",
+        "allLocales" : [
           "cs",
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "operating-system"
+        "attributes" : {
+          "global" : {
+            "code" : "operating-system"
           }
         }
       },
-      "facetStatistics": [
+      "facetStatistics" : [
         {
-          "requested": false,
-          "count": 6,
-          "facetEntity": {
-            "primaryKey": 103880,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 6,
+          "facetEntity" : {
+            "primaryKey" : 103880,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "cs",
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "operating-system-google-androi"
+            "attributes" : {
+              "global" : {
+                "code" : "operating-system-google-androi"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 10,
-          "facetEntity": {
-            "primaryKey": 104459,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 10,
+          "facetEntity" : {
+            "primaryKey" : 104459,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "operating-system-google-andr-1"
+            "attributes" : {
+              "global" : {
+                "code" : "operating-system-google-andr-1"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 6,
-          "facetEntity": {
-            "primaryKey": 105138,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 6,
+          "facetEntity" : {
+            "primaryKey" : 105138,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "operating-system-proprietal"
+            "attributes" : {
+              "global" : {
+                "code" : "operating-system-proprietal"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 2,
-          "facetEntity": {
-            "primaryKey": 105180,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 2,
+          "facetEntity" : {
+            "primaryKey" : 105180,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "operating-system-google-andr-4"
+            "attributes" : {
+              "global" : {
+                "code" : "operating-system-google-andr-4"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 17,
-          "facetEntity": {
-            "primaryKey": 105237,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 17,
+          "facetEntity" : {
+            "primaryKey" : 105237,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "operating-system-linux"
+            "attributes" : {
+              "global" : {
+                "code" : "operating-system-linux"
               }
             }
           }
@@ -570,37 +570,37 @@
       ]
     },
     {
-      "count": 1,
-      "groupEntity": {
-        "primaryKey": 66515,
-        "type": "Parameter",
-        "version": 2,
-        "scope": "LIVE",
-        "allLocales": [
+      "count" : 1,
+      "groupEntity" : {
+        "primaryKey" : 66515,
+        "type" : "Parameter",
+        "version" : 2,
+        "scope" : "LIVE",
+        "allLocales" : [
           "cs",
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "rear-camera-resoluti"
+        "attributes" : {
+          "global" : {
+            "code" : "rear-camera-resoluti"
           }
         }
       },
-      "facetStatistics": [
+      "facetStatistics" : [
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105163,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105163,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "rear-camera-resoluti-16"
+            "attributes" : {
+              "global" : {
+                "code" : "rear-camera-resoluti-16"
               }
             }
           }
@@ -608,37 +608,37 @@
       ]
     },
     {
-      "count": 41,
-      "groupEntity": {
-        "primaryKey": 66518,
-        "type": "Parameter",
-        "version": 2,
-        "scope": "LIVE",
-        "allLocales": [
+      "count" : 41,
+      "groupEntity" : {
+        "primaryKey" : 66518,
+        "type" : "Parameter",
+        "version" : 2,
+        "scope" : "LIVE",
+        "allLocales" : [
           "cs",
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "display-type"
+        "attributes" : {
+          "global" : {
+            "code" : "display-type"
           }
         }
       },
-      "facetStatistics": [
+      "facetStatistics" : [
         {
-          "requested": false,
-          "count": 41,
-          "facetEntity": {
-            "primaryKey": 105133,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 41,
+          "facetEntity" : {
+            "primaryKey" : 105133,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "display-type-e-ink"
+            "attributes" : {
+              "global" : {
+                "code" : "display-type-e-ink"
               }
             }
           }
@@ -646,74 +646,74 @@
       ]
     },
     {
-      "count": 41,
-      "groupEntity": {
-        "primaryKey": 66520,
-        "type": "Parameter",
-        "version": 2,
-        "scope": "LIVE",
-        "allLocales": [
+      "count" : 41,
+      "groupEntity" : {
+        "primaryKey" : 66520,
+        "type" : "Parameter",
+        "version" : 2,
+        "scope" : "LIVE",
+        "allLocales" : [
           "cs",
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "number-of-cpu-cores"
+        "attributes" : {
+          "global" : {
+            "code" : "number-of-cpu-cores"
           }
         }
       },
-      "facetStatistics": [
+      "facetStatistics" : [
         {
-          "requested": false,
-          "count": 8,
-          "facetEntity": {
-            "primaryKey": 103870,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 8,
+          "facetEntity" : {
+            "primaryKey" : 103870,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "cs",
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "number-of-cpu-cores-4"
+            "attributes" : {
+              "global" : {
+                "code" : "number-of-cpu-cores-4"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 11,
-          "facetEntity": {
-            "primaryKey": 103998,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 11,
+          "facetEntity" : {
+            "primaryKey" : 103998,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "number-of-cpu-cores-8"
+            "attributes" : {
+              "global" : {
+                "code" : "number-of-cpu-cores-8"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 22,
-          "facetEntity": {
-            "primaryKey": 105134,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 22,
+          "facetEntity" : {
+            "primaryKey" : 105134,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "number-of-cpu-cores-2"
+            "attributes" : {
+              "global" : {
+                "code" : "number-of-cpu-cores-2"
               }
             }
           }
@@ -721,38 +721,38 @@
       ]
     },
     {
-      "count": 31,
-      "groupEntity": {
-        "primaryKey": 66533,
-        "type": "Parameter",
-        "version": 2,
-        "scope": "LIVE",
-        "allLocales": [
+      "count" : 31,
+      "groupEntity" : {
+        "primaryKey" : 66533,
+        "type" : "Parameter",
+        "version" : 2,
+        "scope" : "LIVE",
+        "allLocales" : [
           "cs",
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "connector"
+        "attributes" : {
+          "global" : {
+            "code" : "connector"
           }
         }
       },
-      "facetStatistics": [
+      "facetStatistics" : [
         {
-          "requested": false,
-          "count": 31,
-          "facetEntity": {
-            "primaryKey": 103884,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 31,
+          "facetEntity" : {
+            "primaryKey" : 103884,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "cs",
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "connector-type-c"
+            "attributes" : {
+              "global" : {
+                "code" : "connector-type-c"
               }
             }
           }
@@ -760,271 +760,271 @@
       ]
     },
     {
-      "count": 18,
-      "groupEntity": {
-        "primaryKey": 67913,
-        "type": "Parameter",
-        "version": 2,
-        "scope": "LIVE",
-        "allLocales": [
+      "count" : 18,
+      "groupEntity" : {
+        "primaryKey" : 67913,
+        "type" : "Parameter",
+        "version" : 2,
+        "scope" : "LIVE",
+        "allLocales" : [
           "cs",
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "height"
+        "attributes" : {
+          "global" : {
+            "code" : "height"
           }
         }
       },
-      "facetStatistics": [
+      "facetStatistics" : [
         {
-          "requested": false,
-          "count": 2,
-          "facetEntity": {
-            "primaryKey": 104493,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 2,
+          "facetEntity" : {
+            "primaryKey" : 104493,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "height-159"
+            "attributes" : {
+              "global" : {
+                "code" : "height-159"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 2,
-          "facetEntity": {
-            "primaryKey": 105143,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 2,
+          "facetEntity" : {
+            "primaryKey" : 105143,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "height-173"
+            "attributes" : {
+              "global" : {
+                "code" : "height-173"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105164,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105164,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "height-225"
+            "attributes" : {
+              "global" : {
+                "code" : "height-225"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105185,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105185,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "height-170"
+            "attributes" : {
+              "global" : {
+                "code" : "height-170"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 2,
-          "facetEntity": {
-            "primaryKey": 105198,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 2,
+          "facetEntity" : {
+            "primaryKey" : 105198,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "height-229-4"
+            "attributes" : {
+              "global" : {
+                "code" : "height-229-4"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105210,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105210,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "height-249"
+            "attributes" : {
+              "global" : {
+                "code" : "height-249"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105219,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105219,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "height-310"
+            "attributes" : {
+              "global" : {
+                "code" : "height-310"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105230,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105230,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "height-197-3"
+            "attributes" : {
+              "global" : {
+                "code" : "height-197-3"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105250,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105250,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "height-249-2"
+            "attributes" : {
+              "global" : {
+                "code" : "height-249-2"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 2,
-          "facetEntity": {
-            "primaryKey": 105264,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 2,
+          "facetEntity" : {
+            "primaryKey" : 105264,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "height-161"
+            "attributes" : {
+              "global" : {
+                "code" : "height-161"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105275,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105275,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "height-159-6"
+            "attributes" : {
+              "global" : {
+                "code" : "height-159-6"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105286,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105286,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "height-177-7"
+            "attributes" : {
+              "global" : {
+                "code" : "height-177-7"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105294,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105294,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "height-159-3"
+            "attributes" : {
+              "global" : {
+                "code" : "height-159-3"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105299,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105299,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "height-181-4"
+            "attributes" : {
+              "global" : {
+                "code" : "height-181-4"
               }
             }
           }
@@ -1032,325 +1032,325 @@
       ]
     },
     {
-      "count": 25,
-      "groupEntity": {
-        "primaryKey": 67914,
-        "type": "Parameter",
-        "version": 2,
-        "scope": "LIVE",
-        "allLocales": [
+      "count" : 25,
+      "groupEntity" : {
+        "primaryKey" : 67914,
+        "type" : "Parameter",
+        "version" : 2,
+        "scope" : "LIVE",
+        "allLocales" : [
           "cs",
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "width"
+        "attributes" : {
+          "global" : {
+            "code" : "width"
           }
         }
       },
-      "facetStatistics": [
+      "facetStatistics" : [
         {
-          "requested": false,
-          "count": 6,
-          "facetEntity": {
-            "primaryKey": 105135,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 6,
+          "facetEntity" : {
+            "primaryKey" : 105135,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "width-108"
+            "attributes" : {
+              "global" : {
+                "code" : "width-108"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 2,
-          "facetEntity": {
-            "primaryKey": 105144,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 2,
+          "facetEntity" : {
+            "primaryKey" : 105144,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "width-125"
+            "attributes" : {
+              "global" : {
+                "code" : "width-125"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105150,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105150,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "width-141"
+            "attributes" : {
+              "global" : {
+                "code" : "width-141"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105154,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105154,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "width-114-4"
+            "attributes" : {
+              "global" : {
+                "code" : "width-114-4"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105165,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105165,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "width-184-5"
+            "attributes" : {
+              "global" : {
+                "code" : "width-184-5"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 2,
-          "facetEntity": {
-            "primaryKey": 105176,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 2,
+          "facetEntity" : {
+            "primaryKey" : 105176,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "width-112-5"
+            "attributes" : {
+              "global" : {
+                "code" : "width-112-5"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105186,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105186,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "width-117"
+            "attributes" : {
+              "global" : {
+                "code" : "width-117"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 2,
-          "facetEntity": {
-            "primaryKey": 105199,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 2,
+          "facetEntity" : {
+            "primaryKey" : 105199,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "width-195-4"
+            "attributes" : {
+              "global" : {
+                "code" : "width-195-4"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105211,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105211,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "width-176-5"
+            "attributes" : {
+              "global" : {
+                "code" : "width-176-5"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105220,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105220,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "width-228"
+            "attributes" : {
+              "global" : {
+                "code" : "width-228"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105251,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105251,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "width-173-4"
+            "attributes" : {
+              "global" : {
+                "code" : "width-173-4"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105261,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105261,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "width-135-5"
+            "attributes" : {
+              "global" : {
+                "code" : "width-135-5"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105276,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105276,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "width-110"
+            "attributes" : {
+              "global" : {
+                "code" : "width-110"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105282,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105282,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "width-112"
+            "attributes" : {
+              "global" : {
+                "code" : "width-112"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105287,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105287,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "width-160"
+            "attributes" : {
+              "global" : {
+                "code" : "width-160"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105295,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105295,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "width-112-4"
+            "attributes" : {
+              "global" : {
+                "code" : "width-112-4"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105300,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105300,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "width-160-5"
+            "attributes" : {
+              "global" : {
+                "code" : "width-160-5"
               }
             }
           }
@@ -1358,451 +1358,451 @@
       ]
     },
     {
-      "count": 41,
-      "groupEntity": {
-        "primaryKey": 67915,
-        "type": "Parameter",
-        "version": 2,
-        "scope": "LIVE",
-        "allLocales": [
+      "count" : 41,
+      "groupEntity" : {
+        "primaryKey" : 67915,
+        "type" : "Parameter",
+        "version" : 2,
+        "scope" : "LIVE",
+        "allLocales" : [
           "cs",
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "thickness"
+        "attributes" : {
+          "global" : {
+            "code" : "thickness"
           }
         }
       },
-      "facetStatistics": [
+      "facetStatistics" : [
         {
-          "requested": false,
-          "count": 3,
-          "facetEntity": {
-            "primaryKey": 104078,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 3,
+          "facetEntity" : {
+            "primaryKey" : 104078,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "thickness-6-3"
+            "attributes" : {
+              "global" : {
+                "code" : "thickness-6-3"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 104442,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 104442,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "thickness-9"
+            "attributes" : {
+              "global" : {
+                "code" : "thickness-9"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 104457,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 104457,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "thickness-8-5"
+            "attributes" : {
+              "global" : {
+                "code" : "thickness-8-5"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 2,
-          "facetEntity": {
-            "primaryKey": 104471,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 2,
+          "facetEntity" : {
+            "primaryKey" : 104471,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "thickness-8-1"
+            "attributes" : {
+              "global" : {
+                "code" : "thickness-8-1"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 2,
-          "facetEntity": {
-            "primaryKey": 104485,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 2,
+          "facetEntity" : {
+            "primaryKey" : 104485,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "thickness-7-7"
+            "attributes" : {
+              "global" : {
+                "code" : "thickness-7-7"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 104561,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 104561,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "thickness-7-8"
+            "attributes" : {
+              "global" : {
+                "code" : "thickness-7-8"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 104673,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 104673,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "thickness-7-2"
+            "attributes" : {
+              "global" : {
+                "code" : "thickness-7-2"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 104686,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 104686,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "thickness-6-7"
+            "attributes" : {
+              "global" : {
+                "code" : "thickness-6-7"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 2,
-          "facetEntity": {
-            "primaryKey": 104722,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 2,
+          "facetEntity" : {
+            "primaryKey" : 104722,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "thickness-7-9"
+            "attributes" : {
+              "global" : {
+                "code" : "thickness-7-9"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 3,
-          "facetEntity": {
-            "primaryKey": 104820,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 3,
+          "facetEntity" : {
+            "primaryKey" : 104820,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "thickness-5-8"
+            "attributes" : {
+              "global" : {
+                "code" : "thickness-5-8"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 9,
-          "facetEntity": {
-            "primaryKey": 104865,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 9,
+          "facetEntity" : {
+            "primaryKey" : 104865,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "thickness-8"
+            "attributes" : {
+              "global" : {
+                "code" : "thickness-8"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105151,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105151,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "thickness-8-4"
+            "attributes" : {
+              "global" : {
+                "code" : "thickness-8-4"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105155,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105155,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "thickness-13-6"
+            "attributes" : {
+              "global" : {
+                "code" : "thickness-13-6"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105160,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105160,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "thickness-13-5"
+            "attributes" : {
+              "global" : {
+                "code" : "thickness-13-5"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105171,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105171,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "thickness-6"
+            "attributes" : {
+              "global" : {
+                "code" : "thickness-6"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 3,
-          "facetEntity": {
-            "primaryKey": 105177,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 3,
+          "facetEntity" : {
+            "primaryKey" : 105177,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "thickness-8-8"
+            "attributes" : {
+              "global" : {
+                "code" : "thickness-8-8"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105187,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105187,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "thickness-8-7"
+            "attributes" : {
+              "global" : {
+                "code" : "thickness-8-7"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105192,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105192,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "thickness-7-1"
+            "attributes" : {
+              "global" : {
+                "code" : "thickness-7-1"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105196,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105196,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "thickness-6-8"
+            "attributes" : {
+              "global" : {
+                "code" : "thickness-6-8"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105216,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105216,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "thickness-5-95"
+            "attributes" : {
+              "global" : {
+                "code" : "thickness-5-95"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105277,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105277,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "thickness-8-35"
+            "attributes" : {
+              "global" : {
+                "code" : "thickness-8-35"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105283,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105283,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "thickness-8-66"
+            "attributes" : {
+              "global" : {
+                "code" : "thickness-8-66"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105296,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105296,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "thickness-9-2"
+            "attributes" : {
+              "global" : {
+                "code" : "thickness-9-2"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105301,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105301,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "thickness-7-6"
+            "attributes" : {
+              "global" : {
+                "code" : "thickness-7-6"
               }
             }
           }
@@ -1810,541 +1810,541 @@
       ]
     },
     {
-      "count": 35,
-      "groupEntity": {
-        "primaryKey": 67916,
-        "type": "Parameter",
-        "version": 2,
-        "scope": "LIVE",
-        "allLocales": [
+      "count" : 35,
+      "groupEntity" : {
+        "primaryKey" : 67916,
+        "type" : "Parameter",
+        "version" : 2,
+        "scope" : "LIVE",
+        "allLocales" : [
           "cs",
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "weight"
+        "attributes" : {
+          "global" : {
+            "code" : "weight"
           }
         }
       },
-      "facetStatistics": [
+      "facetStatistics" : [
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 104562,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 104562,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "weight-480"
+            "attributes" : {
+              "global" : {
+                "code" : "weight-480"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105136,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105136,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "weight-158"
+            "attributes" : {
+              "global" : {
+                "code" : "weight-158"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105145,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105145,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "weight-205"
+            "attributes" : {
+              "global" : {
+                "code" : "weight-205"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105147,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105147,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "weight-208"
+            "attributes" : {
+              "global" : {
+                "code" : "weight-208"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105152,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105152,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "weight-188"
+            "attributes" : {
+              "global" : {
+                "code" : "weight-188"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105156,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105156,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "weight-256"
+            "attributes" : {
+              "global" : {
+                "code" : "weight-256"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105161,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105161,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "weight-321"
+            "attributes" : {
+              "global" : {
+                "code" : "weight-321"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105172,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105172,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "weight-185"
+            "attributes" : {
+              "global" : {
+                "code" : "weight-185"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 3,
-          "facetEntity": {
-            "primaryKey": 105178,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 3,
+          "facetEntity" : {
+            "primaryKey" : 105178,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "weight-160"
+            "attributes" : {
+              "global" : {
+                "code" : "weight-160"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105182,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105182,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "weight-165"
+            "attributes" : {
+              "global" : {
+                "code" : "weight-165"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105188,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105188,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "weight-182"
+            "attributes" : {
+              "global" : {
+                "code" : "weight-182"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 2,
-          "facetEntity": {
-            "primaryKey": 105193,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 2,
+          "facetEntity" : {
+            "primaryKey" : 105193,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "weight-150"
+            "attributes" : {
+              "global" : {
+                "code" : "weight-150"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105200,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105200,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "weight-445"
+            "attributes" : {
+              "global" : {
+                "code" : "weight-445"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105212,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105212,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "weight-385"
+            "attributes" : {
+              "global" : {
+                "code" : "weight-385"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105221,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105221,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "weight-570"
+            "attributes" : {
+              "global" : {
+                "code" : "weight-570"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105231,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105231,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "weight-265"
+            "attributes" : {
+              "global" : {
+                "code" : "weight-265"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 3,
-          "facetEntity": {
-            "primaryKey": 105235,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 3,
+          "facetEntity" : {
+            "primaryKey" : 105235,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "weight-155"
+            "attributes" : {
+              "global" : {
+                "code" : "weight-155"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105241,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105241,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "weight-145"
+            "attributes" : {
+              "global" : {
+                "code" : "weight-145"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105247,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105247,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "weight-228"
+            "attributes" : {
+              "global" : {
+                "code" : "weight-228"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105252,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105252,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "weight-300"
+            "attributes" : {
+              "global" : {
+                "code" : "weight-300"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105258,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105258,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "weight-210"
+            "attributes" : {
+              "global" : {
+                "code" : "weight-210"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 2,
-          "facetEntity": {
-            "primaryKey": 105262,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 2,
+          "facetEntity" : {
+            "primaryKey" : 105262,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "weight-225"
+            "attributes" : {
+              "global" : {
+                "code" : "weight-225"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105269,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105269,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "weight-369"
+            "attributes" : {
+              "global" : {
+                "code" : "weight-369"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105278,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105278,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "weight-166"
+            "attributes" : {
+              "global" : {
+                "code" : "weight-166"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105284,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105284,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "weight-171"
+            "attributes" : {
+              "global" : {
+                "code" : "weight-171"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105288,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105288,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "weight-197"
+            "attributes" : {
+              "global" : {
+                "code" : "weight-197"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105292,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105292,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "weight-215"
+            "attributes" : {
+              "global" : {
+                "code" : "weight-215"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105297,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105297,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "weight-172"
+            "attributes" : {
+              "global" : {
+                "code" : "weight-172"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105302,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105302,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "weight-240-8"
+            "attributes" : {
+              "global" : {
+                "code" : "weight-240-8"
               }
             }
           }
@@ -2352,307 +2352,307 @@
       ]
     },
     {
-      "count": 41,
-      "groupEntity": {
-        "primaryKey": 67917,
-        "type": "Parameter",
-        "version": 2,
-        "scope": "LIVE",
-        "allLocales": [
+      "count" : 41,
+      "groupEntity" : {
+        "primaryKey" : 67917,
+        "type" : "Parameter",
+        "version" : 2,
+        "scope" : "LIVE",
+        "allLocales" : [
           "cs",
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "battery-capacity"
+        "attributes" : {
+          "global" : {
+            "code" : "battery-capacity"
           }
         }
       },
-      "facetStatistics": [
+      "facetStatistics" : [
         {
-          "requested": false,
-          "count": 6,
-          "facetEntity": {
-            "primaryKey": 105137,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 6,
+          "facetEntity" : {
+            "primaryKey" : 105137,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "battery-capacity-2100"
+            "attributes" : {
+              "global" : {
+                "code" : "battery-capacity-2100"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105166,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105166,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "battery-capacity-6300"
+            "attributes" : {
+              "global" : {
+                "code" : "battery-capacity-6300"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 6,
-          "facetEntity": {
-            "primaryKey": 105173,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 6,
+          "facetEntity" : {
+            "primaryKey" : 105173,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "battery-capacity-2000"
+            "attributes" : {
+              "global" : {
+                "code" : "battery-capacity-2000"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105179,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105179,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "battery-capacity-300"
+            "attributes" : {
+              "global" : {
+                "code" : "battery-capacity-300"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 5,
-          "facetEntity": {
-            "primaryKey": 105183,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 5,
+          "facetEntity" : {
+            "primaryKey" : 105183,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "battery-capacity-3000"
+            "attributes" : {
+              "global" : {
+                "code" : "battery-capacity-3000"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 4,
-          "facetEntity": {
-            "primaryKey": 105194,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 4,
+          "facetEntity" : {
+            "primaryKey" : 105194,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "battery-capacity-1500"
+            "attributes" : {
+              "global" : {
+                "code" : "battery-capacity-1500"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105201,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105201,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "battery-capacity-3700"
+            "attributes" : {
+              "global" : {
+                "code" : "battery-capacity-3700"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 2,
-          "facetEntity": {
-            "primaryKey": 105222,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 2,
+          "facetEntity" : {
+            "primaryKey" : 105222,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "battery-capacity-4300"
+            "attributes" : {
+              "global" : {
+                "code" : "battery-capacity-4300"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105232,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105232,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "battery-capacity-3150"
+            "attributes" : {
+              "global" : {
+                "code" : "battery-capacity-3150"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105236,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105236,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "battery-capacity-1300"
+            "attributes" : {
+              "global" : {
+                "code" : "battery-capacity-1300"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105242,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105242,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "battery-capacity-800"
+            "attributes" : {
+              "global" : {
+                "code" : "battery-capacity-800"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105248,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105248,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "battery-capacity-1700"
+            "attributes" : {
+              "global" : {
+                "code" : "battery-capacity-1700"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 3,
-          "facetEntity": {
-            "primaryKey": 105259,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 3,
+          "facetEntity" : {
+            "primaryKey" : 105259,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "battery-capacity-1900"
+            "attributes" : {
+              "global" : {
+                "code" : "battery-capacity-1900"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105270,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105270,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "battery-capacity-2200"
+            "attributes" : {
+              "global" : {
+                "code" : "battery-capacity-2200"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105273,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105273,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "battery-capacity-2900"
+            "attributes" : {
+              "global" : {
+                "code" : "battery-capacity-2900"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 6,
-          "facetEntity": {
-            "primaryKey": 105279,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 6,
+          "facetEntity" : {
+            "primaryKey" : 105279,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "battery-capacity-1000"
+            "attributes" : {
+              "global" : {
+                "code" : "battery-capacity-1000"
               }
             }
           }
@@ -2660,234 +2660,234 @@
       ]
     },
     {
-      "count": 23,
-      "groupEntity": {
-        "primaryKey": 114007,
-        "type": "Parameter",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+      "count" : 23,
+      "groupEntity" : {
+        "primaryKey" : 114007,
+        "type" : "Parameter",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "height-merge"
+        "attributes" : {
+          "global" : {
+            "code" : "height-merge"
           }
         }
       },
-      "facetStatistics": [
+      "facetStatistics" : [
         {
-          "requested": false,
-          "count": 2,
-          "facetEntity": {
-            "primaryKey": 104739,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 2,
+          "facetEntity" : {
+            "primaryKey" : 104739,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "height-158"
+            "attributes" : {
+              "global" : {
+                "code" : "height-158"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105158,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105158,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "height-175-5"
+            "attributes" : {
+              "global" : {
+                "code" : "height-175-5"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 4,
-          "facetEntity": {
-            "primaryKey": 105169,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 4,
+          "facetEntity" : {
+            "primaryKey" : 105169,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "height-156"
+            "attributes" : {
+              "global" : {
+                "code" : "height-156"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 2,
-          "facetEntity": {
-            "primaryKey": 105190,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 2,
+          "facetEntity" : {
+            "primaryKey" : 105190,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "height-153"
+            "attributes" : {
+              "global" : {
+                "code" : "height-153"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 3,
-          "facetEntity": {
-            "primaryKey": 105205,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 3,
+          "facetEntity" : {
+            "primaryKey" : 105205,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "height-194"
+            "attributes" : {
+              "global" : {
+                "code" : "height-194"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105214,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105214,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "height-165-6"
+            "attributes" : {
+              "global" : {
+                "code" : "height-165-6"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105227,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105227,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "height-239"
+            "attributes" : {
+              "global" : {
+                "code" : "height-239"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 3,
-          "facetEntity": {
-            "primaryKey": 105234,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 3,
+          "facetEntity" : {
+            "primaryKey" : 105234,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "height-161-3"
+            "attributes" : {
+              "global" : {
+                "code" : "height-161-3"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105245,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105245,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "height-134-3"
+            "attributes" : {
+              "global" : {
+                "code" : "height-134-3"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 3,
-          "facetEntity": {
-            "primaryKey": 105257,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 3,
+          "facetEntity" : {
+            "primaryKey" : 105257,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "height-195"
+            "attributes" : {
+              "global" : {
+                "code" : "height-195"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105267,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105267,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "height-236"
+            "attributes" : {
+              "global" : {
+                "code" : "height-236"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105290,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105290,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "height-161-6"
+            "attributes" : {
+              "global" : {
+                "code" : "height-161-6"
               }
             }
           }
@@ -2895,198 +2895,198 @@
       ]
     },
     {
-      "count": 16,
-      "groupEntity": {
-        "primaryKey": 114008,
-        "type": "Parameter",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+      "count" : 16,
+      "groupEntity" : {
+        "primaryKey" : 114008,
+        "type" : "Parameter",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "width-merge"
+        "attributes" : {
+          "global" : {
+            "code" : "width-merge"
           }
         }
       },
-      "facetStatistics": [
+      "facetStatistics" : [
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105159,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105159,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "width-129-2"
+            "attributes" : {
+              "global" : {
+                "code" : "width-129-2"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 2,
-          "facetEntity": {
-            "primaryKey": 105170,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 2,
+          "facetEntity" : {
+            "primaryKey" : 105170,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "width-137"
+            "attributes" : {
+              "global" : {
+                "code" : "width-137"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 2,
-          "facetEntity": {
-            "primaryKey": 105191,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 2,
+          "facetEntity" : {
+            "primaryKey" : 105191,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "width-107"
+            "attributes" : {
+              "global" : {
+                "code" : "width-107"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 5,
-          "facetEntity": {
-            "primaryKey": 105206,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 5,
+          "facetEntity" : {
+            "primaryKey" : 105206,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "width-136-5"
+            "attributes" : {
+              "global" : {
+                "code" : "width-136-5"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105215,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105215,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "width-130-8"
+            "attributes" : {
+              "global" : {
+                "code" : "width-130-8"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105225,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105225,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "width-121-5"
+            "attributes" : {
+              "global" : {
+                "code" : "width-121-5"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105228,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105228,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "width-168"
+            "attributes" : {
+              "global" : {
+                "code" : "width-168"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105246,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105246,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "width-155"
+            "attributes" : {
+              "global" : {
+                "code" : "width-155"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105268,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105268,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "width-173"
+            "attributes" : {
+              "global" : {
+                "code" : "width-173"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105291,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105291,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "width-144-6"
+            "attributes" : {
+              "global" : {
+                "code" : "width-144-6"
               }
             }
           }
@@ -3094,72 +3094,72 @@
       ]
     },
     {
-      "count": 6,
-      "groupEntity": {
-        "primaryKey": 114009,
-        "type": "Parameter",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+      "count" : 6,
+      "groupEntity" : {
+        "primaryKey" : 114009,
+        "type" : "Parameter",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "weight-merge"
+        "attributes" : {
+          "global" : {
+            "code" : "weight-merge"
           }
         }
       },
-      "facetStatistics": [
+      "facetStatistics" : [
         {
-          "requested": false,
-          "count": 2,
-          "facetEntity": {
-            "primaryKey": 104736,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 2,
+          "facetEntity" : {
+            "primaryKey" : 104736,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "weight-420"
+            "attributes" : {
+              "global" : {
+                "code" : "weight-420"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 3,
-          "facetEntity": {
-            "primaryKey": 105207,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 3,
+          "facetEntity" : {
+            "primaryKey" : 105207,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "weight-235"
+            "attributes" : {
+              "global" : {
+                "code" : "weight-235"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 1,
-          "facetEntity": {
-            "primaryKey": 105217,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 1,
+          "facetEntity" : {
+            "primaryKey" : 105217,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "weight-170"
+            "attributes" : {
+              "global" : {
+                "code" : "weight-170"
               }
             }
           }
@@ -3167,54 +3167,54 @@
       ]
     },
     {
-      "count": 41,
-      "groupEntity": {
-        "primaryKey": 114010,
-        "type": "Parameter",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+      "count" : 41,
+      "groupEntity" : {
+        "primaryKey" : 114010,
+        "type" : "Parameter",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "connector-merge"
+        "attributes" : {
+          "global" : {
+            "code" : "connector-merge"
           }
         }
       },
-      "facetStatistics": [
+      "facetStatistics" : [
         {
-          "requested": false,
-          "count": 10,
-          "facetEntity": {
-            "primaryKey": 104525,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 10,
+          "facetEntity" : {
+            "primaryKey" : 104525,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "connector-micro-usb"
+            "attributes" : {
+              "global" : {
+                "code" : "connector-micro-usb"
               }
             }
           }
         },
         {
-          "requested": false,
-          "count": 31,
-          "facetEntity": {
-            "primaryKey": 114011,
-            "type": "ParameterValue",
-            "version": 2,
-            "scope": "LIVE",
-            "allLocales": [
+          "requested" : false,
+          "count" : 31,
+          "facetEntity" : {
+            "primaryKey" : 114011,
+            "type" : "ParameterValue",
+            "version" : 2,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "usb"
+            "attributes" : {
+              "global" : {
+                "code" : "usb"
               }
             }
           }

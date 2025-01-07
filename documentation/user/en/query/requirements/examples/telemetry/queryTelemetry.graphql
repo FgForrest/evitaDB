@@ -9,6 +9,11 @@
       }
     ]
   ) {
+    recordPage {
+      data {
+        primaryKey
+      }
+    }
     extraResults {
       queryTelemetry
     }
