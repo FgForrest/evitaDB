@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -177,7 +177,7 @@ public class DataLocatorResolver {
 	@Nonnull
 	public DataLocator resolveConstraintDataLocator(@Nonnull DataLocator parentDataLocator,
 	                                                @Nonnull ConstraintDescriptor constraintDescriptor,
-	                                                @Nonnull Optional<String> classifier) {
+	                                                @SuppressWarnings("OptionalUsedAsFieldOrParameterType") @Nonnull Optional<String> classifier) {
 		return switch (constraintDescriptor.propertyType()) {
 			case GENERIC, ATTRIBUTE, ASSOCIATED_DATA, PRICE -> parentDataLocator; // these property type currently doesn't have any container constraints
 			case ENTITY -> {

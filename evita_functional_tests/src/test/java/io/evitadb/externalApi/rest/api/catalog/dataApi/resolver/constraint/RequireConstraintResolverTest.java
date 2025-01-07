@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -159,10 +159,7 @@ class RequireConstraintResolverTest extends AbstractConstraintResolverTest {
 				facetGroupsDisjunction(
 					"CATEGORY",
 					filterBy(
-						or(
-							attributeEquals("NAME", "apple"),
-							attributeStartsWith("NAME", "sam")
-						)
+						entityPrimaryKeyInSet(123)
 					)
 				)
 			),
@@ -175,16 +172,8 @@ class RequireConstraintResolverTest extends AbstractConstraintResolverTest {
 							.e("priceType", null)
 							.e("facetCategoryGroupsDisjunction", map()
 								.e("filterBy", map()
-									.e("or", list()
-										.i(map()
-											.e("attributeNameEquals", "apple")
-											.e("and", null))
-										.i(map()
-											.e("or", list()
-												.i(map()
-													.e("attributeNameStartsWith", "sam"))
-												.i(map()
-													.e("attributeNameEndsWith", null)))))))
+									.e("entityPrimaryKeyInSet", list()
+										.i(123))))
 							.build()
 					)
 				)
