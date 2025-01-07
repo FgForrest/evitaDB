@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -98,8 +98,11 @@ abstract class AbstractConstraintResolverTest {
 			.withPrice()
 			.withAttribute("CODE", String.class)
 			.withAttribute("AGE", Integer.class, thatIs -> thatIs.filterable())
-			.withReferenceToEntity(Entities.CATEGORY, Entities.CATEGORY, Cardinality.ONE_OR_MORE, thatIs -> thatIs.withAttribute("CODE", String.class))
-			.withReferenceToEntity(Entities.BRAND, Entities.BRAND, Cardinality.EXACTLY_ONE)
+			.withReferenceToEntity(Entities.CATEGORY, Entities.CATEGORY, Cardinality.ONE_OR_MORE, thatIs -> thatIs
+				.withAttribute("CODE", String.class)
+				.withGroupType("categoryGroup"))
+			.withReferenceToEntity(Entities.BRAND, Entities.BRAND, Cardinality.EXACTLY_ONE, thatIs -> thatIs
+				.withGroupType("brandGroup"))
 			.toInstance();
 
 		entitySchemaIndex.put(Entities.PRODUCT, productSchema);

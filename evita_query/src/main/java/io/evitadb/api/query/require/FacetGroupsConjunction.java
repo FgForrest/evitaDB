@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -116,7 +116,7 @@ public class FacetGroupsConjunction extends AbstractRequireConstraintContainer i
 
 	@Creator
 	public FacetGroupsConjunction(@Nonnull @Classifier String referenceName,
-	                              @Nullable @AdditionalChild(domain = ConstraintDomain.ENTITY) FilterBy filterBy) {
+	                              @Nullable @AdditionalChild(domain = ConstraintDomain.GROUP_ENTITY) FilterBy filterBy) {
 		super(new Serializable[]{referenceName}, NO_CHILDREN, filterBy);
 	}
 
