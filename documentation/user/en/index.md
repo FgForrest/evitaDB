@@ -34,15 +34,17 @@ in the separate part of this site.
 ##### Use at your own risk and responsibility
 </NoteTitle>
 
-evitaDB is currently in alpha version and a lot of development is going on right now. We plan to stabilize the first 
-generally available version in 2024. Until that time, the storage format may change at any time, which 
-will require all existing data to be dropped and re-indexed from the primary storage.
+In the summer of 2024, we started to release beta versions of evitaDB in regular intervals and deploy it to our own
+customers to gain first-hand experience using it ourselves. evitaDB is currently operated in production and works
+reliably meeting our expectations regarding performance and stability.
+
+However, evitaDB is currently in beta version and a lot of development is still going on. We plan to finish the full-featured
+version in 2026. Until that time, the storage format may change at any time, which may require all existing data to be
+dropped and re-indexed from the primary storage. We make our best to provide automatic data migration tools, so hopefully
+this will not be necessary, but we cannot guarantee it yet.
 
 **Please do not use evitaDB to store your primary data for the reasons mentioned above.**
 
-In the spring of 2023, we plan to release a beta version and deploy it first to our own customers to gain first-hand 
-experience using it ourselves. When we can be sure that the database engine is stable and reliable, we will release 
-the first version to the general public.
 </Note>
 
 ## Get started
