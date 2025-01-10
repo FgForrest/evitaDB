@@ -30,16 +30,15 @@ import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import javax.annotation.Nonnull;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
-import java.util.PrimitiveIterator.OfInt;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -61,31 +60,36 @@ class TransactionalIntBPlusTreeTest implements TimeBoundedTestSupport {
 			ConsistencyState.CONSISTENT, consistencyReport.state(),
 			consistencyReport.report()
 		);
-		verifyForwardKeyIterator(bPlusTree, expectedArray);
-		verifyReverseKeyIterator(bPlusTree, expectedArray);
+		verifyForwardValueIterator(bPlusTree, expectedArray);
+		verifyReverseValueIterator(bPlusTree, expectedArray);
 	}
 
-	private static void verifyForwardKeyIterator(@Nonnull TransactionalIntBPlusTree<?> tree, @Nonnull int... expectedArray) {
-		int[] reconstructedArray = new int[expectedArray.length];
+	private static void verifyForwardValueIterator(@Nonnull TransactionalIntBPlusTree<String> tree, @Nonnull int... keyArray) {
+		final String[] expectedArray = Arrays.stream(keyArray).mapToObj(i -> "Value" + i).toArray(String[]::new);
+		final String[] reconstructedArray = new String[expectedArray.length];
 		int index = 0;
-		final OfInt it = tree.keyIterator();
+		final Iterator<String> it = tree.valueIterator();
 		while (it.hasNext()) {
-			reconstructedArray[index++] = it.nextInt();
+			reconstructedArray[index++] = it.next();
+			assertEquals(expectedArray[index - 1], reconstructedArray[index - 1]);
 		}
 
 		assertArrayEquals(expectedArray, reconstructedArray, "Arrays are not equal!");
-		assertThrows(NoSuchElementException.class, it::nextInt, "Iterator should be exhausted!");
+		assertThrows(NoSuchElementException.class, it::next, "Iterator should be exhausted!");
 	}
 
-	private static void verifyReverseKeyIterator(@Nonnull TransactionalIntBPlusTree<?> tree, @Nonnull int... expectedArray) {
-		int[] reconstructedArray = new int[expectedArray.length];
+	private static void verifyReverseValueIterator(@Nonnull TransactionalIntBPlusTree<String> tree, @Nonnull int... keyArray) {
+		final String[] expectedArray = Arrays.stream(keyArray).mapToObj(i -> "Value" + i).toArray(String[]::new);
+		final String[] reconstructedArray = new String[expectedArray.length];
 		int index = expectedArray.length;
-		final OfInt it = tree.keyReverseIterator();
+		final Iterator<String> it = tree.valueReverseIterator();
 		while (it.hasNext()) {
-			reconstructedArray[--index] = it.nextInt();
+			reconstructedArray[--index] = it.next();
+			assertEquals(expectedArray[index], reconstructedArray[index]);
 		}
 
-		assertArrayEquals(expectedArray, reconstructedArray);
+		assertArrayEquals(expectedArray, reconstructedArray, "Arrays are not equal!");
+		assertThrows(NoSuchElementException.class, it::next, "Iterator should be exhausted!");
 	}
 
 	private static TreeTuple prepareRandomTree(long seed, int totalElements) {
@@ -123,7 +127,8 @@ class TransactionalIntBPlusTreeTest implements TimeBoundedTestSupport {
 				}
 			},
 			(original, commited) -> {
-				verifyForwardKeyIterator(original, testTree.plainArray());
+				verifyTreeConsistency(original, testTree.plainArray());
+				verifyForwardValueIterator(original, testTree.plainArray());
 				assertEquals(testTree.totalElements(), original.size());
 				assertNull(commited);
 			}
@@ -244,7 +249,8 @@ class TransactionalIntBPlusTreeTest implements TimeBoundedTestSupport {
 	void shouldIterateThroughLeafNodeKeysFromLeftToRight() {
 		final TreeTuple testTree = prepareRandomTree(System.currentTimeMillis(), 100);
 
-		verifyForwardKeyIterator(testTree.bPlusTree(), testTree.plainArray());
+		verifyTreeConsistency(testTree.bPlusTree(), testTree.plainArray());
+		verifyForwardValueIterator(testTree.bPlusTree(), testTree.plainArray());
 		assertEquals(testTree.totalElements(), testTree.bPlusTree().size());
 	}
 
@@ -298,7 +304,8 @@ class TransactionalIntBPlusTreeTest implements TimeBoundedTestSupport {
 	void shouldIterateThroughLeafNodeKeysFromRightToLeft() {
 		final TreeTuple testTree = prepareRandomTree(System.currentTimeMillis(), 100);
 
-		verifyReverseKeyIterator(testTree.bPlusTree(), testTree.plainArray());
+		verifyTreeConsistency(testTree.bPlusTree(), testTree.plainArray());
+		verifyReverseValueIterator(testTree.bPlusTree(), testTree.plainArray());
 		assertEquals(testTree.totalElements(), testTree.bPlusTree().size());
 	}
 
@@ -792,6 +799,7 @@ class TransactionalIntBPlusTreeTest implements TimeBoundedTestSupport {
 			(original, committed) -> {
 				verifyTreeConsistency(original, expectedArray.get());
 				expectedArray.set(ArrayUtils.removeIntFromOrderedArray(92, expectedArray.get()));
+				verifyTreeConsistency(committed, expectedArray.get());
 				theTree.set(committed);
 			}
 		);
@@ -824,6 +832,7 @@ class TransactionalIntBPlusTreeTest implements TimeBoundedTestSupport {
 				verifyTreeConsistency(original, expectedArray.get());
 				expectedArray.set(ArrayUtils.removeIntFromOrderedArray(32, expectedArray.get()));
 				verifyTreeConsistency(committed, expectedArray.get());
+				theTree.set(committed);
 			}
 		);
 
@@ -836,6 +845,7 @@ class TransactionalIntBPlusTreeTest implements TimeBoundedTestSupport {
 				verifyTreeConsistency(original, expectedArray.get());
 				expectedArray.set(ArrayUtils.removeIntFromOrderedArray(34, expectedArray.get()));
 				verifyTreeConsistency(committed, expectedArray.get());
+				theTree.set(committed);
 			}
 		);
 
@@ -848,6 +858,7 @@ class TransactionalIntBPlusTreeTest implements TimeBoundedTestSupport {
 				verifyTreeConsistency(original, expectedArray.get());
 				expectedArray.set(ArrayUtils.removeIntFromOrderedArray(35, expectedArray.get()));
 				verifyTreeConsistency(committed, expectedArray.get());
+				theTree.set(committed);
 			}
 		);
 
@@ -860,6 +871,7 @@ class TransactionalIntBPlusTreeTest implements TimeBoundedTestSupport {
 				verifyTreeConsistency(original, expectedArray.get());
 				expectedArray.set(ArrayUtils.removeIntFromOrderedArray(37, expectedArray.get()));
 				verifyTreeConsistency(committed, expectedArray.get());
+				theTree.set(committed);
 			}
 		);
 
@@ -872,6 +884,7 @@ class TransactionalIntBPlusTreeTest implements TimeBoundedTestSupport {
 				verifyTreeConsistency(original, expectedArray.get());
 				expectedArray.set(ArrayUtils.removeIntFromOrderedArray(40, expectedArray.get()));
 				verifyTreeConsistency(committed, expectedArray.get());
+				theTree.set(committed);
 			}
 		);
 	}
@@ -891,6 +904,7 @@ class TransactionalIntBPlusTreeTest implements TimeBoundedTestSupport {
 				verifyTreeConsistency(original, expectedArray.get());
 				expectedArray.set(ArrayUtils.removeIntFromOrderedArray(25, expectedArray.get()));
 				verifyTreeConsistency(committed, expectedArray.get());
+				theTree.set(committed);
 			}
 		);
 
@@ -903,6 +917,7 @@ class TransactionalIntBPlusTreeTest implements TimeBoundedTestSupport {
 				verifyTreeConsistency(original, expectedArray.get());
 				expectedArray.set(ArrayUtils.removeIntFromOrderedArray(26, expectedArray.get()));
 				verifyTreeConsistency(committed, expectedArray.get());
+				theTree.set(committed);
 			}
 		);
 
@@ -915,6 +930,7 @@ class TransactionalIntBPlusTreeTest implements TimeBoundedTestSupport {
 				verifyTreeConsistency(original, expectedArray.get());
 				expectedArray.set(ArrayUtils.removeIntFromOrderedArray(27, expectedArray.get()));
 				verifyTreeConsistency(committed, expectedArray.get());
+				theTree.set(committed);
 			}
 		);
 
@@ -927,6 +943,7 @@ class TransactionalIntBPlusTreeTest implements TimeBoundedTestSupport {
 				verifyTreeConsistency(original, expectedArray.get());
 				expectedArray.set(ArrayUtils.removeIntFromOrderedArray(30, expectedArray.get()));
 				verifyTreeConsistency(committed, expectedArray.get());
+				theTree.set(committed);
 			}
 		);
 	}
@@ -946,6 +963,7 @@ class TransactionalIntBPlusTreeTest implements TimeBoundedTestSupport {
 			(original, committed) -> {
 				verifyTreeConsistency(original, expectedArray);
 				assertEquals("NewValue18", committed.search(13).orElse(null));
+				committed.upsert(13, existingValue -> "Value13");
 				verifyTreeConsistency(committed, expectedArray);
 			}
 		);
@@ -997,10 +1015,9 @@ class TransactionalIntBPlusTreeTest implements TimeBoundedTestSupport {
 		);
 	}
 
-	@ParameterizedTest(name = "IntBPlusTreeTest should survive generational randomized test applying modifications on it")
+	@ParameterizedTest(name = "TransactionalIntBPlusTreeTest should survive generational randomized test applying modifications on it")
 	@Tag(LONG_RUNNING_TEST)
 	@ArgumentsSource(TimeArgumentProvider.class)
-	@Disabled
 	void generationalProofTest(GenerationalTestInput input) {
 		final int limitElements = 1000;
 		final TreeTuple testTree = prepareRandomTree(16, 7, 7, 3, 42, limitElements);
