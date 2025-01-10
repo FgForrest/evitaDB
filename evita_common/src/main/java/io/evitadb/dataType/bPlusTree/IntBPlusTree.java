@@ -29,7 +29,6 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import lombok.AccessLevel;
 import lombok.Getter;
-import lombok.Setter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -40,7 +39,6 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.function.UnaryOperator;
@@ -86,53 +84,19 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 	private BPlusTreeNode<?> root;
 
 	/**
-	 * Rewires the sibling pointers of BPlusTreeNodes involved in a split operation.
-	 *
-	 * @param node       The original node that is being replaced during the sibling rewiring process.
-	 * @param leftNode   The new left sibling node resulting from the split operation.
-	 * @param rightRight The new right sibling node resulting from the split operation.
-	 */
-	private static <N extends BPlusTreeNode<N>> void rewireSiblings(
-		@Nonnull N node,
-		@Nonnull N leftNode,
-		@Nonnull N rightRight
-	) {
-		final N previousNode = node.getPreviousNode();
-		if (previousNode != null) {
-			previousNode.setNextNode(leftNode);
-		}
-		leftNode.setPreviousNode(previousNode);
-		leftNode.setNextNode(rightRight);
-		rightRight.setPreviousNode(leftNode);
-		final N nextNode = node.getNextNode();
-		if (nextNode != null) {
-			nextNode.setPreviousNode(rightRight);
-		}
-		rightRight.setNextNode(nextNode);
-	}
-
-	/**
 	 * Updates the keys in the parent nodes of a B+ Tree based on changes in a specific path.
 	 * This method propagates changes up the tree as necessary.
 	 *
-	 * @param path                  A list of B+ internal tree nodes representing the path from the root to the updated node.
-	 * @param indexToUpdate         The index of the key to be updated in the parent node.
-	 * @param previouslyUpdatedNode The child node that was previously updated and requires the parent node key to be aligned.
+	 * @param cursorWithLevel the cursor representing the path from the root to the node where the changes occurred
 	 */
-	private static void updateParentKeys(
-		@Nonnull List<BPlusInternalTreeNode> path,
-		int indexToUpdate,
-		@Nonnull BPlusTreeNode<?> previouslyUpdatedNode,
-		int watermark
-	) {
-		// first child doesn't have a key in the parent
-		for (int i = path.size() - 1 - watermark; i >= 0; i--) {
-			BPlusInternalTreeNode immediateParent = path.get(i);
-			if (indexToUpdate > 0) {
-				immediateParent.updateKeyForNode(indexToUpdate, previouslyUpdatedNode);
+	private static void updateParentKeys(@Nonnull CursorWithLevel cursorWithLevel) {
+		BPlusInternalTreeNode immediateParent = cursorWithLevel.parent();
+		while (immediateParent != null) {
+			if (cursorWithLevel.currentNodeIndex() > 0) {
+				immediateParent.updateKeyForNode(cursorWithLevel.currentNodeIndex(), cursorWithLevel.currentNode());
 			}
-			previouslyUpdatedNode = immediateParent;
-			indexToUpdate = i > 0 ? path.get(i - 1).getChildIndex(immediateParent.getLeftBoundaryKey(), immediateParent) : 0;
+			cursorWithLevel = cursorWithLevel.toParentLevel();
+			immediateParent = cursorWithLevel != null ? cursorWithLevel.parent() : null;
 		}
 	}
 
@@ -239,61 +203,6 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 	}
 
 	/**
-	 * Verifies the previous and next node links for nodes at each level of a given B+ tree.
-	 * Ensures that the nodes on the same level are properly linked and validates the integrity
-	 * of the previous and next node references.
-	 *
-	 * @param bPlusTree the B+ tree whose node links on each level are to be verified
-	 * @param height    the height of the B+ tree, indicating how many levels need to be checked
-	 * @throws IllegalStateException if any node fails validation for previous or next node links
-	 *                               or if nodes on the same level belong to different classes
-	 */
-	private static void verifyPreviousAndNextNodesOnEachLevel(@Nonnull IntBPlusTree<?> bPlusTree, int height) {
-		for (int i = 0; i <= height; i++) {
-			final List<BPlusTreeNode<?>> nodesOnLevel = getNodesOnLevel(bPlusTree, i);
-			BPlusTreeNode<?> previousNode = null;
-			for (int j = 0; j < nodesOnLevel.size(); j++) {
-				final BPlusTreeNode<?> node = nodesOnLevel.get(j);
-				if (previousNode != node.getPreviousNode()) {
-					throw new IllegalStateException("Node " + node + " has a wrong previous node!");
-				}
-				if (previousNode != null) {
-					if (previousNode.getNextNode() != node) {
-						throw new IllegalStateException("Node " + node + " has a wrong next node!");
-					}
-					if (previousNode.getClass() != node.getClass()) {
-						throw new IllegalStateException("Node " + node + " has a different class than the previous node!");
-					}
-				}
-				previousNode = node;
-				if (j == nodesOnLevel.size() - 1) {
-					if (node.getNextNode() != null) {
-						throw new IllegalStateException("Last node on level " + i + " has a next node!");
-					}
-				}
-			}
-		}
-	}
-
-	/**
-	 * Retrieves all nodes of a specific level in a BPlusTree.
-	 *
-	 * @param tree  the BPlusTree from which nodes will be retrieved
-	 * @param level the level of the tree for which nodes are required
-	 * @return a list of nodes found at the specified level in the tree
-	 */
-	@Nonnull
-	private static List<BPlusTreeNode<?>> getNodesOnLevel(@Nonnull IntBPlusTree<?> tree, int level) {
-		if (level == 0) {
-			return List.of(tree.getRoot());
-		} else {
-			final List<BPlusTreeNode<?>> nodes = new ArrayList<>(32);
-			addNodesOnLevel(tree.getRoot(), level, 0, nodes);
-			return nodes;
-		}
-	}
-
-	/**
 	 * Verifies that the given B+ tree node and its child nodes satisfy the minimum required values
 	 * in their blocks. Throws an IllegalStateException if any node violates the minimum count condition.
 	 *
@@ -314,35 +223,6 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 			if (node.size() < minValueBlockSize && !isRoot) {
 				throw new IllegalStateException("Leaf node " + node + " has less than " + minValueBlockSize + " values (" + node.size() + ")!");
 			}
-		}
-	}
-
-	/**
-	 * Traverses the B+ tree and adds nodes present at the specified level to the provided result list.
-	 *
-	 * @param currentNode  The current node being traversed in the B+ tree. Must not be null.
-	 * @param targetLevel  The target level of the B+ tree whose nodes need to be collected.
-	 * @param currentLevel The current level of the tree during traversal.
-	 * @param resultNodes  The list where nodes at the target level are collected. Must not be null.
-	 */
-	private static void addNodesOnLevel(
-		@Nonnull BPlusTreeNode<?> currentNode,
-		int targetLevel,
-		int currentLevel,
-		@Nonnull List<BPlusTreeNode<?>> resultNodes
-	) {
-		if (currentNode instanceof IntBPlusTree.BPlusInternalTreeNode internalNode) {
-			if (currentLevel == targetLevel) {
-				resultNodes.add(internalNode);
-			} else {
-				for (int i = 0; i <= internalNode.getPeek(); i++) {
-					addNodesOnLevel(internalNode.getChildren()[i], targetLevel, currentLevel + 1, resultNodes);
-				}
-			}
-		} else if (currentLevel == targetLevel) {
-			resultNodes.add(currentNode);
-		} else {
-			throw new IllegalStateException("Level " + targetLevel + " not found in the tree!");
 		}
 	}
 
@@ -402,6 +282,27 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 	}
 
 	/**
+	 * This method recursively traverses the B+ tree to find the leaf node responsible
+	 * for the specified key. It also populates the path traversed with internal nodes.
+	 *
+	 * @param currentNode The current internal tree node being traversed. Must not be null.
+	 * @param key         The key for which the corresponding leaf node is to be found.
+	 * @param path        A list to store the sequence of internal nodes visited. Must not be null.
+	 */
+	private static void addCursorLevels(
+		@Nonnull BPlusInternalTreeNode currentNode,
+		int key,
+		@Nonnull List<CursorLevel> path
+	) {
+		final NodeWithIndex child = currentNode.search(key);
+		path.add(new CursorLevel(currentNode.getChildren(), child.index(), currentNode.getPeek()));
+		// if the child is an internal node, continue traversing down the tree
+		if (child.node() instanceof BPlusInternalTreeNode childInternalNode) {
+			addCursorLevels(childInternalNode, key, path);
+		}
+	}
+
+	/**
 	 * Constructor to initialize the B+ Tree.
 	 *
 	 * @param valueBlockSize maximum number of values in a leaf node
@@ -433,6 +334,21 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 		int minInternalNodeBlockSize,
 		@Nonnull Class<V> valueType
 	) {
+		this(
+			valueBlockSize, minValueBlockSize,
+			internalNodeBlockSize, minInternalNodeBlockSize,
+			valueType, 0
+		);
+	}
+
+	private IntBPlusTree(
+		int valueBlockSize,
+		int minValueBlockSize,
+		int internalNodeBlockSize,
+		int minInternalNodeBlockSize,
+		@Nonnull Class<V> valueType,
+		int size
+	) {
 		Assert.isPremiseValid(valueBlockSize >= 3, "Block size must be at least 3.");
 		Assert.isPremiseValid(minValueBlockSize >= 1, "Minimum block size must be at least 1.");
 		Assert.isPremiseValid(minValueBlockSize <= Math.ceil((float) valueBlockSize / 2.0) - 1, "Minimum block size must be less than half of the block size, otherwise the tree nodes might be immediately full after merges.");
@@ -446,6 +362,7 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 		this.minInternalNodeBlockSize = minInternalNodeBlockSize;
 		this.valueType = valueType;
 		this.root = new BPlusLeafTreeNode<>(valueBlockSize, valueType);
+		this.size = size;
 	}
 
 	/**
@@ -456,27 +373,28 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 	 * @param value the value associated with the key, must not be null
 	 */
 	public void insert(int key, @Nonnull V value) {
-		final LeafWithPath<V> leafWithPath = findLeafWithPath(key);
-		final BPlusLeafTreeNode<V> leaf = leafWithPath.leaf();
+		final Cursor<V> cursor = createCursor(key);
+		final BPlusLeafTreeNode<V> leaf = cursor.leafNode();
 		this.size += leaf.insert(key, value) ? 1 : 0;
 
 		// Split the leaf node if it exceeds the block size
 		if (leaf.isFull()) {
-			splitLeafNode(leaf, leafWithPath.path());
+			splitLeafNode(leaf, cursor);
 		}
 	}
+
 	/**
 	 * Updates an existing key-value pair or inserts a new one into the B+ tree.
 	 * If the key is already present, the value is updated based on the result of the updater function.
 	 * If the key is not present, a new key-value pair is inserted with the value returned by the updater function.
 	 * If the leaf node exceeds its block size after insertion, the node is split.
 	 *
-	 * @param key the key to update or insert, must not be null
+	 * @param key     the key to update or insert, must not be null
 	 * @param updater a function to compute a new value, must not be null
 	 */
 	public void upsert(int key, @Nonnull UnaryOperator<V> updater) {
-		final LeafWithPath<V> leafWithPath = findLeafWithPath(key);
-		final BPlusLeafTreeNode<V> leaf = leafWithPath.leaf();
+		final Cursor<V> cursor = createCursor(key);
+		final BPlusLeafTreeNode<V> leaf = cursor.leafNode();
 
 		leaf.getValueWithIndex(key)
 			.ifPresentOrElse(
@@ -488,7 +406,7 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 
 					// Split the leaf node if it exceeds the block size
 					if (leaf.isFull()) {
-						splitLeafNode(leaf, leafWithPath.path());
+						splitLeafNode(leaf, cursor);
 					}
 				}
 			);
@@ -503,29 +421,18 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 	 * @param key the key whose associated entry is to be removed from the B+ tree
 	 */
 	public void delete(int key) {
-		final LeafWithPath<V> leafWithPath = findLeafWithPath(key);
-		final BPlusLeafTreeNode<V> leaf = leafWithPath.leaf();
+		final Cursor<V> cursor = createCursor(key);
+		final BPlusLeafTreeNode<V> leaf = cursor.leafNode();
 
 		final boolean headRemoved = leaf.size() > 1 && key == leaf.getKeys()[0];
 		this.size -= leaf.delete(key) ? 1 : 0;
 
-		final List<BPlusInternalTreeNode> parentPath = leafWithPath.path();
 		// if the head of the leaf has been removed, we need to update parent keys accordingly
 		if (headRemoved) {
-			updateParentKeys(
-				parentPath,
-				parentPath.get(leafWithPath.path.size() - 1).getChildIndex(key, leaf),
-				leaf,
-				0
-			);
+			updateParentKeys(cursor.toCursorWithLevel());
 		}
 
-		consolidate(
-			leaf,
-			parentPath,
-			parentPath.size() - 1,
-			0
-		);
+		consolidate(cursor);
 	}
 
 	/**
@@ -537,7 +444,8 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 	 */
 	@Nonnull
 	public Optional<V> search(int key) {
-		return findLeaf(key).getValue(key);
+		final Cursor<V> cursor = createCursor(key);
+		return cursor.leafNode().getValue(key);
 	}
 
 	/**
@@ -556,7 +464,7 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 	 */
 	@Nonnull
 	public OfInt keyIterator() {
-		return new ForwardKeyIterator(findLeaf(Integer.MIN_VALUE));
+		return new ForwardKeyIterator(createCursor(Integer.MIN_VALUE));
 	}
 
 	/**
@@ -566,7 +474,7 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 	 */
 	@Nonnull
 	public OfInt keyReverseIterator() {
-		return new ReverseKeyIterator(findLeaf(Integer.MAX_VALUE));
+		return new ReverseKeyIterator(createCursor(Integer.MAX_VALUE));
 	}
 
 	/**
@@ -576,7 +484,7 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 	 */
 	@Nonnull
 	public Iterator<V> valueIterator() {
-		return new ForwardTreeValueIterator<>(findLeaf(Integer.MIN_VALUE));
+		return new ForwardTreeValueIterator<>(createCursor(Integer.MIN_VALUE));
 	}
 
 	/**
@@ -588,7 +496,7 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 	 */
 	@Nonnull
 	public Iterator<V> greaterOrEqualValueIterator(int key) {
-		return new ForwardTreeValueIterator<>(findLeaf(key), key);
+		return new ForwardTreeValueIterator<>(createCursor(key), key);
 	}
 
 	/**
@@ -598,7 +506,7 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 	 */
 	@Nonnull
 	public Iterator<V> valueReverseIterator() {
-		return new ReverseTreeValueIterator<>(findLeaf(Integer.MAX_VALUE));
+		return new ReverseTreeValueIterator<>(createCursor(Integer.MAX_VALUE));
 	}
 
 	@Override
@@ -615,7 +523,6 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 			int height = verifyAndReturnHeight(this);
 			verifyMinimalCountOfValuesInNodes(this.root, this.minValueBlockSize, this.minInternalNodeBlockSize, true);
 			verifyInternalNodeKeys(this.root);
-			verifyPreviousAndNextNodesOnEachLevel(this, height);
 			verifyForwardKeyIterator(this, this.size);
 			verifyReverseKeyIterator(this, this.size);
 			return new ConsistencyReport(
@@ -634,81 +541,95 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 	 * keys from sibling nodes or merging nodes. If changes propagate up the tree (e.g., through
 	 * node merges), the parent nodes are also consolidated.
 	 *
-	 * @param node      The node to consolidate, which could be a leaf node or an internal node.
-	 * @param path      A list representing the path from the root to the node being consolidated.
-	 *                  This is used to update parent nodes as necessary when modifications occur.
-	 * @param index     The index of the parent node in the path, indicating the relationship
-	 *                  between the current node and its parent.
-	 * @param watermark Tracks the depth of recursion or the number of upward propagations
-	 *                  happening during consolidation.
+	 * @param cursor  the cursor representing the path from the root to the node to be consolidated
 	 */
-	private <N extends BPlusTreeNode<N>> void consolidate(
-		@Nonnull N node,
-		@Nonnull List<BPlusInternalTreeNode> path,
-		int index,
-		int watermark
-	) {
-		// leaf node has less than minBlockSize keys, or internal nodes has less than two children
-		final boolean underFlowNode = node.keyCount() < this.minValueBlockSize;
-		if (underFlowNode) {
-			if (path.size() > index && index >= 0) {
-				boolean nodeIsEmpty = node.size() == 0;
-				final BPlusInternalTreeNode parent = path.get(index);
-				final N previousNode = node.getPreviousNode();
-				final int previousNodeIndexInParent = previousNode == null ? -1 : parent.getChildIndex(previousNode.getKeys()[0], previousNode);
-				// if previous node with current node exists and shares the same parent
-				// and we can steal from the left sibling
-				if (previousNodeIndexInParent > -1 && previousNode.keyCount() > this.minValueBlockSize) {
-					// steal half of the surplus data from the left sibling
-					node.stealFromLeft(Math.max(1, (previousNode.keyCount() - this.minValueBlockSize) / 2));
-					// update parent keys, but only if node was empty - which means first key was added
-					updateParentKeys(path, previousNodeIndexInParent + 1, node, watermark);
-					return;
-				}
+	private <N extends BPlusTreeNode<N>> void consolidate(@Nonnull Cursor<V> cursor) {
+		CursorWithLevel cursorWithLevel = cursor.toCursorWithLevel();
 
-				final N nextNode = node.getNextNode();
-				final int nextNodeIndexInParent = nextNode == null ? -1 : parent.getChildIndex(nextNode.getKeys()[0], nextNode);
-				// if next node with current node exists and shares the same parent
-				// and we can steal from the right sibling
-				if (nextNodeIndexInParent > -1 && nextNode.keyCount() > this.minValueBlockSize) {
-					// steal half of the surplus data from the right sibling
-					node.stealFromRight(Math.max(1, (nextNode.keyCount() - this.minValueBlockSize) / 2));
-					// update parent keys of the next node - we've stolen its first key
-					updateParentKeys(path, nextNodeIndexInParent, nextNode, watermark);
-					// update parent keys, but only if node was empty - which means first key was added
-					if (node instanceof BPlusInternalTreeNode || nodeIsEmpty) {
-						updateParentKeys(path, nextNodeIndexInParent - 1, node, watermark);
+		while (cursorWithLevel != null) {
+			final N node = cursorWithLevel.currentNode();
+			// leaf node has less than minBlockSize keys, or internal nodes has less than two children
+			final boolean underFlowNode = node.keyCount() < this.minValueBlockSize;
+			if (underFlowNode) {
+				final BPlusInternalTreeNode parent = cursorWithLevel.parent();
+				if (parent != null) {
+					boolean nodeIsEmpty = node.size() == 0;
+					final CursorWithLevel previousNodeCursor = cursorWithLevel.getCursorForPreviousNode();
+					// if previous node with current node exists and shares the same parent
+					// and we can steal from the left sibling
+					if (previousNodeCursor != null) {
+						final N previousNode = previousNodeCursor.currentNode();
+						if (previousNode.keyCount() > this.minValueBlockSize) {
+							// steal half of the surplus data from the left sibling
+							node.stealFromLeft(Math.max(1, (previousNode.keyCount() - this.minValueBlockSize) / 2), previousNode);
+							// update parent keys
+							updateParentKeys(cursorWithLevel);
+							return;
+						}
 					}
-					return;
-				}
 
-				// if previous node with current node can be merged and share the same parent
-				if (previousNodeIndexInParent > -1 && previousNode.keyCount() + node.keyCount() < this.valueBlockSize) {
-					// merge nodes
-					node.mergeWithLeft();
-					// remove the removed child from the parent
-					parent.removeChildOnIndex(previousNodeIndexInParent, previousNodeIndexInParent);
-					// update parent keys, previous node has been removed
-					updateParentKeys(path, previousNodeIndexInParent, node, watermark);
-					// consolidate the parent node
-					consolidate(parent, path, index - 1, watermark + 1);
-					return;
-				}
+					final CursorWithLevel nextNodeCursor = cursorWithLevel.getCursorForNextNode();
+					// if next node with current node exists and shares the same parent
+					// and we can steal from the right sibling
+					if (nextNodeCursor != null) {
+						final N nextNode = nextNodeCursor.currentNode();
+						if (nextNode.keyCount() > this.minValueBlockSize) {
+							// steal half of the surplus data from the right sibling
+							node.stealFromRight(Math.max(1, (nextNode.keyCount() - this.minValueBlockSize) / 2), nextNode);
+							// update parent keys of the next node - we've stolen its first key
+							updateParentKeys(nextNodeCursor);
+							// update parent keys, but only if node was empty - which means first key was added
+							if (node instanceof BPlusInternalTreeNode || nodeIsEmpty) {
+								updateParentKeys(cursorWithLevel);
+							}
+							return;
+						}
+					}
 
-				// if next node with current node can be merged and share the same parent
-				if (nextNodeIndexInParent > -1 && nextNode.keyCount() + node.keyCount() < this.valueBlockSize) {
-					// merge nodes
-					node.mergeWithRight();
-					// remove the removed child from the parent
-					parent.removeChildOnIndex(nextNodeIndexInParent - 1, nextNodeIndexInParent);
-					// update parent keys, next node has been removed
-					updateParentKeys(path, nextNodeIndexInParent - 1, node, watermark);
-					// consolidate the parent node
-					consolidate(parent, path, index - 1, watermark + 1);
+					// if previous node with current node can be merged and share the same parent
+					if (previousNodeCursor != null) {
+						final N previousNode = previousNodeCursor.currentNode();
+						if (previousNode.keyCount() + node.keyCount() < this.valueBlockSize) {
+							// merge nodes
+							node.mergeWithLeft(previousNode);
+							// remove the removed child from the parent
+							parent.removeChildOnIndex(previousNodeCursor.currentNodeIndex(), previousNodeCursor.currentNodeIndex());
+							// update parent keys, previous node has been removed
+							updateParentKeys(previousNodeCursor.withReplacedCurrentNode(node));
+							// consolidate the parent node
+							cursorWithLevel = cursorWithLevel.toParentLevel();
+							// continue with parent level
+							continue;
+						}
+					}
+
+					// if next node with current node can be merged and share the same parent
+					if (nextNodeCursor != null) {
+						final N nextNode = nextNodeCursor.currentNode();
+						if (nextNode.keyCount() + node.keyCount() < this.valueBlockSize) {
+							// merge nodes
+							node.mergeWithRight(nextNode);
+							// remove the removed child from the parent
+							parent.removeChildOnIndex(nextNodeCursor.currentNodeIndex() - 1, nextNodeCursor.currentNodeIndex());
+							// update parent keys, next node has been removed
+							updateParentKeys(cursorWithLevel.withReplacedCurrentNode(node));
+							// consolidate the parent node
+							cursorWithLevel = cursorWithLevel.toParentLevel();
+						}
+					}
+				} else if (node == this.root) {
+					if (node.size() == 1 && node instanceof BPlusInternalTreeNode internalTreeNode) {
+						// replace the root with the only child
+						this.root = internalTreeNode.getChildren()[0];
+					} else if (node.size() == 0 && node instanceof BPlusInternalTreeNode) {
+						// the root is empty, create a new empty leaf node
+						this.root = new BPlusLeafTreeNode<>(this.valueBlockSize, this.valueType);
+					}
+					cursorWithLevel = null;
 				}
-			} else if (node == this.root && node.size() == 1 && node instanceof BPlusInternalTreeNode internalTreeNode) {
-				// replace the root with the only child
-				this.root = internalTreeNode.getChildren()[0];
+			} else {
+				// no underflow, we can break the loop
+				cursorWithLevel = null;
 			}
 		}
 	}
@@ -719,74 +640,33 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 	 * by following the appropriate child pointers of internal nodes.
 	 *
 	 * @param key the key to search for within the B+ tree
-	 * @return the leaf node that is responsible for storing the provided key
+	 * @return the cursor to the leaf node that is responsible for storing the provided key;
+	 * note that the leaf may not actually contain the key - but it is the correct leaf node for accommodating it
 	 */
 	@Nonnull
-	private BPlusLeafTreeNode<V> findLeaf(int key) {
-		BPlusTreeNode<?> node = this.root;
-		while (node instanceof BPlusInternalTreeNode internalNode) {
-			node = internalNode.search(key);
-		}
-		//noinspection unchecked
-		return (BPlusLeafTreeNode<V>) node;
-	}
-
-	/**
-	 * Finds the leaf node in the B+ tree that should contain the specified key.
-	 * The method begins its search from the root node and traverses down to the leaf node
-	 * by following the appropriate child pointers of internal nodes.
-	 *
-	 * @param key the key to search for within the B+ tree
-	 * @return the leaf node that is responsible for storing the provided key
-	 */
-	@Nonnull
-	private LeafWithPath<V> findLeafWithPath(int key) {
+	private Cursor<V> createCursor(int key) {
+		final ArrayList<CursorLevel> path = new ArrayList<>(this.size() == 0 ? 1 : (int) (Math.log(this.size()) + 1));
+		final BPlusTreeNode<?>[] rootSiblings = (BPlusTreeNode<?>[]) Array.newInstance(this.root.getClass(), 1);
+		rootSiblings[0] = this.root;
+		path.add(new CursorLevel(rootSiblings, 0, 0));
+		// if the root is internal node, add the levels to the path until the leaf node is reached
 		if (this.root instanceof BPlusInternalTreeNode rootInternalNode) {
-			final ArrayList<BPlusInternalTreeNode> path = new ArrayList<>((int) (Math.log(this.size()) + 1));
-			path.add(rootInternalNode);
-			final BPlusLeafTreeNode<V> leaf = findLeafWithPath(rootInternalNode, key, path);
-			return new LeafWithPath<>(path, leaf);
-		} else {
-			//noinspection unchecked
-			return new LeafWithPath<>(List.of(), (BPlusLeafTreeNode<V>) this.root);
-		}
-	}
+			addCursorLevels(rootInternalNode, key, path);
 
-	/**
-	 * This method recursively traverses the B+ tree to find the leaf node responsible
-	 * for the specified key. It also populates the path traversed with internal nodes.
-	 *
-	 * @param currentNode The current internal tree node being traversed. Must not be null.
-	 * @param key         The key for which the corresponding leaf node is to be found.
-	 * @param path        A list to store the sequence of internal nodes visited. Must not be null.
-	 * @return The leaf tree node that should contain the specified key.
-	 */
-	@Nonnull
-	private BPlusLeafTreeNode<V> findLeafWithPath(
-		@Nonnull BPlusInternalTreeNode currentNode,
-		int key,
-		@Nonnull List<BPlusInternalTreeNode> path
-	) {
-		final BPlusTreeNode<?> child = currentNode.search(key);
-		if (child instanceof BPlusInternalTreeNode childInternalNode) {
-			path.add(childInternalNode);
-			return findLeafWithPath(childInternalNode, key, path);
-		} else {
-			//noinspection unchecked
-			return (BPlusLeafTreeNode<V>) child;
 		}
+		return new Cursor<>(path);
 	}
 
 	/**
 	 * Splits a full leaf node into two leaf nodes to maintain the properties of the B+ tree.
 	 * If the split occurs at the root, a new root is created.
 	 *
-	 * @param leaf    The leaf node to be split
-	 * @param parents The list of internal nodes representing the path from the root to the leaf node being split
+	 * @param leaf   The leaf node to be split
+	 * @param cursor The cursor representing the path from the root to the leaf node
 	 */
 	private void splitLeafNode(
 		@Nonnull BPlusLeafTreeNode<V> leaf,
-		@Nonnull List<BPlusInternalTreeNode> parents
+		@Nonnull Cursor<V> cursor
 	) {
 		final int mid = this.valueBlockSize / 2;
 		final int[] originKeys = leaf.getKeys();
@@ -813,9 +693,6 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 			leftLeaf.getKeys().length
 		);
 
-		// rewire the leaf node pointers
-		rewireSiblings(leaf, leftLeaf, rightLeaf);
-
 		// If the root splits, create a new root
 		if (leaf == this.root) {
 			this.root = new BPlusInternalTreeNode(
@@ -829,7 +706,7 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 				leftLeaf,
 				rightLeaf,
 				rightLeaf.getKeys()[0],
-				parents
+				cursor.toCursorWithLevel()
 			);
 		}
 	}
@@ -843,20 +720,22 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 	 * @param left     The left child BPlusTreeNode resulting from the split, containing keys less than the new partition key.
 	 * @param right    The right child BPlusTreeNode resulting from the split, containing keys greater than the new partition key.
 	 * @param key      The partition key that separates the left and right nodes.
-	 * @throws GenericEvitaInternalError if the parent node cannot be found for the original node.
+	 * @param cursor   The cursor representing the path from the root to the original node.
 	 */
 	private void replaceNodeInParentInternalNode(
 		@Nonnull BPlusTreeNode<?> original,
 		@Nonnull BPlusTreeNode<?> left,
 		@Nonnull BPlusTreeNode<?> right,
 		int key,
-		@Nonnull List<BPlusInternalTreeNode> parents
+		@Nonnull CursorWithLevel cursor
 	) {
-		final BPlusInternalTreeNode parent = parents.get(parents.size() - 1);
+		final BPlusInternalTreeNode parent = cursor.parent();
+
+		Assert.notNull(parent, "Parent node must not be null.");
 		parent.adaptToLeafSplit(key, original, left, right);
 
 		if (parent.isFull()) {
-			splitInternalNode(parent, parents.subList(0, parents.size() - 1));
+			splitInternalNode(parent, new CursorWithLevel(cursor.path(), cursor.level() - 1));
 		}
 	}
 
@@ -868,11 +747,11 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 	 *
 	 * @param internal The internal node to be split. It must not be null and must contain a number of keys
 	 *                 that necessitate splitting to maintain the B+ tree properties.
-	 * @param parents  The list of internal nodes representing the path from the root to the internal node being split.
+	 * @param cursor   The cursor representing the path from the root to the internal node being split.
 	 */
 	private void splitInternalNode(
 		@Nonnull BPlusInternalTreeNode internal,
-		@Nonnull List<BPlusInternalTreeNode> parents
+		@Nonnull CursorWithLevel cursor
 	) {
 		final int mid = (this.valueBlockSize + 1) / 2;
 		final int[] originKeys = internal.getKeys();
@@ -902,9 +781,6 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 			leftInternal.getChildren().length
 		);
 
-		// rewire the leaf node pointers
-		rewireSiblings(internal, leftInternal, rightInternal);
-
 		// If the root splits, create a new root
 		if (internal == this.root) {
 			this.root = new BPlusInternalTreeNode(
@@ -918,7 +794,7 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 				leftInternal,
 				rightInternal,
 				rightInternal.getLeftBoundaryKey(),
-				parents
+				cursor
 			);
 		}
 	}
@@ -984,60 +860,30 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 		void toVerboseString(@Nonnull StringBuilder sb, int level, int indentSpaces);
 
 		/**
-		 * Retrieves the previous node in the B+ Tree structure, if present.
-		 *
-		 * @return the previous node of type N, or null if there is no previous node.
-		 */
-		@Nullable
-		N getPreviousNode();
-
-		/**
-		 * Sets the previous node in the B+ Tree structure for the current node.
-		 * The previous node is typically a sibling or adjacent node in the B+ Tree structure.
-		 *
-		 * @param previousNode the node to set as the previous node. Can be null if there is no previous node.
-		 */
-		void setPreviousNode(@Nullable N previousNode);
-
-		/**
-		 * Retrieves the next node in the B+ Tree structure, if available.
-		 *
-		 * @return the next node of type N, or null if there is no next node.
-		 */
-		@Nullable
-		N getNextNode();
-
-		/**
-		 * Sets the next node in the B+ Tree structure for the current node.
-		 * The next node is typically the immediate successor or adjacent node in the B+ Tree.
-		 *
-		 * @param nextNode the node to set as the next node. Can be null if there is no next node.
-		 */
-		void setNextNode(@Nullable N nextNode);
-
-		/**
 		 * Steals a specified number of values from the end of the left sibling node.
 		 *
 		 * @param numberOfTailValues the number of values to steal from the left sibling node.
+		 * @param previousNode       the left sibling node from which to steal values.
 		 */
-		void stealFromLeft(int numberOfTailValues);
+		void stealFromLeft(int numberOfTailValues, @Nonnull N previousNode);
 
 		/**
 		 * Steals a specified number of values from the start of the right sibling node.
 		 *
 		 * @param numberOfHeadValues the number of values to steal from the right sibling node.
+		 * @param nextNode           the right sibling node from which to steal values.
 		 */
-		void stealFromRight(int numberOfHeadValues);
+		void stealFromRight(int numberOfHeadValues, @Nonnull N nextNode);
 
 		/**
 		 * Merges the current leaf node with the left sibling leaf node.
 		 */
-		void mergeWithLeft();
+		void mergeWithLeft(@Nonnull N previousNode);
 
 		/**
 		 * Merges the current leaf node with the right sibling leaf node.
 		 */
-		void mergeWithRight();
+		void mergeWithRight(@Nonnull N nextNode);
 
 		/**
 		 * Retrieves the left boundary key of the BPlusInternalTreeNode. This key is the smallest key contained
@@ -1062,22 +908,6 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 		 * The children of this node.
 		 */
 		@Getter private final BPlusTreeNode<?>[] children;
-
-		/**
-		 * Link to the previous internal node.
-		 * Although these data are not used in generic implementations, keeping those pointers allows us to keep
-		 * tree balanced during deletions (merges).
-		 */
-		@Nullable @Getter @Setter
-		private BPlusInternalTreeNode previousNode;
-
-		/**
-		 * Link to the next internal node.
-		 * Although these data are not used in generic implementations, keeping those pointers allows us to keep
-		 * tree balanced during deletions (merges).
-		 */
-		@Nullable @Getter @Setter
-		private BPlusInternalTreeNode nextNode;
 
 		/**
 		 * Index of the last occupied position in the children array.
@@ -1159,28 +989,26 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 		}
 
 		@Override
-		public void stealFromLeft(int numberOfTailValues) {
+		public void stealFromLeft(int numberOfTailValues, @Nonnull BPlusInternalTreeNode previousNode) {
 			Assert.isPremiseValid(numberOfTailValues > 0, "Number of tail values to steal must be positive!");
-			final BPlusInternalTreeNode prevNode = Objects.requireNonNull(this.previousNode);
 			// we preserve all the current node children
 			System.arraycopy(this.children, 0, this.children, numberOfTailValues, this.peek + 1);
 			// then move the children from the previous node
-			System.arraycopy(prevNode.getChildren(), prevNode.size() - numberOfTailValues, this.children, 0, numberOfTailValues);
+			System.arraycopy(previousNode.getChildren(), previousNode.size() - numberOfTailValues, this.children, 0, numberOfTailValues);
 			// we need to preserve all the current node keys
 			System.arraycopy(this.keys, 0, this.keys, numberOfTailValues, this.peek);
 			// our original first child newly produces its own key
 			this.keys[numberOfTailValues - 1] = this.children[numberOfTailValues].getLeftBoundaryKey();
 			// and now we can copy the keys from the previous node - but except the first one
-			System.arraycopy(prevNode.getKeys(), prevNode.keyCount() - numberOfTailValues + 1, this.keys, 0, numberOfTailValues - 1);
+			System.arraycopy(previousNode.getKeys(), previousNode.keyCount() - numberOfTailValues + 1, this.keys, 0, numberOfTailValues - 1);
 			// and update the peek indexes
 			this.peek += numberOfTailValues;
-			prevNode.setPeek(prevNode.getPeek() - numberOfTailValues);
+			previousNode.setPeek(previousNode.getPeek() - numberOfTailValues);
 		}
 
 		@Override
-		public void stealFromRight(int numberOfHeadValues) {
+		public void stealFromRight(int numberOfHeadValues, @Nonnull BPlusInternalTreeNode nextNode) {
 			Assert.isPremiseValid(numberOfHeadValues > 0, "Number of head values to steal must be positive!");
-			final BPlusInternalTreeNode nextNode = Objects.requireNonNull(this.nextNode);
 
 			// we move all the children
 			System.arraycopy(nextNode.getChildren(), 0, this.children, this.peek + 1, numberOfHeadValues);
@@ -1200,33 +1028,31 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 		}
 
 		@Override
-		public void mergeWithLeft() {
-			final BPlusInternalTreeNode nodeToMergeWith = Objects.requireNonNull(this.previousNode);
-			final int mergePeek = nodeToMergeWith.getPeek();
+		public void mergeWithLeft(@Nonnull BPlusInternalTreeNode previousNode) {
+			final int mergePeek = previousNode.getPeek();
 			System.arraycopy(this.keys, 0, this.keys, mergePeek + 1, this.peek);
 			this.keys[mergePeek] = this.children[0].getLeftBoundaryKey();
 			System.arraycopy(this.children, 0, this.children, mergePeek + 1, this.peek + 1);
-			System.arraycopy(nodeToMergeWith.getKeys(), 0, this.keys, 0, mergePeek);
-			System.arraycopy(nodeToMergeWith.getChildren(), 0, this.children, 0, mergePeek + 1);
+			System.arraycopy(previousNode.getKeys(), 0, this.keys, 0, mergePeek);
+			System.arraycopy(previousNode.getChildren(), 0, this.children, 0, mergePeek + 1);
 			this.peek += mergePeek + 1;
-			nodeToMergeWith.setPeek(-1);
+			previousNode.setPeek(-1);
 		}
 
 		@Override
-		public void mergeWithRight() {
-			final BPlusInternalTreeNode nodeToMergeWith = Objects.requireNonNull(this.nextNode);
-			final int mergePeek = nodeToMergeWith.getPeek();
-			System.arraycopy(nodeToMergeWith.getChildren(), 0, this.children, this.peek + 1, mergePeek + 1);
+		public void mergeWithRight(@Nonnull BPlusInternalTreeNode nextNode) {
+			final int mergePeek = nextNode.getPeek();
+			System.arraycopy(nextNode.getChildren(), 0, this.children, this.peek + 1, mergePeek + 1);
 			final int offset;
 			if (this.peek >= 0) {
-				this.keys[this.peek] = nodeToMergeWith.getChildren()[0].getLeftBoundaryKey();
+				this.keys[this.peek] = nextNode.getChildren()[0].getLeftBoundaryKey();
 				offset = 1;
 			} else {
 				offset = 0;
 			}
-			System.arraycopy(nodeToMergeWith.getKeys(), 0, this.keys, this.peek + offset, mergePeek);
+			System.arraycopy(nextNode.getKeys(), 0, this.keys, this.peek + offset, mergePeek);
 			this.peek += mergePeek + 1;
-			nodeToMergeWith.setPeek(-1);
+			nextNode.setPeek(-1);
 		}
 
 		@Override
@@ -1279,41 +1105,11 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 		 * @return the BPlusTreeNode that should contain the specified key.
 		 */
 		@Nonnull
-		public BPlusTreeNode<?> search(int key) {
+		public NodeWithIndex search(int key) {
 			final InsertionPosition insertionPosition = computeInsertPositionOfIntInOrderedArray(key, this.keys, 0, this.peek);
-			return insertionPosition.alreadyPresent() ?
-				this.children[insertionPosition.position() + 1] : this.children[insertionPosition.position()];
-		}
-
-		/**
-		 * Retrieves the index position of the specified child node within the children array.
-		 * The search is performed up to the current peek position.
-		 *
-		 * @param key  the key to search for within the children array.
-		 * @param node the BPlusTreeNode whose index needs to be found within the children array.
-		 * @return the index of the specified child node if found; otherwise, -1 indicating that the node is not present in the children array.
-		 */
-		public int getChildIndex(int key, @Nonnull BPlusTreeNode<?> node) {
-			if (this.getPeek() < 0) {
-				return -1;
-			} else {
-				final int keyIndex = Arrays.binarySearch(this.keys, 0, this.keyCount(), key);
-				if (keyIndex < 0) {
-					// the key might have been removed - try to iterate over the children
-					for (int i = 0; i <= this.peek; i++) {
-						if (this.children[i] == node) {
-							return i;
-						}
-					}
-					return -1;
-				} else {
-					Assert.isPremiseValid(
-						this.children[keyIndex + 1] == node,
-						"Key index does not match the child node!" // this should never happen
-					);
-					return keyIndex + 1;
-				}
-			}
+			final int thePosition = insertionPosition.alreadyPresent() ?
+				insertionPosition.position() + 1 : insertionPosition.position();
+			return new NodeWithIndex(thePosition, this.children[thePosition]);
 		}
 
 		/**
@@ -1327,17 +1123,7 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 		 * @param childIndex The position of the child node to be removed from the children array.
 		 *                   It must be within the bounds of the current number of children (peek).
 		 */
-		public <N extends BPlusTreeNode<N>> void removeChildOnIndex(int keyIndex, int childIndex) {
-			//noinspection unchecked
-			final BPlusTreeNode<N> child = (BPlusTreeNode<N>) this.children[childIndex];
-			if (child.getPreviousNode() != null) {
-				child.getPreviousNode().setNextNode(child.getNextNode());
-			}
-			if (child.getNextNode() != null) {
-				child.getNextNode().setPreviousNode(child.getPreviousNode());
-			}
-
-
+		public void removeChildOnIndex(int keyIndex, int childIndex) {
 			removeIntFromSameArrayOnIndex(this.keys, keyIndex);
 			this.keys[this.peek - 1] = 0;
 			removeRecordFromSameArrayOnIndex(this.children, childIndex);
@@ -1390,18 +1176,6 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 		@Getter private final V[] values;
 
 		/**
-		 * Link to the previous leaf node.
-		 */
-		@Nullable @Getter @Setter
-		private BPlusLeafTreeNode<V> previousNode;
-
-		/**
-		 * Link to the next leaf node.
-		 */
-		@Nullable @Getter @Setter
-		private BPlusLeafTreeNode<V> nextNode;
-
-		/**
 		 * Index of the last occupied position in the keys array.
 		 */
 		@Getter private int peek;
@@ -1413,8 +1187,6 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 			this.keys = new int[blockSize];
 			//noinspection unchecked
 			this.values = (V[]) Array.newInstance(valueType, blockSize);
-			this.previousNode = null;
-			this.nextNode = null;
 			this.peek = -1;
 		}
 
@@ -1438,8 +1210,6 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 			if (values == originValues) {
 				Arrays.fill(values, end - start, values.length, null);
 			}
-			this.previousNode = null;
-			this.nextNode = null;
 			this.peek = end - start - 1;
 		}
 
@@ -1475,21 +1245,19 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 		}
 
 		@Override
-		public void stealFromLeft(int numberOfTailValues) {
+		public void stealFromLeft(int numberOfTailValues, @Nonnull BPlusLeafTreeNode<V> previousNode) {
 			Assert.isPremiseValid(numberOfTailValues > 0, "Number of tail values to steal must be positive!");
-			final BPlusLeafTreeNode<V> prevNode = Objects.requireNonNull(this.previousNode);
 			System.arraycopy(this.keys, 0, this.keys, numberOfTailValues, this.peek + 1);
 			System.arraycopy(this.values, 0, this.values, numberOfTailValues, this.peek + 1);
-			System.arraycopy(prevNode.getKeys(), prevNode.size() - numberOfTailValues, this.keys, 0, numberOfTailValues);
-			System.arraycopy(prevNode.getValues(), prevNode.size() - numberOfTailValues, this.values, 0, numberOfTailValues);
+			System.arraycopy(previousNode.getKeys(), previousNode.size() - numberOfTailValues, this.keys, 0, numberOfTailValues);
+			System.arraycopy(previousNode.getValues(), previousNode.size() - numberOfTailValues, this.values, 0, numberOfTailValues);
 			this.peek += numberOfTailValues;
-			prevNode.setPeek(prevNode.getPeek() - numberOfTailValues);
+			previousNode.setPeek(previousNode.getPeek() - numberOfTailValues);
 		}
 
 		@Override
-		public void stealFromRight(int numberOfHeadValues) {
+		public void stealFromRight(int numberOfHeadValues, @Nonnull BPlusLeafTreeNode<V> nextNode) {
 			Assert.isPremiseValid(numberOfHeadValues > 0, "Number of head values to steal must be positive!");
-			final BPlusLeafTreeNode<V> nextNode = Objects.requireNonNull(this.nextNode);
 			System.arraycopy(nextNode.getKeys(), 0, this.keys, this.peek + 1, numberOfHeadValues);
 			System.arraycopy(nextNode.getValues(), 0, this.values, this.peek + 1, numberOfHeadValues);
 			System.arraycopy(nextNode.getKeys(), numberOfHeadValues, nextNode.getKeys(), 0, nextNode.size() - numberOfHeadValues);
@@ -1499,25 +1267,23 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 		}
 
 		@Override
-		public void mergeWithLeft() {
-			final BPlusLeafTreeNode<V> nodeToMergeWith = Objects.requireNonNull(this.previousNode);
-			final int mergePeek = nodeToMergeWith.getPeek();
+		public void mergeWithLeft(@Nonnull BPlusLeafTreeNode<V> previousNode) {
+			final int mergePeek = previousNode.getPeek();
 			System.arraycopy(this.keys, 0, this.keys, mergePeek + 1, this.peek + 1);
 			System.arraycopy(this.values, 0, this.values, mergePeek + 1, this.peek + 1);
-			System.arraycopy(nodeToMergeWith.getKeys(), 0, this.keys, 0, mergePeek + 1);
-			System.arraycopy(nodeToMergeWith.getValues(), 0, this.values, 0, mergePeek + 1);
+			System.arraycopy(previousNode.getKeys(), 0, this.keys, 0, mergePeek + 1);
+			System.arraycopy(previousNode.getValues(), 0, this.values, 0, mergePeek + 1);
 			this.peek += mergePeek + 1;
-			nodeToMergeWith.setPeek(-1);
+			previousNode.setPeek(-1);
 		}
 
 		@Override
-		public void mergeWithRight() {
-			final BPlusLeafTreeNode<V> nodeToMergeWith = Objects.requireNonNull(this.nextNode);
-			final int mergePeek = nodeToMergeWith.getPeek();
-			System.arraycopy(nodeToMergeWith.getKeys(), 0, this.keys, this.peek + 1, mergePeek + 1);
-			System.arraycopy(nodeToMergeWith.getValues(), 0, this.values, this.peek + 1, mergePeek + 1);
+		public void mergeWithRight(@Nonnull BPlusLeafTreeNode<V> nextNode) {
+			final int mergePeek = nextNode.getPeek();
+			System.arraycopy(nextNode.getKeys(), 0, this.keys, this.peek + 1, mergePeek + 1);
+			System.arraycopy(nextNode.getValues(), 0, this.values, this.peek + 1, mergePeek + 1);
 			this.peek += mergePeek + 1;
-			nodeToMergeWith.setPeek(-1);
+			nextNode.setPeek(-1);
 		}
 
 		@Override
@@ -1619,18 +1385,273 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 	}
 
 	/**
-	 * Represents a result of finding a leaf node in a B+ tree along with the path taken
-	 * to reach that leaf node. This is useful for operations that need to track the
-	 * traversed path of internal nodes leading to a specific leaf.
+	 * Represents a cursor for navigating a B+ tree structure with its specific level,
+	 * maintaining the state of the current node and its path.
 	 *
-	 * @param <V>  the type of the value stored in the leaf node
-	 * @param path a non-null list of internal tree nodes representing the path from the root
-	 *             to the leaf node in the B+ tree
-	 * @param leaf a non-null leaf tree node where the search or modification operation is targeted
+	 * This record is intended to support operations that perform traversal, modification,
+	 * or retrieval within the B+ tree by maintaining references to the current level,
+	 * node, and its hierarchical structure.
+	 *
+	 * @param path The path representing the sequence of nodes traversed to reach the current node.
+	 * @param level The current level in the tree where the cursor is positioned.
+	 * @param currentNodeOfGenericType The current node at the given level. The node can be passed from the outside
+	 *                                 if the current node in the path was replaced by another instance.
 	 */
-	private record LeafWithPath<V>(
-		@Nonnull List<BPlusInternalTreeNode> path,
-		@Nonnull BPlusLeafTreeNode<V> leaf
+	private record CursorWithLevel(
+		@Nonnull List<CursorLevel> path,
+		int level,
+		@Nonnull BPlusTreeNode<?> currentNodeOfGenericType
+	) {
+
+		public CursorWithLevel(@Nonnull List<CursorLevel> path, int level) {
+			this(path, level, path.get(level).currentNode());
+		}
+
+		/**
+		 * Retrieves the current node of the type parameter in the B+ Tree structure.
+		 * The current node might represent a replaced node in the structure.
+		 *
+		 * @return the current node of the generic type {@code N} in the B+ Tree.
+		 */
+		@Nonnull
+		public <N extends BPlusTreeNode<N>> N currentNode() {
+			//noinspection unchecked
+			return (N) this.currentNodeOfGenericType;
+		}
+
+		/**
+		 * Retrieves the index of the current node in the path at the current level.
+		 *
+		 * @return the index of the current node in the path at the specified level.
+		 */
+		public int currentNodeIndex() {
+			return this.path.get(this.level).index();
+		}
+
+		/**
+		 * Retrieves the parent node of the current node in the B+ Tree structure, if it exists.
+		 *
+		 * @return the parent node of type {@code BPlusInternalTreeNode} if the current level is greater than 0,
+		 *         otherwise {@code null}.
+		 */
+		@Nullable
+		public BPlusInternalTreeNode parent() {
+			if (this.level > 0) {
+				final CursorLevel parentLevel = this.path.get(this.level - 1);
+				return (BPlusInternalTreeNode) parentLevel.siblings()[parentLevel.index()];
+			} else {
+				return null;
+			}
+		}
+
+		/**
+		 * Creates a new instance of {@code CursorWithLevel} representing the parent level
+		 * by reducing the current level by one, if the current level is greater than 0.
+		 * If the current level is 0, returns {@code null}.
+		 *
+		 * @return a new {@code CursorWithLevel} instance at the parent level
+		 *         if the current level is greater than 0, otherwise {@code null}.
+		 */
+		@Nullable
+		public CursorWithLevel toParentLevel() {
+			return this.level > 0 ? new CursorWithLevel(this.path(), this.level - 1) : null;
+		}
+
+		/**
+		 * Retrieves a cursor representing the previous node at the current level in the B+ Tree structure.
+		 * If there is no previous node at the current level (i.e., the current node is the first sibling),
+		 * the method returns {@code null}.
+		 *
+		 * This method calculates the previous node by decrementing the current index
+		 * and reconstructing the cursor path to ensure all levels below the current level
+		 * point to the appropriate descendants of the newly identified previous node.
+		 *
+		 * Method cannot resolve the previous node over multiple parents - it only works on the current level.
+		 *
+		 * @return a {@code CursorWithLevel} instance pointing to the previous node if it exists,
+		 *         otherwise {@code null}.
+		 */
+		@Nullable
+		public CursorWithLevel getCursorForPreviousNode() {
+			final CursorLevel cursorLevel = this.path.get(this.level);
+			if (cursorLevel.index() > 0) {
+				// easy case - we can just move to the previous sibling
+				final List<CursorLevel> replacedPath = new ArrayList<>(this.path);
+				// we need to replace all levels from the current level up to the original one with the new path
+				CursorLevel newCursorLevel = new CursorLevel(
+					cursorLevel.siblings(),
+					cursorLevel.index() - 1,
+					cursorLevel.peek()
+				);
+				replacedPath.set(this.level, newCursorLevel);
+				// all levels below, will point to the last child of the new cursor level
+				for (int i = this.level + 1; i < this.path().size(); i++) {
+					final BPlusInternalTreeNode currentNode = newCursorLevel.currentNode();
+					newCursorLevel = new CursorLevel(
+						currentNode.getChildren(),
+						currentNode.getPeek(),
+						currentNode.getPeek()
+					);
+					replacedPath.set(i, newCursorLevel);
+				}
+				// return new cursor with the replaced path
+				return new CursorWithLevel(
+					replacedPath,
+					this.level
+				);
+			} else {
+				return null;
+			}
+		}
+
+		/**
+		 * Retrieves a cursor representing the next node at the current level in the B+ Tree structure.
+		 * If the current node is not the last sibling at the current level, the method calculates the
+		 * next node by incrementing the current index and reconstructing the cursor path for all subsequent levels.
+		 * The reconstruction ensures that all levels below the current level point to the appropriate
+		 * descendants of the newly identified sibling node.
+		 *
+		 * If the current node is the last sibling at the current level, the method returns {@code null}.
+		 *
+		 * Method cannot resolve the next node over multiple parents - it only works on the current level.
+		 *
+		 * @return a {@code CursorWithLevel} instance pointing to the next node if it exists,
+		 *         otherwise {@code null}.
+		 */
+		@Nullable
+		public CursorWithLevel getCursorForNextNode() {
+			final CursorLevel cursorLevel = this.path.get(this.level);
+			if (cursorLevel.index() < cursorLevel.peek()) {
+				// easy case - we can just move to the next sibling
+				final List<CursorLevel> replacedPath = new ArrayList<>(this.path);
+				// we need to replace all levels from the current level up to the original one with the new path
+				CursorLevel newCursorLevel = new CursorLevel(
+					cursorLevel.siblings(),
+					cursorLevel.index() + 1,
+					cursorLevel.peek()
+				);
+				replacedPath.set(this.level, newCursorLevel);
+				// all levels below, will point to the first child of the new cursor level
+				for (int i = this.level + 1; i < this.path.size(); i++) {
+					final BPlusInternalTreeNode currentNode = newCursorLevel.currentNode();
+					newCursorLevel = new CursorLevel(currentNode.getChildren(), 0, currentNode.getPeek());
+					replacedPath.set(i, newCursorLevel);
+				}
+				// return new cursor with the replaced path
+				return new CursorWithLevel(
+					replacedPath,
+					this.level
+				);
+			} else {
+				return null;
+			}
+		}
+
+		/**
+		 * Creates a new instance of {@code CursorWithLevel} with the same path and level but
+		 * with the current node replaced by the provided node.
+		 *
+		 * @param node the new current node to replace the existing one. It must not be null and must
+		 *             satisfy the generic constraints of {@code BPlusTreeNode<N>}.
+		 * @return a new {@code CursorWithLevel} instance with the specified node as the current node
+		 *         while retaining the original path and level.
+		 */
+		@Nonnull
+		public <N extends BPlusTreeNode<N>> CursorWithLevel withReplacedCurrentNode(@Nonnull N node) {
+			return new CursorWithLevel(
+				this.path,
+				this.level,
+				node
+			);
+		}
+
+	}
+
+	/**
+	 * Represents a position or path within a structure, specifically within a nested
+	 * or hierarchical tree-like structure such as a B+ tree. This class maintains a
+	 * path to a specific location within the tree through a list of CursorLevel objects.
+	 *
+	 * Cursor always points to a leaf node in the B+ tree structure and contains full path
+	 * to the leaf node. The path is represented by a list of CursorLevel objects, where each
+	 * CursorLevel object contains an array of sibling nodes at the same level, the index of
+	 * the current node within the siblings array, and the peek index of the current node.
+	 *
+	 * @param path A non-null list of CursorLevel objects representing the path to a
+	 *             specific node in the tree structure.
+	 * @param <V>  The type of value stored in the B+ tree nodes.
+	 */
+	private record Cursor<V>(
+		@Nonnull List<CursorLevel> path
+	) {
+
+		/**
+		 * Retrieves the leaf node of the B+ tree at the deepest level of the current path.
+		 * This method accesses the last `CursorLevel` in the path to identify and return the
+		 * corresponding leaf node in the structure.
+		 *
+		 * @return The leaf node of the B+ tree at the location specified by the current path.
+		 *         Guaranteed to be non-null.
+		 */
+		@Nonnull
+		public BPlusLeafTreeNode<V> leafNode() {
+			final CursorLevel deepestLevel = this.path.get(this.path.size() - 1);
+			//noinspection unchecked
+			return (BPlusLeafTreeNode<V>) deepestLevel.siblings()[deepestLevel.index()];
+		}
+
+		/**
+		 * Converts the current Cursor instance into a CursorWithLevel object.
+		 * The resulting CursorWithLevel encapsulates the same path as the current Cursor
+		 * along with the level information of the deepest node in the structure.
+		 *
+		 * @return A new CursorWithLevel object containing the path and the index of the
+		 *         deepest level in the path. Guaranteed to be non-null.
+		 */
+		@Nonnull
+		public CursorWithLevel toCursorWithLevel() {
+			return new CursorWithLevel(this.path, this.path.size() - 1);
+		}
+	}
+
+	/**
+	 * A record representing the current level of a cursor within a BPlusTree structure.
+	 * Stores references to sibling nodes at the current level and tracks the index
+	 * of the current node and a peek index in the siblings array (last meaningful index).
+	 *
+	 * @param siblings An array of sibling nodes at the current level in the B+ tree structure.
+	 * @param index    The index of the current node within the siblings array, must be always > 0 and <= peek.
+	 * @param peek     The last meaningful index in the siblings array.
+	 */
+	private record CursorLevel(
+		@Nonnull BPlusTreeNode<?>[] siblings,
+		int index,
+		int peek
+	) {
+
+		/**
+		 * Retrieves the current node in the siblings array at the specified index.
+		 *
+		 * @param <N> the type of the BPlusTreeNode
+		 * @return the current BPlusTreeNode of type N at the specified index in the siblings array
+		 */
+		@Nonnull
+		public <N extends BPlusTreeNode<N>> N currentNode() {
+			//noinspection unchecked
+			return (N) this.siblings[index];
+		}
+	}
+
+	/**
+	 * Represents a node along with its associated index. This class is a record that holds an integer index
+	 * and a non-nullable node.
+	 *
+	 * @param index the index associated with the value
+	 * @param node  the non-null node associated with the index
+	 */
+	private record NodeWithIndex(
+		int index,
+		@Nonnull BPlusTreeNode<?> node
 	) {
 	}
 
@@ -1638,7 +1659,7 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 	 * Represents a value along with its associated index. This class is a record that holds an integer index
 	 * and a non-nullable value.
 	 *
-	 * @param <V> the type of the value
+	 * @param <V>   the type of the value
 	 * @param index the index associated with the value
 	 * @param value the non-null value associated with the index
 	 */
@@ -1653,9 +1674,17 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 	 */
 	private static class ForwardKeyIterator implements OfInt {
 		/**
-		 * The current leaf node being traversed.
+		 * Array of arrays representing siblings on each level of the path.
 		 */
-		@Nullable private BPlusLeafTreeNode<?> currentLeaf;
+		@Nonnull private final BPlusTreeNode<?>[][] path;
+		/**
+		 * The index of the current key on particular path.
+		 */
+		@Nonnull private final int[] pathIndex;
+		/**
+		 * The peek index of each sibling array on the path.
+		 */
+		@Nonnull private final int[] pathPeeks;
 		/**
 		 * The index of the current key within the current leaf node.
 		 */
@@ -1665,24 +1694,60 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 		 */
 		private boolean hasNext;
 
-		public ForwardKeyIterator(@Nonnull BPlusLeafTreeNode<?> leaf) {
-			this.currentLeaf = leaf;
+		public ForwardKeyIterator(@Nonnull Cursor<?> cursor) {
+			this.path = new BPlusTreeNode[cursor.path().size()][];
+			this.pathIndex = new int[this.path.length];
+			this.pathPeeks = new int[this.path.length];
+			for (int i = 0; i < cursor.path().size(); i++) {
+				final CursorLevel cursorLevel = cursor.path().get(i);
+				this.path[i] = cursorLevel.siblings();
+				this.pathIndex[i] = cursorLevel.index();
+				this.pathPeeks[i] = cursorLevel.peek();
+			}
 			this.currentKeyIndex = 0;
-			this.hasNext = this.currentLeaf.getPeek() >= 0;
+			this.hasNext = this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]].getPeek() >= 0;
 		}
 
 		@Override
 		public int nextInt() {
-			if (!this.hasNext || this.currentLeaf == null || this.currentKeyIndex > this.currentLeaf.getPeek()) {
+			if (!this.hasNext) {
 				throw new NoSuchElementException("No more elements available");
 			}
-			final int key = this.currentLeaf.getKeys()[this.currentKeyIndex];
-			if (this.currentKeyIndex < this.currentLeaf.getPeek()) {
+
+			final BPlusTreeNode<?> currentLeaf = this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]];
+			final int key = currentLeaf.getKeys()[this.currentKeyIndex];
+
+			if (this.currentKeyIndex < currentLeaf.getPeek()) {
+				// easy path, there is another key in current leaf
 				this.currentKeyIndex++;
 			} else {
-				this.currentLeaf = this.currentLeaf.getNextNode();
-				this.currentKeyIndex = 0;
-				this.hasNext = this.currentLeaf != null && this.currentLeaf.getPeek() >= 0;
+				// we need to traverse up the path to find the next sibling
+				int level = this.pathIndex.length - 1;
+				BPlusTreeNode<?>[] parentLevel = this.path[level];
+				while (parentLevel != null) {
+					// if parent has index greater than zero
+					if (this.pathIndex[level] < this.pathPeeks[level]) {
+						// we found the parent that has a next sibling - so move the index
+						this.pathIndex[level] = this.pathIndex[level] + 1;
+						BPlusTreeNode<?> currentNode = this.path[level][this.pathIndex[level]];
+						// all levels below, will point to the first child of the new cursor level
+						for (int i = level + 1; i <= this.path.length - 1; i++) {
+							Assert.isPremiseValid(currentNode instanceof BPlusInternalTreeNode, "Internal node expected!");
+							this.path[i] = ((BPlusInternalTreeNode)currentNode).getChildren();
+							this.pathIndex[i] = 0;
+							this.pathPeeks[i] = currentNode.getPeek();
+							currentNode = this.path[i][0];
+						}
+						this.currentKeyIndex = 0;
+						this.hasNext = true;
+						return key;
+					} else {
+						// we need to continue search with the parent of the parent
+						level--;
+						parentLevel = level > 0 ? this.path[level] : null;
+					}
+				}
+				this.hasNext = false;
 			}
 			return key;
 		}
@@ -1691,6 +1756,7 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 		public boolean hasNext() {
 			return this.hasNext;
 		}
+
 	}
 
 	/**
@@ -1698,9 +1764,13 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 	 */
 	private static class ReverseKeyIterator implements OfInt {
 		/**
-		 * The current leaf node being traversed.
+		 * Array of arrays representing siblings on each level of the path.
 		 */
-		@Nullable private BPlusLeafTreeNode<?> currentLeaf;
+		@Nonnull private final BPlusTreeNode<?>[][] path;
+		/**
+		 * The index of the current key on particular path.
+		 */
+		@Nonnull private final int[] pathIndex;
 		/**
 		 * The index of the current key within the current leaf node.
 		 */
@@ -1710,24 +1780,57 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 		 */
 		private boolean hasNext;
 
-		public ReverseKeyIterator(@Nonnull BPlusLeafTreeNode<?> leaf) {
-			this.currentLeaf = leaf;
-			this.currentKeyIndex = this.currentLeaf.getPeek();
-			this.hasNext = this.currentLeaf.getPeek() >= 0;
+		public ReverseKeyIterator(@Nonnull Cursor<?> cursor) {
+			this.path = new BPlusTreeNode[cursor.path().size()][];
+			this.pathIndex = new int[this.path.length];
+			for (int i = 0; i < cursor.path().size(); i++) {
+				final CursorLevel cursorLevel = cursor.path().get(i);
+				this.path[i] = cursorLevel.siblings();
+				this.pathIndex[i] = cursorLevel.index();
+			}
+			this.currentKeyIndex = this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]].getPeek();
+			this.hasNext = this.currentKeyIndex >= 0;
 		}
 
 		@Override
 		public int nextInt() {
-			if (!this.hasNext || this.currentLeaf == null || this.currentKeyIndex < 0) {
+			if (!this.hasNext) {
 				throw new NoSuchElementException("No more elements available");
 			}
-			final int key = this.currentLeaf.getKeys()[this.currentKeyIndex];
+
+			final BPlusTreeNode<?> currentLeaf = this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]];
+			final int key = currentLeaf.getKeys()[this.currentKeyIndex];
+
 			if (this.currentKeyIndex > 0) {
+				// easy path, there is another key in current leaf
 				this.currentKeyIndex--;
 			} else {
-				this.currentLeaf = this.currentLeaf.getPreviousNode();
-				this.currentKeyIndex = this.currentLeaf == null ? -1 : this.currentLeaf.getPeek();
-				this.hasNext = this.currentLeaf != null && this.currentLeaf.getPeek() >= 0;
+				// we need to traverse up the path to find the next sibling
+				int level = this.pathIndex.length - 1;
+				BPlusTreeNode<?>[] parentLevel = this.path[level];
+				while (parentLevel != null) {
+					// if parent has index greater than zero
+					if (this.pathIndex[level] > 0) {
+						// we found the parent that has a next sibling - so move the index
+						this.pathIndex[level] = this.pathIndex[level] - 1;
+						BPlusTreeNode<?> currentNode = this.path[level][this.pathIndex[level]];
+						// all levels below, will point to the first child of the new cursor level
+						for (int i = level + 1; i <= this.pathIndex.length - 1; i++) {
+							Assert.isPremiseValid(currentNode instanceof BPlusInternalTreeNode, "Internal node expected!");
+							this.path[i] = ((BPlusInternalTreeNode)currentNode).getChildren();
+							this.pathIndex[i] = currentNode.getPeek();
+							currentNode = this.path[i][this.pathIndex[i]];
+						}
+						this.hasNext = true;
+						this.currentKeyIndex = this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]].getPeek();
+						return key;
+					} else {
+						// we need to continue search with the parent of the parent
+						level--;
+						parentLevel = level > 0 ? this.path[level] : null;
+					}
+				}
+				this.hasNext = false;
 			}
 			return key;
 		}
@@ -1743,9 +1846,17 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 	 */
 	static class ForwardTreeValueIterator<V> implements Iterator<V> {
 		/**
-		 * The current leaf node being traversed.
+		 * Array of arrays representing siblings on each level of the path.
 		 */
-		@Nullable private BPlusLeafTreeNode<V> currentLeaf;
+		@Nonnull private final BPlusTreeNode<?>[][] path;
+		/**
+		 * The index of the current key on particular path.
+		 */
+		@Nonnull private final int[] pathIndex;
+		/**
+		 * The peek index of each sibling array on the path.
+		 */
+		@Nonnull private final int[] pathPeeks;
 		/**
 		 * The index of the current value within the current leaf node.
 		 */
@@ -1755,40 +1866,83 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 		 */
 		private boolean hasNext;
 
-		public ForwardTreeValueIterator(@Nonnull BPlusLeafTreeNode<V> leaf) {
-			this.currentLeaf = leaf;
+		public ForwardTreeValueIterator(@Nonnull Cursor<V> cursor) {
+			this.path = new BPlusTreeNode[cursor.path().size()][];
+			this.pathIndex = new int[this.path.length];
+			this.pathPeeks = new int[this.path.length];
+			for (int i = 0; i < cursor.path().size(); i++) {
+				final CursorLevel cursorLevel = cursor.path().get(i);
+				this.path[i] = cursorLevel.siblings();
+				this.pathIndex[i] = cursorLevel.index();
+				this.pathPeeks[i] = cursorLevel.peek();
+			}
 			this.currentValueIndex = 0;
-			this.hasNext = this.currentLeaf.getPeek() >= 0 || this.currentLeaf.getNextNode() != null;
+			this.hasNext = this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]].getPeek() >= 0;
 		}
 
-		public ForwardTreeValueIterator(@Nonnull BPlusLeafTreeNode<V> leaf, int key) {
-			this.currentLeaf = leaf;
-			final InsertionPosition insertionPosition = computeInsertPositionOfIntInOrderedArray(
-				key, this.currentLeaf.getKeys(), 0, this.currentLeaf.size()
-			);
+		public ForwardTreeValueIterator(@Nonnull Cursor<V> cursor, int key) {
+			this.path = new BPlusTreeNode[cursor.path().size()][];
+			this.pathIndex = new int[this.path.length];
+			this.pathPeeks = new int[this.path.length];
+			for (int i = 0; i < cursor.path().size(); i++) {
+				final CursorLevel cursorLevel = cursor.path().get(i);
+				this.path[i] = cursorLevel.siblings();
+				this.pathIndex[i] = cursorLevel.index();
+				this.pathPeeks[i] = cursorLevel.peek();
+			}
+			final InsertionPosition insertionPosition = computeInsertPositionOfIntInOrderedArray(key, cursor.leafNode().getKeys(), 0, cursor.leafNode().size());
 			this.currentValueIndex = insertionPosition.position();
-			this.hasNext = this.currentLeaf.getPeek() >= insertionPosition.position() || this.currentLeaf.getNextNode() != null;
+			this.hasNext = this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]].getPeek() >= 0;
+		}
+
+		@Override
+		public V next() {
+			if (!this.hasNext) {
+				throw new NoSuchElementException("No more elements available");
+			}
+
+			//noinspection unchecked
+			final BPlusLeafTreeNode<V> currentLeaf = (BPlusLeafTreeNode<V>) this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]];
+			final V value = currentLeaf.getValues()[this.currentValueIndex];
+
+			if (this.currentValueIndex < currentLeaf.getPeek()) {
+				// easy path, there is another value in current leaf
+				this.currentValueIndex++;
+			} else {
+				// we need to traverse up the path to find the next sibling
+				int level = this.pathIndex.length - 1;
+				BPlusTreeNode<?>[] parentLevel = this.path[level];
+				while (parentLevel != null) {
+					// if parent has index greater than zero
+					if (this.pathIndex[level] < this.pathPeeks[level]) {
+						// we found the parent that has a next sibling - so move the index
+						this.pathIndex[level] = this.pathIndex[level] + 1;
+						BPlusTreeNode<?> currentNode = this.path[level][this.pathIndex[level]];
+						// all levels below, will point to the first child of the new cursor level
+						for (int i = level + 1; i <= this.path.length - 1; i++) {
+							Assert.isPremiseValid(currentNode instanceof BPlusInternalTreeNode, "Internal node expected!");
+							this.path[i] = ((BPlusInternalTreeNode)currentNode).getChildren();
+							this.pathIndex[i] = 0;
+							this.pathPeeks[i] = currentNode.getPeek();
+							currentNode = this.path[i][0];
+						}
+						this.currentValueIndex = 0;
+						this.hasNext = true;
+						return value;
+					} else {
+						// we need to continue search with the parent of the parent
+						level--;
+						parentLevel = level > 0 ? this.path[level] : null;
+					}
+				}
+				this.hasNext = false;
+			}
+			return value;
 		}
 
 		@Override
 		public boolean hasNext() {
 			return this.hasNext;
-		}
-
-		@Override
-		public V next() {
-			if (!this.hasNext || this.currentLeaf == null || this.currentValueIndex > this.currentLeaf.getPeek()) {
-				throw new NoSuchElementException("No more elements available");
-			}
-			final V value = this.currentLeaf.getValues()[this.currentValueIndex];
-			if (this.currentValueIndex < this.currentLeaf.getPeek()) {
-				this.currentValueIndex++;
-			} else {
-				this.currentLeaf = this.currentLeaf.getNextNode();
-				this.currentValueIndex = 0;
-				this.hasNext = this.currentLeaf != null && this.currentLeaf.getPeek() >= 0;
-			}
-			return value;
 		}
 	}
 
@@ -1797,9 +1951,13 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 	 */
 	static class ReverseTreeValueIterator<V> implements Iterator<V> {
 		/**
-		 * The current leaf node being traversed.
+		 * Array of arrays representing siblings on each level of the path.
 		 */
-		@Nullable private BPlusLeafTreeNode<V> currentLeaf;
+		@Nonnull private final BPlusTreeNode<?>[][] path;
+		/**
+		 * The index of the current key on particular path.
+		 */
+		@Nonnull private final int[] pathIndex;
 		/**
 		 * The index of the current value within the current leaf node.
 		 */
@@ -1809,31 +1967,66 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 		 */
 		private boolean hasNext;
 
-		public ReverseTreeValueIterator(@Nonnull BPlusLeafTreeNode<V> leaf) {
-			this.currentLeaf = leaf;
-			this.currentValueIndex = this.currentLeaf.getPeek();
-			this.hasNext = this.currentLeaf.getPeek() >= 0;
+		public ReverseTreeValueIterator(@Nonnull Cursor<V> cursor) {
+			this.path = new BPlusTreeNode[cursor.path().size()][];
+			this.pathIndex = new int[this.path.length];
+			for (int i = 0; i < cursor.path().size(); i++) {
+				final CursorLevel cursorLevel = cursor.path().get(i);
+				this.path[i] = cursorLevel.siblings();
+				this.pathIndex[i] = cursorLevel.index();
+			}
+			this.currentValueIndex = this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]].getPeek();
+			this.hasNext = this.currentValueIndex >= 0;
+		}
+
+		@Override
+		public V next() {
+			if (!this.hasNext) {
+				throw new NoSuchElementException("No more elements available");
+			}
+
+			//noinspection unchecked
+			final BPlusLeafTreeNode<V> currentLeaf = (BPlusLeafTreeNode<V>) this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]];
+			final V value = currentLeaf.getValues()[this.currentValueIndex];
+
+			if (this.currentValueIndex > 0) {
+				// easy path, there is another value in current leaf
+				this.currentValueIndex--;
+			} else {
+				// we need to traverse up the path to find the next sibling
+				int level = this.pathIndex.length - 1;
+				BPlusTreeNode<?>[] parentLevel = this.path[level];
+				while (parentLevel != null) {
+					// if parent has index greater than zero
+					if (this.pathIndex[level] > 0) {
+						// we found the parent that has a next sibling - so move the index
+						this.pathIndex[level] = this.pathIndex[level] - 1;
+						// all levels below, will point to the first child of the new cursor level
+						BPlusTreeNode<?> currentNode = this.path[level][this.pathIndex[level]];
+						// all levels below, will point to the first child of the new cursor level
+						for (int i = level + 1; i <= this.pathIndex.length - 1; i++) {
+							Assert.isPremiseValid(currentNode instanceof BPlusInternalTreeNode, "Internal node expected!");
+							this.path[i] = ((BPlusInternalTreeNode)currentNode).getChildren();
+							this.pathIndex[i] = currentNode.getPeek();
+							currentNode = this.path[i][this.pathIndex[i]];
+						}
+						this.hasNext = true;
+						this.currentValueIndex = this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]].getPeek();
+						return value;
+					} else {
+						// we need to continue search with the parent of the parent
+						level--;
+						parentLevel = level > 0 ? this.path[level] : null;
+					}
+				}
+				this.hasNext = false;
+			}
+			return value;
 		}
 
 		@Override
 		public boolean hasNext() {
 			return this.hasNext;
-		}
-
-		@Override
-		public V next() {
-			if (!this.hasNext || this.currentLeaf == null || this.currentValueIndex < 0) {
-				throw new NoSuchElementException("No more elements available");
-			}
-			final V value = this.currentLeaf.getValues()[this.currentValueIndex];
-			if (this.currentValueIndex > 0) {
-				this.currentValueIndex--;
-			} else {
-				this.currentLeaf = this.currentLeaf.getPreviousNode();
-				this.currentValueIndex = this.currentLeaf == null ? -1 : this.currentLeaf.getPeek();
-				this.hasNext = this.currentLeaf != null && this.currentLeaf.getPeek() >= 0;
-			}
-			return value;
 		}
 	}
 

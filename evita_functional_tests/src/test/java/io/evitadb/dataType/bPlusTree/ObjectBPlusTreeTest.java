@@ -36,6 +36,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import javax.annotation.Nonnull;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.Random;
@@ -56,14 +57,15 @@ class ObjectBPlusTreeTest implements TimeBoundedTestSupport {
 			ConsistencyState.CONSISTENT, consistencyReport.state(),
 			consistencyReport.report()
 		);
-		verifyForwardKeyIterator(bPlusTree, expectedArray);
-		verifyReverseKeyIterator(bPlusTree, expectedArray);
+		verifyForwardValueIterator(bPlusTree, expectedArray);
+		verifyReverseValueIterator(bPlusTree, expectedArray);
 	}
 
-	private static void verifyForwardKeyIterator(@Nonnull ObjectBPlusTree<Integer, ?> tree, @Nonnull Integer... expectedArray) {
-		Integer[] reconstructedArray = new Integer[expectedArray.length];
+	private static void verifyForwardValueIterator(@Nonnull ObjectBPlusTree<Integer, String> tree, @Nonnull Integer... keyArray) {
+		final String[] expectedArray = Arrays.stream(keyArray).map(i -> "Value" + i).toArray(String[]::new);
+		final String[] reconstructedArray = new String[expectedArray.length];
 		int index = 0;
-		final Iterator<Integer> it = tree.keyIterator();
+		final Iterator<String> it = tree.valueIterator();
 		while (it.hasNext()) {
 			reconstructedArray[index++] = it.next();
 		}
@@ -72,15 +74,17 @@ class ObjectBPlusTreeTest implements TimeBoundedTestSupport {
 		assertThrows(NoSuchElementException.class, it::next, "Iterator should be exhausted!");
 	}
 
-	private static void verifyReverseKeyIterator(@Nonnull ObjectBPlusTree<Integer, ?> tree, @Nonnull Integer... expectedArray) {
-		Integer[] reconstructedArray = new Integer[expectedArray.length];
+	private static void verifyReverseValueIterator(@Nonnull ObjectBPlusTree<Integer, String> tree, @Nonnull Integer... keyArray) {
+		final String[] expectedArray = Arrays.stream(keyArray).map(i -> "Value" + i).toArray(String[]::new);
+		final String[] reconstructedArray = new String[expectedArray.length];
 		int index = expectedArray.length;
-		final Iterator<Integer> it = tree.keyReverseIterator();
+		final Iterator<String> it = tree.valueReverseIterator();
 		while (it.hasNext()) {
 			reconstructedArray[--index] = it.next();
 		}
 
-		assertArrayEquals(expectedArray, reconstructedArray);
+		assertArrayEquals(expectedArray, reconstructedArray, "Arrays are not equal!");
+		assertThrows(NoSuchElementException.class, it::next, "Iterator should be exhausted!");
 	}
 
 	private static TreeTuple prepareRandomTree(long seed, int totalElements) {
@@ -167,7 +171,9 @@ class ObjectBPlusTreeTest implements TimeBoundedTestSupport {
 	void shouldIterateThroughLeafNodeKeysFromLeftToRight() {
 		final TreeTuple testTree = prepareRandomTree(System.currentTimeMillis(), 100);
 
-		verifyForwardKeyIterator(testTree.bPlusTree(), testTree.plainArray());
+		final ConsistencyReport consistencyReport = testTree.bPlusTree().getConsistencyReport();
+		assertEquals(ConsistencyState.CONSISTENT, consistencyReport.state(), consistencyReport.report());
+		verifyForwardValueIterator(testTree.bPlusTree(), testTree.plainArray());
 		assertEquals(testTree.totalElements(), testTree.bPlusTree().size());
 	}
 
@@ -175,7 +181,9 @@ class ObjectBPlusTreeTest implements TimeBoundedTestSupport {
 	void shouldIterateThroughLeafNodeKeysFromRightToLeft() {
 		final TreeTuple testTree = prepareRandomTree(System.currentTimeMillis(), 100);
 
-		verifyReverseKeyIterator(testTree.bPlusTree(), testTree.plainArray());
+		final ConsistencyReport consistencyReport = testTree.bPlusTree().getConsistencyReport();
+		assertEquals(ConsistencyState.CONSISTENT, consistencyReport.state(), consistencyReport.report());
+		verifyReverseValueIterator(testTree.bPlusTree(), testTree.plainArray());
 		assertEquals(testTree.totalElements(), testTree.bPlusTree().size());
 	}
 
@@ -657,6 +665,7 @@ class ObjectBPlusTreeTest implements TimeBoundedTestSupport {
 		assertEquals("Value13", theTree.search(13).orElse(null));
 		theTree.upsert(13, existingValue -> "NewValue18");
 		assertEquals("NewValue18", theTree.search(13).orElse(null));
+		theTree.upsert(13, existingValue -> "Value13");
 
 		verifyTreeConsistency(theTree, expectedArray);
 	}
@@ -703,7 +712,7 @@ class ObjectBPlusTreeTest implements TimeBoundedTestSupport {
 		verifyTreeConsistency(theTree, initialArray);
 
 		runFor(
-			new GenerationalTestInput(5, 91),
+			input,
 			1000,
 			new TestState(
 				new StringBuilder(),
