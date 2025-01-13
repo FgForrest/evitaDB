@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -52,6 +52,7 @@ import io.evitadb.utils.ClassUtils;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Currency;
 import java.util.LinkedList;
@@ -257,7 +258,7 @@ public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBui
 		return childTypes;
 	}
 
-	@Nonnull
+	@Nullable
 	@Override
 	protected GraphQLInputType buildWrapperObjectConstraintValue(@Nonnull ConstraintBuildContext buildContext,
 																 @Nonnull WrapperObjectKey wrapperObjectKey,
@@ -265,11 +266,7 @@ public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBui
 	                                                             @Nonnull List<ChildParameterDescriptor> childParameters,
 	                                                             @Nonnull List<AdditionalChildParameterDescriptor> additionalChildParameters,
 	                                                             @Nullable ValueTypeSupplier valueTypeSupplier) {
-		final String wrapperObjectName = constructWrapperObjectName(wrapperObjectKey);
-		final GraphQLInputObjectType.Builder wrapperObjectBuilder = newInputObject().name(wrapperObjectName);
-		final GraphQLInputType wrapperObjectPointer = typeRef(wrapperObjectName);
-		// cache wrapper object for reuse
-		sharedContext.cacheWrapperObject(wrapperObjectKey, wrapperObjectPointer);
+		final List<GraphQLInputObjectField.Builder> wrapperObjectFields = new ArrayList<>(valueParameters.size() + childParameters.size() + additionalChildParameters.size());
 
 		// build primitive values
 		for (ValueParameterDescriptor valueParameter : valueParameters) {
@@ -279,7 +276,7 @@ public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBui
 				!valueParameter.type().isArray(), // we want treat missing arrays as empty arrays for more client convenience
 				valueTypeSupplier
 			);
-			wrapperObjectBuilder.field(f -> f
+			wrapperObjectFields.add(newInputObjectField()
 				.name(valueParameter.name())
 				.type(nestedPrimitiveConstraintValue));
 		}
@@ -298,7 +295,7 @@ public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBui
 					nestedChildConstraintValue = nonNull(nestedChildConstraintValue);
 				}
 
-				wrapperObjectBuilder.field(newInputObjectField()
+				wrapperObjectFields.add(newInputObjectField()
 					.name(childParameter.name())
 					.type(nestedChildConstraintValue));
 			} else {
@@ -316,7 +313,7 @@ public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBui
 						) {
 							nestedChildConstraint.setValue(nonNull(nestedChildConstraint.getValue()));
 						}
-						wrapperObjectBuilder.field(newInputObjectField()
+						wrapperObjectFields.add(newInputObjectField()
 							.name(key)
 							.type(nestedChildConstraint.getValue()));
 					});
@@ -332,11 +329,23 @@ public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBui
 					nestedAdditionalChildConstraintValue = nonNull(nestedAdditionalChildConstraintValue);
 				}
 
-				wrapperObjectBuilder.field(newInputObjectField()
+				wrapperObjectFields.add(newInputObjectField()
 					.name(additionalChildParameter.name())
 					.type(nestedAdditionalChildConstraintValue));
 			});
 		});
+
+		if (wrapperObjectFields.isEmpty()) {
+			// no fields, parent constraint should be omitted
+			return null;
+		}
+
+		final String wrapperObjectName = constructWrapperObjectName(wrapperObjectKey);
+		final GraphQLInputObjectType.Builder wrapperObjectBuilder = newInputObject().name(wrapperObjectName);
+		wrapperObjectFields.forEach(wrapperObjectBuilder::field);
+		final GraphQLInputType wrapperObjectPointer = typeRef(wrapperObjectName);
+		// cache wrapper object for reuse
+		sharedContext.cacheWrapperObject(wrapperObjectKey, wrapperObjectPointer);
 
 		sharedContext.addNewType(wrapperObjectBuilder.build());
 		return wrapperObjectPointer;
