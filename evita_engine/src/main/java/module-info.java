@@ -54,6 +54,7 @@ module evita.engine {
 	exports io.evitadb.core.transaction.stage.mutation;
 	exports io.evitadb.index;
 	exports io.evitadb.index.bool;
+	exports io.evitadb.index.bPlusTree;
 	exports io.evitadb.index.cardinality;
 	exports io.evitadb.index.map;
 	exports io.evitadb.index.list;
@@ -66,6 +67,7 @@ module evita.engine {
 	exports io.evitadb.index.hierarchy.predicate;
 	exports io.evitadb.index.price;
 	exports io.evitadb.index.relation;
+	exports io.evitadb.index.reference;
 	exports io.evitadb.index.facet;
 	exports io.evitadb.index.price.model.priceRecord;
 	exports io.evitadb.store.spi;

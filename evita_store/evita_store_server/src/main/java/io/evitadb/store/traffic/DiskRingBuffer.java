@@ -27,6 +27,7 @@ package io.evitadb.store.traffic;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest.TrafficRecordingType;
+import io.evitadb.core.Transaction;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
@@ -85,6 +86,10 @@ public class DiskRingBuffer {
 	 * Optional index, that is maintained if there is a reader that could use it.
 	 */
 	private final AtomicReference<DiskRingBufferIndex> sessionIndex = new AtomicReference<>();
+	/**
+	 * Transaction used for writing to the session index.
+	 */
+	private AtomicReference<Transaction> transaction = new AtomicReference<>();
 	/**
 	 * Path to file used for storing traffic data when they are completed in the memory buffer.
 	 */
@@ -195,6 +200,32 @@ public class DiskRingBuffer {
 				e
 			);
 		}
+	}
+
+	/**
+	 * Opens a memory transaction in case the index is present.
+	 */
+	public void startWriting() {
+		final DiskRingBufferIndex index = this.sessionIndex.get();
+		if (index != null) {
+			Assert.isPremiseValid(
+				this.transaction.compareAndSet(null, new Transaction(index)),
+				"Transaction already exists. This is not expected!"
+			);
+		}
+	}
+
+	/**
+	 * Closes a memory transaction in case the index is present.
+	 */
+	public void finishWriting() {
+		this.transaction.getAndUpdate(theTx -> {
+			if (theTx != null) {
+				theTx.close();
+				this.sessionIndex.set(theTx.getCommitedState());
+			}
+			return null;
+		});
 	}
 
 	/**

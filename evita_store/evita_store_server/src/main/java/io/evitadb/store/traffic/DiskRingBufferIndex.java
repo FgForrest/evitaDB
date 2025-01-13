@@ -28,16 +28,22 @@ import io.evitadb.api.requestResponse.trafficRecording.SessionStartContainer;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest.TrafficRecordingType;
-import io.evitadb.dataType.bPlusTree.ObjectBPlusTree;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.function.TriConsumer;
+import io.evitadb.index.bPlusTree.TransactionalObjectBPlusTree;
+import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.store.model.FileLocation;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.io.Serial;
+import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
@@ -53,23 +59,63 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public class DiskRingBufferIndex {
+public class DiskRingBufferIndex implements
+	TransactionalLayerProducer<Void, DiskRingBufferIndex>,
+	Serializable
+{
+	@Serial private static final long serialVersionUID = 1416655137041708718L;
+	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
+
 	/**
 	 * Map of session positions in the disk buffer file.
 	 */
-	private final Map<Long, FileLocation> sessionLocationIndex = new ConcurrentHashMap<>(1_024);
-	private final Map<UUID, Long> sessionIdIndex = new ConcurrentHashMap<>(1_024);
-	private final Map<Long, SessionDescriptor> sessionUuidIndex = new ConcurrentHashMap<>(1_024);
-	/* TODO JNO - we need TransactionalTrees here */
-	private final ObjectBPlusTree<OffsetDateTime, Long> sessionCreationIndex = new ObjectBPlusTree<>(64, 31, 31, 15, OffsetDateTime.class, Long.class);
-	private final ObjectBPlusTree<Integer, Long> sessionDurationIndex = new ObjectBPlusTree<>(64, 31, 31, 15, Integer.class, Long.class);
-	private final ObjectBPlusTree<Integer, Long> sessionFetchCountIndex = new ObjectBPlusTree<>(64, 31, 31, 15, Integer.class, Long.class);
-	private final ObjectBPlusTree<Integer, Long> sessionBytesFetchedIndex = new ObjectBPlusTree<>(64, 31, 31, 15, Integer.class, Long.class);
-	private final Map<TrafficRecordingType, ConcurrentSkipListSet<Long>> sessionRecordingTypeIndex = CollectionUtils.createConcurrentHashMap(TrafficRecordingType.values().length);
-	/* TODO JNO - index labels, it's also missing in the capture */
-	/* TODO JNO - handle correct swapping?! And is it necessary? */
-	private final AtomicLong sessionBeingIndexed = new AtomicLong(-1);
-	private final Deque<Long> sessionsToRemove = new LinkedList<>();
+	private final TransactionalMap<Long, FileLocation> sessionLocationIndex;
+	private final TransactionalMap<UUID, Long> sessionIdIndex;
+	private final TransactionalMap<Long, SessionDescriptor> sessionUuidIndex;
+	private final TransactionalObjectBPlusTree<OffsetDateTime, Long> sessionCreationIndex;
+	private final TransactionalObjectBPlusTree<Integer, Long> sessionDurationIndex;
+	private final TransactionalObjectBPlusTree<Integer, Long> sessionFetchCountIndex;
+	private final TransactionalObjectBPlusTree<Integer, Long> sessionBytesFetchedIndex;
+	private final TransactionalMap<TrafficRecordingType, ConcurrentSkipListSet<Long>> sessionRecordingTypeIndex;
+	private final AtomicLong sessionBeingIndexed;
+	private final Deque<Long> sessionsToRemove;
+
+	public DiskRingBufferIndex() {
+		this.sessionLocationIndex = new TransactionalMap<>(CollectionUtils.createHashMap(1_024));
+		this.sessionIdIndex = new TransactionalMap<>(CollectionUtils.createHashMap(1_024));
+		this.sessionUuidIndex = new TransactionalMap<>(CollectionUtils.createHashMap(1_024));
+		this.sessionCreationIndex = new TransactionalObjectBPlusTree<>(64, 31, 31, 15, OffsetDateTime.class, Long.class);
+		this.sessionDurationIndex = new TransactionalObjectBPlusTree<>(64, 31, 31, 15, Integer.class, Long.class);
+		this.sessionFetchCountIndex = new TransactionalObjectBPlusTree<>(64, 31, 31, 15, Integer.class, Long.class);
+		this.sessionBytesFetchedIndex = new TransactionalObjectBPlusTree<>(64, 31, 31, 15, Integer.class, Long.class);
+		this.sessionRecordingTypeIndex = new TransactionalMap<>(CollectionUtils.createHashMap(TrafficRecordingType.values().length));
+		this.sessionBeingIndexed = new AtomicLong(-1L);
+		this.sessionsToRemove = new LinkedList<>();
+	}
+
+	public DiskRingBufferIndex(
+		@Nonnull Map<Long, FileLocation> sessionLocationIndex,
+		@Nonnull Map<UUID, Long> sessionIdIndex,
+		@Nonnull Map<Long, SessionDescriptor> sessionUuidIndex,
+		@Nonnull TransactionalObjectBPlusTree<OffsetDateTime, Long> sessionCreationIndex,
+		@Nonnull TransactionalObjectBPlusTree<Integer, Long> sessionDurationIndex,
+		@Nonnull TransactionalObjectBPlusTree<Integer, Long> sessionFetchCountIndex,
+		@Nonnull TransactionalObjectBPlusTree<Integer, Long> sessionBytesFetchedIndex,
+		@Nonnull Map<TrafficRecordingType, ConcurrentSkipListSet<Long>> sessionRecordingTypeIndex,
+		@Nonnull AtomicLong sessionBeingIndexed,
+		@Nonnull Deque<Long> sessionsToRemove
+	) {
+		this.sessionLocationIndex = new TransactionalMap<>(sessionLocationIndex);
+		this.sessionIdIndex = new TransactionalMap<>(sessionIdIndex);
+		this.sessionUuidIndex = new TransactionalMap<>(sessionUuidIndex);
+		this.sessionCreationIndex = sessionCreationIndex;
+		this.sessionDurationIndex = sessionDurationIndex;
+		this.sessionFetchCountIndex = sessionFetchCountIndex;
+		this.sessionBytesFetchedIndex = sessionBytesFetchedIndex;
+		this.sessionRecordingTypeIndex = new TransactionalMap<>(sessionRecordingTypeIndex);
+		this.sessionBeingIndexed = sessionBeingIndexed;
+		this.sessionsToRemove = sessionsToRemove;
+	}
 
 	/**
 	 * Sets up a session by storing the given session location in an internal index.
@@ -252,6 +298,40 @@ public class DiskRingBufferIndex {
 				false
 			)
 			.map(sessionSequenceOrder -> new SessionLocation(sessionSequenceOrder, this.sessionLocationIndex.get(sessionSequenceOrder)));
+	}
+
+	@Override
+	public Void createLayer() {
+		return null;
+	}
+
+	@Override
+	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+		this.sessionLocationIndex.removeLayer(transactionalLayer);
+		this.sessionIdIndex.removeLayer(transactionalLayer);
+		this.sessionUuidIndex.removeLayer(transactionalLayer);
+		this.sessionCreationIndex.removeLayer(transactionalLayer);
+		this.sessionDurationIndex.removeLayer(transactionalLayer);
+		this.sessionFetchCountIndex.removeLayer(transactionalLayer);
+		this.sessionBytesFetchedIndex.removeLayer(transactionalLayer);
+		this.sessionRecordingTypeIndex.removeLayer(transactionalLayer);
+	}
+
+	@Nonnull
+	@Override
+	public DiskRingBufferIndex createCopyWithMergedTransactionalMemory(@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+		return new DiskRingBufferIndex(
+			transactionalLayer.getStateCopyWithCommittedChanges(this.sessionLocationIndex),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.sessionIdIndex),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.sessionUuidIndex),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.sessionCreationIndex),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.sessionDurationIndex),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.sessionFetchCountIndex),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.sessionBytesFetchedIndex),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.sessionRecordingTypeIndex),
+			this.sessionBeingIndexed,
+			this.sessionsToRemove
+		);
 	}
 
 	/**

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -544,44 +544,49 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 	 * @return Always returns -1 as a placeholder for future implementations or changes.
 	 */
 	private long freeMemory() {
-		final ByteBuffer memoryByteBuffer = this.memoryBlock.get();
-		do {
-			final SessionTraffic finalizedSession = this.finalizedSessions.poll();
-			if (finalizedSession != null) {
-				int totalSize = 0;
-				final OfInt memoryBlockIds = finalizedSession.getMemoryBlockIds();
-				while (memoryBlockIds.hasNext()) {
-					memoryBlockIds.nextInt();
-					totalSize += memoryBlockIds.hasNext() ?
-						this.blockSizeBytes : finalizedSession.getCurrentByteBufferPosition();
-				}
+		try {
+			this.diskBuffer.startWriting();
+			final ByteBuffer memoryByteBuffer = this.memoryBlock.get();
+			do {
+				final SessionTraffic finalizedSession = this.finalizedSessions.poll();
+				if (finalizedSession != null) {
+					int totalSize = 0;
+					final OfInt memoryBlockIds = finalizedSession.getMemoryBlockIds();
+					while (memoryBlockIds.hasNext()) {
+						memoryBlockIds.nextInt();
+						totalSize += memoryBlockIds.hasNext() ?
+							this.blockSizeBytes : finalizedSession.getCurrentByteBufferPosition();
+					}
 
-				final SessionLocation sessionLocation = this.diskBuffer.appendSession(totalSize);
-				final OfInt memoryBlockIdsToFree = finalizedSession.getMemoryBlockIds();
-				while (memoryBlockIdsToFree.hasNext()) {
-					final int freeBlock = memoryBlockIdsToFree.nextInt();
-					this.diskBuffer.append(
+					final SessionLocation sessionLocation = this.diskBuffer.appendSession(totalSize);
+					final OfInt memoryBlockIdsToFree = finalizedSession.getMemoryBlockIds();
+					while (memoryBlockIdsToFree.hasNext()) {
+						final int freeBlock = memoryBlockIdsToFree.nextInt();
+						this.diskBuffer.append(
+							sessionLocation,
+							memoryByteBuffer.slice(
+								freeBlock * this.blockSizeBytes,
+								// the last block may not be fully occupied
+								memoryBlockIdsToFree.hasNext() ?
+									this.blockSizeBytes : finalizedSession.getCurrentByteBufferPosition()
+							)
+						);
+						this.freeBlocks.offer(freeBlock);
+					}
+					this.diskBuffer.sessionWritten(
 						sessionLocation,
-						memoryByteBuffer.slice(
-							freeBlock * this.blockSizeBytes,
-							// the last block may not be fully occupied
-							memoryBlockIdsToFree.hasNext() ?
-								this.blockSizeBytes : finalizedSession.getCurrentByteBufferPosition()
-						)
+						finalizedSession.getSessionId(),
+						finalizedSession.getCreated(),
+						finalizedSession.getDurationInMillis(),
+						finalizedSession.getRecordingTypes(),
+						finalizedSession.getFetchCount(),
+						finalizedSession.getBytesFetchedTotal()
 					);
-					this.freeBlocks.offer(freeBlock);
 				}
-				this.diskBuffer.sessionWritten(
-					sessionLocation,
-					finalizedSession.getSessionId(),
-					finalizedSession.getCreated(),
-					finalizedSession.getDurationInMillis(),
-					finalizedSession.getRecordingTypes(),
-					finalizedSession.getFetchCount(),
-					finalizedSession.getBytesFetchedTotal()
-				);
-			}
-		} while (!this.finalizedSessions.isEmpty());
+			} while (!this.finalizedSessions.isEmpty());
+		} finally {
+			this.diskBuffer.finishWriting();
+		}
 
 		// publish statistic information
 		new TrafficRecorderStatisticsEvent(

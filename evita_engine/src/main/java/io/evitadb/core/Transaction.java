@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,8 +32,10 @@ import io.evitadb.core.transaction.TransactionWalFinalizer;
 import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainerFinalizer;
+import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalMemory;
 import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.store.spi.StoragePartPersistenceService;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
@@ -249,6 +251,7 @@ public final class Transaction implements TransactionContract {
 	 * the `objectConsumer` lambda. This makes the object effectively transactional-less for the scope of the lambda
 	 * function.
 	 */
+	@Nullable
 	public static <T, U> U suppressTransactionalMemoryLayerForWithResult(@Nonnull T object, @Nonnull Function<T, U> objectConsumer) {
 		// we may safely do this because transactionalLayer is stored in ThreadLocal and
 		// thus won't be accessed by multiple threads at once
@@ -316,6 +319,19 @@ public final class Transaction implements TransactionContract {
 		} else {
 			return storagePartPersistenceService;
 		}
+	}
+
+	/**
+	 * Creates new transaction.
+	 */
+	public <S, X, T extends TransactionalLayerProducer<X, S>> Transaction(@Nonnull T txRoot) {
+		this.transactionId = UUID.randomUUID();
+		this.transactionHandler = null;
+		this.transactionalMemory = new TransactionalMemory(
+			new IsolatedTransactionalLayerMaintainerFinalizer<>(txRoot)
+		);
+		this.created = OffsetDateTime.now();
+		this.replay = false;
 	}
 
 	/**
@@ -390,10 +406,10 @@ public final class Transaction implements TransactionContract {
 				} else {
 					log.debug("Rolling back transaction `{}`.", transactionId);
 				}
-				transactionalMemory.rollback(rollbackCause);
+				this.transactionalMemory.rollback(rollbackCause);
 			} else {
 				log.debug("Committing transaction `{}`.", transactionId);
-				transactionalMemory.commit();
+				this.transactionalMemory.commit();
 			}
 		} finally {
 			// now we remove the transactional memory - no object will see it transactional memory from now on
@@ -408,7 +424,7 @@ public final class Transaction implements TransactionContract {
 		final Transaction currentValue = CURRENT_TRANSACTION.get();
 		Assert.isPremiseValid(
 			currentValue == null || currentValue == this,
-			() -> "You cannot mix calling different sessions within one thread (sessions `" + currentValue.transactionId + "` and `" + this.transactionId + "`)!");
+			() -> "You cannot mix calling different sessions within one thread (sessions `" + (currentValue == null ? "NULL" : currentValue.transactionId) + "` and `" + this.transactionId + "`)!");
 		if (currentValue == null) {
 			CURRENT_TRANSACTION.set(this);
 			return true;
@@ -425,17 +441,74 @@ public final class Transaction implements TransactionContract {
 	}
 
 	/**
+	 * Retrieves the committed state of the isolated transactional layer, if available.
+	 * This method will attempt to return the committed state managed by the transactional memory finalizer.
+	 * If the finalizer is not of the expected type, an exception is thrown.
+	 *
+	 * @param <S> the type of the committed state returned
+	 * @return the committed state of type S, or null if not available
+	 * @throws GenericEvitaInternalError if the finalizer type is unexpected
+	 */
+	@Nullable
+	public <S> S getCommitedState() {
+		if (this.transactionalMemory.getFinalizer() instanceof IsolatedTransactionalLayerMaintainerFinalizer<?,?,?> finalizer) {
+			//noinspection unchecked
+			return (S) finalizer.getCommitted();
+		} else {
+			throw new GenericEvitaInternalError("Unexpected finalizer type!");
+		}
+	}
+
+	/**
 	 * All mutation operations that occur within the transaction must be registered here in order they get recorded
 	 * in the WAL and participate in conflict resolution logic.
 	 *
 	 * @param mutation mutation to be registered
 	 */
 	public void registerMutation(@Nonnull Mutation mutation) {
+		Assert.isPremiseValid(this.transactionHandler != null, "Transaction handler must be set!");
 		this.transactionHandler.registerMutation(mutation);
 	}
 
 	@Override
 	public String toString() {
 		return transactionId + " (replay=" + replay + ", rollbackOnly=" + rollbackOnly + '}';
+	}
+
+	/**
+	 * This class represents a finalizer for the isolated transactional layer maintainer.
+	 * It encapsulates the root of the transactional object tree and defines the logic for
+	 * commit and rollback operations in a transactional context.
+	 *
+	 * @param <S> the type of the state object being managed
+	 * @param <X> the type of the transactional layer's intermediate representation
+	 * @param <T> the type of the transactional layer producer
+	 */
+	@Slf4j
+	private static class IsolatedTransactionalLayerMaintainerFinalizer<S, X, T extends TransactionalLayerProducer<X, S>>
+		implements TransactionalLayerMaintainerFinalizer {
+		/**
+		 * Root of the transactional object tree. Changes of this object will be subject to commit / rollback.
+		 */
+		private final T txRoot;
+		/**
+		 * Result of the possible commit operation.
+		 */
+		@Getter private S committed;
+
+		public IsolatedTransactionalLayerMaintainerFinalizer(T txRoot) {
+			this.txRoot = txRoot;
+		}
+
+		@Override
+		public void commit(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+			this.committed = transactionalLayer.getStateCopyWithCommittedChanges(txRoot);
+		}
+
+		@Override
+		public void rollback(@Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Throwable cause) {
+			// just log the problem
+			log.error("Rollback of transactional layer failed.", cause);
+		}
 	}
 }
