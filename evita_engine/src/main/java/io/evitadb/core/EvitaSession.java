@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -362,7 +362,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 					try {
 						validateCatalogSchema(theCatalog);
 						this.finalizationFuture.complete(getCatalogVersion());
-					} catch (SchemaAlteringException ex) {
+					} catch (Exception ex) {
 						this.finalizationFuture.completeExceptionally(ex);
 					}
 				}
@@ -372,7 +372,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 						if (!this.transactionAccessor.get().isRollbackOnly()) {
 							validateCatalogSchema(theCatalog);
 						}
-					} catch (SchemaAlteringException ex) {
+					} catch (Exception ex) {
 						this.finalizationFuture.completeExceptionally(ex);
 					} finally {
 						// close transaction
