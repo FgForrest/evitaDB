@@ -220,7 +220,7 @@ public class DiskRingBufferIndex implements
 	public void indexRecording(long sessionSequenceOrder, @Nonnull TrafficRecording recording) {
 		if (recording instanceof SessionStartContainer ssc) {
 			this.sessionIdIndex.put(ssc.sessionId(), sessionSequenceOrder);
-			final Set<TrafficRecordingType> recordingTypes = new HashSet<>(TrafficRecordingType.values().length);
+			final Set<TrafficRecordingType> recordingTypes = EnumSet.noneOf(TrafficRecordingType.class);
 			recordingTypes.add(TrafficRecordingType.SESSION_START);
 
 			this.sessionUuidIndex.put(

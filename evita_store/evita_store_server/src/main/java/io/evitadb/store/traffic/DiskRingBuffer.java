@@ -32,6 +32,7 @@ import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.function.LongBiFunction;
 import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
+import io.evitadb.store.offsetIndex.stream.RandomAccessFileInputStream;
 import io.evitadb.store.traffic.OffHeapTrafficRecorder.MemoryNotAvailableException;
 import io.evitadb.utils.Assert;
 import lombok.AccessLevel;
@@ -52,12 +53,14 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.LongPredicate;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
 
 import static java.util.Optional.ofNullable;
@@ -93,7 +96,7 @@ public class DiskRingBuffer {
 	/**
 	 * Transaction used for writing to the session index.
 	 */
-	private AtomicReference<Transaction> transaction = new AtomicReference<>();
+	private final AtomicReference<Transaction> transaction = new AtomicReference<>();
 	/**
 	 * Path to file used for storing traffic data when they are completed in the memory buffer.
 	 */
@@ -102,6 +105,10 @@ public class DiskRingBuffer {
 	 * File used for storing traffic data when they are completed in the memory buffer.
 	 */
 	@Getter private final RandomAccessFile diskBufferFile;
+	/**
+	 * Read input stream used for reading from the disk buffer file.
+	 */
+	@Getter private final RandomAccessFileInputStream diskBufferFileReadInputStream;
 	/**
 	 * Channel for the disk buffer file.
 	 */
@@ -114,6 +121,10 @@ public class DiskRingBuffer {
 	 * Atomic reference holding the segments which are currently in active use (read / write).
 	 */
 	private final AtomicReference<ActiveSegments> activeSegments = new AtomicReference<>(new ActiveSegments());
+	/**
+	 * Atomic boolean used for locking the segment updates.
+	 */
+	private final AtomicBoolean segmentLock = new AtomicBoolean(false);
 	/**
 	 * Head of the ring buffer.
 	 */
@@ -189,11 +200,15 @@ public class DiskRingBuffer {
 	 * @param diskBufferFileSize the size of the disk buffer file in bytes
 	 * @throws UnexpectedIOException if an I/O error occurs during the creation of the disk buffer file
 	 */
-	public DiskRingBuffer(@Nonnull Path diskBufferFilePath, long diskBufferFileSize) {
+	public DiskRingBuffer(
+		@Nonnull Path diskBufferFilePath,
+		long diskBufferFileSize
+	) {
 		try {
 			this.diskBufferFilePath = diskBufferFilePath;
 			this.diskBufferFileSize = diskBufferFileSize;
 			this.diskBufferFile = new RandomAccessFile(this.diskBufferFilePath.toFile(), "rw");
+			this.diskBufferFileReadInputStream = new RandomAccessFileInputStream(new RandomAccessFile(this.diskBufferFilePath.toFile(), "r"));
 			// Initialize the file size
 			this.diskBufferFile.setLength(diskBufferFileSize);
 			this.fileChannel = this.diskBufferFile.getChannel();
@@ -292,35 +307,30 @@ public class DiskRingBuffer {
 			}
 			final int lengthToWrite = Math.min(Math.toIntExact(this.diskBufferFileSize - this.ringBufferTail), totalBytesToWrite);
 			if (lengthToWrite < totalBytesToWrite) {
-				System.out.println("WRAP AROUND: writing at " + this.fileChannel.position() + " length " + lengthToWrite);
 				lockAndWrite(
 					new FileLocation(this.fileChannel.position(), lengthToWrite),
 					sessionLocation,
 					() -> {
-						int writtenBytes = this.fileChannel.write(memoryByteBuffer.slice(0, lengthToWrite));
-						Assert.isPremiseValid(writtenBytes == lengthToWrite, "Failed to write all bytes to the disk buffer file.");
-						updateSessionLocations(writtenBytes);
+						writeDataToFileChannel(memoryByteBuffer.slice(0, lengthToWrite), lengthToWrite);
+						updateSessionLocations(lengthToWrite);
 					}
 				);
 				this.fileChannel.position(0);
-				System.out.println("WRAP AROUND rest: writing at " + this.fileChannel.position() + " length " + lengthToWrite);
 				lockAndWrite(
 					new FileLocation(this.fileChannel.position(), totalBytesToWrite - lengthToWrite),
 					sessionLocation,
 					() -> {
-						int writtenBytes = this.fileChannel.write(memoryByteBuffer.slice(lengthToWrite, totalBytesToWrite - lengthToWrite));
-						Assert.isPremiseValid(writtenBytes == totalBytesToWrite - lengthToWrite, "Failed to write all bytes to the disk buffer file.");
-						updateSessionLocations(writtenBytes);
+						final int restLengthToWrite = totalBytesToWrite - lengthToWrite;
+						writeDataToFileChannel(memoryByteBuffer.slice(lengthToWrite, restLengthToWrite), restLengthToWrite);
+						updateSessionLocations(restLengthToWrite);
 					}
 				);
 			} else {
-				System.out.println("Writing at " + this.fileChannel.position() + " length " + lengthToWrite);
 				lockAndWrite(
 					new FileLocation(this.fileChannel.position(), totalBytesToWrite),
 					sessionLocation,
 					() -> {
-						int writtenBytes = this.fileChannel.write(memoryByteBuffer);
-						Assert.isPremiseValid(writtenBytes == totalBytesToWrite, "Failed to write all bytes to the disk buffer file.");
+						writeDataToFileChannel(memoryByteBuffer, totalBytesToWrite);
 						updateSessionLocations(totalBytesToWrite);
 					}
 				);
@@ -332,6 +342,23 @@ public class DiskRingBuffer {
 				e
 			);
 		}
+	}
+
+	/**
+	 * Writes data from the provided ByteBuffer to the associated FileChannel until the specified number of bytes is written.
+	 *
+	 * @param memoryByteBuffer the ByteBuffer containing the data to be written to the FileChannel. Must not be null.
+	 * @param totalBytesToWrite the total number of bytes to write from the ByteBuffer to the FileChannel.
+	 * @throws IOException if an I/O error occurs during the write operation.
+	 */
+	private void writeDataToFileChannel(@Nonnull ByteBuffer memoryByteBuffer, int totalBytesToWrite) throws IOException {
+		int totalBytesWritten = 0;
+		while (totalBytesWritten < totalBytesToWrite) {
+			int writtenBytes = this.fileChannel.write(memoryByteBuffer);
+			totalBytesWritten += writtenBytes;
+			Assert.isPremiseValid(writtenBytes > 0, "Failed to write all bytes to the disk buffer file.");
+		}
+		Assert.isPremiseValid(totalBytesWritten == totalBytesToWrite, "Failed to write all bytes to the disk buffer file.");
 	}
 
 	/**
@@ -357,22 +384,24 @@ public class DiskRingBuffer {
 		// finish writing the session
 		ActiveSegments newValue;
 		do {
-			newValue = this.activeSegments.updateAndGet(
-				currentlyActiveSegments -> {
-					Assert.isPremiseValid(
-						currentlyActiveSegments.writeSegment() == null,
-						"Write segment is locked. This is not expected!"
-					);
-					Assert.isPremiseValid(
-						currentlyActiveSegments.sessionBeingWritten() == sessionLocation,
-						"Different session is being written. This is not expected!"
-					);
-					return new ActiveSegments(
-						currentlyActiveSegments.readSegment(),
-						null,
-						null
-					);
-				}
+			newValue = updateSegments(
+				() -> this.activeSegments.updateAndGet(
+					currentlyActiveSegments -> {
+						Assert.isPremiseValid(
+							currentlyActiveSegments.writeSegment() == null,
+							"Write segment is locked. This is not expected!"
+						);
+						Assert.isPremiseValid(
+							currentlyActiveSegments.sessionBeingWritten() == sessionLocation,
+							"Different session is being written. This is not expected!"
+						);
+						return new ActiveSegments(
+							currentlyActiveSegments.readSegment(),
+							null,
+							null
+						);
+					}
+				)
 			);
 		} while (newValue.sessionBeingWritten() != null);
 
@@ -437,8 +466,10 @@ public class DiskRingBuffer {
 	 */
 	public void close(@Nonnull Consumer<Path> fileCleanLogic) {
 		try {
+			/* TODO JNO - implement something like IOUtils.close */
 			this.fileChannel.close();
 			this.diskBufferFile.close();
+			this.diskBufferFileReadInputStream.close();
 			this.sessionIndex.set(null);
 		} catch (IOException e) {
 			throw new UnexpectedIOException(
@@ -556,10 +587,9 @@ public class DiskRingBuffer {
 										return tr.payload();
 									}
 								} catch (Exception ex) {
-									log.error(
-										"Error reading session #" + sessionSequenceId +
-											" traffic record from disk buffer at position " + startPosition +
-											" (" + this.activeSegments.get() + "): " + ex.getMessage()
+									log.debug(
+										"Error reading session #{} traffic record from disk buffer at position {} ({}): {}",
+										sessionSequenceId, startPosition, this.activeSegments.get(), ex.getMessage()
 									);
 									return null;
 								}
@@ -593,28 +623,30 @@ public class DiskRingBuffer {
 		// lock the write segment and write the data
 		ActiveSegments newValue;
 		do {
-			newValue = this.activeSegments.updateAndGet(
-				currentlyActiveSegments -> {
-					Assert.isPremiseValid(
-						currentlyActiveSegments.writeSegment() == null,
-						"Write segment is already locked. This is not expected!"
-					);
-					Assert.isPremiseValid(
-						currentlyActiveSegments.sessionBeingWritten() == null || currentlyActiveSegments.sessionBeingWritten() == sessionBeingWritten,
-						"Different session is being written. This is not expected!"
-					);
-					if (segmentsOverlap(currentlyActiveSegments.readSegment(), writeSegment)) {
-						// if the write segment is currently being read, do not write to it, this will cause busy waiting
-						return currentlyActiveSegments;
-					} else {
-						// otherwise lock the write segment and write the data
-						return new ActiveSegments(
-							currentlyActiveSegments.readSegment(),
-							writeSegment,
-							sessionBeingWritten
+			newValue = updateSegments(
+				() -> this.activeSegments.updateAndGet(
+					currentlyActiveSegments -> {
+						Assert.isPremiseValid(
+							currentlyActiveSegments.writeSegment() == null,
+							"Write segment is already locked. This is not expected!"
 						);
+						Assert.isPremiseValid(
+							currentlyActiveSegments.sessionBeingWritten() == null || currentlyActiveSegments.sessionBeingWritten() == sessionBeingWritten,
+							"Different session is being written. This is not expected!"
+						);
+						if (segmentsOverlap(currentlyActiveSegments.readSegment(), writeSegment)) {
+							// if the write segment is currently being read, do not write to it, this will cause busy waiting
+							return currentlyActiveSegments;
+						} else {
+							// otherwise lock the write segment and write the data
+							return new ActiveSegments(
+								currentlyActiveSegments.readSegment(),
+								writeSegment,
+								sessionBeingWritten
+							);
+						}
 					}
-				}
+				)
 			);
 			// we're busy waiting for the write segment to be unlocked by the reader (this should be rare and short)
 		} while (newValue.writeSegment() != writeSegment);
@@ -624,19 +656,21 @@ public class DiskRingBuffer {
 
 		// release the lock on the write segment
 		do {
-			newValue = this.activeSegments.updateAndGet(
-				currentlyActiveSegments -> {
-					Assert.isPremiseValid(
-						currentlyActiveSegments.writeSegment() == writeSegment,
-						"Write segment is not locked. This is not expected!"
-					);
-					// unlock the write segment
-					return new ActiveSegments(
-						currentlyActiveSegments.readSegment(),
-						null,
-						sessionBeingWritten
-					);
-				}
+			newValue = updateSegments(
+				() -> this.activeSegments.updateAndGet(
+					currentlyActiveSegments -> {
+						Assert.isPremiseValid(
+							currentlyActiveSegments.writeSegment() == writeSegment,
+							"Write segment is not locked. This is not expected!"
+						);
+						// unlock the write segment
+						return new ActiveSegments(
+							currentlyActiveSegments.readSegment(),
+							null,
+							sessionBeingWritten
+						);
+					}
+				)
 			);
 			// we're busy waiting for the write segment to be unlocked, this should practically never happen
 		} while (newValue.writeSegment() != null);
@@ -655,25 +689,27 @@ public class DiskRingBuffer {
 	@Nullable
 	private <T> T lockAndRead(@Nonnull FileLocation readSegment, @Nonnull Supplier<T> readLambda) {
 		// lock the read segment and execute the read lambda
-		ActiveSegments newValue = this.activeSegments.updateAndGet(
-			currentlyActiveSegments -> {
-				Assert.isPremiseValid(
-					currentlyActiveSegments.readSegment() == null,
-					"Read segment is already locked. This is not expected!"
-				);
-				if (segmentsOverlap(currentlyActiveSegments.writeSegment(), readSegment)) {
-					// if the read segment is currently being written, do not read from it,
-					// this will cause reading to be skipped entirely - the data will be mangled anyway
-					return currentlyActiveSegments;
-				} else {
-					// otherwise lock the read segment and execute the read lambda
-					return new ActiveSegments(
-						readSegment,
-						currentlyActiveSegments.writeSegment(),
-						currentlyActiveSegments.sessionBeingWritten()
+		ActiveSegments newValue = updateSegments(
+			() -> this.activeSegments.updateAndGet(
+				currentlyActiveSegments -> {
+					Assert.isPremiseValid(
+						currentlyActiveSegments.readSegment() == null,
+						"Read segment is already locked. This is not expected!"
 					);
+					if (segmentsOverlap(currentlyActiveSegments.writeSegment(), readSegment)) {
+						// if the read segment is currently being written, do not read from it,
+						// this will cause reading to be skipped entirely - the data will be mangled anyway
+						return currentlyActiveSegments;
+					} else {
+						// otherwise lock the read segment and execute the read lambda
+						return new ActiveSegments(
+							readSegment,
+							currentlyActiveSegments.writeSegment(),
+							currentlyActiveSegments.sessionBeingWritten()
+						);
+					}
 				}
-			}
+			)
 		);
 
 		// if we succeeded in locking the read segment, execute the read lambda
@@ -683,18 +719,20 @@ public class DiskRingBuffer {
 			} finally {
 				// release the lock on the read segment
 				do {
-					newValue = this.activeSegments.updateAndGet(
-						currentlyActiveSegments -> {
-							Assert.isPremiseValid(
-								currentlyActiveSegments.readSegment() == readSegment,
-								"Read segment is not locked. This is not expected!"
-							);
-							return new ActiveSegments(
-								null,
-								currentlyActiveSegments.writeSegment(),
-								currentlyActiveSegments.sessionBeingWritten()
-							);
-						}
+					newValue = updateSegments(
+						() -> this.activeSegments.updateAndGet(
+							currentlyActiveSegments -> {
+								Assert.isPremiseValid(
+									currentlyActiveSegments.readSegment() == readSegment,
+									"Read segment is not locked. This is not expected!"
+								);
+								return new ActiveSegments(
+									null,
+									currentlyActiveSegments.writeSegment(),
+									currentlyActiveSegments.sessionBeingWritten()
+								);
+							}
+						)
 					);
 					// we're busy waiting for the read segment to be unlocked, this should practically never happen
 				} while (newValue.readSegment() != null);
@@ -702,6 +740,27 @@ public class DiskRingBuffer {
 		} else {
 			// we failed to lock the read segment, return null
 			return null;
+		}
+	}
+
+	/**
+	 * Updates the active segments by executing the provided supplier within a thread-safe context. The plain
+	 * {@link AtomicReference#updateAndGet(UnaryOperator)} doesn't guarantee that the lambda will be executed
+	 * concurrently on top of different witness values, which is necessary for the correct operation of the
+	 * disk ring buffer.
+	 *
+	 * @param lambda a supplier that provides the updated ActiveSegments instance
+	 * @return the updated ActiveSegments instance
+	 */
+	@Nonnull
+	private ActiveSegments updateSegments(@Nonnull Supplier<ActiveSegments> lambda) {
+		while (!this.segmentLock.compareAndSet(false, true)) {
+			Thread.onSpinWait();
+		}
+		try {
+			return lambda.get();
+		} finally {
+			this.segmentLock.set(false);
 		}
 	}
 

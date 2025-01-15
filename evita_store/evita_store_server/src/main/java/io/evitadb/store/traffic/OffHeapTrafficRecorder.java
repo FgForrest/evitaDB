@@ -219,13 +219,13 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 				this.copyBufferPool.obtain(),
 				this::prepareStorageBlock
 			);
+			final Kryo kryoInstance = this.offHeapTrafficRecorderKryoPool.obtain();
 			try {
 				final StorageRecord<SessionStartContainer> sessionStartRecord = new StorageRecord<>(
 					sessionTraffic.getObservableOutput(),
 					0L,
 					false,
 					output -> {
-						final Kryo kryoInstance = this.offHeapTrafficRecorderKryoPool.obtain();
 						final SessionStartContainer container = new SessionStartContainer(
 							sessionId,
 							sessionTraffic.nextRecordingId(),
@@ -243,6 +243,8 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 				this.copyBufferPool.free(ex.getWriteBuffer());
 				this.droppedSessions.incrementAndGet();
 				this.missedRecords.incrementAndGet();
+			} finally {
+				this.offHeapTrafficRecorderKryoPool.free(kryoInstance);
 			}
 		} else {
 			this.missedRecords.incrementAndGet();
@@ -255,13 +257,13 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		if (sessionTraffic != null && !sessionTraffic.isFinished()) {
 			final byte[] bufferToReturn = sessionTraffic.finish();
 
+			final Kryo kryoInstance = this.offHeapTrafficRecorderKryoPool.obtain();
 			try {
 				final StorageRecord<SessionCloseContainer> sessionCloseRecord = new StorageRecord<>(
 					sessionTraffic.getObservableOutput(),
 					0L,
 					false,
 					output -> {
-						final Kryo kryoInstance = this.offHeapTrafficRecorderKryoPool.obtain();
 						final SessionCloseContainer container = new SessionCloseContainer(
 							sessionId,
 							sessionTraffic.nextRecordingId(),
@@ -285,6 +287,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 				this.droppedSessions.incrementAndGet();
 				this.missedRecords.incrementAndGet();
 			} finally {
+				this.offHeapTrafficRecorderKryoPool.free(kryoInstance);
 				sessionTraffic.close();
 				this.copyBufferPool.free(bufferToReturn);
 				this.finishedSessions.incrementAndGet();
@@ -428,7 +431,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		this.lastRead = System.currentTimeMillis();
 		return this.diskBuffer.getSessionRecordsStream(
 			request,
-			this::readTrafficRecord
+			(sessionSequenceOrder, filePosition) -> readTrafficRecord(sessionSequenceOrder, filePosition, this.diskBuffer.getDiskBufferFileReadInputStream())
 		);
 	}
 
@@ -489,27 +492,33 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 	/**
 	 * Reads a traffic record from a specified file position.
 	 *
-	 * @param sessionSequenceOrder the session sequence order of the recording
-	 * @param filePosition         the position within the file to read the traffic record from
+	 * @param sessionSequenceOrder  the session sequence order of the recording
+	 * @param filePosition          the position within the file to read the traffic record from
+	 * @param targetFileInputStream the file input stream to read the traffic record from
 	 * @return a {@code StorageRecord} containing the traffic recording
 	 */
 	@Nonnull
-	private StorageRecord<TrafficRecording> readTrafficRecord(long sessionSequenceOrder, long filePosition) {
-		final ObservableInput<RandomAccessFileInputStream> input = new ObservableInput<>(
-			new RandomAccessFileInputStream(this.diskBuffer.getDiskBufferFile()),
-			this.copyBufferPool.obtain()
-		);
-		input.resetToPosition(filePosition);
-		return StorageRecord.read(
-			input,
-			(theInput, recordLength) -> {
-				final Kryo kryoInstance = this.offHeapTrafficRecorderKryoPool.obtain();
-				return SessionSequenceOrderContext.fetch(
-					sessionSequenceOrder,
-					() -> (TrafficRecording) kryoInstance.readClassAndObject(input)
-				);
-			}
-		);
+	private StorageRecord<TrafficRecording> readTrafficRecord(long sessionSequenceOrder, long filePosition, @Nonnull RandomAccessFileInputStream targetFileInputStream) {
+		final byte[] byteBuffer = this.copyBufferPool.obtain();
+		final Kryo kryoInstance = this.offHeapTrafficRecorderKryoPool.obtain();
+		try {
+			final ObservableInput<RandomAccessFileInputStream> input = new ObservableInput<>(
+				targetFileInputStream, byteBuffer
+			);
+			input.resetToPosition(filePosition);
+			return StorageRecord.read(
+				input,
+				(theInput, recordLength) -> {
+					return SessionSequenceOrderContext.fetch(
+						sessionSequenceOrder,
+						() -> (TrafficRecording) kryoInstance.readClassAndObject(input)
+					);
+				}
+			);
+		} finally {
+			this.copyBufferPool.free(byteBuffer);
+			this.offHeapTrafficRecorderKryoPool.free(kryoInstance);
+		}
 	}
 
 	/**
@@ -528,6 +537,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		@Nonnull Function<SessionTraffic, T> containerFactory
 	) {
 		if (sessionTraffic != null && !sessionTraffic.isFinished()) {
+			final Kryo kryoInstance = this.offHeapTrafficRecorderKryoPool.obtain();
 			try {
 				final T container = containerFactory.apply(sessionTraffic);
 				final StorageRecord<T> storageRecord = new StorageRecord<>(
@@ -535,7 +545,6 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 					0L,
 					false,
 					output -> {
-						final Kryo kryoInstance = this.offHeapTrafficRecorderKryoPool.obtain();
 						kryoInstance.writeClassAndObject(output, container);
 						return container;
 					}
@@ -546,6 +555,8 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 			} catch (MemoryNotAvailableException ex) {
 				this.copyBufferPool.free(ex.getWriteBuffer());
 				this.missedRecords.incrementAndGet();
+			} finally {
+				this.offHeapTrafficRecorderKryoPool.free(kryoInstance);
 			}
 		} else {
 			if (sessionTraffic != null) {
@@ -627,7 +638,6 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 							finalizedSession.getFetchCount(),
 							finalizedSession.getBytesFetchedTotal()
 						);
-						System.out.println("Session written: " + sessionLocation);
 					}
 				} while (!this.finalizedSessions.isEmpty());
 			}

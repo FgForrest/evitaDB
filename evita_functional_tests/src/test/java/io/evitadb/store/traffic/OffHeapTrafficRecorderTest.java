@@ -64,6 +64,7 @@ import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * This test verifies {@link OffHeapTrafficRecorder} functionality.
@@ -71,8 +72,8 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
-	private OffHeapTrafficRecorder trafficRecorder;
 	private final Path exportDirectory = getPathInTargetDirectory(UUID.randomUUID() + "/export");
+	private OffHeapTrafficRecorder trafficRecorder;
 
 	@BeforeEach
 	void setUp() {
@@ -233,8 +234,6 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 			this.trafficRecorder.closeSession(sessionId);
 		}
 
-		System.out.println("Finished sessions - last one is: " + sessionId);
-
 		// wait for the data to be written to the disk
 		final long start = System.currentTimeMillis();
 		List<TrafficRecording> recordings;
@@ -247,24 +246,10 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 					.type(TrafficRecordingType.SESSION_CLOSE)
 					.build()
 			).toList();
-			synchronized (this) {
-				Thread.sleep(200);
-			}
 		} while (recordings.isEmpty() && System.currentTimeMillis() - start < 10_000);
 
 		if (recordings.isEmpty()) {
-			/*fail("Last recording was not written to the disk within the specified time limit.");*/
-
-			final List<TrafficRecording> allRecordings = this.trafficRecorder.getRecordings(
-				TrafficRecordingCaptureRequest.builder()
-					.content(TrafficRecordingContent.BODY)
-					.sinceSessionSequenceId(0L)
-					.sinceRecordSessionOffset(0)
-					.allTypes()
-					.build()
-			).toList();
-
-			assertEquals(120, allRecordings.size());
+			fail("Last recording was not written to the disk within the specified time limit.");
 		}
 
 		final List<TrafficRecording> allRecordings = this.trafficRecorder.getRecordings(
