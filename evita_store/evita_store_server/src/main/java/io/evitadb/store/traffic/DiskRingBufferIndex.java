@@ -72,6 +72,7 @@ public class DiskRingBufferIndex implements
 	private final TransactionalMap<Long, FileLocation> sessionLocationIndex;
 	private final TransactionalMap<UUID, Long> sessionIdIndex;
 	private final TransactionalMap<Long, SessionDescriptor> sessionUuidIndex;
+	private final TransactionalObjectBPlusTree<Long, Long> sessionSequenceOrderIndex;
 	private final TransactionalObjectBPlusTree<OffsetDateTime, Long> sessionCreationIndex;
 	private final TransactionalObjectBPlusTree<Integer, Long> sessionDurationIndex;
 	private final TransactionalObjectBPlusTree<Integer, Long> sessionFetchCountIndex;
@@ -84,6 +85,7 @@ public class DiskRingBufferIndex implements
 		this.sessionLocationIndex = new TransactionalMap<>(CollectionUtils.createHashMap(1_024));
 		this.sessionIdIndex = new TransactionalMap<>(CollectionUtils.createHashMap(1_024));
 		this.sessionUuidIndex = new TransactionalMap<>(CollectionUtils.createHashMap(1_024));
+		this.sessionSequenceOrderIndex = new TransactionalObjectBPlusTree<>(64, 31, 31, 15, Long.class, Long.class);
 		this.sessionCreationIndex = new TransactionalObjectBPlusTree<>(64, 31, 31, 15, OffsetDateTime.class, Long.class);
 		this.sessionDurationIndex = new TransactionalObjectBPlusTree<>(64, 31, 31, 15, Integer.class, Long.class);
 		this.sessionFetchCountIndex = new TransactionalObjectBPlusTree<>(64, 31, 31, 15, Integer.class, Long.class);
@@ -97,6 +99,7 @@ public class DiskRingBufferIndex implements
 		@Nonnull Map<Long, FileLocation> sessionLocationIndex,
 		@Nonnull Map<UUID, Long> sessionIdIndex,
 		@Nonnull Map<Long, SessionDescriptor> sessionUuidIndex,
+		@Nonnull TransactionalObjectBPlusTree<Long, Long> sessionSequenceOrderIndex,
 		@Nonnull TransactionalObjectBPlusTree<OffsetDateTime, Long> sessionCreationIndex,
 		@Nonnull TransactionalObjectBPlusTree<Integer, Long> sessionDurationIndex,
 		@Nonnull TransactionalObjectBPlusTree<Integer, Long> sessionFetchCountIndex,
@@ -108,6 +111,7 @@ public class DiskRingBufferIndex implements
 		this.sessionLocationIndex = new TransactionalMap<>(sessionLocationIndex);
 		this.sessionIdIndex = new TransactionalMap<>(sessionIdIndex);
 		this.sessionUuidIndex = new TransactionalMap<>(sessionUuidIndex);
+		this.sessionSequenceOrderIndex = sessionSequenceOrderIndex;
 		this.sessionCreationIndex = sessionCreationIndex;
 		this.sessionDurationIndex = sessionDurationIndex;
 		this.sessionFetchCountIndex = sessionFetchCountIndex;
@@ -166,6 +170,7 @@ public class DiskRingBufferIndex implements
 					durationInMillis, fetchCount, bytesFetchedTotal, recordingTypes
 				)
 			);
+			this.sessionSequenceOrderIndex.insert(sessionSequenceOrder, sessionSequenceOrder);
 			this.sessionCreationIndex.insert(created, sessionSequenceOrder);
 			this.sessionDurationIndex.insert(durationInMillis, sessionSequenceOrder);
 			this.sessionFetchCountIndex.insert(fetchCount, sessionSequenceOrder);
@@ -215,6 +220,9 @@ public class DiskRingBufferIndex implements
 	public void indexRecording(long sessionSequenceOrder, @Nonnull TrafficRecording recording) {
 		if (recording instanceof SessionStartContainer ssc) {
 			this.sessionIdIndex.put(ssc.sessionId(), sessionSequenceOrder);
+			final Set<TrafficRecordingType> recordingTypes = new HashSet<>(TrafficRecordingType.values().length);
+			recordingTypes.add(TrafficRecordingType.SESSION_START);
+
 			this.sessionUuidIndex.put(
 				sessionSequenceOrder,
 				new SessionDescriptor(
@@ -224,9 +232,10 @@ public class DiskRingBufferIndex implements
 					ssc.durationInMilliseconds(),
 					ssc.ioFetchCount(),
 					ssc.ioFetchedSizeBytes(),
-					Set.of(TrafficRecordingType.SESSION_START)
+					recordingTypes
 				)
 			);
+			this.sessionSequenceOrderIndex.insert(sessionSequenceOrder, sessionSequenceOrder);
 			this.sessionCreationIndex.insert(ssc.created(), sessionSequenceOrder);
 		} else {
 			final SessionDescriptor sessionDescriptor = this.sessionUuidIndex.get(sessionSequenceOrder);
@@ -262,7 +271,7 @@ public class DiskRingBufferIndex implements
 					this.sessionBytesFetchedIndex.delete(previousValue);
 					this.sessionBytesFetchedIndex.insert(newValue, sso);
 				},
-				(sso, newValue) -> this.sessionRecordingTypeIndex.get(newValue).add(sso)
+				(sso, newValue) -> this.sessionRecordingTypeIndex.computeIfAbsent(newValue, trt -> new ConcurrentSkipListSet<>()).add(sso)
 			);
 	}
 
@@ -279,6 +288,7 @@ public class DiskRingBufferIndex implements
 	public Stream<SessionLocation> getSessionStream(@Nonnull TrafficRecordingCaptureRequest request) {
 		final List<Iterator<Long>> streams = Stream.concat(
 				Stream.of(
+					request.sinceSessionSequenceId() == null ? null : this.sessionSequenceOrderIndex.greaterOrEqualValueIterator(request.sinceSessionSequenceId()),
 					request.sessionId() == null ? null : ofNullable(this.sessionIdIndex.get(request.sessionId())).map(sid -> List.of(sid).iterator()).orElse(null),
 					request.since() == null ? null : this.sessionCreationIndex.greaterOrEqualValueIterator(request.since()),
 					request.longerThan() == null ? null : this.sessionDurationIndex.greaterOrEqualValueIterator(Math.toIntExact(request.longerThan().toMillis())),
@@ -293,11 +303,18 @@ public class DiskRingBufferIndex implements
 			.filter(Objects::nonNull)
 			.toList();
 
-		return StreamSupport.stream(
-				Spliterators.spliteratorUnknownSize(new CommonElementsIterator(streams), Spliterator.ORDERED | Spliterator.DISTINCT),
-				false
-			)
-			.map(sessionSequenceOrder -> new SessionLocation(sessionSequenceOrder, this.sessionLocationIndex.get(sessionSequenceOrder)));
+		if (streams.isEmpty()) {
+			return this.sessionLocationIndex
+				.entrySet()
+				.stream()
+				.map(entry -> new SessionLocation(entry.getKey(), entry.getValue()));
+		} else {
+			return StreamSupport.stream(
+					Spliterators.spliteratorUnknownSize(new CommonElementsIterator(streams), Spliterator.ORDERED | Spliterator.DISTINCT),
+					false
+				)
+				.map(sessionSequenceOrder -> new SessionLocation(sessionSequenceOrder, this.sessionLocationIndex.get(sessionSequenceOrder)));
+		}
 	}
 
 	@Override
@@ -324,6 +341,7 @@ public class DiskRingBufferIndex implements
 			transactionalLayer.getStateCopyWithCommittedChanges(this.sessionLocationIndex),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.sessionIdIndex),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.sessionUuidIndex),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.sessionSequenceOrderIndex),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.sessionCreationIndex),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.sessionDurationIndex),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.sessionFetchCountIndex),
@@ -342,7 +360,7 @@ public class DiskRingBufferIndex implements
 	 * session removals are completed.
 	 */
 	private void emptyRemovalQueue() {
-		Long sessionToRemove = this.sessionsToRemove.pop();
+		Long sessionToRemove = this.sessionsToRemove.isEmpty() ? null : this.sessionsToRemove.pop();
 		while (sessionToRemove != null) {
 			this.sessionLocationIndex.remove(sessionToRemove);
 			sessionToRemove = this.sessionsToRemove.pop();

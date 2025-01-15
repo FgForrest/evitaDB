@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -41,6 +41,7 @@ import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Closeable;
 import java.time.OffsetDateTime;
 import java.util.EnumSet;
 import java.util.Map;
@@ -58,7 +59,7 @@ import java.util.function.Supplier;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public class SessionTraffic {
+public class SessionTraffic implements Closeable {
 	/**
 	 * Id of the session.
 	 */
@@ -82,7 +83,7 @@ public class SessionTraffic {
 	/**
 	 * Contains current byte buffer where the queries and mutations are stored.
 	 */
-	@Getter private final ObservableOutput<RecoverableOutputStream> observableOutput;
+	private final ObservableOutput<RecoverableOutputStream> observableOutput;
 	/**
 	 * Index of source query counters indexed by `sourceQueryId`.
 	 */
@@ -172,6 +173,16 @@ public class SessionTraffic {
 			),
 			writeBuffer
 		);
+	}
+
+	/**
+	 * Provides the observable output associated with this session's traffic.
+	 *
+	 * @return an instance of ObservableOutput containing a RecoverableOutputStream
+	 */
+	@Nonnull
+	public ObservableOutput<RecoverableOutputStream> getObservableOutput() {
+		return observableOutput;
 	}
 
 	/**
@@ -338,6 +349,11 @@ public class SessionTraffic {
 			sourceQueryCounter.map(SourceQueryCounter::getIoFetchCount).orElse(0),
 			sourceQueryCounter.map(SourceQueryCounter::getIoFetchedSizeBytes).orElse(0)
 		);
+	}
+
+	@Override
+	public void close() {
+		this.observableOutput.close();
 	}
 
 	/**

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,12 +27,14 @@ import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest.TrafficRecordingType;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
 /**
  * This container holds information about single entity fetch.
  *
+ * @param sessionSequenceOrder   the session sequence order of the fetch (similar to session id but monotonic)
  * @param sessionId              the session id which the mutation belongs to
  * @param recordSessionOffset    the order (sequence) of the record in the session
  * @param query                  the query accompanying the fetch
@@ -45,6 +47,7 @@ import java.util.UUID;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public record EntityFetchContainer(
+	@Nullable Long sessionSequenceOrder,
 	@Nonnull UUID sessionId,
 	int recordSessionOffset,
 	@Nonnull Query query,
@@ -54,6 +57,29 @@ public record EntityFetchContainer(
 	int ioFetchedSizeBytes,
 	int primaryKey
 ) implements TrafficRecording {
+
+	public EntityFetchContainer(
+		@Nonnull UUID sessionId,
+		int recordSessionOffset,
+		@Nonnull Query query,
+		@Nonnull OffsetDateTime created,
+		int durationInMilliseconds,
+		int ioFetchCount,
+		int ioFetchedSizeBytes,
+		int primaryKey
+	) {
+		this(
+			null,
+			sessionId,
+			recordSessionOffset,
+			query,
+			created,
+			durationInMilliseconds,
+			ioFetchCount,
+			ioFetchedSizeBytes,
+			primaryKey
+		);
+	}
 
 	@Nonnull
 	@Override

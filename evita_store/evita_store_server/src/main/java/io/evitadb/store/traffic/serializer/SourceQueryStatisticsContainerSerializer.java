@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -54,6 +54,7 @@ public class SourceQueryStatisticsContainerSerializer extends Serializer<SourceQ
 	@Override
 	public SourceQueryStatisticsContainer read(Kryo kryo, Input input, Class<? extends SourceQueryStatisticsContainer> type) {
 		return new SourceQueryStatisticsContainer(
+			SessionSequenceOrderContext.getSessionSequenceOrder(),
 			kryo.readObject(input, java.util.UUID.class),
 			input.readVarInt(true),
 			kryo.readObject(input, java.util.UUID.class),

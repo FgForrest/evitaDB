@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest.TrafficRecordingType;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
@@ -36,6 +37,7 @@ import java.util.UUID;
 /**
  * Container for a query and its metadata.
  *
+ * @param sessionSequenceOrder   the session sequence order of the query (similar to session id but monotonic)
  * @param sessionId              the session id which the mutation belongs to
  * @param recordSessionOffset    the order (sequence) of the record in the session
  * @param query                  the query itself
@@ -50,6 +52,7 @@ import java.util.UUID;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public record QueryContainer(
+	@Nullable Long sessionSequenceOrder,
 	@Nonnull UUID sessionId,
 	int recordSessionOffset,
 	@Nonnull Query query,
@@ -61,6 +64,33 @@ public record QueryContainer(
 	int ioFetchedSizeBytes,
 	@Nonnull int[] primaryKeys
 ) implements TrafficRecording {
+
+	public QueryContainer(
+		@Nonnull UUID sessionId,
+		int recordSessionOffset,
+		@Nonnull Query query,
+		@Nonnull Label[] labels,
+		@Nonnull OffsetDateTime created,
+		int durationInMilliseconds,
+		int totalRecordCount,
+		int ioFetchCount,
+		int ioFetchedSizeBytes,
+		@Nonnull int[] primaryKeys
+	) {
+		this(
+			null,
+			sessionId,
+			recordSessionOffset,
+			query,
+			labels,
+			created,
+			durationInMilliseconds,
+			totalRecordCount,
+			ioFetchCount,
+			ioFetchedSizeBytes,
+			primaryKeys
+		);
+	}
 
 	@Nonnull
 	@Override

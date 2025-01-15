@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.core.async;
 
 import io.evitadb.utils.Assert;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -67,10 +68,12 @@ public class DelayedAsyncTask {
 	/**
 	 * Name of the catalog that the task belongs to (may be NULL if the task is not bound to any particular catalog).
 	 */
+	@Getter
 	private final String catalogName;
 	/**
 	 * The name of the task.
 	 */
+	@Getter
 	private final String taskName;
 	/**
 	 * The task that is executed asynchronously after the specified delay and returns negative value when it should be

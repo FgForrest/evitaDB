@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,12 +28,14 @@ import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest.TrafficRecordingType;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
 /**
  * This container holds information about the source query finalization.
  *
+ * @param sessionSequenceOrder   the session sequence order of the source query statistics (similar to session id but monotonic)
  * @param sessionId              the session id which the mutation belongs to
  * @param recordSessionOffset    the order (sequence) of the record in the session
  * @param sourceQueryId          the source query id
@@ -47,6 +49,7 @@ import java.util.UUID;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public record SourceQueryStatisticsContainer(
+	@Nullable Long sessionSequenceOrder,
 	@Nonnull UUID sessionId,
 	int recordSessionOffset,
 	@Nonnull UUID sourceQueryId,
@@ -57,6 +60,31 @@ public record SourceQueryStatisticsContainer(
 	int returnedRecordCount,
 	int totalRecordCount
 ) implements TrafficRecording {
+
+	public SourceQueryStatisticsContainer(
+		@Nonnull UUID sessionId,
+		int recordSessionOffset,
+		@Nonnull UUID sourceQueryId,
+		@Nonnull OffsetDateTime created,
+		int durationInMilliseconds,
+		int ioFetchCount,
+		int ioFetchedSizeBytes,
+		int returnedRecordCount,
+		int totalRecordCount
+	) {
+		this(
+			null,
+			sessionId,
+			recordSessionOffset,
+			sourceQueryId,
+			created,
+			durationInMilliseconds,
+			ioFetchCount,
+			ioFetchedSizeBytes,
+			returnedRecordCount,
+			totalRecordCount
+		);
+	}
 
 	@Nonnull
 	@Override

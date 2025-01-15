@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,12 +27,14 @@ package io.evitadb.api.requestResponse.trafficRecording;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest.TrafficRecordingType;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
 /**
  * This container holds information about the source query handling start.
  *
+ * @param sessionSequenceOrder   the session sequence order of the source query (similar to session id but monotonic)
  * @param sessionId     unique identifier of the session the mutation belongs to
  * @param recordSessionOffset    the order (sequence) of the record in the session
  * @param sourceQueryId unique identifier of the source query
@@ -42,6 +44,7 @@ import java.util.UUID;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public record SourceQueryContainer(
+	@Nullable Long sessionSequenceOrder,
 	@Nonnull UUID sessionId,
 	int recordSessionOffset,
 	@Nonnull UUID sourceQueryId,
@@ -49,6 +52,25 @@ public record SourceQueryContainer(
 	@Nonnull String sourceQuery,
 	@Nonnull String queryType
 ) implements TrafficRecording {
+
+	public SourceQueryContainer(
+		@Nonnull UUID sessionId,
+		int recordSessionOffset,
+		@Nonnull UUID sourceQueryId,
+		@Nonnull OffsetDateTime created,
+		@Nonnull String sourceQuery,
+		@Nonnull String queryType
+	) {
+		this(
+			null,
+			sessionId,
+			recordSessionOffset,
+			sourceQueryId,
+			created,
+			sourceQuery,
+			queryType
+		);
+	}
 
 	@Nonnull
 	@Override

@@ -52,6 +52,7 @@ import io.evitadb.store.offsetIndex.stream.RandomAccessFileInputStream;
 import io.evitadb.store.query.QuerySerializationKryoConfigurer;
 import io.evitadb.store.service.KryoFactory;
 import io.evitadb.store.traffic.event.TrafficRecorderStatisticsEvent;
+import io.evitadb.store.traffic.serializer.SessionSequenceOrderContext;
 import io.evitadb.store.wal.WalKryoConfigurer;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
@@ -192,49 +193,23 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TrafficRecordingOptions recordingOptions
 	) {
-		this.catalogName = catalogName;
-		this.exportFileService = exportFileService;
-		this.samplingPercentage = recordingOptions.trafficSamplingPercentage();
-
-		final long trafficMemoryBufferSizeInBytes = recordingOptions.trafficMemoryBufferSizeInBytes();
-		Assert.isPremiseValid(
-			trafficMemoryBufferSizeInBytes > 0,
-			"Traffic memory buffer size must be greater than 0."
+		this.init(
+			catalogName,
+			exportFileService,
+			scheduler,
+			storageOptions,
+			recordingOptions,
+			60,
+			10
 		);
-		// align the buffer size to be divisible by 16KB page size
-		final int capacity = (int) (trafficMemoryBufferSizeInBytes - (trafficMemoryBufferSizeInBytes % this.blockSizeBytes));
-		this.memoryBlock.set(ByteBuffer.allocateDirect(capacity));
-		final int blockCount = capacity / this.blockSizeBytes;
-		// initialize free blocks queue, all blocks are free at the beginning
-		this.freeBlocks = new ArrayBlockingQueue<>(blockCount, true);
-		// initialize observable outputs for each memory block
-		for (int i = 0; i < blockCount; i++) {
-			this.freeBlocks.offer(i);
-		}
-		// create ring buffer on disk
-		this.diskBuffer = new DiskRingBuffer(
-			exportFileService.createManagedTempFile("traffic-recording-buffer.bin"),
-			recordingOptions.trafficDiskBufferSizeInBytes()
-		);
-
-		this.freeMemoryTask = new DelayedAsyncTask(
-			this.catalogName, "Traffic recorder - memory buffer cleanup", scheduler,
-			this::freeMemory, 60, TimeUnit.SECONDS, 10
-		);
-
-		this.copyBufferPool = new Pool<>(true, true) {
-			@Override
-			protected byte[] create() {
-				return new byte[storageOptions.outputBufferSize()];
-			}
-		};
 	}
 
 	@Override
 	public void createSession(@Nonnull UUID sessionId, long catalogVersion, @Nonnull OffsetDateTime created) {
 		final long recorded = this.recordedRecords.get();
 		final long missed = this.missedRecords.get();
-		final boolean record = ((double) recorded / (double) (recorded + missed) * 100.0) < this.samplingPercentage;
+		final long recordedAndMissed = recorded + missed;
+		final boolean record = this.samplingPercentage > 0 && (recordedAndMissed == 0 || ((double) recorded / (double) recordedAndMissed * 100.0) <= this.samplingPercentage);
 
 		if (record) {
 			final SessionTraffic sessionTraffic = new SessionTraffic(
@@ -246,11 +221,20 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 			);
 			try {
 				final StorageRecord<SessionStartContainer> sessionStartRecord = new StorageRecord<>(
-					this.offHeapTrafficRecorderKryoPool.obtain(),
 					sessionTraffic.getObservableOutput(),
 					0L,
 					false,
-					new SessionStartContainer(sessionId, sessionTraffic.nextRecordingId(), catalogVersion, created)
+					output -> {
+						final Kryo kryoInstance = this.offHeapTrafficRecorderKryoPool.obtain();
+						final SessionStartContainer container = new SessionStartContainer(
+							sessionId,
+							sessionTraffic.nextRecordingId(),
+							catalogVersion,
+							created
+						);
+						kryoInstance.writeClassAndObject(output, container);
+						return container;
+					}
 				);
 				Assert.isPremiseValid(sessionStartRecord.fileLocation() != null, "Location must not be null.");
 				this.createdSessions.incrementAndGet();
@@ -273,30 +257,35 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 
 			try {
 				final StorageRecord<SessionCloseContainer> sessionCloseRecord = new StorageRecord<>(
-					this.offHeapTrafficRecorderKryoPool.obtain(),
 					sessionTraffic.getObservableOutput(),
 					0L,
-					true,
-					new SessionCloseContainer(
-						sessionId,
-						sessionTraffic.nextRecordingId(),
-						sessionTraffic.getCatalogVersion(),
-						sessionTraffic.getCreated(),
-						sessionTraffic.getDurationInMillis(),
-						sessionTraffic.getFetchCount(),
-						sessionTraffic.getBytesFetchedTotal(),
-						sessionTraffic.getRecordCount(),
-						sessionTraffic.getRecordsMissedOut(),
-						sessionTraffic.getQueryCount(),
-						sessionTraffic.getEntityFetchCount(),
-						sessionTraffic.getMutationCount()
-					)
+					false,
+					output -> {
+						final Kryo kryoInstance = this.offHeapTrafficRecorderKryoPool.obtain();
+						final SessionCloseContainer container = new SessionCloseContainer(
+							sessionId,
+							sessionTraffic.nextRecordingId(),
+							sessionTraffic.getCatalogVersion(),
+							sessionTraffic.getCreated(),
+							sessionTraffic.getDurationInMillis(),
+							sessionTraffic.getFetchCount(),
+							sessionTraffic.getBytesFetchedTotal(),
+							sessionTraffic.getRecordCount(),
+							sessionTraffic.getRecordsMissedOut(),
+							sessionTraffic.getQueryCount(),
+							sessionTraffic.getEntityFetchCount(),
+							sessionTraffic.getMutationCount()
+						);
+						kryoInstance.writeClassAndObject(output, container);
+						return container;
+					}
 				);
 				Assert.isPremiseValid(sessionCloseRecord.fileLocation() != null, "Location must not be null.");
 			} catch (MemoryNotAvailableException ex) {
 				this.droppedSessions.incrementAndGet();
 				this.missedRecords.incrementAndGet();
 			} finally {
+				sessionTraffic.close();
 				this.copyBufferPool.free(bufferToReturn);
 				this.finishedSessions.incrementAndGet();
 				this.finalizedSessions.offer(sessionTraffic);
@@ -450,23 +439,76 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		this.diskBuffer.close(filePath -> this.exportFileService.purgeManagedTempFile(filePath));
 	}
 
+	void init(
+		@Nonnull String catalogName,
+		@Nonnull ExportFileService exportFileService,
+		@Nonnull Scheduler scheduler,
+		@Nonnull StorageOptions storageOptions,
+		@Nonnull TrafficRecordingOptions recordingOptions,
+		int flushIntervalInSeconds,
+		int minimalSchedulingGapInSeconds
+	) {
+		this.catalogName = catalogName;
+		this.exportFileService = exportFileService;
+		this.samplingPercentage = recordingOptions.trafficSamplingPercentage();
+
+		final long trafficMemoryBufferSizeInBytes = recordingOptions.trafficMemoryBufferSizeInBytes();
+		Assert.isPremiseValid(
+			trafficMemoryBufferSizeInBytes > 0,
+			"Traffic memory buffer size must be greater than 0."
+		);
+		// align the buffer size to be divisible by 16KB page size
+		final int capacity = (int) (trafficMemoryBufferSizeInBytes - (trafficMemoryBufferSizeInBytes % this.blockSizeBytes));
+		this.memoryBlock.set(ByteBuffer.allocateDirect(capacity));
+		final int blockCount = capacity / this.blockSizeBytes;
+		// initialize free blocks queue, all blocks are free at the beginning
+		this.freeBlocks = new ArrayBlockingQueue<>(blockCount, true);
+		// initialize observable outputs for each memory block
+		for (int i = 0; i < blockCount; i++) {
+			this.freeBlocks.offer(i);
+		}
+		// create ring buffer on disk
+		this.diskBuffer = new DiskRingBuffer(
+			exportFileService.createManagedTempFile("traffic-recording-buffer.bin"),
+			recordingOptions.trafficDiskBufferSizeInBytes()
+		);
+
+		this.freeMemoryTask = new DelayedAsyncTask(
+			this.catalogName, "Traffic recorder - memory buffer cleanup", scheduler,
+			this::freeMemory, flushIntervalInSeconds, TimeUnit.SECONDS, minimalSchedulingGapInSeconds
+		);
+
+		this.copyBufferPool = new Pool<>(true, true) {
+			@Override
+			protected byte[] create() {
+				return new byte[storageOptions.outputBufferSize()];
+			}
+		};
+	}
+
 	/**
 	 * Reads a traffic record from a specified file position.
 	 *
-	 * @param filePosition the position within the file to read the traffic record from
+	 * @param sessionSequenceOrder the session sequence order of the recording
+	 * @param filePosition         the position within the file to read the traffic record from
 	 * @return a {@code StorageRecord} containing the traffic recording
 	 */
 	@Nonnull
-	private StorageRecord<TrafficRecording> readTrafficRecord(long filePosition) {
+	private StorageRecord<TrafficRecording> readTrafficRecord(long sessionSequenceOrder, long filePosition) {
 		final ObservableInput<RandomAccessFileInputStream> input = new ObservableInput<>(
 			new RandomAccessFileInputStream(this.diskBuffer.getDiskBufferFile()),
 			this.copyBufferPool.obtain()
 		);
 		input.resetToPosition(filePosition);
 		return StorageRecord.read(
-			this.offHeapTrafficRecorderKryoPool.obtain(),
 			input,
-			fl -> TrafficRecording.class
+			(theInput, recordLength) -> {
+				final Kryo kryoInstance = this.offHeapTrafficRecorderKryoPool.obtain();
+				return SessionSequenceOrderContext.fetch(
+					sessionSequenceOrder,
+					() -> (TrafficRecording) kryoInstance.readClassAndObject(input)
+				);
+			}
 		);
 	}
 
@@ -489,11 +531,14 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 			try {
 				final T container = containerFactory.apply(sessionTraffic);
 				final StorageRecord<T> storageRecord = new StorageRecord<>(
-					this.offHeapTrafficRecorderKryoPool.obtain(),
 					sessionTraffic.getObservableOutput(),
 					0L,
 					false,
-					container
+					output -> {
+						final Kryo kryoInstance = this.offHeapTrafficRecorderKryoPool.obtain();
+						kryoInstance.writeClassAndObject(output, container);
+						return container;
+					}
 				);
 				Assert.isPremiseValid(storageRecord.fileLocation() != null, "Location must not be null.");
 				sessionTraffic.registerRecording(container);
@@ -544,49 +589,49 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 	 * @return Always returns -1 as a placeholder for future implementations or changes.
 	 */
 	private long freeMemory() {
-		try {
-			this.diskBuffer.startWriting();
-			final ByteBuffer memoryByteBuffer = this.memoryBlock.get();
-			do {
-				final SessionTraffic finalizedSession = this.finalizedSessions.poll();
-				if (finalizedSession != null) {
-					int totalSize = 0;
-					final OfInt memoryBlockIds = finalizedSession.getMemoryBlockIds();
-					while (memoryBlockIds.hasNext()) {
-						memoryBlockIds.nextInt();
-						totalSize += memoryBlockIds.hasNext() ?
-							this.blockSizeBytes : finalizedSession.getCurrentByteBufferPosition();
-					}
+		this.diskBuffer.updateIndexTransactionally(
+			() -> {
+				final ByteBuffer memoryByteBuffer = this.memoryBlock.get();
+				do {
+					//noinspection resource
+					final SessionTraffic finalizedSession = this.finalizedSessions.poll();
+					if (finalizedSession != null) {
+						int totalSize = 0;
+						final OfInt memoryBlockIds = finalizedSession.getMemoryBlockIds();
+						while (memoryBlockIds.hasNext()) {
+							memoryBlockIds.nextInt();
+							totalSize += memoryBlockIds.hasNext() ?
+								this.blockSizeBytes : finalizedSession.getCurrentByteBufferPosition();
+						}
 
-					final SessionLocation sessionLocation = this.diskBuffer.appendSession(totalSize);
-					final OfInt memoryBlockIdsToFree = finalizedSession.getMemoryBlockIds();
-					while (memoryBlockIdsToFree.hasNext()) {
-						final int freeBlock = memoryBlockIdsToFree.nextInt();
-						this.diskBuffer.append(
+						final SessionLocation sessionLocation = this.diskBuffer.appendSession(totalSize);
+						final OfInt memoryBlockIdsToFree = finalizedSession.getMemoryBlockIds();
+						while (memoryBlockIdsToFree.hasNext()) {
+							final int freeBlock = memoryBlockIdsToFree.nextInt();
+							final int blockStart = freeBlock * this.blockSizeBytes;
+							// the last block may not be fully occupied
+							final int blockLength = memoryBlockIdsToFree.hasNext() ?
+								this.blockSizeBytes : finalizedSession.getCurrentByteBufferPosition();
+							this.diskBuffer.append(
+								sessionLocation,
+								memoryByteBuffer.slice(blockStart, blockLength)
+							);
+							this.freeBlocks.offer(freeBlock);
+						}
+						this.diskBuffer.sessionWritten(
 							sessionLocation,
-							memoryByteBuffer.slice(
-								freeBlock * this.blockSizeBytes,
-								// the last block may not be fully occupied
-								memoryBlockIdsToFree.hasNext() ?
-									this.blockSizeBytes : finalizedSession.getCurrentByteBufferPosition()
-							)
+							finalizedSession.getSessionId(),
+							finalizedSession.getCreated(),
+							finalizedSession.getDurationInMillis(),
+							finalizedSession.getRecordingTypes(),
+							finalizedSession.getFetchCount(),
+							finalizedSession.getBytesFetchedTotal()
 						);
-						this.freeBlocks.offer(freeBlock);
+						System.out.println("Session written: " + sessionLocation);
 					}
-					this.diskBuffer.sessionWritten(
-						sessionLocation,
-						finalizedSession.getSessionId(),
-						finalizedSession.getCreated(),
-						finalizedSession.getDurationInMillis(),
-						finalizedSession.getRecordingTypes(),
-						finalizedSession.getFetchCount(),
-						finalizedSession.getBytesFetchedTotal()
-					);
-				}
-			} while (!this.finalizedSessions.isEmpty());
-		} finally {
-			this.diskBuffer.finishWriting();
-		}
+				} while (!this.finalizedSessions.isEmpty());
+			}
+		);
 
 		// publish statistic information
 		new TrafficRecorderStatisticsEvent(

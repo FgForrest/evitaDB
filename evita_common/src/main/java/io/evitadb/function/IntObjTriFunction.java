@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -40,7 +40,7 @@ import java.util.function.Function;
  * @apiNote inspired by the JDK interface
  */
 @FunctionalInterface
-public interface IntTriFunction<S, U, R> {
+public interface IntObjTriFunction<S, U, R> {
 
 	/**
 	 * Applies this function to the given arguments.

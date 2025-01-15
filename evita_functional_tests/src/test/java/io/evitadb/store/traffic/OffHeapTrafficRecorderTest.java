@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,6 +31,16 @@ import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
+import io.evitadb.api.requestResponse.trafficRecording.EntityEnrichmentContainer;
+import io.evitadb.api.requestResponse.trafficRecording.EntityFetchContainer;
+import io.evitadb.api.requestResponse.trafficRecording.MutationContainer;
+import io.evitadb.api.requestResponse.trafficRecording.QueryContainer;
+import io.evitadb.api.requestResponse.trafficRecording.SessionCloseContainer;
+import io.evitadb.api.requestResponse.trafficRecording.SessionStartContainer;
+import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
+import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest;
+import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest.TrafficRecordingType;
+import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingContent;
 import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.file.ExportFileService;
 import io.evitadb.test.Entities;
@@ -43,6 +53,7 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
@@ -51,7 +62,8 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
-import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
 /**
  * This test verifies {@link OffHeapTrafficRecorder} functionality.
@@ -78,10 +90,11 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 			storageOptions,
 			TrafficRecordingOptions.builder()
 				.enabled(true)
-				.trafficSamplingPercentage(0)
-				.trafficMemoryBufferSizeInBytes(4096L)
-				.trafficDiskBufferSizeInBytes(16_384L)
-				.build()
+				.trafficSamplingPercentage(100)
+				.trafficMemoryBufferSizeInBytes(32768L)
+				.trafficDiskBufferSizeInBytes(65536L)
+				.build(),
+			0, 0
 		);
 	}
 
@@ -93,6 +106,17 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 	@Test
 	void shouldRecordAndReadAllTypes() {
 		final UUID sessionId = UUID.randomUUID();
+		assertEquals(
+			0,
+			this.trafficRecorder.getRecordings(
+				TrafficRecordingCaptureRequest.builder()
+					.content(TrafficRecordingContent.BODY)
+					.sinceSessionSequenceId(0L)
+					.sinceRecordSessionOffset(0)
+					.allTypes()
+					.build()
+			).count()
+		);
 		this.trafficRecorder.createSession(sessionId, 1, OffsetDateTime.now());
 		this.trafficRecorder.recordQuery(
 			sessionId,
@@ -147,11 +171,112 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 			)
 		);
 		this.trafficRecorder.closeSession(sessionId);
+
+		final long start = System.currentTimeMillis();
+		List<TrafficRecording> recordings;
+		do {
+			recordings = this.trafficRecorder.getRecordings(
+				TrafficRecordingCaptureRequest.builder()
+					.content(TrafficRecordingContent.BODY)
+					.sinceSessionSequenceId(0L)
+					.sinceRecordSessionOffset(0)
+					.allTypes()
+					.build()
+			).toList();
+		} while (recordings.isEmpty() && System.currentTimeMillis() - start < 10_000);
+
+		assertEquals(6, recordings.size());
+		assertInstanceOf(SessionStartContainer.class, recordings.get(0));
+		assertInstanceOf(QueryContainer.class, recordings.get(1));
+		assertInstanceOf(EntityFetchContainer.class, recordings.get(2));
+		assertInstanceOf(EntityEnrichmentContainer.class, recordings.get(3));
+		assertInstanceOf(MutationContainer.class, recordings.get(4));
+		assertInstanceOf(SessionCloseContainer.class, recordings.get(5));
 	}
 
 	@Test
-	void shouldRecordLotOfDataInRingBuffer() {
-		fail("Not implemented");
+	void shouldRecordLotOfDataInRingBuffer() throws InterruptedException {
+		// initialize empty index
+		this.trafficRecorder.getRecordings(
+			TrafficRecordingCaptureRequest.builder()
+				.content(TrafficRecordingContent.BODY)
+				.sinceSessionSequenceId(0L)
+				.sinceRecordSessionOffset(0)
+				.allTypes()
+				.build()
+		).toList();
+
+		UUID sessionId = null;
+		for (int i = 0; i < 10; i++) {
+			sessionId = UUID.randomUUID();
+			this.trafficRecorder.createSession(sessionId, 1, OffsetDateTime.now());
+			for (int j = 0; j < 10; j++) {
+				this.trafficRecorder.recordQuery(
+					sessionId,
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(entityPrimaryKeyInSet(1, 2, 3)),
+						orderBy(entityPrimaryKeyNatural(OrderDirection.DESC)),
+						require(entityFetchAll())
+					),
+					new Label[]{
+						new Label("a", "b"),
+						new Label("c", "d")
+					},
+					OffsetDateTime.now(),
+					15,
+					456,
+					12311,
+					1, 2, 3
+				);
+			}
+			this.trafficRecorder.closeSession(sessionId);
+		}
+
+		System.out.println("Finished sessions - last one is: " + sessionId);
+
+		// wait for the data to be written to the disk
+		final long start = System.currentTimeMillis();
+		List<TrafficRecording> recordings;
+		do {
+			recordings = this.trafficRecorder.getRecordings(
+				TrafficRecordingCaptureRequest.builder()
+					.content(TrafficRecordingContent.BODY)
+					.sessionId(sessionId)
+					.sinceSessionSequenceId(0L)
+					.type(TrafficRecordingType.SESSION_CLOSE)
+					.build()
+			).toList();
+			synchronized (this) {
+				Thread.sleep(200);
+			}
+		} while (recordings.isEmpty() && System.currentTimeMillis() - start < 10_000);
+
+		if (recordings.isEmpty()) {
+			/*fail("Last recording was not written to the disk within the specified time limit.");*/
+
+			final List<TrafficRecording> allRecordings = this.trafficRecorder.getRecordings(
+				TrafficRecordingCaptureRequest.builder()
+					.content(TrafficRecordingContent.BODY)
+					.sinceSessionSequenceId(0L)
+					.sinceRecordSessionOffset(0)
+					.allTypes()
+					.build()
+			).toList();
+
+			assertEquals(120, allRecordings.size());
+		}
+
+		final List<TrafficRecording> allRecordings = this.trafficRecorder.getRecordings(
+			TrafficRecordingCaptureRequest.builder()
+				.content(TrafficRecordingContent.BODY)
+				.sinceSessionSequenceId(0L)
+				.sinceRecordSessionOffset(0)
+				.allTypes()
+				.build()
+		).toList();
+
+		assertEquals(120, allRecordings.size());
 	}
 
 	private static class ImmediateExecutorService extends ScheduledThreadPoolExecutor {

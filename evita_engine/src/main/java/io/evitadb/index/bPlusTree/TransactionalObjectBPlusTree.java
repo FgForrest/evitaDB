@@ -1265,7 +1265,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 				final int originPeek = this.peek;
 				this.peek = peek;
 				if (peek < originPeek) {
-					Arrays.fill(this.keys, Math.max(0, peek), originPeek, 0);
+					Arrays.fill(this.keys, Math.max(0, peek), originPeek, null);
 					Arrays.fill(this.children, peek + 1, originPeek + 1, null);
 				}
 			} else {
@@ -1281,7 +1281,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 						layer.keys = (M[]) Array.newInstance(this.keys.getClass().getComponentType(), this.keys.length);
 						System.arraycopy(this.keys, 0, layer.keys, 0, originPeek);
 					} else {
-						Arrays.fill(layer.keys, Math.max(0, peek), originPeek, 0);
+						Arrays.fill(layer.keys, Math.max(0, peek), originPeek, null);
 					}
 					//noinspection ArrayEquality
 					if (layer.children == this.children) {
@@ -1870,7 +1870,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 			System.arraycopy(originKeys, start, keys, 0, end - start);
 			//noinspection ArrayEquality
 			if (keys == originKeys) {
-				Arrays.fill(keys, end - start, keys.length, 0);
+				Arrays.fill(keys, end - start, keys.length, null);
 			}
 			System.arraycopy(originValues, start, values, 0, end - start);
 			//noinspection ArrayEquality
@@ -1920,7 +1920,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 				final int originPeek = this.peek;
 				this.peek = peek;
 				if (peek < originPeek) {
-					Arrays.fill(this.keys, peek + 1, originPeek + 1, 0);
+					Arrays.fill(this.keys, peek + 1, originPeek + 1, null);
 					Arrays.fill(this.values, peek + 1, originPeek + 1, null);
 				}
 			} else {
@@ -1936,7 +1936,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 						layer.keys = (M[]) Array.newInstance(this.keys.getClass().getComponentType(), this.keys.length);
 						System.arraycopy(this.keys, 0, layer.keys, 0, originPeek + 1);
 					} else {
-						Arrays.fill(layer.keys, peek + 1, originPeek + 1, 0);
+						Arrays.fill(layer.keys, peek + 1, originPeek + 1, null);
 					}
 					//noinspection ArrayEquality
 					if (layer.values == this.values) {

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,12 +28,14 @@ import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest.TrafficRecordingType;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
 /**
  * This container holds a mutation and its metadata.
  *
+ * @param sessionSequenceOrder   the session sequence order of the mutation (similar to session id but monotonic)
  * @param sessionId              the session id which the mutation belongs to
  * @param recordSessionOffset    the order (sequence) of the record in the session
  * @param created                the time when the mutation was created
@@ -42,12 +44,30 @@ import java.util.UUID;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public record MutationContainer(
+	@Nullable Long sessionSequenceOrder,
 	@Nonnull UUID sessionId,
 	int recordSessionOffset,
 	@Nonnull OffsetDateTime created,
 	int durationInMilliseconds,
 	@Nonnull Mutation mutation
 ) implements TrafficRecording {
+
+	public MutationContainer(
+		@Nonnull UUID sessionId,
+		int recordSessionOffset,
+		@Nonnull OffsetDateTime created,
+		int durationInMilliseconds,
+		@Nonnull Mutation mutation
+	) {
+		this(
+			null,
+			sessionId,
+			recordSessionOffset,
+			created,
+			durationInMilliseconds,
+			mutation
+		);
+	}
 
 	@Nonnull
 	@Override

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ package io.evitadb.api.requestResponse.trafficRecording;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest.TrafficRecordingType;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -36,6 +37,16 @@ import java.util.UUID;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public interface TrafficRecording {
+
+	/**
+	 * The session sequence order of the recording. The sequence order is a unique, monotonically increasing identifier
+	 * of the session in the session stream. All recordings within the session have the same session sequence order as
+	 * well as {@link #sessionId()}. The sequence order might not be present for recordings that hasn't been collected
+	 * in the session stream yet.
+	 * @return the session sequence order
+	 */
+	@Nullable
+	Long sessionSequenceOrder();
 
 	/**
 	 * The session id which the recording belongs to.

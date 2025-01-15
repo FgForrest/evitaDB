@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -98,6 +98,192 @@ public record TrafficRecordingCaptureRequest(
 		 * Internal call to mutate the evitaDB entity or catalog schema.
 		 */
 		MUTATION
+	}
+
+	/**
+	 * Builder for the storage options. Recommended to use to avoid binary compatibility problems in the future.
+	 */
+	@Nonnull
+	public static TrafficRecordingCaptureRequest.Builder builder() {
+		return new TrafficRecordingCaptureRequest.Builder();
+	}
+
+	/**
+	 * Builder for the storage options. Recommended to use to avoid binary compatibility problems in the future.
+	 */
+	@Nonnull
+	public static TrafficRecordingCaptureRequest.Builder builder(@Nonnull TrafficRecordingCaptureRequest request) {
+		return new TrafficRecordingCaptureRequest.Builder(request);
+	}
+
+	/**
+	 * Builder for {@link TrafficRecordingCaptureRequest}. Recommended to use to avoid binary compatibility problems in the future.
+	 */
+	public static class Builder {
+		@Nonnull
+		private TrafficRecordingContent content = TrafficRecordingContent.HEADER;
+		@Nullable
+		private OffsetDateTime since;
+		@Nullable
+		private Long sinceSessionSequenceId;
+		@Nullable
+		private Integer sinceRecordSessionOffset;
+		@Nullable
+		private TrafficRecordingCaptureRequest.TrafficRecordingType[] type;
+		@Nullable
+		private UUID sessionId;
+		@Nullable
+		private Duration longerThan;
+		@Nullable
+		private Integer fetchingMoreBytesThan;
+
+		/**
+		 * Default constructor for the builder.
+		 */
+		public Builder() {
+		}
+
+		/**
+		 * Constructor for initializing the builder with an existing {@link TrafficRecordingCaptureRequest} instance.
+		 *
+		 * @param request the existing {@link TrafficRecordingCaptureRequest} instance.
+		 */
+		public Builder(@Nonnull TrafficRecordingCaptureRequest request) {
+			this.content = request.content();
+			this.since = request.since();
+			this.sinceSessionSequenceId = request.sinceSessionSequenceId();
+			this.sinceRecordSessionOffset = request.sinceRecordSessionOffset();
+			this.type = request.type();
+			this.sessionId = request.sessionId();
+			this.longerThan = request.longerThan();
+			this.fetchingMoreBytesThan = request.fetchingMoreBytesThan();
+		}
+
+		/**
+		 * Sets the {@link TrafficRecordingContent} for the request.
+		 *
+		 * @param content the traffic recording content.
+		 * @return this builder.
+		 */
+		@Nonnull
+		public Builder content(@Nonnull TrafficRecordingContent content) {
+			this.content = content;
+			return this;
+		}
+
+		/**
+		 * Sets the starting time from which the traffic recording should be returned.
+		 *
+		 * @param since the starting {@link OffsetDateTime}.
+		 * @return this builder.
+		 */
+		@Nonnull
+		public Builder since(@Nullable OffsetDateTime since) {
+			this.since = since;
+			return this;
+		}
+
+		/**
+		 * Sets the session sequence ID from which the traffic recording should be returned.
+		 *
+		 * @param sinceSessionSequenceId the session sequence ID.
+		 * @return this builder.
+		 */
+		@Nonnull
+		public Builder sinceSessionSequenceId(@Nullable Long sinceSessionSequenceId) {
+			this.sinceSessionSequenceId = sinceSessionSequenceId;
+			return this;
+		}
+
+		/**
+		 * Sets the record session offset relative to the session sequence ID.
+		 *
+		 * @param sinceRecordSessionOffset the record session offset.
+		 * @return this builder.
+		 */
+		@Nonnull
+		public Builder sinceRecordSessionOffset(@Nullable Integer sinceRecordSessionOffset) {
+			this.sinceRecordSessionOffset = sinceRecordSessionOffset;
+			return this;
+		}
+
+		/**
+		 * Sets the types of traffic recording to be returned.
+		 *
+		 * @param type the array of {@link TrafficRecordingCaptureRequest.TrafficRecordingType}.
+		 * @return this builder.
+		 */
+		@Nonnull
+		public Builder type(@Nonnull TrafficRecordingCaptureRequest.TrafficRecordingType... type) {
+			this.type = type;
+			return this;
+		}
+
+		/**
+		 * Sets all the types of traffic recording to be returned.
+		 *
+		 * @return this builder.
+		 */
+		@Nonnull
+		public Builder allTypes() {
+			this.type = null;
+			return this;
+		}
+
+		/**
+		 * Sets the session ID from which the traffic recording should be returned.
+		 *
+		 * @param sessionId the session ID.
+		 * @return this builder.
+		 */
+		@Nonnull
+		public Builder sessionId(@Nullable UUID sessionId) {
+			this.sessionId = sessionId;
+			return this;
+		}
+
+		/**
+		 * Sets the minimum duration of the traffic recording to be returned.
+		 *
+		 * @param longerThan the minimum duration.
+		 * @return this builder.
+		 */
+		@Nonnull
+		public Builder longerThan(@Nullable Duration longerThan) {
+			this.longerThan = longerThan;
+			return this;
+		}
+
+		/**
+		 * Sets the minimum number of bytes that the traffic recording should contain.
+		 *
+		 * @param fetchingMoreBytesThan the minimum byte count.
+		 * @return this builder.
+		 */
+		@Nonnull
+		public Builder fetchingMoreBytesThan(@Nullable Integer fetchingMoreBytesThan) {
+			this.fetchingMoreBytesThan = fetchingMoreBytesThan;
+			return this;
+		}
+
+		/**
+		 * Builds the {@link TrafficRecordingCaptureRequest} instance.
+		 *
+		 * @return a new {@link TrafficRecordingCaptureRequest} instance.
+		 */
+		@Nonnull
+		public TrafficRecordingCaptureRequest build() {
+			return new TrafficRecordingCaptureRequest(
+				this.content,
+				this.since,
+				this.sinceSessionSequenceId,
+				this.sinceRecordSessionOffset,
+				this.type,
+				this.sessionId,
+				this.longerThan,
+				this.fetchingMoreBytesThan
+			);
+		}
 	}
 
 }
