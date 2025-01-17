@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,8 +23,8 @@
 
 package io.evitadb.store.traffic.serializer;
 
+import io.evitadb.api.requestResponse.trafficRecording.Label;
 import io.evitadb.api.requestResponse.trafficRecording.QueryContainer;
-import io.evitadb.api.requestResponse.trafficRecording.QueryContainer.Label;
 import org.junit.jupiter.api.Test;
 
 import java.time.OffsetDateTime;

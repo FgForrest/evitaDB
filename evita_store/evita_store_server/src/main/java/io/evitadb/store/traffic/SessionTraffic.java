@@ -24,9 +24,9 @@
 package io.evitadb.store.traffic;
 
 import io.evitadb.api.requestResponse.trafficRecording.EntityFetchContainer;
+import io.evitadb.api.requestResponse.trafficRecording.Label;
 import io.evitadb.api.requestResponse.trafficRecording.MutationContainer;
 import io.evitadb.api.requestResponse.trafficRecording.QueryContainer;
-import io.evitadb.api.requestResponse.trafficRecording.QueryContainer.Label;
 import io.evitadb.api.requestResponse.trafficRecording.SourceQueryStatisticsContainer;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest.TrafficRecordingType;

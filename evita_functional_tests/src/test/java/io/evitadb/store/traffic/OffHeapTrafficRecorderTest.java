@@ -46,6 +46,9 @@ import io.evitadb.core.file.ExportFileService;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.FileUtils;
+import lombok.EqualsAndHashCode;
+import lombok.RequiredArgsConstructor;
+import lombok.experimental.Delegate;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -54,16 +57,21 @@ import javax.annotation.Nonnull;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Delayed;
 import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
@@ -196,9 +204,26 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 	}
 
 	@Test
-	void shouldRecordLotOfDataInRingBuffer() throws InterruptedException {
+	void shouldRecordLotOfDataInRingBufferWithWarmedUpIndex() {
 		// initialize empty index
-		this.trafficRecorder.getRecordings(
+		assertEquals(
+			0L,
+			this.trafficRecorder.getRecordings(
+				TrafficRecordingCaptureRequest.builder()
+					.content(TrafficRecordingContent.BODY)
+					.sinceSessionSequenceId(0L)
+					.sinceRecordSessionOffset(0)
+					.allTypes()
+					.build()
+			).count()
+		);
+
+		final UUID sessionId = writeBunchOfData(10, 10);
+
+		// wait for the data to be written to the disk
+		waitUntilDataBecomeAvailable(sessionId, 10_000);
+
+		final List<TrafficRecording> allRecordings = this.trafficRecorder.getRecordings(
 			TrafficRecordingCaptureRequest.builder()
 				.content(TrafficRecordingContent.BODY)
 				.sinceSessionSequenceId(0L)
@@ -207,11 +232,78 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 				.build()
 		).toList();
 
+		assertEquals(120, allRecordings.size());
+	}
+
+	@Test
+	void shouldRecordLotOfDataInRingBufferWithColdIndex() {
+		final UUID sessionId = writeBunchOfData(10, 10);
+
+		// wait for the data to be written to the disk
+		waitUntilDataBecomeAvailable(sessionId, 10_000);
+
+		final List<TrafficRecording> allRecordings = this.trafficRecorder.getRecordings(
+			TrafficRecordingCaptureRequest.builder()
+				.content(TrafficRecordingContent.BODY)
+				.sinceSessionSequenceId(0L)
+				.sinceRecordSessionOffset(0)
+				.allTypes()
+				.build()
+		).toList();
+
+		assertEquals(120, allRecordings.size());
+	}
+
+	@Test
+	void shouldRecordMoreDataThanBufferSizeForcingWrapAround() {
+		final UUID sessionId = writeBunchOfData(10, 100);
+
+		// wait for the data to be written to the disk
+		waitUntilDataBecomeAvailable(sessionId, 1000_000);
+
+		final List<TrafficRecording> allRecordings = this.trafficRecorder.getRecordings(
+			TrafficRecordingCaptureRequest.builder()
+				.content(TrafficRecordingContent.BODY)
+				.sinceSessionSequenceId(0L)
+				.sinceRecordSessionOffset(0)
+				.allTypes()
+				.build()
+		).toList();
+
+		assertTrue(allRecordings.size() > 120);
+	}
+
+	@Test
+	void shouldRecordDataInParallelAndQueryOnThem() {
+
+	}
+
+	private void waitUntilDataBecomeAvailable(UUID sessionId, int waitMilliseconds) {
+		final long start = System.currentTimeMillis();
+		List<TrafficRecording> recordings;
+		do {
+			recordings = this.trafficRecorder.getRecordings(
+				TrafficRecordingCaptureRequest.builder()
+					.content(TrafficRecordingContent.BODY)
+					.sessionId(sessionId)
+					.sinceSessionSequenceId(0L)
+					.type(TrafficRecordingType.SESSION_CLOSE)
+					.build()
+			).toList();
+		} while (recordings.isEmpty() && System.currentTimeMillis() - start < waitMilliseconds);
+
+		if (recordings.isEmpty()) {
+			fail("Last recording was not written to the disk within the specified time limit.");
+		}
+	}
+
+	@Nonnull
+	private UUID writeBunchOfData(int sessionCount, int queryCountInSession) {
 		UUID sessionId = null;
-		for (int i = 0; i < 10; i++) {
+		for (int i = 0; i < sessionCount; i++) {
 			sessionId = UUID.randomUUID();
 			this.trafficRecorder.createSession(sessionId, 1, OffsetDateTime.now());
-			for (int j = 0; j < 10; j++) {
+			for (int j = 0; j < queryCountInSession; j++) {
 				this.trafficRecorder.recordQuery(
 					sessionId,
 					query(
@@ -232,36 +324,9 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 				);
 			}
 			this.trafficRecorder.closeSession(sessionId);
+			System.out.println("Session #" + (i + 1) + " " + sessionId + " closed.");
 		}
-
-		// wait for the data to be written to the disk
-		final long start = System.currentTimeMillis();
-		List<TrafficRecording> recordings;
-		do {
-			recordings = this.trafficRecorder.getRecordings(
-				TrafficRecordingCaptureRequest.builder()
-					.content(TrafficRecordingContent.BODY)
-					.sessionId(sessionId)
-					.sinceSessionSequenceId(0L)
-					.type(TrafficRecordingType.SESSION_CLOSE)
-					.build()
-			).toList();
-		} while (recordings.isEmpty() && System.currentTimeMillis() - start < 10_000);
-
-		if (recordings.isEmpty()) {
-			fail("Last recording was not written to the disk within the specified time limit.");
-		}
-
-		final List<TrafficRecording> allRecordings = this.trafficRecorder.getRecordings(
-			TrafficRecordingCaptureRequest.builder()
-				.content(TrafficRecordingContent.BODY)
-				.sinceSessionSequenceId(0L)
-				.sinceRecordSessionOffset(0)
-				.allTypes()
-				.build()
-		).toList();
-
-		assertEquals(120, allRecordings.size());
+		return Objects.requireNonNull(sessionId);
 	}
 
 	private static class ImmediateExecutorService extends ScheduledThreadPoolExecutor {
@@ -301,5 +366,48 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 			}
 		}
 
+		@Nonnull
+		@Override
+		public ScheduledFuture<?> schedule(@Nonnull Runnable command, long delay, @Nonnull TimeUnit unit) {
+			if (delay > 0) {
+				return super.schedule(command, delay, unit);
+			} else {
+				command.run();
+				return new TestScheduledFuture<>(CompletableFuture.completedFuture(null));
+			}
+		}
+
+		@Nonnull
+		@Override
+		public <V> ScheduledFuture<V> schedule(@Nonnull Callable<V> callable, long delay, @Nonnull TimeUnit unit) {
+			if (delay > 0) {
+				return super.schedule(callable, delay, unit);
+			} else {
+				try {
+					final V result = callable.call();
+					return new TestScheduledFuture<>(CompletableFuture.completedFuture(result));
+				} catch (Exception e) {
+					throw new RuntimeException(e);
+				}
+			}
+		}
+
+		@RequiredArgsConstructor
+		@EqualsAndHashCode
+		private static class TestScheduledFuture<T> implements ScheduledFuture<T> {
+			@Delegate
+			private final CompletableFuture<T> future;
+
+			@Override
+			public long getDelay(@Nonnull TimeUnit delay) {
+				return Long.MIN_VALUE;
+			}
+
+			@Override
+			public int compareTo(@Nonnull Delayed o) {
+				throw new UnsupportedOperationException();
+			}
+
+		}
 	}
 }

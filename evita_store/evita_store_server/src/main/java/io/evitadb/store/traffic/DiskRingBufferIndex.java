@@ -24,6 +24,7 @@
 package io.evitadb.store.traffic;
 
 
+import io.evitadb.api.requestResponse.trafficRecording.Label;
 import io.evitadb.api.requestResponse.trafficRecording.SessionStartContainer;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest;
@@ -44,7 +45,6 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.*;
-import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.stream.Stream;
@@ -61,8 +61,7 @@ import static java.util.Optional.ofNullable;
  */
 public class DiskRingBufferIndex implements
 	TransactionalLayerProducer<Void, DiskRingBufferIndex>,
-	Serializable
-{
+	Serializable {
 	@Serial private static final long serialVersionUID = 1416655137041708718L;
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 
@@ -77,7 +76,8 @@ public class DiskRingBufferIndex implements
 	private final TransactionalObjectBPlusTree<Integer, Long> sessionDurationIndex;
 	private final TransactionalObjectBPlusTree<Integer, Long> sessionFetchCountIndex;
 	private final TransactionalObjectBPlusTree<Integer, Long> sessionBytesFetchedIndex;
-	private final TransactionalMap<TrafficRecordingType, ConcurrentSkipListSet<Long>> sessionRecordingTypeIndex;
+	private final TransactionalObjectBPlusTree<Label, TransactionalObjectBPlusTree<Long, Long>> labelIndex;
+	private final TransactionalMap<TrafficRecordingType, TransactionalObjectBPlusTree<Long, Long>> sessionRecordingTypeIndex;
 	private final AtomicLong sessionBeingIndexed;
 	private final Deque<Long> sessionsToRemove;
 
@@ -85,11 +85,12 @@ public class DiskRingBufferIndex implements
 		this.sessionLocationIndex = new TransactionalMap<>(CollectionUtils.createHashMap(1_024));
 		this.sessionIdIndex = new TransactionalMap<>(CollectionUtils.createHashMap(1_024));
 		this.sessionUuidIndex = new TransactionalMap<>(CollectionUtils.createHashMap(1_024));
-		this.sessionSequenceOrderIndex = new TransactionalObjectBPlusTree<>(64, 31, 31, 15, Long.class, Long.class);
-		this.sessionCreationIndex = new TransactionalObjectBPlusTree<>(64, 31, 31, 15, OffsetDateTime.class, Long.class);
-		this.sessionDurationIndex = new TransactionalObjectBPlusTree<>(64, 31, 31, 15, Integer.class, Long.class);
-		this.sessionFetchCountIndex = new TransactionalObjectBPlusTree<>(64, 31, 31, 15, Integer.class, Long.class);
-		this.sessionBytesFetchedIndex = new TransactionalObjectBPlusTree<>(64, 31, 31, 15, Integer.class, Long.class);
+		this.sessionSequenceOrderIndex = new TransactionalObjectBPlusTree<>(Long.class, Long.class);
+		this.sessionCreationIndex = new TransactionalObjectBPlusTree<>(OffsetDateTime.class, Long.class);
+		this.sessionDurationIndex = new TransactionalObjectBPlusTree<>(Integer.class, Long.class);
+		this.sessionFetchCountIndex = new TransactionalObjectBPlusTree<>(Integer.class, Long.class);
+		this.sessionBytesFetchedIndex = new TransactionalObjectBPlusTree<>(Integer.class, Long.class);
+		this.labelIndex = new TransactionalObjectBPlusTree<>(Label.class, TransactionalObjectBPlusTree.genericClass());
 		this.sessionRecordingTypeIndex = new TransactionalMap<>(CollectionUtils.createHashMap(TrafficRecordingType.values().length));
 		this.sessionBeingIndexed = new AtomicLong(-1L);
 		this.sessionsToRemove = new LinkedList<>();
@@ -104,7 +105,9 @@ public class DiskRingBufferIndex implements
 		@Nonnull TransactionalObjectBPlusTree<Integer, Long> sessionDurationIndex,
 		@Nonnull TransactionalObjectBPlusTree<Integer, Long> sessionFetchCountIndex,
 		@Nonnull TransactionalObjectBPlusTree<Integer, Long> sessionBytesFetchedIndex,
-		@Nonnull Map<TrafficRecordingType, ConcurrentSkipListSet<Long>> sessionRecordingTypeIndex,
+		/* TODO JNO - otestovat transactional objekty uvnitř, stromů */
+		@Nonnull TransactionalObjectBPlusTree<Label, TransactionalObjectBPlusTree<Long, Long>> labelIndex,
+		@Nonnull Map<TrafficRecordingType, TransactionalObjectBPlusTree<Long, Long>> sessionRecordingTypeIndex,
 		@Nonnull AtomicLong sessionBeingIndexed,
 		@Nonnull Deque<Long> sessionsToRemove
 	) {
@@ -116,6 +119,7 @@ public class DiskRingBufferIndex implements
 		this.sessionDurationIndex = sessionDurationIndex;
 		this.sessionFetchCountIndex = sessionFetchCountIndex;
 		this.sessionBytesFetchedIndex = sessionBytesFetchedIndex;
+		this.labelIndex = labelIndex;
 		this.sessionRecordingTypeIndex = new TransactionalMap<>(sessionRecordingTypeIndex);
 		this.sessionBeingIndexed = sessionBeingIndexed;
 		this.sessionsToRemove = sessionsToRemove;
@@ -178,8 +182,8 @@ public class DiskRingBufferIndex implements
 			for (TrafficRecordingType recordingType : recordingTypes) {
 				this.sessionRecordingTypeIndex.computeIfAbsent(
 					recordingType,
-					__ -> new ConcurrentSkipListSet<>()
-				).add(sessionSequenceOrder);
+					__ -> new TransactionalObjectBPlusTree<>(Long.class, Long.class)
+				).insert(sessionSequenceOrder, sessionSequenceOrder);
 			}
 		}
 	}
@@ -245,37 +249,6 @@ public class DiskRingBufferIndex implements
 	}
 
 	/**
-	 * Updates various session-related indexes based on the given traffic recording and
-	 * session descriptor. This method ensures that session statistics such as duration,
-	 * fetch count, bytes fetched, and recording types are properly reflected in the
-	 * respective internal indexes.
-	 *
-	 * @param trafficRecording the traffic recording containing session-specific data to be indexed, must not be null
-	 * @param sessionDescriptor the descriptor of the session being indexed, must not be null
-	 */
-	private void indexRecording(
-		@Nonnull TrafficRecording trafficRecording,
-		@Nonnull SessionDescriptor sessionDescriptor
-	) {
-		sessionDescriptor.update(
-			trafficRecording,
-				(sso, previousValue, newValue) -> {
-					this.sessionDurationIndex.delete(previousValue);
-					this.sessionDurationIndex.insert(newValue, sso);
-				},
-				(sso, previousValue, newValue) -> {
-					this.sessionFetchCountIndex.delete(previousValue);
-					this.sessionFetchCountIndex.insert(newValue, sso);
-				},
-				(sso, previousValue, newValue) -> {
-					this.sessionBytesFetchedIndex.delete(previousValue);
-					this.sessionBytesFetchedIndex.insert(newValue, sso);
-				},
-				(sso, newValue) -> this.sessionRecordingTypeIndex.computeIfAbsent(newValue, trt -> new ConcurrentSkipListSet<>()).add(sso)
-			);
-	}
-
-	/**
 	 * Retrieves a stream of session locations filtered by the criteria specified in the given
 	 * TrafficRecordingCaptureRequest. The stream provides access to session data that can be
 	 * processed lazily.
@@ -298,7 +271,7 @@ public class DiskRingBufferIndex implements
 					Stream.empty() :
 					Arrays.stream(request.type()).map(this.sessionRecordingTypeIndex::get)
 						.filter(Objects::nonNull)
-						.map(ConcurrentSkipListSet::iterator)
+						.map(TransactionalObjectBPlusTree::valueIterator)
 			)
 			.filter(Objects::nonNull)
 			.toList();
@@ -346,9 +319,46 @@ public class DiskRingBufferIndex implements
 			transactionalLayer.getStateCopyWithCommittedChanges(this.sessionDurationIndex),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.sessionFetchCountIndex),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.sessionBytesFetchedIndex),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.labelIndex),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.sessionRecordingTypeIndex),
 			this.sessionBeingIndexed,
 			this.sessionsToRemove
+		);
+	}
+
+	/**
+	 * Updates various session-related indexes based on the given traffic recording and
+	 * session descriptor. This method ensures that session statistics such as duration,
+	 * fetch count, bytes fetched, and recording types are properly reflected in the
+	 * respective internal indexes.
+	 *
+	 * @param trafficRecording  the traffic recording containing session-specific data to be indexed, must not be null
+	 * @param sessionDescriptor the descriptor of the session being indexed, must not be null
+	 */
+	private void indexRecording(
+		@Nonnull TrafficRecording trafficRecording,
+		@Nonnull SessionDescriptor sessionDescriptor
+	) {
+		sessionDescriptor.update(
+			trafficRecording,
+			(sso, previousValue, newValue) -> {
+				this.sessionDurationIndex.delete(previousValue);
+				this.sessionDurationIndex.insert(newValue, sso);
+			},
+			(sso, previousValue, newValue) -> {
+				this.sessionFetchCountIndex.delete(previousValue);
+				this.sessionFetchCountIndex.insert(newValue, sso);
+			},
+			(sso, previousValue, newValue) -> {
+				this.sessionBytesFetchedIndex.delete(previousValue);
+				this.sessionBytesFetchedIndex.insert(newValue, sso);
+			},
+			(sso, newValue) ->
+				this.sessionRecordingTypeIndex.computeIfAbsent(
+						newValue,
+						trt ->
+							new TransactionalObjectBPlusTree<>(Long.class, Long.class))
+					.insert(sso, sso)
 		);
 	}
 
@@ -383,7 +393,7 @@ public class DiskRingBufferIndex implements
 		this.sessionFetchCountIndex.delete(sessionDescriptor.getMaxFetchCount());
 		this.sessionBytesFetchedIndex.delete(sessionDescriptor.getMaxBytesFetchedTotal());
 		for (TrafficRecordingType recordingType : sessionDescriptor.getRecordingTypes()) {
-			this.sessionRecordingTypeIndex.get(recordingType).remove(sessionSequenceOrder);
+			this.sessionRecordingTypeIndex.get(recordingType).delete(sessionSequenceOrder);
 		}
 	}
 
@@ -426,17 +436,17 @@ public class DiskRingBufferIndex implements
 		 * {@code trafficRecording} and invoking the appropriate callbacks when new maximums or
 		 * new traffic recording types are encountered.
 		 *
-		 * @param trafficRecording the traffic recording containing values to be compared
-		 *                         against the current state
-		 * @param onMaxDuration callback invoked when a new maximum duration is found;
-		 *                      provides the session sequence order, the previous maximum,
-		 *                      and the new maximum duration
-		 * @param onMaxFetchCount callback invoked when a new maximum fetch count is found;
-		 *                        provides the session sequence order, the previous maximum,
-		 *                        and the new maximum fetch count
-		 * @param onMaxFetchBytes callback invoked when a new maximum fetch size in bytes is found;
-		 *                        provides the session sequence order, the previous maximum,
-		 *                        and the new maximum fetch size in bytes
+		 * @param trafficRecording   the traffic recording containing values to be compared
+		 *                           against the current state
+		 * @param onMaxDuration      callback invoked when a new maximum duration is found;
+		 *                           provides the session sequence order, the previous maximum,
+		 *                           and the new maximum duration
+		 * @param onMaxFetchCount    callback invoked when a new maximum fetch count is found;
+		 *                           provides the session sequence order, the previous maximum,
+		 *                           and the new maximum fetch count
+		 * @param onMaxFetchBytes    callback invoked when a new maximum fetch size in bytes is found;
+		 *                           provides the session sequence order, the previous maximum,
+		 *                           and the new maximum fetch size in bytes
 		 * @param onNewRecordingType callback invoked when a new recording type is encountered;
 		 *                           provides the session sequence order and the new recording type
 		 */

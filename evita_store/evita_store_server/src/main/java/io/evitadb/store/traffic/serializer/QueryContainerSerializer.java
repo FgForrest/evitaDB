@@ -29,8 +29,8 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.query.Query;
+import io.evitadb.api.requestResponse.trafficRecording.Label;
 import io.evitadb.api.requestResponse.trafficRecording.QueryContainer;
-import io.evitadb.api.requestResponse.trafficRecording.QueryContainer.Label;
 
 import java.io.Serializable;
 import java.time.OffsetDateTime;
@@ -68,9 +68,9 @@ public class QueryContainerSerializer extends Serializer<QueryContainer> {
 		final int recordSessionOffset = input.readVarInt(true);
 		final Query query = kryo.readObject(input, Query.class);
 		final int labelCount = input.readVarInt(true);
-		final QueryContainer.Label[] labels = labelCount == 0 ? Label.EMPTY_LABELS : new QueryContainer.Label[labelCount];
+		final Label[] labels = labelCount == 0 ? Label.EMPTY_LABELS : new Label[labelCount];
 		for (int i = 0; i < labelCount; i++) {
-			labels[i] = new QueryContainer.Label(
+			labels[i] = new Label(
 				input.readString(),
 				(Serializable) kryo.readClassAndObject(input)
 			);

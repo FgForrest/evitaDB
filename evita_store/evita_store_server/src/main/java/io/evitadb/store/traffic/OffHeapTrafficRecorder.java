@@ -53,6 +53,7 @@ import io.evitadb.store.query.QuerySerializationKryoConfigurer;
 import io.evitadb.store.service.KryoFactory;
 import io.evitadb.store.traffic.event.TrafficRecorderStatisticsEvent;
 import io.evitadb.store.traffic.serializer.SessionSequenceOrderContext;
+import io.evitadb.store.traffic.stream.RingBufferInputStream;
 import io.evitadb.store.wal.WalKryoConfigurer;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
@@ -233,6 +234,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 							created
 						);
 						kryoInstance.writeClassAndObject(output, container);
+						sessionTraffic.registerRecording(container);
 						return container;
 					}
 				);
@@ -279,6 +281,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 							sessionTraffic.getMutationCount()
 						);
 						kryoInstance.writeClassAndObject(output, container);
+						sessionTraffic.registerRecording(container);
 						return container;
 					}
 				);
@@ -317,10 +320,10 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 				sessionTraffic.nextRecordingId(),
 				query,
 				labels.length == 0 ?
-					QueryContainer.Label.EMPTY_LABELS :
+					io.evitadb.api.requestResponse.trafficRecording.Label.EMPTY_LABELS :
 					Arrays.stream(labels)
-						.map(label -> new QueryContainer.Label(label.getLabelName(), label.getLabelValue()))
-						.toArray(QueryContainer.Label[]::new),
+						.map(label -> new io.evitadb.api.requestResponse.trafficRecording.Label(label.getLabelName(), label.getLabelValue()))
+						.toArray(io.evitadb.api.requestResponse.trafficRecording.Label[]::new),
 				now, (int) (System.currentTimeMillis() - now.toInstant().toEpochMilli()),
 				totalRecordCount, ioFetchCount, ioFetchedSizeBytes, primaryKeys
 			)
@@ -502,18 +505,20 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		final byte[] byteBuffer = this.copyBufferPool.obtain();
 		final Kryo kryoInstance = this.offHeapTrafficRecorderKryoPool.obtain();
 		try {
-			final ObservableInput<RandomAccessFileInputStream> input = new ObservableInput<>(
-				targetFileInputStream, byteBuffer
+			final ObservableInput<RingBufferInputStream> input = new ObservableInput<>(
+				new RingBufferInputStream(
+					targetFileInputStream,
+					this.diskBuffer.getDiskBufferFileSize(),
+					filePosition
+				),
+				byteBuffer
 			);
-			input.resetToPosition(filePosition);
 			return StorageRecord.read(
 				input,
-				(theInput, recordLength) -> {
-					return SessionSequenceOrderContext.fetch(
-						sessionSequenceOrder,
-						() -> (TrafficRecording) kryoInstance.readClassAndObject(input)
-					);
-				}
+				(theInput, recordLength) -> SessionSequenceOrderContext.fetch(
+					sessionSequenceOrder,
+					() -> (TrafficRecording) kryoInstance.readClassAndObject(input)
+				)
 			);
 		} finally {
 			this.copyBufferPool.free(byteBuffer);

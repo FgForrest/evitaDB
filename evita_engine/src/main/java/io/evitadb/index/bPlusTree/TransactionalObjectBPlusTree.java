@@ -66,6 +66,10 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 	Serializable,
 	ConsistencySensitiveDataStructure {
 	@Serial private static final long serialVersionUID = -6130739073840635252L;
+	public static final int DEFAULT_VALUE_BLOCK_SIZE = 64;
+	public static final int DEFAULT_MIN_VALUE_BLOCK_SIZE = DEFAULT_VALUE_BLOCK_SIZE / 2 - 1;
+	public static final int DEFAULT_INTERNAL_NODE_BLOCK_SIZE = DEFAULT_VALUE_BLOCK_SIZE / 2 - 1;
+	public static final int DEFAULT_MIN_INTERNAL_NODE_BLOCK_SIZE = (int) (Math.ceil((float) DEFAULT_INTERNAL_NODE_BLOCK_SIZE / 2.0) - 1);
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
 	 * Maximum number of keys = values per leaf node. Use odd number. The number of keys in internal nodes is one less.
@@ -99,6 +103,20 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 	 * Root node of the tree.
 	 */
 	private final TransactionalReference<BPlusTreeNode<K, ?>> root;
+
+	/**
+	 * Returns the class type of the generic TransactionalObjectBPlusTree with the specified key and value types.
+	 * This method may be necessary if you need the proper generic class for constructor of other classes.
+	 *
+	 * @param <K> the type of keys in the TransactionalObjectBPlusTree, which must extend Comparable
+	 * @param <V> the type of values in the TransactionalObjectBPlusTree
+	 * @return the Class object representing the type TransactionalObjectBPlusTree with the specified generic parameters
+	 */
+	@Nonnull
+	public static <K extends Comparable<K>, V> Class<TransactionalObjectBPlusTree<K, V>> genericClass() {
+		//noinspection unchecked
+		return (Class<TransactionalObjectBPlusTree<K, V>>) (Class<?>) TransactionalObjectBPlusTree.class;
+	}
 
 	/**
 	 * Updates the keys in the parent nodes of a B+ Tree based on changes in a specific path.
@@ -363,6 +381,16 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 			//noinspection unchecked
 			addRightmostCursorLevels((BPlusInternalTreeNode<M>) childInternalNode, path);
 		}
+	}
+
+	/**
+	 * Constructor to initialize the B+ Tree with default block sizes.
+	 *
+	 * @param keyType   the type of the keys stored in the tree
+	 * @param valueType the type of the values stored in the tree
+	 */
+	public TransactionalObjectBPlusTree(@Nonnull Class<K> keyType, @Nonnull Class<V> valueType) {
+		this(DEFAULT_VALUE_BLOCK_SIZE, DEFAULT_MIN_VALUE_BLOCK_SIZE, DEFAULT_INTERNAL_NODE_BLOCK_SIZE, DEFAULT_MIN_INTERNAL_NODE_BLOCK_SIZE, keyType, valueType);
 	}
 
 	/**
@@ -1785,7 +1813,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 
 		@Override
 		public String toString() {
-			final StringBuilder sb = new StringBuilder(64);
+			final StringBuilder sb = new StringBuilder(DEFAULT_VALUE_BLOCK_SIZE);
 			toVerboseString(sb, 0, 3);
 			return sb.toString();
 		}
@@ -2233,7 +2261,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 
 		@Override
 		public String toString() {
-			final StringBuilder sb = new StringBuilder(64);
+			final StringBuilder sb = new StringBuilder(DEFAULT_VALUE_BLOCK_SIZE);
 			toVerboseString(sb, 0, 3);
 			return sb.toString();
 		}

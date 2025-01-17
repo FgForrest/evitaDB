@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest.TrafficRecordingType;
 import io.evitadb.core.Transaction;
+import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.function.LongBiFunction;
 import io.evitadb.store.model.FileLocation;
@@ -47,6 +48,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
+import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Deque;
 import java.util.Objects;
@@ -94,6 +96,15 @@ public class DiskRingBuffer {
 	 */
 	private final AtomicReference<DiskRingBufferIndex> sessionIndex = new AtomicReference<>();
 	/**
+	 * Atomic boolean used for locking the session index creation.
+	 */
+	private final AtomicBoolean sessionIndexingRunning = new AtomicBoolean();
+	/**
+	 * Contains set of postponed index updates, that were captured during initial session index creation.
+	 * The reference is empty when no indexing is being done (i.e. almost always).
+	 */
+	private final AtomicReference<Deque<Runnable>> postponedIndexUpdates = new AtomicReference<>();
+	/**
 	 * Transaction used for writing to the session index.
 	 */
 	private final AtomicReference<Transaction> transaction = new AtomicReference<>();
@@ -116,7 +127,7 @@ public class DiskRingBuffer {
 	/**
 	 * Size of the disk buffer file.
 	 */
-	private final long diskBufferFileSize;
+	@Getter private final long diskBufferFileSize;
 	/**
 	 * Atomic reference holding the segments which are currently in active use (read / write).
 	 */
@@ -147,8 +158,8 @@ public class DiskRingBuffer {
 		if (locationA == null || locationB == null) {
 			return false;
 		}
-		return locationA.startingPosition() <= locationB.getEndPosition()
-			&& locationB.startingPosition() <= locationA.getEndPosition();
+		return locationA.startingPosition() <= locationB.endPosition()
+			&& locationB.startingPosition() <= locationA.endPosition();
 	}
 
 	/**
@@ -226,7 +237,7 @@ public class DiskRingBuffer {
 	 * If no session index is available, the lambda will be executed directly.
 	 *
 	 * @param lambda A Runnable containing the code to execute within a transaction.
-	 *                Must not be null.
+	 *               Must not be null.
 	 */
 	public void updateIndexTransactionally(@Nonnull Runnable lambda) {
 		final DiskRingBufferIndex index = this.sessionIndex.get();
@@ -276,7 +287,6 @@ public class DiskRingBuffer {
 		final long sessionSequenceOrder = this.sequenceOrder.incrementAndGet();
 		final FileLocation fileLocation = new FileLocation(this.ringBufferTail, totalSizeWithHeader);
 		final SessionLocation sessionLocation = new SessionLocation(sessionSequenceOrder, fileLocation);
-		this.sessionLocations.add(sessionLocation);
 
 		// Prepare descriptor
 		this.descriptorByteBuffer.putLong(sessionSequenceOrder);
@@ -300,20 +310,16 @@ public class DiskRingBuffer {
 			final int totalBytesToWrite = memoryByteBuffer.limit();
 			if (totalBytesToWrite > this.diskBufferFileSize) {
 				throw MemoryNotAvailableException.DATA_TOO_LARGE;
-			} else if (this.ringBufferTail + totalBytesToWrite > this.diskBufferFileSize + this.ringBufferHead) {
-				// disk buffer is full - we need to wrap around (and copy the data to export file, if any is requested)
-				/* TODO JNO - EXPAND EXPORT */
-				this.ringBufferHead = this.ringBufferTail;
 			}
+
 			final int lengthToWrite = Math.min(Math.toIntExact(this.diskBufferFileSize - this.ringBufferTail), totalBytesToWrite);
+			updateSessionLocations(totalBytesToWrite);
+
 			if (lengthToWrite < totalBytesToWrite) {
 				lockAndWrite(
 					new FileLocation(this.fileChannel.position(), lengthToWrite),
 					sessionLocation,
-					() -> {
-						writeDataToFileChannel(memoryByteBuffer.slice(0, lengthToWrite), lengthToWrite);
-						updateSessionLocations(lengthToWrite);
-					}
+					() -> writeDataToFileChannel(memoryByteBuffer.slice(0, lengthToWrite), lengthToWrite)
 				);
 				this.fileChannel.position(0);
 				lockAndWrite(
@@ -322,17 +328,13 @@ public class DiskRingBuffer {
 					() -> {
 						final int restLengthToWrite = totalBytesToWrite - lengthToWrite;
 						writeDataToFileChannel(memoryByteBuffer.slice(lengthToWrite, restLengthToWrite), restLengthToWrite);
-						updateSessionLocations(restLengthToWrite);
 					}
 				);
 			} else {
 				lockAndWrite(
 					new FileLocation(this.fileChannel.position(), totalBytesToWrite),
 					sessionLocation,
-					() -> {
-						writeDataToFileChannel(memoryByteBuffer, totalBytesToWrite);
-						updateSessionLocations(totalBytesToWrite);
-					}
+					() -> writeDataToFileChannel(memoryByteBuffer, totalBytesToWrite)
 				);
 			}
 		} catch (IOException e) {
@@ -345,20 +347,12 @@ public class DiskRingBuffer {
 	}
 
 	/**
-	 * Writes data from the provided ByteBuffer to the associated FileChannel until the specified number of bytes is written.
+	 * Returns true if the index is available.
 	 *
-	 * @param memoryByteBuffer the ByteBuffer containing the data to be written to the FileChannel. Must not be null.
-	 * @param totalBytesToWrite the total number of bytes to write from the ByteBuffer to the FileChannel.
-	 * @throws IOException if an I/O error occurs during the write operation.
+	 * @return true if the index is available
 	 */
-	private void writeDataToFileChannel(@Nonnull ByteBuffer memoryByteBuffer, int totalBytesToWrite) throws IOException {
-		int totalBytesWritten = 0;
-		while (totalBytesWritten < totalBytesToWrite) {
-			int writtenBytes = this.fileChannel.write(memoryByteBuffer);
-			totalBytesWritten += writtenBytes;
-			Assert.isPremiseValid(writtenBytes > 0, "Failed to write all bytes to the disk buffer file.");
-		}
-		Assert.isPremiseValid(totalBytesWritten == totalBytesToWrite, "Failed to write all bytes to the disk buffer file.");
+	public boolean isIndexAvailable() {
+		return this.sessionIndex.get() != null;
 	}
 
 	/**
@@ -406,6 +400,7 @@ public class DiskRingBuffer {
 		} while (newValue.sessionBeingWritten() != null);
 
 		// update index if present
+		this.sessionLocations.add(sessionLocation);
 		final DiskRingBufferIndex index = this.sessionIndex.get();
 		if (index != null) {
 			index.setupSession(
@@ -417,6 +412,24 @@ public class DiskRingBuffer {
 				bytesFetchedTotal,
 				recordingTypes
 			);
+		} else {
+			ofNullable(this.postponedIndexUpdates.get())
+				.ifPresent(
+					postponedUpdates -> postponedUpdates.add(
+						() -> {
+							final DiskRingBufferIndex newIndex = this.sessionIndex.get();
+							newIndex.setupSession(
+								sessionLocation,
+								sessionId,
+								created,
+								durationInMillis,
+								fetchCount,
+								bytesFetchedTotal,
+								recordingTypes
+							);
+						}
+					)
+				);
 		}
 	}
 
@@ -436,6 +449,7 @@ public class DiskRingBuffer {
 	) {
 		DiskRingBufferIndex sessionIndex = this.sessionIndex.get();
 		if (sessionIndex == null) {
+			// TODO JNO - this must be done asynchronously!!
 			sessionIndex = indexData(reader);
 		}
 
@@ -483,6 +497,23 @@ public class DiskRingBuffer {
 	}
 
 	/**
+	 * Writes data from the provided ByteBuffer to the associated FileChannel until the specified number of bytes is written.
+	 *
+	 * @param memoryByteBuffer  the ByteBuffer containing the data to be written to the FileChannel. Must not be null.
+	 * @param totalBytesToWrite the total number of bytes to write from the ByteBuffer to the FileChannel.
+	 * @throws IOException if an I/O error occurs during the write operation.
+	 */
+	private void writeDataToFileChannel(@Nonnull ByteBuffer memoryByteBuffer, int totalBytesToWrite) throws IOException {
+		int totalBytesWritten = 0;
+		while (totalBytesWritten < totalBytesToWrite) {
+			int writtenBytes = this.fileChannel.write(memoryByteBuffer);
+			totalBytesWritten += writtenBytes;
+			Assert.isPremiseValid(writtenBytes > 0, "Failed to write all bytes to the disk buffer file.");
+		}
+		Assert.isPremiseValid(totalBytesWritten == totalBytesToWrite, "Failed to write all bytes to the disk buffer file.");
+	}
+
+	/**
 	 * Indexes session data from previously recorded traffic by reading session
 	 * locations and recording data using the provided reader function.
 	 * Each session is set up in the index to manage its existence and integrity
@@ -497,18 +528,34 @@ public class DiskRingBuffer {
 	private DiskRingBufferIndex indexData(
 		@Nonnull LongBiFunction<StorageRecord<TrafficRecording>> reader
 	) {
-		final DiskRingBufferIndex index = new DiskRingBufferIndex();
-		for (SessionLocation sessionLocation : this.sessionLocations) {
-			// we need to set up the session in the index first, so that `index::sessionExists` returns true
-			// and also to allow write logic to remove the session early when overwritten by the new data
-			index.setupSession(sessionLocation);
-			this.readSessionRecords(sessionLocation.sequenceOrder(), sessionLocation.fileLocation(), reader, index::sessionExists)
-				.forEach(tr -> index.indexRecording(sessionLocation.sequenceOrder(), tr));
-		}
+		if (this.sessionIndexingRunning.compareAndSet(false, true)) {
+			try {
+				this.postponedIndexUpdates.set(new ArrayDeque<>(512));
+				final DiskRingBufferIndex index = new DiskRingBufferIndex();
+				for (SessionLocation sessionLocation : this.sessionLocations) {
+					// we need to set up the session in the index first, so that `index::sessionExists` returns true
+					// and also to allow write logic to remove the session early when overwritten by the new data
+					index.setupSession(sessionLocation);
+					this.readSessionRecords(sessionLocation.sequenceOrder(), sessionLocation.fileLocation(), reader, index::sessionExists)
+						.forEach(tr -> index.indexRecording(sessionLocation.sequenceOrder(), tr));
+				}
 
-		// when session index is ready, set it as the active index
-		this.sessionIndex.set(index);
-		return index;
+				// when session index is ready, set it as the active index
+				this.sessionIndex.set(index);
+				return index;
+			} finally {
+				final Deque<Runnable> theLambdasToExecute = this.postponedIndexUpdates.getAndSet(null);
+				Assert.notNull(theLambdasToExecute, "Postponed index updates are null. This is not expected!");
+				theLambdasToExecute.forEach(Runnable::run);
+				Assert.isPremiseValid(
+					this.sessionIndexingRunning.compareAndSet(true, false),
+					"Session indexing is not running. This is not expected!"
+				);
+			}
+		} else {
+			// indexing is currently running
+			return this.sessionIndex.get();
+		}
 	}
 
 	/**
@@ -521,14 +568,22 @@ public class DiskRingBuffer {
 	 * @param totalBytesToWrite the total number of bytes that are written to the ring buffer,
 	 *                          used to adjust the position of the ring buffer tail.
 	 */
-	private void updateSessionLocations(int totalBytesToWrite) {
-		this.ringBufferTail = (this.ringBufferTail + totalBytesToWrite) % this.diskBufferFileSize;
-
-		final DiskRingBufferIndex index = this.sessionIndex.get();
+	private void updateSessionLocations(int totalBytesToWrite) throws IOException {
+		final long newTail = this.ringBufferTail + totalBytesToWrite;
 		SessionLocation head = this.sessionLocations.peekFirst();
 		while (head != null) {
+			final DiskRingBufferIndex index = this.sessionIndex.get();
+			final LongNumberRange[] erasedArea = newTail <= this.diskBufferFileSize ?
+				new LongNumberRange[] { LongNumberRange.between(this.ringBufferTail + 1, newTail) } :
+				Stream.of(
+					LongNumberRange.between(this.ringBufferTail + 1, this.diskBufferFileSize),
+					LongNumberRange.between(0L, newTail - this.diskBufferFileSize)
+				)
+					.filter(it -> it.getFrom() < it.getTo())
+					.toArray(LongNumberRange[]::new);
+
 			// if the session precedes the head of the ring buffer, remove it
-			if (head.fileLocation().startingPosition() < this.ringBufferHead) {
+			if (isWasted(erasedArea, head.fileLocation())) {
 				this.sessionLocations.removeFirst();
 				// remove the session from the index if present
 				if (index != null) {
@@ -540,7 +595,29 @@ public class DiskRingBuffer {
 				break;
 			}
 		}
+
+		this.ringBufferHead = this.sessionLocations.isEmpty() ? this.ringBufferHead : this.sessionLocations.peekFirst().fileLocation().startingPosition();
+		this.ringBufferTail = (this.ringBufferTail + totalBytesToWrite) % this.diskBufferFileSize;
 	}
+
+	/**
+	 * Determines whether a given recordPosition is outside the valid range
+	 * of the ring buffer based on the current head and tail positions.
+	 *
+	 * @param recordPosition the recordPosition to check against the ring buffer's valid range
+	 * @return true if the recordPosition is outside the valid range of the ring buffer; false otherwise
+	 */
+	private boolean isWasted(@Nonnull LongNumberRange[] waste, @Nonnull FileLocation recordPosition) {
+		final LongNumberRange[] recordRanges = recordPosition.endPosition() <= this.diskBufferFileSize ?
+			new LongNumberRange[] { LongNumberRange.between(recordPosition.startingPosition(), recordPosition.endPosition()) } :
+			new LongNumberRange[] {
+				LongNumberRange.between(recordPosition.startingPosition(), this.diskBufferFileSize),
+				LongNumberRange.between(0L, recordPosition.endPosition() - this.diskBufferFileSize)
+			};
+		return Arrays.stream(waste)
+			.anyMatch(wasteRange -> Arrays.stream(recordRanges).anyMatch(wasteRange::overlaps));
+	}
+
 
 	/**
 	 * Reads session records from a specified file location and provides a stream of TrafficRecording objects.
@@ -569,7 +646,7 @@ public class DiskRingBuffer {
 						// check if the session still exists before reading the records
 						if (sessionExistenceChecker.test(sessionSequenceId)) {
 							// finalize stream when the expected session end position is reached
-							if (lastFileLocation != -1L && lastFileLocation == fileLocation.getEndPosition()) {
+							if (lastFileLocation != -1L && lastFileLocation == fileLocation.endPosition() % this.diskBufferFileSize) {
 								return null;
 							} else {
 								// read the next record from the file
@@ -582,12 +659,12 @@ public class DiskRingBuffer {
 										// finalize the stream on first error
 										return null;
 									} else {
-										lastLocationRead.set(startPosition + tr.fileLocation().recordLength());
+										lastLocationRead.set((startPosition + tr.fileLocation().recordLength()) % this.diskBufferFileSize);
 										// return the payload of the record
 										return tr.payload();
 									}
 								} catch (Exception ex) {
-									log.debug(
+									log.error(
 										"Error reading session #{} traffic record from disk buffer at position {} ({}): {}",
 										sessionSequenceId, startPosition, this.activeSegments.get(), ex.getMessage()
 									);

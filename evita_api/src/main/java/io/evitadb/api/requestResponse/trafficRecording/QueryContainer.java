@@ -29,7 +29,6 @@ import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRe
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.UUID;
@@ -126,15 +125,6 @@ public record QueryContainer(
 		result = 31 * result + ioFetchedSizeBytes;
 		result = 31 * result + Arrays.hashCode(primaryKeys);
 		return result;
-	}
-
-	public record Label(
-		@Nonnull String name,
-		@Nonnull Serializable value
-	) {
-
-		public static final Label[] EMPTY_LABELS = new Label[0];
-
 	}
 
 }
