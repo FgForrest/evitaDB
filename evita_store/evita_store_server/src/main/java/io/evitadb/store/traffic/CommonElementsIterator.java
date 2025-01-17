@@ -56,7 +56,8 @@ public class CommonElementsIterator implements Iterator<Long> {
 					this.nextElement = null;
 					return;
 				} else {
-					this.currentValues[i] = iterator.next();
+					final Long next = iterator.next();
+					this.currentValues[i] = next;
 					if (this.currentValues[i] > max) {
 						max = this.currentValues[i];
 					}

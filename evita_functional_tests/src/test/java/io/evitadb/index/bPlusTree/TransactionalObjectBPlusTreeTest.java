@@ -256,6 +256,13 @@ class TransactionalObjectBPlusTreeTest implements TimeBoundedTestSupport {
 	}
 
 	@Test
+	void shouldFailToIterateThroughNonExistingValues() {
+		final TreeTuple testTree = prepareRandomTree(42, 100);
+		final Iterator<String> it = testTree.bPlusTree().greaterOrEqualValueIterator(1000);
+		assertFalse(it.hasNext());
+	}
+
+	@Test
 	void shouldIterateThroughLeafNodeKeysFromLeftToRight() {
 		final TreeTuple testTree = prepareRandomTree(System.currentTimeMillis(), 100);
 

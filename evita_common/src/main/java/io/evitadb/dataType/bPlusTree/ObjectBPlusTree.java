@@ -1965,7 +1965,7 @@ public class ObjectBPlusTree<K extends Comparable<K>, V> implements ConsistencyS
 			}
 			final InsertionPosition insertionPosition = computeInsertPositionOfObjInOrderedArray(key, cursor.leafNode().getKeys(), 0, cursor.leafNode().size());
 			this.currentValueIndex = insertionPosition.position();
-			this.hasNext = this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]].getPeek() >= 0;
+			this.hasNext = this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]].getPeek() >= insertionPosition.position();
 		}
 
 		@Override

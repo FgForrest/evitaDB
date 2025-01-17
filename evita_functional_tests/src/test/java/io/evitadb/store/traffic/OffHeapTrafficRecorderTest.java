@@ -61,6 +61,7 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Delayed;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledFuture;
@@ -274,8 +275,45 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 	}
 
 	@Test
-	void shouldRecordDataInParallelAndQueryOnThem() {
+	void shouldRecordDataInParallelAndQueryOnThem() throws InterruptedException {
+		final CountDownLatch latch = writeDataInParallel(5, 5, 200);
 
+		final long waitForDataStart = System.currentTimeMillis();
+		waitUntilDataBecomeAvailable(25, 60_000);
+		System.out.println("Data available in " + (System.currentTimeMillis() - waitForDataStart) + " ms.");
+
+		final long waitForThreadStopStart = System.currentTimeMillis();
+		assertTrue(latch.await(1, TimeUnit.MINUTES), "Threads should have finished by now.");
+		System.out.println("Waiting finished in " + (System.currentTimeMillis() - waitForThreadStopStart) + " ms.");
+
+		final List<TrafficRecording> allRecordings = this.trafficRecorder.getRecordings(
+			TrafficRecordingCaptureRequest.builder()
+				.content(TrafficRecordingContent.BODY)
+				.sinceSessionSequenceId(0L)
+				.sinceRecordSessionOffset(0)
+				.allTypes()
+				.build()
+		).toList();
+
+		assertTrue(allRecordings.size() > 120);
+	}
+
+	private void waitUntilDataBecomeAvailable(long sessionSequenceId, int waitMilliseconds) {
+		final long start = System.currentTimeMillis();
+		List<TrafficRecording> recordings;
+		do {
+			recordings = this.trafficRecorder.getRecordings(
+				TrafficRecordingCaptureRequest.builder()
+					.content(TrafficRecordingContent.BODY)
+					.sinceSessionSequenceId(sessionSequenceId)
+					.type(TrafficRecordingType.SESSION_CLOSE)
+					.build()
+			).toList();
+		} while (recordings.isEmpty() && System.currentTimeMillis() - start < waitMilliseconds);
+
+		if (recordings.isEmpty()) {
+			fail("Last recording was not written to the disk within the specified time limit.");
+		}
 	}
 
 	private void waitUntilDataBecomeAvailable(UUID sessionId, int waitMilliseconds) {
@@ -327,6 +365,52 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 			System.out.println("Session #" + (i + 1) + " " + sessionId + " closed.");
 		}
 		return Objects.requireNonNull(sessionId);
+	}
+
+	private CountDownLatch writeDataInParallel(int threadCount, int sessionsPerThread, int delayInMilliseconds) {
+		final CountDownLatch latch = new CountDownLatch(threadCount);
+		for (int thread = 0; thread < threadCount; thread++) {
+			int finalThread = thread;
+			final Thread theThread = new Thread(
+				() -> {
+					for (int sessionIndex = 0; sessionIndex < sessionsPerThread; sessionIndex++) {
+						final UUID sessionId = UUID.randomUUID();
+						this.trafficRecorder.createSession(sessionId, 1, OffsetDateTime.now());
+						for (int queryIndex = 0; queryIndex < 5; queryIndex++) {
+							this.trafficRecorder.recordQuery(
+								sessionId,
+								query(
+									collection(Entities.PRODUCT),
+									filterBy(entityPrimaryKeyInSet(1, 2, 3)),
+									orderBy(entityPrimaryKeyNatural(OrderDirection.DESC)),
+									require(entityFetchAll())
+								),
+								new Label[]{
+									new Label("a", "b"),
+									new Label("c", "d")
+								},
+								OffsetDateTime.now(),
+								15,
+								456,
+								12311,
+								1, 2, 3
+							);
+						}
+						this.trafficRecorder.closeSession(sessionId);
+
+						try {
+							Thread.sleep(delayInMilliseconds);
+						} catch (InterruptedException e) {
+							Thread.currentThread().interrupt();
+						}
+					}
+					System.out.println("Thread #" + (finalThread + 1) + " finished.");
+					latch.countDown();
+				}
+			);
+			theThread.start();
+		}
+		return latch;
 	}
 
 	private static class ImmediateExecutorService extends ScheduledThreadPoolExecutor {

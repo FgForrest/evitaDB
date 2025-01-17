@@ -91,7 +91,10 @@ public class DiskRingBufferIndex implements
 		this.sessionFetchCountIndex = new TransactionalObjectBPlusTree<>(Integer.class, Long.class);
 		this.sessionBytesFetchedIndex = new TransactionalObjectBPlusTree<>(Integer.class, Long.class);
 		this.labelIndex = new TransactionalObjectBPlusTree<>(Label.class, TransactionalObjectBPlusTree.genericClass());
-		this.sessionRecordingTypeIndex = new TransactionalMap<>(CollectionUtils.createHashMap(TrafficRecordingType.values().length));
+		this.sessionRecordingTypeIndex = new TransactionalMap<>(
+			CollectionUtils.createHashMap(TrafficRecordingType.values().length),
+			TransactionalObjectBPlusTree.class::cast
+		);
 		this.sessionBeingIndexed = new AtomicLong(-1L);
 		this.sessionsToRemove = new LinkedList<>();
 	}
@@ -120,7 +123,10 @@ public class DiskRingBufferIndex implements
 		this.sessionFetchCountIndex = sessionFetchCountIndex;
 		this.sessionBytesFetchedIndex = sessionBytesFetchedIndex;
 		this.labelIndex = labelIndex;
-		this.sessionRecordingTypeIndex = new TransactionalMap<>(sessionRecordingTypeIndex);
+		this.sessionRecordingTypeIndex = new TransactionalMap<>(
+			sessionRecordingTypeIndex,
+			TransactionalObjectBPlusTree.class::cast
+		);
 		this.sessionBeingIndexed = sessionBeingIndexed;
 		this.sessionsToRemove = sessionsToRemove;
 	}
