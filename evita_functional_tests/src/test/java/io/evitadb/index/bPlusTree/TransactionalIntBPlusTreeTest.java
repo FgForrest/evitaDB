@@ -25,6 +25,7 @@ package io.evitadb.index.bPlusTree;
 
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyReport;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyState;
+import io.evitadb.index.list.TransactionalList;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
@@ -38,6 +39,7 @@ import org.junit.jupiter.params.provider.ArgumentsSource;
 import javax.annotation.Nonnull;
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
@@ -1018,6 +1020,26 @@ class TransactionalIntBPlusTreeTest implements TimeBoundedTestSupport {
 				verifyTreeConsistency(original, testTree.plainArray());
 				assertEquals(0, committed.size());
 				verifyTreeConsistency(committed, expectedArray.get());
+			}
+		);
+	}
+
+	@Test
+	void shouldHandleTransactionalLayerProducers() {
+		//noinspection unchecked
+		TransactionalIntBPlusTree<TransactionalList<String>> theTree = new TransactionalIntBPlusTree<>(
+			TransactionalList.genericClass(), list -> new TransactionalList<>((List<String>) list)
+		);
+		theTree.insert(1, new TransactionalList<>(List.of("Value1", "Value2")));
+
+		assertStateAfterCommit(
+			theTree,
+			tested -> {
+				tested.search(1).orElseThrow().add("Value3");
+			},
+			(original, committed) -> {
+				assertEquals(2, original.search(1).orElseThrow().size());
+				assertEquals(3, committed.search(1).orElseThrow().size());
 			}
 		);
 	}

@@ -90,7 +90,13 @@ public class DiskRingBufferIndex implements
 		this.sessionDurationIndex = new TransactionalObjectBPlusTree<>(Integer.class, Long.class);
 		this.sessionFetchCountIndex = new TransactionalObjectBPlusTree<>(Integer.class, Long.class);
 		this.sessionBytesFetchedIndex = new TransactionalObjectBPlusTree<>(Integer.class, Long.class);
-		this.labelIndex = new TransactionalObjectBPlusTree<>(Label.class, TransactionalObjectBPlusTree.genericClass());
+		//noinspection unchecked,rawtypes
+		this.labelIndex = new TransactionalObjectBPlusTree<>(
+			Label.class,
+			TransactionalObjectBPlusTree.genericClass(),
+			TransactionalObjectBPlusTree.class::cast
+		);
+		//noinspection unchecked,rawtypes
 		this.sessionRecordingTypeIndex = new TransactionalMap<>(
 			CollectionUtils.createHashMap(TrafficRecordingType.values().length),
 			TransactionalObjectBPlusTree.class::cast
@@ -108,7 +114,6 @@ public class DiskRingBufferIndex implements
 		@Nonnull TransactionalObjectBPlusTree<Integer, Long> sessionDurationIndex,
 		@Nonnull TransactionalObjectBPlusTree<Integer, Long> sessionFetchCountIndex,
 		@Nonnull TransactionalObjectBPlusTree<Integer, Long> sessionBytesFetchedIndex,
-		/* TODO JNO - otestovat transactional objekty uvnitř, stromů */
 		@Nonnull TransactionalObjectBPlusTree<Label, TransactionalObjectBPlusTree<Long, Long>> labelIndex,
 		@Nonnull Map<TrafficRecordingType, TransactionalObjectBPlusTree<Long, Long>> sessionRecordingTypeIndex,
 		@Nonnull AtomicLong sessionBeingIndexed,

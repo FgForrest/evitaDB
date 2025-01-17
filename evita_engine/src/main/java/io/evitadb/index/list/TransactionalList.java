@@ -69,6 +69,19 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 	 */
 	private final List<V> listDelegate;
 
+	/**
+	 * Returns the class type of the generic TransactionalList with the specified key and value types.
+	 * This method may be necessary if you need the proper generic class for constructor of other classes.
+	 *
+	 * @param <V> the type of values in the TransactionalList
+	 * @return the Class object representing the type TransactionalList with the specified generic parameters
+	 */
+	@Nonnull
+	public static <V> Class<TransactionalList<V>> genericClass() {
+		//noinspection unchecked
+		return (Class<TransactionalList<V>>) (Class<?>) TransactionalList.class;
+	}
+
 	public TransactionalList(List<V> listDelegate) {
 		this.listDelegate = listDelegate;
 	}

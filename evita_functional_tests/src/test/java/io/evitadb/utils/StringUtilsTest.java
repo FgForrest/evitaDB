@@ -213,9 +213,9 @@ class StringUtilsTest {
 
 	@Test
 	void shouldAddLeftPadding() {
-		assertEquals("          ", StringUtils.rightPad("", " ", 10));
-		assertEquals("         a", StringUtils.rightPad("a", " ", 10));
-		assertEquals("dsfadfsadfsadfd", StringUtils.rightPad("dsfadfsadfsadfd", " ", 10));
+		assertEquals("          ", StringUtils.leftPad("", " ", 10));
+		assertEquals("         a", StringUtils.leftPad("a", " ", 10));
+		assertEquals("dsfadfsadfsadfd", StringUtils.leftPad("dsfadfsadfsadfd", " ", 10));
 	}
 
 	@Test

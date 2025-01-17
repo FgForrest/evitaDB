@@ -47,6 +47,7 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.PrimitiveIterator.OfInt;
+import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
 import static io.evitadb.utils.ArrayUtils.*;
@@ -64,6 +65,10 @@ public class TransactionalIntBPlusTree<V> implements
 	Serializable,
 	ConsistencySensitiveDataStructure {
 	@Serial private static final long serialVersionUID = 124088192205606247L;
+	private static final int DEFAULT_VALUE_BLOCK_SIZE = 64;
+	private static final int DEFAULT_MIN_VALUE_BLOCK_SIZE = DEFAULT_VALUE_BLOCK_SIZE / 2 - 1;
+	private static final int DEFAULT_INTERNAL_NODE_BLOCK_SIZE = DEFAULT_VALUE_BLOCK_SIZE / 2 - 1;
+	private static final int DEFAULT_MIN_INTERNAL_NODE_BLOCK_SIZE = (int) (Math.ceil((float) DEFAULT_INTERNAL_NODE_BLOCK_SIZE / 2.0) - 1);
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
 	 * Maximum number of keys = values per leaf node. Use odd number. The number of keys in internal nodes is one less.
@@ -86,6 +91,10 @@ public class TransactionalIntBPlusTree<V> implements
 	 */
 	@Getter private final Class<V> valueType;
 	/**
+	 * Operator that wraps the values in a transactional layer.
+	 */
+	private final Function<Object, V> transactionalLayerWrapper;
+	/**
 	 * Number of elements in the tree.
 	 */
 	private final TransactionalReference<Integer> size;
@@ -93,6 +102,19 @@ public class TransactionalIntBPlusTree<V> implements
 	 * Root node of the tree.
 	 */
 	private final TransactionalReference<BPlusTreeNode<?>> root;
+
+	/**
+	 * Returns the class type of the generic TransactionalIntBPlusTree with the specified key and value types.
+	 * This method may be necessary if you need the proper generic class for constructor of other classes.
+	 *
+	 * @param <V> the type of values in the TransactionalIntBPlusTree
+	 * @return the Class object representing the type TransactionalIntBPlusTree with the specified generic parameters
+	 */
+	@Nonnull
+	public static <V> Class<TransactionalIntBPlusTree<V>> genericClass() {
+		//noinspection unchecked
+		return (Class<TransactionalIntBPlusTree<V>>) (Class<?>) TransactionalIntBPlusTree.class;
+	}
 
 	/**
 	 * Updates the keys in the parent nodes of a B+ Tree based on changes in a specific path.
@@ -314,6 +336,41 @@ public class TransactionalIntBPlusTree<V> implements
 	}
 
 	/**
+	 * Constructor to initialize the B+ Tree with default block sizes.
+	 *
+	 * @param valueType the type of the values stored in the tree
+	 */
+	public TransactionalIntBPlusTree(@Nonnull Class<V> valueType) {
+		this(
+			DEFAULT_VALUE_BLOCK_SIZE,
+			DEFAULT_MIN_VALUE_BLOCK_SIZE,
+			DEFAULT_INTERNAL_NODE_BLOCK_SIZE,
+			DEFAULT_MIN_INTERNAL_NODE_BLOCK_SIZE,
+			valueType
+		);
+	}
+
+	/**
+	 * Constructor to initialize the B+ Tree with default block sizes.
+	 *
+	 * @param valueType                 the type of the values stored in the tree
+	 * @param transactionalLayerWrapper operator that wraps the values in a transactional layer
+	 */
+	public TransactionalIntBPlusTree(
+		@Nonnull Class<V> valueType,
+		@Nonnull Function<Object, V> transactionalLayerWrapper
+	) {
+		this(
+			DEFAULT_VALUE_BLOCK_SIZE,
+			DEFAULT_MIN_VALUE_BLOCK_SIZE,
+			DEFAULT_INTERNAL_NODE_BLOCK_SIZE,
+			DEFAULT_MIN_INTERNAL_NODE_BLOCK_SIZE,
+			valueType,
+			transactionalLayerWrapper
+		);
+	}
+
+	/**
 	 * Constructor to initialize the B+ Tree.
 	 *
 	 * @param valueBlockSize maximum number of values in a leaf node
@@ -324,6 +381,26 @@ public class TransactionalIntBPlusTree<V> implements
 			valueBlockSize, valueBlockSize / 2,
 			valueBlockSize, valueBlockSize / 2,
 			valueType
+		);
+	}
+
+	/**
+	 * Constructor to initialize the B+ Tree.
+	 *
+	 * @param valueBlockSize            maximum number of values in a leaf node
+	 * @param valueType                 the type of the values stored in the tree
+	 * @param transactionalLayerWrapper operator that wraps the values in a transactional layer
+	 */
+	public TransactionalIntBPlusTree(
+		int valueBlockSize,
+		@Nonnull Class<V> valueType,
+		@Nonnull Function<Object, V> transactionalLayerWrapper
+	) {
+		this(
+			valueBlockSize, valueBlockSize / 2,
+			valueBlockSize, valueBlockSize / 2,
+			valueType,
+			transactionalLayerWrapper
 		);
 	}
 
@@ -351,7 +428,8 @@ public class TransactionalIntBPlusTree<V> implements
 			internalNodeBlockSize,
 			minInternalNodeBlockSize,
 			valueType,
-			new BPlusLeafTreeNode<>(valueBlockSize, valueType, true),
+			null,
+			new BPlusLeafTreeNode<>(valueBlockSize, valueType, null, true),
 			0
 		);
 	}
@@ -359,14 +437,14 @@ public class TransactionalIntBPlusTree<V> implements
 	/**
 	 * Constructor to initialize the B+ Tree.
 	 *
-	 * @param valueBlockSize           maximum number of values in a leaf node
-	 * @param minValueBlockSize        minimum number of values in a leaf node
-	 *                                 (controls branching factor for leaf nodes)
-	 * @param internalNodeBlockSize    maximum number of keys in an internal node
-	 * @param minInternalNodeBlockSize minimum number of keys in an internal node
-	 *                                 (controls branching factor for internal nodes)
-	 * @param valueType                the type of the values stored in the tree
-	 * @param root                     the root node of the B+ tree
+	 * @param valueBlockSize            maximum number of values in a leaf node
+	 * @param minValueBlockSize         minimum number of values in a leaf node
+	 *                                  (controls branching factor for leaf nodes)
+	 * @param internalNodeBlockSize     maximum number of keys in an internal node
+	 * @param minInternalNodeBlockSize  minimum number of keys in an internal node
+	 *                                  (controls branching factor for internal nodes)
+	 * @param valueType                 the type of the values stored in the tree
+	 * @param transactionalLayerWrapper operator that wraps the values in a transactional layer
 	 */
 	public TransactionalIntBPlusTree(
 		int valueBlockSize,
@@ -374,21 +452,27 @@ public class TransactionalIntBPlusTree<V> implements
 		int internalNodeBlockSize,
 		int minInternalNodeBlockSize,
 		@Nonnull Class<V> valueType,
-		@Nonnull BPlusTreeNode<?> root
+		@Nonnull Function<Object, V> transactionalLayerWrapper
 	) {
 		this(
-			valueBlockSize, minValueBlockSize,
-			internalNodeBlockSize, minInternalNodeBlockSize,
-			valueType, root, 0
+			valueBlockSize,
+			minValueBlockSize,
+			internalNodeBlockSize,
+			minInternalNodeBlockSize,
+			valueType,
+			transactionalLayerWrapper,
+			new BPlusLeafTreeNode<>(valueBlockSize, valueType, transactionalLayerWrapper, true),
+			0
 		);
 	}
 
-	public TransactionalIntBPlusTree(
+	private TransactionalIntBPlusTree(
 		int valueBlockSize,
 		int minValueBlockSize,
 		int internalNodeBlockSize,
 		int minInternalNodeBlockSize,
 		@Nonnull Class<V> valueType,
+		@Nullable Function<Object, V> transactionalLayerWrapper,
 		@Nonnull BPlusTreeNode<?> root,
 		int size
 	) {
@@ -399,11 +483,13 @@ public class TransactionalIntBPlusTree<V> implements
 		Assert.isPremiseValid(internalNodeBlockSize % 2 == 1, "Internal node block size must be an odd number.");
 		Assert.isPremiseValid(minInternalNodeBlockSize >= 1, "Minimum internal node block size must be at least 1.");
 		Assert.isPremiseValid(minInternalNodeBlockSize <= Math.ceil((float) internalNodeBlockSize / 2.0) - 1, "Minimum internal node block size must be less than half of the internal node block size, otherwise the tree nodes might be immediately full after merges.");
+		Assert.isPremiseValid(transactionalLayerWrapper != null || !TransactionalLayerProducer.class.isAssignableFrom(valueType), "Value type cannot implement TransactionalLayerProducer if no transactional layer wrapper is provided.");
 		this.valueBlockSize = valueBlockSize;
 		this.minValueBlockSize = minValueBlockSize;
 		this.internalNodeBlockSize = internalNodeBlockSize;
 		this.minInternalNodeBlockSize = minInternalNodeBlockSize;
 		this.valueType = valueType;
+		this.transactionalLayerWrapper = transactionalLayerWrapper;
 		this.root = new TransactionalReference<>(root);
 		this.size = new TransactionalReference<>(size);
 	}
@@ -615,6 +701,7 @@ public class TransactionalIntBPlusTree<V> implements
 				this.valueBlockSize, this.minValueBlockSize,
 				this.internalNodeBlockSize, this.minInternalNodeBlockSize,
 				this.valueType,
+				this.transactionalLayerWrapper,
 				transactionalLayer.getStateCopyWithCommittedChanges(theLeafNode),
 				transactionalLayer.getStateCopyWithCommittedChanges(this.size).orElseThrow()
 			);
@@ -623,6 +710,7 @@ public class TransactionalIntBPlusTree<V> implements
 				this.valueBlockSize, this.minValueBlockSize,
 				this.internalNodeBlockSize, this.minInternalNodeBlockSize,
 				this.valueType,
+				this.transactionalLayerWrapper,
 				transactionalLayer.getStateCopyWithCommittedChanges(internalNode),
 				transactionalLayer.getStateCopyWithCommittedChanges(this.size).orElseThrow()
 			);
@@ -747,7 +835,12 @@ public class TransactionalIntBPlusTree<V> implements
 						ofNullable(Transaction.getTransactionalMemoryLayerIfExists(theRoot))
 							.ifPresent(layer -> theRoot.removeLayer());
 						// the root is empty, create a new empty leaf node
-						this.root.set(new BPlusLeafTreeNode<>(this.valueBlockSize, this.valueType, true));
+						this.root.set(
+							new BPlusLeafTreeNode<>(
+								this.valueBlockSize, this.valueType,
+								this.transactionalLayerWrapper, true
+							)
+						);
 					}
 					cursorWithLevel = null;
 				}
@@ -1701,6 +1794,10 @@ public class TransactionalIntBPlusTree<V> implements
 		 * The values stored in this node. Index i corresponds to the value associated with key i.
 		 */
 		private V[] values;
+		/**
+		 * The function to wrap the values into a transactional layer.
+		 */
+		@Nullable private Function<Object, V> transactionalLayerWrapper;
 
 		/**
 		 * Index of the last occupied position in the keys array.
@@ -1710,11 +1807,13 @@ public class TransactionalIntBPlusTree<V> implements
 		public BPlusLeafTreeNode(
 			int blockSize,
 			@Nonnull Class<V> valueType,
+			@Nullable Function<Object, V> transactionalLayerWrapper,
 			boolean transactionalLayer
 		) {
 			this.keys = new int[blockSize];
 			//noinspection unchecked
 			this.values = (V[]) Array.newInstance(valueType, blockSize);
+			this.transactionalLayerWrapper = transactionalLayerWrapper;
 			this.peek = -1;
 			this.transactionalLayer = transactionalLayer;
 		}
@@ -2122,14 +2221,57 @@ public class TransactionalIntBPlusTree<V> implements
 			@Nullable BPlusLeafTreeNode<V> layer,
 			@Nonnull TransactionalLayerMaintainer transactionalLayer
 		) {
-			return layer == null ?
-				this :
-				new BPlusLeafTreeNode<>(
-					layer.keys,
-					layer.values,
-					layer.peek,
+			final int[] theKeys;
+			final V[] theValues;
+			final int thePeek;
+			if (layer == null) {
+				theKeys = this.keys;
+				theValues = this.values;
+				thePeek = this.peek;
+			} else {
+				theKeys = layer.keys;
+				theValues = layer.values;
+				thePeek = layer.peek;
+			}
+
+			V[] newValues = null;
+			if (TransactionalLayerProducer.class.isAssignableFrom(this.values.getClass().getComponentType())) {
+				for (int i = 0; i < thePeek + 1; i++) {
+					// this.transactionalLayerWrapper is not null, because the values are transactional layers
+					//noinspection unchecked,DataFlowIssue
+					final V value = this.transactionalLayerWrapper.apply(
+						transactionalLayer.getStateCopyWithCommittedChanges(
+							(TransactionalLayerProducer<?, ? extends V>) theValues[i]
+						)
+					);
+					if (newValues == null && value != theValues[i]) {
+						//noinspection unchecked
+						newValues = (V[]) Array.newInstance(this.values.getClass().getComponentType(), theValues.length);
+						System.arraycopy(theValues, 0, newValues, 0, i);
+					}
+					if (newValues != null) {
+						newValues[i] = value;
+					}
+				}
+			}
+
+			if (newValues != null) {
+				return new BPlusLeafTreeNode<>(
+					theKeys,
+					newValues,
+					thePeek,
 					true
 				);
+			} else if (layer != null) {
+				return new BPlusLeafTreeNode<>(
+					theKeys,
+					theValues,
+					thePeek,
+					true
+				);
+			} else {
+				return this;
+			}
 		}
 
 		/**
