@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -191,7 +191,14 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	 */
 	@Nonnull
 	protected SIMPLE_TYPE build(@Nonnull ConstraintBuildContext buildContext, @Nonnull ConstraintDescriptor constraintDescriptor) {
-		return buildConstraintValue(buildContext, constraintDescriptor, null);
+		final SIMPLE_TYPE simpleType = buildConstraintValue(buildContext, constraintDescriptor, null);
+		// note: if nullable support is required at root level, the null value can be propagated up, but all cases that
+		// expect nonnull value must be handled
+		Assert.isPremiseValid(
+			simpleType != null,
+			() -> createSchemaBuildingError("Null constraint value as root constraint value not supported yet.")
+		);
+		return simpleType;
 	}
 
 
@@ -738,8 +745,12 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 			return null;
 		}
 
-		final String constraintKey = keyBuilder.build(buildContext, constraintDescriptor, classifierSupplier);
 		final SIMPLE_TYPE constraintValue = buildConstraintValue(buildContext, constraintDescriptor, valueTypeSupplier);
+		if (constraintValue == null) {
+			// no value (no usable parameter), parent constraint should be omitted as there is nothing to specify
+			return null;
+		}
+		final String constraintKey = keyBuilder.build(buildContext, constraintDescriptor, classifierSupplier);
 		return buildFieldFromConstraintDescriptor(constraintDescriptor, constraintKey, constraintValue);
 	}
 
@@ -764,7 +775,7 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	 * @param valueTypeSupplier    supplies concrete value type for constraint values if value parameter has generic type
 	 * @return input type representing the field value
 	 */
-	@Nonnull
+	@Nullable
 	protected SIMPLE_TYPE buildConstraintValue(@Nonnull ConstraintBuildContext buildContext,
 	                                           @Nonnull ConstraintDescriptor constraintDescriptor,
 	                                           @Nullable ValueTypeSupplier valueTypeSupplier) {
@@ -878,8 +889,10 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	/**
 	 * Returns field value representing constraint value of constraint with multiple creator value parameters or
 	 * combination of value and child parameters, either from cache or newly built one.
+	 *
+	 * If returns null, parent constraint should be omitted, because there are no valid parameters to specify.
 	 */
-	@Nonnull
+	@Nullable
 	protected SIMPLE_TYPE obtainWrapperObjectConstraintValue(@Nonnull ConstraintBuildContext buildContext,
 	                                                         @Nonnull List<ValueParameterDescriptor> valueParameters,
 	                                                         @Nonnull List<ChildParameterDescriptor> childParameters,
@@ -924,9 +937,11 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	 * combination of value and child parameters.
 	 * Implementation should cache the built objects for later reuse.
 	 *
+	 * If returns null, parent constraint should be omitted, because there are no valid parameters to specify.
+	 *
 	 * <b>Note:</b> this method should not be used directly, instead use {@link #obtainWrapperObjectConstraintValue(ConstraintBuildContext, List, List, List, ValueTypeSupplier)}.
 	 */
-	@Nonnull
+	@Nullable
 	protected abstract SIMPLE_TYPE buildWrapperObjectConstraintValue(@Nonnull ConstraintBuildContext buildContext,
 	                                                                 @Nonnull WrapperObjectKey wrapperObjectKey,
 	                                                                 @Nonnull List<ValueParameterDescriptor> valueParameters,

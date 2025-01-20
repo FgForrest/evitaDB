@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -54,6 +54,7 @@ import io.evitadb.utils.ClassUtils;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Currency;
 import java.util.LinkedList;
@@ -256,7 +257,7 @@ public abstract class OpenApiConstraintSchemaBuilder
 
 	}
 
-	@Nonnull
+	@Nullable
 	@Override
 	protected OpenApiSimpleType buildWrapperObjectConstraintValue(@Nonnull ConstraintBuildContext buildContext,
 	                                                              @Nonnull WrapperObjectKey wrapperObjectKey,
@@ -264,11 +265,7 @@ public abstract class OpenApiConstraintSchemaBuilder
 	                                                              @Nonnull List<ChildParameterDescriptor> childParameters,
 	                                                              @Nonnull List<AdditionalChildParameterDescriptor> additionalChildParameters,
 	                                                              @Nullable ValueTypeSupplier valueTypeSupplier) {
-		final String wrapperObjectName = constructWrapperObjectName(wrapperObjectKey);
-		final OpenApiObject.Builder wrapperObjectBuilder = newObject().name(wrapperObjectName);
-		final OpenApiTypeReference wrapperObjectPointer = typeRefTo(wrapperObjectName);
-		// cache wrapper object for reuse
-		sharedContext.cacheWrapperObject(wrapperObjectKey, wrapperObjectPointer);
+		final List<OpenApiProperty.Builder> wrapperObjectFields = new ArrayList<>(valueParameters.size() + childParameters.size() + additionalChildParameters.size());
 
 		// build primitive values
 		valueParameters.forEach(valueParameter -> {
@@ -278,7 +275,7 @@ public abstract class OpenApiConstraintSchemaBuilder
 				!valueParameter.type().isArray(),
 				valueTypeSupplier
 			);
-			wrapperObjectBuilder.property(p -> p
+			wrapperObjectFields.add(newProperty()
 				.name(valueParameter.name())
 				.type(nestedPrimitiveConstraintValue));
 		});
@@ -297,7 +294,7 @@ public abstract class OpenApiConstraintSchemaBuilder
 					nestedChildConstraintValue = nonNull(nestedChildConstraintValue);
 				}
 
-				wrapperObjectBuilder.property(newProperty()
+				wrapperObjectFields.add(newProperty()
 					.name(childParameter.name())
 					.type(nestedChildConstraintValue));
 			} else {
@@ -315,7 +312,7 @@ public abstract class OpenApiConstraintSchemaBuilder
 						) {
 							nestedChildConstraint.setValue(nonNull(nestedChildConstraint.getValue()));
 						}
-						wrapperObjectBuilder.property(newProperty()
+						wrapperObjectFields.add(newProperty()
 							.name(key)
 							.type(nestedChildConstraint.getValue()));
 					});
@@ -331,11 +328,23 @@ public abstract class OpenApiConstraintSchemaBuilder
 					nestedAdditionalChildConstraintValue = nonNull(nestedAdditionalChildConstraintValue);
 				}
 
-				wrapperObjectBuilder.property(newProperty()
+				wrapperObjectFields.add(newProperty()
 					.name(additionalChildParameter.name())
 					.type(nestedAdditionalChildConstraintValue));
 			});
 		});
+
+		if (wrapperObjectFields.isEmpty()) {
+			// no fields, parent constraint should be omitted
+			return null;
+		}
+
+		final String wrapperObjectName = constructWrapperObjectName(wrapperObjectKey);
+		final OpenApiObject.Builder wrapperObjectBuilder = newObject().name(wrapperObjectName);
+		wrapperObjectFields.forEach(wrapperObjectBuilder::property);
+		final OpenApiTypeReference wrapperObjectPointer = typeRefTo(wrapperObjectName);
+		// cache wrapper object for reuse
+		sharedContext.cacheWrapperObject(wrapperObjectKey, wrapperObjectPointer);
 
 		sharedContext.addNewType(wrapperObjectBuilder.build());
 		return wrapperObjectPointer;
