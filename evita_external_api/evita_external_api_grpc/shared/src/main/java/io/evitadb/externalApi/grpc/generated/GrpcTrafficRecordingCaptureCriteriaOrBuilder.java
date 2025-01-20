@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -244,7 +244,7 @@ public interface GrpcTrafficRecordingCaptureCriteriaOrBuilder extends
 
   /**
    * <pre>
-   * fetchingMoreBytesThan specifies the minimum number of bytes that the traffic recording should contain
+   * fetchingMoreBytesThan specifies the minimum number of bytes that record should have fetched from the disk
    * </pre>
    *
    * <code>.google.protobuf.Int32Value fetchingMoreBytesThan = 8;</code>
@@ -253,7 +253,7 @@ public interface GrpcTrafficRecordingCaptureCriteriaOrBuilder extends
   boolean hasFetchingMoreBytesThan();
   /**
    * <pre>
-   * fetchingMoreBytesThan specifies the minimum number of bytes that the traffic recording should contain
+   * fetchingMoreBytesThan specifies the minimum number of bytes that record should have fetched from the disk
    * </pre>
    *
    * <code>.google.protobuf.Int32Value fetchingMoreBytesThan = 8;</code>
@@ -262,10 +262,54 @@ public interface GrpcTrafficRecordingCaptureCriteriaOrBuilder extends
   com.google.protobuf.Int32Value getFetchingMoreBytesThan();
   /**
    * <pre>
-   * fetchingMoreBytesThan specifies the minimum number of bytes that the traffic recording should contain
+   * fetchingMoreBytesThan specifies the minimum number of bytes that record should have fetched from the disk
    * </pre>
    *
    * <code>.google.protobuf.Int32Value fetchingMoreBytesThan = 8;</code>
    */
   com.google.protobuf.Int32ValueOrBuilder getFetchingMoreBytesThanOrBuilder();
+
+  /**
+   * <pre>
+   * labels specifies the client labels that the traffic recording must have (both name and value must match)
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 9;</code>
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryLabel>
+      getLabelsList();
+  /**
+   * <pre>
+   * labels specifies the client labels that the traffic recording must have (both name and value must match)
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 9;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcQueryLabel getLabels(int index);
+  /**
+   * <pre>
+   * labels specifies the client labels that the traffic recording must have (both name and value must match)
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 9;</code>
+   */
+  int getLabelsCount();
+  /**
+   * <pre>
+   * labels specifies the client labels that the traffic recording must have (both name and value must match)
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 9;</code>
+   */
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryLabelOrBuilder>
+      getLabelsOrBuilderList();
+  /**
+   * <pre>
+   * labels specifies the client labels that the traffic recording must have (both name and value must match)
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 9;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcQueryLabelOrBuilder getLabelsOrBuilder(
+      int index);
 }

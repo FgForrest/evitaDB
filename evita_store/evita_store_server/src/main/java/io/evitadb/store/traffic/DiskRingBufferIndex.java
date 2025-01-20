@@ -25,6 +25,7 @@ package io.evitadb.store.traffic;
 
 
 import io.evitadb.api.requestResponse.trafficRecording.Label;
+import io.evitadb.api.requestResponse.trafficRecording.QueryContainer;
 import io.evitadb.api.requestResponse.trafficRecording.SessionStartContainer;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest;
@@ -47,6 +48,7 @@ import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
+import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -270,7 +272,7 @@ public class DiskRingBufferIndex implements
 	 */
 	@Nonnull
 	public Stream<SessionLocation> getSessionStream(@Nonnull TrafficRecordingCaptureRequest request) {
-		final List<Iterator<Long>> streams = Stream.concat(
+		final List<Iterator<Long>> streams = Stream.<Stream<Iterator<Long>>>of(
 				Stream.of(
 					request.sinceSessionSequenceId() == null ? null : this.sessionSequenceOrderIndex.greaterOrEqualValueIterator(request.sinceSessionSequenceId()),
 					request.sessionId() == null ? null : ofNullable(this.sessionIdIndex.get(request.sessionId())).map(sid -> List.of(sid).iterator()).orElse(null),
@@ -278,12 +280,20 @@ public class DiskRingBufferIndex implements
 					request.longerThan() == null ? null : this.sessionDurationIndex.greaterOrEqualValueIterator(Math.toIntExact(request.longerThan().toMillis())),
 					request.fetchingMoreBytesThan() == null ? null : this.sessionBytesFetchedIndex.greaterOrEqualValueIterator(request.fetchingMoreBytesThan())
 				),
-				request.type() == null ?
+				request.types() == null ?
 					Stream.empty() :
-					Arrays.stream(request.type()).map(this.sessionRecordingTypeIndex::get)
+					Arrays.stream(request.types()).map(this.sessionRecordingTypeIndex::get)
 						.filter(Objects::nonNull)
+						.map(TransactionalObjectBPlusTree::valueIterator),
+				request.labels() == null ?
+					Stream.empty() :
+					Arrays.stream(request.labels())
+						.map(this.labelIndex::search)
+						.filter(Optional::isPresent)
+						.map(Optional::get)
 						.map(TransactionalObjectBPlusTree::valueIterator)
 			)
+			.flatMap(UnaryOperator.identity())
 			.filter(Objects::nonNull)
 			.toList();
 
@@ -371,6 +381,22 @@ public class DiskRingBufferIndex implements
 							new TransactionalObjectBPlusTree<>(Long.class, Long.class))
 					.insert(sso, sso)
 		);
+
+		if (trafficRecording instanceof QueryContainer queryContainer) {
+			for (Label label : queryContainer.labels()) {
+				this.labelIndex.upsert(
+					label,
+					values -> {
+						if (values == null) {
+							values = new TransactionalObjectBPlusTree<>(Long.class, Long.class);
+						}
+						final Long seqOrder = Objects.requireNonNull(queryContainer.sessionSequenceOrder());
+						values.insert(seqOrder, seqOrder);
+						return values;
+					}
+				);
+			}
+		}
 	}
 
 	/**

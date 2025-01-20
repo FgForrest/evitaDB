@@ -43,9 +43,12 @@ import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRe
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingContent;
 import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.file.ExportFileService;
+import io.evitadb.externalApi.graphql.GraphQLProvider;
+import io.evitadb.externalApi.rest.RestProvider;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.FileUtils;
+import io.evitadb.utils.UUIDUtil;
 import lombok.EqualsAndHashCode;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.Delegate;
@@ -123,7 +126,6 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 					.content(TrafficRecordingContent.BODY)
 					.sinceSessionSequenceId(0L)
 					.sinceRecordSessionOffset(0)
-					.allTypes()
 					.build()
 			).count()
 		);
@@ -136,9 +138,9 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 				orderBy(entityPrimaryKeyNatural(OrderDirection.DESC)),
 				require(entityFetchAll())
 			),
-			new Label[]{
-				new Label("a", "b"),
-				new Label("c", "d")
+			new Label[] {
+				label("a", "b"),
+				label("c", "d")
 			},
 			OffsetDateTime.now(),
 			15,
@@ -182,18 +184,13 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 		);
 		this.trafficRecorder.closeSession(sessionId);
 
-		final long start = System.currentTimeMillis();
-		List<TrafficRecording> recordings;
-		do {
-			recordings = this.trafficRecorder.getRecordings(
-				TrafficRecordingCaptureRequest.builder()
-					.content(TrafficRecordingContent.BODY)
-					.sinceSessionSequenceId(0L)
-					.sinceRecordSessionOffset(0)
-					.allTypes()
-					.build()
-			).toList();
-		} while (recordings.isEmpty() && System.currentTimeMillis() - start < 10_000);
+		final List<TrafficRecording> recordings = this.trafficRecorder.getRecordings(
+			TrafficRecordingCaptureRequest.builder()
+				.content(TrafficRecordingContent.BODY)
+				.sinceSessionSequenceId(0L)
+				.sinceRecordSessionOffset(0)
+				.build()
+		).toList();
 
 		assertEquals(6, recordings.size());
 		assertInstanceOf(SessionStartContainer.class, recordings.get(0));
@@ -202,6 +199,106 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 		assertInstanceOf(EntityEnrichmentContainer.class, recordings.get(3));
 		assertInstanceOf(MutationContainer.class, recordings.get(4));
 		assertInstanceOf(SessionCloseContainer.class, recordings.get(5));
+	}
+
+	@Test
+	void shouldCorrectlyPropagateLabelsAndInheritedValues() {
+		assertEquals(
+			0,
+			this.trafficRecorder.getRecordings(
+				TrafficRecordingCaptureRequest.builder()
+					.content(TrafficRecordingContent.BODY)
+					.sinceSessionSequenceId(0L)
+					.sinceRecordSessionOffset(0)
+					.build()
+			).count()
+		);
+
+		final UUID firstSessionId = UUID.randomUUID();
+		this.trafficRecorder.createSession(firstSessionId, 1, OffsetDateTime.now());
+
+		final UUID firstSourceQueryId = UUIDUtil.randomUUID();
+		this.trafficRecorder.setupSourceQuery(
+			firstSessionId, firstSourceQueryId, OffsetDateTime.now(),
+			"Whatever query", GraphQLProvider.CODE
+		);
+		createLabeledQuery(
+			firstSessionId,
+			label(Label.LABEL_SOURCE_QUERY, firstSourceQueryId),
+			label(Label.LABEL_SOURCE_TYPE, GraphQLProvider.CODE),
+			label("a", "b"),
+			label("c", "d")
+		);
+		createLabeledQuery(
+			firstSessionId,
+			label(Label.LABEL_SOURCE_QUERY, firstSourceQueryId),
+			label(Label.LABEL_SOURCE_TYPE, GraphQLProvider.CODE),
+			label("abc", "bee"),
+			label("ced", "dff")
+		);
+
+		this.trafficRecorder.closeSourceQuery(firstSessionId, firstSourceQueryId);
+		this.trafficRecorder.closeSession(firstSessionId);
+
+		final UUID secondSessionId = UUID.randomUUID();
+		this.trafficRecorder.createSession(secondSessionId, 1, OffsetDateTime.now());
+
+		final UUID secondSourceQueryId = UUIDUtil.randomUUID();
+		this.trafficRecorder.setupSourceQuery(
+			secondSessionId, secondSourceQueryId, OffsetDateTime.now(),
+			"Whatever different query", GraphQLProvider.CODE
+		);
+		createLabeledQuery(
+			secondSessionId,
+			label(Label.LABEL_SOURCE_QUERY, secondSourceQueryId),
+			label(Label.LABEL_SOURCE_TYPE, RestProvider.CODE),
+			label("a", "bee"),
+			label("c", "dfr")
+		);
+		createLabeledQuery(
+			secondSessionId,
+			label(Label.LABEL_SOURCE_QUERY, secondSourceQueryId),
+			label(Label.LABEL_SOURCE_TYPE, RestProvider.CODE),
+			label("abc", "bee"),
+			label("ce", "whatever")
+		);
+		this.trafficRecorder.closeSourceQuery(secondSessionId, secondSourceQueryId);
+		this.trafficRecorder.closeSession(secondSessionId);
+
+		final List<TrafficRecording> firstSourceQuerySubQueries = this.trafficRecorder.getRecordings(
+			TrafficRecordingCaptureRequest.builder()
+				.content(TrafficRecordingContent.BODY)
+				.labels(new io.evitadb.api.requestResponse.trafficRecording.Label(Label.LABEL_SOURCE_QUERY, firstSourceQueryId))
+				.build()
+		).toList();
+
+		assertEquals(2, firstSourceQuerySubQueries.size());
+		assertEquals(2, firstSourceQuerySubQueries.get(0).recordSessionOffset());
+		assertEquals(3, firstSourceQuerySubQueries.get(1).recordSessionOffset());
+
+		final List<TrafficRecording> secondSourceQuerySubQueries = this.trafficRecorder.getRecordings(
+			TrafficRecordingCaptureRequest.builder()
+				.content(TrafficRecordingContent.BODY)
+				.labels(new io.evitadb.api.requestResponse.trafficRecording.Label(Label.LABEL_SOURCE_QUERY, secondSourceQueryId))
+				.build()
+		).toList();
+
+		assertEquals(2, secondSourceQuerySubQueries.size());
+		assertEquals(2, secondSourceQuerySubQueries.get(0).recordSessionOffset());
+		assertEquals(3, secondSourceQuerySubQueries.get(1).recordSessionOffset());
+
+		final List<TrafficRecording> beeSubQueries = this.trafficRecorder.getRecordings(
+			TrafficRecordingCaptureRequest.builder()
+				.content(TrafficRecordingContent.BODY)
+				.labels(new io.evitadb.api.requestResponse.trafficRecording.Label("abc", "bee"))
+				.build()
+		).toList();
+
+		assertEquals(2, beeSubQueries.size());
+		assertEquals(firstSessionId, beeSubQueries.get(0).sessionId());
+		assertEquals(3, beeSubQueries.get(0).recordSessionOffset());
+		assertEquals(secondSessionId, beeSubQueries.get(1).sessionId());
+		assertEquals(3, beeSubQueries.get(1).recordSessionOffset());
 	}
 
 	@Test
@@ -214,7 +311,6 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 					.content(TrafficRecordingContent.BODY)
 					.sinceSessionSequenceId(0L)
 					.sinceRecordSessionOffset(0)
-					.allTypes()
 					.build()
 			).count()
 		);
@@ -229,7 +325,6 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 				.content(TrafficRecordingContent.BODY)
 				.sinceSessionSequenceId(0L)
 				.sinceRecordSessionOffset(0)
-				.allTypes()
 				.build()
 		).toList();
 
@@ -248,7 +343,6 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 				.content(TrafficRecordingContent.BODY)
 				.sinceSessionSequenceId(0L)
 				.sinceRecordSessionOffset(0)
-				.allTypes()
 				.build()
 		).toList();
 
@@ -267,7 +361,6 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 				.content(TrafficRecordingContent.BODY)
 				.sinceSessionSequenceId(0L)
 				.sinceRecordSessionOffset(0)
-				.allTypes()
 				.build()
 		).toList();
 
@@ -291,11 +384,28 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 				.content(TrafficRecordingContent.BODY)
 				.sinceSessionSequenceId(0L)
 				.sinceRecordSessionOffset(0)
-				.allTypes()
 				.build()
 		).toList();
 
 		assertTrue(allRecordings.size() > 120);
+	}
+
+	private void createLabeledQuery(@Nonnull UUID sessionId, @Nonnull Label... labels) {
+		this.trafficRecorder.recordQuery(
+			sessionId,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(entityPrimaryKeyInSet(1, 2, 3)),
+				orderBy(entityPrimaryKeyNatural(OrderDirection.DESC)),
+				require(entityFetchAll())
+			),
+			labels,
+			OffsetDateTime.now(),
+			15,
+			456,
+			12311,
+			1, 2, 3
+		);
 	}
 
 	private void waitUntilDataBecomeAvailable(long sessionSequenceId, int waitMilliseconds) {
@@ -350,9 +460,9 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 						orderBy(entityPrimaryKeyNatural(OrderDirection.DESC)),
 						require(entityFetchAll())
 					),
-					new Label[]{
-						new Label("a", "b"),
-						new Label("c", "d")
+					new Label[] {
+						label("a", "b"),
+						label("c", "d")
 					},
 					OffsetDateTime.now(),
 					15,
@@ -386,8 +496,8 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 									require(entityFetchAll())
 								),
 								new Label[]{
-									new Label("a", "b"),
-									new Label("c", "d")
+									label("a", "b"),
+									label("c", "d")
 								},
 								OffsetDateTime.now(),
 								15,
@@ -419,6 +529,32 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 			super(corePoolSize);
 		}
 
+		@Nonnull
+		@Override
+		public ScheduledFuture<?> schedule(@Nonnull Runnable command, long delay, @Nonnull TimeUnit unit) {
+			if (delay > 0) {
+				return super.schedule(command, delay, unit);
+			} else {
+				command.run();
+				return new TestScheduledFuture<>(CompletableFuture.completedFuture(null));
+			}
+		}
+
+		@Nonnull
+		@Override
+		public <V> ScheduledFuture<V> schedule(@Nonnull Callable<V> callable, long delay, @Nonnull TimeUnit unit) {
+			if (delay > 0) {
+				return super.schedule(callable, delay, unit);
+			} else {
+				try {
+					final V result = callable.call();
+					return new TestScheduledFuture<>(CompletableFuture.completedFuture(result));
+				} catch (Exception e) {
+					throw new RuntimeException(e);
+				}
+			}
+		}
+
 		@Override
 		public void execute(@Nonnull Runnable command) {
 			command.run();
@@ -447,32 +583,6 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 				return CompletableFuture.completedFuture(result);
 			} catch (Exception e) {
 				return CompletableFuture.failedFuture(e);
-			}
-		}
-
-		@Nonnull
-		@Override
-		public ScheduledFuture<?> schedule(@Nonnull Runnable command, long delay, @Nonnull TimeUnit unit) {
-			if (delay > 0) {
-				return super.schedule(command, delay, unit);
-			} else {
-				command.run();
-				return new TestScheduledFuture<>(CompletableFuture.completedFuture(null));
-			}
-		}
-
-		@Nonnull
-		@Override
-		public <V> ScheduledFuture<V> schedule(@Nonnull Callable<V> callable, long delay, @Nonnull TimeUnit unit) {
-			if (delay > 0) {
-				return super.schedule(callable, delay, unit);
-			} else {
-				try {
-					final V result = callable.call();
-					return new TestScheduledFuture<>(CompletableFuture.completedFuture(result));
-				} catch (Exception e) {
-					throw new RuntimeException(e);
-				}
 			}
 		}
 

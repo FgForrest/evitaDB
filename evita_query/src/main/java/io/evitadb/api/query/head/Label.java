@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,7 +26,6 @@ package io.evitadb.api.query.head;
 
 import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.HeadConstraint;
-import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.dataType.EvitaDataTypes;
@@ -66,10 +65,16 @@ import java.io.Serializable;
 	userDocsLink = "/documentation/query/header/header#label"
 )
 public class Label extends AbstractHeadConstraintLeaf implements GenericConstraint<HeadConstraint> {
-	public static final Label[] EMPTY_ARRAY = new Label[0];
-	public static final String LABEL_SOURCE_QUERY = "source-query";
-	public static final String LABEL_SOURCE_TYPE = "source-type";
 	@Serial private static final long serialVersionUID = -7618002411866828589L;
+	public static final Label[] EMPTY_ARRAY = new Label[0];
+	/**
+	 * Allows to identify a root query that is a source for this one.
+	 */
+	public static final String LABEL_SOURCE_QUERY = "source-query";
+	/**
+	 * Allows to define type of the source query that is a root query for this one.
+	 */
+	public static final String LABEL_SOURCE_TYPE = "source-type";
 
 	public Label(@Nonnull Serializable... arguments) {
 		super(arguments);

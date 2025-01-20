@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
 
   private GrpcEvitaTrafficRecordingServiceGrpc() {}
 
-  public static final String SERVICE_NAME = "io.evitadb.externalApi.grpc.generated.GrpcEvitaTrafficRecordingService";
+  public static final java.lang.String SERVICE_NAME = "io.evitadb.externalApi.grpc.generated.GrpcEvitaTrafficRecordingService";
 
   // Static method descriptors that strictly reflect the proto.
   private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListRequest,
@@ -206,7 +206,7 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
 
   /**
    */
-  public static abstract class GrpcEvitaTrafficRecordingServiceImplBase implements io.grpc.BindableService {
+  public interface AsyncService {
 
     /**
      * <pre>
@@ -215,7 +215,7 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
      * traffic records within the session are ordered from the newest to the oldest.
      * </pre>
      */
-    public void getTrafficRecordingHistoryList(io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListRequest request,
+    default void getTrafficRecordingHistoryList(io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getGetTrafficRecordingHistoryListMethod(), responseObserver);
     }
@@ -227,7 +227,7 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
      * traffic records within the session are ordered from the newest to the oldest.
      * </pre>
      */
-    public void getTrafficRecordingHistory(io.evitadb.externalApi.grpc.generated.GetTrafficHistoryRequest request,
+    default void getTrafficRecordingHistory(io.evitadb.externalApi.grpc.generated.GetTrafficHistoryRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GetTrafficHistoryResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getGetTrafficRecordingHistoryMethod(), responseObserver);
     }
@@ -237,7 +237,7 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
      * Procedure returns a list of top unique labels names ordered by cardinality of their values present in the traffic recording.
      * </pre>
      */
-    public void getTrafficRecordingLabelsNamesOrderedByCardinality(io.evitadb.externalApi.grpc.generated.GetTrafficRecordingLabelNamesRequest request,
+    default void getTrafficRecordingLabelsNamesOrderedByCardinality(io.evitadb.externalApi.grpc.generated.GetTrafficRecordingLabelNamesRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GetTrafficRecordingLabelNamesResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getGetTrafficRecordingLabelsNamesOrderedByCardinalityMethod(), responseObserver);
     }
@@ -247,48 +247,28 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
      * Procedure returns a list of top unique label values ordered by cardinality of their values present in the traffic recording.
      * </pre>
      */
-    public void getTrafficRecordingLabelsValuesOrderedByCardinality(io.evitadb.externalApi.grpc.generated.GetTrafficRecordingValuesNamesRequest request,
+    default void getTrafficRecordingLabelsValuesOrderedByCardinality(io.evitadb.externalApi.grpc.generated.GetTrafficRecordingValuesNamesRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GetTrafficRecordingValuesNamesResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getGetTrafficRecordingLabelsValuesOrderedByCardinalityMethod(), responseObserver);
-    }
-
-    @java.lang.Override public final io.grpc.ServerServiceDefinition bindService() {
-      return io.grpc.ServerServiceDefinition.builder(getServiceDescriptor())
-          .addMethod(
-            getGetTrafficRecordingHistoryListMethod(),
-            io.grpc.stub.ServerCalls.asyncUnaryCall(
-              new MethodHandlers<
-                io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListRequest,
-                io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListResponse>(
-                  this, METHODID_GET_TRAFFIC_RECORDING_HISTORY_LIST)))
-          .addMethod(
-            getGetTrafficRecordingHistoryMethod(),
-            io.grpc.stub.ServerCalls.asyncServerStreamingCall(
-              new MethodHandlers<
-                io.evitadb.externalApi.grpc.generated.GetTrafficHistoryRequest,
-                io.evitadb.externalApi.grpc.generated.GetTrafficHistoryResponse>(
-                  this, METHODID_GET_TRAFFIC_RECORDING_HISTORY)))
-          .addMethod(
-            getGetTrafficRecordingLabelsNamesOrderedByCardinalityMethod(),
-            io.grpc.stub.ServerCalls.asyncServerStreamingCall(
-              new MethodHandlers<
-                io.evitadb.externalApi.grpc.generated.GetTrafficRecordingLabelNamesRequest,
-                io.evitadb.externalApi.grpc.generated.GetTrafficRecordingLabelNamesResponse>(
-                  this, METHODID_GET_TRAFFIC_RECORDING_LABELS_NAMES_ORDERED_BY_CARDINALITY)))
-          .addMethod(
-            getGetTrafficRecordingLabelsValuesOrderedByCardinalityMethod(),
-            io.grpc.stub.ServerCalls.asyncServerStreamingCall(
-              new MethodHandlers<
-                io.evitadb.externalApi.grpc.generated.GetTrafficRecordingValuesNamesRequest,
-                io.evitadb.externalApi.grpc.generated.GetTrafficRecordingValuesNamesResponse>(
-                  this, METHODID_GET_TRAFFIC_RECORDING_LABELS_VALUES_ORDERED_BY_CARDINALITY)))
-          .build();
     }
   }
 
   /**
+   * Base class for the server implementation of the service GrpcEvitaTrafficRecordingService.
    */
-  public static final class GrpcEvitaTrafficRecordingServiceStub extends io.grpc.stub.AbstractAsyncStub<GrpcEvitaTrafficRecordingServiceStub> {
+  public static abstract class GrpcEvitaTrafficRecordingServiceImplBase
+      implements io.grpc.BindableService, AsyncService {
+
+    @java.lang.Override public final io.grpc.ServerServiceDefinition bindService() {
+      return GrpcEvitaTrafficRecordingServiceGrpc.bindService(this);
+    }
+  }
+
+  /**
+   * A stub to allow clients to do asynchronous rpc calls to service GrpcEvitaTrafficRecordingService.
+   */
+  public static final class GrpcEvitaTrafficRecordingServiceStub
+      extends io.grpc.stub.AbstractAsyncStub<GrpcEvitaTrafficRecordingServiceStub> {
     private GrpcEvitaTrafficRecordingServiceStub(
         io.grpc.Channel channel, io.grpc.CallOptions callOptions) {
       super(channel, callOptions);
@@ -350,8 +330,10 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
   }
 
   /**
+   * A stub to allow clients to do synchronous rpc calls to service GrpcEvitaTrafficRecordingService.
    */
-  public static final class GrpcEvitaTrafficRecordingServiceBlockingStub extends io.grpc.stub.AbstractBlockingStub<GrpcEvitaTrafficRecordingServiceBlockingStub> {
+  public static final class GrpcEvitaTrafficRecordingServiceBlockingStub
+      extends io.grpc.stub.AbstractBlockingStub<GrpcEvitaTrafficRecordingServiceBlockingStub> {
     private GrpcEvitaTrafficRecordingServiceBlockingStub(
         io.grpc.Channel channel, io.grpc.CallOptions callOptions) {
       super(channel, callOptions);
@@ -412,8 +394,10 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
   }
 
   /**
+   * A stub to allow clients to do ListenableFuture-style rpc calls to service GrpcEvitaTrafficRecordingService.
    */
-  public static final class GrpcEvitaTrafficRecordingServiceFutureStub extends io.grpc.stub.AbstractFutureStub<GrpcEvitaTrafficRecordingServiceFutureStub> {
+  public static final class GrpcEvitaTrafficRecordingServiceFutureStub
+      extends io.grpc.stub.AbstractFutureStub<GrpcEvitaTrafficRecordingServiceFutureStub> {
     private GrpcEvitaTrafficRecordingServiceFutureStub(
         io.grpc.Channel channel, io.grpc.CallOptions callOptions) {
       super(channel, callOptions);
@@ -449,10 +433,10 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
       io.grpc.stub.ServerCalls.ServerStreamingMethod<Req, Resp>,
       io.grpc.stub.ServerCalls.ClientStreamingMethod<Req, Resp>,
       io.grpc.stub.ServerCalls.BidiStreamingMethod<Req, Resp> {
-    private final GrpcEvitaTrafficRecordingServiceImplBase serviceImpl;
+    private final AsyncService serviceImpl;
     private final int methodId;
 
-    MethodHandlers(GrpcEvitaTrafficRecordingServiceImplBase serviceImpl, int methodId) {
+    MethodHandlers(AsyncService serviceImpl, int methodId) {
       this.serviceImpl = serviceImpl;
       this.methodId = methodId;
     }
@@ -493,6 +477,39 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
     }
   }
 
+  public static final io.grpc.ServerServiceDefinition bindService(AsyncService service) {
+    return io.grpc.ServerServiceDefinition.builder(getServiceDescriptor())
+        .addMethod(
+          getGetTrafficRecordingHistoryListMethod(),
+          io.grpc.stub.ServerCalls.asyncUnaryCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListRequest,
+              io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListResponse>(
+                service, METHODID_GET_TRAFFIC_RECORDING_HISTORY_LIST)))
+        .addMethod(
+          getGetTrafficRecordingHistoryMethod(),
+          io.grpc.stub.ServerCalls.asyncServerStreamingCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GetTrafficHistoryRequest,
+              io.evitadb.externalApi.grpc.generated.GetTrafficHistoryResponse>(
+                service, METHODID_GET_TRAFFIC_RECORDING_HISTORY)))
+        .addMethod(
+          getGetTrafficRecordingLabelsNamesOrderedByCardinalityMethod(),
+          io.grpc.stub.ServerCalls.asyncServerStreamingCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GetTrafficRecordingLabelNamesRequest,
+              io.evitadb.externalApi.grpc.generated.GetTrafficRecordingLabelNamesResponse>(
+                service, METHODID_GET_TRAFFIC_RECORDING_LABELS_NAMES_ORDERED_BY_CARDINALITY)))
+        .addMethod(
+          getGetTrafficRecordingLabelsValuesOrderedByCardinalityMethod(),
+          io.grpc.stub.ServerCalls.asyncServerStreamingCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GetTrafficRecordingValuesNamesRequest,
+              io.evitadb.externalApi.grpc.generated.GetTrafficRecordingValuesNamesResponse>(
+                service, METHODID_GET_TRAFFIC_RECORDING_LABELS_VALUES_ORDERED_BY_CARDINALITY)))
+        .build();
+  }
+
   private static abstract class GrpcEvitaTrafficRecordingServiceBaseDescriptorSupplier
       implements io.grpc.protobuf.ProtoFileDescriptorSupplier, io.grpc.protobuf.ProtoServiceDescriptorSupplier {
     GrpcEvitaTrafficRecordingServiceBaseDescriptorSupplier() {}
@@ -516,9 +533,9 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
   private static final class GrpcEvitaTrafficRecordingServiceMethodDescriptorSupplier
       extends GrpcEvitaTrafficRecordingServiceBaseDescriptorSupplier
       implements io.grpc.protobuf.ProtoMethodDescriptorSupplier {
-    private final String methodName;
+    private final java.lang.String methodName;
 
-    GrpcEvitaTrafficRecordingServiceMethodDescriptorSupplier(String methodName) {
+    GrpcEvitaTrafficRecordingServiceMethodDescriptorSupplier(java.lang.String methodName) {
       this.methodName = methodName;
     }
 

@@ -24,6 +24,7 @@
 package io.evitadb.store.traffic;
 
 
+import io.evitadb.api.requestResponse.trafficRecording.QueryContainer;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest.TrafficRecordingType;
@@ -173,11 +174,6 @@ public class DiskRingBuffer {
 	@Nonnull
 	private static Predicate<TrafficRecording> createRequestPredicate(@Nonnull TrafficRecordingCaptureRequest request) {
 		Predicate<TrafficRecording> requestPredicate = tr -> true;
-		if (request.type() != null) {
-			requestPredicate = requestPredicate.and(
-				tr -> Arrays.stream(request.type()).anyMatch(it -> it == tr.type())
-			);
-		}
 		if (request.sessionId() != null) {
 			requestPredicate = requestPredicate.and(
 				tr -> request.sessionId().equals(tr.sessionId())
@@ -197,6 +193,17 @@ public class DiskRingBuffer {
 			final long thresholdMillis = request.longerThan().toMillis();
 			requestPredicate = requestPredicate.and(
 				trafficRecording -> trafficRecording.durationInMilliseconds() > thresholdMillis
+			);
+		}
+		if (request.types() != null) {
+			requestPredicate = requestPredicate.and(
+				tr -> Arrays.stream(request.types()).anyMatch(it -> it == tr.type())
+			);
+		}
+		if (request.labels() != null) {
+			requestPredicate = requestPredicate.and(
+				tr -> tr instanceof QueryContainer qc &&
+					Arrays.stream(request.labels()).anyMatch(it -> Arrays.asList(qc.labels()).contains(it))
 			);
 		}
 		return requestPredicate;

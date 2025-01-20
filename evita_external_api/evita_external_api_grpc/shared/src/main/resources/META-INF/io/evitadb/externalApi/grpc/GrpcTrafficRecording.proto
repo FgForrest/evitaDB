@@ -30,8 +30,10 @@ message GrpcTrafficRecordingCaptureCriteria {
   GrpcUuid sessionId = 6;
   // longerThan specifies the minimum duration in milliseconds of the traffic recording to be returned
   google.protobuf.Int32Value longerThan = 7;
-  // fetchingMoreBytesThan specifies the minimum number of bytes that the traffic recording should contain
+  // fetchingMoreBytesThan specifies the minimum number of bytes that record should have fetched from the disk
   google.protobuf.Int32Value fetchingMoreBytesThan = 8;
+  // labels specifies the client labels that the traffic recording must have (both name and value must match)
+  repeated GrpcQueryLabel labels = 9;
 }
 
 // Record represents a CDC event that is sent to the subscriber if it matches to the request he made.

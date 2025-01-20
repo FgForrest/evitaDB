@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -46,6 +46,7 @@ private static final long serialVersionUID = 0L;
   private GrpcTrafficRecordingCaptureCriteria() {
     content_ = 0;
     type_ = java.util.Collections.emptyList();
+    labels_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -186,6 +187,15 @@ private static final long serialVersionUID = 0L;
 
             break;
           }
+          case 74: {
+            if (!((mutable_bitField0_ & 0x00000002) != 0)) {
+              labels_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcQueryLabel>();
+              mutable_bitField0_ |= 0x00000002;
+            }
+            labels_.add(
+                input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcQueryLabel.parser(), extensionRegistry));
+            break;
+          }
           default: {
             if (!parseUnknownField(
                 input, unknownFields, extensionRegistry, tag)) {
@@ -203,6 +213,9 @@ private static final long serialVersionUID = 0L;
     } finally {
       if (((mutable_bitField0_ & 0x00000001) != 0)) {
         type_ = java.util.Collections.unmodifiableList(type_);
+      }
+      if (((mutable_bitField0_ & 0x00000002) != 0)) {
+        labels_ = java.util.Collections.unmodifiableList(labels_);
       }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
@@ -529,7 +542,7 @@ private static final long serialVersionUID = 0L;
   private com.google.protobuf.Int32Value fetchingMoreBytesThan_;
   /**
    * <pre>
-   * fetchingMoreBytesThan specifies the minimum number of bytes that the traffic recording should contain
+   * fetchingMoreBytesThan specifies the minimum number of bytes that record should have fetched from the disk
    * </pre>
    *
    * <code>.google.protobuf.Int32Value fetchingMoreBytesThan = 8;</code>
@@ -541,7 +554,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * fetchingMoreBytesThan specifies the minimum number of bytes that the traffic recording should contain
+   * fetchingMoreBytesThan specifies the minimum number of bytes that record should have fetched from the disk
    * </pre>
    *
    * <code>.google.protobuf.Int32Value fetchingMoreBytesThan = 8;</code>
@@ -553,7 +566,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * fetchingMoreBytesThan specifies the minimum number of bytes that the traffic recording should contain
+   * fetchingMoreBytesThan specifies the minimum number of bytes that record should have fetched from the disk
    * </pre>
    *
    * <code>.google.protobuf.Int32Value fetchingMoreBytesThan = 8;</code>
@@ -561,6 +574,66 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public com.google.protobuf.Int32ValueOrBuilder getFetchingMoreBytesThanOrBuilder() {
     return getFetchingMoreBytesThan();
+  }
+
+  public static final int LABELS_FIELD_NUMBER = 9;
+  private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryLabel> labels_;
+  /**
+   * <pre>
+   * labels specifies the client labels that the traffic recording must have (both name and value must match)
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 9;</code>
+   */
+  @java.lang.Override
+  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryLabel> getLabelsList() {
+    return labels_;
+  }
+  /**
+   * <pre>
+   * labels specifies the client labels that the traffic recording must have (both name and value must match)
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 9;</code>
+   */
+  @java.lang.Override
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryLabelOrBuilder>
+      getLabelsOrBuilderList() {
+    return labels_;
+  }
+  /**
+   * <pre>
+   * labels specifies the client labels that the traffic recording must have (both name and value must match)
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 9;</code>
+   */
+  @java.lang.Override
+  public int getLabelsCount() {
+    return labels_.size();
+  }
+  /**
+   * <pre>
+   * labels specifies the client labels that the traffic recording must have (both name and value must match)
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 9;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcQueryLabel getLabels(int index) {
+    return labels_.get(index);
+  }
+  /**
+   * <pre>
+   * labels specifies the client labels that the traffic recording must have (both name and value must match)
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 9;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcQueryLabelOrBuilder getLabelsOrBuilder(
+      int index) {
+    return labels_.get(index);
   }
 
   private byte memoizedIsInitialized = -1;
@@ -605,6 +678,9 @@ private static final long serialVersionUID = 0L;
     }
     if (fetchingMoreBytesThan_ != null) {
       output.writeMessage(8, getFetchingMoreBytesThan());
+    }
+    for (int i = 0; i < labels_.size(); i++) {
+      output.writeMessage(9, labels_.get(i));
     }
     unknownFields.writeTo(output);
   }
@@ -655,6 +731,10 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(8, getFetchingMoreBytesThan());
     }
+    for (int i = 0; i < labels_.size(); i++) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(9, labels_.get(i));
+    }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
     return size;
@@ -702,6 +782,8 @@ private static final long serialVersionUID = 0L;
       if (!getFetchingMoreBytesThan()
           .equals(other.getFetchingMoreBytesThan())) return false;
     }
+    if (!getLabelsList()
+        .equals(other.getLabelsList())) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -742,6 +824,10 @@ private static final long serialVersionUID = 0L;
     if (hasFetchingMoreBytesThan()) {
       hash = (37 * hash) + FETCHINGMOREBYTESTHAN_FIELD_NUMBER;
       hash = (53 * hash) + getFetchingMoreBytesThan().hashCode();
+    }
+    if (getLabelsCount() > 0) {
+      hash = (37 * hash) + LABELS_FIELD_NUMBER;
+      hash = (53 * hash) + getLabelsList().hashCode();
     }
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
@@ -876,6 +962,7 @@ private static final long serialVersionUID = 0L;
     private void maybeForceBuilderInitialization() {
       if (com.google.protobuf.GeneratedMessageV3
               .alwaysUseFieldBuilders) {
+        getLabelsFieldBuilder();
       }
     }
     @java.lang.Override
@@ -920,6 +1007,12 @@ private static final long serialVersionUID = 0L;
       } else {
         fetchingMoreBytesThan_ = null;
         fetchingMoreBytesThanBuilder_ = null;
+      }
+      if (labelsBuilder_ == null) {
+        labels_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00000002);
+      } else {
+        labelsBuilder_.clear();
       }
       return this;
     }
@@ -983,6 +1076,15 @@ private static final long serialVersionUID = 0L;
         result.fetchingMoreBytesThan_ = fetchingMoreBytesThan_;
       } else {
         result.fetchingMoreBytesThan_ = fetchingMoreBytesThanBuilder_.build();
+      }
+      if (labelsBuilder_ == null) {
+        if (((bitField0_ & 0x00000002) != 0)) {
+          labels_ = java.util.Collections.unmodifiableList(labels_);
+          bitField0_ = (bitField0_ & ~0x00000002);
+        }
+        result.labels_ = labels_;
+      } else {
+        result.labels_ = labelsBuilder_.build();
       }
       onBuilt();
       return result;
@@ -1062,6 +1164,32 @@ private static final long serialVersionUID = 0L;
       }
       if (other.hasFetchingMoreBytesThan()) {
         mergeFetchingMoreBytesThan(other.getFetchingMoreBytesThan());
+      }
+      if (labelsBuilder_ == null) {
+        if (!other.labels_.isEmpty()) {
+          if (labels_.isEmpty()) {
+            labels_ = other.labels_;
+            bitField0_ = (bitField0_ & ~0x00000002);
+          } else {
+            ensureLabelsIsMutable();
+            labels_.addAll(other.labels_);
+          }
+          onChanged();
+        }
+      } else {
+        if (!other.labels_.isEmpty()) {
+          if (labelsBuilder_.isEmpty()) {
+            labelsBuilder_.dispose();
+            labelsBuilder_ = null;
+            labels_ = other.labels_;
+            bitField0_ = (bitField0_ & ~0x00000002);
+            labelsBuilder_ =
+              com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
+                 getLabelsFieldBuilder() : null;
+          } else {
+            labelsBuilder_.addAllMessages(other.labels_);
+          }
+        }
       }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
@@ -2162,7 +2290,7 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> fetchingMoreBytesThanBuilder_;
     /**
      * <pre>
-     * fetchingMoreBytesThan specifies the minimum number of bytes that the traffic recording should contain
+     * fetchingMoreBytesThan specifies the minimum number of bytes that record should have fetched from the disk
      * </pre>
      *
      * <code>.google.protobuf.Int32Value fetchingMoreBytesThan = 8;</code>
@@ -2173,7 +2301,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * fetchingMoreBytesThan specifies the minimum number of bytes that the traffic recording should contain
+     * fetchingMoreBytesThan specifies the minimum number of bytes that record should have fetched from the disk
      * </pre>
      *
      * <code>.google.protobuf.Int32Value fetchingMoreBytesThan = 8;</code>
@@ -2188,7 +2316,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * fetchingMoreBytesThan specifies the minimum number of bytes that the traffic recording should contain
+     * fetchingMoreBytesThan specifies the minimum number of bytes that record should have fetched from the disk
      * </pre>
      *
      * <code>.google.protobuf.Int32Value fetchingMoreBytesThan = 8;</code>
@@ -2208,7 +2336,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * fetchingMoreBytesThan specifies the minimum number of bytes that the traffic recording should contain
+     * fetchingMoreBytesThan specifies the minimum number of bytes that record should have fetched from the disk
      * </pre>
      *
      * <code>.google.protobuf.Int32Value fetchingMoreBytesThan = 8;</code>
@@ -2226,7 +2354,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * fetchingMoreBytesThan specifies the minimum number of bytes that the traffic recording should contain
+     * fetchingMoreBytesThan specifies the minimum number of bytes that record should have fetched from the disk
      * </pre>
      *
      * <code>.google.protobuf.Int32Value fetchingMoreBytesThan = 8;</code>
@@ -2248,7 +2376,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * fetchingMoreBytesThan specifies the minimum number of bytes that the traffic recording should contain
+     * fetchingMoreBytesThan specifies the minimum number of bytes that record should have fetched from the disk
      * </pre>
      *
      * <code>.google.protobuf.Int32Value fetchingMoreBytesThan = 8;</code>
@@ -2266,7 +2394,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * fetchingMoreBytesThan specifies the minimum number of bytes that the traffic recording should contain
+     * fetchingMoreBytesThan specifies the minimum number of bytes that record should have fetched from the disk
      * </pre>
      *
      * <code>.google.protobuf.Int32Value fetchingMoreBytesThan = 8;</code>
@@ -2278,7 +2406,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * fetchingMoreBytesThan specifies the minimum number of bytes that the traffic recording should contain
+     * fetchingMoreBytesThan specifies the minimum number of bytes that record should have fetched from the disk
      * </pre>
      *
      * <code>.google.protobuf.Int32Value fetchingMoreBytesThan = 8;</code>
@@ -2293,7 +2421,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * fetchingMoreBytesThan specifies the minimum number of bytes that the traffic recording should contain
+     * fetchingMoreBytesThan specifies the minimum number of bytes that record should have fetched from the disk
      * </pre>
      *
      * <code>.google.protobuf.Int32Value fetchingMoreBytesThan = 8;</code>
@@ -2310,6 +2438,318 @@ private static final long serialVersionUID = 0L;
         fetchingMoreBytesThan_ = null;
       }
       return fetchingMoreBytesThanBuilder_;
+    }
+
+    private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryLabel> labels_ =
+      java.util.Collections.emptyList();
+    private void ensureLabelsIsMutable() {
+      if (!((bitField0_ & 0x00000002) != 0)) {
+        labels_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcQueryLabel>(labels_);
+        bitField0_ |= 0x00000002;
+       }
+    }
+
+    private com.google.protobuf.RepeatedFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcQueryLabel, io.evitadb.externalApi.grpc.generated.GrpcQueryLabel.Builder, io.evitadb.externalApi.grpc.generated.GrpcQueryLabelOrBuilder> labelsBuilder_;
+
+    /**
+     * <pre>
+     * labels specifies the client labels that the traffic recording must have (both name and value must match)
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 9;</code>
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryLabel> getLabelsList() {
+      if (labelsBuilder_ == null) {
+        return java.util.Collections.unmodifiableList(labels_);
+      } else {
+        return labelsBuilder_.getMessageList();
+      }
+    }
+    /**
+     * <pre>
+     * labels specifies the client labels that the traffic recording must have (both name and value must match)
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 9;</code>
+     */
+    public int getLabelsCount() {
+      if (labelsBuilder_ == null) {
+        return labels_.size();
+      } else {
+        return labelsBuilder_.getCount();
+      }
+    }
+    /**
+     * <pre>
+     * labels specifies the client labels that the traffic recording must have (both name and value must match)
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 9;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcQueryLabel getLabels(int index) {
+      if (labelsBuilder_ == null) {
+        return labels_.get(index);
+      } else {
+        return labelsBuilder_.getMessage(index);
+      }
+    }
+    /**
+     * <pre>
+     * labels specifies the client labels that the traffic recording must have (both name and value must match)
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 9;</code>
+     */
+    public Builder setLabels(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcQueryLabel value) {
+      if (labelsBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureLabelsIsMutable();
+        labels_.set(index, value);
+        onChanged();
+      } else {
+        labelsBuilder_.setMessage(index, value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * labels specifies the client labels that the traffic recording must have (both name and value must match)
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 9;</code>
+     */
+    public Builder setLabels(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcQueryLabel.Builder builderForValue) {
+      if (labelsBuilder_ == null) {
+        ensureLabelsIsMutable();
+        labels_.set(index, builderForValue.build());
+        onChanged();
+      } else {
+        labelsBuilder_.setMessage(index, builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * labels specifies the client labels that the traffic recording must have (both name and value must match)
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 9;</code>
+     */
+    public Builder addLabels(io.evitadb.externalApi.grpc.generated.GrpcQueryLabel value) {
+      if (labelsBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureLabelsIsMutable();
+        labels_.add(value);
+        onChanged();
+      } else {
+        labelsBuilder_.addMessage(value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * labels specifies the client labels that the traffic recording must have (both name and value must match)
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 9;</code>
+     */
+    public Builder addLabels(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcQueryLabel value) {
+      if (labelsBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureLabelsIsMutable();
+        labels_.add(index, value);
+        onChanged();
+      } else {
+        labelsBuilder_.addMessage(index, value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * labels specifies the client labels that the traffic recording must have (both name and value must match)
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 9;</code>
+     */
+    public Builder addLabels(
+        io.evitadb.externalApi.grpc.generated.GrpcQueryLabel.Builder builderForValue) {
+      if (labelsBuilder_ == null) {
+        ensureLabelsIsMutable();
+        labels_.add(builderForValue.build());
+        onChanged();
+      } else {
+        labelsBuilder_.addMessage(builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * labels specifies the client labels that the traffic recording must have (both name and value must match)
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 9;</code>
+     */
+    public Builder addLabels(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcQueryLabel.Builder builderForValue) {
+      if (labelsBuilder_ == null) {
+        ensureLabelsIsMutable();
+        labels_.add(index, builderForValue.build());
+        onChanged();
+      } else {
+        labelsBuilder_.addMessage(index, builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * labels specifies the client labels that the traffic recording must have (both name and value must match)
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 9;</code>
+     */
+    public Builder addAllLabels(
+        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryLabel> values) {
+      if (labelsBuilder_ == null) {
+        ensureLabelsIsMutable();
+        com.google.protobuf.AbstractMessageLite.Builder.addAll(
+            values, labels_);
+        onChanged();
+      } else {
+        labelsBuilder_.addAllMessages(values);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * labels specifies the client labels that the traffic recording must have (both name and value must match)
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 9;</code>
+     */
+    public Builder clearLabels() {
+      if (labelsBuilder_ == null) {
+        labels_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00000002);
+        onChanged();
+      } else {
+        labelsBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * labels specifies the client labels that the traffic recording must have (both name and value must match)
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 9;</code>
+     */
+    public Builder removeLabels(int index) {
+      if (labelsBuilder_ == null) {
+        ensureLabelsIsMutable();
+        labels_.remove(index);
+        onChanged();
+      } else {
+        labelsBuilder_.remove(index);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * labels specifies the client labels that the traffic recording must have (both name and value must match)
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 9;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcQueryLabel.Builder getLabelsBuilder(
+        int index) {
+      return getLabelsFieldBuilder().getBuilder(index);
+    }
+    /**
+     * <pre>
+     * labels specifies the client labels that the traffic recording must have (both name and value must match)
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 9;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcQueryLabelOrBuilder getLabelsOrBuilder(
+        int index) {
+      if (labelsBuilder_ == null) {
+        return labels_.get(index);  } else {
+        return labelsBuilder_.getMessageOrBuilder(index);
+      }
+    }
+    /**
+     * <pre>
+     * labels specifies the client labels that the traffic recording must have (both name and value must match)
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 9;</code>
+     */
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryLabelOrBuilder>
+         getLabelsOrBuilderList() {
+      if (labelsBuilder_ != null) {
+        return labelsBuilder_.getMessageOrBuilderList();
+      } else {
+        return java.util.Collections.unmodifiableList(labels_);
+      }
+    }
+    /**
+     * <pre>
+     * labels specifies the client labels that the traffic recording must have (both name and value must match)
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 9;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcQueryLabel.Builder addLabelsBuilder() {
+      return getLabelsFieldBuilder().addBuilder(
+          io.evitadb.externalApi.grpc.generated.GrpcQueryLabel.getDefaultInstance());
+    }
+    /**
+     * <pre>
+     * labels specifies the client labels that the traffic recording must have (both name and value must match)
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 9;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcQueryLabel.Builder addLabelsBuilder(
+        int index) {
+      return getLabelsFieldBuilder().addBuilder(
+          index, io.evitadb.externalApi.grpc.generated.GrpcQueryLabel.getDefaultInstance());
+    }
+    /**
+     * <pre>
+     * labels specifies the client labels that the traffic recording must have (both name and value must match)
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 9;</code>
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryLabel.Builder>
+         getLabelsBuilderList() {
+      return getLabelsFieldBuilder().getBuilderList();
+    }
+    private com.google.protobuf.RepeatedFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcQueryLabel, io.evitadb.externalApi.grpc.generated.GrpcQueryLabel.Builder, io.evitadb.externalApi.grpc.generated.GrpcQueryLabelOrBuilder>
+        getLabelsFieldBuilder() {
+      if (labelsBuilder_ == null) {
+        labelsBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcQueryLabel, io.evitadb.externalApi.grpc.generated.GrpcQueryLabel.Builder, io.evitadb.externalApi.grpc.generated.GrpcQueryLabelOrBuilder>(
+                labels_,
+                ((bitField0_ & 0x00000002) != 0),
+                getParentForChildren(),
+                isClean());
+        labels_ = null;
+      }
+      return labelsBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

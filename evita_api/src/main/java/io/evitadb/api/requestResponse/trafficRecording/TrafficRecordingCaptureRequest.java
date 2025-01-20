@@ -34,17 +34,18 @@ import java.util.UUID;
  * Traffic recording capture request is used to specify the criteria for retrieving contents from the traffic recording
  * log.
  *
- * @param content determines whether only basic information about the traffic recording is returned or the actual content
- * @param since specifies the time from which the traffic recording should be returned
- * @param sinceSessionSequenceId specifies the session sequence ID from which the traffic recording should be returned
+ * @param content                  determines whether only basic information about the traffic recording is returned or the actual content
+ * @param since                    specifies the time from which the traffic recording should be returned
+ * @param sinceSessionSequenceId   specifies the session sequence ID from which the traffic recording should be returned
  * @param sinceRecordSessionOffset specifies the record session offset from which the traffic recording should be returned
  *                                 (the offset is relative to the session sequence ID and starts from 0), offset allows
  *                                 to continue fetching the traffic recording from the last fetched record when session
  *                                 was not fully fetched
- * @param type specifies the types of traffic recording to be returned
- * @param sessionId specifies the session ID from which the traffic recording should be returned
- * @param longerThan specifies the minimum duration of the traffic recording to be returned
- * @param fetchingMoreBytesThan specifies the minimum number of bytes that the traffic recording should contain
+ * @param types                    specifies the types of traffic recording to be returned
+ * @param sessionId                specifies the session ID from which the traffic recording should be returned
+ * @param longerThan               specifies the minimum duration of the traffic recording to be returned
+ * @param fetchingMoreBytesThan    specifies the minimum number of bytes that the traffic recording should contain
+ * @param labels                   specifies the labels of traffic recording to be returned (both label name and value must match)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
@@ -53,11 +54,28 @@ public record TrafficRecordingCaptureRequest(
 	@Nullable OffsetDateTime since,
 	@Nullable Long sinceSessionSequenceId,
 	@Nullable Integer sinceRecordSessionOffset,
-	@Nullable TrafficRecordingType[] type,
+	@Nullable TrafficRecordingType[] types,
 	@Nullable UUID sessionId,
 	@Nullable Duration longerThan,
-	@Nullable Integer fetchingMoreBytesThan
+	@Nullable Integer fetchingMoreBytesThan,
+	@Nullable Label[] labels
 ) {
+
+	/**
+	 * Builder for the storage options. Recommended to use to avoid binary compatibility problems in the future.
+	 */
+	@Nonnull
+	public static TrafficRecordingCaptureRequest.Builder builder() {
+		return new TrafficRecordingCaptureRequest.Builder();
+	}
+
+	/**
+	 * Builder for the storage options. Recommended to use to avoid binary compatibility problems in the future.
+	 */
+	@Nonnull
+	public static TrafficRecordingCaptureRequest.Builder builder(@Nonnull TrafficRecordingCaptureRequest request) {
+		return new TrafficRecordingCaptureRequest.Builder(request);
+	}
 
 	/**
 	 * List of all possible traffic recording types.
@@ -101,22 +119,6 @@ public record TrafficRecordingCaptureRequest(
 	}
 
 	/**
-	 * Builder for the storage options. Recommended to use to avoid binary compatibility problems in the future.
-	 */
-	@Nonnull
-	public static TrafficRecordingCaptureRequest.Builder builder() {
-		return new TrafficRecordingCaptureRequest.Builder();
-	}
-
-	/**
-	 * Builder for the storage options. Recommended to use to avoid binary compatibility problems in the future.
-	 */
-	@Nonnull
-	public static TrafficRecordingCaptureRequest.Builder builder(@Nonnull TrafficRecordingCaptureRequest request) {
-		return new TrafficRecordingCaptureRequest.Builder(request);
-	}
-
-	/**
 	 * Builder for {@link TrafficRecordingCaptureRequest}. Recommended to use to avoid binary compatibility problems in the future.
 	 */
 	public static class Builder {
@@ -129,7 +131,9 @@ public record TrafficRecordingCaptureRequest(
 		@Nullable
 		private Integer sinceRecordSessionOffset;
 		@Nullable
-		private TrafficRecordingCaptureRequest.TrafficRecordingType[] type;
+		private TrafficRecordingCaptureRequest.TrafficRecordingType[] types;
+		@Nullable
+		private Label[] labels;
 		@Nullable
 		private UUID sessionId;
 		@Nullable
@@ -153,7 +157,7 @@ public record TrafficRecordingCaptureRequest(
 			this.since = request.since();
 			this.sinceSessionSequenceId = request.sinceSessionSequenceId();
 			this.sinceRecordSessionOffset = request.sinceRecordSessionOffset();
-			this.type = request.type();
+			this.types = request.types();
 			this.sessionId = request.sessionId();
 			this.longerThan = request.longerThan();
 			this.fetchingMoreBytesThan = request.fetchingMoreBytesThan();
@@ -215,18 +219,19 @@ public record TrafficRecordingCaptureRequest(
 		 */
 		@Nonnull
 		public Builder type(@Nonnull TrafficRecordingCaptureRequest.TrafficRecordingType... type) {
-			this.type = type;
+			this.types = type;
 			return this;
 		}
 
 		/**
-		 * Sets all the types of traffic recording to be returned.
+		 * Sets the labels of traffic recording to be returned.
 		 *
+		 * @param labels the array of {@link Label}.
 		 * @return this builder.
 		 */
 		@Nonnull
-		public Builder allTypes() {
-			this.type = null;
+		public Builder labels(@Nonnull Label... labels) {
+			this.labels = labels;
 			return this;
 		}
 
@@ -278,10 +283,11 @@ public record TrafficRecordingCaptureRequest(
 				this.since,
 				this.sinceSessionSequenceId,
 				this.sinceRecordSessionOffset,
-				this.type,
+				this.types,
 				this.sessionId,
 				this.longerThan,
-				this.fetchingMoreBytesThan
+				this.fetchingMoreBytesThan,
+				this.labels
 			);
 		}
 	}

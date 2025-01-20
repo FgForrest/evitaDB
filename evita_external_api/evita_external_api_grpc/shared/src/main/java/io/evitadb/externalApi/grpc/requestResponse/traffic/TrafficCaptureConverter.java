@@ -75,10 +75,21 @@ public class TrafficCaptureConverter {
 	}
 
 	/**
+	 * Converts a given GrpcQueryLabel object to a Label object.
+	 *
+	 * @param grpcLabel the GrpcQueryLabel object to be converted; must not be null.
+	 * @return a Label object created from the provided GrpcQueryLabel.
+	 */
+	@Nonnull
+	public static Label toLabel(@Nonnull GrpcQueryLabel grpcLabel) {
+		return new Label(grpcLabel.getName(), grpcLabel.getValue());
+	}
+
+	/**
 	 * Converts a {@link TrafficRecording} and its {@link TrafficRecordingContent} into a {@link GrpcTrafficRecord}.
 	 *
 	 * @param trafficRecording the traffic recording to be converted, must not be null
-	 * @param content the content type that determines inclusion of the body details, must not be null
+	 * @param content          the content type that determines inclusion of the body details, must not be null
 	 * @return the converted gRPC traffic record
 	 */
 	@Nonnull
@@ -116,7 +127,7 @@ public class TrafficCaptureConverter {
 	 * a {@link GenericEvitaInternalError} is thrown.
 	 *
 	 * @param trafficRecording the traffic recording to be converted, must be of type {@link SessionStartContainer}
-	 * @param builder the gRPC record builder where the converted session start container will be set
+	 * @param builder          the gRPC record builder where the converted session start container will be set
 	 * @throws GenericEvitaInternalError if the provided trafficRecording is not of type {@link SessionStartContainer}
 	 */
 	private static void convertSessionStartContainer(@Nonnull TrafficRecording trafficRecording, @Nonnull GrpcTrafficRecord.Builder builder) {
@@ -138,7 +149,7 @@ public class TrafficCaptureConverter {
 	 * a {@link GenericEvitaInternalError} is thrown.
 	 *
 	 * @param trafficRecording the traffic recording to be converted, must be of type {@link SessionCloseContainer}
-	 * @param builder the gRPC record builder where the converted session close container will be set
+	 * @param builder          the gRPC record builder where the converted session close container will be set
 	 * @throws GenericEvitaInternalError if the provided trafficRecording is not of type {@link SessionCloseContainer}
 	 */
 	private static void convertSessionCloseContainer(@Nonnull TrafficRecording trafficRecording, @Nonnull GrpcTrafficRecord.Builder builder) {
@@ -165,7 +176,7 @@ public class TrafficCaptureConverter {
 	 * a {@link GenericEvitaInternalError} is thrown.
 	 *
 	 * @param trafficRecording the traffic recording to be converted, must be of type {@link SourceQueryContainer}
-	 * @param builder the gRPC record builder where the converted source query container will be set
+	 * @param builder          the gRPC record builder where the converted source query container will be set
 	 * @throws GenericEvitaInternalError if the provided trafficRecording is not of type {@link SourceQueryContainer}
 	 */
 	private static void convertSourceQueryContainer(@Nonnull TrafficRecording trafficRecording, @Nonnull GrpcTrafficRecord.Builder builder) {
@@ -189,7 +200,7 @@ public class TrafficCaptureConverter {
 	 * a {@link GenericEvitaInternalError} is thrown.
 	 *
 	 * @param trafficRecording the traffic recording to be converted, must be of type {@link SourceQueryStatisticsContainer}
-	 * @param builder the gRPC record builder where the converted source query statistics container will be set
+	 * @param builder          the gRPC record builder where the converted source query statistics container will be set
 	 * @throws GenericEvitaInternalError if the provided {@link TrafficRecording} is not of type {@link SourceQueryStatisticsContainer}
 	 */
 	private static void convertSourceQueryStatisticsContainer(@Nonnull TrafficRecording trafficRecording, @Nonnull GrpcTrafficRecord.Builder builder) {
@@ -213,7 +224,7 @@ public class TrafficCaptureConverter {
 	 * a {@link GenericEvitaInternalError} is thrown.
 	 *
 	 * @param trafficRecording the traffic recording to be converted, must be of type {@link QueryContainer}
-	 * @param builder the gRPC record builder where the converted query container will be set
+	 * @param builder          the gRPC record builder where the converted query container will be set
 	 * @throws GenericEvitaInternalError if the provided trafficRecording is not of type {@link QueryContainer}
 	 */
 	private static void convertQueryContainer(@Nonnull TrafficRecording trafficRecording, @Nonnull GrpcTrafficRecord.Builder builder) {
@@ -238,7 +249,7 @@ public class TrafficCaptureConverter {
 	 * a {@link GenericEvitaInternalError} is thrown.
 	 *
 	 * @param trafficRecording the traffic recording to be converted, must be of type {@link EntityFetchContainer}
-	 * @param builder the gRPC record builder where the converted entity fetch container will be set
+	 * @param builder          the gRPC record builder where the converted entity fetch container will be set
 	 * @throws GenericEvitaInternalError if the provided trafficRecording is not of type {@link EntityFetchContainer}
 	 */
 	private static void convertEntityFetchContainer(@Nonnull TrafficRecording trafficRecording, @Nonnull GrpcTrafficRecord.Builder builder) {
@@ -261,7 +272,7 @@ public class TrafficCaptureConverter {
 	 * a {@link GenericEvitaInternalError} is thrown.
 	 *
 	 * @param trafficRecording the traffic recording to be converted, must be of type {@link EntityEnrichmentContainer}
-	 * @param builder the gRPC record builder where the converted entity enrichment container will be set
+	 * @param builder          the gRPC record builder where the converted entity enrichment container will be set
 	 * @throws GenericEvitaInternalError if the provided trafficRecording is not of type {@link EntityEnrichmentContainer}
 	 */
 	private static void convertEntityEnrichmentContainer(@Nonnull TrafficRecording trafficRecording, @Nonnull GrpcTrafficRecord.Builder builder) {
@@ -284,7 +295,7 @@ public class TrafficCaptureConverter {
 	 * an unsupported mutation type, a {@link GenericEvitaInternalError} is thrown.
 	 *
 	 * @param trafficRecording the traffic recording to be converted, must be of type {@link MutationContainer}
-	 * @param builder the gRPC record builder where the converted mutation container will be set
+	 * @param builder          the gRPC record builder where the converted mutation container will be set
 	 * @throws GenericEvitaInternalError if the provided trafficRecording is not of type {@link MutationContainer}
 	 *                                   or if the mutation type is not supported
 	 */
@@ -328,7 +339,7 @@ public class TrafficCaptureConverter {
 	/**
 	 * Constructs a {@link TrafficRecordingCaptureRequest} based on the provided gRPC request and criteria.
 	 *
-	 * @param request the gRPC request that determines the content type for the traffic recording
+	 * @param request  the gRPC request that determines the content type for the traffic recording
 	 * @param criteria the gRPC criteria containing additional parameters for filtering the traffic recording
 	 * @return a {@link TrafficRecordingCaptureRequest} instance with the data derived from the input parameters
 	 */
@@ -342,12 +353,17 @@ public class TrafficCaptureConverter {
 			criteria.hasSince() ? EvitaDataTypesConverter.toOffsetDateTime(criteria.getSince()) : null,
 			criteria.hasSinceSessionSequenceId() ? criteria.getSinceSessionSequenceId().getValue() : null,
 			criteria.hasSinceRecordSessionOffset() ? criteria.getSinceRecordSessionOffset().getValue() : null,
-			criteria.getTypeList().stream()
-				.map(EvitaEnumConverter::toTrafficRecordingType)
-				.toArray(TrafficRecordingType[]::new),
+			criteria.getTypeCount() > 0 ?
+				criteria.getTypeList().stream()
+					.map(EvitaEnumConverter::toTrafficRecordingType)
+					.toArray(TrafficRecordingType[]::new) : null,
 			criteria.hasSessionId() ? EvitaDataTypesConverter.toUuid(criteria.getSessionId()) : null,
 			criteria.hasLongerThan() ? Duration.of(criteria.getLongerThan().getValue(), ChronoUnit.MILLIS) : null,
-			criteria.hasFetchingMoreBytesThan() ? criteria.getFetchingMoreBytesThan().getValue() : null
+			criteria.hasFetchingMoreBytesThan() ? criteria.getFetchingMoreBytesThan().getValue() : null,
+			criteria.getLabelsCount() > 0 ?
+				criteria.getLabelsList().stream()
+					.map(TrafficCaptureConverter::toLabel)
+					.toArray(Label[]::new) : null
 		);
 	}
 

@@ -29,7 +29,6 @@ import java.io.Serializable;
 
 /**
  * Label associated with the query / source query.
- * TODO JNO - add to source query as well, source query labels automatically propagate to queries
  *
  * @param name  the name of the label
  * @param value the value of the label

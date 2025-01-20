@@ -30,6 +30,8 @@ import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TrafficRecordingOptions;
 import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.QueryUtils;
+import io.evitadb.api.query.head.Collection;
 import io.evitadb.api.query.head.Label;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.trafficRecording.EntityEnrichmentContainer;
@@ -68,6 +70,7 @@ import java.nio.ByteBuffer;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Objects;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.Queue;
 import java.util.UUID;
@@ -79,6 +82,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Stream;
+
+import static java.util.Optional.ofNullable;
 
 /**
  * Implementation of the {@link TrafficRecorder} that stores traffic data in off-heap memory in different memory blocks
@@ -315,18 +320,33 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 	) {
 		doRecord(
 			this.trackedSessionsIndex.get(sessionId),
-			sessionTraffic -> new QueryContainer(
-				sessionId,
-				sessionTraffic.nextRecordingId(),
-				query,
-				labels.length == 0 ?
-					io.evitadb.api.requestResponse.trafficRecording.Label.EMPTY_LABELS :
-					Arrays.stream(labels)
-						.map(label -> new io.evitadb.api.requestResponse.trafficRecording.Label(label.getLabelName(), label.getLabelValue()))
-						.toArray(io.evitadb.api.requestResponse.trafficRecording.Label[]::new),
-				now, (int) (System.currentTimeMillis() - now.toInstant().toEpochMilli()),
-				totalRecordCount, ioFetchCount, ioFetchedSizeBytes, primaryKeys
-			)
+			sessionTraffic -> {
+				final io.evitadb.api.requestResponse.trafficRecording.Label entityTypeLabel = ofNullable(query.getHead())
+					.flatMap(it -> ofNullable(QueryUtils.findConstraint(it, Collection.class)))
+					.map(it -> new io.evitadb.api.requestResponse.trafficRecording.Label("entity-type", it.getEntityType()))
+					.orElse(null);
+
+				final io.evitadb.api.requestResponse.trafficRecording.Label[] finalLabels = labels.length == 0 ?
+					(entityTypeLabel == null ?
+						io.evitadb.api.requestResponse.trafficRecording.Label.EMPTY_LABELS :
+						new io.evitadb.api.requestResponse.trafficRecording.Label[]{entityTypeLabel}
+					) :
+					Stream.concat(
+							Arrays.stream(labels)
+								.map(label -> new io.evitadb.api.requestResponse.trafficRecording.Label(label.getLabelName(), label.getLabelValue())),
+							Stream.of(entityTypeLabel)
+						)
+						.filter(Objects::nonNull)
+						.toArray(io.evitadb.api.requestResponse.trafficRecording.Label[]::new);
+				return new QueryContainer(
+					sessionId,
+					sessionTraffic.nextRecordingId(),
+					query,
+					finalLabels,
+					now, (int) (System.currentTimeMillis() - now.toInstant().toEpochMilli()),
+					totalRecordCount, ioFetchCount, ioFetchedSizeBytes, primaryKeys
+				);
+			}
 		);
 	}
 
