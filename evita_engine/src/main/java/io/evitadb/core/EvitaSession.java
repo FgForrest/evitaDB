@@ -99,15 +99,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Currency;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
@@ -1430,16 +1422,16 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 
 	@Nonnull
 	@Override
-	public Stream<String> getLabelsNamesOrderedByCardinality(@Nullable String nameStartingWith) {
+	public Collection<String> getLabelsNamesOrderedByCardinality(@Nullable String nameStartingWith, int limit) {
 		final TrafficRecordingEngine trafficRecorder = this.catalog.get().getTrafficRecorder();
-		return trafficRecorder.getLabelsNamesOrderedByCardinality(nameStartingWith);
+		return trafficRecorder.getLabelsNamesOrderedByCardinality(nameStartingWith, limit);
 	}
 
 	@Nonnull
 	@Override
-	public Stream<String> getLabelValuesOrderedByCardinality(@Nonnull String labelName, @Nullable String valueStartingWith) {
+	public Collection<String> getLabelValuesOrderedByCardinality(@Nonnull String labelName, @Nullable String valueStartingWith, int limit) {
 		final TrafficRecordingEngine trafficRecorder = this.catalog.get().getTrafficRecorder();
-		return trafficRecorder.getLabelValuesOrderedByCardinality(labelName, valueStartingWith);
+		return trafficRecorder.getLabelValuesOrderedByCardinality(labelName, valueStartingWith, limit);
 	}
 
 	/**

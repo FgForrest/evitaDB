@@ -25,6 +25,7 @@ package io.evitadb.store.traffic;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.util.Pool;
+import io.evitadb.api.LabelIntrospector;
 import io.evitadb.api.TrafficRecordingReader;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TrafficRecordingOptions;
@@ -93,7 +94,7 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Slf4j
-public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecordingReader, Closeable {
+public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecordingReader, LabelIntrospector, Closeable {
 	/**
 	 * Constant that defines the duration of inactivity after which the disk buffer index is released.
 	 */
@@ -454,7 +455,30 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		this.lastRead = System.currentTimeMillis();
 		return this.diskBuffer.getSessionRecordsStream(
 			request,
-			(sessionSequenceOrder, filePosition) -> readTrafficRecord(sessionSequenceOrder, filePosition, this.diskBuffer.getDiskBufferFileReadInputStream())
+			(sessionSequenceOrder, filePosition, diskRingBuffer) ->
+				readTrafficRecord(sessionSequenceOrder, filePosition, diskRingBuffer.getDiskBufferFileReadInputStream())
+		);
+	}
+
+	@Nonnull
+	@Override
+	public java.util.Collection<String> getLabelsNamesOrderedByCardinality(@Nullable String nameStartingWith, int limit) {
+		this.lastRead = System.currentTimeMillis();
+		return this.diskBuffer.getLabelsNamesOrderedByCardinality(
+			nameStartingWith, limit,
+			(sessionSequenceOrder, filePosition, diskRingBuffer) ->
+				readTrafficRecord(sessionSequenceOrder, filePosition, diskRingBuffer.getDiskBufferFileReadInputStream())
+		);
+	}
+
+	@Nonnull
+	@Override
+	public java.util.Collection<String> getLabelValuesOrderedByCardinality(@Nonnull String nameEquals, @Nullable String valueStartingWith, int limit) {
+		this.lastRead = System.currentTimeMillis();
+		return this.diskBuffer.getLabelValuesOrderedByCardinality(
+			nameEquals, valueStartingWith, limit,
+			(sessionSequenceOrder, filePosition, diskRingBuffer) ->
+				readTrafficRecord(sessionSequenceOrder, filePosition, diskRingBuffer.getDiskBufferFileReadInputStream())
 		);
 	}
 
@@ -660,6 +684,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 							finalizedSession.getCreated(),
 							finalizedSession.getDurationInMillis(),
 							finalizedSession.getRecordingTypes(),
+							finalizedSession.getLabels(),
 							finalizedSession.getFetchCount(),
 							finalizedSession.getBytesFetchedTotal()
 						);

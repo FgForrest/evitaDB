@@ -24,6 +24,9 @@
 package io.evitadb.store.traffic;
 
 
+import com.carrotsearch.hppc.ObjectIntHashMap;
+import com.carrotsearch.hppc.ObjectIntMap;
+import com.carrotsearch.hppc.cursors.ObjectIntCursor;
 import io.evitadb.api.requestResponse.trafficRecording.Label;
 import io.evitadb.api.requestResponse.trafficRecording.QueryContainer;
 import io.evitadb.api.requestResponse.trafficRecording.SessionStartContainer;
@@ -33,8 +36,10 @@ import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRe
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.function.TriConsumer;
 import io.evitadb.index.bPlusTree.TransactionalObjectBPlusTree;
+import io.evitadb.index.bPlusTree.TransactionalObjectBPlusTree.Entry;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.store.model.FileLocation;
 import io.evitadb.utils.CollectionUtils;
@@ -130,6 +135,7 @@ public class DiskRingBufferIndex implements
 		this.sessionFetchCountIndex = sessionFetchCountIndex;
 		this.sessionBytesFetchedIndex = sessionBytesFetchedIndex;
 		this.labelIndex = labelIndex;
+		//noinspection unchecked,rawtypes
 		this.sessionRecordingTypeIndex = new TransactionalMap<>(
 			sessionRecordingTypeIndex,
 			TransactionalObjectBPlusTree.class::cast
@@ -169,7 +175,8 @@ public class DiskRingBufferIndex implements
 		int durationInMillis,
 		int fetchCount,
 		int bytesFetchedTotal,
-		@Nonnull Set<TrafficRecordingType> recordingTypes
+		@Nonnull Set<TrafficRecordingType> recordingTypes,
+		@Nonnull Set<Label> labels
 	) {
 		final Long sessionSequenceOrder = sessionLocation.sequenceOrder();
 		final FileLocation previousLocation = this.sessionLocationIndex.putIfAbsent(
@@ -197,6 +204,19 @@ public class DiskRingBufferIndex implements
 					recordingType,
 					__ -> new TransactionalObjectBPlusTree<>(Long.class, Long.class)
 				).insert(sessionSequenceOrder, sessionSequenceOrder);
+			}
+			for (Label label : labels) {
+				this.labelIndex.upsert(
+					label,
+					values -> {
+						if (values == null) {
+							values = new TransactionalObjectBPlusTree<>(Long.class, Long.class);
+						}
+						final Long seqOrder = Objects.requireNonNull(sessionSequenceOrder);
+						values.insert(seqOrder, seqOrder);
+						return values;
+					}
+				);
 			}
 		}
 	}
@@ -345,6 +365,76 @@ public class DiskRingBufferIndex implements
 			this.sessionBeingIndexed,
 			this.sessionsToRemove
 		);
+	}
+
+	/**
+	 * Retrieves a stream of label names that start with the given prefix, ordered by their cardinality.
+	 *
+	 * @param nameStartingWith the prefix that the label names should start with, must not be null
+	 * @return a stream of label names that match the prefix, ordered by cardinality, never null
+	 */
+	@Nonnull
+	public Collection<String> getLabelsNamesOrderedByCardinality(@Nullable String nameStartingWith, int limit) {
+		final Iterator<Entry<Label, TransactionalObjectBPlusTree<Long, Long>>> it = nameStartingWith == null ?
+			this.labelIndex.entryIterator() :
+			this.labelIndex.greaterOrEqualEntryIterator(new Label(nameStartingWith, null));
+		final ObjectIntMap<String> cardinalities = new ObjectIntHashMap<>(256);
+		while (it.hasNext()) {
+			final Entry<Label, TransactionalObjectBPlusTree<Long, Long>> entry = it.next();
+			final Label nextLabel = entry.key();
+			if (nameStartingWith == null || nextLabel.name().startsWith(nameStartingWith)) {
+				final int labelCardinality = entry.value().size();
+				cardinalities.putOrAdd(nextLabel.name(), labelCardinality, labelCardinality);
+			} else {
+				break;
+			}
+		}
+		final List<LabelWithCardinality> labels = new ArrayList<>(cardinalities.size());
+		for (ObjectIntCursor<String> cardinality : cardinalities) {
+			labels.add(new LabelWithCardinality(cardinality.key, cardinality.value));
+		}
+
+		labels.sort(Comparator.comparingInt(LabelWithCardinality::cardinality).reversed().thenComparing(LabelWithCardinality::label));
+		return labels.stream()
+			.map(LabelWithCardinality::label)
+			.limit(limit)
+			.toList();
+	}
+
+	/**
+	 * Retrieves a stream of label values that match the given name and start with the specified prefix,
+	 * ordered by their cardinality.
+	 *
+	 * @param nameEquals        the exact name of the label to filter by, must not be null
+	 * @param valueStartingWith the prefix that the label values should start with, must not be null
+	 * @return a stream of label values that match the criteria, ordered by their cardinality, never null
+	 */
+	@Nonnull
+	public Collection<String> getLabelValuesOrderedByCardinality(@Nonnull String nameEquals, @Nullable String valueStartingWith, int limit) {
+		final Iterator<Entry<Label, TransactionalObjectBPlusTree<Long, Long>>> it = this.labelIndex.greaterOrEqualEntryIterator(new Label(nameEquals, valueStartingWith));
+		final ObjectIntMap<String> cardinalities = new ObjectIntHashMap<>(256);
+		while (it.hasNext()) {
+			final Entry<Label, TransactionalObjectBPlusTree<Long, Long>> entry = it.next();
+			final Label nextLabel = entry.key();
+			final String valueAsString = ofNullable(nextLabel.value()).map(EvitaDataTypes::formatValue).orElse("");
+			if (nextLabel.name().equals(nameEquals) && (valueStartingWith == null || valueAsString.startsWith(valueStartingWith))) {
+				final int labelCardinality = entry.value().size();
+				cardinalities.putOrAdd(valueAsString, labelCardinality, labelCardinality);
+			} else {
+				break;
+			}
+		}
+		final List<LabelWithCardinality> labels = new ArrayList<>(cardinalities.size());
+		for (ObjectIntCursor<String> cardinality : cardinalities) {
+			labels.add(new LabelWithCardinality(cardinality.key, cardinality.value));
+		}
+
+		labels.sort(Comparator.comparingInt(LabelWithCardinality::cardinality).reversed().thenComparing(LabelWithCardinality::label));
+		return labels.stream()
+			.map(LabelWithCardinality::label)
+			.limit(limit)
+			.map(Object::toString)
+			.toList();
 	}
 
 	/**
@@ -512,4 +602,25 @@ public class DiskRingBufferIndex implements
 		}
 	}
 
+	/**
+	 * Represents a label and its associated cardinality. The label is a combination
+	 * of a name and an optional value, which is used to describe and categorize
+	 * session-related data. The cardinality indicates the count of objects or items
+	 * associated with this particular label.
+	 *
+	 * This class is utilized within the context of indexing and querying operations
+	 * to provide metadata about session recordings and their attributes along with
+	 * their frequency or occurrence count.
+	 *
+	 * The label component must not be null, while the cardinality is an integer
+	 * value representing its occurrence.
+	 *
+	 * @param label       the label object containing name and value, must not be null
+	 * @param cardinality the count of items associated with the label
+	 */
+	private record LabelWithCardinality(
+		@Nonnull String label,
+		int cardinality
+	) {
+	}
 }

@@ -91,7 +91,7 @@ class DiskRingBufferTest {
 		buffer.flip(); // Reset buffer position to 0 before writing
 		final SessionLocation sessionLocation = diskRingBuffer.appendSession(theFilledSize);
 		diskRingBuffer.append(sessionLocation, buffer);
-		diskRingBuffer.sessionWritten(sessionLocation, UUID.randomUUID(), OffsetDateTime.now(), 0, Set.of(), 0, 0);
+		diskRingBuffer.sessionWritten(sessionLocation, UUID.randomUUID(), OffsetDateTime.now(), 0, Set.of(), Set.of(), 0, 0);
 		assertEquals(theFilledSize + LEAD_DESCRIPTOR_BYTE_SIZE, diskRingBuffer.getRingBufferTail());
 
 		final int totalSpace = (int) tempFile.toFile().length();
@@ -139,7 +139,7 @@ class DiskRingBufferTest {
 		BiConsumer<Integer, Integer> writer = (index, length) -> {
 			final SessionLocation sessionLocation = diskRingBuffer.appendSession(length);
 			diskRingBuffer.append(sessionLocation, buffer.slice(index, length));
-			diskRingBuffer.sessionWritten(sessionLocation, UUID.randomUUID(), OffsetDateTime.now(), 0, Set.of(), 0, 0);
+			diskRingBuffer.sessionWritten(sessionLocation, UUID.randomUUID(), OffsetDateTime.now(), 0, Set.of(), Set.of(), 0, 0);
 
 			bufferWithDescriptors.putLong(sessionLocation.sequenceOrder());
 			bufferWithDescriptors.putInt(length);

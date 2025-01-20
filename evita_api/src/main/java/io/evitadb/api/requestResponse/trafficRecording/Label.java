@@ -25,7 +25,9 @@ package io.evitadb.api.requestResponse.trafficRecording;
 
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.util.Objects;
 
 /**
  * Label associated with the query / source query.
@@ -37,10 +39,24 @@ import java.io.Serializable;
  */
 public record Label(
 	@Nonnull String name,
-	@Nonnull Serializable value
+	@Nullable Serializable value
 ) implements Comparable<Label> {
 
 	public static final Label[] EMPTY_LABELS = new Label[0];
+
+	@Override
+	public boolean equals(Object o) {
+		if (!(o instanceof Label label)) return false;
+
+		return name.equals(label.name) && Objects.equals(value, label.value);
+	}
+
+	@Override
+	public int hashCode() {
+		int result = name.hashCode();
+		result = 31 * result + Objects.hashCode(value);
+		return result;
+	}
 
 	@SuppressWarnings({"rawtypes", "unchecked"})
 	@Override
@@ -50,9 +66,14 @@ public record Label(
 			return first;
 		} else if (this.value instanceof Comparable comparable && this.value.getClass().isInstance(that.value)) {
 			return comparable.compareTo(that.value);
-		} else {
+		} else if (this.value != null && that.value != null) {
 			return this.value.toString().compareTo(that.value.toString());
-
+		} else if (this.value != null) {
+			return 1;
+		} else if (that.value != null) {
+			return -1;
+		} else {
+			return 0;
 		}
 	}
 }

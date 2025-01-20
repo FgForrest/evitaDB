@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -125,8 +125,9 @@ public class EvitaTrafficRecordingService extends GrpcEvitaTrafficRecordingServi
 			session -> {
 				GetTrafficRecordingLabelNamesResponse.Builder builder = GetTrafficRecordingLabelNamesResponse.newBuilder();
 				session.getLabelsNamesOrderedByCardinality(
-						request.hasNameStartsWith() ? request.getNameStartsWith().getValue() : null
-					).limit(request.getLimit())
+						request.hasNameStartsWith() ? request.getNameStartsWith().getValue() : null,
+						request.getLimit()
+					)
 					.forEach(builder::addLabelName);
 				responseObserver.onNext(builder.build());
 				responseObserver.onCompleted();
@@ -149,8 +150,9 @@ public class EvitaTrafficRecordingService extends GrpcEvitaTrafficRecordingServi
 				GetTrafficRecordingValuesNamesResponse.Builder builder = GetTrafficRecordingValuesNamesResponse.newBuilder();
 				session.getLabelValuesOrderedByCardinality(
 						request.getLabelName(),
-						request.hasValueStartsWith() ? request.getValueStartsWith().getValue() : null
-					).limit(request.getLimit())
+						request.hasValueStartsWith() ? request.getValueStartsWith().getValue() : null,
+						request.getLimit()
+					)
 					.forEach(builder::addLabelValue);
 				responseObserver.onNext(builder.build());
 				responseObserver.onCompleted();

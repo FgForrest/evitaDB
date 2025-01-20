@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -40,13 +40,13 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.stream.Stream;
 
 /**
  * This interface extends the public interface and adds a few methods that are targeted for internal use of EvitaDB
@@ -58,6 +58,7 @@ public interface EvitaInternalSessionContract extends EvitaSessionContract, Traf
 
 	/**
 	 * Returns date and time this session was created.
+	 *
 	 * @return date and time this session was created
 	 */
 	@Nonnull
@@ -187,19 +188,20 @@ public interface EvitaInternalSessionContract extends EvitaSessionContract, Traf
 	 * Returns a stream of all unique labels names ordered by cardinality of their values present in the traffic recording.
 	 *
 	 * @param nameStartingWith optional prefix to filter the labels by
-	 * @return stream of unique label names ordered by cardinality of their values
+	 * @param limit            maximum number of labels to return
+	 * @return collection of unique label names ordered by cardinality of their values
 	 */
 	@Nonnull
-	Stream<String> getLabelsNamesOrderedByCardinality(@Nullable String nameStartingWith);
+	Collection<String> getLabelsNamesOrderedByCardinality(@Nullable String nameStartingWith, int limit);
 
 	/**
 	 * Returns a stream of all unique label values ordered by cardinality present in the traffic recording.
 	 *
-	 * @param labelName name of the label to get values for
+	 * @param labelName         name of the label to get values for
 	 * @param valueStartingWith optional prefix to filter the labels by
-	 * @return stream of unique label values ordered by cardinality
+	 * @return collection of unique label values ordered by cardinality
 	 */
 	@Nonnull
-	Stream<String> getLabelValuesOrderedByCardinality(@Nonnull String labelName, @Nullable String valueStartingWith);
+	Collection<String> getLabelValuesOrderedByCardinality(@Nonnull String labelName, @Nullable String valueStartingWith, int limit);
 
 }

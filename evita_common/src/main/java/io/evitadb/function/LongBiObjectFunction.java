@@ -24,6 +24,7 @@
 package io.evitadb.function;
 
 
+import javax.annotation.Nonnull;
 import java.util.function.Function;
 
 /**
@@ -31,15 +32,16 @@ import java.util.function.Function;
  * This is the two-arity specialization of {@link Function}.
  *
  * <p>This is a <a href="package-summary.html">functional interface</a>
- * whose functional method is {@link #apply(long, long)}.
+ * whose functional method is {@link #apply(long, long, S)}.
  *
+ * @param <S> the type of the third argument to the function
  * @param <R> the type of the result of the function
  *
  * @see Function
  * @apiNote inspired by the JDK interface
  */
 @FunctionalInterface
-public interface LongBiFunction<R> {
+public interface LongBiObjectFunction<S, R> {
 	/**
 	 * Applies this function to the given arguments.
 	 *
@@ -47,6 +49,6 @@ public interface LongBiFunction<R> {
 	 * @param u the second function argument
 	 * @return the function result
 	 */
-	R apply(long t, long u);
+	R apply(long t, long u, @Nonnull S s);
 
 }

@@ -43,6 +43,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Closeable;
 import java.time.OffsetDateTime;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Optional;
@@ -76,6 +77,10 @@ public class SessionTraffic implements Closeable {
 	 * Types of traffic recording that were observed in this session.
 	 */
 	@Getter private final Set<TrafficRecordingType> recordingTypes = EnumSet.noneOf(TrafficRecordingType.class);
+	/**
+	 * Labels associated with the session.
+	 */
+	@Getter private final Set<Label> labels = CollectionUtils.createHashSet(64);
 	/**
 	 * Indexes of memory blocks where the queries and mutations involved in this session are stored.
 	 */
@@ -249,6 +254,7 @@ public class SessionTraffic implements Closeable {
 					);
 				}
 			}
+			this.labels.addAll(Arrays.asList(queryContainer.labels()));
 		} else if (container instanceof MutationContainer) {
 			this.mutationCounter.incrementAndGet();
 		} else if (container instanceof EntityFetchContainer) {

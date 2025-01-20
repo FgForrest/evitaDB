@@ -24,6 +24,7 @@
 package io.evitadb.store.traffic;
 
 
+import io.evitadb.api.requestResponse.trafficRecording.Label;
 import io.evitadb.api.requestResponse.trafficRecording.QueryContainer;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest;
@@ -31,7 +32,7 @@ import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRe
 import io.evitadb.core.Transaction;
 import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.exception.UnexpectedIOException;
-import io.evitadb.function.LongBiFunction;
+import io.evitadb.function.LongBiObjectFunction;
 import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.offsetIndex.stream.RandomAccessFileInputStream;
@@ -51,6 +52,7 @@ import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.ArrayDeque;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Deque;
 import java.util.Objects;
 import java.util.Set;
@@ -379,6 +381,7 @@ public class DiskRingBuffer {
 		@Nonnull OffsetDateTime created,
 		int durationInMillis,
 		@Nonnull Set<TrafficRecordingType> recordingTypes,
+		@Nonnull Set<Label> labels,
 		int fetchCount,
 		int bytesFetchedTotal
 	) {
@@ -417,7 +420,8 @@ public class DiskRingBuffer {
 				durationInMillis,
 				fetchCount,
 				bytesFetchedTotal,
-				recordingTypes
+				recordingTypes,
+				labels
 			);
 		} else {
 			ofNullable(this.postponedIndexUpdates.get())
@@ -432,7 +436,8 @@ public class DiskRingBuffer {
 								durationInMillis,
 								fetchCount,
 								bytesFetchedTotal,
-								recordingTypes
+								recordingTypes,
+								labels
 							);
 						}
 					)
@@ -452,7 +457,7 @@ public class DiskRingBuffer {
 	@Nonnull
 	public Stream<TrafficRecording> getSessionRecordsStream(
 		@Nonnull TrafficRecordingCaptureRequest request,
-		@Nonnull LongBiFunction<StorageRecord<TrafficRecording>> reader
+		@Nonnull LongBiObjectFunction<DiskRingBuffer, StorageRecord<TrafficRecording>> reader
 	) {
 		DiskRingBufferIndex sessionIndex = this.sessionIndex.get();
 		if (sessionIndex == null) {
@@ -465,6 +470,37 @@ public class DiskRingBuffer {
 		return sessionIndex.getSessionStream(request)
 			.flatMap(it -> this.readSessionRecords(it.sequenceOrder(), it.fileLocation(), reader, finalSessionIndex::sessionExists))
 			.filter(requestPredicate);
+	}
+
+	@Nonnull
+	public Collection<String> getLabelsNamesOrderedByCardinality(
+		@Nullable String nameStartingWith,
+		int limit,
+		@Nonnull LongBiObjectFunction<DiskRingBuffer, StorageRecord<TrafficRecording>> reader
+	) {
+		DiskRingBufferIndex sessionIndex = this.sessionIndex.get();
+		if (sessionIndex == null) {
+			// TODO JNO - this must be done asynchronously!!
+			sessionIndex = indexData(reader);
+		}
+
+		return sessionIndex.getLabelsNamesOrderedByCardinality(nameStartingWith, limit);
+	}
+
+	@Nonnull
+	public Collection<String> getLabelValuesOrderedByCardinality(
+		@Nonnull String nameEquals,
+		@Nullable String valueStartingWith,
+		int limit,
+		@Nonnull LongBiObjectFunction<DiskRingBuffer, StorageRecord<TrafficRecording>> reader
+	) {
+		DiskRingBufferIndex sessionIndex = this.sessionIndex.get();
+		if (sessionIndex == null) {
+			// TODO JNO - this must be done asynchronously!!
+			sessionIndex = indexData(reader);
+		}
+
+		return sessionIndex.getLabelValuesOrderedByCardinality(nameEquals, valueStartingWith, limit);
 	}
 
 	/**
@@ -533,7 +569,7 @@ public class DiskRingBuffer {
 	 */
 	@Nonnull
 	private DiskRingBufferIndex indexData(
-		@Nonnull LongBiFunction<StorageRecord<TrafficRecording>> reader
+		@Nonnull LongBiObjectFunction<DiskRingBuffer, StorageRecord<TrafficRecording>> reader
 	) {
 		if (this.sessionIndexingRunning.compareAndSet(false, true)) {
 			try {
@@ -641,7 +677,7 @@ public class DiskRingBuffer {
 	private Stream<TrafficRecording> readSessionRecords(
 		long sessionSequenceId,
 		@Nonnull FileLocation fileLocation,
-		@Nonnull LongBiFunction<StorageRecord<TrafficRecording>> reader,
+		@Nonnull LongBiObjectFunction<DiskRingBuffer, StorageRecord<TrafficRecording>> reader,
 		@Nonnull LongPredicate sessionExistenceChecker
 	) {
 		final AtomicLong lastLocationRead = new AtomicLong(-1);
@@ -661,7 +697,7 @@ public class DiskRingBuffer {
 									fileLocation.startingPosition() + LEAD_DESCRIPTOR_BYTE_SIZE :
 									lastFileLocation;
 								try {
-									final StorageRecord<TrafficRecording> tr = reader.apply(sessionSequenceId, startPosition);
+									final StorageRecord<TrafficRecording> tr = reader.apply(sessionSequenceId, startPosition, this);
 									if (tr == null) {
 										// finalize the stream on first error
 										return null;

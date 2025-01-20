@@ -43,6 +43,7 @@ import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRe
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingContent;
 import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.file.ExportFileService;
+import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.externalApi.rest.RestProvider;
 import io.evitadb.test.Entities;
@@ -59,6 +60,7 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -73,10 +75,7 @@ import java.util.concurrent.TimeUnit;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * This test verifies {@link OffHeapTrafficRecorder} functionality.
@@ -299,6 +298,27 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 		assertEquals(3, beeSubQueries.get(0).recordSessionOffset());
 		assertEquals(secondSessionId, beeSubQueries.get(1).sessionId());
 		assertEquals(3, beeSubQueries.get(1).recordSessionOffset());
+
+		final Collection<String> labelNamesByCardinality = this.trafficRecorder.getLabelsNamesOrderedByCardinality(null, 10);
+		assertEquals(8, labelNamesByCardinality.size());
+		assertArrayEquals(
+			new String[]{"a", "abc", "c", "entity-type", Label.LABEL_SOURCE_QUERY, Label.LABEL_SOURCE_TYPE, "ce", "ced"},
+			labelNamesByCardinality.toArray(String[]::new)
+		);
+
+		final Collection<String> labelValuesByCardinality = this.trafficRecorder.getLabelValuesOrderedByCardinality(Label.LABEL_SOURCE_QUERY, null, 10);
+		assertEquals(2, labelValuesByCardinality.size());
+
+		final Collection<String> entityType = this.trafficRecorder.getLabelValuesOrderedByCardinality("entity-type", null, 10);
+		assertEquals(1, entityType.size());
+		assertEquals(EvitaDataTypes.formatValue(Entities.PRODUCT), entityType.iterator().next());
+
+		final Collection<String> valueAByCardinality = this.trafficRecorder.getLabelValuesOrderedByCardinality("a", null, 10);
+		assertEquals(2, valueAByCardinality.size());
+		assertArrayEquals(
+			new String[]{"'b'", "'bee'"},
+			valueAByCardinality.toArray(String[]::new)
+		);
 	}
 
 	@Test

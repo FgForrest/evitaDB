@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.core.traffic;
 
 
+import io.evitadb.api.LabelIntrospector;
 import io.evitadb.api.TrafficRecordingReader;
 import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.observability.trace.TracingBlockReference;
@@ -45,6 +46,8 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Supplier;
@@ -294,20 +297,24 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 	 * @return stream of unique label names ordered by cardinality of their values
 	 */
 	@Nonnull
-	public Stream<String> getLabelsNamesOrderedByCardinality(@Nullable String nameStartingWith) {
-		return Stream.empty();
+	public Collection<String> getLabelsNamesOrderedByCardinality(@Nullable String nameStartingWith, int limit) {
+		return this.trafficRecorder instanceof LabelIntrospector li ?
+			li.getLabelsNamesOrderedByCardinality(nameStartingWith, limit) :
+			List.of();
 	}
 
 	/**
 	 * Returns a stream of all unique label values ordered by cardinality present in the traffic recording.
 	 *
-	 * @param labelName name of the label to get values for
+	 * @param labelName         name of the label to get values for
 	 * @param valueStartingWith optional prefix to filter the labels by
 	 * @return stream of unique label values ordered by cardinality
 	 */
 	@Nonnull
-	public Stream<String> getLabelValuesOrderedByCardinality(@Nonnull String labelName, @Nullable String valueStartingWith) {
-		return Stream.empty();
+	public Collection<String> getLabelValuesOrderedByCardinality(@Nonnull String labelName, @Nullable String valueStartingWith, int limit) {
+		return this.trafficRecorder instanceof LabelIntrospector li ?
+			li.getLabelValuesOrderedByCardinality(labelName, valueStartingWith, limit) :
+			List.of();
 	}
 
 	/**
