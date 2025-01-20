@@ -32,7 +32,7 @@ storage:
   computeCRC32C: ${storage.computeCRC32C:true}
   minimalActiveRecordShare: ${storage.minimalActiveRecordShare:0.5}
   fileSizeCompactionThresholdBytes: ${storage.fileSizeCompactionThresholdBytes:100M}
-  timeTravelEnabled: ${storage.timeTravelEnabled:true}
+  timeTravelEnabled: ${storage.timeTravelEnabled:false}
   exportDirectorySizeLimitBytes: ${storage.exportDirectorySizeLimitBytes:1G}
   exportFileHistoryExpirationSeconds: ${storage.exportFileHistoryExpirationSeconds:7d}
 

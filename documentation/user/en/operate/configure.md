@@ -44,7 +44,7 @@ storage:                                          # [see Storage configuration](
   computeCRC32C: true
   minimalActiveRecordShare: 0.5
   fileSizeCompactionThresholdBytes: 100MB
-  timeTravelEnabled: true
+  timeTravelEnabled: false
   exportDirectorySizeLimitBytes: 1G
   exportFileHistoryExpirationSeconds: 7d
 
@@ -497,7 +497,7 @@ This section contains configuration options for the storage layer of the databas
     </dd>
     <dt>timeTravelEnabled</dt>
     <dd>
-        <p>**Default:** `true`</p>
+        <p>**Default:** `false`</p>
         <p>When set to true, the data files are not removed immediately after compacting, but are kept on disk as long 
         as there is history available in the WAL log. This allows a snapshot of the database to be taken at any point 
         in the history covered by the WAL log. From the snapshot, the database can be restored to the exact point in 
