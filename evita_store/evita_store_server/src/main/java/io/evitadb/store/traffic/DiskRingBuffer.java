@@ -24,6 +24,7 @@
 package io.evitadb.store.traffic;
 
 
+import io.evitadb.api.exception.IndexNotReady;
 import io.evitadb.api.requestResponse.trafficRecording.Label;
 import io.evitadb.api.requestResponse.trafficRecording.QueryContainer;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
@@ -37,7 +38,6 @@ import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.offsetIndex.stream.RandomAccessFileInputStream;
 import io.evitadb.store.traffic.OffHeapTrafficRecorder.MemoryNotAvailableException;
-import io.evitadb.utils.Assert;
 import io.evitadb.utils.IOUtils;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -69,6 +69,8 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
 
+import static io.evitadb.utils.Assert.isPremiseValid;
+import static io.evitadb.utils.Assert.notNull;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -253,7 +255,7 @@ public class DiskRingBuffer {
 		final DiskRingBufferIndex index = this.sessionIndex.get();
 		if (index != null) {
 			final Transaction transaction = new Transaction(index);
-			Assert.isPremiseValid(
+			isPremiseValid(
 				this.transaction.compareAndSet(null, transaction),
 				"Transaction already exists. This is not expected!"
 			);
@@ -268,7 +270,7 @@ public class DiskRingBuffer {
 				transaction.close();
 				ofNullable(transaction.getCommitedState())
 					.ifPresent(it -> this.sessionIndex.set((DiskRingBufferIndex) it));
-				Assert.isPremiseValid(
+				isPremiseValid(
 					this.transaction.compareAndSet(transaction, null),
 					"Transaction was removed. This is not expected!"
 				);
@@ -357,15 +359,6 @@ public class DiskRingBuffer {
 	}
 
 	/**
-	 * Returns true if the index is available.
-	 *
-	 * @return true if the index is available
-	 */
-	public boolean isIndexAvailable() {
-		return this.sessionIndex.get() != null;
-	}
-
-	/**
 	 * Finalizes the writing of a session to the disk buffer and updates the index if present.
 	 *
 	 * @param sessionLocation   the location of the session in the disk buffer
@@ -392,11 +385,11 @@ public class DiskRingBuffer {
 			newValue = updateSegments(
 				() -> this.activeSegments.updateAndGet(
 					currentlyActiveSegments -> {
-						Assert.isPremiseValid(
+						isPremiseValid(
 							currentlyActiveSegments.writeSegment() == null,
 							"Write segment is locked. This is not expected!"
 						);
-						Assert.isPremiseValid(
+						isPremiseValid(
 							currentlyActiveSegments.sessionBeingWritten() == sessionLocation,
 							"Different session is being written. This is not expected!"
 						);
@@ -461,29 +454,21 @@ public class DiskRingBuffer {
 		@Nonnull LongBiObjectFunction<DiskRingBuffer, StorageRecord<TrafficRecording>> reader
 	) {
 		DiskRingBufferIndex sessionIndex = this.sessionIndex.get();
-		if (sessionIndex == null) {
-			// TODO JNO - this must be done asynchronously!!
-			sessionIndex = indexData(reader);
-		}
+		notNull(sessionIndex, IndexNotReady::new);
 
 		final Predicate<TrafficRecording> requestPredicate = createRequestPredicate(request);
-		DiskRingBufferIndex finalSessionIndex = sessionIndex;
 		return sessionIndex.getSessionStream(request)
-			.flatMap(it -> this.readSessionRecords(it.sequenceOrder(), it.fileLocation(), reader, finalSessionIndex::sessionExists))
+			.flatMap(it -> this.readSessionRecords(it.sequenceOrder(), it.fileLocation(), reader, sessionIndex::sessionExists))
 			.filter(requestPredicate);
 	}
 
 	@Nonnull
 	public Collection<String> getLabelsNamesOrderedByCardinality(
 		@Nullable String nameStartingWith,
-		int limit,
-		@Nonnull LongBiObjectFunction<DiskRingBuffer, StorageRecord<TrafficRecording>> reader
+		int limit
 	) {
 		DiskRingBufferIndex sessionIndex = this.sessionIndex.get();
-		if (sessionIndex == null) {
-			// TODO JNO - this must be done asynchronously!!
-			sessionIndex = indexData(reader);
-		}
+		notNull(sessionIndex, IndexNotReady::new);
 
 		return sessionIndex.getLabelsNamesOrderedByCardinality(nameStartingWith, limit);
 	}
@@ -492,16 +477,50 @@ public class DiskRingBuffer {
 	public Collection<String> getLabelValuesOrderedByCardinality(
 		@Nonnull String nameEquals,
 		@Nullable String valueStartingWith,
-		int limit,
-		@Nonnull LongBiObjectFunction<DiskRingBuffer, StorageRecord<TrafficRecording>> reader
+		int limit
 	) {
 		DiskRingBufferIndex sessionIndex = this.sessionIndex.get();
-		if (sessionIndex == null) {
-			// TODO JNO - this must be done asynchronously!!
-			sessionIndex = indexData(reader);
-		}
+		notNull(sessionIndex, IndexNotReady::new);
 
 		return sessionIndex.getLabelValuesOrderedByCardinality(nameEquals, valueStartingWith, limit);
+	}
+
+	/**
+	 * Indexes session data from previously recorded traffic by reading session
+	 * locations and recording data using the provided reader function.
+	 * Each session is set up in the index to manage its existence and integrity
+	 * in the index, allowing updates and early removals as needed.
+	 *
+	 * @param reader a function that provides access to a storage record of
+	 *               TrafficRecording instances, given a long identifier.
+	 */
+	public void indexData(
+		@Nonnull LongBiObjectFunction<DiskRingBuffer, StorageRecord<TrafficRecording>> reader
+	) {
+		if (this.sessionIndexingRunning.compareAndSet(false, true)) {
+			try {
+				this.postponedIndexUpdates.set(new ArrayDeque<>(512));
+				final DiskRingBufferIndex index = new DiskRingBufferIndex();
+				for (SessionLocation sessionLocation : this.sessionLocations) {
+					// we need to set up the session in the index first, so that `index::sessionExists` returns true
+					// and also to allow write logic to remove the session early when overwritten by the new data
+					index.setupSession(sessionLocation);
+					this.readSessionRecords(sessionLocation.sequenceOrder(), sessionLocation.fileLocation(), reader, index::sessionExists)
+						.forEach(tr -> index.indexRecording(sessionLocation.sequenceOrder(), tr));
+				}
+
+				// when session index is ready, set it as the active index
+				this.sessionIndex.set(index);
+			} finally {
+				final Deque<Runnable> theLambdasToExecute = this.postponedIndexUpdates.getAndSet(null);
+				notNull(theLambdasToExecute, "Postponed index updates are null. This is not expected!");
+				theLambdasToExecute.forEach(Runnable::run);
+				isPremiseValid(
+					this.sessionIndexingRunning.compareAndSet(true, false),
+					"Session indexing is not running. This is not expected!"
+				);
+			}
+		}
 	}
 
 	/**
@@ -550,54 +569,9 @@ public class DiskRingBuffer {
 		while (totalBytesWritten < totalBytesToWrite) {
 			int writtenBytes = this.fileChannel.write(memoryByteBuffer);
 			totalBytesWritten += writtenBytes;
-			Assert.isPremiseValid(writtenBytes > 0, "Failed to write all bytes to the disk buffer file.");
+			isPremiseValid(writtenBytes > 0, "Failed to write all bytes to the disk buffer file.");
 		}
-		Assert.isPremiseValid(totalBytesWritten == totalBytesToWrite, "Failed to write all bytes to the disk buffer file.");
-	}
-
-	/**
-	 * Indexes session data from previously recorded traffic by reading session
-	 * locations and recording data using the provided reader function.
-	 * Each session is set up in the index to manage its existence and integrity
-	 * in the index, allowing updates and early removals as needed.
-	 *
-	 * @param reader a function that provides access to a storage record of
-	 *               TrafficRecording instances, given a long identifier.
-	 * @return a DiskRingBufferIndex containing indexed session data and
-	 * recordings for the disk ring buffer.
-	 */
-	@Nonnull
-	private DiskRingBufferIndex indexData(
-		@Nonnull LongBiObjectFunction<DiskRingBuffer, StorageRecord<TrafficRecording>> reader
-	) {
-		if (this.sessionIndexingRunning.compareAndSet(false, true)) {
-			try {
-				this.postponedIndexUpdates.set(new ArrayDeque<>(512));
-				final DiskRingBufferIndex index = new DiskRingBufferIndex();
-				for (SessionLocation sessionLocation : this.sessionLocations) {
-					// we need to set up the session in the index first, so that `index::sessionExists` returns true
-					// and also to allow write logic to remove the session early when overwritten by the new data
-					index.setupSession(sessionLocation);
-					this.readSessionRecords(sessionLocation.sequenceOrder(), sessionLocation.fileLocation(), reader, index::sessionExists)
-						.forEach(tr -> index.indexRecording(sessionLocation.sequenceOrder(), tr));
-				}
-
-				// when session index is ready, set it as the active index
-				this.sessionIndex.set(index);
-				return index;
-			} finally {
-				final Deque<Runnable> theLambdasToExecute = this.postponedIndexUpdates.getAndSet(null);
-				Assert.notNull(theLambdasToExecute, "Postponed index updates are null. This is not expected!");
-				theLambdasToExecute.forEach(Runnable::run);
-				Assert.isPremiseValid(
-					this.sessionIndexingRunning.compareAndSet(true, false),
-					"Session indexing is not running. This is not expected!"
-				);
-			}
-		} else {
-			// indexing is currently running
-			return this.sessionIndex.get();
-		}
+		isPremiseValid(totalBytesWritten == totalBytesToWrite, "Failed to write all bytes to the disk buffer file.");
 	}
 
 	/**
@@ -745,11 +719,11 @@ public class DiskRingBuffer {
 			newValue = updateSegments(
 				() -> this.activeSegments.updateAndGet(
 					currentlyActiveSegments -> {
-						Assert.isPremiseValid(
+						isPremiseValid(
 							currentlyActiveSegments.writeSegment() == null,
 							"Write segment is already locked. This is not expected!"
 						);
-						Assert.isPremiseValid(
+						isPremiseValid(
 							currentlyActiveSegments.sessionBeingWritten() == null || currentlyActiveSegments.sessionBeingWritten() == sessionBeingWritten,
 							"Different session is being written. This is not expected!"
 						);
@@ -778,7 +752,7 @@ public class DiskRingBuffer {
 			newValue = updateSegments(
 				() -> this.activeSegments.updateAndGet(
 					currentlyActiveSegments -> {
-						Assert.isPremiseValid(
+						isPremiseValid(
 							currentlyActiveSegments.writeSegment() == writeSegment,
 							"Write segment is not locked. This is not expected!"
 						);
@@ -811,7 +785,7 @@ public class DiskRingBuffer {
 		ActiveSegments newValue = updateSegments(
 			() -> this.activeSegments.updateAndGet(
 				currentlyActiveSegments -> {
-					Assert.isPremiseValid(
+					isPremiseValid(
 						currentlyActiveSegments.readSegment() == null,
 						"Read segment is already locked. This is not expected!"
 					);
@@ -841,7 +815,7 @@ public class DiskRingBuffer {
 					newValue = updateSegments(
 						() -> this.activeSegments.updateAndGet(
 							currentlyActiveSegments -> {
-								Assert.isPremiseValid(
+								isPremiseValid(
 									currentlyActiveSegments.readSegment() == readSegment,
 									"Read segment is not locked. This is not expected!"
 								);

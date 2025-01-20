@@ -29,6 +29,7 @@ import io.evitadb.api.LabelIntrospector;
 import io.evitadb.api.TrafficRecordingReader;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TrafficRecordingOptions;
+import io.evitadb.api.exception.IndexNotReady;
 import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
@@ -179,6 +180,10 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 	 * them to disk buffer.
 	 */
 	private DelayedAsyncTask freeMemoryTask;
+	/**
+	 * Contains reference to the asynchronous task executor that initiates the indexing of the disk buffer.
+	 */
+	private DelayedAsyncTask indexTask;
 	/**
 	 * Last time when the data from the {@link #diskBuffer} was read.
 	 */
@@ -451,35 +456,44 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 
 	@Nonnull
 	@Override
-	public Stream<TrafficRecording> getRecordings(@Nonnull TrafficRecordingCaptureRequest request) throws TemporalDataNotAvailableException {
-		this.lastRead = System.currentTimeMillis();
-		return this.diskBuffer.getSessionRecordsStream(
-			request,
-			(sessionSequenceOrder, filePosition, diskRingBuffer) ->
-				readTrafficRecord(sessionSequenceOrder, filePosition, diskRingBuffer.getDiskBufferFileReadInputStream())
-		);
+	public Stream<TrafficRecording> getRecordings(@Nonnull TrafficRecordingCaptureRequest request) throws TemporalDataNotAvailableException, IndexNotReady {
+		try {
+			this.lastRead = System.currentTimeMillis();
+			return this.diskBuffer.getSessionRecordsStream(
+				request,
+				(sessionSequenceOrder, filePosition, diskRingBuffer) ->
+					readTrafficRecord(sessionSequenceOrder, filePosition, diskRingBuffer.getDiskBufferFileReadInputStream())
+			);
+		} catch (IndexNotReady ex) {
+			this.indexTask.schedule();
+			throw ex;
+		}
 	}
 
 	@Nonnull
 	@Override
-	public java.util.Collection<String> getLabelsNamesOrderedByCardinality(@Nullable String nameStartingWith, int limit) {
-		this.lastRead = System.currentTimeMillis();
-		return this.diskBuffer.getLabelsNamesOrderedByCardinality(
-			nameStartingWith, limit,
-			(sessionSequenceOrder, filePosition, diskRingBuffer) ->
-				readTrafficRecord(sessionSequenceOrder, filePosition, diskRingBuffer.getDiskBufferFileReadInputStream())
-		);
+	public java.util.Collection<String> getLabelsNamesOrderedByCardinality(@Nullable String nameStartingWith, int limit) throws IndexNotReady {
+		try {
+			this.lastRead = System.currentTimeMillis();
+			return this.diskBuffer.getLabelsNamesOrderedByCardinality(nameStartingWith, limit);
+		} catch (IndexNotReady ex) {
+			this.indexTask.schedule();
+			throw ex;
+		}
 	}
 
 	@Nonnull
 	@Override
-	public java.util.Collection<String> getLabelValuesOrderedByCardinality(@Nonnull String nameEquals, @Nullable String valueStartingWith, int limit) {
-		this.lastRead = System.currentTimeMillis();
-		return this.diskBuffer.getLabelValuesOrderedByCardinality(
-			nameEquals, valueStartingWith, limit,
-			(sessionSequenceOrder, filePosition, diskRingBuffer) ->
-				readTrafficRecord(sessionSequenceOrder, filePosition, diskRingBuffer.getDiskBufferFileReadInputStream())
-		);
+	public java.util.Collection<String> getLabelValuesOrderedByCardinality(@Nonnull String nameEquals, @Nullable String valueStartingWith, int limit) throws IndexNotReady {
+		try {
+			this.lastRead = System.currentTimeMillis();
+			return this.diskBuffer.getLabelValuesOrderedByCardinality(
+				nameEquals, valueStartingWith, limit
+			);
+		} catch (IndexNotReady ex) {
+			this.indexTask.schedule();
+			throw ex;
+		}
 	}
 
 	@Override
@@ -526,6 +540,11 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		this.freeMemoryTask = new DelayedAsyncTask(
 			this.catalogName, "Traffic recorder - memory buffer cleanup", scheduler,
 			this::freeMemory, flushIntervalInSeconds, TimeUnit.SECONDS, minimalSchedulingGapInSeconds
+		);
+
+		this.indexTask = new DelayedAsyncTask(
+			this.catalogName, "Traffic recorder - disk buffer indexing", scheduler,
+			this::index, flushIntervalInSeconds, TimeUnit.SECONDS, minimalSchedulingGapInSeconds
 		);
 
 		this.copyBufferPool = new Pool<>(true, true) {
@@ -638,6 +657,14 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 					.slice(freeBlockId * blockSizeBytes, blockSizeBytes)
 			);
 		}
+	}
+
+	private long index() {
+		this.diskBuffer.indexData(
+			(sessionSequenceOrder, filePosition, diskRingBuffer) ->
+				readTrafficRecord(sessionSequenceOrder, filePosition, diskRingBuffer.getDiskBufferFileReadInputStream())
+		);
+		return -1L;
 	}
 
 	/**

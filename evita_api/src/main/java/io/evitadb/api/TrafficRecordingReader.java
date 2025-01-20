@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.api;
 
 
+import io.evitadb.api.exception.IndexNotReady;
 import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest;
@@ -49,10 +50,11 @@ public interface TrafficRecordingReader {
 	 *                 are combined with logical OR
 	 * @return stream of recordings that match the specified criteria in reversed order
 	 * @throws TemporalDataNotAvailableException when data for particular moment is not available anymore
+	 * @throws IndexNotReady when the index is not ready yet and the data cannot be read
 	 */
 	@Nonnull
 	Stream<TrafficRecording> getRecordings(
 		@Nonnull TrafficRecordingCaptureRequest request
-	) throws TemporalDataNotAvailableException;
+	) throws TemporalDataNotAvailableException, IndexNotReady;
 
 }

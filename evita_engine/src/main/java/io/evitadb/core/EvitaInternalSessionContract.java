@@ -27,6 +27,7 @@ import io.evitadb.api.CatalogContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.TrafficRecordingReader;
 import io.evitadb.api.TransactionContract.CommitBehavior;
+import io.evitadb.api.exception.IndexNotReady;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.exception.TransactionException;
 import io.evitadb.api.exception.UnexpectedResultCountException;
@@ -192,7 +193,7 @@ public interface EvitaInternalSessionContract extends EvitaSessionContract, Traf
 	 * @return collection of unique label names ordered by cardinality of their values
 	 */
 	@Nonnull
-	Collection<String> getLabelsNamesOrderedByCardinality(@Nullable String nameStartingWith, int limit);
+	Collection<String> getLabelsNamesOrderedByCardinality(@Nullable String nameStartingWith, int limit) throws IndexNotReady;
 
 	/**
 	 * Returns a stream of all unique label values ordered by cardinality present in the traffic recording.
@@ -202,6 +203,6 @@ public interface EvitaInternalSessionContract extends EvitaSessionContract, Traf
 	 * @return collection of unique label values ordered by cardinality
 	 */
 	@Nonnull
-	Collection<String> getLabelValuesOrderedByCardinality(@Nonnull String labelName, @Nullable String valueStartingWith, int limit);
+	Collection<String> getLabelValuesOrderedByCardinality(@Nonnull String labelName, @Nullable String valueStartingWith, int limit) throws IndexNotReady;
 
 }

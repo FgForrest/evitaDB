@@ -26,6 +26,7 @@ package io.evitadb.store.traffic;
 
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TrafficRecordingOptions;
+import io.evitadb.api.exception.IndexNotReady;
 import io.evitadb.api.query.head.Label;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
@@ -117,17 +118,9 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 
 	@Test
 	void shouldRecordAndReadAllTypes() {
+		warmUpEmptyIndex();
+
 		final UUID sessionId = UUID.randomUUID();
-		assertEquals(
-			0,
-			this.trafficRecorder.getRecordings(
-				TrafficRecordingCaptureRequest.builder()
-					.content(TrafficRecordingContent.BODY)
-					.sinceSessionSequenceId(0L)
-					.sinceRecordSessionOffset(0)
-					.build()
-			).count()
-		);
 		this.trafficRecorder.createSession(sessionId, 1, OffsetDateTime.now());
 		this.trafficRecorder.recordQuery(
 			sessionId,
@@ -137,7 +130,7 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 				orderBy(entityPrimaryKeyNatural(OrderDirection.DESC)),
 				require(entityFetchAll())
 			),
-			new Label[] {
+			new Label[]{
 				label("a", "b"),
 				label("c", "d")
 			},
@@ -202,16 +195,7 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 
 	@Test
 	void shouldCorrectlyPropagateLabelsAndInheritedValues() {
-		assertEquals(
-			0,
-			this.trafficRecorder.getRecordings(
-				TrafficRecordingCaptureRequest.builder()
-					.content(TrafficRecordingContent.BODY)
-					.sinceSessionSequenceId(0L)
-					.sinceRecordSessionOffset(0)
-					.build()
-			).count()
-		);
+		warmUpEmptyIndex();
 
 		final UUID firstSessionId = UUID.randomUUID();
 		this.trafficRecorder.createSession(firstSessionId, 1, OffsetDateTime.now());
@@ -323,17 +307,7 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 
 	@Test
 	void shouldRecordLotOfDataInRingBufferWithWarmedUpIndex() {
-		// initialize empty index
-		assertEquals(
-			0L,
-			this.trafficRecorder.getRecordings(
-				TrafficRecordingCaptureRequest.builder()
-					.content(TrafficRecordingContent.BODY)
-					.sinceSessionSequenceId(0L)
-					.sinceRecordSessionOffset(0)
-					.build()
-			).count()
-		);
+		warmUpEmptyIndex();
 
 		final UUID sessionId = writeBunchOfData(10, 10);
 
@@ -410,6 +384,32 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 		assertTrue(allRecordings.size() > 120);
 	}
 
+	private void warmUpEmptyIndex() {
+		// initialize empty index
+		assertThrows(
+			IndexNotReady.class,
+			() -> this.trafficRecorder.getRecordings(
+				TrafficRecordingCaptureRequest.builder()
+					.content(TrafficRecordingContent.BODY)
+					.sinceSessionSequenceId(0L)
+					.sinceRecordSessionOffset(0)
+					.build()
+			)
+		);
+
+		// check index is empty
+		assertEquals(
+			0L,
+			this.trafficRecorder.getRecordings(
+				TrafficRecordingCaptureRequest.builder()
+					.content(TrafficRecordingContent.BODY)
+					.sinceSessionSequenceId(0L)
+					.sinceRecordSessionOffset(0)
+					.build()
+			).count()
+		);
+	}
+
 	private void createLabeledQuery(@Nonnull UUID sessionId, @Nonnull Label... labels) {
 		this.trafficRecorder.recordQuery(
 			sessionId,
@@ -430,37 +430,47 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 
 	private void waitUntilDataBecomeAvailable(long sessionSequenceId, int waitMilliseconds) {
 		final long start = System.currentTimeMillis();
-		List<TrafficRecording> recordings;
+		List<TrafficRecording> recordings = null;
 		do {
-			recordings = this.trafficRecorder.getRecordings(
-				TrafficRecordingCaptureRequest.builder()
-					.content(TrafficRecordingContent.BODY)
-					.sinceSessionSequenceId(sessionSequenceId)
-					.type(TrafficRecordingType.SESSION_CLOSE)
-					.build()
-			).toList();
-		} while (recordings.isEmpty() && System.currentTimeMillis() - start < waitMilliseconds);
+			try {
+				recordings = this.trafficRecorder.getRecordings(
+					TrafficRecordingCaptureRequest.builder()
+						.content(TrafficRecordingContent.BODY)
+						.sinceSessionSequenceId(sessionSequenceId)
+						.type(TrafficRecordingType.SESSION_CLOSE)
+						.build()
+				).toList();
+				break;
+			} catch (IndexNotReady ignored) {
+				// ignore and retry
+			}
+		} while (System.currentTimeMillis() - start < waitMilliseconds);
 
-		if (recordings.isEmpty()) {
+		if (recordings == null) {
 			fail("Last recording was not written to the disk within the specified time limit.");
 		}
 	}
 
 	private void waitUntilDataBecomeAvailable(UUID sessionId, int waitMilliseconds) {
 		final long start = System.currentTimeMillis();
-		List<TrafficRecording> recordings;
+		List<TrafficRecording> recordings = null;
 		do {
-			recordings = this.trafficRecorder.getRecordings(
-				TrafficRecordingCaptureRequest.builder()
-					.content(TrafficRecordingContent.BODY)
-					.sessionId(sessionId)
-					.sinceSessionSequenceId(0L)
-					.type(TrafficRecordingType.SESSION_CLOSE)
-					.build()
-			).toList();
-		} while (recordings.isEmpty() && System.currentTimeMillis() - start < waitMilliseconds);
+			try {
+				recordings = this.trafficRecorder.getRecordings(
+					TrafficRecordingCaptureRequest.builder()
+						.content(TrafficRecordingContent.BODY)
+						.sessionId(sessionId)
+						.sinceSessionSequenceId(0L)
+						.type(TrafficRecordingType.SESSION_CLOSE)
+						.build()
+				).toList();
+				break;
+			} catch (IndexNotReady ignored) {
+				// ignore and retry
+			}
+		} while (System.currentTimeMillis() - start < waitMilliseconds);
 
-		if (recordings.isEmpty()) {
+		if (recordings == null) {
 			fail("Last recording was not written to the disk within the specified time limit.");
 		}
 	}
@@ -480,7 +490,7 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 						orderBy(entityPrimaryKeyNatural(OrderDirection.DESC)),
 						require(entityFetchAll())
 					),
-					new Label[] {
+					new Label[]{
 						label("a", "b"),
 						label("c", "d")
 					},
