@@ -38,6 +38,7 @@ import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.offsetIndex.stream.RandomAccessFileInputStream;
 import io.evitadb.store.traffic.OffHeapTrafficRecorder.MemoryNotAvailableException;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.IOUtils;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -523,16 +524,14 @@ public class DiskRingBuffer {
 	 */
 	public void close(@Nonnull Consumer<Path> fileCleanLogic) {
 		try {
-			/* TODO JNO - implement something like IOUtils.close */
-			this.fileChannel.close();
-			this.diskBufferFile.close();
-			this.diskBufferFileReadInputStream.close();
 			this.sessionIndex.set(null);
-		} catch (IOException e) {
-			throw new UnexpectedIOException(
-				"Failed to close traffic recording buffer file: " + e.getMessage(),
-				"Failed to close traffic recording buffer file.",
-				e
+			IOUtils.close(
+				() -> new UnexpectedIOException(
+					"Failed to close traffic recording buffer file: " + this.diskBufferFilePath.toString(),
+					"Failed to close traffic recording buffer file."
+				),
+				this.fileChannel::close,
+				this.diskBufferFileReadInputStream::close
 			);
 		} finally {
 			fileCleanLogic.accept(this.diskBufferFilePath);
