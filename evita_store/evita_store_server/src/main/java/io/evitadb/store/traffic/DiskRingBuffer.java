@@ -62,6 +62,8 @@ import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.function.LongPredicate;
 import java.util.function.Predicate;
@@ -139,9 +141,10 @@ public class DiskRingBuffer {
 	 */
 	private final AtomicReference<ActiveSegments> activeSegments = new AtomicReference<>(new ActiveSegments());
 	/**
-	 * Atomic boolean used for locking the segment updates.
+	 * Lock with condition for the segments atomic update.
 	 */
-	private final AtomicBoolean segmentLock = new AtomicBoolean(false);
+	private final ReentrantLock segmentsLock = new ReentrantLock();
+	private final Condition segmentsCondition = segmentsLock.newCondition();
 	/**
 	 * Head of the ring buffer.
 	 */
@@ -713,9 +716,10 @@ public class DiskRingBuffer {
 		@Nonnull SessionLocation sessionBeingWritten,
 		@Nonnull IOExceptionThrowingLambda writeLambda
 	) throws IOException {
-		// lock the write segment and write the data
+        // Step 1: lock the write segment and write the data
 		ActiveSegments newValue;
-		do {
+        while (true) {
+            // Try to update the segments
 			newValue = updateSegments(
 				() -> this.activeSegments.updateAndGet(
 					currentlyActiveSegments -> {
@@ -727,11 +731,12 @@ public class DiskRingBuffer {
 							currentlyActiveSegments.sessionBeingWritten() == null || currentlyActiveSegments.sessionBeingWritten() == sessionBeingWritten,
 							"Different session is being written. This is not expected!"
 						);
+                        // If the write segment is currently being read, we cannot proceed yet
 						if (segmentsOverlap(currentlyActiveSegments.readSegment(), writeSegment)) {
-							// if the write segment is currently being read, do not write to it, this will cause busy waiting
+                            // Return existing state (i.e. we failed to lock)
 							return currentlyActiveSegments;
 						} else {
-							// otherwise lock the write segment and write the data
+                            // Otherwise lock the write segment and move on
 							return new ActiveSegments(
 								currentlyActiveSegments.readSegment(),
 								writeSegment,
@@ -741,14 +746,19 @@ public class DiskRingBuffer {
 					}
 				)
 			);
-			// we're busy waiting for the write segment to be unlocked by the reader (this should be rare and short)
-		} while (newValue.writeSegment() != writeSegment);
+            // If we successfully locked the segment, break out of the loop
+            if (newValue.writeSegment() == writeSegment) {
+                break;
+            }
+            // otherwise, wait until someone else changes the state (i.e., finishes reading)
+	        waitForSegmentUpdate();
+        }
 
-		// write the data
+        // Step 2: write the data
 		writeLambda.run();
 
-		// release the lock on the write segment
-		do {
+        // Step 3: release the lock on the write segment
+        while (true) {
 			newValue = updateSegments(
 				() -> this.activeSegments.updateAndGet(
 					currentlyActiveSegments -> {
@@ -756,7 +766,7 @@ public class DiskRingBuffer {
 							currentlyActiveSegments.writeSegment() == writeSegment,
 							"Write segment is not locked. This is not expected!"
 						);
-						// unlock the write segment
+                        // unlock the write segment
 						return new ActiveSegments(
 							currentlyActiveSegments.readSegment(),
 							null,
@@ -765,8 +775,13 @@ public class DiskRingBuffer {
 					}
 				)
 			);
-			// we're busy waiting for the write segment to be unlocked, this should practically never happen
-		} while (newValue.writeSegment() != null);
+            // If the write segment is unlocked, we’re done
+            if (newValue.writeSegment() == null) {
+                break;
+            }
+            // Otherwise, wait for the condition to change
+	        waitForSegmentUpdate();
+        }
 	}
 
 	/**
@@ -837,6 +852,25 @@ public class DiskRingBuffer {
 	}
 
 	/**
+	 * Waits for the segment update signal.
+	 *
+	 * This method blocks the current thread until a signal is received
+	 * on the segmentsCondition, indicating that a segment update has occurred.
+	 * The method utilizes a lock to ensure thread safety when waiting
+	 * for the condition to be signaled.
+	 *
+	 * This wait is uninterruptible and will not respond to thread interruptions.
+	 */
+	private void waitForSegmentUpdate() {
+		this.segmentsLock.lock();
+		try {
+			this.segmentsCondition.awaitUninterruptibly();
+		} finally {
+			this.segmentsLock.unlock();
+		}
+	}
+
+	/**
 	 * Updates the active segments by executing the provided supplier within a thread-safe context. The plain
 	 * {@link AtomicReference#updateAndGet(UnaryOperator)} doesn't guarantee that the lambda will be executed
 	 * concurrently on top of different witness values, which is necessary for the correct operation of the
@@ -847,13 +881,14 @@ public class DiskRingBuffer {
 	 */
 	@Nonnull
 	private ActiveSegments updateSegments(@Nonnull Supplier<ActiveSegments> lambda) {
-		while (!this.segmentLock.compareAndSet(false, true)) {
-			Thread.onSpinWait();
-		}
+		this.segmentsLock.lock();
 		try {
-			return lambda.get();
+			ActiveSegments result = lambda.get();
+			// notify any threads waiting to see if they can progress (e.g. waiting readers/writers)
+			this.segmentsCondition.signalAll();
+			return result;
 		} finally {
-			this.segmentLock.set(false);
+			this.segmentsLock.unlock();
 		}
 	}
 
