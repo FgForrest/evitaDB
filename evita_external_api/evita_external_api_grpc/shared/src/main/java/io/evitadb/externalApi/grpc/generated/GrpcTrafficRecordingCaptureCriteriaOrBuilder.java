@@ -220,27 +220,27 @@ public interface GrpcTrafficRecordingCaptureCriteriaOrBuilder extends
    * longerThan specifies the minimum duration in milliseconds of the traffic recording to be returned
    * </pre>
    *
-   * <code>.google.protobuf.Int32Value longerThan = 7;</code>
-   * @return Whether the longerThan field is set.
+   * <code>.google.protobuf.Int32Value longerThanMilliseconds = 7;</code>
+   * @return Whether the longerThanMilliseconds field is set.
    */
-  boolean hasLongerThan();
+  boolean hasLongerThanMilliseconds();
   /**
    * <pre>
    * longerThan specifies the minimum duration in milliseconds of the traffic recording to be returned
    * </pre>
    *
-   * <code>.google.protobuf.Int32Value longerThan = 7;</code>
-   * @return The longerThan.
+   * <code>.google.protobuf.Int32Value longerThanMilliseconds = 7;</code>
+   * @return The longerThanMilliseconds.
    */
-  com.google.protobuf.Int32Value getLongerThan();
+  com.google.protobuf.Int32Value getLongerThanMilliseconds();
   /**
    * <pre>
    * longerThan specifies the minimum duration in milliseconds of the traffic recording to be returned
    * </pre>
    *
-   * <code>.google.protobuf.Int32Value longerThan = 7;</code>
+   * <code>.google.protobuf.Int32Value longerThanMilliseconds = 7;</code>
    */
-  com.google.protobuf.Int32ValueOrBuilder getLongerThanOrBuilder();
+  com.google.protobuf.Int32ValueOrBuilder getLongerThanMillisecondsOrBuilder();
 
   /**
    * <pre>

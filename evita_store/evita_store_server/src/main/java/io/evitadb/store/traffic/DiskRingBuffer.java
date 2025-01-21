@@ -577,7 +577,12 @@ public class DiskRingBuffer {
 	 * @return the indexing percentage as an integer value.
 	 */
 	private int calculateIndexingPercentage() {
-		return (int) (((float)this.indexedSessions.get() / (float)(this.sessionLocations.size() + this.postponedIndexUpdates.get().size())) * 100.0);
+		return (int) (
+			((float)this.indexedSessions.get() /
+				(float)(this.sessionLocations.size() +
+					ofNullable(this.postponedIndexUpdates.get()).map(Deque::size).orElse(0))
+			) * 100.0
+		);
 	}
 
 	/**

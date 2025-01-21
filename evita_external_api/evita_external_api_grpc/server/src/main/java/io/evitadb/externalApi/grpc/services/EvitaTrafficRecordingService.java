@@ -24,9 +24,13 @@
 package io.evitadb.externalApi.grpc.services;
 
 
+import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest;
+import io.evitadb.api.task.ServerTask;
+import io.evitadb.api.task.TaskStatus;
 import io.evitadb.core.Evita;
+import io.evitadb.core.traffic.TrafficRecordingSettings;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.requestResponse.traffic.TrafficCaptureConverter;
 import io.grpc.stub.ServerCallStreamObserver;
@@ -35,8 +39,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import java.time.Duration;
 import java.util.stream.Stream;
 
+import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrpcTaskStatus;
+import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toUuid;
 import static io.evitadb.externalApi.grpc.services.EvitaSessionService.executeWithClientContext;
 
 /**
@@ -144,7 +151,7 @@ public class EvitaTrafficRecordingService extends GrpcEvitaTrafficRecordingServi
 	 * @param responseObserver observer on which errors might be thrown and result returned
 	 */
 	@Override
-	public void getTrafficRecordingLabelsValuesOrderedByCardinality(GetTrafficRecordingValuesNamesRequest request, StreamObserver<GetTrafficRecordingValuesNamesResponse> responseObserver) {
+	public void getTrafficRecordingLabelValuesOrderedByCardinality(GetTrafficRecordingValuesNamesRequest request, StreamObserver<GetTrafficRecordingValuesNamesResponse> responseObserver) {
 		executeWithClientContext(
 			session -> {
 				GetTrafficRecordingValuesNamesResponse.Builder builder = GetTrafficRecordingValuesNamesResponse.newBuilder();
@@ -154,6 +161,66 @@ public class EvitaTrafficRecordingService extends GrpcEvitaTrafficRecordingServi
 						request.getLimit()
 					)
 					.forEach(builder::addLabelValue);
+				responseObserver.onNext(builder.build());
+				responseObserver.onCompleted();
+			},
+			evita.getRequestExecutor(),
+			responseObserver
+		);
+	}
+
+	/**
+	 * Starts the traffic recording process based on the provided request and sends the recording status response.
+	 * There could be only one recording in progress at a time.
+	 *
+	 * @param request The request object containing the parameters required to start traffic recording.
+	 * @param responseObserver The stream observer used to send the recording status response back to the client.
+	 */
+	@Override
+	public void startTrafficRecording(GrpcStartTrafficRecordingRequest request, StreamObserver<GetTrafficRecordingStatusResponse> responseObserver) {
+		executeWithClientContext(
+			session -> {
+				GetTrafficRecordingStatusResponse.Builder builder = GetTrafficRecordingStatusResponse.newBuilder();
+				final ServerTask<TrafficRecordingSettings, FileForFetch> task = session.startRecording(
+					request.getSamplingRate(),
+					request.hasMaxDurationInMilliseconds() ?
+						Duration.ofMillis(request.getMaxDurationInMilliseconds().getValue()) : null,
+					request.hasMaxFileSizeInBytes() ?
+						request.getMaxFileSizeInBytes().getValue() : null,
+					request.hasChunkFileSizeInBytes() ?
+						request.getChunkFileSizeInBytes().getValue() : null
+				);
+				responseObserver.onNext(
+					builder
+						.setTaskStatus(toGrpcTaskStatus(task.getStatus()))
+						.build()
+				);
+				responseObserver.onCompleted();
+			},
+			evita.getRequestExecutor(),
+			responseObserver
+		);
+	}
+
+	/**
+	 * Stops the ongoing traffic recording process based on the provided request.
+	 *
+	 * @param request The request object containing the necessary details to stop traffic recording.
+	 * @param responseObserver The response observer to send the status of the operation.
+	 */
+	@Override
+	public void stopTrafficRecording(GrpcStopTrafficRecordingRequest request, StreamObserver<GetTrafficRecordingStatusResponse> responseObserver) {
+		executeWithClientContext(
+			session -> {
+				GetTrafficRecordingStatusResponse.Builder builder = GetTrafficRecordingStatusResponse.newBuilder();
+				final TaskStatus<TrafficRecordingSettings, FileForFetch> taskStatus = session.stopRecording(
+					toUuid(request.getTaskStatusId())
+				);
+				responseObserver.onNext(
+					builder
+						.setTaskStatus(toGrpcTaskStatus(taskStatus))
+						.build()
+				);
 				responseObserver.onNext(builder.build());
 				responseObserver.onCompleted();
 			},

@@ -16,8 +16,6 @@ message GetTrafficHistoryListRequest {
   int32 limit = 1;
   // The criteria of the traffic recording, allows to define constraints on the returned records
   GrpcTrafficRecordingCaptureCriteria criteria = 2;
-  // The scope of the returned data - either header of the record, or the whole record
-  GrpcTrafficRecordingContent content = 3;
 }
 
 // Response to GetTrafficHistoryList request.
@@ -30,8 +28,6 @@ message GetTrafficHistoryListResponse {
 message GetTrafficHistoryRequest {
   // The criteria of the traffic recording, allows to define constraints on the returned records
   GrpcTrafficRecordingCaptureCriteria criteria = 1;
-  // The scope of the returned data - either header of the record, or the whole record
-  GrpcTrafficRecordingContent content = 2;
 }
 
 // Response to GetTrafficHistory request.
@@ -70,6 +66,30 @@ message GetTrafficRecordingValuesNamesResponse {
   repeated string labelValue = 1;
 }
 
+// Request to StartTrafficRecording request.
+message GrpcStartTrafficRecordingRequest {
+  // The sampling rate of the traffic recording (100 means all records will be recorded, 1 means 1% of records will be recorded)
+  int32 samplingRate = 1;
+  // The duration of the recording in milliseconds, after this time the recording will be stopped automatically.
+  google.protobuf.Int64Value maxDurationInMilliseconds = 2;
+  // The size of the recording in bytes, after this size the recording will be stopped automatically.
+  google.protobuf.Int64Value maxFileSizeInBytes = 3;
+  // The size of the chunk file in bytes. Individual files in the export file will be approximately this size.
+  google.protobuf.Int32Value chunkFileSizeInBytes = 4;
+}
+
+// Request to StopTrafficRecording request.
+message GrpcStopTrafficRecordingRequest {
+  // The ID of the task that started the recording
+  GrpcUuid taskStatusId = 1;
+}
+
+// Response to StartTrafficRecording and  request.
+message GetTrafficRecordingStatusResponse {
+  // The status of the recording task
+  GrpcTaskStatus taskStatus = 1;
+}
+
 service GrpcEvitaTrafficRecordingService {
 
   // Procedure that returns requested list of past traffic records with limited size that match the request criteria.
@@ -83,6 +103,10 @@ service GrpcEvitaTrafficRecordingService {
   // Procedure returns a list of top unique labels names ordered by cardinality of their values present in the traffic recording.
   rpc GetTrafficRecordingLabelsNamesOrderedByCardinality(GetTrafficRecordingLabelNamesRequest) returns (stream GetTrafficRecordingLabelNamesResponse);
   // Procedure returns a list of top unique label values ordered by cardinality of their values present in the traffic recording.
-  rpc GetTrafficRecordingLabelsValuesOrderedByCardinality(GetTrafficRecordingValuesNamesRequest) returns (stream GetTrafficRecordingValuesNamesResponse);
+  rpc GetTrafficRecordingLabelValuesOrderedByCardinality(GetTrafficRecordingValuesNamesRequest) returns (stream GetTrafficRecordingValuesNamesResponse);
+  // Procedure that starts the traffic recording for the given criteria and settings
+  rpc StartTrafficRecording(GrpcStartTrafficRecordingRequest) returns (GetTrafficRecordingStatusResponse);
+  // Procedure that stops the traffic recording
+  rpc StopTrafficRecording(GrpcStopTrafficRecordingRequest) returns (GetTrafficRecordingStatusResponse);
 
 }

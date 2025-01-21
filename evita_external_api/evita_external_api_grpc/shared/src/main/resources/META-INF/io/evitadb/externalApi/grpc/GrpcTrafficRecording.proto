@@ -29,7 +29,7 @@ message GrpcTrafficRecordingCaptureCriteria {
   // sessionId specifies the session ID from which the traffic recording should be returned
   GrpcUuid sessionId = 6;
   // longerThan specifies the minimum duration in milliseconds of the traffic recording to be returned
-  google.protobuf.Int32Value longerThan = 7;
+  google.protobuf.Int32Value longerThanMilliseconds = 7;
   // fetchingMoreBytesThan specifies the minimum number of bytes that record should have fetched from the disk
   google.protobuf.Int32Value fetchingMoreBytesThan = 8;
   // labels specifies the client labels that the traffic recording must have (both name and value must match)
@@ -68,80 +68,180 @@ message GrpcTrafficRecord {
 
 // This container holds a mutation and its metadata.
 message GrpcTrafficMutationContainer {
+  // The sequence order of the session (analogous to sessionId, but monotonic sequence based on location in the log).
+  int64 sessionSequenceOrder = 1;
+  // The session id which the query belongs to.
+  GrpcUuid sessionId = 2;
+  // The relative order (offset) of the traffic recording within the session.
+  int32 recordSessionOffset = 3;
+  // The time when the mutation was issued.
+  GrpcOffsetDateTime created = 4;
+  // The duration of the mutation application in milliseconds.
+  int64 durationInMilliseconds = 5;
   // The mutation operation.
-  GrpcEntityMutation entityMutation = 1;
-  // The schema mutation operation.
-  GrpcEntitySchemaMutation schemaMutation = 2;
+  oneof mutation {
+    // The entity mutation operation.
+    GrpcEntityMutation entityMutation = 6;
+    // The schema mutation operation.
+    GrpcEntitySchemaMutation schemaMutation = 7;
+  }
 }
 
 // Container for a query and its metadata.
 message GrpcTrafficQueryContainer {
+  // The sequence order of the session (analogous to sessionId, but monotonic sequence based on location in the log).
+  int64 sessionSequenceOrder = 1;
+  // The session id which the query belongs to.
+  GrpcUuid sessionId = 2;
+  // The relative order (offset) of the traffic recording within the session.
+  int32 recordSessionOffset = 3;
   // The query operation.
-  string query = 1;
-  // The total number of records calculated by the query
-  int32 totalRecordCount = 2;
-  // the client labels associated with the query
-  repeated GrpcQueryLabel labels = 3;
-  // The primary keys of the records returned by the query (in returned data chunk)
-  repeated int32 primaryKeys = 4;
+  string query = 4;
+  // The client labels associated with the query.
+  repeated GrpcQueryLabel labels = 5;
+  // The time when the query was created.
+  GrpcOffsetDateTime created = 6;
+  // The duration of the query in milliseconds.
+  int64 durationInMilliseconds = 7;
+  // The total number of records calculated by the query.
+  int32 totalRecordCount = 8;
+  // The total number of disk fetch attempts made by the query.
+  int32 ioFetchCount = 9;
+  // The total number of Bytes fetched from the disk by the query.
+  int32 ioFetchedSizeBytes = 10;
+  // The primary keys of the records returned by the query (in returned data chunk). I.e. number of records actually
+  // returned by the pagination requirement of the query.
+  repeated int32 primaryKeys = 11;
 }
 
 // This container holds information about single entity enrichment.
 message GrpcTrafficEntityEnrichmentContainer {
-  // The query operation.
-  string query = 1;
-  // The primary keys of the records returned by the query (in returned data chunk)
-  int32 primaryKey = 2;
+  // The sequence order of the session (analogous to sessionId, but monotonic sequence based on location in the log).
+  int64 sessionSequenceOrder = 1;
+  // The session id which the enrichment order belongs to.
+  GrpcUuid sessionId = 2;
+  // The relative order (offset) of the traffic recording within the session.
+  int32 recordSessionOffset = 3;
+  // The query operation associated with enrichment.
+  string query = 4;
+  // The time when the enrichment order was issued.
+  GrpcOffsetDateTime created = 5;
+  // The duration of the enrichment in milliseconds.
+  int64 durationInMilliseconds = 6;
+  // The total number of disk fetch attempts made by the enrichment.
+  int32 ioFetchCount = 7;
+  // The total number of Bytes fetched from the disk by the enrichment.
+  int32 ioFetchedSizeBytes = 8;
+  // The primary key of the enriched record
+  int32 primaryKey = 9;
 }
 
 // This container holds information about single entity fetch.
 message GrpcTrafficEntityFetchContainer {
-  // The query operation.
-  string query = 1;
-  // The primary keys of the records returned by the query (in returned data chunk)
-  int32 primaryKey = 2;
+  // The sequence order of the session (analogous to sessionId, but monotonic sequence based on location in the log).
+  int64 sessionSequenceOrder = 1;
+  // The session id which the entity fetch order belongs to.
+  GrpcUuid sessionId = 2;
+  // The relative order (offset) of the traffic recording within the session.
+  int32 recordSessionOffset = 3;
+  // The query operation associated with entity fetch.
+  string query = 4;
+  // The time when the fetch order was issued.
+  GrpcOffsetDateTime created = 5;
+  // The duration of the entity fetch in milliseconds.
+  int64 durationInMilliseconds = 6;
+  // The total number of disk fetch attempts made by the entity fetch.
+  int32 ioFetchCount = 7;
+  // The total number of Bytes fetched from the disk by the entity fetch.
+  int32 ioFetchedSizeBytes = 8;
+  // The primary key of the fetched record
+  int32 primaryKey = 9;
 }
 
 // This container holds information about the session start.
 message GrpcTrafficSessionStartContainer {
-  // The version of the catalog that will be used for the entire session
-  int64 catalogVersion = 1;
+  // The sequence order of the session (analogous to sessionId, but monotonic sequence based on location in the log).
+  int64 sessionSequenceOrder = 1;
+  // The associated session id.
+  GrpcUuid sessionId = 2;
+  // The relative order (offset) of the traffic recording within the session.
+  int32 recordSessionOffset = 3;
+  // The version of the catalog that will be used for the entire session.
+  int64 catalogVersion = 4;
+  // The time when the session was created.
+  GrpcOffsetDateTime created = 5;
 }
 
 // This container holds information about the session close.
 message GrpcTrafficSessionCloseContainer {
+  // The sequence order of the session (analogous to sessionId, but monotonic sequence based on location in the log).
+  int64 sessionSequenceOrder = 1;
+  // The associated session id.
+  GrpcUuid sessionId = 2;
+  // The relative order (offset) of the traffic recording within the session.
+  int32 recordSessionOffset = 3;
   // The version of the catalog
-  int64 catalogVersion = 1;
-  // The overall number of traffic records recorded for this session
-  int32 trafficRecordCount = 2;
-  // The number of records missed out in this session due to memory shortage or sampling
-  int32 trafficRecordsMissedOut = 3;
-  // The overall number of queries executed in this session
-  int32 queryCount = 4;
-  // The overall number of entities fetched in this session (excluding the entities fetched by queries)
-  int32 entityFetchCount = 5;
-  // The overall number of mutations executed in this session
-  int32 mutationCount = 6;
+  int64 catalogVersion = 4;
+  // The time when the session was closed (the traffic record created).
+  GrpcOffsetDateTime created = 5;
+  // The duration of the session in milliseconds.
+  int64 durationInMilliseconds = 6;
+  // The total number of disk fetch attempts made in this session.
+  int32 ioFetchCount = 7;
+  // The total number of Bytes fetched from the disk in this session.
+  int32 ioFetchedSizeBytes = 8;
+  // The overall number of traffic records recorded for this session.
+  int32 trafficRecordCount = 9;
+  // The number of records missed out in this session due to memory shortage (not sampling, sampling affects entire sessions).
+  int32 trafficRecordsMissedOut = 10;
+  // The overall number of queries executed in this session.
+  int32 queryCount = 11;
+  // The overall number of entities fetched in this session (excluding the entities fetched by queries).
+  int32 entityFetchCount = 12;
+  // The overall number of mutations executed in this session.
+  int32 mutationCount = 13;
 }
 
 // This container holds information about the source query.
 message GrpcTrafficSourceQueryContainer {
+  // The sequence order of the session (analogous to sessionId, but monotonic sequence based on location in the log).
+  int64 sessionSequenceOrder = 1;
+  // The associated session id.
+  GrpcUuid sessionId = 2;
+  // The relative order (offset) of the traffic recording within the session.
+  int32 recordSessionOffset = 3;
   // The unique identifier of the source query
-  GrpcUuid sourceQueryId = 1;
+  GrpcUuid sourceQueryId = 4;
+  // The time when the source query was initiated.
+  GrpcOffsetDateTime created = 5;
   // unparsed, raw source query in particular format
-  string sourceQuery = 2;
+  string sourceQuery = 6;
   // type of the query (e.g. GraphQL, REST, etc.)
-  string queryType = 3;
+  string queryType = 7;
 }
 
 // This container holds information about the source query statistics.
 message GrpcTrafficSourceQueryStatisticsContainer {
+  // The sequence order of the session (analogous to sessionId, but monotonic sequence based on location in the log).
+  int64 sessionSequenceOrder = 1;
+  // The associated session id.
+  GrpcUuid sessionId = 2;
+  // The relative order (offset) of the traffic recording within the session.
+  int32 recordSessionOffset = 3;
   // The source query id
-  GrpcUuid sourceQueryId = 1;
+  GrpcUuid sourceQueryId = 4;
+  // The time when the source query was finished.
+  GrpcOffsetDateTime created = 5;
+  // The duration of the source query in milliseconds.
+  int64 durationInMilliseconds = 6;
+  // The total number of disk fetch attempts made by this query.
+  int32 ioFetchCount = 7;
+  // The total number of Bytes fetched from the disk by this query.
+  int32 ioFetchedSizeBytes = 8;
   // The total number of records returned by the query ({@link EvitaResponse#getRecordData()} size)
-  int32 returnedRecordCount = 2;
+  int32 returnedRecordCount = 9;
   // The total number of records calculated by the query ({@link EvitaResponse#getTotalRecordCount()})
-  int32 totalRecordCount = 3;
+  int32 totalRecordCount = 10;
 }
 
 // Client label attached to the query

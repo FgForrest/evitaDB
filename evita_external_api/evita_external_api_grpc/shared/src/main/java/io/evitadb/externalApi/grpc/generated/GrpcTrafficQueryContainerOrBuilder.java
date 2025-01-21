@@ -32,10 +32,57 @@ public interface GrpcTrafficQueryContainerOrBuilder extends
 
   /**
    * <pre>
+   * The sequence order of the session (analogous to sessionId, but monotonic sequence based on location in the log).
+   * </pre>
+   *
+   * <code>int64 sessionSequenceOrder = 1;</code>
+   * @return The sessionSequenceOrder.
+   */
+  long getSessionSequenceOrder();
+
+  /**
+   * <pre>
+   * The session id which the query belongs to.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 2;</code>
+   * @return Whether the sessionId field is set.
+   */
+  boolean hasSessionId();
+  /**
+   * <pre>
+   * The session id which the query belongs to.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 2;</code>
+   * @return The sessionId.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcUuid getSessionId();
+  /**
+   * <pre>
+   * The session id which the query belongs to.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 2;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder getSessionIdOrBuilder();
+
+  /**
+   * <pre>
+   * The relative order (offset) of the traffic recording within the session.
+   * </pre>
+   *
+   * <code>int32 recordSessionOffset = 3;</code>
+   * @return The recordSessionOffset.
+   */
+  int getRecordSessionOffset();
+
+  /**
+   * <pre>
    * The query operation.
    * </pre>
    *
-   * <code>string query = 1;</code>
+   * <code>string query = 4;</code>
    * @return The query.
    */
   java.lang.String getQuery();
@@ -44,7 +91,7 @@ public interface GrpcTrafficQueryContainerOrBuilder extends
    * The query operation.
    * </pre>
    *
-   * <code>string query = 1;</code>
+   * <code>string query = 4;</code>
    * @return The bytes for query.
    */
   com.google.protobuf.ByteString
@@ -52,82 +99,142 @@ public interface GrpcTrafficQueryContainerOrBuilder extends
 
   /**
    * <pre>
-   * The total number of records calculated by the query
+   * The client labels associated with the query.
    * </pre>
    *
-   * <code>int32 totalRecordCount = 2;</code>
-   * @return The totalRecordCount.
-   */
-  int getTotalRecordCount();
-
-  /**
-   * <pre>
-   * the client labels associated with the query
-   * </pre>
-   *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 3;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 5;</code>
    */
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryLabel>
       getLabelsList();
   /**
    * <pre>
-   * the client labels associated with the query
+   * The client labels associated with the query.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 3;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 5;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcQueryLabel getLabels(int index);
   /**
    * <pre>
-   * the client labels associated with the query
+   * The client labels associated with the query.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 3;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 5;</code>
    */
   int getLabelsCount();
   /**
    * <pre>
-   * the client labels associated with the query
+   * The client labels associated with the query.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 3;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 5;</code>
    */
   java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryLabelOrBuilder>
       getLabelsOrBuilderList();
   /**
    * <pre>
-   * the client labels associated with the query
+   * The client labels associated with the query.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 3;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 5;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcQueryLabelOrBuilder getLabelsOrBuilder(
       int index);
 
   /**
    * <pre>
-   * The primary keys of the records returned by the query (in returned data chunk)
+   * The time when the query was created.
    * </pre>
    *
-   * <code>repeated int32 primaryKeys = 4;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 6;</code>
+   * @return Whether the created field is set.
+   */
+  boolean hasCreated();
+  /**
+   * <pre>
+   * The time when the query was created.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 6;</code>
+   * @return The created.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getCreated();
+  /**
+   * <pre>
+   * The time when the query was created.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 6;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getCreatedOrBuilder();
+
+  /**
+   * <pre>
+   * The duration of the query in milliseconds.
+   * </pre>
+   *
+   * <code>int64 durationInMilliseconds = 7;</code>
+   * @return The durationInMilliseconds.
+   */
+  long getDurationInMilliseconds();
+
+  /**
+   * <pre>
+   * The total number of records calculated by the query.
+   * </pre>
+   *
+   * <code>int32 totalRecordCount = 8;</code>
+   * @return The totalRecordCount.
+   */
+  int getTotalRecordCount();
+
+  /**
+   * <pre>
+   * The total number of disk fetch attempts made by the query.
+   * </pre>
+   *
+   * <code>int32 ioFetchCount = 9;</code>
+   * @return The ioFetchCount.
+   */
+  int getIoFetchCount();
+
+  /**
+   * <pre>
+   * The total number of Bytes fetched from the disk by the query.
+   * </pre>
+   *
+   * <code>int32 ioFetchedSizeBytes = 10;</code>
+   * @return The ioFetchedSizeBytes.
+   */
+  int getIoFetchedSizeBytes();
+
+  /**
+   * <pre>
+   * The primary keys of the records returned by the query (in returned data chunk). I.e. number of records actually
+   * returned by the pagination requirement of the query.
+   * </pre>
+   *
+   * <code>repeated int32 primaryKeys = 11;</code>
    * @return A list containing the primaryKeys.
    */
   java.util.List<java.lang.Integer> getPrimaryKeysList();
   /**
    * <pre>
-   * The primary keys of the records returned by the query (in returned data chunk)
+   * The primary keys of the records returned by the query (in returned data chunk). I.e. number of records actually
+   * returned by the pagination requirement of the query.
    * </pre>
    *
-   * <code>repeated int32 primaryKeys = 4;</code>
+   * <code>repeated int32 primaryKeys = 11;</code>
    * @return The count of primaryKeys.
    */
   int getPrimaryKeysCount();
   /**
    * <pre>
-   * The primary keys of the records returned by the query (in returned data chunk)
+   * The primary keys of the records returned by the query (in returned data chunk). I.e. number of records actually
+   * returned by the pagination requirement of the query.
    * </pre>
    *
-   * <code>repeated int32 primaryKeys = 4;</code>
+   * <code>repeated int32 primaryKeys = 11;</code>
    * @param index The index of the element to return.
    * @return The primaryKeys at the given index.
    */

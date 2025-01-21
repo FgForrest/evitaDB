@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,28 +32,112 @@ public interface GrpcTrafficMutationContainerOrBuilder extends
 
   /**
    * <pre>
-   * The mutation operation.
+   * The sequence order of the session (analogous to sessionId, but monotonic sequence based on location in the log).
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityMutation entityMutation = 1;</code>
+   * <code>int64 sessionSequenceOrder = 1;</code>
+   * @return The sessionSequenceOrder.
+   */
+  long getSessionSequenceOrder();
+
+  /**
+   * <pre>
+   * The session id which the query belongs to.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 2;</code>
+   * @return Whether the sessionId field is set.
+   */
+  boolean hasSessionId();
+  /**
+   * <pre>
+   * The session id which the query belongs to.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 2;</code>
+   * @return The sessionId.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcUuid getSessionId();
+  /**
+   * <pre>
+   * The session id which the query belongs to.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 2;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder getSessionIdOrBuilder();
+
+  /**
+   * <pre>
+   * The relative order (offset) of the traffic recording within the session.
+   * </pre>
+   *
+   * <code>int32 recordSessionOffset = 3;</code>
+   * @return The recordSessionOffset.
+   */
+  int getRecordSessionOffset();
+
+  /**
+   * <pre>
+   * The time when the mutation was issued.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 4;</code>
+   * @return Whether the created field is set.
+   */
+  boolean hasCreated();
+  /**
+   * <pre>
+   * The time when the mutation was issued.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 4;</code>
+   * @return The created.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getCreated();
+  /**
+   * <pre>
+   * The time when the mutation was issued.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 4;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getCreatedOrBuilder();
+
+  /**
+   * <pre>
+   * The duration of the mutation application in milliseconds.
+   * </pre>
+   *
+   * <code>int64 durationInMilliseconds = 5;</code>
+   * @return The durationInMilliseconds.
+   */
+  long getDurationInMilliseconds();
+
+  /**
+   * <pre>
+   * The entity mutation operation.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityMutation entityMutation = 6;</code>
    * @return Whether the entityMutation field is set.
    */
   boolean hasEntityMutation();
   /**
    * <pre>
-   * The mutation operation.
+   * The entity mutation operation.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityMutation entityMutation = 1;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityMutation entityMutation = 6;</code>
    * @return The entityMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntityMutation getEntityMutation();
   /**
    * <pre>
-   * The mutation operation.
+   * The entity mutation operation.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityMutation entityMutation = 1;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityMutation entityMutation = 6;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntityMutationOrBuilder getEntityMutationOrBuilder();
 
@@ -62,7 +146,7 @@ public interface GrpcTrafficMutationContainerOrBuilder extends
    * The schema mutation operation.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation schemaMutation = 2;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation schemaMutation = 7;</code>
    * @return Whether the schemaMutation field is set.
    */
   boolean hasSchemaMutation();
@@ -71,7 +155,7 @@ public interface GrpcTrafficMutationContainerOrBuilder extends
    * The schema mutation operation.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation schemaMutation = 2;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation schemaMutation = 7;</code>
    * @return The schemaMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation getSchemaMutation();
@@ -80,7 +164,9 @@ public interface GrpcTrafficMutationContainerOrBuilder extends
    * The schema mutation operation.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation schemaMutation = 2;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation schemaMutation = 7;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutationOrBuilder getSchemaMutationOrBuilder();
+
+  public io.evitadb.externalApi.grpc.generated.GrpcTrafficMutationContainer.MutationCase getMutationCase();
 }

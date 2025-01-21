@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,10 +32,57 @@ public interface GrpcTrafficSourceQueryStatisticsContainerOrBuilder extends
 
   /**
    * <pre>
+   * The sequence order of the session (analogous to sessionId, but monotonic sequence based on location in the log).
+   * </pre>
+   *
+   * <code>int64 sessionSequenceOrder = 1;</code>
+   * @return The sessionSequenceOrder.
+   */
+  long getSessionSequenceOrder();
+
+  /**
+   * <pre>
+   * The associated session id.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 2;</code>
+   * @return Whether the sessionId field is set.
+   */
+  boolean hasSessionId();
+  /**
+   * <pre>
+   * The associated session id.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 2;</code>
+   * @return The sessionId.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcUuid getSessionId();
+  /**
+   * <pre>
+   * The associated session id.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 2;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder getSessionIdOrBuilder();
+
+  /**
+   * <pre>
+   * The relative order (offset) of the traffic recording within the session.
+   * </pre>
+   *
+   * <code>int32 recordSessionOffset = 3;</code>
+   * @return The recordSessionOffset.
+   */
+  int getRecordSessionOffset();
+
+  /**
+   * <pre>
    * The source query id
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sourceQueryId = 1;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sourceQueryId = 4;</code>
    * @return Whether the sourceQueryId field is set.
    */
   boolean hasSourceQueryId();
@@ -44,7 +91,7 @@ public interface GrpcTrafficSourceQueryStatisticsContainerOrBuilder extends
    * The source query id
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sourceQueryId = 1;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sourceQueryId = 4;</code>
    * @return The sourceQueryId.
    */
   io.evitadb.externalApi.grpc.generated.GrpcUuid getSourceQueryId();
@@ -53,16 +100,73 @@ public interface GrpcTrafficSourceQueryStatisticsContainerOrBuilder extends
    * The source query id
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sourceQueryId = 1;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sourceQueryId = 4;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder getSourceQueryIdOrBuilder();
+
+  /**
+   * <pre>
+   * The time when the source query was finished.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 5;</code>
+   * @return Whether the created field is set.
+   */
+  boolean hasCreated();
+  /**
+   * <pre>
+   * The time when the source query was finished.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 5;</code>
+   * @return The created.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getCreated();
+  /**
+   * <pre>
+   * The time when the source query was finished.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 5;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getCreatedOrBuilder();
+
+  /**
+   * <pre>
+   * The duration of the source query in milliseconds.
+   * </pre>
+   *
+   * <code>int64 durationInMilliseconds = 6;</code>
+   * @return The durationInMilliseconds.
+   */
+  long getDurationInMilliseconds();
+
+  /**
+   * <pre>
+   * The total number of disk fetch attempts made by this query.
+   * </pre>
+   *
+   * <code>int32 ioFetchCount = 7;</code>
+   * @return The ioFetchCount.
+   */
+  int getIoFetchCount();
+
+  /**
+   * <pre>
+   * The total number of Bytes fetched from the disk by this query.
+   * </pre>
+   *
+   * <code>int32 ioFetchedSizeBytes = 8;</code>
+   * @return The ioFetchedSizeBytes.
+   */
+  int getIoFetchedSizeBytes();
 
   /**
    * <pre>
    * The total number of records returned by the query ({&#64;link EvitaResponse#getRecordData()} size)
    * </pre>
    *
-   * <code>int32 returnedRecordCount = 2;</code>
+   * <code>int32 returnedRecordCount = 9;</code>
    * @return The returnedRecordCount.
    */
   int getReturnedRecordCount();
@@ -72,7 +176,7 @@ public interface GrpcTrafficSourceQueryStatisticsContainerOrBuilder extends
    * The total number of records calculated by the query ({&#64;link EvitaResponse#getTotalRecordCount()})
    * </pre>
    *
-   * <code>int32 totalRecordCount = 3;</code>
+   * <code>int32 totalRecordCount = 10;</code>
    * @return The totalRecordCount.
    */
   int getTotalRecordCount();

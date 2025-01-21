@@ -32,14 +32,19 @@ import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.exception.TransactionException;
 import io.evitadb.api.exception.UnexpectedResultCountException;
 import io.evitadb.api.exception.UnexpectedResultException;
+import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.head.Label;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.task.ServerTask;
+import io.evitadb.api.task.TaskStatus;
+import io.evitadb.core.traffic.TrafficRecordingSettings;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.List;
@@ -204,5 +209,29 @@ public interface EvitaInternalSessionContract extends EvitaSessionContract, Traf
 	 */
 	@Nonnull
 	Collection<String> getLabelValuesOrderedByCardinality(@Nonnull String labelName, @Nullable String valueStartingWith, int limit) throws IndexNotReady;
+
+	/**
+	 * TODO JNO - document me
+	 * @param samplingRate
+	 * @param recordingDuration
+	 * @param recordingSizeLimitInBytes
+	 * @param chunkFileSizeInBytes
+	 * @return
+	 */
+	@Nonnull
+	ServerTask<TrafficRecordingSettings, FileForFetch> startRecording(
+		int samplingRate,
+		@Nullable Duration recordingDuration,
+		@Nullable Long recordingSizeLimitInBytes,
+		int chunkFileSizeInBytes
+	);
+
+	/**
+	 * TODO JNO - document me
+	 * @param taskId
+	 * @return
+	 */
+	@Nonnull
+	TaskStatus<TrafficRecordingSettings, FileForFetch> stopRecording(@Nonnull UUID taskId);
 
 }

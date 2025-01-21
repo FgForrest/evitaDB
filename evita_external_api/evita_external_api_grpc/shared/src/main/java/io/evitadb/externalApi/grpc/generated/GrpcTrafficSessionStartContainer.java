@@ -77,7 +77,43 @@ private static final long serialVersionUID = 0L;
             break;
           case 8: {
 
+            sessionSequenceOrder_ = input.readInt64();
+            break;
+          }
+          case 18: {
+            io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder subBuilder = null;
+            if (sessionId_ != null) {
+              subBuilder = sessionId_.toBuilder();
+            }
+            sessionId_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcUuid.parser(), extensionRegistry);
+            if (subBuilder != null) {
+              subBuilder.mergeFrom(sessionId_);
+              sessionId_ = subBuilder.buildPartial();
+            }
+
+            break;
+          }
+          case 24: {
+
+            recordSessionOffset_ = input.readInt32();
+            break;
+          }
+          case 32: {
+
             catalogVersion_ = input.readInt64();
+            break;
+          }
+          case 42: {
+            io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder subBuilder = null;
+            if (created_ != null) {
+              subBuilder = created_.toBuilder();
+            }
+            created_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.parser(), extensionRegistry);
+            if (subBuilder != null) {
+              subBuilder.mergeFrom(created_);
+              created_ = subBuilder.buildPartial();
+            }
+
             break;
           }
           default: {
@@ -112,19 +148,125 @@ private static final long serialVersionUID = 0L;
             io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainer.class, io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainer.Builder.class);
   }
 
-  public static final int CATALOGVERSION_FIELD_NUMBER = 1;
+  public static final int SESSIONSEQUENCEORDER_FIELD_NUMBER = 1;
+  private long sessionSequenceOrder_;
+  /**
+   * <pre>
+   * The sequence order of the session (analogous to sessionId, but monotonic sequence based on location in the log).
+   * </pre>
+   *
+   * <code>int64 sessionSequenceOrder = 1;</code>
+   * @return The sessionSequenceOrder.
+   */
+  @java.lang.Override
+  public long getSessionSequenceOrder() {
+    return sessionSequenceOrder_;
+  }
+
+  public static final int SESSIONID_FIELD_NUMBER = 2;
+  private io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId_;
+  /**
+   * <pre>
+   * The associated session id.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 2;</code>
+   * @return Whether the sessionId field is set.
+   */
+  @java.lang.Override
+  public boolean hasSessionId() {
+    return sessionId_ != null;
+  }
+  /**
+   * <pre>
+   * The associated session id.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 2;</code>
+   * @return The sessionId.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcUuid getSessionId() {
+    return sessionId_ == null ? io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance() : sessionId_;
+  }
+  /**
+   * <pre>
+   * The associated session id.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 2;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder getSessionIdOrBuilder() {
+    return getSessionId();
+  }
+
+  public static final int RECORDSESSIONOFFSET_FIELD_NUMBER = 3;
+  private int recordSessionOffset_;
+  /**
+   * <pre>
+   * The relative order (offset) of the traffic recording within the session.
+   * </pre>
+   *
+   * <code>int32 recordSessionOffset = 3;</code>
+   * @return The recordSessionOffset.
+   */
+  @java.lang.Override
+  public int getRecordSessionOffset() {
+    return recordSessionOffset_;
+  }
+
+  public static final int CATALOGVERSION_FIELD_NUMBER = 4;
   private long catalogVersion_;
   /**
    * <pre>
-   * The version of the catalog that will be used for the entire session
+   * The version of the catalog that will be used for the entire session.
    * </pre>
    *
-   * <code>int64 catalogVersion = 1;</code>
+   * <code>int64 catalogVersion = 4;</code>
    * @return The catalogVersion.
    */
   @java.lang.Override
   public long getCatalogVersion() {
     return catalogVersion_;
+  }
+
+  public static final int CREATED_FIELD_NUMBER = 5;
+  private io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created_;
+  /**
+   * <pre>
+   * The time when the session was created.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 5;</code>
+   * @return Whether the created field is set.
+   */
+  @java.lang.Override
+  public boolean hasCreated() {
+    return created_ != null;
+  }
+  /**
+   * <pre>
+   * The time when the session was created.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 5;</code>
+   * @return The created.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getCreated() {
+    return created_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : created_;
+  }
+  /**
+   * <pre>
+   * The time when the session was created.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 5;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getCreatedOrBuilder() {
+    return getCreated();
   }
 
   private byte memoizedIsInitialized = -1;
@@ -141,8 +283,20 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
+    if (sessionSequenceOrder_ != 0L) {
+      output.writeInt64(1, sessionSequenceOrder_);
+    }
+    if (sessionId_ != null) {
+      output.writeMessage(2, getSessionId());
+    }
+    if (recordSessionOffset_ != 0) {
+      output.writeInt32(3, recordSessionOffset_);
+    }
     if (catalogVersion_ != 0L) {
-      output.writeInt64(1, catalogVersion_);
+      output.writeInt64(4, catalogVersion_);
+    }
+    if (created_ != null) {
+      output.writeMessage(5, getCreated());
     }
     unknownFields.writeTo(output);
   }
@@ -153,9 +307,25 @@ private static final long serialVersionUID = 0L;
     if (size != -1) return size;
 
     size = 0;
+    if (sessionSequenceOrder_ != 0L) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeInt64Size(1, sessionSequenceOrder_);
+    }
+    if (sessionId_ != null) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(2, getSessionId());
+    }
+    if (recordSessionOffset_ != 0) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeInt32Size(3, recordSessionOffset_);
+    }
     if (catalogVersion_ != 0L) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt64Size(1, catalogVersion_);
+        .computeInt64Size(4, catalogVersion_);
+    }
+    if (created_ != null) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(5, getCreated());
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -172,8 +342,22 @@ private static final long serialVersionUID = 0L;
     }
     io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainer other = (io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainer) obj;
 
+    if (getSessionSequenceOrder()
+        != other.getSessionSequenceOrder()) return false;
+    if (hasSessionId() != other.hasSessionId()) return false;
+    if (hasSessionId()) {
+      if (!getSessionId()
+          .equals(other.getSessionId())) return false;
+    }
+    if (getRecordSessionOffset()
+        != other.getRecordSessionOffset()) return false;
     if (getCatalogVersion()
         != other.getCatalogVersion()) return false;
+    if (hasCreated() != other.hasCreated()) return false;
+    if (hasCreated()) {
+      if (!getCreated()
+          .equals(other.getCreated())) return false;
+    }
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -185,9 +369,22 @@ private static final long serialVersionUID = 0L;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
+    hash = (37 * hash) + SESSIONSEQUENCEORDER_FIELD_NUMBER;
+    hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
+        getSessionSequenceOrder());
+    if (hasSessionId()) {
+      hash = (37 * hash) + SESSIONID_FIELD_NUMBER;
+      hash = (53 * hash) + getSessionId().hashCode();
+    }
+    hash = (37 * hash) + RECORDSESSIONOFFSET_FIELD_NUMBER;
+    hash = (53 * hash) + getRecordSessionOffset();
     hash = (37 * hash) + CATALOGVERSION_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
         getCatalogVersion());
+    if (hasCreated()) {
+      hash = (37 * hash) + CREATED_FIELD_NUMBER;
+      hash = (53 * hash) + getCreated().hashCode();
+    }
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -325,8 +522,24 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
+      sessionSequenceOrder_ = 0L;
+
+      if (sessionIdBuilder_ == null) {
+        sessionId_ = null;
+      } else {
+        sessionId_ = null;
+        sessionIdBuilder_ = null;
+      }
+      recordSessionOffset_ = 0;
+
       catalogVersion_ = 0L;
 
+      if (createdBuilder_ == null) {
+        created_ = null;
+      } else {
+        created_ = null;
+        createdBuilder_ = null;
+      }
       return this;
     }
 
@@ -353,7 +566,19 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainer buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainer result = new io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainer(this);
+      result.sessionSequenceOrder_ = sessionSequenceOrder_;
+      if (sessionIdBuilder_ == null) {
+        result.sessionId_ = sessionId_;
+      } else {
+        result.sessionId_ = sessionIdBuilder_.build();
+      }
+      result.recordSessionOffset_ = recordSessionOffset_;
       result.catalogVersion_ = catalogVersion_;
+      if (createdBuilder_ == null) {
+        result.created_ = created_;
+      } else {
+        result.created_ = createdBuilder_.build();
+      }
       onBuilt();
       return result;
     }
@@ -402,8 +627,20 @@ private static final long serialVersionUID = 0L;
 
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainer other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainer.getDefaultInstance()) return this;
+      if (other.getSessionSequenceOrder() != 0L) {
+        setSessionSequenceOrder(other.getSessionSequenceOrder());
+      }
+      if (other.hasSessionId()) {
+        mergeSessionId(other.getSessionId());
+      }
+      if (other.getRecordSessionOffset() != 0) {
+        setRecordSessionOffset(other.getRecordSessionOffset());
+      }
       if (other.getCatalogVersion() != 0L) {
         setCatalogVersion(other.getCatalogVersion());
+      }
+      if (other.hasCreated()) {
+        mergeCreated(other.getCreated());
       }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
@@ -434,13 +671,254 @@ private static final long serialVersionUID = 0L;
       return this;
     }
 
+    private long sessionSequenceOrder_ ;
+    /**
+     * <pre>
+     * The sequence order of the session (analogous to sessionId, but monotonic sequence based on location in the log).
+     * </pre>
+     *
+     * <code>int64 sessionSequenceOrder = 1;</code>
+     * @return The sessionSequenceOrder.
+     */
+    @java.lang.Override
+    public long getSessionSequenceOrder() {
+      return sessionSequenceOrder_;
+    }
+    /**
+     * <pre>
+     * The sequence order of the session (analogous to sessionId, but monotonic sequence based on location in the log).
+     * </pre>
+     *
+     * <code>int64 sessionSequenceOrder = 1;</code>
+     * @param value The sessionSequenceOrder to set.
+     * @return This builder for chaining.
+     */
+    public Builder setSessionSequenceOrder(long value) {
+
+      sessionSequenceOrder_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The sequence order of the session (analogous to sessionId, but monotonic sequence based on location in the log).
+     * </pre>
+     *
+     * <code>int64 sessionSequenceOrder = 1;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearSessionSequenceOrder() {
+
+      sessionSequenceOrder_ = 0L;
+      onChanged();
+      return this;
+    }
+
+    private io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder> sessionIdBuilder_;
+    /**
+     * <pre>
+     * The associated session id.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 2;</code>
+     * @return Whether the sessionId field is set.
+     */
+    public boolean hasSessionId() {
+      return sessionIdBuilder_ != null || sessionId_ != null;
+    }
+    /**
+     * <pre>
+     * The associated session id.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 2;</code>
+     * @return The sessionId.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcUuid getSessionId() {
+      if (sessionIdBuilder_ == null) {
+        return sessionId_ == null ? io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance() : sessionId_;
+      } else {
+        return sessionIdBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * The associated session id.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 2;</code>
+     */
+    public Builder setSessionId(io.evitadb.externalApi.grpc.generated.GrpcUuid value) {
+      if (sessionIdBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        sessionId_ = value;
+        onChanged();
+      } else {
+        sessionIdBuilder_.setMessage(value);
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * The associated session id.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 2;</code>
+     */
+    public Builder setSessionId(
+        io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder builderForValue) {
+      if (sessionIdBuilder_ == null) {
+        sessionId_ = builderForValue.build();
+        onChanged();
+      } else {
+        sessionIdBuilder_.setMessage(builderForValue.build());
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * The associated session id.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 2;</code>
+     */
+    public Builder mergeSessionId(io.evitadb.externalApi.grpc.generated.GrpcUuid value) {
+      if (sessionIdBuilder_ == null) {
+        if (sessionId_ != null) {
+          sessionId_ =
+            io.evitadb.externalApi.grpc.generated.GrpcUuid.newBuilder(sessionId_).mergeFrom(value).buildPartial();
+        } else {
+          sessionId_ = value;
+        }
+        onChanged();
+      } else {
+        sessionIdBuilder_.mergeFrom(value);
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * The associated session id.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 2;</code>
+     */
+    public Builder clearSessionId() {
+      if (sessionIdBuilder_ == null) {
+        sessionId_ = null;
+        onChanged();
+      } else {
+        sessionId_ = null;
+        sessionIdBuilder_ = null;
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * The associated session id.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 2;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder getSessionIdBuilder() {
+
+      onChanged();
+      return getSessionIdFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * The associated session id.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 2;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder getSessionIdOrBuilder() {
+      if (sessionIdBuilder_ != null) {
+        return sessionIdBuilder_.getMessageOrBuilder();
+      } else {
+        return sessionId_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance() : sessionId_;
+      }
+    }
+    /**
+     * <pre>
+     * The associated session id.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 2;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder>
+        getSessionIdFieldBuilder() {
+      if (sessionIdBuilder_ == null) {
+        sessionIdBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder>(
+                getSessionId(),
+                getParentForChildren(),
+                isClean());
+        sessionId_ = null;
+      }
+      return sessionIdBuilder_;
+    }
+
+    private int recordSessionOffset_ ;
+    /**
+     * <pre>
+     * The relative order (offset) of the traffic recording within the session.
+     * </pre>
+     *
+     * <code>int32 recordSessionOffset = 3;</code>
+     * @return The recordSessionOffset.
+     */
+    @java.lang.Override
+    public int getRecordSessionOffset() {
+      return recordSessionOffset_;
+    }
+    /**
+     * <pre>
+     * The relative order (offset) of the traffic recording within the session.
+     * </pre>
+     *
+     * <code>int32 recordSessionOffset = 3;</code>
+     * @param value The recordSessionOffset to set.
+     * @return This builder for chaining.
+     */
+    public Builder setRecordSessionOffset(int value) {
+
+      recordSessionOffset_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The relative order (offset) of the traffic recording within the session.
+     * </pre>
+     *
+     * <code>int32 recordSessionOffset = 3;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearRecordSessionOffset() {
+
+      recordSessionOffset_ = 0;
+      onChanged();
+      return this;
+    }
+
     private long catalogVersion_ ;
     /**
      * <pre>
-     * The version of the catalog that will be used for the entire session
+     * The version of the catalog that will be used for the entire session.
      * </pre>
      *
-     * <code>int64 catalogVersion = 1;</code>
+     * <code>int64 catalogVersion = 4;</code>
      * @return The catalogVersion.
      */
     @java.lang.Override
@@ -449,10 +927,10 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The version of the catalog that will be used for the entire session
+     * The version of the catalog that will be used for the entire session.
      * </pre>
      *
-     * <code>int64 catalogVersion = 1;</code>
+     * <code>int64 catalogVersion = 4;</code>
      * @param value The catalogVersion to set.
      * @return This builder for chaining.
      */
@@ -464,10 +942,10 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The version of the catalog that will be used for the entire session
+     * The version of the catalog that will be used for the entire session.
      * </pre>
      *
-     * <code>int64 catalogVersion = 1;</code>
+     * <code>int64 catalogVersion = 4;</code>
      * @return This builder for chaining.
      */
     public Builder clearCatalogVersion() {
@@ -475,6 +953,161 @@ private static final long serialVersionUID = 0L;
       catalogVersion_ = 0L;
       onChanged();
       return this;
+    }
+
+    private io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> createdBuilder_;
+    /**
+     * <pre>
+     * The time when the session was created.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 5;</code>
+     * @return Whether the created field is set.
+     */
+    public boolean hasCreated() {
+      return createdBuilder_ != null || created_ != null;
+    }
+    /**
+     * <pre>
+     * The time when the session was created.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 5;</code>
+     * @return The created.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getCreated() {
+      if (createdBuilder_ == null) {
+        return created_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : created_;
+      } else {
+        return createdBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * The time when the session was created.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 5;</code>
+     */
+    public Builder setCreated(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value) {
+      if (createdBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        created_ = value;
+        onChanged();
+      } else {
+        createdBuilder_.setMessage(value);
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * The time when the session was created.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 5;</code>
+     */
+    public Builder setCreated(
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder builderForValue) {
+      if (createdBuilder_ == null) {
+        created_ = builderForValue.build();
+        onChanged();
+      } else {
+        createdBuilder_.setMessage(builderForValue.build());
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * The time when the session was created.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 5;</code>
+     */
+    public Builder mergeCreated(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value) {
+      if (createdBuilder_ == null) {
+        if (created_ != null) {
+          created_ =
+            io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.newBuilder(created_).mergeFrom(value).buildPartial();
+        } else {
+          created_ = value;
+        }
+        onChanged();
+      } else {
+        createdBuilder_.mergeFrom(value);
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * The time when the session was created.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 5;</code>
+     */
+    public Builder clearCreated() {
+      if (createdBuilder_ == null) {
+        created_ = null;
+        onChanged();
+      } else {
+        created_ = null;
+        createdBuilder_ = null;
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * The time when the session was created.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 5;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder getCreatedBuilder() {
+
+      onChanged();
+      return getCreatedFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * The time when the session was created.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 5;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getCreatedOrBuilder() {
+      if (createdBuilder_ != null) {
+        return createdBuilder_.getMessageOrBuilder();
+      } else {
+        return created_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : created_;
+      }
+    }
+    /**
+     * <pre>
+     * The time when the session was created.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 5;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder>
+        getCreatedFieldBuilder() {
+      if (createdBuilder_ == null) {
+        createdBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder>(
+                getCreated(),
+                getParentForChildren(),
+                isClean());
+        created_ = null;
+      }
+      return createdBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

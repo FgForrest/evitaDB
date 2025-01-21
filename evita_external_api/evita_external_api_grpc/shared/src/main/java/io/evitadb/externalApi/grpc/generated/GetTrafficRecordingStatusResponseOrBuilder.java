@@ -26,34 +26,34 @@
 
 package io.evitadb.externalApi.grpc.generated;
 
-public interface GetTrafficHistoryRequestOrBuilder extends
-    // @@protoc_insertion_point(interface_extends:io.evitadb.externalApi.grpc.generated.GetTrafficHistoryRequest)
+public interface GetTrafficRecordingStatusResponseOrBuilder extends
+    // @@protoc_insertion_point(interface_extends:io.evitadb.externalApi.grpc.generated.GetTrafficRecordingStatusResponse)
     com.google.protobuf.MessageOrBuilder {
 
   /**
    * <pre>
-   * The criteria of the traffic recording, allows to define constraints on the returned records
+   * The status of the recording task
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria criteria = 1;</code>
-   * @return Whether the criteria field is set.
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
+   * @return Whether the taskStatus field is set.
    */
-  boolean hasCriteria();
+  boolean hasTaskStatus();
   /**
    * <pre>
-   * The criteria of the traffic recording, allows to define constraints on the returned records
+   * The status of the recording task
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria criteria = 1;</code>
-   * @return The criteria.
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
+   * @return The taskStatus.
    */
-  io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria getCriteria();
+  io.evitadb.externalApi.grpc.generated.GrpcTaskStatus getTaskStatus();
   /**
    * <pre>
-   * The criteria of the traffic recording, allows to define constraints on the returned records
+   * The status of the recording task
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria criteria = 1;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
    */
-  io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteriaOrBuilder getCriteriaOrBuilder();
+  io.evitadb.externalApi.grpc.generated.GrpcTaskStatusOrBuilder getTaskStatusOrBuilder();
 }

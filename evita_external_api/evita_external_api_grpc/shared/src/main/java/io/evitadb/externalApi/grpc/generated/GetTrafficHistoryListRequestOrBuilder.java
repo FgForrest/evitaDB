@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -66,23 +66,4 @@ public interface GetTrafficHistoryListRequestOrBuilder extends
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria criteria = 2;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteriaOrBuilder getCriteriaOrBuilder();
-
-  /**
-   * <pre>
-   * The scope of the returned data - either header of the record, or the whole record
-   * </pre>
-   *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingContent content = 3;</code>
-   * @return The enum numeric value on the wire for content.
-   */
-  int getContentValue();
-  /**
-   * <pre>
-   * The scope of the returned data - either header of the record, or the whole record
-   * </pre>
-   *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingContent content = 3;</code>
-   * @return The content.
-   */
-  io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingContent getContent();
 }

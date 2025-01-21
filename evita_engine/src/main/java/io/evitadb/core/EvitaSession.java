@@ -75,7 +75,9 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchema
 import io.evitadb.api.requestResponse.system.CatalogVersion;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest;
+import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.Task;
+import io.evitadb.api.task.TaskStatus;
 import io.evitadb.core.async.Interruptible;
 import io.evitadb.core.cdc.predicate.MutationPredicateFactory;
 import io.evitadb.core.exception.CatalogCorruptedException;
@@ -83,11 +85,14 @@ import io.evitadb.core.metric.event.query.EntityEnrichEvent;
 import io.evitadb.core.metric.event.query.EntityFetchEvent;
 import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.traffic.TrafficRecordingEngine;
+import io.evitadb.core.traffic.TrafficRecordingSettings;
+import io.evitadb.core.traffic.task.TrafficRecorderTask;
 import io.evitadb.core.transaction.TransactionWalFinalizer;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
 import io.evitadb.utils.UUIDUtil;
 import lombok.EqualsAndHashCode;
@@ -98,6 +103,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serializable;
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.concurrent.CancellationException;
@@ -1432,6 +1438,54 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	public Collection<String> getLabelValuesOrderedByCardinality(@Nonnull String labelName, @Nullable String valueStartingWith, int limit) {
 		final TrafficRecordingEngine trafficRecorder = this.catalog.get().getTrafficRecorder();
 		return trafficRecorder.getLabelValuesOrderedByCardinality(labelName, valueStartingWith, limit);
+	}
+
+	@Nonnull
+	@Override
+	public ServerTask<TrafficRecordingSettings, FileForFetch> startRecording(
+		int samplingRate,
+		@Nullable Duration recordingDuration,
+		@Nullable Long recordingSizeLimitInBytes,
+		int chunkFileSizeInBytes
+	) {
+		Assert.isTrue(
+			!evita.getConfiguration().server().readOnly(),
+			ReadOnlyException::new
+		);
+
+		final Collection<TrafficRecorderTask> existingTaskStatus = this.evita.management().getTaskStatuses(TrafficRecorderTask.class);
+		final TrafficRecorderTask runningTask = existingTaskStatus.stream().filter(it -> !it.getFutureResult().isDone()).findFirst().orElse(null);
+		if (runningTask != null) {
+			throw new SingletonTaskAlreadyRunningException(runningTask.getStatus().taskName());
+		} else {
+			final ServerTask<TrafficRecordingSettings, FileForFetch> jfrRecorderTask = new TrafficRecorderTask(
+				samplingRate, recordingDuration, recordingSizeLimitInBytes, chunkFileSizeInBytes,
+				this.evita.management().exportFileService()
+			);
+			evita.getServiceExecutor().submit(jfrRecorderTask);
+			return jfrRecorderTask;
+		}
+	}
+
+	@Nonnull
+	@Override
+	public TaskStatus<TrafficRecordingSettings, FileForFetch> stopRecording(@Nonnull UUID taskId) {
+		Assert.isTrue(
+			!evita.getConfiguration().server().readOnly(),
+			ReadOnlyException::new
+		);
+
+		final Collection<TrafficRecorderTask> existingTaskStatus = evita.management().getTaskStatuses(TrafficRecorderTask.class);
+		final TrafficRecorderTask runningTask = existingTaskStatus.stream().filter(it -> !it.getFutureResult().isDone()).findFirst().orElse(null);
+		if (runningTask != null) {
+			runningTask.stop();
+			return runningTask.getStatus();
+		} else {
+			throw new EvitaInvalidUsageException(
+				"Traffic recording is not running.",
+				"Traffic recording is not running. You have to start it first."
+			);
+		}
 	}
 
 	/**

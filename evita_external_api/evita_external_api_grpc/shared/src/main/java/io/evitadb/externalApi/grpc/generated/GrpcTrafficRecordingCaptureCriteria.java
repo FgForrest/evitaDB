@@ -163,13 +163,13 @@ private static final long serialVersionUID = 0L;
           }
           case 58: {
             com.google.protobuf.Int32Value.Builder subBuilder = null;
-            if (longerThan_ != null) {
-              subBuilder = longerThan_.toBuilder();
+            if (longerThanMilliseconds_ != null) {
+              subBuilder = longerThanMilliseconds_.toBuilder();
             }
-            longerThan_ = input.readMessage(com.google.protobuf.Int32Value.parser(), extensionRegistry);
+            longerThanMilliseconds_ = input.readMessage(com.google.protobuf.Int32Value.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(longerThan_);
-              longerThan_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(longerThanMilliseconds_);
+              longerThanMilliseconds_ = subBuilder.buildPartial();
             }
 
             break;
@@ -500,42 +500,42 @@ private static final long serialVersionUID = 0L;
     return getSessionId();
   }
 
-  public static final int LONGERTHAN_FIELD_NUMBER = 7;
-  private com.google.protobuf.Int32Value longerThan_;
+  public static final int LONGERTHANMILLISECONDS_FIELD_NUMBER = 7;
+  private com.google.protobuf.Int32Value longerThanMilliseconds_;
   /**
    * <pre>
    * longerThan specifies the minimum duration in milliseconds of the traffic recording to be returned
    * </pre>
    *
-   * <code>.google.protobuf.Int32Value longerThan = 7;</code>
-   * @return Whether the longerThan field is set.
+   * <code>.google.protobuf.Int32Value longerThanMilliseconds = 7;</code>
+   * @return Whether the longerThanMilliseconds field is set.
    */
   @java.lang.Override
-  public boolean hasLongerThan() {
-    return longerThan_ != null;
+  public boolean hasLongerThanMilliseconds() {
+    return longerThanMilliseconds_ != null;
   }
   /**
    * <pre>
    * longerThan specifies the minimum duration in milliseconds of the traffic recording to be returned
    * </pre>
    *
-   * <code>.google.protobuf.Int32Value longerThan = 7;</code>
-   * @return The longerThan.
+   * <code>.google.protobuf.Int32Value longerThanMilliseconds = 7;</code>
+   * @return The longerThanMilliseconds.
    */
   @java.lang.Override
-  public com.google.protobuf.Int32Value getLongerThan() {
-    return longerThan_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : longerThan_;
+  public com.google.protobuf.Int32Value getLongerThanMilliseconds() {
+    return longerThanMilliseconds_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : longerThanMilliseconds_;
   }
   /**
    * <pre>
    * longerThan specifies the minimum duration in milliseconds of the traffic recording to be returned
    * </pre>
    *
-   * <code>.google.protobuf.Int32Value longerThan = 7;</code>
+   * <code>.google.protobuf.Int32Value longerThanMilliseconds = 7;</code>
    */
   @java.lang.Override
-  public com.google.protobuf.Int32ValueOrBuilder getLongerThanOrBuilder() {
-    return getLongerThan();
+  public com.google.protobuf.Int32ValueOrBuilder getLongerThanMillisecondsOrBuilder() {
+    return getLongerThanMilliseconds();
   }
 
   public static final int FETCHINGMOREBYTESTHAN_FIELD_NUMBER = 8;
@@ -673,8 +673,8 @@ private static final long serialVersionUID = 0L;
     if (sessionId_ != null) {
       output.writeMessage(6, getSessionId());
     }
-    if (longerThan_ != null) {
-      output.writeMessage(7, getLongerThan());
+    if (longerThanMilliseconds_ != null) {
+      output.writeMessage(7, getLongerThanMilliseconds());
     }
     if (fetchingMoreBytesThan_ != null) {
       output.writeMessage(8, getFetchingMoreBytesThan());
@@ -723,9 +723,9 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(6, getSessionId());
     }
-    if (longerThan_ != null) {
+    if (longerThanMilliseconds_ != null) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(7, getLongerThan());
+        .computeMessageSize(7, getLongerThanMilliseconds());
     }
     if (fetchingMoreBytesThan_ != null) {
       size += com.google.protobuf.CodedOutputStream
@@ -772,10 +772,10 @@ private static final long serialVersionUID = 0L;
       if (!getSessionId()
           .equals(other.getSessionId())) return false;
     }
-    if (hasLongerThan() != other.hasLongerThan()) return false;
-    if (hasLongerThan()) {
-      if (!getLongerThan()
-          .equals(other.getLongerThan())) return false;
+    if (hasLongerThanMilliseconds() != other.hasLongerThanMilliseconds()) return false;
+    if (hasLongerThanMilliseconds()) {
+      if (!getLongerThanMilliseconds()
+          .equals(other.getLongerThanMilliseconds())) return false;
     }
     if (hasFetchingMoreBytesThan() != other.hasFetchingMoreBytesThan()) return false;
     if (hasFetchingMoreBytesThan()) {
@@ -817,9 +817,9 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + SESSIONID_FIELD_NUMBER;
       hash = (53 * hash) + getSessionId().hashCode();
     }
-    if (hasLongerThan()) {
-      hash = (37 * hash) + LONGERTHAN_FIELD_NUMBER;
-      hash = (53 * hash) + getLongerThan().hashCode();
+    if (hasLongerThanMilliseconds()) {
+      hash = (37 * hash) + LONGERTHANMILLISECONDS_FIELD_NUMBER;
+      hash = (53 * hash) + getLongerThanMilliseconds().hashCode();
     }
     if (hasFetchingMoreBytesThan()) {
       hash = (37 * hash) + FETCHINGMOREBYTESTHAN_FIELD_NUMBER;
@@ -996,11 +996,11 @@ private static final long serialVersionUID = 0L;
         sessionId_ = null;
         sessionIdBuilder_ = null;
       }
-      if (longerThanBuilder_ == null) {
-        longerThan_ = null;
+      if (longerThanMillisecondsBuilder_ == null) {
+        longerThanMilliseconds_ = null;
       } else {
-        longerThan_ = null;
-        longerThanBuilder_ = null;
+        longerThanMilliseconds_ = null;
+        longerThanMillisecondsBuilder_ = null;
       }
       if (fetchingMoreBytesThanBuilder_ == null) {
         fetchingMoreBytesThan_ = null;
@@ -1067,10 +1067,10 @@ private static final long serialVersionUID = 0L;
       } else {
         result.sessionId_ = sessionIdBuilder_.build();
       }
-      if (longerThanBuilder_ == null) {
-        result.longerThan_ = longerThan_;
+      if (longerThanMillisecondsBuilder_ == null) {
+        result.longerThanMilliseconds_ = longerThanMilliseconds_;
       } else {
-        result.longerThan_ = longerThanBuilder_.build();
+        result.longerThanMilliseconds_ = longerThanMillisecondsBuilder_.build();
       }
       if (fetchingMoreBytesThanBuilder_ == null) {
         result.fetchingMoreBytesThan_ = fetchingMoreBytesThan_;
@@ -1159,8 +1159,8 @@ private static final long serialVersionUID = 0L;
       if (other.hasSessionId()) {
         mergeSessionId(other.getSessionId());
       }
-      if (other.hasLongerThan()) {
-        mergeLongerThan(other.getLongerThan());
+      if (other.hasLongerThanMilliseconds()) {
+        mergeLongerThanMilliseconds(other.getLongerThanMilliseconds());
       }
       if (other.hasFetchingMoreBytesThan()) {
         mergeFetchingMoreBytesThan(other.getFetchingMoreBytesThan());
@@ -2130,33 +2130,33 @@ private static final long serialVersionUID = 0L;
       return sessionIdBuilder_;
     }
 
-    private com.google.protobuf.Int32Value longerThan_;
+    private com.google.protobuf.Int32Value longerThanMilliseconds_;
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> longerThanBuilder_;
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> longerThanMillisecondsBuilder_;
     /**
      * <pre>
      * longerThan specifies the minimum duration in milliseconds of the traffic recording to be returned
      * </pre>
      *
-     * <code>.google.protobuf.Int32Value longerThan = 7;</code>
-     * @return Whether the longerThan field is set.
+     * <code>.google.protobuf.Int32Value longerThanMilliseconds = 7;</code>
+     * @return Whether the longerThanMilliseconds field is set.
      */
-    public boolean hasLongerThan() {
-      return longerThanBuilder_ != null || longerThan_ != null;
+    public boolean hasLongerThanMilliseconds() {
+      return longerThanMillisecondsBuilder_ != null || longerThanMilliseconds_ != null;
     }
     /**
      * <pre>
      * longerThan specifies the minimum duration in milliseconds of the traffic recording to be returned
      * </pre>
      *
-     * <code>.google.protobuf.Int32Value longerThan = 7;</code>
-     * @return The longerThan.
+     * <code>.google.protobuf.Int32Value longerThanMilliseconds = 7;</code>
+     * @return The longerThanMilliseconds.
      */
-    public com.google.protobuf.Int32Value getLongerThan() {
-      if (longerThanBuilder_ == null) {
-        return longerThan_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : longerThan_;
+    public com.google.protobuf.Int32Value getLongerThanMilliseconds() {
+      if (longerThanMillisecondsBuilder_ == null) {
+        return longerThanMilliseconds_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : longerThanMilliseconds_;
       } else {
-        return longerThanBuilder_.getMessage();
+        return longerThanMillisecondsBuilder_.getMessage();
       }
     }
     /**
@@ -2164,17 +2164,17 @@ private static final long serialVersionUID = 0L;
      * longerThan specifies the minimum duration in milliseconds of the traffic recording to be returned
      * </pre>
      *
-     * <code>.google.protobuf.Int32Value longerThan = 7;</code>
+     * <code>.google.protobuf.Int32Value longerThanMilliseconds = 7;</code>
      */
-    public Builder setLongerThan(com.google.protobuf.Int32Value value) {
-      if (longerThanBuilder_ == null) {
+    public Builder setLongerThanMilliseconds(com.google.protobuf.Int32Value value) {
+      if (longerThanMillisecondsBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        longerThan_ = value;
+        longerThanMilliseconds_ = value;
         onChanged();
       } else {
-        longerThanBuilder_.setMessage(value);
+        longerThanMillisecondsBuilder_.setMessage(value);
       }
 
       return this;
@@ -2184,15 +2184,15 @@ private static final long serialVersionUID = 0L;
      * longerThan specifies the minimum duration in milliseconds of the traffic recording to be returned
      * </pre>
      *
-     * <code>.google.protobuf.Int32Value longerThan = 7;</code>
+     * <code>.google.protobuf.Int32Value longerThanMilliseconds = 7;</code>
      */
-    public Builder setLongerThan(
+    public Builder setLongerThanMilliseconds(
         com.google.protobuf.Int32Value.Builder builderForValue) {
-      if (longerThanBuilder_ == null) {
-        longerThan_ = builderForValue.build();
+      if (longerThanMillisecondsBuilder_ == null) {
+        longerThanMilliseconds_ = builderForValue.build();
         onChanged();
       } else {
-        longerThanBuilder_.setMessage(builderForValue.build());
+        longerThanMillisecondsBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -2202,19 +2202,19 @@ private static final long serialVersionUID = 0L;
      * longerThan specifies the minimum duration in milliseconds of the traffic recording to be returned
      * </pre>
      *
-     * <code>.google.protobuf.Int32Value longerThan = 7;</code>
+     * <code>.google.protobuf.Int32Value longerThanMilliseconds = 7;</code>
      */
-    public Builder mergeLongerThan(com.google.protobuf.Int32Value value) {
-      if (longerThanBuilder_ == null) {
-        if (longerThan_ != null) {
-          longerThan_ =
-            com.google.protobuf.Int32Value.newBuilder(longerThan_).mergeFrom(value).buildPartial();
+    public Builder mergeLongerThanMilliseconds(com.google.protobuf.Int32Value value) {
+      if (longerThanMillisecondsBuilder_ == null) {
+        if (longerThanMilliseconds_ != null) {
+          longerThanMilliseconds_ =
+            com.google.protobuf.Int32Value.newBuilder(longerThanMilliseconds_).mergeFrom(value).buildPartial();
         } else {
-          longerThan_ = value;
+          longerThanMilliseconds_ = value;
         }
         onChanged();
       } else {
-        longerThanBuilder_.mergeFrom(value);
+        longerThanMillisecondsBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -2224,15 +2224,15 @@ private static final long serialVersionUID = 0L;
      * longerThan specifies the minimum duration in milliseconds of the traffic recording to be returned
      * </pre>
      *
-     * <code>.google.protobuf.Int32Value longerThan = 7;</code>
+     * <code>.google.protobuf.Int32Value longerThanMilliseconds = 7;</code>
      */
-    public Builder clearLongerThan() {
-      if (longerThanBuilder_ == null) {
-        longerThan_ = null;
+    public Builder clearLongerThanMilliseconds() {
+      if (longerThanMillisecondsBuilder_ == null) {
+        longerThanMilliseconds_ = null;
         onChanged();
       } else {
-        longerThan_ = null;
-        longerThanBuilder_ = null;
+        longerThanMilliseconds_ = null;
+        longerThanMillisecondsBuilder_ = null;
       }
 
       return this;
@@ -2242,26 +2242,26 @@ private static final long serialVersionUID = 0L;
      * longerThan specifies the minimum duration in milliseconds of the traffic recording to be returned
      * </pre>
      *
-     * <code>.google.protobuf.Int32Value longerThan = 7;</code>
+     * <code>.google.protobuf.Int32Value longerThanMilliseconds = 7;</code>
      */
-    public com.google.protobuf.Int32Value.Builder getLongerThanBuilder() {
+    public com.google.protobuf.Int32Value.Builder getLongerThanMillisecondsBuilder() {
 
       onChanged();
-      return getLongerThanFieldBuilder().getBuilder();
+      return getLongerThanMillisecondsFieldBuilder().getBuilder();
     }
     /**
      * <pre>
      * longerThan specifies the minimum duration in milliseconds of the traffic recording to be returned
      * </pre>
      *
-     * <code>.google.protobuf.Int32Value longerThan = 7;</code>
+     * <code>.google.protobuf.Int32Value longerThanMilliseconds = 7;</code>
      */
-    public com.google.protobuf.Int32ValueOrBuilder getLongerThanOrBuilder() {
-      if (longerThanBuilder_ != null) {
-        return longerThanBuilder_.getMessageOrBuilder();
+    public com.google.protobuf.Int32ValueOrBuilder getLongerThanMillisecondsOrBuilder() {
+      if (longerThanMillisecondsBuilder_ != null) {
+        return longerThanMillisecondsBuilder_.getMessageOrBuilder();
       } else {
-        return longerThan_ == null ?
-            com.google.protobuf.Int32Value.getDefaultInstance() : longerThan_;
+        return longerThanMilliseconds_ == null ?
+            com.google.protobuf.Int32Value.getDefaultInstance() : longerThanMilliseconds_;
       }
     }
     /**
@@ -2269,20 +2269,20 @@ private static final long serialVersionUID = 0L;
      * longerThan specifies the minimum duration in milliseconds of the traffic recording to be returned
      * </pre>
      *
-     * <code>.google.protobuf.Int32Value longerThan = 7;</code>
+     * <code>.google.protobuf.Int32Value longerThanMilliseconds = 7;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
         com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>
-        getLongerThanFieldBuilder() {
-      if (longerThanBuilder_ == null) {
-        longerThanBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+        getLongerThanMillisecondsFieldBuilder() {
+      if (longerThanMillisecondsBuilder_ == null) {
+        longerThanMillisecondsBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>(
-                getLongerThan(),
+                getLongerThanMilliseconds(),
                 getParentForChildren(),
                 isClean());
-        longerThan_ = null;
+        longerThanMilliseconds_ = null;
       }
-      return longerThanBuilder_;
+      return longerThanMillisecondsBuilder_;
     }
 
     private com.google.protobuf.Int32Value fetchingMoreBytesThan_;

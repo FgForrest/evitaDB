@@ -43,7 +43,6 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GetTrafficHistoryRequest() {
-    content_ = 0;
   }
 
   @java.lang.Override
@@ -87,12 +86,6 @@ private static final long serialVersionUID = 0L;
               criteria_ = subBuilder.buildPartial();
             }
 
-            break;
-          }
-          case 16: {
-            int rawValue = input.readEnum();
-
-            content_ = rawValue;
             break;
           }
           default: {
@@ -165,33 +158,6 @@ private static final long serialVersionUID = 0L;
     return getCriteria();
   }
 
-  public static final int CONTENT_FIELD_NUMBER = 2;
-  private int content_;
-  /**
-   * <pre>
-   * The scope of the returned data - either header of the record, or the whole record
-   * </pre>
-   *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingContent content = 2;</code>
-   * @return The enum numeric value on the wire for content.
-   */
-  @java.lang.Override public int getContentValue() {
-    return content_;
-  }
-  /**
-   * <pre>
-   * The scope of the returned data - either header of the record, or the whole record
-   * </pre>
-   *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingContent content = 2;</code>
-   * @return The content.
-   */
-  @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingContent getContent() {
-    @SuppressWarnings("deprecation")
-    io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingContent result = io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingContent.valueOf(content_);
-    return result == null ? io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingContent.UNRECOGNIZED : result;
-  }
-
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -209,9 +175,6 @@ private static final long serialVersionUID = 0L;
     if (criteria_ != null) {
       output.writeMessage(1, getCriteria());
     }
-    if (content_ != io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingContent.TRAFFIC_RECORDING_HEADER.getNumber()) {
-      output.writeEnum(2, content_);
-    }
     unknownFields.writeTo(output);
   }
 
@@ -224,10 +187,6 @@ private static final long serialVersionUID = 0L;
     if (criteria_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(1, getCriteria());
-    }
-    if (content_ != io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingContent.TRAFFIC_RECORDING_HEADER.getNumber()) {
-      size += com.google.protobuf.CodedOutputStream
-        .computeEnumSize(2, content_);
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -249,7 +208,6 @@ private static final long serialVersionUID = 0L;
       if (!getCriteria()
           .equals(other.getCriteria())) return false;
     }
-    if (content_ != other.content_) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -265,8 +223,6 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + CRITERIA_FIELD_NUMBER;
       hash = (53 * hash) + getCriteria().hashCode();
     }
-    hash = (37 * hash) + CONTENT_FIELD_NUMBER;
-    hash = (53 * hash) + content_;
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -410,8 +366,6 @@ private static final long serialVersionUID = 0L;
         criteria_ = null;
         criteriaBuilder_ = null;
       }
-      content_ = 0;
-
       return this;
     }
 
@@ -443,7 +397,6 @@ private static final long serialVersionUID = 0L;
       } else {
         result.criteria_ = criteriaBuilder_.build();
       }
-      result.content_ = content_;
       onBuilt();
       return result;
     }
@@ -494,9 +447,6 @@ private static final long serialVersionUID = 0L;
       if (other == io.evitadb.externalApi.grpc.generated.GetTrafficHistoryRequest.getDefaultInstance()) return this;
       if (other.hasCriteria()) {
         mergeCriteria(other.getCriteria());
-      }
-      if (other.content_ != 0) {
-        setContentValue(other.getContentValue());
       }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
@@ -680,80 +630,6 @@ private static final long serialVersionUID = 0L;
         criteria_ = null;
       }
       return criteriaBuilder_;
-    }
-
-    private int content_ = 0;
-    /**
-     * <pre>
-     * The scope of the returned data - either header of the record, or the whole record
-     * </pre>
-     *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingContent content = 2;</code>
-     * @return The enum numeric value on the wire for content.
-     */
-    @java.lang.Override public int getContentValue() {
-      return content_;
-    }
-    /**
-     * <pre>
-     * The scope of the returned data - either header of the record, or the whole record
-     * </pre>
-     *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingContent content = 2;</code>
-     * @param value The enum numeric value on the wire for content to set.
-     * @return This builder for chaining.
-     */
-    public Builder setContentValue(int value) {
-
-      content_ = value;
-      onChanged();
-      return this;
-    }
-    /**
-     * <pre>
-     * The scope of the returned data - either header of the record, or the whole record
-     * </pre>
-     *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingContent content = 2;</code>
-     * @return The content.
-     */
-    @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingContent getContent() {
-      @SuppressWarnings("deprecation")
-      io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingContent result = io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingContent.valueOf(content_);
-      return result == null ? io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingContent.UNRECOGNIZED : result;
-    }
-    /**
-     * <pre>
-     * The scope of the returned data - either header of the record, or the whole record
-     * </pre>
-     *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingContent content = 2;</code>
-     * @param value The content to set.
-     * @return This builder for chaining.
-     */
-    public Builder setContent(io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingContent value) {
-      if (value == null) {
-        throw new NullPointerException();
-      }
-
-      content_ = value.getNumber();
-      onChanged();
-      return this;
-    }
-    /**
-     * <pre>
-     * The scope of the returned data - either header of the record, or the whole record
-     * </pre>
-     *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingContent content = 2;</code>
-     * @return This builder for chaining.
-     */
-    public Builder clearContent() {
-
-      content_ = 0;
-      onChanged();
-      return this;
     }
     @java.lang.Override
     public final Builder setUnknownFields(
