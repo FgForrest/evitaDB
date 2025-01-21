@@ -37,8 +37,12 @@ import java.io.Serial;
 public class IndexNotReady extends EvitaInvalidUsageException {
 	@Serial private static final long serialVersionUID = -8131758666128500242L;
 
-	public IndexNotReady() {
-		super("Index is not ready yet, please try again later.");
+	public IndexNotReady(int indexBuildPercentage) {
+		super(
+			indexBuildPercentage == 0 ?
+				"Index is not present - issuing creation, please try again later." :
+				"Index is currently being build - " + indexBuildPercentage + "% done, please try again later."
+		);
 	}
 
 }

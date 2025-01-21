@@ -60,6 +60,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Condition;
@@ -145,6 +146,10 @@ public class DiskRingBuffer {
 	 */
 	private final ReentrantLock segmentsLock = new ReentrantLock();
 	private final Condition segmentsCondition = segmentsLock.newCondition();
+	/**
+	 * Data available only when indexing is running on background.
+	 */
+	private final AtomicInteger indexedSessions = new AtomicInteger();
 	/**
 	 * Head of the ring buffer.
 	 */
@@ -457,7 +462,7 @@ public class DiskRingBuffer {
 		@Nonnull LongBiObjectFunction<DiskRingBuffer, StorageRecord<TrafficRecording>> reader
 	) {
 		DiskRingBufferIndex sessionIndex = this.sessionIndex.get();
-		notNull(sessionIndex, IndexNotReady::new);
+		notNull(sessionIndex, () -> new IndexNotReady(calculateIndexingPercentage()));
 
 		final Predicate<TrafficRecording> requestPredicate = createRequestPredicate(request);
 		return sessionIndex.getSessionStream(request)
@@ -471,7 +476,7 @@ public class DiskRingBuffer {
 		int limit
 	) {
 		DiskRingBufferIndex sessionIndex = this.sessionIndex.get();
-		notNull(sessionIndex, IndexNotReady::new);
+		notNull(sessionIndex, () -> new IndexNotReady(calculateIndexingPercentage()));
 
 		return sessionIndex.getLabelsNamesOrderedByCardinality(nameStartingWith, limit);
 	}
@@ -483,7 +488,7 @@ public class DiskRingBuffer {
 		int limit
 	) {
 		DiskRingBufferIndex sessionIndex = this.sessionIndex.get();
-		notNull(sessionIndex, IndexNotReady::new);
+		notNull(sessionIndex, () -> new IndexNotReady(calculateIndexingPercentage()));
 
 		return sessionIndex.getLabelValuesOrderedByCardinality(nameEquals, valueStartingWith, limit);
 	}
@@ -502,6 +507,7 @@ public class DiskRingBuffer {
 	) {
 		if (this.sessionIndexingRunning.compareAndSet(false, true)) {
 			try {
+				this.indexedSessions.set(0);
 				this.postponedIndexUpdates.set(new ArrayDeque<>(512));
 				final DiskRingBufferIndex index = new DiskRingBufferIndex();
 				for (SessionLocation sessionLocation : this.sessionLocations) {
@@ -510,6 +516,7 @@ public class DiskRingBuffer {
 					index.setupSession(sessionLocation);
 					this.readSessionRecords(sessionLocation.sequenceOrder(), sessionLocation.fileLocation(), reader, index::sessionExists)
 						.forEach(tr -> index.indexRecording(sessionLocation.sequenceOrder(), tr));
+					this.indexedSessions.incrementAndGet();
 				}
 
 				// when session index is ready, set it as the active index
@@ -517,7 +524,10 @@ public class DiskRingBuffer {
 			} finally {
 				final Deque<Runnable> theLambdasToExecute = this.postponedIndexUpdates.getAndSet(null);
 				notNull(theLambdasToExecute, "Postponed index updates are null. This is not expected!");
-				theLambdasToExecute.forEach(Runnable::run);
+				theLambdasToExecute.forEach(lambda -> {
+					lambda.run();
+					this.indexedSessions.incrementAndGet();
+				});
 				isPremiseValid(
 					this.sessionIndexingRunning.compareAndSet(true, false),
 					"Session indexing is not running. This is not expected!"
@@ -558,6 +568,16 @@ public class DiskRingBuffer {
 		} finally {
 			fileCleanLogic.accept(this.diskBufferFilePath);
 		}
+	}
+
+	/**
+	 * Calculates the percentage of indexed sessions in relation to the total number of sessions
+	 * including postponed index updates.
+	 *
+	 * @return the indexing percentage as an integer value.
+	 */
+	private int calculateIndexingPercentage() {
+		return (int) (((float)this.indexedSessions.get() / (float)(this.sessionLocations.size() + this.postponedIndexUpdates.get().size())) * 100.0);
 	}
 
 	/**
