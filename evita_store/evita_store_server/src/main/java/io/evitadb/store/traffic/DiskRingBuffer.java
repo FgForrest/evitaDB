@@ -47,6 +47,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
@@ -174,7 +175,20 @@ public class DiskRingBuffer {
 	 */
 	public void setSessionSink(@Nullable SessionSink sessionSink) {
 		if (sessionSink != null) {
-			sessionSink.initSourceFileChannel(this.diskBufferFile.getChannel());
+			try {
+				sessionSink.initSourceInputStream(
+					new RandomAccessFileInputStream(
+						new RandomAccessFile(this.diskBufferFilePath.toFile(), "r"),
+						true
+					)
+				);
+			} catch (FileNotFoundException e) {
+				throw new UnexpectedIOException(
+					"Failed to create traffic recording buffer file input stream: " + e.getMessage(),
+					"Failed to create traffic recording buffer file input stream.",
+					e
+				);
+			}
 		}
 		this.sessionSink.set(sessionSink);
 	}
@@ -257,7 +271,7 @@ public class DiskRingBuffer {
 			this.diskBufferFilePath = diskBufferFilePath;
 			this.diskBufferFileSize = diskBufferFileSize;
 			this.diskBufferFile = new RandomAccessFile(this.diskBufferFilePath.toFile(), "rw");
-			this.diskBufferFileReadInputStream = new RandomAccessFileInputStream(new RandomAccessFile(this.diskBufferFilePath.toFile(), "r"));
+			this.diskBufferFileReadInputStream = new RandomAccessFileInputStream(new RandomAccessFile(this.diskBufferFilePath.toFile(), "r"), true);
 			// Initialize the file size
 			this.diskBufferFile.setLength(diskBufferFileSize);
 			this.fileChannel = this.diskBufferFile.getChannel();
@@ -581,7 +595,8 @@ public class DiskRingBuffer {
 					"Failed to close traffic recording buffer file."
 				),
 				this.fileChannel::close,
-				this.diskBufferFileReadInputStream::close
+				this.diskBufferFileReadInputStream::close,
+				this.diskBufferFile::close
 			);
 		} finally {
 			fileCleanLogic.accept(this.diskBufferFilePath);

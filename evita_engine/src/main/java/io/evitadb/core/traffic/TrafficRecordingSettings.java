@@ -24,6 +24,7 @@
 package io.evitadb.core.traffic;
 
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.time.Duration;
 
@@ -32,6 +33,7 @@ import java.time.Duration;
  * It defines the parameters that control how traffic data is recorded, including sampling rate,
  * duration, size limits, and chunk file sizes.
  *
+ * @param catalogName			   Specifies the name of the catalog for which traffic recording is done.
  * @param samplingRate              Defines the rate at which traffic samples are recorded. The value
  *                                  is provided as a percentage (e.g., 1 to 100), where 100 represents
  *                                  all traffic being recorded and lower values represent partial sampling.
@@ -50,6 +52,7 @@ import java.time.Duration;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 public record TrafficRecordingSettings(
+	@Nonnull String catalogName,
 	int samplingRate,
 	boolean exportFile,
 	@Nullable Duration recordingDuration,

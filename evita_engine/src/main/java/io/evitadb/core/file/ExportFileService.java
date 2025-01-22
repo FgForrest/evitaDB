@@ -236,6 +236,7 @@ public class ExportFileService implements Closeable {
 			final CompletableFuture<FileForFetch> fileForFetchCompletableFuture = new CompletableFuture<>();
 			return new ExportFileHandle(
 				fileForFetchCompletableFuture,
+				finalFilePath,
 				new WriteMetadataOnCloseOutputStream(
 					finalFilePath,
 					fileForFetchCompletableFuture,
@@ -501,12 +502,22 @@ public class ExportFileService implements Closeable {
 	 * file is written.
 	 *
 	 * @param fileForFetchFuture Future that will be completed when the file is written.
+	 * @param filePath		     Path to the file.
 	 * @param outputStream       Output stream the file can be written to.
 	 */
 	public record ExportFileHandle(
 		@Nonnull CompletableFuture<FileForFetch> fileForFetchFuture,
+		@Nonnull Path filePath,
 		@Nonnull OutputStream outputStream
 	) {
+
+		/**
+		 * Returns the size of the target file.
+		 * @return the size of the target file
+		 */
+		public long size() {
+			return this.filePath.toFile().length();
+		}
 
 	}
 
@@ -532,7 +543,7 @@ public class ExportFileService implements Closeable {
 			try {
 				super.close();
 			} finally {
-				this.fileForFetchFuture.complete(onClose.get());
+				this.fileForFetchFuture.complete(this.onClose.get());
 			}
 		}
 

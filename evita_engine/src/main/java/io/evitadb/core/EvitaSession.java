@@ -79,6 +79,7 @@ import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.core.async.Interruptible;
+import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.cdc.predicate.MutationPredicateFactory;
 import io.evitadb.core.exception.CatalogCorruptedException;
 import io.evitadb.core.metric.event.query.EntityEnrichEvent;
@@ -1452,7 +1453,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		@Nullable Duration recordingDuration,
 		@Nullable Long recordingSizeLimitInBytes,
 		long chunkFileSizeInBytes
-	) {
+	) throws SingletonTaskAlreadyRunningException {
 		Assert.isTrue(
 			!this.evita.getConfiguration().server().readOnly(),
 			ReadOnlyException::new
@@ -1463,12 +1464,15 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		if (runningTask != null) {
 			throw new SingletonTaskAlreadyRunningException(runningTask.getStatus().taskName());
 		} else {
+			final Scheduler scheduler = this.evita.getServiceExecutor();
 			final ServerTask<TrafficRecordingSettings, FileForFetch> trafficRecorderTask = new TrafficRecorderTask(
-				samplingRate, exportFile, recordingDuration, recordingSizeLimitInBytes, chunkFileSizeInBytes,
+				getCatalogName(), samplingRate, exportFile, recordingDuration, recordingSizeLimitInBytes,
+				chunkFileSizeInBytes,
 				this.catalog.get().getTrafficRecordingEngine(),
-				this.evita.management().exportFileService()
+				this.evita.management().exportFileService(),
+				scheduler
 			);
-			this.evita.getServiceExecutor().submit(trafficRecorderTask);
+			scheduler.submit(trafficRecorderTask);
 			return trafficRecorderTask;
 		}
 	}

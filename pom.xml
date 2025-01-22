@@ -7,7 +7,7 @@
   ~             |  __/\ V /| | || (_| | |_| | |_) |
   ~              \___| \_/ |_|\__\__,_|____/|____/
   ~
-  ~   Copyright (c) 2023-2024
+  ~   Copyright (c) 2023-2025
   ~
   ~   Licensed under the Business Source License, Version 1.1 (the "License");
   ~   you may not use this file except in compliance with the License.
@@ -174,11 +174,6 @@
 				<groupId>net.openhft</groupId>
 				<artifactId>zero-allocation-hashing</artifactId>
 				<version>0.27ea0</version>
-			</dependency>
-			<dependency>
-				<groupId>org.apache.commons</groupId>
-				<artifactId>commons-compress</artifactId>
-				<version>1.27.1</version>
 			</dependency>
 			<dependency>
 				<groupId>one.edee.oss</groupId>

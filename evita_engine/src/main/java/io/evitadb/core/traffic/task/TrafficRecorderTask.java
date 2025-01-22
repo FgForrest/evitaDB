@@ -26,6 +26,7 @@ package io.evitadb.core.traffic.task;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.task.TaskStatus.TaskTrait;
 import io.evitadb.core.async.ClientInfiniteCallableTask;
+import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.file.ExportFileService;
 import io.evitadb.core.file.ExportFileService.ExportFileHandle;
 import io.evitadb.core.traffic.TrafficRecordingEngine;
@@ -34,22 +35,25 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.store.spi.SessionLocation;
 import io.evitadb.store.spi.SessionSink;
+import io.evitadb.stream.RandomAccessFileInputStream;
+import io.evitadb.utils.Assert;
+import io.evitadb.utils.IOUtils;
 import io.evitadb.utils.StringUtils;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.BufferedOutputStream;
-import java.io.IOException;
-import java.nio.channels.FileChannel;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.io.Closeable;
+import java.io.FileNotFoundException;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -60,10 +64,6 @@ import java.util.zip.ZipOutputStream;
  */
 @Slf4j
 public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecordingSettings, FileForFetch> {
-	/**
-	 * Target file where the JFR recording will be stored.
-	 */
-	private final Path targetFile;
 	/**
 	 * Flag indicating that the recording has finished.
 	 */
@@ -97,28 +97,33 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 	}
 
 	public TrafficRecorderTask(
+		@Nonnull String catalogName,
 		int samplingRate,
 		boolean exportFile,
 		@Nullable Duration recordingDuration,
 		@Nullable Long recordingSizeLimitInBytes,
 		long chunkFileSizeInBytes,
 		@Nonnull TrafficRecordingEngine trafficRecordingEngine,
-		@Nonnull ExportFileService exportFileService
-	) {
+		@Nonnull ExportFileService exportFileService,
+		@Nonnull Scheduler scheduler
+		) {
 		super(
 			TrafficRecorderTask.class.getSimpleName(),
 			"Traffic recording",
-			new TrafficRecordingSettings(samplingRate, exportFile, recordingDuration, recordingSizeLimitInBytes, chunkFileSizeInBytes),
+			new TrafficRecordingSettings(
+				catalogName, samplingRate, exportFile,
+				recordingDuration, recordingSizeLimitInBytes, chunkFileSizeInBytes
+			),
 			(task) -> ((TrafficRecorderTask) task).start(),
 			recordingDuration == null && recordingSizeLimitInBytes == null ?
 				new TaskTrait[]{TaskTrait.CAN_BE_STARTED, TaskTrait.CAN_BE_CANCELLED, TaskTrait.NEEDS_TO_BE_STOPPED} :
 				new TaskTrait[]{TaskTrait.CAN_BE_STARTED, TaskTrait.CAN_BE_CANCELLED}
 		);
-		this.targetFile = exportFileService.createTempFile(
-			"traffic_recording_" + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) + ".jfr"
-		);
 		this.exportFileService = exportFileService;
 		this.trafficRecordingEngine = trafficRecordingEngine;
+		if (recordingDuration != null) {
+			scheduler.schedule(this::stopInternal, recordingDuration.toMillis(), TimeUnit.MILLISECONDS);
+		}
 	}
 
 	@Override
@@ -137,25 +142,81 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 	 */
 	@Nullable
 	private FileForFetch start() {
+		final TrafficRecordingSettings settings = getStatus().settings();
+		ExportSessionSink exportSessionSink = null;
 		try {
-			final TrafficRecordingSettings settings = getStatus().settings();
-			this.trafficRecordingEngine.startRecording(
-				settings.samplingRate(),
-				settings.exportFile() ?
-					new ExportSessionSink(
-						this.trafficRecordingEngine.getTrafficOptions().trafficDiskBufferSizeInBytes(),
-						settings.chunkFileSizeInBytes()
-					) : null
-			);
+			exportSessionSink = settings.exportFile() ? new ExportSessionSink(
+				settings.catalogName(),
+				this.exportFileService,
+				this.trafficRecordingEngine.getTrafficOptions().trafficDiskBufferSizeInBytes(),
+				settings,
+				this::stopInternal
+			) : null;
+
 
 			// start recording
+			this.trafficRecordingEngine.startRecording(settings.samplingRate(), exportSessionSink);
+
+			// wait for the recording to be stopped (either manually or by reaching the specified limits)
 			this.finalizationLatch.await();
 
 			// stop recording
-			this.updateTaskNameAndTraits("Traffic recording stopped (compressing output)");
+			this.trafficRecordingEngine.stopRecording();
 
-			final String fileName = "traffic_recording_" + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
-			final ExportFileHandle exportFileHandle = this.exportFileService.storeFile(
+		} catch (InterruptedException e) {
+			this.trafficRecordingEngine.stopRecording();
+			throw new GenericEvitaInternalError("Traffic recording task finished abnormally (interrupt).", e);
+		} catch (FileNotFoundException e) {
+			throw new GenericEvitaInternalError(
+				"Traffic recording task finished abnormally: " + e.getMessage(),
+				"Traffic recording task finished abnormally.",
+				e
+			);
+		} finally {
+			if (exportSessionSink != null) {
+				IOUtils.close(
+					() -> new UnexpectedIOException("Failed to close export session sink."),
+					exportSessionSink::close
+				);
+			}
+		}
+
+		return exportSessionSink == null ?
+			null : exportSessionSink.getFileForFetch();
+	}
+
+	private static class ExportSessionSink implements SessionSink, Closeable {
+		private final ExportFileHandle exportFileHandle;
+		private final long chunkFileSizeInBytes;
+		private final long nonExportedSizeLimit;
+		private final long exportedSizeLimit;
+		private final ZipOutputStream outputStream;
+		private final byte[] buffer;
+		private final AtomicBoolean closed = new AtomicBoolean();
+		private final AtomicBoolean corrupted = new AtomicBoolean();
+		private final Runnable finalizer;
+		private RandomAccessFileInputStream inputStream;
+		private long nonExportedSize = 0;
+		private long currentChunkSize = -1;
+		@Nullable private SessionLocation lastExportedLocation;
+		@Nullable private SessionLocation lastSeenLocation;
+
+		public ExportSessionSink(
+			@Nonnull String catalogName,
+			@Nonnull ExportFileService exportFileService,
+			long diskBufferSizeInBytes,
+			@Nonnull TrafficRecordingSettings settings,
+			@Nonnull Runnable finalizer
+		) throws FileNotFoundException {
+			this.nonExportedSizeLimit = diskBufferSizeInBytes / 2;
+			this.chunkFileSizeInBytes = settings.chunkFileSizeInBytes();
+			this.exportedSizeLimit = settings.recordingSizeLimitInBytes() == null ? Long.MAX_VALUE : settings.recordingSizeLimitInBytes();
+			this.finalizer = finalizer;
+			//noinspection CheckForOutOfMemoryOnLargeArrayAllocation
+			this.buffer = new byte[8192];
+
+			final String fileName = "traffic_recording_" + catalogName + "_" + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+			this.exportFileHandle = exportFileService.storeFile(
 				fileName + ".zip",
 				"Traffic recording started at " + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) +
 					" with sampling rate " + settings.samplingRate() + "%" + getFinishCondition(settings) + ".",
@@ -163,79 +224,122 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 				this.getClass().getSimpleName()
 			);
 
-			try (ZipOutputStream zipOutputStream = new ZipOutputStream(new BufferedOutputStream(exportFileHandle.outputStream()))) {
-				zipOutputStream.putNextEntry(new ZipEntry(fileName + ".jfr"));
-				// copy contents of the JFR recording to the zip file
-				Files.copy(this.targetFile, zipOutputStream);
-
-				log.info("JFR recording export completed.");
-				return exportFileHandle.fileForFetchFuture().getNow(null);
-			} catch (IOException e) {
-				throw new UnexpectedIOException(
-					"Failed to compress and store JFR recording: `" + this.targetFile + "`!",
-					"Failed to compress and store JFR recording!",
-					e
-				);
-			} finally {
-				try {
-					Files.deleteIfExists(this.targetFile);
-				} catch (IOException e) {
-					log.error(
-						"Failed to delete temporary JFR recording file: `" + this.targetFile + "`!",
-						e
-					);
-				}
-			}
-		} catch (InterruptedException e) {
-			this.trafficRecordingEngine.stopRecording();
-			throw new GenericEvitaInternalError("JFR recording task finished abnormally (interrupt).", e);
-		}
-
-	}
-
-	private static class ExportSessionSink implements SessionSink {
-		private final long nonExportedSizeLimit;
-		private final long chunkFileSizeInBytes;
-		private long nonExportedSize = 0;
-		private FileChannel fileChannel;
-		private SessionLocation lastExportedLocation;
-		private SessionLocation lastSeenLocation;
-
-		public ExportSessionSink(long diskBufferSizeInBytes, long chunkFileSizeInBytes) {
-			this.nonExportedSizeLimit = diskBufferSizeInBytes / 2;
-			this.chunkFileSizeInBytes = chunkFileSizeInBytes;
+			this.outputStream = new ZipOutputStream(new BufferedOutputStream(this.exportFileHandle.outputStream()));
 		}
 
 		@Override
-		public void initSourceFileChannel(@Nonnull FileChannel fileChannel) {
-			this.fileChannel = fileChannel;
+		public void initSourceInputStream(@Nonnull RandomAccessFileInputStream inputStream) {
+			Assert.isPremiseValid(!this.closed.get(), "Session sink is already closed.");
+			this.inputStream = inputStream;
 		}
 
 		@Override
 		public void onSessionLocationsUpdated(@Nonnull Deque<SessionLocation> sessionLocations) {
+			Assert.isPremiseValid(!this.closed.get(), "Session sink is already closed.");
 			// first update the non-exported size
-			final Iterator<SessionLocation> it = sessionLocations.descendingIterator();
-			while (it.hasNext()) {
-				final SessionLocation previous = it.next();
-				if (previous.equals(this.lastSeenLocation)) {
-					break;
-				}
-				this.nonExportedSize += previous.fileLocation().recordLength();
-			}
+			updateNonExportedSize(sessionLocations);
 			// if the non-exported size grows too much, export it to a file
 			if (this.nonExportedSize > this.nonExportedSizeLimit) {
 				boolean export = false;
-				final Iterator<SessionLocation> persistingIt = sessionLocations.iterator();
-				while (persistingIt.hasNext()) {
-					final SessionLocation next = persistingIt.next();
+				for (SessionLocation next : sessionLocations) {
 					if (export) {
-						//this.fileChannel.transferTo();
+						compressToFinalDestination(next);
 						this.nonExportedSize -= next.fileLocation().recordLength();
+						this.lastExportedLocation = next;
 					} else if (this.lastExportedLocation == null || this.lastExportedLocation.equals(next)) {
 						export = true;
 					}
 				}
 			}
+		}
+
+		/**
+		 * Returns the file for fetch associated with the export file handle.
+		 *
+		 * @return the file for fetch associated with the export file handle
+		 */
+		@Nullable
+		public FileForFetch getFileForFetch() {
+			return this.corrupted.get() ?
+				null :
+				this.exportFileHandle
+					.fileForFetchFuture()
+					.getNow(null);
+		}
+
+		@Override
+		public void close() {
+			if (this.closed.compareAndSet(false, true)) {
+				IOUtils.close(
+					() -> new UnexpectedIOException("Failed to close ZIP output stream."),
+					() -> {
+						if (this.currentChunkSize > -1) {
+							this.outputStream.closeEntry();
+						}
+					},
+					this.outputStream::close
+				);
+			}
+		}
+
+		/**
+		 * Compresses the session data, specified by the given session location, into a final destination
+		 * such as a zip archive. This method handles writing the session's binary data to an output stream,
+		 * ensuring that the data is partitioned into chunks of a defined size. If the current chunk size
+		 * exceeds the predetermined limit, the method closes the current chunk and prepares for the next one.
+		 *
+		 * @param sessionLocation the location of the session data to be compressed, providing details
+		 *                        about its sequence order and file position within the underlying file
+		 */
+		private void compressToFinalDestination(@Nonnull SessionLocation sessionLocation) {
+			try {
+				if (this.currentChunkSize == -1) {
+					this.outputStream.putNextEntry(new ZipEntry("traffic_recording_" + sessionLocation.sequenceOrder() + ".bin"));
+					this.currentChunkSize = 0;
+				}
+				this.inputStream.seek(sessionLocation.fileLocation().startingPosition());
+				final int bytesToWrite = sessionLocation.fileLocation().recordLength();
+				IOUtils.copy(this.inputStream, this.outputStream, bytesToWrite, this.buffer);
+				this.outputStream.flush();
+				this.currentChunkSize += bytesToWrite;
+
+				if (this.currentChunkSize >= this.chunkFileSizeInBytes) {
+					this.outputStream.closeEntry();
+					this.currentChunkSize = -1;
+				}
+			} catch (Exception e) {
+				this.corrupted.set(true);
+				this.finalizer.run();
+			} finally {
+				if (this.exportFileHandle.size() > this.exportedSizeLimit) {
+					this.finalizer.run();
+				}
+			}
+		}
+
+		/**
+		 * Updates the non-exported size field by iterating over the provided deque of session locations
+		 * in reverse order, calculating the size of the unprocessed session records, and stopping
+		 * when the last seen location is encountered. The method also updates the reference to the
+		 * last seen location in the deque.
+		 *
+		 * @param sessionLocations a deque containing session locations to be inspected for updating
+		 *                         the non-exported size
+		 */
+		private void updateNonExportedSize(@Nonnull Deque<SessionLocation> sessionLocations) {
+			final Iterator<SessionLocation> it = sessionLocations.descendingIterator();
+			SessionLocation tailLocation = null;
+			while (it.hasNext()) {
+				final SessionLocation previous = it.next();
+				if (tailLocation == null) {
+					tailLocation = previous;
+				}
+				if (previous.equals(this.lastSeenLocation)) {
+					break;
+				}
+				this.nonExportedSize += previous.fileLocation().recordLength();
+			}
+			this.lastSeenLocation = tailLocation;
 		}
 
 	}

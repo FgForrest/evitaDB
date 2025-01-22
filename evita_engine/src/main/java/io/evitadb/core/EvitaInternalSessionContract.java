@@ -29,6 +29,7 @@ import io.evitadb.api.TrafficRecordingReader;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.IndexNotReady;
 import io.evitadb.api.exception.InstanceTerminatedException;
+import io.evitadb.api.exception.SingletonTaskAlreadyRunningException;
 import io.evitadb.api.exception.TransactionException;
 import io.evitadb.api.exception.UnexpectedResultCountException;
 import io.evitadb.api.exception.UnexpectedResultException;
@@ -40,6 +41,7 @@ import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.core.traffic.TrafficRecordingSettings;
+import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -211,12 +213,25 @@ public interface EvitaInternalSessionContract extends EvitaSessionContract, Traf
 	Collection<String> getLabelValuesOrderedByCardinality(@Nonnull String labelName, @Nullable String valueStartingWith, int limit) throws IndexNotReady;
 
 	/**
-	 * TODO JNO - document me
-	 * @param samplingRate
-	 * @param recordingDuration
-	 * @param recordingSizeLimitInBytes
-	 * @param chunkFileSizeInBytes
-	 * @return
+	 * Initiates a recording session for traffic data with the specified parameters.
+	 *
+	 * @param samplingRate              Defines the rate at which traffic samples are recorded. The value
+	 *                                  is provided as a percentage (e.g., 1 to 100), where 100 represents
+	 *                                  all traffic being recorded and lower values represent partial sampling.
+	 * @param exportFile                Specifies whether recorded traffic data should be exported to a file.
+	 * @param recordingDuration         Specifies the duration for which traffic recording should occur.
+	 *                                  Can be null, indicating that recording is not time-bound. When
+	 *                                  provided, it ensures that traffic recording will not exceed
+	 *                                  the defined duration.
+	 * @param recordingSizeLimitInBytes Specifies the maximum size of the traffic recording in bytes.
+	 *                                  This parameter is optional and can be null. When provided,
+	 *                                  it serves as an upper limit for traffic recording size, ensuring
+	 *                                  that recorded data does not exceed the specified size.
+	 * @param chunkFileSizeInBytes      Defines the size of each chunk file used to store recorded traffic
+	 *                                  data. Recorded data is divided into files of this size, aiding in
+	 *                                  data management and processing efficiency.
+	 * @return A {@code ServerTask} instance containing the configuration of the recording session and an object to fetch the recorded file.
+	 * @throws SingletonTaskAlreadyRunningException if the task is already running
 	 */
 	@Nonnull
 	ServerTask<TrafficRecordingSettings, FileForFetch> startRecording(
@@ -225,14 +240,19 @@ public interface EvitaInternalSessionContract extends EvitaSessionContract, Traf
 		@Nullable Duration recordingDuration,
 		@Nullable Long recordingSizeLimitInBytes,
 		long chunkFileSizeInBytes
-	);
+	) throws SingletonTaskAlreadyRunningException;
 
 	/**
-	 * TODO JNO - document me
-	 * @param taskId
-	 * @return
+	 * Stops the ongoing recording task identified by the provided task ID.
+	 *
+	 * @param taskId The unique identifier of the recording task to be stopped.
+	 *               Must not be null.
+	 * @return A TaskStatus object containing the final state of the recording task,
+	 * along with details of the traffic recording settings and a file reference
+	 * for fetching the recorded data.
+	 * @throws EvitaInvalidUsageException if the task of particular id is not found
 	 */
 	@Nonnull
-	TaskStatus<TrafficRecordingSettings, FileForFetch> stopRecording(@Nonnull UUID taskId);
+	TaskStatus<TrafficRecordingSettings, FileForFetch> stopRecording(@Nonnull UUID taskId) throws EvitaInvalidUsageException;
 
 }

@@ -24,19 +24,38 @@
 package io.evitadb.store.spi;
 
 
+import io.evitadb.stream.RandomAccessFileInputStream;
+
 import javax.annotation.Nonnull;
-import java.nio.channels.FileChannel;
+import java.io.RandomAccessFile;
 import java.util.Deque;
 
 /**
- * TODO JNO - document me
+ * The {@code SessionSink} interface provides a mechanism for handling and processing
+ * session data stored in a disk buffer. It defines methods for initializing a data
+ * source and responding to updates in session locations.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 public interface SessionSink {
 
-	void initSourceFileChannel(@Nonnull FileChannel fileChannel);
+	/**
+	 * Initializes the source input stream for the session sink. The input stream is expected
+	 * to provide data from a disk buffer file and must not be null.
+	 *
+	 * @param inputStream the {@link RandomAccessFileInputStream} instance to set as the source input stream.
+	 *                    This stream is used for reading session data from a specific file location, starting
+	 *                    from the current position of the {@link RandomAccessFile}.
+	 */
+	void initSourceInputStream(@Nonnull RandomAccessFileInputStream inputStream);
 
+	/**
+	 * Callback function that is called whenever queue of session locations is updated. Each location contains
+	 * details about an individual session, including its sequence order and file location.
+	 *
+	 * @param sessionLocations the deque of {@link SessionLocation} instances representing the
+	 *                         sessions in the current disk buffer
+	 */
 	void onSessionLocationsUpdated(@Nonnull Deque<SessionLocation> sessionLocations);
 
 }
