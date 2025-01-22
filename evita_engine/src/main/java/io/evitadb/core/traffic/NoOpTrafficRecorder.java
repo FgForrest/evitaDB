@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,10 +30,12 @@ import io.evitadb.api.query.head.Label;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.file.ExportFileService;
+import io.evitadb.store.spi.SessionSink;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -55,6 +57,16 @@ public class NoOpTrafficRecorder implements TrafficRecorder {
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TrafficRecordingOptions recordingOptions
 	) {
+		// no-op
+	}
+
+	@Override
+	public void setSamplingPercentage(int samplingPercentage) {
+		// no-op
+	}
+
+	@Override
+	public void setSessionSink(@Nullable SessionSink sessionSink) {
 		// no-op
 	}
 
@@ -108,6 +120,11 @@ public class NoOpTrafficRecorder implements TrafficRecorder {
 
 	@Override
 	public void closeSourceQuery(@Nonnull UUID sessionId, @Nonnull UUID sourceQueryId) {
+		// no-op
+	}
+
+	@Override
+	public void close() {
 		// no-op
 	}
 

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,8 +30,12 @@ import io.evitadb.api.query.head.Label;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.file.ExportFileService;
+import io.evitadb.store.spi.SessionSink;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.io.Closeable;
+import java.io.IOException;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -42,7 +46,7 @@ import java.util.UUID;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public interface TrafficRecorder {
+public interface TrafficRecorder extends Closeable {
 
 	/**
 	 * Initializes traffic recorder with server options. Method is guaranteed to be called before any other method.
@@ -60,6 +64,23 @@ public interface TrafficRecorder {
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TrafficRecordingOptions recordingOptions
 	);
+
+	/**
+	 * Sets the sampling rate for the traffic recording. The sampling rate determines how many sessions are recorded.
+	 * Initial values is set in {@link #init(String, ExportFileService, Scheduler, StorageOptions, TrafficRecordingOptions)}
+	 * from {@link TrafficRecordingOptions#trafficSamplingPercentage()}
+	 *
+	 * @param samplingPercentage sampling rate in percentage (1 - 100)
+	 */
+	void setSamplingPercentage(int samplingPercentage);
+
+	/**
+	 * Sets the session sink that will be used to store the traffic recording. Might be null if the no persistent
+	 * recording should remain and only data in current buffer should be used.
+	 *
+	 * @param sessionSink session sink implementation
+	 */
+	void setSessionSink(@Nullable SessionSink sessionSink);
 
 	/**
 	 * Function is called when a new session is created.
@@ -180,5 +201,12 @@ public interface TrafficRecorder {
 		@Nonnull UUID sessionId,
 		@Nonnull UUID sourceQueryId
 	);
+
+	/**
+	 * Method is called when the traffic recording should be stopped. It is guaranteed that no other method will be called
+	 * after this one.
+	 */
+	@Override
+	void close() throws IOException;
 
 }

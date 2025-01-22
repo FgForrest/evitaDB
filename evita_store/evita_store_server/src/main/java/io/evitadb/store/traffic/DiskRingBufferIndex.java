@@ -42,6 +42,7 @@ import io.evitadb.index.bPlusTree.TransactionalObjectBPlusTree;
 import io.evitadb.index.bPlusTree.TransactionalObjectBPlusTree.Entry;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.store.model.FileLocation;
+import io.evitadb.store.spi.SessionLocation;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
 

@@ -127,48 +127,48 @@ public final class GrpcEvitaTrafficRecordingAPI {
       "\005\022\021\n\tlabelName\030\002 \001(\t\0225\n\017valueStartsWith\030" +
       "\003 \001(\0132\034.google.protobuf.StringValue\"<\n&G" +
       "etTrafficRecordingValuesNamesResponse\022\022\n" +
-      "\nlabelValue\030\001 \003(\t\"\354\001\n GrpcStartTrafficRe" +
-      "cordingRequest\022\024\n\014samplingRate\030\001 \001(\005\022>\n\031" +
-      "maxDurationInMilliseconds\030\002 \001(\0132\033.google" +
-      ".protobuf.Int64Value\0227\n\022maxFileSizeInByt" +
-      "es\030\003 \001(\0132\033.google.protobuf.Int64Value\0229\n" +
-      "\024chunkFileSizeInBytes\030\004 \001(\0132\033.google.pro" +
-      "tobuf.Int32Value\"h\n\037GrpcStopTrafficRecor" +
-      "dingRequest\022E\n\014taskStatusId\030\001 \001(\0132/.io.e" +
-      "vitadb.externalApi.grpc.generated.GrpcUu" +
-      "id\"n\n!GetTrafficRecordingStatusResponse\022" +
-      "I\n\ntaskStatus\030\001 \001(\01325.io.evitadb.externa" +
-      "lApi.grpc.generated.GrpcTaskStatus2\366\010\n G" +
-      "rpcEvitaTrafficRecordingService\022\253\001\n\036GetT" +
-      "rafficRecordingHistoryList\022C.io.evitadb." +
-      "externalApi.grpc.generated.GetTrafficHis" +
-      "toryListRequest\032D.io.evitadb.externalApi" +
-      ".grpc.generated.GetTrafficHistoryListRes" +
-      "ponse\022\241\001\n\032GetTrafficRecordingHistory\022?.i" +
-      "o.evitadb.externalApi.grpc.generated.Get" +
-      "TrafficHistoryRequest\032@.io.evitadb.exter" +
-      "nalApi.grpc.generated.GetTrafficHistoryR" +
-      "esponse0\001\022\321\001\n2GetTrafficRecordingLabelsN" +
-      "amesOrderedByCardinality\022K.io.evitadb.ex" +
-      "ternalApi.grpc.generated.GetTrafficRecor" +
-      "dingLabelNamesRequest\032L.io.evitadb.exter" +
-      "nalApi.grpc.generated.GetTrafficRecordin" +
-      "gLabelNamesResponse0\001\022\323\001\n2GetTrafficReco" +
-      "rdingLabelValuesOrderedByCardinality\022L.i" +
-      "o.evitadb.externalApi.grpc.generated.Get" +
-      "TrafficRecordingValuesNamesRequest\032M.io." +
+      "\nlabelValue\030\001 \003(\t\"\200\002\n GrpcStartTrafficRe" +
+      "cordingRequest\022\024\n\014samplingRate\030\001 \001(\005\022\022\n\n" +
+      "exportFile\030\002 \001(\010\022>\n\031maxDurationInMillise" +
+      "conds\030\003 \001(\0132\033.google.protobuf.Int64Value" +
+      "\0227\n\022maxFileSizeInBytes\030\004 \001(\0132\033.google.pr" +
+      "otobuf.Int64Value\0229\n\024chunkFileSizeInByte" +
+      "s\030\005 \001(\0132\033.google.protobuf.Int64Value\"h\n\037" +
+      "GrpcStopTrafficRecordingRequest\022E\n\014taskS" +
+      "tatusId\030\001 \001(\0132/.io.evitadb.externalApi.g" +
+      "rpc.generated.GrpcUuid\"n\n!GetTrafficReco" +
+      "rdingStatusResponse\022I\n\ntaskStatus\030\001 \001(\0132" +
+      "5.io.evitadb.externalApi.grpc.generated." +
+      "GrpcTaskStatus2\366\010\n GrpcEvitaTrafficRecor" +
+      "dingService\022\253\001\n\036GetTrafficRecordingHisto" +
+      "ryList\022C.io.evitadb.externalApi.grpc.gen" +
+      "erated.GetTrafficHistoryListRequest\032D.io" +
+      ".evitadb.externalApi.grpc.generated.GetT" +
+      "rafficHistoryListResponse\022\241\001\n\032GetTraffic" +
+      "RecordingHistory\022?.io.evitadb.externalAp" +
+      "i.grpc.generated.GetTrafficHistoryReques" +
+      "t\032@.io.evitadb.externalApi.grpc.generate" +
+      "d.GetTrafficHistoryResponse0\001\022\321\001\n2GetTra" +
+      "fficRecordingLabelsNamesOrderedByCardina" +
+      "lity\022K.io.evitadb.externalApi.grpc.gener" +
+      "ated.GetTrafficRecordingLabelNamesReques" +
+      "t\032L.io.evitadb.externalApi.grpc.generate" +
+      "d.GetTrafficRecordingLabelNamesResponse0" +
+      "\001\022\323\001\n2GetTrafficRecordingLabelValuesOrde" +
+      "redByCardinality\022L.io.evitadb.externalAp" +
+      "i.grpc.generated.GetTrafficRecordingValu" +
+      "esNamesRequest\032M.io.evitadb.externalApi." +
+      "grpc.generated.GetTrafficRecordingValues" +
+      "NamesResponse0\001\022\252\001\n\025StartTrafficRecordin" +
+      "g\022G.io.evitadb.externalApi.grpc.generate" +
+      "d.GrpcStartTrafficRecordingRequest\032H.io." +
       "evitadb.externalApi.grpc.generated.GetTr" +
-      "afficRecordingValuesNamesResponse0\001\022\252\001\n\025" +
-      "StartTrafficRecording\022G.io.evitadb.exter" +
-      "nalApi.grpc.generated.GrpcStartTrafficRe" +
-      "cordingRequest\032H.io.evitadb.externalApi." +
-      "grpc.generated.GetTrafficRecordingStatus" +
-      "Response\022\250\001\n\024StopTrafficRecording\022F.io.e" +
-      "vitadb.externalApi.grpc.generated.GrpcSt" +
-      "opTrafficRecordingRequest\032H.io.evitadb.e" +
-      "xternalApi.grpc.generated.GetTrafficReco" +
-      "rdingStatusResponseB\014P\001\252\002\007EvitaDBb\006proto" +
-      "3"
+      "afficRecordingStatusResponse\022\250\001\n\024StopTra" +
+      "fficRecording\022F.io.evitadb.externalApi.g" +
+      "rpc.generated.GrpcStopTrafficRecordingRe" +
+      "quest\032H.io.evitadb.externalApi.grpc.gene" +
+      "rated.GetTrafficRecordingStatusResponseB" +
+      "\014P\001\252\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
@@ -232,7 +232,7 @@ public final class GrpcEvitaTrafficRecordingAPI {
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcStartTrafficRecordingRequest_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcStartTrafficRecordingRequest_descriptor,
-        new java.lang.String[] { "SamplingRate", "MaxDurationInMilliseconds", "MaxFileSizeInBytes", "ChunkFileSizeInBytes", });
+        new java.lang.String[] { "SamplingRate", "ExportFile", "MaxDurationInMilliseconds", "MaxFileSizeInBytes", "ChunkFileSizeInBytes", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcStopTrafficRecordingRequest_descriptor =
       getDescriptor().getMessageTypes().get(9);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcStopTrafficRecordingRequest_fieldAccessorTable = new

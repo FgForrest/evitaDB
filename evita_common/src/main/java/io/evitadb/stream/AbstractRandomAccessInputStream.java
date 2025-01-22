@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,31 +21,23 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.traffic;
+package io.evitadb.stream;
 
-
-import io.evitadb.core.traffic.TrafficRecorder;
-import io.evitadb.store.model.FileLocation;
-import io.evitadb.utils.Assert;
-
-import javax.annotation.Nonnull;
+import java.io.InputStream;
 
 /**
- * This record contains information about the single session to evitaDB. Sessions are assigned a sequence order as
- * they are registered in {@link TrafficRecorder} and are stored to a particular file location.
+ * AbstractRandomAccessInputStream is an abstract class that extends the InputStream class.
+ * It provides a method to seek the underlying input stream to a specified position on top of basic input stream API.
  *
- * @param sequenceOrder the sequence order of the session
- * @param fileLocation  the file location of the session in the {@link DiskRingBuffer} file
- *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public record SessionLocation(
-	long sequenceOrder,
-	@Nonnull FileLocation fileLocation
-) {
+public abstract class AbstractRandomAccessInputStream extends InputStream {
 
-	public SessionLocation {
-		Assert.notNull(fileLocation, "File location must not be null");
-	}
+	/**
+	 * Seeks underlying input stream to the specified position.
+	 *
+	 * @param position The position to seek to.
+	 */
+	public abstract void seek(final long position);
 
 }

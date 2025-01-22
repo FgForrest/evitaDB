@@ -36,8 +36,10 @@ import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.function.LongBiObjectFunction;
 import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
-import io.evitadb.store.offsetIndex.stream.RandomAccessFileInputStream;
+import io.evitadb.store.spi.SessionLocation;
+import io.evitadb.store.spi.SessionSink;
 import io.evitadb.store.traffic.OffHeapTrafficRecorder.MemoryNotAvailableException;
+import io.evitadb.stream.RandomAccessFileInputStream;
 import io.evitadb.utils.IOUtils;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -142,6 +144,10 @@ public class DiskRingBuffer {
 	 */
 	private final AtomicReference<ActiveSegments> activeSegments = new AtomicReference<>(new ActiveSegments());
 	/**
+	 * Consumer for the recorded data (optional).
+	 */
+	private final AtomicReference<SessionSink> sessionSink = new AtomicReference<>();
+	/**
 	 * Lock with condition for the segments atomic update.
 	 */
 	private final ReentrantLock segmentsLock = new ReentrantLock();
@@ -160,6 +166,18 @@ public class DiskRingBuffer {
 	 */
 	@Getter(AccessLevel.PROTECTED)
 	private long ringBufferTail = 0L;
+
+	/**
+	 * Allows to export session data before being deleted.
+	 *
+	 * @param sessionSink the session sink to be set
+	 */
+	public void setSessionSink(@Nullable SessionSink sessionSink) {
+		if (sessionSink != null) {
+			sessionSink.initSourceFileChannel(this.diskBufferFile.getChannel());
+		}
+		this.sessionSink.set(sessionSink);
+	}
 
 	/**
 	 * Determines if two file segments overlap based on their starting and ending positions.
@@ -642,6 +660,11 @@ public class DiskRingBuffer {
 
 		this.ringBufferHead = this.sessionLocations.isEmpty() ? this.ringBufferHead : this.sessionLocations.peekFirst().fileLocation().startingPosition();
 		this.ringBufferTail = (this.ringBufferTail + totalBytesToWrite) % this.diskBufferFileSize;
+
+		final SessionSink theSink = this.sessionSink.get();
+		if (theSink != null) {
+			theSink.onSessionLocationsUpdated(this.sessionLocations);
+		}
 	}
 
 	/**

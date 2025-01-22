@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,29 +21,22 @@
  *   limitations under the License.
  */
 
-package io.evitadb.exception;
+package io.evitadb.store.spi;
+
 
 import javax.annotation.Nonnull;
-import java.io.Serial;
+import java.nio.channels.FileChannel;
+import java.util.Deque;
 
 /**
- * This exception is thrown when {@link java.io.IOException} is thrown by Java IO subsystem.
+ * TODO JNO - document me
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-public class UnexpectedIOException extends EvitaInternalError {
-	@Serial private static final long serialVersionUID = 6174951598824773806L;
+public interface SessionSink {
 
-	public UnexpectedIOException(@Nonnull String privateMessage, @Nonnull String publicMessage, @Nonnull Throwable cause) {
-		super(privateMessage, publicMessage, cause);
-	}
+	void initSourceFileChannel(@Nonnull FileChannel fileChannel);
 
-	public UnexpectedIOException(@Nonnull String privateMessage, @Nonnull String publicMessage) {
-		super(privateMessage, publicMessage);
-	}
-
-	public UnexpectedIOException(@Nonnull String publicMessage) {
-		super(publicMessage);
-	}
+	void onSessionLocationsUpdated(@Nonnull Deque<SessionLocation> sessionLocations);
 
 }

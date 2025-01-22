@@ -221,9 +221,10 @@ public interface EvitaInternalSessionContract extends EvitaSessionContract, Traf
 	@Nonnull
 	ServerTask<TrafficRecordingSettings, FileForFetch> startRecording(
 		int samplingRate,
+		boolean exportFile,
 		@Nullable Duration recordingDuration,
 		@Nullable Long recordingSizeLimitInBytes,
-		int chunkFileSizeInBytes
+		long chunkFileSizeInBytes
 	);
 
 	/**

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,8 +29,8 @@ import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.offsetIndex.exception.CorruptedRecordException;
 import io.evitadb.store.offsetIndex.exception.KryoSerializationException;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
-import io.evitadb.store.offsetIndex.stream.AbstractRandomAccessInputStream;
-import io.evitadb.store.offsetIndex.stream.RandomAccessFileInputStream;
+import io.evitadb.stream.AbstractRandomAccessInputStream;
+import io.evitadb.stream.RandomAccessFileInputStream;
 import io.evitadb.utils.BitUtils;
 import lombok.Getter;
 

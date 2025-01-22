@@ -26,6 +26,10 @@ package io.evitadb.core.traffic;
 
 import io.evitadb.api.LabelIntrospector;
 import io.evitadb.api.TrafficRecordingReader;
+import io.evitadb.api.configuration.EvitaConfiguration;
+import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.configuration.TrafficRecordingOptions;
+import io.evitadb.api.exception.SingletonTaskAlreadyRunningException;
 import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.observability.trace.TracingBlockReference;
 import io.evitadb.api.observability.trace.TracingContext;
@@ -38,7 +42,14 @@ import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest;
+import io.evitadb.core.async.Scheduler;
+import io.evitadb.core.file.ExportFileService;
 import io.evitadb.core.query.QueryPlan;
+import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.UnexpectedIOException;
+import io.evitadb.store.spi.SessionSink;
+import io.evitadb.utils.IOUtils;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -49,7 +60,10 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.ServiceLoader;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -67,8 +81,140 @@ import java.util.stream.Stream;
  */
 @RequiredArgsConstructor
 public class TrafficRecordingEngine implements TrafficRecordingReader {
+	private final String catalogName;
+	private final StorageOptions storageOptions;
+	@Getter private final TrafficRecordingOptions trafficOptions;
+	private final ExportFileService exportFileService;
+	private final Scheduler scheduler;
 	private final TracingContext tracingContext;
-	private final TrafficRecorder trafficRecorder;
+	/**
+	 * The traffic recorder instance that is currently active and capturing traffic data.
+	 */
+	private final AtomicReference<TrafficRecorder> trafficRecorder = new AtomicReference<>(NoOpTrafficRecorder.INSTANCE);
+	/**
+	 * The original traffic recorder instance that was active before calling {@link #startRecording(int, SessionSink)}.
+	 * This instance is currently suppressed and will be restored when the recording is stopped.
+	 */
+	private final AtomicReference<TrafficRecorder> suppressedTrafficRecorder = new AtomicReference<>();
+	/**
+	 * Flag indicating whether traffic recording is currently active.
+	 */
+	private final AtomicBoolean recordingActive = new AtomicBoolean();
+
+	public TrafficRecordingEngine(
+		@Nonnull String catalogName,
+		@Nonnull TracingContext tracingContext,
+		@Nonnull EvitaConfiguration configuration,
+		@Nonnull ExportFileService exportFileService,
+		@Nonnull Scheduler scheduler
+	) {
+		this.catalogName = catalogName;
+		this.storageOptions = configuration.storage();
+		this.trafficOptions = configuration.server().trafficRecording();
+		this.exportFileService = exportFileService;
+		this.scheduler = scheduler;
+		if (configuration.server().trafficRecording().enabled()) {
+			final TrafficRecorder trafficRecorderInstance = getRichTrafficRecorderIfPossible(
+				this.catalogName, this.exportFileService, this.scheduler, this.storageOptions, this.trafficOptions
+			);
+			this.trafficRecorder.set(trafficRecorderInstance);
+		} else {
+			this.trafficRecorder.set(NoOpTrafficRecorder.INSTANCE);
+		}
+		this.tracingContext = tracingContext;
+	}
+
+	/**
+	 * Attempts to initialize and return a {@link TrafficRecorder} instance. If no implementation of
+	 * {@link TrafficRecorder} is available, an exception is thrown. The method configures the traffic
+	 * recorder with the provided parameters.
+	 *
+	 * @param catalogName the name of the catalog to associate with the traffic recorder, must not be null
+	 * @param exportFileService the service responsible for handling file exports during traffic recording, must not be null
+	 * @param scheduler the scheduler used for executing scheduled tasks within the traffic recorder, must not be null
+	 * @param storageOptions the storageOptions options to be used by the traffic recorder, must not be null
+	 * @param recordingOptions the traffic recording options to be used by the traffic recorder, must not be null
+	 * @return a configured instance of {@link TrafficRecorder}
+	 * @throws EvitaInvalidUsageException if no implementation of {@link TrafficRecorder} is available
+	 */
+	@Nonnull
+	private static TrafficRecorder getRichTrafficRecorderIfPossible(
+		@Nonnull String catalogName,
+		@Nonnull ExportFileService exportFileService,
+		@Nonnull Scheduler scheduler,
+		@Nonnull StorageOptions storageOptions,
+		@Nonnull TrafficRecordingOptions recordingOptions
+	) {
+		final TrafficRecorder trafficRecorderInstance = ServiceLoader.load(TrafficRecorder.class)
+			.stream()
+			.findFirst()
+			.orElseThrow(() -> new EvitaInvalidUsageException("Traffic recorder implementation is not available!"))
+			.get();
+		trafficRecorderInstance.init(
+			catalogName, exportFileService, scheduler,
+			storageOptions,
+			recordingOptions
+		);
+		return trafficRecorderInstance;
+	}
+
+	/**
+	 * Starts recording traffic data with the specified sampling rate and session sink.
+	 * This method initializes and configures a traffic recorder and ensures that only one instance
+	 * of the recording task is active at any given time.
+	 *
+	 * @param samplingRate the percentage of traffic to be sampled, represented as an integer.
+	 * @param sessionSink the session sink instance where recorded traffic data will be sent, must not be null.
+	 * @throws SingletonTaskAlreadyRunningException if a recording task is already active.
+	 */
+	public void startRecording(int samplingRate, @Nullable SessionSink sessionSink) {
+		if (this.recordingActive.compareAndSet(false, true)) {
+			final TrafficRecorder defaultTrafficRecorder = this.trafficRecorder.get();
+			if (defaultTrafficRecorder instanceof NoOpTrafficRecorder) {
+				final TrafficRecorder richTrafficRecorderInstance = getRichTrafficRecorderIfPossible(
+					this.catalogName, this.exportFileService, this.scheduler, this.storageOptions, this.trafficOptions
+				);
+				this.suppressedTrafficRecorder.set(defaultTrafficRecorder);
+				this.trafficRecorder.set(richTrafficRecorderInstance);
+			}
+			final TrafficRecorder theFinalRecorder = this.trafficRecorder.get();
+			theFinalRecorder.setSamplingPercentage(samplingRate);
+			theFinalRecorder.setSessionSink(sessionSink);
+		} else {
+			throw new SingletonTaskAlreadyRunningException("Traffic recording is already active!");
+		}
+	}
+
+	/**
+	 * Stops the active traffic recording session if it is currently active. Upon execution:
+	 * - Safely closes the current active {@link TrafficRecorder} if it exists and ensures any
+	 *   {@link UnexpectedIOException} during the closure process is properly handled.
+	 * - Replaces the current traffic recorder with a previously suppressed recorder, if applicable.
+	 * - Resets the suppressed traffic recorder to null state.
+	 * - Updates the final traffic recorder instance with the sampling percentage and resets the session sink.
+	 *
+	 * The method ensures that the recording process transitions gracefully and handles all necessary
+	 * cleanup, including resource management and state updates.
+	 */
+	public void stopRecording() {
+		if (this.recordingActive.compareAndSet(true, false)) {
+			try {
+				if (this.suppressedTrafficRecorder.get() != null) {
+					final TrafficRecorder currentRecorder = this.trafficRecorder.get();
+					this.trafficRecorder.set(this.suppressedTrafficRecorder.get());
+					this.suppressedTrafficRecorder.set(null);
+					IOUtils.close(
+						() -> new UnexpectedIOException("Failed to close the traffic recorder properly!"),
+						currentRecorder::close
+					);
+				}
+			} finally {
+				final TrafficRecorder theFinalRecorder = this.trafficRecorder.get();
+				theFinalRecorder.setSamplingPercentage(this.trafficOptions.trafficSamplingPercentage());
+				theFinalRecorder.setSessionSink(null);
+			}
+		}
+	}
 
 	/**
 	 * Function is called when a new session is created.
@@ -78,7 +224,7 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 	 * @param created        timestamp when the session was created
 	 */
 	public void createSession(@Nonnull UUID sessionId, long catalogVersion, @Nonnull OffsetDateTime created) {
-		this.trafficRecorder.createSession(sessionId, catalogVersion, created);
+		this.trafficRecorder.get().createSession(sessionId, catalogVersion, created);
 	}
 
 	/**
@@ -87,7 +233,7 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 	 * @param sessionId unique identifier of the session
 	 */
 	public void closeSession(@Nonnull UUID sessionId) {
-		this.trafficRecorder.closeSession(sessionId);
+		this.trafficRecorder.get().closeSession(sessionId);
 	}
 
 	/**
@@ -112,7 +258,7 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 			(Supplier<T>) queryPlan::execute,
 			queryPlan::getSpanAttributes
 		);
-		this.trafficRecorder.recordQuery(
+		this.trafficRecorder.get().recordQuery(
 			sessionId,
 			result.getSourceQuery(),
 			queryPlan.getEvitaRequest().getLabels(),
@@ -183,7 +329,7 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 			ioFetchCount = -1;
 			ioFetchedBytes = -1;
 		}
-		this.trafficRecorder.recordEnrichment(
+		this.trafficRecorder.get().recordEnrichment(
 			sessionId,
 			evitaRequest.getQuery(),
 			evitaRequest.getAlignedNow(),
@@ -212,7 +358,7 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 				"mutation - " + mutation,
 				SpanAttribute.EMPTY_ARRAY
 			),
-			this.trafficRecorder,
+			this.trafficRecorder.get(),
 			sessionId,
 			now,
 			mutation
@@ -234,7 +380,7 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 		@Nonnull String sourceQuery,
 		@Nonnull String queryType
 	) {
-		this.trafficRecorder.setupSourceQuery(
+		this.trafficRecorder.get().setupSourceQuery(
 			sessionId, sourceQueryId, OffsetDateTime.now(), sourceQuery, queryType
 		);
 	}
@@ -250,7 +396,7 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 		@Nonnull UUID sessionId,
 		@Nonnull UUID sourceQueryId
 	) {
-		this.trafficRecorder.closeSourceQuery(sessionId, sourceQueryId);
+		this.trafficRecorder.get().closeSourceQuery(sessionId, sourceQueryId);
 	}
 
 	/**
@@ -272,7 +418,7 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 			ioFetchCount = -1;
 			ioFetchedBytes = -1;
 		}
-		this.trafficRecorder.recordFetch(
+		this.trafficRecorder.get().recordFetch(
 			sessionId,
 			evitaRequest.getQuery(),
 			evitaRequest.getAlignedNow(),
@@ -285,7 +431,7 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 	@Nonnull
 	@Override
 	public Stream<TrafficRecording> getRecordings(@Nonnull TrafficRecordingCaptureRequest request) throws TemporalDataNotAvailableException {
-		return this.trafficRecorder instanceof TrafficRecordingReader trr ?
+		return this.trafficRecorder.get() instanceof TrafficRecordingReader trr ?
 			trr.getRecordings(request) :
 			Stream.empty();
 	}
@@ -298,7 +444,7 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 	 */
 	@Nonnull
 	public Collection<String> getLabelsNamesOrderedByCardinality(@Nullable String nameStartingWith, int limit) {
-		return this.trafficRecorder instanceof LabelIntrospector li ?
+		return this.trafficRecorder.get() instanceof LabelIntrospector li ?
 			li.getLabelsNamesOrderedByCardinality(nameStartingWith, limit) :
 			List.of();
 	}
@@ -312,7 +458,7 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 	 */
 	@Nonnull
 	public Collection<String> getLabelValuesOrderedByCardinality(@Nonnull String labelName, @Nullable String valueStartingWith, int limit) {
-		return this.trafficRecorder instanceof LabelIntrospector li ?
+		return this.trafficRecorder.get() instanceof LabelIntrospector li ?
 			li.getLabelValuesOrderedByCardinality(labelName, valueStartingWith, limit) :
 			List.of();
 	}

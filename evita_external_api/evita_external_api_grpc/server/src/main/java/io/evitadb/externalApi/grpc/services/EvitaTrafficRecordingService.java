@@ -183,12 +183,14 @@ public class EvitaTrafficRecordingService extends GrpcEvitaTrafficRecordingServi
 				GetTrafficRecordingStatusResponse.Builder builder = GetTrafficRecordingStatusResponse.newBuilder();
 				final ServerTask<TrafficRecordingSettings, FileForFetch> task = session.startRecording(
 					request.getSamplingRate(),
+					request.getExportFile(),
 					request.hasMaxDurationInMilliseconds() ?
 						Duration.ofMillis(request.getMaxDurationInMilliseconds().getValue()) : null,
 					request.hasMaxFileSizeInBytes() ?
 						request.getMaxFileSizeInBytes().getValue() : null,
 					request.hasChunkFileSizeInBytes() ?
-						request.getChunkFileSizeInBytes().getValue() : null
+						request.getChunkFileSizeInBytes().getValue() :
+						this.evita.getConfiguration().server().trafficRecording().exportFileChunkSizeInBytes()
 				);
 				responseObserver.onNext(
 					builder

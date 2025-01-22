@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -58,6 +58,7 @@ public record TrafficRecordingOptions(
 	boolean sourceQueryTracking,
 	long trafficMemoryBufferSizeInBytes,
 	long trafficDiskBufferSizeInBytes,
+	long exportFileChunkSizeInBytes,
 	int trafficSamplingPercentage
 ) {
 	public static final long DEFAULT_TRAFFIC_MEMORY_BUFFER = 4_194_304L;
@@ -65,6 +66,7 @@ public record TrafficRecordingOptions(
 	public static final int DEFAULT_TRAFFIC_SAMPLING_PERCENTAGE = 100;
 	public static final boolean DEFAULT_TRAFFIC_RECORDING = false;
 	public static final boolean DEFAULT_TRAFFIC_SOURCE_QUERY_TRACKING = false;
+	public static final long DEFAULT_EXPORT_FILE_CHUNK_SIZE = 16_777_216L;
 
 	/**
 	 * Builder for the server options. Recommended to use to avoid binary compatibility problems in the future.
@@ -94,6 +96,7 @@ public record TrafficRecordingOptions(
 			DEFAULT_TRAFFIC_SOURCE_QUERY_TRACKING,
 			DEFAULT_TRAFFIC_MEMORY_BUFFER,
 			DEFAULT_TRAFFIC_DISK_BUFFER,
+			DEFAULT_EXPORT_FILE_CHUNK_SIZE,
 			DEFAULT_TRAFFIC_SAMPLING_PERCENTAGE
 		);
 	}
@@ -107,6 +110,7 @@ public record TrafficRecordingOptions(
 		private boolean sourceQueryTracking = DEFAULT_TRAFFIC_SOURCE_QUERY_TRACKING;
 		private long trafficMemoryBufferSizeInBytes = DEFAULT_TRAFFIC_MEMORY_BUFFER;
 		private long trafficDiskBufferSizeInBytes = DEFAULT_TRAFFIC_DISK_BUFFER;
+		private long exportFileChunkSizeInBytes = DEFAULT_EXPORT_FILE_CHUNK_SIZE;
 		private int trafficSamplingPercentage = DEFAULT_TRAFFIC_SAMPLING_PERCENTAGE;
 
 		Builder() {
@@ -114,8 +118,10 @@ public record TrafficRecordingOptions(
 
 		Builder(@Nonnull TrafficRecordingOptions trafficRecordingOptions) {
 			this.enabled = trafficRecordingOptions.enabled();
+			this.sourceQueryTracking = trafficRecordingOptions.sourceQueryTracking();
 			this.trafficMemoryBufferSizeInBytes = trafficRecordingOptions.trafficMemoryBufferSizeInBytes();
 			this.trafficDiskBufferSizeInBytes = trafficRecordingOptions.trafficDiskBufferSizeInBytes();
+			this.exportFileChunkSizeInBytes = trafficRecordingOptions.exportFileChunkSizeInBytes();
 			this.trafficSamplingPercentage = trafficRecordingOptions.trafficSamplingPercentage();
 		}
 
@@ -144,6 +150,12 @@ public record TrafficRecordingOptions(
 		}
 
 		@Nonnull
+		public TrafficRecordingOptions.Builder exportFileChunkSizeInBytes(long exportFileChunkSizeInBytes) {
+			this.exportFileChunkSizeInBytes = exportFileChunkSizeInBytes;
+			return this;
+		}
+
+		@Nonnull
 		public TrafficRecordingOptions.Builder trafficSamplingPercentage(int trafficSamplingPercentage) {
 			this.trafficSamplingPercentage = trafficSamplingPercentage;
 			return this;
@@ -156,6 +168,7 @@ public record TrafficRecordingOptions(
 				sourceQueryTracking,
 				trafficMemoryBufferSizeInBytes,
 				trafficDiskBufferSizeInBytes,
+				exportFileChunkSizeInBytes,
 				trafficSamplingPercentage
 			);
 		}

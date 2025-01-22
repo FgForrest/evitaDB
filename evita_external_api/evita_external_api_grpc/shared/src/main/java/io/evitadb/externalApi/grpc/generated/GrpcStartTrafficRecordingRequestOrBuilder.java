@@ -42,10 +42,21 @@ public interface GrpcStartTrafficRecordingRequestOrBuilder extends
 
   /**
    * <pre>
+   * If true the recording will be exported to a file, otherwise only internal ring buffer will be made available for
+   * the time the traffic recording is running.
+   * </pre>
+   *
+   * <code>bool exportFile = 2;</code>
+   * @return The exportFile.
+   */
+  boolean getExportFile();
+
+  /**
+   * <pre>
    * The duration of the recording in milliseconds, after this time the recording will be stopped automatically.
    * </pre>
    *
-   * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 2;</code>
+   * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 3;</code>
    * @return Whether the maxDurationInMilliseconds field is set.
    */
   boolean hasMaxDurationInMilliseconds();
@@ -54,7 +65,7 @@ public interface GrpcStartTrafficRecordingRequestOrBuilder extends
    * The duration of the recording in milliseconds, after this time the recording will be stopped automatically.
    * </pre>
    *
-   * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 2;</code>
+   * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 3;</code>
    * @return The maxDurationInMilliseconds.
    */
   com.google.protobuf.Int64Value getMaxDurationInMilliseconds();
@@ -63,7 +74,7 @@ public interface GrpcStartTrafficRecordingRequestOrBuilder extends
    * The duration of the recording in milliseconds, after this time the recording will be stopped automatically.
    * </pre>
    *
-   * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 2;</code>
+   * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 3;</code>
    */
   com.google.protobuf.Int64ValueOrBuilder getMaxDurationInMillisecondsOrBuilder();
 
@@ -72,7 +83,7 @@ public interface GrpcStartTrafficRecordingRequestOrBuilder extends
    * The size of the recording in bytes, after this size the recording will be stopped automatically.
    * </pre>
    *
-   * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 3;</code>
+   * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 4;</code>
    * @return Whether the maxFileSizeInBytes field is set.
    */
   boolean hasMaxFileSizeInBytes();
@@ -81,7 +92,7 @@ public interface GrpcStartTrafficRecordingRequestOrBuilder extends
    * The size of the recording in bytes, after this size the recording will be stopped automatically.
    * </pre>
    *
-   * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 3;</code>
+   * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 4;</code>
    * @return The maxFileSizeInBytes.
    */
   com.google.protobuf.Int64Value getMaxFileSizeInBytes();
@@ -90,7 +101,7 @@ public interface GrpcStartTrafficRecordingRequestOrBuilder extends
    * The size of the recording in bytes, after this size the recording will be stopped automatically.
    * </pre>
    *
-   * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 3;</code>
+   * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 4;</code>
    */
   com.google.protobuf.Int64ValueOrBuilder getMaxFileSizeInBytesOrBuilder();
 
@@ -99,7 +110,7 @@ public interface GrpcStartTrafficRecordingRequestOrBuilder extends
    * The size of the chunk file in bytes. Individual files in the export file will be approximately this size.
    * </pre>
    *
-   * <code>.google.protobuf.Int32Value chunkFileSizeInBytes = 4;</code>
+   * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 5;</code>
    * @return Whether the chunkFileSizeInBytes field is set.
    */
   boolean hasChunkFileSizeInBytes();
@@ -108,16 +119,16 @@ public interface GrpcStartTrafficRecordingRequestOrBuilder extends
    * The size of the chunk file in bytes. Individual files in the export file will be approximately this size.
    * </pre>
    *
-   * <code>.google.protobuf.Int32Value chunkFileSizeInBytes = 4;</code>
+   * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 5;</code>
    * @return The chunkFileSizeInBytes.
    */
-  com.google.protobuf.Int32Value getChunkFileSizeInBytes();
+  com.google.protobuf.Int64Value getChunkFileSizeInBytes();
   /**
    * <pre>
    * The size of the chunk file in bytes. Individual files in the export file will be approximately this size.
    * </pre>
    *
-   * <code>.google.protobuf.Int32Value chunkFileSizeInBytes = 4;</code>
+   * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 5;</code>
    */
-  com.google.protobuf.Int32ValueOrBuilder getChunkFileSizeInBytesOrBuilder();
+  com.google.protobuf.Int64ValueOrBuilder getChunkFileSizeInBytesOrBuilder();
 }

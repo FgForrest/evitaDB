@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -89,8 +89,6 @@ import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.core.sequence.SequenceType;
-import io.evitadb.core.traffic.NoOpTrafficRecorder;
-import io.evitadb.core.traffic.TrafficRecorder;
 import io.evitadb.core.traffic.TrafficRecordingEngine;
 import io.evitadb.core.traffic.TrafficRecordingEngine.MutationApplicationRecord;
 import io.evitadb.core.transaction.TransactionManager;
@@ -99,7 +97,6 @@ import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.Scope;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.CatalogIndexKey;
@@ -266,7 +263,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	/**
 	 * Traffic recorder used for recording the traffic in the catalog.
 	 */
-	@Getter private final TrafficRecordingEngine trafficRecorder;
+	@Getter private final TrafficRecordingEngine trafficRecordingEngine;
 	/**
 	 * Contains reference to the archived catalog index that allows fast lookups for entities across all types.
 	 */
@@ -301,38 +298,6 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 			.findFirst()
 			.map(it -> it.restoreCatalogTo(catalogName, storageOptions, fileId, pathToFile, totalBytesExpected, deleteAfterRestore))
 			.orElseThrow(() -> new IllegalStateException("IO service is unexpectedly not available!"));
-	}
-
-	/**
-	 * Method initializes traffic recorder instance based on the server options.
-	 *
-	 * @param exportFileService export file service
-	 * @param scheduler         scheduler
-	 * @param configuration     configuration
-	 * @return traffic recorder instance
-	 */
-	@Nonnull
-	private static TrafficRecorder getTrafficRecorder(
-		@Nonnull String catalogName,
-		@Nonnull ExportFileService exportFileService,
-		@Nonnull Scheduler scheduler,
-		@Nonnull EvitaConfiguration configuration
-	) {
-		if (configuration.server().trafficRecording().enabled()) {
-			final TrafficRecorder trafficRecorderInstance = ServiceLoader.load(TrafficRecorder.class)
-				.stream()
-				.findFirst()
-				.orElseThrow(() -> new EvitaInvalidUsageException("Traffic recorder implementation is not available!"))
-				.get();
-			trafficRecorderInstance.init(
-				catalogName, exportFileService, scheduler,
-				configuration.storage(),
-				configuration.server().trafficRecording()
-			);
-			return trafficRecorderInstance;
-		} else {
-			return NoOpTrafficRecorder.INSTANCE;
-		}
 	}
 
 	public Catalog(
@@ -394,14 +359,12 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		this.transactionManager = new TransactionManager(
 			this, evitaConfiguration, scheduler, transactionalExecutor, newCatalogVersionConsumer
 		);
-		this.trafficRecorder = new TrafficRecordingEngine(
+		this.trafficRecordingEngine = new TrafficRecordingEngine(
+			internalCatalogSchema.getName(),
 			tracingContext,
-			Catalog.getTrafficRecorder(
-				internalCatalogSchema.getName(),
-				exportFileService,
-				scheduler,
-				evitaConfiguration
-			)
+			evitaConfiguration,
+			exportFileService,
+			scheduler
 		);
 
 		this.persistenceService.storeHeader(
@@ -461,14 +424,12 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 			this.archiveCatalogIndex.attachToCatalog(null, this);
 		}
 		this.cacheSupervisor = cacheSupervisor;
-		this.trafficRecorder = new TrafficRecordingEngine(
+		this.trafficRecordingEngine = new TrafficRecordingEngine(
+			catalogSchema.getName(),
 			tracingContext,
-			Catalog.getTrafficRecorder(
-				catalogSchema.getName(),
-				exportFileService,
-				scheduler,
-				evitaConfiguration
-			)
+			evitaConfiguration,
+			exportFileService,
+			scheduler
 		);
 		this.dataStoreBuffer = catalogHeader.catalogState() == CatalogState.WARMING_UP ?
 			new WarmUpDataStoreMemoryBuffer(storagePartPersistenceService) :
@@ -491,7 +452,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 				this.persistenceService,
 				this.cacheSupervisor,
 				this.sequenceService,
-				this.trafficRecorder
+				this.trafficRecordingEngine
 			);
 			collections.put(entityType, collection);
 			collectionIndex.put(MAX_POWER_OF_TWO, collection);
@@ -579,7 +540,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		this.archiveCatalogIndex = archiveCatalogIndex;
 		this.persistenceService = persistenceService;
 		this.cacheSupervisor = previousCatalogVersion.cacheSupervisor;
-		this.trafficRecorder = previousCatalogVersion.trafficRecorder;
+		this.trafficRecordingEngine = previousCatalogVersion.trafficRecordingEngine;
 		this.entityTypeSequence = previousCatalogVersion.entityTypeSequence;
 		this.proxyFactory = previousCatalogVersion.proxyFactory;
 		this.evitaConfiguration = previousCatalogVersion.evitaConfiguration;
@@ -689,7 +650,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		final QueryPlanningContext queryContext = createQueryContext(evitaRequest, session);
 		final QueryPlan queryPlan = QueryPlanner.planQuery(queryContext);
 
-		return this.trafficRecorder.recordQuery(
+		return this.trafficRecordingEngine.recordQuery(
 			"query",
 			session.getId(),
 			queryPlan
@@ -805,7 +766,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 					newIoService,
 					this.cacheSupervisor,
 					this.sequenceService,
-					this.trafficRecorder
+					this.trafficRecordingEngine
 				)
 			)
 			.toList();
@@ -1461,7 +1422,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 				// record the mutation
 				if (session != null) {
 					record.set(
-						this.trafficRecorder.recordMutation(session.getId(), start, theMutation)
+						this.trafficRecordingEngine.recordMutation(session.getId(), start, theMutation)
 					);
 				}
 
@@ -1658,7 +1619,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 			this.persistenceService,
 			this.cacheSupervisor,
 			this.sequenceService,
-			this.trafficRecorder
+			this.trafficRecordingEngine
 		);
 		this.entityCollectionsByPrimaryKey.put(newCollection.getEntityTypePrimaryKey(), newCollection);
 		this.entityCollections.put(newCollection.getEntityType(), newCollection);

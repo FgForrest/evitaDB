@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,10 +21,10 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.offsetIndex.stream;
+package io.evitadb.stream;
 
 
-import io.evitadb.store.exception.StorageException;
+import io.evitadb.exception.UnexpectedIOException;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -88,7 +88,11 @@ public class RandomAccessFileInputStream extends AbstractRandomAccessInputStream
 		try {
 			return randomAccessFile.length() - randomAccessFile.getFilePointer();
 		} catch (IOException e) {
-			throw new StorageException("Error occurred while accessing length.", e);
+			throw new UnexpectedIOException(
+				"Error occurred while accessing length: " + e.getMessage(),
+				"Error occurred while accessing length.",
+				e
+			);
 		}
 	}
 
@@ -100,7 +104,11 @@ public class RandomAccessFileInputStream extends AbstractRandomAccessInputStream
 				randomAccessFile.close();
 			}
 		} catch (IOException e) {
-			throw new StorageException("Error occurred while closing file.", e);
+			throw new UnexpectedIOException(
+				"Error occurred while closing file: " + e.getMessage(),
+				"Error occurred while closing file.",
+				e
+			);
 		}
 	}
 
@@ -109,7 +117,11 @@ public class RandomAccessFileInputStream extends AbstractRandomAccessInputStream
 		try {
 			return randomAccessFile.read();
 		} catch (IOException e) {
-			throw new StorageException("Error while reading the file", e);
+			throw new UnexpectedIOException(
+				"Error while reading the file: " + e.getMessage(),
+				"Error while reading the file,",
+				e
+			);
 		}
 	}
 
@@ -118,7 +130,11 @@ public class RandomAccessFileInputStream extends AbstractRandomAccessInputStream
 		try {
 			return randomAccessFile.read(bytes);
 		} catch (IOException e) {
-			throw new StorageException("Error while reading the file", e);
+			throw new UnexpectedIOException(
+				"Error while reading the file: " + e.getMessage(),
+				"Error while reading the file.",
+				e
+			);
 		}
 	}
 
@@ -127,7 +143,11 @@ public class RandomAccessFileInputStream extends AbstractRandomAccessInputStream
 		try {
 			return randomAccessFile.read(bytes, offset, length);
 		} catch (IOException e) {
-			throw new StorageException("Error while reading the file", e);
+			throw new UnexpectedIOException(
+				"Error while reading the file: " + e.getMessage(),
+				"Error while reading the file.",
+				e
+			);
 		}
 	}
 
@@ -142,7 +162,11 @@ public class RandomAccessFileInputStream extends AbstractRandomAccessInputStream
 		try {
 			randomAccessFile.seek(position);
 		} catch (IOException e) {
-			throw new StorageException("Error while seeking the position file", e);
+			throw new UnexpectedIOException(
+				"Error while seeking the position file: " + e.getMessage(),
+				"Error while seeking the position file.",
+				e
+			);
 		}
 	}
 
@@ -164,7 +188,11 @@ public class RandomAccessFileInputStream extends AbstractRandomAccessInputStream
 			}
 			return randomAccessFile.getFilePointer() - filePointer;
 		} catch (IOException e) {
-			throw new StorageException("Error while skipping contents in the file", e);
+			throw new UnexpectedIOException(
+				"Error while skipping contents in the file: " + e.getMessage(),
+				"Error while skipping contents in the file.",
+				e
+			);
 		}
 	}
 }

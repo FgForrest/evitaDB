@@ -70,12 +70,15 @@ message GetTrafficRecordingValuesNamesResponse {
 message GrpcStartTrafficRecordingRequest {
   // The sampling rate of the traffic recording (100 means all records will be recorded, 1 means 1% of records will be recorded)
   int32 samplingRate = 1;
+  // If true the recording will be exported to a file, otherwise only internal ring buffer will be made available for
+  // the time the traffic recording is running.
+  bool exportFile = 2;
   // The duration of the recording in milliseconds, after this time the recording will be stopped automatically.
-  google.protobuf.Int64Value maxDurationInMilliseconds = 2;
+  google.protobuf.Int64Value maxDurationInMilliseconds = 3;
   // The size of the recording in bytes, after this size the recording will be stopped automatically.
-  google.protobuf.Int64Value maxFileSizeInBytes = 3;
+  google.protobuf.Int64Value maxFileSizeInBytes = 4;
   // The size of the chunk file in bytes. Individual files in the export file will be approximately this size.
-  google.protobuf.Int32Value chunkFileSizeInBytes = 4;
+  google.protobuf.Int64Value chunkFileSizeInBytes = 5;
 }
 
 // Request to StopTrafficRecording request.

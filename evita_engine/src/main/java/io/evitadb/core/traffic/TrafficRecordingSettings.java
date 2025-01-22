@@ -28,14 +28,32 @@ import javax.annotation.Nullable;
 import java.time.Duration;
 
 /**
- * TODO JNO - document me
+ * TrafficRecordingSettings class encapsulates configuration settings for traffic recording.
+ * It defines the parameters that control how traffic data is recorded, including sampling rate,
+ * duration, size limits, and chunk file sizes.
  *
+ * @param samplingRate              Defines the rate at which traffic samples are recorded. The value
+ *                                  is provided as a percentage (e.g., 1 to 100), where 100 represents
+ *                                  all traffic being recorded and lower values represent partial sampling.
+ * @param exportFile				Specifies whether recorded traffic data should be exported to a file.
+ * @param recordingDuration         Specifies the duration for which traffic recording should occur.
+ *                                  Can be null, indicating that recording is not time-bound. When
+ *                                  provided, it ensures that traffic recording will not exceed
+ *                                  the defined duration.
+ * @param recordingSizeLimitInBytes Specifies the maximum size of the traffic recording in bytes.
+ *                                  This parameter is optional and can be null. When provided,
+ *                                  it serves as an upper limit for traffic recording size, ensuring
+ *                                  that recorded data does not exceed the specified size.
+ * @param chunkFileSizeInBytes      Defines the size of each chunk file used to store recorded traffic
+ *                                  data. Recorded data is divided into files of this size, aiding in
+ *                                  data management and processing efficiency.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 public record TrafficRecordingSettings(
 	int samplingRate,
+	boolean exportFile,
 	@Nullable Duration recordingDuration,
 	@Nullable Long recordingSizeLimitInBytes,
-	int chunkFileSizeInBytes
+	long chunkFileSizeInBytes
 ) {
 }

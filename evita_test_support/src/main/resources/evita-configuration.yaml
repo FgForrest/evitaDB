@@ -26,6 +26,7 @@ server:
     sourceQueryTracking: ${server.trafficRecording.sourceQueryTracking:false}
     trafficMemoryBufferSizeInBytes: ${server.trafficRecording.trafficMemoryBufferSizeInBytes:4MB}
     trafficDiskBufferSizeInBytes: ${server.trafficRecording.trafficDiskBufferSizeInBytes:32MB}
+    exportFileChunkSizeInBytes: ${server.trafficRecording.exportFileChunkSizeInBytes:16MB}
     trafficSamplingPercentage: ${server.trafficRecording.trafficSamplingPercentage:100}
 
 storage:

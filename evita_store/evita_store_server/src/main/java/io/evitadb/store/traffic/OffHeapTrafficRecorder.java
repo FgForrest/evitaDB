@@ -52,13 +52,15 @@ import io.evitadb.core.traffic.TrafficRecorder;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
-import io.evitadb.store.offsetIndex.stream.RandomAccessFileInputStream;
 import io.evitadb.store.query.QuerySerializationKryoConfigurer;
 import io.evitadb.store.service.KryoFactory;
+import io.evitadb.store.spi.SessionLocation;
+import io.evitadb.store.spi.SessionSink;
 import io.evitadb.store.traffic.event.TrafficRecorderStatisticsEvent;
 import io.evitadb.store.traffic.serializer.SessionSequenceOrderContext;
 import io.evitadb.store.traffic.stream.RingBufferInputStream;
 import io.evitadb.store.wal.WalKryoConfigurer;
+import io.evitadb.stream.RandomAccessFileInputStream;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -214,6 +216,16 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 			60,
 			10
 		);
+	}
+
+	@Override
+	public void setSamplingPercentage(int samplingPercentage) {
+		this.samplingPercentage = samplingPercentage;
+	}
+
+	@Override
+	public void setSessionSink(@Nullable SessionSink sessionSink) {
+		this.diskBuffer.setSessionSink(sessionSink);
 	}
 
 	@Override
@@ -659,6 +671,11 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		}
 	}
 
+	/**
+	 * Processes disk buffer to index data and read traffic records.
+	 *
+	 * @return always -1 - reschedule according to plan
+	 */
 	private long index() {
 		this.diskBuffer.indexData(
 			(sessionSequenceOrder, filePosition, diskRingBuffer) ->

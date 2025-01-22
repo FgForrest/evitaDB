@@ -289,7 +289,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		if (catalog.supportsTransaction() && sessionTraits.isReadWrite()) {
 			this.transactionAccessor.set(createAndInitTransaction());
 		}
-		catalog.getTrafficRecorder().createSession(this.id, catalog.getVersion(), this.created);
+		catalog.getTrafficRecordingEngine().createSession(this.id, catalog.getVersion(), this.created);
 	}
 
 	@Nonnull
@@ -396,7 +396,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 						throwable.addSuppressed(tcException);
 					}
 				} finally {
-					theCatalog.getTrafficRecorder().closeSession(this.id);
+					theCatalog.getTrafficRecordingEngine().closeSession(this.id);
 					this.beingClosed = false;
 				}
 				if (throwable instanceof CancellationException cancellationException) {
@@ -1260,7 +1260,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	public Stream<TrafficRecording> getRecordings(@Nonnull TrafficRecordingCaptureRequest request) throws TemporalDataNotAvailableException {
 		assertActive();
 		return getCatalog() instanceof Catalog theCatalog ?
-			theCatalog.getTrafficRecorder().getRecordings(request) : Stream.empty();
+			theCatalog.getTrafficRecordingEngine().getRecordings(request) : Stream.empty();
 	}
 
 	@Interruptible
@@ -1414,7 +1414,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Nonnull
 	@Override
 	public UUID recordSourceQuery(@Nonnull String sourceQuery, @Nonnull String queryType) {
-		final TrafficRecordingEngine trafficRecorder = this.catalog.get().getTrafficRecorder();
+		final TrafficRecordingEngine trafficRecorder = this.catalog.get().getTrafficRecordingEngine();
 		final UUID sourceQueryId = UUIDUtil.randomUUID();
 		trafficRecorder.setupSourceQuery(id, sourceQueryId, sourceQuery, queryType);
 		return sourceQueryId;
@@ -1422,21 +1422,21 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 
 	@Override
 	public void finalizeSourceQuery(@Nonnull UUID sourceQueryId) {
-		final TrafficRecordingEngine trafficRecorder = this.catalog.get().getTrafficRecorder();
+		final TrafficRecordingEngine trafficRecorder = this.catalog.get().getTrafficRecordingEngine();
 		trafficRecorder.closeSourceQuery(id, sourceQueryId);
 	}
 
 	@Nonnull
 	@Override
 	public Collection<String> getLabelsNamesOrderedByCardinality(@Nullable String nameStartingWith, int limit) {
-		final TrafficRecordingEngine trafficRecorder = this.catalog.get().getTrafficRecorder();
+		final TrafficRecordingEngine trafficRecorder = this.catalog.get().getTrafficRecordingEngine();
 		return trafficRecorder.getLabelsNamesOrderedByCardinality(nameStartingWith, limit);
 	}
 
 	@Nonnull
 	@Override
 	public Collection<String> getLabelValuesOrderedByCardinality(@Nonnull String labelName, @Nullable String valueStartingWith, int limit) {
-		final TrafficRecordingEngine trafficRecorder = this.catalog.get().getTrafficRecorder();
+		final TrafficRecordingEngine trafficRecorder = this.catalog.get().getTrafficRecordingEngine();
 		return trafficRecorder.getLabelValuesOrderedByCardinality(labelName, valueStartingWith, limit);
 	}
 
@@ -1444,12 +1444,13 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Override
 	public ServerTask<TrafficRecordingSettings, FileForFetch> startRecording(
 		int samplingRate,
+		boolean exportFile,
 		@Nullable Duration recordingDuration,
 		@Nullable Long recordingSizeLimitInBytes,
-		int chunkFileSizeInBytes
+		long chunkFileSizeInBytes
 	) {
 		Assert.isTrue(
-			!evita.getConfiguration().server().readOnly(),
+			!this.evita.getConfiguration().server().readOnly(),
 			ReadOnlyException::new
 		);
 
@@ -1458,12 +1459,13 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		if (runningTask != null) {
 			throw new SingletonTaskAlreadyRunningException(runningTask.getStatus().taskName());
 		} else {
-			final ServerTask<TrafficRecordingSettings, FileForFetch> jfrRecorderTask = new TrafficRecorderTask(
-				samplingRate, recordingDuration, recordingSizeLimitInBytes, chunkFileSizeInBytes,
+			final ServerTask<TrafficRecordingSettings, FileForFetch> trafficRecorderTask = new TrafficRecorderTask(
+				samplingRate, exportFile, recordingDuration, recordingSizeLimitInBytes, chunkFileSizeInBytes,
+				this.catalog.get().getTrafficRecordingEngine(),
 				this.evita.management().exportFileService()
 			);
-			evita.getServiceExecutor().submit(jfrRecorderTask);
-			return jfrRecorderTask;
+			this.evita.getServiceExecutor().submit(trafficRecorderTask);
+			return trafficRecorderTask;
 		}
 	}
 
@@ -1471,11 +1473,11 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Override
 	public TaskStatus<TrafficRecordingSettings, FileForFetch> stopRecording(@Nonnull UUID taskId) {
 		Assert.isTrue(
-			!evita.getConfiguration().server().readOnly(),
+			!this.evita.getConfiguration().server().readOnly(),
 			ReadOnlyException::new
 		);
 
-		final Collection<TrafficRecorderTask> existingTaskStatus = evita.management().getTaskStatuses(TrafficRecorderTask.class);
+		final Collection<TrafficRecorderTask> existingTaskStatus = this.evita.management().getTaskStatuses(TrafficRecorderTask.class);
 		final TrafficRecorderTask runningTask = existingTaskStatus.stream().filter(it -> !it.getFutureResult().isDone()).findFirst().orElse(null);
 		if (runningTask != null) {
 			runningTask.stop();

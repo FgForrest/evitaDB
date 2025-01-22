@@ -24,7 +24,7 @@
 package io.evitadb.store.traffic.stream;
 
 
-import io.evitadb.store.offsetIndex.stream.RandomAccessFileInputStream;
+import io.evitadb.stream.RandomAccessFileInputStream;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;

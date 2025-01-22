@@ -80,7 +80,12 @@ private static final long serialVersionUID = 0L;
             samplingRate_ = input.readInt32();
             break;
           }
-          case 18: {
+          case 16: {
+
+            exportFile_ = input.readBool();
+            break;
+          }
+          case 26: {
             com.google.protobuf.Int64Value.Builder subBuilder = null;
             if (maxDurationInMilliseconds_ != null) {
               subBuilder = maxDurationInMilliseconds_.toBuilder();
@@ -93,7 +98,7 @@ private static final long serialVersionUID = 0L;
 
             break;
           }
-          case 26: {
+          case 34: {
             com.google.protobuf.Int64Value.Builder subBuilder = null;
             if (maxFileSizeInBytes_ != null) {
               subBuilder = maxFileSizeInBytes_.toBuilder();
@@ -106,12 +111,12 @@ private static final long serialVersionUID = 0L;
 
             break;
           }
-          case 34: {
-            com.google.protobuf.Int32Value.Builder subBuilder = null;
+          case 42: {
+            com.google.protobuf.Int64Value.Builder subBuilder = null;
             if (chunkFileSizeInBytes_ != null) {
               subBuilder = chunkFileSizeInBytes_.toBuilder();
             }
-            chunkFileSizeInBytes_ = input.readMessage(com.google.protobuf.Int32Value.parser(), extensionRegistry);
+            chunkFileSizeInBytes_ = input.readMessage(com.google.protobuf.Int64Value.parser(), extensionRegistry);
             if (subBuilder != null) {
               subBuilder.mergeFrom(chunkFileSizeInBytes_);
               chunkFileSizeInBytes_ = subBuilder.buildPartial();
@@ -166,14 +171,30 @@ private static final long serialVersionUID = 0L;
     return samplingRate_;
   }
 
-  public static final int MAXDURATIONINMILLISECONDS_FIELD_NUMBER = 2;
+  public static final int EXPORTFILE_FIELD_NUMBER = 2;
+  private boolean exportFile_;
+  /**
+   * <pre>
+   * If true the recording will be exported to a file, otherwise only internal ring buffer will be made available for
+   * the time the traffic recording is running.
+   * </pre>
+   *
+   * <code>bool exportFile = 2;</code>
+   * @return The exportFile.
+   */
+  @java.lang.Override
+  public boolean getExportFile() {
+    return exportFile_;
+  }
+
+  public static final int MAXDURATIONINMILLISECONDS_FIELD_NUMBER = 3;
   private com.google.protobuf.Int64Value maxDurationInMilliseconds_;
   /**
    * <pre>
    * The duration of the recording in milliseconds, after this time the recording will be stopped automatically.
    * </pre>
    *
-   * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 2;</code>
+   * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 3;</code>
    * @return Whether the maxDurationInMilliseconds field is set.
    */
   @java.lang.Override
@@ -185,7 +206,7 @@ private static final long serialVersionUID = 0L;
    * The duration of the recording in milliseconds, after this time the recording will be stopped automatically.
    * </pre>
    *
-   * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 2;</code>
+   * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 3;</code>
    * @return The maxDurationInMilliseconds.
    */
   @java.lang.Override
@@ -197,21 +218,21 @@ private static final long serialVersionUID = 0L;
    * The duration of the recording in milliseconds, after this time the recording will be stopped automatically.
    * </pre>
    *
-   * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 2;</code>
+   * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 3;</code>
    */
   @java.lang.Override
   public com.google.protobuf.Int64ValueOrBuilder getMaxDurationInMillisecondsOrBuilder() {
     return getMaxDurationInMilliseconds();
   }
 
-  public static final int MAXFILESIZEINBYTES_FIELD_NUMBER = 3;
+  public static final int MAXFILESIZEINBYTES_FIELD_NUMBER = 4;
   private com.google.protobuf.Int64Value maxFileSizeInBytes_;
   /**
    * <pre>
    * The size of the recording in bytes, after this size the recording will be stopped automatically.
    * </pre>
    *
-   * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 3;</code>
+   * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 4;</code>
    * @return Whether the maxFileSizeInBytes field is set.
    */
   @java.lang.Override
@@ -223,7 +244,7 @@ private static final long serialVersionUID = 0L;
    * The size of the recording in bytes, after this size the recording will be stopped automatically.
    * </pre>
    *
-   * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 3;</code>
+   * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 4;</code>
    * @return The maxFileSizeInBytes.
    */
   @java.lang.Override
@@ -235,21 +256,21 @@ private static final long serialVersionUID = 0L;
    * The size of the recording in bytes, after this size the recording will be stopped automatically.
    * </pre>
    *
-   * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 3;</code>
+   * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 4;</code>
    */
   @java.lang.Override
   public com.google.protobuf.Int64ValueOrBuilder getMaxFileSizeInBytesOrBuilder() {
     return getMaxFileSizeInBytes();
   }
 
-  public static final int CHUNKFILESIZEINBYTES_FIELD_NUMBER = 4;
-  private com.google.protobuf.Int32Value chunkFileSizeInBytes_;
+  public static final int CHUNKFILESIZEINBYTES_FIELD_NUMBER = 5;
+  private com.google.protobuf.Int64Value chunkFileSizeInBytes_;
   /**
    * <pre>
    * The size of the chunk file in bytes. Individual files in the export file will be approximately this size.
    * </pre>
    *
-   * <code>.google.protobuf.Int32Value chunkFileSizeInBytes = 4;</code>
+   * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 5;</code>
    * @return Whether the chunkFileSizeInBytes field is set.
    */
   @java.lang.Override
@@ -261,22 +282,22 @@ private static final long serialVersionUID = 0L;
    * The size of the chunk file in bytes. Individual files in the export file will be approximately this size.
    * </pre>
    *
-   * <code>.google.protobuf.Int32Value chunkFileSizeInBytes = 4;</code>
+   * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 5;</code>
    * @return The chunkFileSizeInBytes.
    */
   @java.lang.Override
-  public com.google.protobuf.Int32Value getChunkFileSizeInBytes() {
-    return chunkFileSizeInBytes_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : chunkFileSizeInBytes_;
+  public com.google.protobuf.Int64Value getChunkFileSizeInBytes() {
+    return chunkFileSizeInBytes_ == null ? com.google.protobuf.Int64Value.getDefaultInstance() : chunkFileSizeInBytes_;
   }
   /**
    * <pre>
    * The size of the chunk file in bytes. Individual files in the export file will be approximately this size.
    * </pre>
    *
-   * <code>.google.protobuf.Int32Value chunkFileSizeInBytes = 4;</code>
+   * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 5;</code>
    */
   @java.lang.Override
-  public com.google.protobuf.Int32ValueOrBuilder getChunkFileSizeInBytesOrBuilder() {
+  public com.google.protobuf.Int64ValueOrBuilder getChunkFileSizeInBytesOrBuilder() {
     return getChunkFileSizeInBytes();
   }
 
@@ -297,14 +318,17 @@ private static final long serialVersionUID = 0L;
     if (samplingRate_ != 0) {
       output.writeInt32(1, samplingRate_);
     }
+    if (exportFile_ != false) {
+      output.writeBool(2, exportFile_);
+    }
     if (maxDurationInMilliseconds_ != null) {
-      output.writeMessage(2, getMaxDurationInMilliseconds());
+      output.writeMessage(3, getMaxDurationInMilliseconds());
     }
     if (maxFileSizeInBytes_ != null) {
-      output.writeMessage(3, getMaxFileSizeInBytes());
+      output.writeMessage(4, getMaxFileSizeInBytes());
     }
     if (chunkFileSizeInBytes_ != null) {
-      output.writeMessage(4, getChunkFileSizeInBytes());
+      output.writeMessage(5, getChunkFileSizeInBytes());
     }
     unknownFields.writeTo(output);
   }
@@ -319,17 +343,21 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeInt32Size(1, samplingRate_);
     }
+    if (exportFile_ != false) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeBoolSize(2, exportFile_);
+    }
     if (maxDurationInMilliseconds_ != null) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(2, getMaxDurationInMilliseconds());
+        .computeMessageSize(3, getMaxDurationInMilliseconds());
     }
     if (maxFileSizeInBytes_ != null) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(3, getMaxFileSizeInBytes());
+        .computeMessageSize(4, getMaxFileSizeInBytes());
     }
     if (chunkFileSizeInBytes_ != null) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(4, getChunkFileSizeInBytes());
+        .computeMessageSize(5, getChunkFileSizeInBytes());
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -348,6 +376,8 @@ private static final long serialVersionUID = 0L;
 
     if (getSamplingRate()
         != other.getSamplingRate()) return false;
+    if (getExportFile()
+        != other.getExportFile()) return false;
     if (hasMaxDurationInMilliseconds() != other.hasMaxDurationInMilliseconds()) return false;
     if (hasMaxDurationInMilliseconds()) {
       if (!getMaxDurationInMilliseconds()
@@ -376,6 +406,9 @@ private static final long serialVersionUID = 0L;
     hash = (19 * hash) + getDescriptor().hashCode();
     hash = (37 * hash) + SAMPLINGRATE_FIELD_NUMBER;
     hash = (53 * hash) + getSamplingRate();
+    hash = (37 * hash) + EXPORTFILE_FIELD_NUMBER;
+    hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
+        getExportFile());
     if (hasMaxDurationInMilliseconds()) {
       hash = (37 * hash) + MAXDURATIONINMILLISECONDS_FIELD_NUMBER;
       hash = (53 * hash) + getMaxDurationInMilliseconds().hashCode();
@@ -527,6 +560,8 @@ private static final long serialVersionUID = 0L;
       super.clear();
       samplingRate_ = 0;
 
+      exportFile_ = false;
+
       if (maxDurationInMillisecondsBuilder_ == null) {
         maxDurationInMilliseconds_ = null;
       } else {
@@ -572,6 +607,7 @@ private static final long serialVersionUID = 0L;
     public io.evitadb.externalApi.grpc.generated.GrpcStartTrafficRecordingRequest buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcStartTrafficRecordingRequest result = new io.evitadb.externalApi.grpc.generated.GrpcStartTrafficRecordingRequest(this);
       result.samplingRate_ = samplingRate_;
+      result.exportFile_ = exportFile_;
       if (maxDurationInMillisecondsBuilder_ == null) {
         result.maxDurationInMilliseconds_ = maxDurationInMilliseconds_;
       } else {
@@ -637,6 +673,9 @@ private static final long serialVersionUID = 0L;
       if (other == io.evitadb.externalApi.grpc.generated.GrpcStartTrafficRecordingRequest.getDefaultInstance()) return this;
       if (other.getSamplingRate() != 0) {
         setSamplingRate(other.getSamplingRate());
+      }
+      if (other.getExportFile() != false) {
+        setExportFile(other.getExportFile());
       }
       if (other.hasMaxDurationInMilliseconds()) {
         mergeMaxDurationInMilliseconds(other.getMaxDurationInMilliseconds());
@@ -719,6 +758,52 @@ private static final long serialVersionUID = 0L;
       return this;
     }
 
+    private boolean exportFile_ ;
+    /**
+     * <pre>
+     * If true the recording will be exported to a file, otherwise only internal ring buffer will be made available for
+     * the time the traffic recording is running.
+     * </pre>
+     *
+     * <code>bool exportFile = 2;</code>
+     * @return The exportFile.
+     */
+    @java.lang.Override
+    public boolean getExportFile() {
+      return exportFile_;
+    }
+    /**
+     * <pre>
+     * If true the recording will be exported to a file, otherwise only internal ring buffer will be made available for
+     * the time the traffic recording is running.
+     * </pre>
+     *
+     * <code>bool exportFile = 2;</code>
+     * @param value The exportFile to set.
+     * @return This builder for chaining.
+     */
+    public Builder setExportFile(boolean value) {
+
+      exportFile_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * If true the recording will be exported to a file, otherwise only internal ring buffer will be made available for
+     * the time the traffic recording is running.
+     * </pre>
+     *
+     * <code>bool exportFile = 2;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearExportFile() {
+
+      exportFile_ = false;
+      onChanged();
+      return this;
+    }
+
     private com.google.protobuf.Int64Value maxDurationInMilliseconds_;
     private com.google.protobuf.SingleFieldBuilderV3<
         com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder> maxDurationInMillisecondsBuilder_;
@@ -727,7 +812,7 @@ private static final long serialVersionUID = 0L;
      * The duration of the recording in milliseconds, after this time the recording will be stopped automatically.
      * </pre>
      *
-     * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 2;</code>
+     * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 3;</code>
      * @return Whether the maxDurationInMilliseconds field is set.
      */
     public boolean hasMaxDurationInMilliseconds() {
@@ -738,7 +823,7 @@ private static final long serialVersionUID = 0L;
      * The duration of the recording in milliseconds, after this time the recording will be stopped automatically.
      * </pre>
      *
-     * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 2;</code>
+     * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 3;</code>
      * @return The maxDurationInMilliseconds.
      */
     public com.google.protobuf.Int64Value getMaxDurationInMilliseconds() {
@@ -753,7 +838,7 @@ private static final long serialVersionUID = 0L;
      * The duration of the recording in milliseconds, after this time the recording will be stopped automatically.
      * </pre>
      *
-     * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 2;</code>
+     * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 3;</code>
      */
     public Builder setMaxDurationInMilliseconds(com.google.protobuf.Int64Value value) {
       if (maxDurationInMillisecondsBuilder_ == null) {
@@ -773,7 +858,7 @@ private static final long serialVersionUID = 0L;
      * The duration of the recording in milliseconds, after this time the recording will be stopped automatically.
      * </pre>
      *
-     * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 2;</code>
+     * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 3;</code>
      */
     public Builder setMaxDurationInMilliseconds(
         com.google.protobuf.Int64Value.Builder builderForValue) {
@@ -791,7 +876,7 @@ private static final long serialVersionUID = 0L;
      * The duration of the recording in milliseconds, after this time the recording will be stopped automatically.
      * </pre>
      *
-     * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 2;</code>
+     * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 3;</code>
      */
     public Builder mergeMaxDurationInMilliseconds(com.google.protobuf.Int64Value value) {
       if (maxDurationInMillisecondsBuilder_ == null) {
@@ -813,7 +898,7 @@ private static final long serialVersionUID = 0L;
      * The duration of the recording in milliseconds, after this time the recording will be stopped automatically.
      * </pre>
      *
-     * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 2;</code>
+     * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 3;</code>
      */
     public Builder clearMaxDurationInMilliseconds() {
       if (maxDurationInMillisecondsBuilder_ == null) {
@@ -831,7 +916,7 @@ private static final long serialVersionUID = 0L;
      * The duration of the recording in milliseconds, after this time the recording will be stopped automatically.
      * </pre>
      *
-     * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 2;</code>
+     * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 3;</code>
      */
     public com.google.protobuf.Int64Value.Builder getMaxDurationInMillisecondsBuilder() {
 
@@ -843,7 +928,7 @@ private static final long serialVersionUID = 0L;
      * The duration of the recording in milliseconds, after this time the recording will be stopped automatically.
      * </pre>
      *
-     * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 2;</code>
+     * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 3;</code>
      */
     public com.google.protobuf.Int64ValueOrBuilder getMaxDurationInMillisecondsOrBuilder() {
       if (maxDurationInMillisecondsBuilder_ != null) {
@@ -858,7 +943,7 @@ private static final long serialVersionUID = 0L;
      * The duration of the recording in milliseconds, after this time the recording will be stopped automatically.
      * </pre>
      *
-     * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 2;</code>
+     * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
         com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder>
@@ -882,7 +967,7 @@ private static final long serialVersionUID = 0L;
      * The size of the recording in bytes, after this size the recording will be stopped automatically.
      * </pre>
      *
-     * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 3;</code>
+     * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 4;</code>
      * @return Whether the maxFileSizeInBytes field is set.
      */
     public boolean hasMaxFileSizeInBytes() {
@@ -893,7 +978,7 @@ private static final long serialVersionUID = 0L;
      * The size of the recording in bytes, after this size the recording will be stopped automatically.
      * </pre>
      *
-     * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 3;</code>
+     * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 4;</code>
      * @return The maxFileSizeInBytes.
      */
     public com.google.protobuf.Int64Value getMaxFileSizeInBytes() {
@@ -908,7 +993,7 @@ private static final long serialVersionUID = 0L;
      * The size of the recording in bytes, after this size the recording will be stopped automatically.
      * </pre>
      *
-     * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 3;</code>
+     * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 4;</code>
      */
     public Builder setMaxFileSizeInBytes(com.google.protobuf.Int64Value value) {
       if (maxFileSizeInBytesBuilder_ == null) {
@@ -928,7 +1013,7 @@ private static final long serialVersionUID = 0L;
      * The size of the recording in bytes, after this size the recording will be stopped automatically.
      * </pre>
      *
-     * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 3;</code>
+     * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 4;</code>
      */
     public Builder setMaxFileSizeInBytes(
         com.google.protobuf.Int64Value.Builder builderForValue) {
@@ -946,7 +1031,7 @@ private static final long serialVersionUID = 0L;
      * The size of the recording in bytes, after this size the recording will be stopped automatically.
      * </pre>
      *
-     * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 3;</code>
+     * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 4;</code>
      */
     public Builder mergeMaxFileSizeInBytes(com.google.protobuf.Int64Value value) {
       if (maxFileSizeInBytesBuilder_ == null) {
@@ -968,7 +1053,7 @@ private static final long serialVersionUID = 0L;
      * The size of the recording in bytes, after this size the recording will be stopped automatically.
      * </pre>
      *
-     * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 3;</code>
+     * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 4;</code>
      */
     public Builder clearMaxFileSizeInBytes() {
       if (maxFileSizeInBytesBuilder_ == null) {
@@ -986,7 +1071,7 @@ private static final long serialVersionUID = 0L;
      * The size of the recording in bytes, after this size the recording will be stopped automatically.
      * </pre>
      *
-     * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 3;</code>
+     * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 4;</code>
      */
     public com.google.protobuf.Int64Value.Builder getMaxFileSizeInBytesBuilder() {
 
@@ -998,7 +1083,7 @@ private static final long serialVersionUID = 0L;
      * The size of the recording in bytes, after this size the recording will be stopped automatically.
      * </pre>
      *
-     * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 3;</code>
+     * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 4;</code>
      */
     public com.google.protobuf.Int64ValueOrBuilder getMaxFileSizeInBytesOrBuilder() {
       if (maxFileSizeInBytesBuilder_ != null) {
@@ -1013,7 +1098,7 @@ private static final long serialVersionUID = 0L;
      * The size of the recording in bytes, after this size the recording will be stopped automatically.
      * </pre>
      *
-     * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 3;</code>
+     * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 4;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
         com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder>
@@ -1029,15 +1114,15 @@ private static final long serialVersionUID = 0L;
       return maxFileSizeInBytesBuilder_;
     }
 
-    private com.google.protobuf.Int32Value chunkFileSizeInBytes_;
+    private com.google.protobuf.Int64Value chunkFileSizeInBytes_;
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> chunkFileSizeInBytesBuilder_;
+        com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder> chunkFileSizeInBytesBuilder_;
     /**
      * <pre>
      * The size of the chunk file in bytes. Individual files in the export file will be approximately this size.
      * </pre>
      *
-     * <code>.google.protobuf.Int32Value chunkFileSizeInBytes = 4;</code>
+     * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 5;</code>
      * @return Whether the chunkFileSizeInBytes field is set.
      */
     public boolean hasChunkFileSizeInBytes() {
@@ -1048,12 +1133,12 @@ private static final long serialVersionUID = 0L;
      * The size of the chunk file in bytes. Individual files in the export file will be approximately this size.
      * </pre>
      *
-     * <code>.google.protobuf.Int32Value chunkFileSizeInBytes = 4;</code>
+     * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 5;</code>
      * @return The chunkFileSizeInBytes.
      */
-    public com.google.protobuf.Int32Value getChunkFileSizeInBytes() {
+    public com.google.protobuf.Int64Value getChunkFileSizeInBytes() {
       if (chunkFileSizeInBytesBuilder_ == null) {
-        return chunkFileSizeInBytes_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : chunkFileSizeInBytes_;
+        return chunkFileSizeInBytes_ == null ? com.google.protobuf.Int64Value.getDefaultInstance() : chunkFileSizeInBytes_;
       } else {
         return chunkFileSizeInBytesBuilder_.getMessage();
       }
@@ -1063,9 +1148,9 @@ private static final long serialVersionUID = 0L;
      * The size of the chunk file in bytes. Individual files in the export file will be approximately this size.
      * </pre>
      *
-     * <code>.google.protobuf.Int32Value chunkFileSizeInBytes = 4;</code>
+     * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 5;</code>
      */
-    public Builder setChunkFileSizeInBytes(com.google.protobuf.Int32Value value) {
+    public Builder setChunkFileSizeInBytes(com.google.protobuf.Int64Value value) {
       if (chunkFileSizeInBytesBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
@@ -1083,10 +1168,10 @@ private static final long serialVersionUID = 0L;
      * The size of the chunk file in bytes. Individual files in the export file will be approximately this size.
      * </pre>
      *
-     * <code>.google.protobuf.Int32Value chunkFileSizeInBytes = 4;</code>
+     * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 5;</code>
      */
     public Builder setChunkFileSizeInBytes(
-        com.google.protobuf.Int32Value.Builder builderForValue) {
+        com.google.protobuf.Int64Value.Builder builderForValue) {
       if (chunkFileSizeInBytesBuilder_ == null) {
         chunkFileSizeInBytes_ = builderForValue.build();
         onChanged();
@@ -1101,13 +1186,13 @@ private static final long serialVersionUID = 0L;
      * The size of the chunk file in bytes. Individual files in the export file will be approximately this size.
      * </pre>
      *
-     * <code>.google.protobuf.Int32Value chunkFileSizeInBytes = 4;</code>
+     * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 5;</code>
      */
-    public Builder mergeChunkFileSizeInBytes(com.google.protobuf.Int32Value value) {
+    public Builder mergeChunkFileSizeInBytes(com.google.protobuf.Int64Value value) {
       if (chunkFileSizeInBytesBuilder_ == null) {
         if (chunkFileSizeInBytes_ != null) {
           chunkFileSizeInBytes_ =
-            com.google.protobuf.Int32Value.newBuilder(chunkFileSizeInBytes_).mergeFrom(value).buildPartial();
+            com.google.protobuf.Int64Value.newBuilder(chunkFileSizeInBytes_).mergeFrom(value).buildPartial();
         } else {
           chunkFileSizeInBytes_ = value;
         }
@@ -1123,7 +1208,7 @@ private static final long serialVersionUID = 0L;
      * The size of the chunk file in bytes. Individual files in the export file will be approximately this size.
      * </pre>
      *
-     * <code>.google.protobuf.Int32Value chunkFileSizeInBytes = 4;</code>
+     * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 5;</code>
      */
     public Builder clearChunkFileSizeInBytes() {
       if (chunkFileSizeInBytesBuilder_ == null) {
@@ -1141,9 +1226,9 @@ private static final long serialVersionUID = 0L;
      * The size of the chunk file in bytes. Individual files in the export file will be approximately this size.
      * </pre>
      *
-     * <code>.google.protobuf.Int32Value chunkFileSizeInBytes = 4;</code>
+     * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 5;</code>
      */
-    public com.google.protobuf.Int32Value.Builder getChunkFileSizeInBytesBuilder() {
+    public com.google.protobuf.Int64Value.Builder getChunkFileSizeInBytesBuilder() {
 
       onChanged();
       return getChunkFileSizeInBytesFieldBuilder().getBuilder();
@@ -1153,14 +1238,14 @@ private static final long serialVersionUID = 0L;
      * The size of the chunk file in bytes. Individual files in the export file will be approximately this size.
      * </pre>
      *
-     * <code>.google.protobuf.Int32Value chunkFileSizeInBytes = 4;</code>
+     * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 5;</code>
      */
-    public com.google.protobuf.Int32ValueOrBuilder getChunkFileSizeInBytesOrBuilder() {
+    public com.google.protobuf.Int64ValueOrBuilder getChunkFileSizeInBytesOrBuilder() {
       if (chunkFileSizeInBytesBuilder_ != null) {
         return chunkFileSizeInBytesBuilder_.getMessageOrBuilder();
       } else {
         return chunkFileSizeInBytes_ == null ?
-            com.google.protobuf.Int32Value.getDefaultInstance() : chunkFileSizeInBytes_;
+            com.google.protobuf.Int64Value.getDefaultInstance() : chunkFileSizeInBytes_;
       }
     }
     /**
@@ -1168,14 +1253,14 @@ private static final long serialVersionUID = 0L;
      * The size of the chunk file in bytes. Individual files in the export file will be approximately this size.
      * </pre>
      *
-     * <code>.google.protobuf.Int32Value chunkFileSizeInBytes = 4;</code>
+     * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 5;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>
+        com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder>
         getChunkFileSizeInBytesFieldBuilder() {
       if (chunkFileSizeInBytesBuilder_ == null) {
         chunkFileSizeInBytesBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
-            com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>(
+            com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder>(
                 getChunkFileSizeInBytes(),
                 getParentForChildren(),
                 isClean());
