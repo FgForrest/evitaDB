@@ -565,9 +565,9 @@ public final class Evita implements EvitaContract {
 	 * @throws IllegalArgumentException when no catalog of such name is found
 	 */
 	@Nonnull
-	public Optional<CatalogContract> getCatalogInstance(@Nonnull String catalog) throws IllegalArgumentException {
-		return ofNullable(catalogs.get(catalog))
-			.or(() -> Optional.ofNullable(removedCatalog.get()));
+	public Optional<CatalogContract> getCatalogInstance(@Nonnull String catalog) {
+		return ofNullable(this.catalogs.get(catalog))
+			.or(() -> Optional.ofNullable(this.removedCatalog.get()));
 	}
 
 	/**
@@ -576,7 +576,7 @@ public final class Evita implements EvitaContract {
 	 * @throws IllegalArgumentException when no catalog of such name is found
 	 */
 	@Nonnull
-	public CatalogContract getCatalogInstanceOrThrowException(@Nonnull String catalog) throws IllegalArgumentException {
+	public CatalogContract getCatalogInstanceOrThrowException(@Nonnull String catalog) throws CatalogNotFoundException {
 		return getCatalogInstance(catalog)
 			.orElseThrow(() -> new CatalogNotFoundException(catalog));
 	}
