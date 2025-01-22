@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -134,6 +134,19 @@ public record FileForFetch(
 			created.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
 			origin == null ? "" : String.join(",", origin)
 		);
+	}
+
+	@Override
+	public String toString() {
+		return "FileForFetch{" +
+			"fileId=" + fileId +
+			", name='" + name + '\'' +
+			", description='" + description + '\'' +
+			", contentType='" + contentType + '\'' +
+			", totalSizeInBytes=" + totalSizeInBytes +
+			", created=" + created +
+			", origin=" + Arrays.toString(origin) +
+			'}';
 	}
 
 	@Override

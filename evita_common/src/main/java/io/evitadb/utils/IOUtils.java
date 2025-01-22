@@ -129,13 +129,37 @@ public class IOUtils {
 		for (IOExceptionThrowingRunnable lambda : runnable) {
 			try {
 				lambda.run();
-			} catch (IOException e) {
+			} catch (Exception e) {
 				exception = exception == null ? exceptionFactory.get() : exception;
 				exception.addSuppressed(e);
 			}
 		}
 		if (exception != null) {
 			throw exception;
+		}
+	}
+
+	/**
+	 * Executes the provided {@link IOExceptionThrowingRunnable} instances, ensuring that exceptions thrown
+	 * during their execution are logged but not propagated. This method is typically used for safely closing
+	 * resources without allowing individual close failures to disrupt the overall process.
+	 *
+	 * @param runnable the runnable instances, each of which may throw an {@link IOException} during execution
+	 *                 and will be logged if an exception occurs
+	 * @param <T>      the type parameter extending {@link RuntimeException} that represents any potential runtime exception
+	 *                 to be thrown
+	 * @throws T if a runtime exception specific to the implementation needs propagation
+	 */
+	public static <T extends RuntimeException> void closeQuietly(
+		@Nonnull IOExceptionThrowingRunnable... runnable
+	) throws T {
+		for (IOExceptionThrowingRunnable lambda : runnable) {
+			try {
+				lambda.run();
+			} catch (Exception e) {
+				// ignore exception, it should not be propagated
+				log.debug("An exception occurred while closing a resource: {}", e.getMessage(), e);
+			}
 		}
 	}
 

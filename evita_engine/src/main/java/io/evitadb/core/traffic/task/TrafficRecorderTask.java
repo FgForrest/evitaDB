@@ -106,7 +106,7 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 		@Nonnull TrafficRecordingEngine trafficRecordingEngine,
 		@Nonnull ExportFileService exportFileService,
 		@Nonnull Scheduler scheduler
-		) {
+	) {
 		super(
 			TrafficRecorderTask.class.getSimpleName(),
 			"Traffic recording",
@@ -240,17 +240,13 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 			updateNonExportedSize(sessionLocations);
 			// if the non-exported size grows too much, export it to a file
 			if (this.nonExportedSize > this.nonExportedSizeLimit) {
-				boolean export = false;
-				for (SessionLocation next : sessionLocations) {
-					if (export) {
-						compressToFinalDestination(next);
-						this.nonExportedSize -= next.fileLocation().recordLength();
-						this.lastExportedLocation = next;
-					} else if (this.lastExportedLocation == null || this.lastExportedLocation.equals(next)) {
-						export = true;
-					}
-				}
+				exportAllSessionLocations(sessionLocations);
 			}
+		}
+
+		@Override
+		public void onClose(@Nonnull Deque<SessionLocation> sessionLocations) {
+			exportAllSessionLocations(sessionLocations);
 		}
 
 		/**
@@ -279,6 +275,32 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 					},
 					this.outputStream::close
 				);
+			}
+		}
+
+		/**
+		 * Exports all session locations provided in the deque to the final destination. The method increments through
+		 * the deque of session locations and compresses the session data starting from the last exported location or
+		 * the beginning if it hasn't been defined. Each session's data is processed and marked as exported by adjusting
+		 * the non-exported size and updating the last exported location reference.
+		 *
+		 * @param sessionLocations a deque containing session locations to be processed for export. Each location provides
+		 *                         details about the sequence order and file position of the session data.
+		 */
+		private void exportAllSessionLocations(@Nonnull Deque<SessionLocation> sessionLocations) {
+			boolean export = this.lastExportedLocation == null;
+			for (SessionLocation next : sessionLocations) {
+				if (export) {
+					compressToFinalDestination(next);
+					this.nonExportedSize -= next.fileLocation().recordLength();
+					this.lastExportedLocation = next;
+					if (this.exportFileHandle.size() > this.exportedSizeLimit) {
+						this.finalizer.run();
+						break;
+					}
+				} else if (this.lastExportedLocation.equals(next)) {
+					export = true;
+				}
 			}
 		}
 

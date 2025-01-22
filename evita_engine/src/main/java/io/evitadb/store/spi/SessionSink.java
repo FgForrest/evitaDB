@@ -58,4 +58,14 @@ public interface SessionSink {
 	 */
 	void onSessionLocationsUpdated(@Nonnull Deque<SessionLocation> sessionLocations);
 
+	/**
+	 * Handles cleanup operations when the disk buffer is closed. This method will handle final tasks
+	 * associated with the provided queue of session locations, such as releasing resources or writing
+	 * final data to storage.
+	 *
+	 * @param sessionLocations the deque of {@link SessionLocation} instances representing the sessions
+	 *                         in the current disk buffer to be processed during the close operation
+	 */
+	void onClose(@Nonnull Deque<SessionLocation> sessionLocations);
+
 }

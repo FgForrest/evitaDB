@@ -36,6 +36,7 @@ import io.evitadb.store.traffic.OffHeapTrafficRecorder.MemoryNotAvailableExcepti
 import io.evitadb.store.traffic.OffHeapTrafficRecorder.NumberedByteBuffer;
 import io.evitadb.store.traffic.stream.RecoverableOutputStream;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.IOUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -359,7 +360,7 @@ public class SessionTraffic implements Closeable {
 
 	@Override
 	public void close() {
-		this.observableOutput.close();
+		IOUtils.closeQuietly(this.observableOutput::close);
 	}
 
 	/**

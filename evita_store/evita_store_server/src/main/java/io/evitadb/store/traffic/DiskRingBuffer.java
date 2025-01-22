@@ -588,6 +588,12 @@ public class DiskRingBuffer {
 	 */
 	public void close(@Nonnull Consumer<Path> fileCleanLogic) {
 		try {
+			final SessionSink theSink = this.sessionSink.get();
+			if (theSink != null) {
+				theSink.onClose(this.sessionLocations);
+			}
+
+			this.sessionLocations.clear();
 			this.sessionIndex.set(null);
 			IOUtils.close(
 				() -> new UnexpectedIOException(

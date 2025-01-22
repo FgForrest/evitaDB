@@ -510,6 +510,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 
 	@Override
 	public void close() throws IOException {
+		this.freeMemory();
 		this.memoryBlock.set(null);
 		this.trackedSessionsIndex.clear();
 		this.diskBuffer.close(filePath -> this.exportFileService.purgeManagedTempFile(filePath));
@@ -692,7 +693,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 	 *
 	 * @return Always returns -1 as a placeholder for future implementations or changes.
 	 */
-	private long freeMemory() {
+	private synchronized long freeMemory() {
 		this.diskBuffer.updateIndexTransactionally(
 			() -> {
 				final ByteBuffer memoryByteBuffer = this.memoryBlock.get();
