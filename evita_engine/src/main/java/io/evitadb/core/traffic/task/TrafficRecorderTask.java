@@ -35,7 +35,6 @@ import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.store.spi.SessionLocation;
 import io.evitadb.store.spi.SessionSink;
 import io.evitadb.utils.StringUtils;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -49,6 +48,7 @@ import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Deque;
+import java.util.Iterator;
 import java.util.concurrent.CountDownLatch;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -193,11 +193,18 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 
 	}
 
-	@RequiredArgsConstructor
 	private static class ExportSessionSink implements SessionSink {
-		private final long diskBufferSizeInBytes;
+		private final long nonExportedSizeLimit;
 		private final long chunkFileSizeInBytes;
+		private long nonExportedSize = 0;
 		private FileChannel fileChannel;
+		private SessionLocation lastExportedLocation;
+		private SessionLocation lastSeenLocation;
+
+		public ExportSessionSink(long diskBufferSizeInBytes, long chunkFileSizeInBytes) {
+			this.nonExportedSizeLimit = diskBufferSizeInBytes / 2;
+			this.chunkFileSizeInBytes = chunkFileSizeInBytes;
+		}
 
 		@Override
 		public void initSourceFileChannel(@Nonnull FileChannel fileChannel) {
@@ -206,7 +213,29 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 
 		@Override
 		public void onSessionLocationsUpdated(@Nonnull Deque<SessionLocation> sessionLocations) {
-			// this.fileChannel.transferTo()
+			// first update the non-exported size
+			final Iterator<SessionLocation> it = sessionLocations.descendingIterator();
+			while (it.hasNext()) {
+				final SessionLocation previous = it.next();
+				if (previous.equals(this.lastSeenLocation)) {
+					break;
+				}
+				this.nonExportedSize += previous.fileLocation().recordLength();
+			}
+			// if the non-exported size grows too much, export it to a file
+			if (this.nonExportedSize > this.nonExportedSizeLimit) {
+				boolean export = false;
+				final Iterator<SessionLocation> persistingIt = sessionLocations.iterator();
+				while (persistingIt.hasNext()) {
+					final SessionLocation next = persistingIt.next();
+					if (export) {
+						//this.fileChannel.transferTo();
+						this.nonExportedSize -= next.fileLocation().recordLength();
+					} else if (this.lastExportedLocation == null || this.lastExportedLocation.equals(next)) {
+						export = true;
+					}
+				}
+			}
 		}
 
 	}

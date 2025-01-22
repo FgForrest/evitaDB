@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.traffic;
+package io.evitadb.store.spi;
 
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TrafficRecordingOptions;
@@ -30,7 +30,6 @@ import io.evitadb.api.query.head.Label;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.file.ExportFileService;
-import io.evitadb.store.spi.SessionSink;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;

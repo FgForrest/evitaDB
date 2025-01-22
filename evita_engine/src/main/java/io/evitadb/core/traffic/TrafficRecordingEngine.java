@@ -48,6 +48,7 @@ import io.evitadb.core.query.QueryPlan;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.store.spi.SessionSink;
+import io.evitadb.store.spi.TrafficRecorder;
 import io.evitadb.utils.IOUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -431,9 +432,13 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 	@Nonnull
 	@Override
 	public Stream<TrafficRecording> getRecordings(@Nonnull TrafficRecordingCaptureRequest request) throws TemporalDataNotAvailableException {
-		return this.trafficRecorder.get() instanceof TrafficRecordingReader trr ?
-			trr.getRecordings(request) :
-			Stream.empty();
+		if (this.trafficRecorder.get() instanceof TrafficRecordingReader trr) {
+			return trr.getRecordings(request);
+		} else {
+			throw new EvitaInvalidUsageException(
+				"Traffic recording is disabled in configuration settings and no on-demand traffic recording has been started!"
+			);
+		}
 	}
 
 	/**

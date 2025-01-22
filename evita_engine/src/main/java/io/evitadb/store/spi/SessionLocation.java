@@ -24,7 +24,6 @@
 package io.evitadb.store.spi;
 
 
-import io.evitadb.core.traffic.TrafficRecorder;
 import io.evitadb.store.model.FileLocation;
 import io.evitadb.utils.Assert;
 

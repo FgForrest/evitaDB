@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -95,7 +95,6 @@ import io.evitadb.core.query.response.ServerBinaryEntityDecorator;
 import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.core.sequence.SequenceType;
-import io.evitadb.core.traffic.TrafficRecorder;
 import io.evitadb.core.traffic.TrafficRecordingEngine;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
@@ -129,6 +128,7 @@ import io.evitadb.store.spi.EntityCollectionPersistenceService.BinaryEntityWithF
 import io.evitadb.store.spi.EntityCollectionPersistenceService.EntityWithFetchCount;
 import io.evitadb.store.spi.HeaderInfoSupplier;
 import io.evitadb.store.spi.StoragePartPersistenceService;
+import io.evitadb.store.spi.TrafficRecorder;
 import io.evitadb.store.spi.model.EntityCollectionHeader;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;

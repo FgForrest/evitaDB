@@ -79,7 +79,7 @@ module evita.engine {
 
 	uses io.evitadb.api.CatalogStructuralChangeObserver;
 	uses io.evitadb.store.spi.CatalogPersistenceServiceFactory;
-	uses io.evitadb.core.traffic.TrafficRecorder;
+	uses io.evitadb.store.spi.TrafficRecorder;
 
 	requires static lombok;
 	requires static jsr305;

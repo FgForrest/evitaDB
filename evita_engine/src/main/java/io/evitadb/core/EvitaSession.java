@@ -1259,8 +1259,12 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Override
 	public Stream<TrafficRecording> getRecordings(@Nonnull TrafficRecordingCaptureRequest request) throws TemporalDataNotAvailableException {
 		assertActive();
-		return getCatalog() instanceof Catalog theCatalog ?
-			theCatalog.getTrafficRecordingEngine().getRecordings(request) : Stream.empty();
+		final CatalogContract currentCatalog = getCatalog();
+		if (currentCatalog instanceof Catalog theCatalog) {
+			return theCatalog.getTrafficRecordingEngine().getRecordings(request);
+		} else {
+			throw new CatalogCorruptedException((CorruptedCatalog) currentCatalog);
+		}
 	}
 
 	@Interruptible

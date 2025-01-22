@@ -32,7 +32,7 @@ import io.evitadb.api.requestResponse.trafficRecording.SessionCloseContainer;
 import io.evitadb.api.requestResponse.trafficRecording.SessionStartContainer;
 import io.evitadb.api.requestResponse.trafficRecording.SourceQueryContainer;
 import io.evitadb.api.requestResponse.trafficRecording.SourceQueryStatisticsContainer;
-import io.evitadb.core.traffic.TrafficRecorder;
+import io.evitadb.store.spi.TrafficRecorder;
 import io.evitadb.store.traffic.serializer.MutationContainerSerializer;
 import io.evitadb.store.traffic.serializer.QueryContainerSerializer;
 import io.evitadb.store.traffic.serializer.RecordEnrichmentContainerSerializer;

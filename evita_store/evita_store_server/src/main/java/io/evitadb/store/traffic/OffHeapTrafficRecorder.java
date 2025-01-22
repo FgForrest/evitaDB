@@ -48,7 +48,6 @@ import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRe
 import io.evitadb.core.async.DelayedAsyncTask;
 import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.file.ExportFileService;
-import io.evitadb.core.traffic.TrafficRecorder;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
@@ -56,6 +55,7 @@ import io.evitadb.store.query.QuerySerializationKryoConfigurer;
 import io.evitadb.store.service.KryoFactory;
 import io.evitadb.store.spi.SessionLocation;
 import io.evitadb.store.spi.SessionSink;
+import io.evitadb.store.spi.TrafficRecorder;
 import io.evitadb.store.traffic.event.TrafficRecorderStatisticsEvent;
 import io.evitadb.store.traffic.serializer.SessionSequenceOrderContext;
 import io.evitadb.store.traffic.stream.RingBufferInputStream;
@@ -545,7 +545,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		}
 		// create ring buffer on disk
 		this.diskBuffer = new DiskRingBuffer(
-			exportFileService.createManagedTempFile("traffic-recording-buffer.bin"),
+			exportFileService.createManagedTempFile("traffic-recording-buffer-" + catalogName + ".bin"),
 			recordingOptions.trafficDiskBufferSizeInBytes()
 		);
 

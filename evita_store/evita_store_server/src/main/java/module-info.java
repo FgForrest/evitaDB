@@ -33,11 +33,12 @@ module evita.store.server {
 	exports io.evitadb.store.query;
 	exports io.evitadb.store.schema;
 	exports io.evitadb.store.catalog.service;
+	exports io.evitadb.store.traffic;
 	exports io.evitadb.store.traffic.event;
 
 	provides io.evitadb.store.spi.CatalogPersistenceServiceFactory with io.evitadb.store.catalog.DefaultCatalogPersistenceServiceFactory;
 	provides io.evitadb.store.service.StoragePartRegistry with io.evitadb.store.index.service.IndexStoragePartRegistry;
-	provides io.evitadb.core.traffic.TrafficRecorder with io.evitadb.store.traffic.OffHeapTrafficRecorder;
+	provides io.evitadb.store.spi.TrafficRecorder with io.evitadb.store.traffic.OffHeapTrafficRecorder;
 
 	requires static lombok;
 	requires static jsr305;

@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.file.ExportFileService;
 import io.evitadb.store.spi.SessionSink;
+import io.evitadb.store.spi.TrafficRecorder;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 

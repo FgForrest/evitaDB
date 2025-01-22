@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -78,7 +78,7 @@ import static java.util.Optional.of;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Slf4j
-public class ExportFileService {
+public class ExportFileService implements Closeable {
 	/**
 	 * Storage options.
 	 */
@@ -329,9 +329,9 @@ public class ExportFileService {
 	@Nonnull
 	public Path createTempFile(@Nonnull String fileName) {
 		try {
-			return Files.createFile(
-				this.storageOptions.exportDirectory().resolve(fileName)
-			);
+			final Path filePath = this.storageOptions.exportDirectory().resolve(fileName);
+			Files.deleteIfExists(filePath);
+			return Files.createFile(filePath);
 		} catch (IOException e) {
 			throw new UnexpectedIOException(
 				"Failed to create temporary file: " + e.getMessage(),
@@ -394,6 +394,17 @@ public class ExportFileService {
 	@Nonnull
 	public Path getPathOf(@Nonnull FileForFetch file) {
 		return file.path(this.storageOptions.exportDirectory());
+	}
+
+	/**
+	 * Removes all reserved files and purges unmanaged temp files from the directory on closing.
+	 */
+	@Override
+	public void close() {
+		for (Path reservedFile : this.reservedFiles) {
+			FileUtils.deleteFileIfExists(reservedFile);
+		}
+		purgeFiles();
 	}
 
 	/**
