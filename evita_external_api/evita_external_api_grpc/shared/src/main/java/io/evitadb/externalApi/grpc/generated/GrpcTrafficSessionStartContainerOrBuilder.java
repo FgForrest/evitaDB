@@ -32,85 +32,11 @@ public interface GrpcTrafficSessionStartContainerOrBuilder extends
 
   /**
    * <pre>
-   * The sequence order of the session (analogous to sessionId, but monotonic sequence based on location in the log).
-   * </pre>
-   *
-   * <code>int64 sessionSequenceOrder = 1;</code>
-   * @return The sessionSequenceOrder.
-   */
-  long getSessionSequenceOrder();
-
-  /**
-   * <pre>
-   * The associated session id.
-   * </pre>
-   *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 2;</code>
-   * @return Whether the sessionId field is set.
-   */
-  boolean hasSessionId();
-  /**
-   * <pre>
-   * The associated session id.
-   * </pre>
-   *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 2;</code>
-   * @return The sessionId.
-   */
-  io.evitadb.externalApi.grpc.generated.GrpcUuid getSessionId();
-  /**
-   * <pre>
-   * The associated session id.
-   * </pre>
-   *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 2;</code>
-   */
-  io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder getSessionIdOrBuilder();
-
-  /**
-   * <pre>
-   * The relative order (offset) of the traffic recording within the session.
-   * </pre>
-   *
-   * <code>int32 recordSessionOffset = 3;</code>
-   * @return The recordSessionOffset.
-   */
-  int getRecordSessionOffset();
-
-  /**
-   * <pre>
    * The version of the catalog that will be used for the entire session.
    * </pre>
    *
-   * <code>int64 catalogVersion = 4;</code>
+   * <code>int64 catalogVersion = 1;</code>
    * @return The catalogVersion.
    */
   long getCatalogVersion();
-
-  /**
-   * <pre>
-   * The time when the session was created.
-   * </pre>
-   *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 5;</code>
-   * @return Whether the created field is set.
-   */
-  boolean hasCreated();
-  /**
-   * <pre>
-   * The time when the session was created.
-   * </pre>
-   *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 5;</code>
-   * @return The created.
-   */
-  io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getCreated();
-  /**
-   * <pre>
-   * The time when the session was created.
-   * </pre>
-   *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 5;</code>
-   */
-  io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getCreatedOrBuilder();
 }

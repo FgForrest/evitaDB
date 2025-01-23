@@ -100,6 +100,7 @@ public class TrafficCaptureConverter {
 		@Nonnull TrafficRecordingContent content
 	) {
 		final GrpcTrafficRecord.Builder builder = newBuilder()
+			.setSessionSequenceOrder(Objects.requireNonNull(trafficRecording.sessionSequenceOrder()))
 			.setSessionId(toGrpcUuid(trafficRecording.sessionId()))
 			.setRecordSessionOffset(trafficRecording.recordSessionOffset())
 			.setType(EvitaEnumConverter.toGrpcTrafficRecordingType(trafficRecording.type()))
@@ -107,6 +108,7 @@ public class TrafficCaptureConverter {
 			.setDurationInMilliseconds(trafficRecording.durationInMilliseconds())
 			.setIoFetchCount(trafficRecording.ioFetchCount())
 			.setIoFetchedSizeBytes(trafficRecording.ioFetchedSizeBytes());
+
 		if (content == TrafficRecordingContent.BODY) {
 			switch (trafficRecording.type()) {
 				case SESSION_START -> convertSessionStartContainer(trafficRecording, builder);
@@ -136,10 +138,6 @@ public class TrafficCaptureConverter {
 		if (trafficRecording instanceof SessionStartContainer sessionStartContainer) {
 			builder.setSessionStart(
 				GrpcTrafficSessionStartContainer.newBuilder()
-					.setSessionSequenceOrder(Objects.requireNonNull(sessionStartContainer.sessionSequenceOrder()))
-					.setSessionId(toGrpcUuid(sessionStartContainer.sessionId()))
-					.setRecordSessionOffset(sessionStartContainer.recordSessionOffset())
-					.setCreated(toGrpcOffsetDateTime(sessionStartContainer.created()))
 					.setCatalogVersion(sessionStartContainer.catalogVersion())
 					.build()
 			);
@@ -162,14 +160,7 @@ public class TrafficCaptureConverter {
 		if (trafficRecording instanceof SessionCloseContainer sessionCloseContainer) {
 			builder.setSessionClose(
 				GrpcTrafficSessionCloseContainer.newBuilder()
-					.setSessionSequenceOrder(Objects.requireNonNull(sessionCloseContainer.sessionSequenceOrder()))
-					.setSessionId(toGrpcUuid(sessionCloseContainer.sessionId()))
-					.setRecordSessionOffset(sessionCloseContainer.recordSessionOffset())
-					.setCreated(toGrpcOffsetDateTime(sessionCloseContainer.created()))
 					.setCatalogVersion(sessionCloseContainer.catalogVersion())
-					.setDurationInMilliseconds(sessionCloseContainer.durationInMilliseconds())
-					.setIoFetchCount(sessionCloseContainer.ioFetchCount())
-					.setIoFetchedSizeBytes(sessionCloseContainer.ioFetchedSizeBytes())
 					.setTrafficRecordCount(sessionCloseContainer.trafficRecordCount())
 					.setTrafficRecordsMissedOut(sessionCloseContainer.trafficRecordsMissedOut())
 					.setQueryCount(sessionCloseContainer.queryCount())
@@ -196,10 +187,6 @@ public class TrafficCaptureConverter {
 		if (trafficRecording instanceof SourceQueryContainer sourceQueryContainer) {
 			builder.setSourceQuery(
 				GrpcTrafficSourceQueryContainer.newBuilder()
-					.setSessionSequenceOrder(Objects.requireNonNull(sourceQueryContainer.sessionSequenceOrder()))
-					.setSessionId(toGrpcUuid(sourceQueryContainer.sessionId()))
-					.setRecordSessionOffset(sourceQueryContainer.recordSessionOffset())
-					.setCreated(toGrpcOffsetDateTime(sourceQueryContainer.created()))
 					.setSourceQueryId(toGrpcUuid(sourceQueryContainer.sourceQueryId()))
 					.setSourceQuery(sourceQueryContainer.sourceQuery())
 					.setQueryType(sourceQueryContainer.queryType())
@@ -224,13 +211,6 @@ public class TrafficCaptureConverter {
 		if (trafficRecording instanceof SourceQueryStatisticsContainer sourceQueryContainer) {
 			builder.setSourceQueryStatistics(
 				GrpcTrafficSourceQueryStatisticsContainer.newBuilder()
-					.setSessionSequenceOrder(Objects.requireNonNull(sourceQueryContainer.sessionSequenceOrder()))
-					.setSessionId(toGrpcUuid(sourceQueryContainer.sessionId()))
-					.setRecordSessionOffset(sourceQueryContainer.recordSessionOffset())
-					.setCreated(toGrpcOffsetDateTime(sourceQueryContainer.created()))
-					.setDurationInMilliseconds(sourceQueryContainer.durationInMilliseconds())
-					.setIoFetchCount(sourceQueryContainer.ioFetchCount())
-					.setIoFetchedSizeBytes(sourceQueryContainer.ioFetchedSizeBytes())
 					.setSourceQueryId(toGrpcUuid(sourceQueryContainer.sourceQueryId()))
 					.setReturnedRecordCount(sourceQueryContainer.returnedRecordCount())
 					.setTotalRecordCount(sourceQueryContainer.totalRecordCount())
@@ -255,13 +235,6 @@ public class TrafficCaptureConverter {
 		if (trafficRecording instanceof QueryContainer queryContainer) {
 			builder.setQuery(
 				GrpcTrafficQueryContainer.newBuilder()
-					.setSessionSequenceOrder(Objects.requireNonNull(queryContainer.sessionSequenceOrder()))
-					.setSessionId(toGrpcUuid(queryContainer.sessionId()))
-					.setRecordSessionOffset(queryContainer.recordSessionOffset())
-					.setCreated(toGrpcOffsetDateTime(queryContainer.created()))
-					.setDurationInMilliseconds(queryContainer.durationInMilliseconds())
-					.setIoFetchCount(queryContainer.ioFetchCount())
-					.setIoFetchedSizeBytes(queryContainer.ioFetchedSizeBytes())
 					.addAllLabels(Arrays.stream(queryContainer.labels()).map(TrafficCaptureConverter::toGrpcQueryLabel).toList())
 					.setQuery(queryContainer.query().toString())
 					.setTotalRecordCount(queryContainer.totalRecordCount())
@@ -287,13 +260,6 @@ public class TrafficCaptureConverter {
 		if (trafficRecording instanceof EntityFetchContainer entityFetchContainer) {
 			builder.setFetch(
 				GrpcTrafficEntityFetchContainer.newBuilder()
-					.setSessionSequenceOrder(Objects.requireNonNull(entityFetchContainer.sessionSequenceOrder()))
-					.setSessionId(toGrpcUuid(entityFetchContainer.sessionId()))
-					.setRecordSessionOffset(entityFetchContainer.recordSessionOffset())
-					.setCreated(toGrpcOffsetDateTime(entityFetchContainer.created()))
-					.setDurationInMilliseconds(entityFetchContainer.durationInMilliseconds())
-					.setIoFetchCount(entityFetchContainer.ioFetchCount())
-					.setIoFetchedSizeBytes(entityFetchContainer.ioFetchedSizeBytes())
 					.setQuery(entityFetchContainer.query().toString())
 					.setPrimaryKey(entityFetchContainer.primaryKey())
 					.build()
@@ -317,13 +283,6 @@ public class TrafficCaptureConverter {
 		if (trafficRecording instanceof EntityEnrichmentContainer entityEnrichmentContainer) {
 			builder.setEnrichment(
 				GrpcTrafficEntityEnrichmentContainer.newBuilder()
-					.setSessionSequenceOrder(Objects.requireNonNull(entityEnrichmentContainer.sessionSequenceOrder()))
-					.setSessionId(toGrpcUuid(entityEnrichmentContainer.sessionId()))
-					.setRecordSessionOffset(entityEnrichmentContainer.recordSessionOffset())
-					.setCreated(toGrpcOffsetDateTime(entityEnrichmentContainer.created()))
-					.setDurationInMilliseconds(entityEnrichmentContainer.durationInMilliseconds())
-					.setIoFetchCount(entityEnrichmentContainer.ioFetchCount())
-					.setIoFetchedSizeBytes(entityEnrichmentContainer.ioFetchedSizeBytes())
 					.setQuery(entityEnrichmentContainer.query().toString())
 					.setPrimaryKey(entityEnrichmentContainer.primaryKey())
 					.build()
@@ -350,22 +309,12 @@ public class TrafficCaptureConverter {
 			if (mutation instanceof EntityMutation entityMutation) {
 				builder.setMutation(
 					GrpcTrafficMutationContainer.newBuilder()
-						.setSessionSequenceOrder(Objects.requireNonNull(mutationContainer.sessionSequenceOrder()))
-						.setSessionId(toGrpcUuid(mutationContainer.sessionId()))
-						.setRecordSessionOffset(mutationContainer.recordSessionOffset())
-						.setCreated(toGrpcOffsetDateTime(mutationContainer.created()))
-						.setDurationInMilliseconds(mutationContainer.durationInMilliseconds())
 						.setEntityMutation(DelegatingEntityMutationConverter.INSTANCE.convert(entityMutation))
 						.build()
 				);
 			} else if (mutation instanceof EntitySchemaMutation schemaMutation) {
 				builder.setMutation(
 					GrpcTrafficMutationContainer.newBuilder()
-						.setSessionSequenceOrder(Objects.requireNonNull(mutationContainer.sessionSequenceOrder()))
-						.setSessionId(toGrpcUuid(mutationContainer.sessionId()))
-						.setRecordSessionOffset(mutationContainer.recordSessionOffset())
-						.setCreated(toGrpcOffsetDateTime(mutationContainer.created()))
-						.setDurationInMilliseconds(mutationContainer.durationInMilliseconds())
 						.setSchemaMutation(DelegatingEntitySchemaMutationConverter.INSTANCE.convert(schemaMutation))
 						.build()
 				);
