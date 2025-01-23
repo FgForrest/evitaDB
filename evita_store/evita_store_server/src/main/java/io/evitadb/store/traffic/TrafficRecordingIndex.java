@@ -67,9 +67,10 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public class DiskRingBufferIndex implements
-	TransactionalLayerProducer<Void, DiskRingBufferIndex>,
-	Serializable {
+public class TrafficRecordingIndex implements
+	TransactionalLayerProducer<Void, TrafficRecordingIndex>,
+	Serializable
+{
 	@Serial private static final long serialVersionUID = 1416655137041708718L;
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 
@@ -89,7 +90,7 @@ public class DiskRingBufferIndex implements
 	private final AtomicLong sessionBeingIndexed;
 	private final Deque<Long> sessionsToRemove;
 
-	public DiskRingBufferIndex() {
+	public TrafficRecordingIndex() {
 		this.sessionLocationIndex = new TransactionalMap<>(CollectionUtils.createHashMap(1_024));
 		this.sessionIdIndex = new TransactionalMap<>(CollectionUtils.createHashMap(1_024));
 		this.sessionUuidIndex = new TransactionalMap<>(CollectionUtils.createHashMap(1_024));
@@ -113,7 +114,7 @@ public class DiskRingBufferIndex implements
 		this.sessionsToRemove = new LinkedList<>();
 	}
 
-	public DiskRingBufferIndex(
+	private TrafficRecordingIndex(
 		@Nonnull Map<Long, FileLocation> sessionLocationIndex,
 		@Nonnull Map<UUID, Long> sessionIdIndex,
 		@Nonnull Map<Long, SessionDescriptor> sessionUuidIndex,
@@ -351,8 +352,8 @@ public class DiskRingBufferIndex implements
 
 	@Nonnull
 	@Override
-	public DiskRingBufferIndex createCopyWithMergedTransactionalMemory(@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		return new DiskRingBufferIndex(
+	public TrafficRecordingIndex createCopyWithMergedTransactionalMemory(@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+		return new TrafficRecordingIndex(
 			transactionalLayer.getStateCopyWithCommittedChanges(this.sessionLocationIndex),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.sessionIdIndex),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.sessionUuidIndex),

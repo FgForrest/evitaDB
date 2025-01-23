@@ -71,13 +71,15 @@ public class EvitaTrafficRecordingService extends GrpcEvitaTrafficRecordingServi
 			session -> {
 				final TrafficRecordingCaptureRequest captureRequest = TrafficCaptureConverter.toTrafficRecordingCaptureRequest(request);
 				final GetTrafficHistoryListResponse.Builder builder = GetTrafficHistoryListResponse.newBuilder();
-				session.getRecordings(captureRequest)
-					.limit(request.getLimit())
-					.forEach(
-						trafficRecording -> builder.addTrafficRecord(
-							TrafficCaptureConverter.toGrpcGrpcTrafficRecord(trafficRecording, captureRequest.content())
-						)
-					);
+				try (final Stream<TrafficRecording> recordings = session.getRecordings(captureRequest)) {
+					recordings
+						.limit(request.getLimit())
+						.forEach(
+							trafficRecording -> builder.addTrafficRecord(
+								TrafficCaptureConverter.toGrpcGrpcTrafficRecord(trafficRecording, captureRequest.content())
+							)
+						);
+				}
 				responseObserver.onNext(builder.build());
 				responseObserver.onCompleted();
 			},
@@ -97,13 +99,19 @@ public class EvitaTrafficRecordingService extends GrpcEvitaTrafficRecordingServi
 		ServerCallStreamObserver<GetTrafficHistoryResponse> serverCallStreamObserver =
 			(ServerCallStreamObserver<GetTrafficHistoryResponse>) responseObserver;
 
-		// avoid returning error when client cancels the stream
-		serverCallStreamObserver.setOnCancelHandler(() -> log.info("Client cancelled the traffic history request."));
-
 		executeWithClientContext(
 			session -> {
 				final TrafficRecordingCaptureRequest captureRequest = TrafficCaptureConverter.toTrafficRecordingCaptureRequest(request);
 				final Stream<TrafficRecording> trafficHistoryStream = session.getRecordings(captureRequest);
+
+				// avoid returning error when client cancels the stream
+				serverCallStreamObserver.setOnCancelHandler(
+					() -> {
+						log.info("Client cancelled the traffic history request.");
+						trafficHistoryStream.close();
+					}
+				);
+
 				trafficHistoryStream.forEach(
 					trafficRecording -> {
 						final GetTrafficHistoryResponse.Builder builder = GetTrafficHistoryResponse.newBuilder();
@@ -114,6 +122,7 @@ public class EvitaTrafficRecordingService extends GrpcEvitaTrafficRecordingServi
 					}
 				);
 				responseObserver.onCompleted();
+				trafficHistoryStream.close();
 			},
 			evita.getRequestExecutor(),
 			responseObserver

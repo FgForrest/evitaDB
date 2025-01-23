@@ -24,6 +24,8 @@
 package io.evitadb.store.traffic;
 
 
+import com.carrotsearch.hppc.LongHashSet;
+import com.carrotsearch.hppc.LongSet;
 import io.evitadb.api.exception.IndexNotReady;
 import io.evitadb.api.requestResponse.trafficRecording.Label;
 import io.evitadb.api.requestResponse.trafficRecording.QueryContainer;
@@ -59,6 +61,8 @@ import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Deque;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -107,7 +111,7 @@ public class DiskRingBuffer {
 	/**
 	 * Optional index, that is maintained if there is a reader that could use it.
 	 */
-	private final AtomicReference<DiskRingBufferIndex> sessionIndex = new AtomicReference<>();
+	private final AtomicReference<TrafficRecordingIndex> sessionIndex = new AtomicReference<>();
 	/**
 	 * Atomic boolean used for locking the session index creation.
 	 */
@@ -132,7 +136,7 @@ public class DiskRingBuffer {
 	/**
 	 * Read input stream used for reading from the disk buffer file.
 	 */
-	@Getter private final RandomAccessFileInputStream diskBufferFileReadInputStream;
+	private final Supplier<RandomAccessFileInputStream> diskBufferFileReadInputStreamFactory;
 	/**
 	 * Channel for the disk buffer file.
 	 */
@@ -145,6 +149,10 @@ public class DiskRingBuffer {
 	 * Atomic reference holding the segments which are currently in active use (read / write).
 	 */
 	private final AtomicReference<ActiveSegments> activeSegments = new AtomicReference<>(new ActiveSegments());
+	/**
+	 * Sequence for assigning unique identifiers to the readers.
+	 */
+	private final AtomicLong readerSequence = new AtomicLong();
 	/**
 	 * Consumer for the recorded data (optional).
 	 */
@@ -174,31 +182,6 @@ public class DiskRingBuffer {
 	 */
 	@Setter
 	private int lastRealSamplingRate = 0;
-
-	/**
-	 * Allows to export session data before being deleted.
-	 *
-	 * @param sessionSink the session sink to be set
-	 */
-	public void setSessionSink(@Nullable SessionSink sessionSink) {
-		if (sessionSink != null) {
-			try {
-				sessionSink.initSourceInputStream(
-					new RandomAccessFileInputStream(
-						new RandomAccessFile(this.diskBufferFilePath.toFile(), "r"),
-						true
-					)
-				);
-			} catch (FileNotFoundException e) {
-				throw new UnexpectedIOException(
-					"Failed to create traffic recording buffer file input stream: " + e.getMessage(),
-					"Failed to create traffic recording buffer file input stream.",
-					e
-				);
-			}
-		}
-		this.sessionSink.set(sessionSink);
-	}
 
 	/**
 	 * Determines if two file segments overlap based on their starting and ending positions.
@@ -278,7 +261,19 @@ public class DiskRingBuffer {
 			this.diskBufferFilePath = diskBufferFilePath;
 			this.diskBufferFileSize = diskBufferFileSize;
 			this.diskBufferFile = new RandomAccessFile(this.diskBufferFilePath.toFile(), "rw");
-			this.diskBufferFileReadInputStream = new RandomAccessFileInputStream(new RandomAccessFile(this.diskBufferFilePath.toFile(), "r"), true);
+			this.diskBufferFileReadInputStreamFactory = () -> {
+				try {
+					return new RandomAccessFileInputStream(
+						new RandomAccessFile(this.diskBufferFilePath.toFile(), "r"), true
+					);
+				} catch (FileNotFoundException e) {
+					throw new UnexpectedIOException(
+						"Failed to create traffic recording buffer file input stream: " + e.getMessage(),
+						"Failed to create traffic recording buffer file input stream.",
+						e
+					);
+				}
+			};
 			// Initialize the file size
 			this.diskBufferFile.setLength(diskBufferFileSize);
 			this.fileChannel = this.diskBufferFile.getChannel();
@@ -292,6 +287,31 @@ public class DiskRingBuffer {
 	}
 
 	/**
+	 * Allows to export session data before being deleted.
+	 *
+	 * @param sessionSink the session sink to be set
+	 */
+	public void setSessionSink(@Nullable SessionSink sessionSink) {
+		if (sessionSink != null) {
+			try {
+				sessionSink.initSourceInputStream(
+					new RandomAccessFileInputStream(
+						new RandomAccessFile(this.diskBufferFilePath.toFile(), "r"),
+						true
+					)
+				);
+			} catch (FileNotFoundException e) {
+				throw new UnexpectedIOException(
+					"Failed to create traffic recording buffer file input stream: " + e.getMessage(),
+					"Failed to create traffic recording buffer file input stream.",
+					e
+				);
+			}
+		}
+		this.sessionSink.set(sessionSink);
+	}
+
+	/**
 	 * Executes the given lambda within a transaction if a session index is present.
 	 * If no session index is available, the lambda will be executed directly.
 	 *
@@ -299,7 +319,7 @@ public class DiskRingBuffer {
 	 *               Must not be null.
 	 */
 	public void updateIndexTransactionally(@Nonnull Runnable lambda) {
-		final DiskRingBufferIndex index = this.sessionIndex.get();
+		final TrafficRecordingIndex index = this.sessionIndex.get();
 		if (index != null) {
 			final Transaction transaction = new Transaction(index);
 			isPremiseValid(
@@ -316,7 +336,7 @@ public class DiskRingBuffer {
 			} finally {
 				transaction.close();
 				ofNullable(transaction.getCommitedState())
-					.ifPresent(it -> this.sessionIndex.set((DiskRingBufferIndex) it));
+					.ifPresent(it -> this.sessionIndex.set((TrafficRecordingIndex) it));
 				isPremiseValid(
 					this.transaction.compareAndSet(transaction, null),
 					"Transaction was removed. This is not expected!"
@@ -452,7 +472,7 @@ public class DiskRingBuffer {
 
 		// update index if present
 		this.sessionLocations.add(sessionLocation);
-		final DiskRingBufferIndex index = this.sessionIndex.get();
+		final TrafficRecordingIndex index = this.sessionIndex.get();
 		if (index != null) {
 			index.setupSession(
 				sessionLocation,
@@ -469,7 +489,7 @@ public class DiskRingBuffer {
 				.ifPresent(
 					postponedUpdates -> postponedUpdates.add(
 						() -> {
-							final DiskRingBufferIndex newIndex = this.sessionIndex.get();
+							final TrafficRecordingIndex newIndex = this.sessionIndex.get();
 							newIndex.setupSession(
 								sessionLocation,
 								sessionId,
@@ -498,15 +518,23 @@ public class DiskRingBuffer {
 	@Nonnull
 	public Stream<TrafficRecording> getSessionRecordsStream(
 		@Nonnull TrafficRecordingCaptureRequest request,
-		@Nonnull LongBiObjectFunction<DiskRingBuffer, StorageRecord<TrafficRecording>> reader
+		@Nonnull LongBiObjectFunction<RandomAccessFileInputStream, StorageRecord<TrafficRecording>> reader
 	) {
-		DiskRingBufferIndex sessionIndex = this.sessionIndex.get();
+		TrafficRecordingIndex sessionIndex = this.sessionIndex.get();
 		notNull(sessionIndex, () -> new IndexNotReady(calculateIndexingPercentage()));
 
+		final RandomAccessFileInputStream inputStream = this.getDiskBufferFileReadInputStream();
+		final long readerId = readerSequence.incrementAndGet();
 		final Predicate<TrafficRecording> requestPredicate = createRequestPredicate(request);
 		return sessionIndex.getSessionStream(request)
-			.flatMap(it -> this.readSessionRecords(it.sequenceOrder(), it.fileLocation(), reader, sessionIndex::sessionExists))
-			.filter(requestPredicate);
+			.flatMap(
+				it -> this.readSessionRecords(
+					readerId, it.sequenceOrder(), it.fileLocation(),
+					inputStream, reader, sessionIndex::sessionExists
+				)
+			)
+			.filter(requestPredicate)
+			.onClose(inputStream::close);
 	}
 
 	@Nonnull
@@ -514,7 +542,7 @@ public class DiskRingBuffer {
 		@Nullable String nameStartingWith,
 		int limit
 	) {
-		DiskRingBufferIndex sessionIndex = this.sessionIndex.get();
+		TrafficRecordingIndex sessionIndex = this.sessionIndex.get();
 		notNull(sessionIndex, () -> new IndexNotReady(calculateIndexingPercentage()));
 
 		return sessionIndex.getLabelsNamesOrderedByCardinality(nameStartingWith, limit);
@@ -526,7 +554,7 @@ public class DiskRingBuffer {
 		@Nullable String valueStartingWith,
 		int limit
 	) {
-		DiskRingBufferIndex sessionIndex = this.sessionIndex.get();
+		TrafficRecordingIndex sessionIndex = this.sessionIndex.get();
 		notNull(sessionIndex, () -> new IndexNotReady(calculateIndexingPercentage()));
 
 		return sessionIndex.getLabelValuesOrderedByCardinality(nameEquals, valueStartingWith, limit);
@@ -542,18 +570,26 @@ public class DiskRingBuffer {
 	 *               TrafficRecording instances, given a long identifier.
 	 */
 	public void indexData(
-		@Nonnull LongBiObjectFunction<DiskRingBuffer, StorageRecord<TrafficRecording>> reader
+		@Nonnull LongBiObjectFunction<RandomAccessFileInputStream, StorageRecord<TrafficRecording>> reader
 	) {
 		if (this.sessionIndexingRunning.compareAndSet(false, true)) {
-			try {
+			final long readerId = readerSequence.incrementAndGet();
+			try (final RandomAccessFileInputStream diskBufferFileReadInputStream = this.getDiskBufferFileReadInputStream()) {
 				this.indexedSessions.set(0);
 				this.postponedIndexUpdates.set(new ArrayDeque<>(512));
-				final DiskRingBufferIndex index = new DiskRingBufferIndex();
+				final TrafficRecordingIndex index = new TrafficRecordingIndex();
 				for (SessionLocation sessionLocation : this.sessionLocations) {
 					// we need to set up the session in the index first, so that `index::sessionExists` returns true
 					// and also to allow write logic to remove the session early when overwritten by the new data
 					index.setupSession(sessionLocation);
-					this.readSessionRecords(sessionLocation.sequenceOrder(), sessionLocation.fileLocation(), reader, index::sessionExists)
+					this.readSessionRecords(
+							readerId,
+							sessionLocation.sequenceOrder(),
+							sessionLocation.fileLocation(),
+							diskBufferFileReadInputStream,
+							reader,
+							index::sessionExists
+						)
 						.forEach(tr -> index.indexRecording(sessionLocation.sequenceOrder(), tr));
 					this.indexedSessions.incrementAndGet();
 				}
@@ -608,12 +644,21 @@ public class DiskRingBuffer {
 					"Failed to close traffic recording buffer file."
 				),
 				this.fileChannel::close,
-				this.diskBufferFileReadInputStream::close,
 				this.diskBufferFile::close
 			);
 		} finally {
 			fileCleanLogic.accept(this.diskBufferFilePath);
 		}
+	}
+
+	/**
+	 * Creates new input stream for reading the disk buffer file. The caller is responsible for closing the stream.
+	 *
+	 * @return the input stream for reading the disk buffer file
+	 */
+	@Nonnull
+	public RandomAccessFileInputStream getDiskBufferFileReadInputStream() {
+		return this.diskBufferFileReadInputStreamFactory.get();
 	}
 
 	/**
@@ -624,8 +669,8 @@ public class DiskRingBuffer {
 	 */
 	private int calculateIndexingPercentage() {
 		return (int) (
-			((float)this.indexedSessions.get() /
-				(float)(this.sessionLocations.size() +
+			((float) this.indexedSessions.get() /
+				(float) (this.sessionLocations.size() +
 					ofNullable(this.postponedIndexUpdates.get()).map(Deque::size).orElse(0))
 			) * 100.0
 		);
@@ -662,13 +707,13 @@ public class DiskRingBuffer {
 		final long newTail = this.ringBufferTail + totalBytesToWrite;
 		SessionLocation head = this.sessionLocations.peekFirst();
 		while (head != null) {
-			final DiskRingBufferIndex index = this.sessionIndex.get();
+			final TrafficRecordingIndex index = this.sessionIndex.get();
 			final LongNumberRange[] erasedArea = newTail <= this.diskBufferFileSize ?
-				new LongNumberRange[] { LongNumberRange.between(this.ringBufferTail + 1, newTail) } :
+				new LongNumberRange[]{LongNumberRange.between(this.ringBufferTail + 1, newTail)} :
 				Stream.of(
-					LongNumberRange.between(this.ringBufferTail + 1, this.diskBufferFileSize),
-					LongNumberRange.between(0L, newTail - this.diskBufferFileSize)
-				)
+						LongNumberRange.between(this.ringBufferTail + 1, this.diskBufferFileSize),
+						LongNumberRange.between(0L, newTail - this.diskBufferFileSize)
+					)
 					.filter(it -> it.getFrom() < it.getTo())
 					.toArray(LongNumberRange[]::new);
 
@@ -704,8 +749,8 @@ public class DiskRingBuffer {
 	 */
 	private boolean isWasted(@Nonnull LongNumberRange[] waste, @Nonnull FileLocation recordPosition) {
 		final LongNumberRange[] recordRanges = recordPosition.endPosition() <= this.diskBufferFileSize ?
-			new LongNumberRange[] { LongNumberRange.between(recordPosition.startingPosition(), recordPosition.endPosition()) } :
-			new LongNumberRange[] {
+			new LongNumberRange[]{LongNumberRange.between(recordPosition.startingPosition(), recordPosition.endPosition())} :
+			new LongNumberRange[]{
 				LongNumberRange.between(recordPosition.startingPosition(), this.diskBufferFileSize),
 				LongNumberRange.between(0L, recordPosition.endPosition() - this.diskBufferFileSize)
 			};
@@ -719,22 +764,27 @@ public class DiskRingBuffer {
 	 * The method ensures that the records are read only if the session exists and the file location is updated
 	 * accordingly to prevent redundant reads.
 	 *
+	 * @param readerId                the unique identifier for the reader
 	 * @param sessionSequenceId       the unique identifier for the session sequence to read records for
 	 * @param fileLocation            the file location specifying where to read the session records from
+	 * @param inputStream             the input stream for reading the disk buffer file
 	 * @param reader                  a function that reads a StorageRecord of TrafficRecording from a given position
 	 * @param sessionExistenceChecker a predicate that determines if the session exists based on its sequence ID
 	 * @return a stream of TrafficRecording objects read from the specified file location
 	 */
 	@Nonnull
 	private Stream<TrafficRecording> readSessionRecords(
+		long readerId,
 		long sessionSequenceId,
 		@Nonnull FileLocation fileLocation,
-		@Nonnull LongBiObjectFunction<DiskRingBuffer, StorageRecord<TrafficRecording>> reader,
+		@Nonnull RandomAccessFileInputStream inputStream,
+		@Nonnull LongBiObjectFunction<RandomAccessFileInputStream, StorageRecord<TrafficRecording>> reader,
 		@Nonnull LongPredicate sessionExistenceChecker
 	) {
 		final AtomicLong lastLocationRead = new AtomicLong(-1);
 		return Stream.generate(
 				() -> lockAndRead(
+					readerId,
 					fileLocation,
 					() -> {
 						final long lastFileLocation = lastLocationRead.get();
@@ -749,7 +799,7 @@ public class DiskRingBuffer {
 									fileLocation.startingPosition() + LEAD_DESCRIPTOR_BYTE_SIZE :
 									lastFileLocation;
 								try {
-									final StorageRecord<TrafficRecording> tr = reader.apply(sessionSequenceId, startPosition, this);
+									final StorageRecord<TrafficRecording> tr = reader.apply(sessionSequenceId, startPosition, inputStream);
 									if (tr == null) {
 										// finalize the stream on first error
 										return null;
@@ -792,10 +842,10 @@ public class DiskRingBuffer {
 		@Nonnull SessionLocation sessionBeingWritten,
 		@Nonnull IOExceptionThrowingLambda writeLambda
 	) throws IOException {
-        // Step 1: lock the write segment and write the data
+		// Step 1: lock the write segment and write the data
 		ActiveSegments newValue;
-        while (true) {
-            // Try to update the segments
+		while (true) {
+			// Try to update the segments
 			newValue = updateSegments(
 				() -> this.activeSegments.updateAndGet(
 					currentlyActiveSegments -> {
@@ -807,12 +857,17 @@ public class DiskRingBuffer {
 							currentlyActiveSegments.sessionBeingWritten() == null || currentlyActiveSegments.sessionBeingWritten() == sessionBeingWritten,
 							"Different session is being written. This is not expected!"
 						);
-                        // If the write segment is currently being read, we cannot proceed yet
-						if (segmentsOverlap(currentlyActiveSegments.readSegment(), writeSegment)) {
-                            // Return existing state (i.e. we failed to lock)
+						// If the write segment is currently being read, we cannot proceed yet
+						if (
+							currentlyActiveSegments.readSegment()
+								.keySet()
+								.stream()
+								.anyMatch(readSegment -> segmentsOverlap(readSegment, writeSegment))
+						) {
+							// Return existing state (i.e. we failed to lock)
 							return currentlyActiveSegments;
 						} else {
-                            // Otherwise lock the write segment and move on
+							// Otherwise lock the write segment and move on
 							return new ActiveSegments(
 								currentlyActiveSegments.readSegment(),
 								writeSegment,
@@ -822,19 +877,19 @@ public class DiskRingBuffer {
 					}
 				)
 			);
-            // If we successfully locked the segment, break out of the loop
-            if (newValue.writeSegment() == writeSegment) {
-                break;
-            }
-            // otherwise, wait until someone else changes the state (i.e., finishes reading)
-	        waitForSegmentUpdate();
-        }
+			// If we successfully locked the segment, break out of the loop
+			if (newValue.writeSegment() == writeSegment) {
+				break;
+			}
+			// otherwise, wait until someone else changes the state (i.e., finishes reading)
+			waitForSegmentUpdate();
+		}
 
-        // Step 2: write the data
+		// Step 2: write the data
 		writeLambda.run();
 
-        // Step 3: release the lock on the write segment
-        while (true) {
+		// Step 3: release the lock on the write segment
+		while (true) {
 			newValue = updateSegments(
 				() -> this.activeSegments.updateAndGet(
 					currentlyActiveSegments -> {
@@ -842,7 +897,7 @@ public class DiskRingBuffer {
 							currentlyActiveSegments.writeSegment() == writeSegment,
 							"Write segment is not locked. This is not expected!"
 						);
-                        // unlock the write segment
+						// unlock the write segment
 						return new ActiveSegments(
 							currentlyActiveSegments.readSegment(),
 							null,
@@ -851,13 +906,13 @@ public class DiskRingBuffer {
 					}
 				)
 			);
-            // If the write segment is unlocked, we’re done
-            if (newValue.writeSegment() == null) {
-                break;
-            }
-            // Otherwise, wait for the condition to change
-	        waitForSegmentUpdate();
-        }
+			// If the write segment is unlocked, we’re done
+			if (newValue.writeSegment() == null) {
+				break;
+			}
+			// Otherwise, wait for the condition to change
+			waitForSegmentUpdate();
+		}
 	}
 
 	/**
@@ -871,23 +926,33 @@ public class DiskRingBuffer {
 	 * is locked, otherwise returns null if the lock could not be acquired
 	 */
 	@Nullable
-	private <T> T lockAndRead(@Nonnull FileLocation readSegment, @Nonnull Supplier<T> readLambda) {
+	private <T> T lockAndRead(
+		long readerId,
+		@Nonnull FileLocation readSegment,
+		@Nonnull Supplier<T> readLambda
+	) {
 		// lock the read segment and execute the read lambda
 		ActiveSegments newValue = updateSegments(
 			() -> this.activeSegments.updateAndGet(
 				currentlyActiveSegments -> {
-					isPremiseValid(
-						currentlyActiveSegments.readSegment() == null,
-						"Read segment is already locked. This is not expected!"
-					);
 					if (segmentsOverlap(currentlyActiveSegments.writeSegment(), readSegment)) {
 						// if the read segment is currently being written, do not read from it,
 						// this will cause reading to be skipped entirely - the data will be mangled anyway
 						return currentlyActiveSegments;
 					} else {
 						// otherwise lock the read segment and execute the read lambda
-						return new ActiveSegments(
+						final Map<FileLocation, LongSet> readers = currentlyActiveSegments.readSegment();
+						readers.compute(
 							readSegment,
+							(fileLocation, theReaderIds) -> {
+								if (theReaderIds == null) {
+									theReaderIds = new LongHashSet();
+								}
+								theReaderIds.add(readerId);
+								return theReaderIds;
+							});
+						return new ActiveSegments(
+							readers,
 							currentlyActiveSegments.writeSegment(),
 							currentlyActiveSegments.sessionBeingWritten()
 						);
@@ -897,29 +962,34 @@ public class DiskRingBuffer {
 		);
 
 		// if we succeeded in locking the read segment, execute the read lambda
-		if (newValue.readSegment() == readSegment) {
+		if (
+			ofNullable(newValue.readSegment().get(readSegment))
+				.map(theReaders -> theReaders.contains(readerId))
+				.orElse(false)
+		) {
 			try {
 				return readLambda.get();
 			} finally {
-				// release the lock on the read segment
-				do {
-					newValue = updateSegments(
-						() -> this.activeSegments.updateAndGet(
-							currentlyActiveSegments -> {
-								isPremiseValid(
-									currentlyActiveSegments.readSegment() == readSegment,
-									"Read segment is not locked. This is not expected!"
-								);
-								return new ActiveSegments(
-									null,
-									currentlyActiveSegments.writeSegment(),
-									currentlyActiveSegments.sessionBeingWritten()
-								);
-							}
-						)
-					);
-					// we're busy waiting for the read segment to be unlocked, this should practically never happen
-				} while (newValue.readSegment() != null);
+				updateSegments(
+					() -> this.activeSegments.updateAndGet(
+						currentlyActiveSegments -> {
+							final Map<FileLocation, LongSet> readers = currentlyActiveSegments.readSegment();
+							readers.compute(
+								readSegment,
+								(fileLocation, theReaders) -> {
+									isPremiseValid(theReaders != null, "Read segment counter is null. This is not expected!");
+									isPremiseValid(theReaders.removeAll(readerId) == 1, "Reader ID not found. This is not expected!");
+									return theReaders.isEmpty() ? null : theReaders;
+								}
+							);
+							return new ActiveSegments(
+								readers,
+								currentlyActiveSegments.writeSegment(),
+								currentlyActiveSegments.sessionBeingWritten()
+							);
+						}
+					)
+				);
 			}
 		} else {
 			// we failed to lock the read segment, return null
@@ -1002,13 +1072,13 @@ public class DiskRingBuffer {
 	 *                            this field is used for sanity check, to ensure that the session being written is the one that was locked
 	 */
 	private record ActiveSegments(
-		@Nullable FileLocation readSegment,
+		@Nonnull Map<FileLocation, LongSet> readSegment,
 		@Nullable FileLocation writeSegment,
 		@Nullable SessionLocation sessionBeingWritten
 	) {
 
 		private ActiveSegments() {
-			this(null, null, null);
+			this(new HashMap<>(256), null, null);
 		}
 
 		@Override

@@ -73,6 +73,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -363,15 +364,20 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 
 	@Test
 	void shouldRecordDataInParallelAndQueryOnThem() throws InterruptedException {
-		final CountDownLatch latch = writeDataInParallel(5, 5, 200);
+		final CountDownLatch writeLatch = writeDataInParallel(5, 5, 200);
+		final CountDownLatch readLatch = readDataInParallel(5, 5, 200);
 
 		final long waitForDataStart = System.currentTimeMillis();
 		waitUntilDataBecomeAvailable(25, 60_000);
 		System.out.println("Data available in " + (System.currentTimeMillis() - waitForDataStart) + " ms.");
 
-		final long waitForThreadStopStart = System.currentTimeMillis();
-		assertTrue(latch.await(1, TimeUnit.MINUTES), "Threads should have finished by now.");
-		System.out.println("Waiting finished in " + (System.currentTimeMillis() - waitForThreadStopStart) + " ms.");
+		final long waitForWriteThreadsStopStart = System.currentTimeMillis();
+		assertTrue(writeLatch.await(1, TimeUnit.MINUTES), "Threads should have finished by now.");
+		System.out.println("Waiting for write threads being finished in " + (System.currentTimeMillis() - waitForWriteThreadsStopStart) + " ms.");
+
+		final long waitForReadThreadsStopStart = System.currentTimeMillis();
+		assertTrue(readLatch.await(1, TimeUnit.MINUTES), "Threads should have finished by now.");
+		System.out.println("Waiting for read threads being finished in " + (System.currentTimeMillis() - waitForReadThreadsStopStart) + " ms.");
 
 		final List<TrafficRecording> allRecordings = this.trafficRecorder.getRecordings(
 			TrafficRecordingCaptureRequest.builder()
@@ -507,6 +513,7 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 		return Objects.requireNonNull(sessionId);
 	}
 
+	@Nonnull
 	private CountDownLatch writeDataInParallel(int threadCount, int sessionsPerThread, int delayInMilliseconds) {
 		final CountDownLatch latch = new CountDownLatch(threadCount);
 		for (int thread = 0; thread < threadCount; thread++) {
@@ -545,6 +552,46 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 						}
 					}
 					System.out.println("Thread #" + (finalThread + 1) + " finished.");
+					latch.countDown();
+				}
+			);
+			theThread.start();
+		}
+		return latch;
+	}
+
+	@Nonnull
+	private CountDownLatch readDataInParallel(int threadCount, int sessionsPerThread, int delayInMilliseconds) {
+		final CountDownLatch latch = new CountDownLatch(threadCount);
+		for (int thread = 0; thread < threadCount; thread++) {
+			int finalThread = thread;
+			final Thread theThread = new Thread(
+				() -> {
+					long overallCount = 0;
+					for (int sessionIndex = 0; sessionIndex < sessionsPerThread; sessionIndex++) {
+						try (
+							final Stream<TrafficRecording> recordings = this.trafficRecorder.getRecordings(
+								TrafficRecordingCaptureRequest.builder()
+									.content(TrafficRecordingContent.BODY)
+									.sinceSessionSequenceId(0L)
+									.sinceRecordSessionOffset(0)
+									.build()
+							)
+						) {
+							overallCount += recordings
+								.limit(50)
+								.count();
+						} catch (IndexNotReady ignored) {
+							// ignore and retry
+						}
+
+						try {
+							Thread.sleep(delayInMilliseconds);
+						} catch (InterruptedException e) {
+							Thread.currentThread().interrupt();
+						}
+					}
+					System.out.println("Thread #" + (finalThread + 1) + " finished (read " + overallCount + " records).");
 					latch.countDown();
 				}
 			);

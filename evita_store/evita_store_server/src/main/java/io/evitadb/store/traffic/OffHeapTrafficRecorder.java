@@ -109,7 +109,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 	/**
 	 * Pool of Kryo instances used for serialization of traffic data.
 	 */
-	private final Pool<Kryo> offHeapTrafficRecorderKryoPool = new Pool<>(true, true) {
+	private final Pool<Kryo> trafficRecorderKryoPool = new Pool<>(true, true) {
 		@Override
 		protected Kryo create() {
 			return KryoFactory.createKryo(
@@ -241,7 +241,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 				this.copyBufferPool.obtain(),
 				this::prepareStorageBlock
 			);
-			final Kryo kryoInstance = this.offHeapTrafficRecorderKryoPool.obtain();
+			final Kryo kryoInstance = this.trafficRecorderKryoPool.obtain();
 			try {
 				final StorageRecord<SessionStartContainer> sessionStartRecord = new StorageRecord<>(
 					sessionTraffic.getObservableOutput(),
@@ -267,7 +267,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 				this.droppedSessions.incrementAndGet();
 				this.missedRecords.incrementAndGet();
 			} finally {
-				this.offHeapTrafficRecorderKryoPool.free(kryoInstance);
+				this.trafficRecorderKryoPool.free(kryoInstance);
 			}
 		} else {
 			this.missedRecords.incrementAndGet();
@@ -280,7 +280,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		if (sessionTraffic != null && !sessionTraffic.isFinished()) {
 			final byte[] bufferToReturn = sessionTraffic.finish();
 
-			final Kryo kryoInstance = this.offHeapTrafficRecorderKryoPool.obtain();
+			final Kryo kryoInstance = this.trafficRecorderKryoPool.obtain();
 			try {
 				final StorageRecord<SessionCloseContainer> sessionCloseRecord = new StorageRecord<>(
 					sessionTraffic.getObservableOutput(),
@@ -311,7 +311,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 				this.droppedSessions.incrementAndGet();
 				this.missedRecords.incrementAndGet();
 			} finally {
-				this.offHeapTrafficRecorderKryoPool.free(kryoInstance);
+				this.trafficRecorderKryoPool.free(kryoInstance);
 				sessionTraffic.close();
 				this.copyBufferPool.free(bufferToReturn);
 				this.finishedSessions.incrementAndGet();
@@ -479,8 +479,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 			this.lastRead = System.currentTimeMillis();
 			return this.diskBuffer.getSessionRecordsStream(
 				request,
-				(sessionSequenceOrder, filePosition, diskRingBuffer) ->
-					readTrafficRecord(sessionSequenceOrder, filePosition, diskRingBuffer.getDiskBufferFileReadInputStream())
+				this::readTrafficRecord
 			);
 		} catch (IndexNotReady ex) {
 			this.indexTask.schedule();
@@ -591,7 +590,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 	@Nonnull
 	private StorageRecord<TrafficRecording> readTrafficRecord(long sessionSequenceOrder, long filePosition, @Nonnull RandomAccessFileInputStream targetFileInputStream) {
 		final byte[] byteBuffer = this.copyBufferPool.obtain();
-		final Kryo kryoInstance = this.offHeapTrafficRecorderKryoPool.obtain();
+		final Kryo kryoInstance = this.trafficRecorderKryoPool.obtain();
 		try {
 			final ObservableInput<RingBufferInputStream> input = new ObservableInput<>(
 				new RingBufferInputStream(
@@ -610,7 +609,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 			);
 		} finally {
 			this.copyBufferPool.free(byteBuffer);
-			this.offHeapTrafficRecorderKryoPool.free(kryoInstance);
+			this.trafficRecorderKryoPool.free(kryoInstance);
 		}
 	}
 
@@ -630,7 +629,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		@Nonnull Function<SessionTraffic, T> containerFactory
 	) {
 		if (sessionTraffic != null && !sessionTraffic.isFinished()) {
-			final Kryo kryoInstance = this.offHeapTrafficRecorderKryoPool.obtain();
+			final Kryo kryoInstance = this.trafficRecorderKryoPool.obtain();
 			try {
 				final T container = containerFactory.apply(sessionTraffic);
 				final StorageRecord<T> storageRecord = new StorageRecord<>(
@@ -649,7 +648,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 				this.copyBufferPool.free(ex.getWriteBuffer());
 				this.missedRecords.incrementAndGet();
 			} finally {
-				this.offHeapTrafficRecorderKryoPool.free(kryoInstance);
+				this.trafficRecorderKryoPool.free(kryoInstance);
 			}
 		} else {
 			if (sessionTraffic != null) {
@@ -691,8 +690,8 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 	 */
 	private long index() {
 		this.diskBuffer.indexData(
-			(sessionSequenceOrder, filePosition, diskRingBuffer) ->
-				readTrafficRecord(sessionSequenceOrder, filePosition, diskRingBuffer.getDiskBufferFileReadInputStream())
+			(sessionSequenceOrder, filePosition, diskRingBufferReadInputStream) ->
+				readTrafficRecord(sessionSequenceOrder, filePosition, diskRingBufferReadInputStream)
 		);
 		return -1L;
 	}

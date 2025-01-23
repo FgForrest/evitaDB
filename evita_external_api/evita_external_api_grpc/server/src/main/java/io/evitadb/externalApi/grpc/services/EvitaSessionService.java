@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -578,14 +578,19 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		ServerCallStreamObserver<GetMutationsHistoryResponse> serverCallStreamObserver =
 			(ServerCallStreamObserver<GetMutationsHistoryResponse>) responseObserver;
 
-		// avoid returning error when client cancels the stream
-		serverCallStreamObserver.setOnCancelHandler(() -> log.info("Client cancelled the mutation history request."));
-
 		executeWithClientContext(
 			session -> {
 				final Stream<ChangeCatalogCapture> mutationsHistoryStream = session.getMutationsHistory(
 					ChangeCaptureConverter.toChangeCaptureRequest(request)
 				);
+				// avoid returning error when client cancels the stream
+				serverCallStreamObserver.setOnCancelHandler(
+					() -> {
+						log.info("Client cancelled the mutation history request.");
+						mutationsHistoryStream.close();
+					}
+				);
+
 				mutationsHistoryStream.forEach(
 					cdcEvent -> {
 						final GetMutationsHistoryResponse.Builder builder = GetMutationsHistoryResponse.newBuilder();
