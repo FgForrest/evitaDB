@@ -104,9 +104,9 @@ service GrpcEvitaTrafficRecordingService {
   // traffic records within the session are ordered from the newest to the oldest.
   rpc GetTrafficRecordingHistory(GetTrafficHistoryRequest) returns (stream GetTrafficHistoryResponse);
   // Procedure returns a list of top unique labels names ordered by cardinality of their values present in the traffic recording.
-  rpc GetTrafficRecordingLabelsNamesOrderedByCardinality(GetTrafficRecordingLabelNamesRequest) returns (stream GetTrafficRecordingLabelNamesResponse);
+  rpc GetTrafficRecordingLabelsNamesOrderedByCardinality(GetTrafficRecordingLabelNamesRequest) returns (GetTrafficRecordingLabelNamesResponse);
   // Procedure returns a list of top unique label values ordered by cardinality of their values present in the traffic recording.
-  rpc GetTrafficRecordingLabelValuesOrderedByCardinality(GetTrafficRecordingValuesNamesRequest) returns (stream GetTrafficRecordingValuesNamesResponse);
+  rpc GetTrafficRecordingLabelValuesOrderedByCardinality(GetTrafficRecordingValuesNamesRequest) returns (GetTrafficRecordingValuesNamesResponse);
   // Procedure that starts the traffic recording for the given criteria and settings
   rpc StartTrafficRecording(GrpcStartTrafficRecordingRequest) returns (GetTrafficRecordingStatusResponse);
   // Procedure that stops the traffic recording

@@ -105,7 +105,7 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
       fullMethodName = SERVICE_NAME + '/' + "GetTrafficRecordingLabelsNamesOrderedByCardinality",
       requestType = io.evitadb.externalApi.grpc.generated.GetTrafficRecordingLabelNamesRequest.class,
       responseType = io.evitadb.externalApi.grpc.generated.GetTrafficRecordingLabelNamesResponse.class,
-      methodType = io.grpc.MethodDescriptor.MethodType.SERVER_STREAMING)
+      methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
   public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GetTrafficRecordingLabelNamesRequest,
       io.evitadb.externalApi.grpc.generated.GetTrafficRecordingLabelNamesResponse> getGetTrafficRecordingLabelsNamesOrderedByCardinalityMethod() {
     io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GetTrafficRecordingLabelNamesRequest, io.evitadb.externalApi.grpc.generated.GetTrafficRecordingLabelNamesResponse> getGetTrafficRecordingLabelsNamesOrderedByCardinalityMethod;
@@ -114,7 +114,7 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
         if ((getGetTrafficRecordingLabelsNamesOrderedByCardinalityMethod = GrpcEvitaTrafficRecordingServiceGrpc.getGetTrafficRecordingLabelsNamesOrderedByCardinalityMethod) == null) {
           GrpcEvitaTrafficRecordingServiceGrpc.getGetTrafficRecordingLabelsNamesOrderedByCardinalityMethod = getGetTrafficRecordingLabelsNamesOrderedByCardinalityMethod =
               io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GetTrafficRecordingLabelNamesRequest, io.evitadb.externalApi.grpc.generated.GetTrafficRecordingLabelNamesResponse>newBuilder()
-              .setType(io.grpc.MethodDescriptor.MethodType.SERVER_STREAMING)
+              .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
               .setFullMethodName(generateFullMethodName(SERVICE_NAME, "GetTrafficRecordingLabelsNamesOrderedByCardinality"))
               .setSampledToLocalTracing(true)
               .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
@@ -136,7 +136,7 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
       fullMethodName = SERVICE_NAME + '/' + "GetTrafficRecordingLabelValuesOrderedByCardinality",
       requestType = io.evitadb.externalApi.grpc.generated.GetTrafficRecordingValuesNamesRequest.class,
       responseType = io.evitadb.externalApi.grpc.generated.GetTrafficRecordingValuesNamesResponse.class,
-      methodType = io.grpc.MethodDescriptor.MethodType.SERVER_STREAMING)
+      methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
   public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GetTrafficRecordingValuesNamesRequest,
       io.evitadb.externalApi.grpc.generated.GetTrafficRecordingValuesNamesResponse> getGetTrafficRecordingLabelValuesOrderedByCardinalityMethod() {
     io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GetTrafficRecordingValuesNamesRequest, io.evitadb.externalApi.grpc.generated.GetTrafficRecordingValuesNamesResponse> getGetTrafficRecordingLabelValuesOrderedByCardinalityMethod;
@@ -145,7 +145,7 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
         if ((getGetTrafficRecordingLabelValuesOrderedByCardinalityMethod = GrpcEvitaTrafficRecordingServiceGrpc.getGetTrafficRecordingLabelValuesOrderedByCardinalityMethod) == null) {
           GrpcEvitaTrafficRecordingServiceGrpc.getGetTrafficRecordingLabelValuesOrderedByCardinalityMethod = getGetTrafficRecordingLabelValuesOrderedByCardinalityMethod =
               io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GetTrafficRecordingValuesNamesRequest, io.evitadb.externalApi.grpc.generated.GetTrafficRecordingValuesNamesResponse>newBuilder()
-              .setType(io.grpc.MethodDescriptor.MethodType.SERVER_STREAMING)
+              .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
               .setFullMethodName(generateFullMethodName(SERVICE_NAME, "GetTrafficRecordingLabelValuesOrderedByCardinality"))
               .setSampledToLocalTracing(true)
               .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
@@ -395,7 +395,7 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
      */
     public void getTrafficRecordingLabelsNamesOrderedByCardinality(io.evitadb.externalApi.grpc.generated.GetTrafficRecordingLabelNamesRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GetTrafficRecordingLabelNamesResponse> responseObserver) {
-      io.grpc.stub.ClientCalls.asyncServerStreamingCall(
+      io.grpc.stub.ClientCalls.asyncUnaryCall(
           getChannel().newCall(getGetTrafficRecordingLabelsNamesOrderedByCardinalityMethod(), getCallOptions()), request, responseObserver);
     }
 
@@ -406,7 +406,7 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
      */
     public void getTrafficRecordingLabelValuesOrderedByCardinality(io.evitadb.externalApi.grpc.generated.GetTrafficRecordingValuesNamesRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GetTrafficRecordingValuesNamesResponse> responseObserver) {
-      io.grpc.stub.ClientCalls.asyncServerStreamingCall(
+      io.grpc.stub.ClientCalls.asyncUnaryCall(
           getChannel().newCall(getGetTrafficRecordingLabelValuesOrderedByCardinalityMethod(), getCallOptions()), request, responseObserver);
     }
 
@@ -479,9 +479,8 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
      * Procedure returns a list of top unique labels names ordered by cardinality of their values present in the traffic recording.
      * </pre>
      */
-    public java.util.Iterator<io.evitadb.externalApi.grpc.generated.GetTrafficRecordingLabelNamesResponse> getTrafficRecordingLabelsNamesOrderedByCardinality(
-        io.evitadb.externalApi.grpc.generated.GetTrafficRecordingLabelNamesRequest request) {
-      return io.grpc.stub.ClientCalls.blockingServerStreamingCall(
+    public io.evitadb.externalApi.grpc.generated.GetTrafficRecordingLabelNamesResponse getTrafficRecordingLabelsNamesOrderedByCardinality(io.evitadb.externalApi.grpc.generated.GetTrafficRecordingLabelNamesRequest request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
           getChannel(), getGetTrafficRecordingLabelsNamesOrderedByCardinalityMethod(), getCallOptions(), request);
     }
 
@@ -490,9 +489,8 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
      * Procedure returns a list of top unique label values ordered by cardinality of their values present in the traffic recording.
      * </pre>
      */
-    public java.util.Iterator<io.evitadb.externalApi.grpc.generated.GetTrafficRecordingValuesNamesResponse> getTrafficRecordingLabelValuesOrderedByCardinality(
-        io.evitadb.externalApi.grpc.generated.GetTrafficRecordingValuesNamesRequest request) {
-      return io.grpc.stub.ClientCalls.blockingServerStreamingCall(
+    public io.evitadb.externalApi.grpc.generated.GetTrafficRecordingValuesNamesResponse getTrafficRecordingLabelValuesOrderedByCardinality(io.evitadb.externalApi.grpc.generated.GetTrafficRecordingValuesNamesRequest request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
           getChannel(), getGetTrafficRecordingLabelValuesOrderedByCardinalityMethod(), getCallOptions(), request);
     }
 
@@ -544,6 +542,28 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
         io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListRequest request) {
       return io.grpc.stub.ClientCalls.futureUnaryCall(
           getChannel().newCall(getGetTrafficRecordingHistoryListMethod(), getCallOptions()), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure returns a list of top unique labels names ordered by cardinality of their values present in the traffic recording.
+     * </pre>
+     */
+    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GetTrafficRecordingLabelNamesResponse> getTrafficRecordingLabelsNamesOrderedByCardinality(
+        io.evitadb.externalApi.grpc.generated.GetTrafficRecordingLabelNamesRequest request) {
+      return io.grpc.stub.ClientCalls.futureUnaryCall(
+          getChannel().newCall(getGetTrafficRecordingLabelsNamesOrderedByCardinalityMethod(), getCallOptions()), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure returns a list of top unique label values ordered by cardinality of their values present in the traffic recording.
+     * </pre>
+     */
+    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GetTrafficRecordingValuesNamesResponse> getTrafficRecordingLabelValuesOrderedByCardinality(
+        io.evitadb.externalApi.grpc.generated.GetTrafficRecordingValuesNamesRequest request) {
+      return io.grpc.stub.ClientCalls.futureUnaryCall(
+          getChannel().newCall(getGetTrafficRecordingLabelValuesOrderedByCardinalityMethod(), getCallOptions()), request);
     }
 
     /**
@@ -651,14 +671,14 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
                 service, METHODID_GET_TRAFFIC_RECORDING_HISTORY)))
         .addMethod(
           getGetTrafficRecordingLabelsNamesOrderedByCardinalityMethod(),
-          io.grpc.stub.ServerCalls.asyncServerStreamingCall(
+          io.grpc.stub.ServerCalls.asyncUnaryCall(
             new MethodHandlers<
               io.evitadb.externalApi.grpc.generated.GetTrafficRecordingLabelNamesRequest,
               io.evitadb.externalApi.grpc.generated.GetTrafficRecordingLabelNamesResponse>(
                 service, METHODID_GET_TRAFFIC_RECORDING_LABELS_NAMES_ORDERED_BY_CARDINALITY)))
         .addMethod(
           getGetTrafficRecordingLabelValuesOrderedByCardinalityMethod(),
-          io.grpc.stub.ServerCalls.asyncServerStreamingCall(
+          io.grpc.stub.ServerCalls.asyncUnaryCall(
             new MethodHandlers<
               io.evitadb.externalApi.grpc.generated.GetTrafficRecordingValuesNamesRequest,
               io.evitadb.externalApi.grpc.generated.GetTrafficRecordingValuesNamesResponse>(

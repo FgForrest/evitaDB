@@ -139,7 +139,7 @@ public final class GrpcEvitaTrafficRecordingAPI {
       "rpc.generated.GrpcUuid\"n\n!GetTrafficReco" +
       "rdingStatusResponse\022I\n\ntaskStatus\030\001 \001(\0132" +
       "5.io.evitadb.externalApi.grpc.generated." +
-      "GrpcTaskStatus2\366\010\n GrpcEvitaTrafficRecor" +
+      "GrpcTaskStatus2\362\010\n GrpcEvitaTrafficRecor" +
       "dingService\022\253\001\n\036GetTrafficRecordingHisto" +
       "ryList\022C.io.evitadb.externalApi.grpc.gen" +
       "erated.GetTrafficHistoryListRequest\032D.io" +
@@ -148,27 +148,27 @@ public final class GrpcEvitaTrafficRecordingAPI {
       "RecordingHistory\022?.io.evitadb.externalAp" +
       "i.grpc.generated.GetTrafficHistoryReques" +
       "t\032@.io.evitadb.externalApi.grpc.generate" +
-      "d.GetTrafficHistoryResponse0\001\022\321\001\n2GetTra" +
+      "d.GetTrafficHistoryResponse0\001\022\317\001\n2GetTra" +
       "fficRecordingLabelsNamesOrderedByCardina" +
       "lity\022K.io.evitadb.externalApi.grpc.gener" +
       "ated.GetTrafficRecordingLabelNamesReques" +
       "t\032L.io.evitadb.externalApi.grpc.generate" +
-      "d.GetTrafficRecordingLabelNamesResponse0" +
-      "\001\022\323\001\n2GetTrafficRecordingLabelValuesOrde" +
-      "redByCardinality\022L.io.evitadb.externalAp" +
-      "i.grpc.generated.GetTrafficRecordingValu" +
-      "esNamesRequest\032M.io.evitadb.externalApi." +
+      "d.GetTrafficRecordingLabelNamesResponse\022" +
+      "\321\001\n2GetTrafficRecordingLabelValuesOrdere" +
+      "dByCardinality\022L.io.evitadb.externalApi." +
       "grpc.generated.GetTrafficRecordingValues" +
-      "NamesResponse0\001\022\252\001\n\025StartTrafficRecordin" +
-      "g\022G.io.evitadb.externalApi.grpc.generate" +
-      "d.GrpcStartTrafficRecordingRequest\032H.io." +
-      "evitadb.externalApi.grpc.generated.GetTr" +
-      "afficRecordingStatusResponse\022\250\001\n\024StopTra" +
-      "fficRecording\022F.io.evitadb.externalApi.g" +
-      "rpc.generated.GrpcStopTrafficRecordingRe" +
-      "quest\032H.io.evitadb.externalApi.grpc.gene" +
-      "rated.GetTrafficRecordingStatusResponseB" +
-      "\014P\001\252\002\007EvitaDBb\006proto3"
+      "NamesRequest\032M.io.evitadb.externalApi.gr" +
+      "pc.generated.GetTrafficRecordingValuesNa" +
+      "mesResponse\022\252\001\n\025StartTrafficRecording\022G." +
+      "io.evitadb.externalApi.grpc.generated.Gr" +
+      "pcStartTrafficRecordingRequest\032H.io.evit" +
+      "adb.externalApi.grpc.generated.GetTraffi" +
+      "cRecordingStatusResponse\022\250\001\n\024StopTraffic" +
+      "Recording\022F.io.evitadb.externalApi.grpc." +
+      "generated.GrpcStopTrafficRecordingReques" +
+      "t\032H.io.evitadb.externalApi.grpc.generate" +
+      "d.GetTrafficRecordingStatusResponseB\014P\001\252" +
+      "\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
