@@ -29,6 +29,8 @@ import io.evitadb.stream.RandomAccessFileInputStream;
 import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.UnsupportedEncodingException;
 
 /**
  * Implementation of an {@link InputStream} that wraps around a {@link RandomAccessFileInputStream}, utilizing a ring buffer mechanism.
@@ -63,4 +65,61 @@ public class RingBufferInputStream extends InputStream {
 		return this.delegatingInputStream.read();
 	}
 
+	public int read(@Nonnull byte[] buffer, int off, int len) throws IOException {
+		if (this.position + len > this.inputBufferSize) {
+			final int bytesUpToEOF = (int) (this.inputBufferSize - this.position);
+			final int tailRead = this.delegatingInputStream.read(buffer, off, bytesUpToEOF);
+			this.position = 0L;
+			this.delegatingInputStream.seek(this.position);
+			final int headRead = this.delegatingInputStream.read(buffer, off + bytesUpToEOF, len - bytesUpToEOF);
+			return tailRead + headRead;
+		} else {
+			this.position += len;
+			return this.delegatingInputStream.read(buffer, off, len);
+		}
+	}
+
+	@Override
+	public long skip(long n) throws IOException {
+		this.position += n;
+		if (this.position > this.inputBufferSize) {
+			this.position = this.position % this.inputBufferSize;
+			this.delegatingInputStream.seek(this.position);
+		}
+		return n;
+	}
+
+	@Override
+	public void skipNBytes(long n) throws IOException {
+		this.position += n;
+		if (this.position > this.inputBufferSize) {
+			this.position = this.position % this.inputBufferSize;
+			this.delegatingInputStream.seek(this.position);
+		}
+	}
+
+	@Override
+	public int available() throws IOException {
+		return Math.toIntExact(this.inputBufferSize);
+	}
+
+	@Override
+	public synchronized void mark(int readlimit) {
+		this.delegatingInputStream.mark(readlimit);
+	}
+
+	@Override
+	public synchronized void reset() throws IOException {
+		this.delegatingInputStream.reset();
+	}
+
+	@Override
+	public boolean markSupported() {
+		return this.delegatingInputStream.markSupported();
+	}
+
+	@Override
+	public long transferTo(OutputStream out) throws IOException {
+		throw new UnsupportedEncodingException("Transfer to is not supported for ring buffer input stream");
+	}
 }

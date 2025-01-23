@@ -74,7 +74,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
-import java.util.function.LongPredicate;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -529,8 +528,7 @@ public class DiskRingBuffer {
 		return sessionIndex.getSessionStream(request)
 			.flatMap(
 				it -> this.readSessionRecords(
-					readerId, it.sequenceOrder(), it.fileLocation(),
-					inputStream, reader, sessionIndex::sessionExists
+					readerId, it.sequenceOrder(), it.fileLocation(), inputStream, reader
 				)
 			)
 			.filter(requestPredicate)
@@ -587,8 +585,7 @@ public class DiskRingBuffer {
 							sessionLocation.sequenceOrder(),
 							sessionLocation.fileLocation(),
 							diskBufferFileReadInputStream,
-							reader,
-							index::sessionExists
+							reader
 						)
 						.forEach(tr -> index.indexRecording(sessionLocation.sequenceOrder(), tr));
 					this.indexedSessions.incrementAndGet();
@@ -764,12 +761,11 @@ public class DiskRingBuffer {
 	 * The method ensures that the records are read only if the session exists and the file location is updated
 	 * accordingly to prevent redundant reads.
 	 *
-	 * @param readerId                the unique identifier for the reader
-	 * @param sessionSequenceId       the unique identifier for the session sequence to read records for
-	 * @param fileLocation            the file location specifying where to read the session records from
-	 * @param inputStream             the input stream for reading the disk buffer file
-	 * @param reader                  a function that reads a StorageRecord of TrafficRecording from a given position
-	 * @param sessionExistenceChecker a predicate that determines if the session exists based on its sequence ID
+	 * @param readerId          the unique identifier for the reader
+	 * @param sessionSequenceId the unique identifier for the session sequence to read records for
+	 * @param fileLocation      the file location specifying where to read the session records from
+	 * @param inputStream       the input stream for reading the disk buffer file
+	 * @param reader            a function that reads a StorageRecord of TrafficRecording from a given position
 	 * @return a stream of TrafficRecording objects read from the specified file location
 	 */
 	@Nonnull
@@ -778,8 +774,7 @@ public class DiskRingBuffer {
 		long sessionSequenceId,
 		@Nonnull FileLocation fileLocation,
 		@Nonnull RandomAccessFileInputStream inputStream,
-		@Nonnull LongBiObjectFunction<RandomAccessFileInputStream, StorageRecord<TrafficRecording>> reader,
-		@Nonnull LongPredicate sessionExistenceChecker
+		@Nonnull LongBiObjectFunction<RandomAccessFileInputStream, StorageRecord<TrafficRecording>> reader
 	) {
 		final AtomicLong lastLocationRead = new AtomicLong(-1);
 		return Stream.generate(
@@ -787,9 +782,11 @@ public class DiskRingBuffer {
 					readerId,
 					fileLocation,
 					() -> {
-						final long lastFileLocation = lastLocationRead.get();
-						// check if the session still exists before reading the records
-						if (sessionExistenceChecker.test(sessionSequenceId)) {
+						if (!isSessionLocationStillInValidArea(fileLocation)) {
+							// session was already removed in the meantime
+							return null;
+						} else {
+							final long lastFileLocation = lastLocationRead.get();
 							// finalize stream when the expected session end position is reached
 							if (lastFileLocation != -1L && lastFileLocation == fileLocation.endPosition() % this.diskBufferFileSize) {
 								return null;
@@ -816,14 +813,32 @@ public class DiskRingBuffer {
 									return null;
 								}
 							}
-						} else {
-							// session no longer exists, finalize the stream
-							return null;
 						}
 					}
 				)
 			)
 			.takeWhile(Objects::nonNull);
+	}
+
+	/**
+	 * Checks if the provided file location is still within a valid area
+	 * of the session's ring buffer.
+	 *
+	 * @param fileLocation the file location to check, containing starting and
+	 *                     ending positions.
+	 * @return true if the file location is within the valid area of the ring buffer,
+	 *         false otherwise.
+	 */
+	private boolean isSessionLocationStillInValidArea(@Nonnull FileLocation fileLocation) {
+		final LongNumberRange[] validArea = this.ringBufferHead <= this.ringBufferTail ?
+			new LongNumberRange[]{LongNumberRange.between(this.ringBufferHead, this.ringBufferTail)} :
+			new LongNumberRange[]{
+				LongNumberRange.between(this.ringBufferHead, this.diskBufferFileSize),
+				LongNumberRange.between(0L, this.ringBufferTail)
+			};
+		return Arrays.stream(validArea)
+			.anyMatch(va -> va.isWithin(fileLocation.startingPosition()) && va.isWithin(fileLocation.endPosition())) ||
+			(validArea.length == 2 && validArea[0].isWithin(fileLocation.startingPosition()) && validArea[1].isWithin(fileLocation.endPosition()));
 	}
 
 	/**

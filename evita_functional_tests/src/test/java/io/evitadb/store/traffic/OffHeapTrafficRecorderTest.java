@@ -73,6 +73,8 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
@@ -87,6 +89,8 @@ import static org.junit.jupiter.api.Assertions.*;
 public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 	private final Path exportDirectory = getPathInTargetDirectory(UUID.randomUUID() + "/export");
 	private OffHeapTrafficRecorder trafficRecorder;
+	private AtomicLong duration = new AtomicLong(0);
+	private AtomicInteger counter = new AtomicInteger(0);
 
 	@BeforeEach
 	void setUp() {
@@ -379,6 +383,8 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 		assertTrue(readLatch.await(1, TimeUnit.MINUTES), "Threads should have finished by now.");
 		System.out.println("Waiting for read threads being finished in " + (System.currentTimeMillis() - waitForReadThreadsStopStart) + " ms.");
 
+		System.out.println("Average read duration: " + (this.duration.get() / this.counter.get()) + " ms.");
+
 		final List<TrafficRecording> allRecordings = this.trafficRecorder.getRecordings(
 			TrafficRecordingCaptureRequest.builder()
 				.content(TrafficRecordingContent.BODY)
@@ -569,6 +575,7 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 				() -> {
 					long overallCount = 0;
 					for (int sessionIndex = 0; sessionIndex < sessionsPerThread; sessionIndex++) {
+						final long start = System.currentTimeMillis();
 						try (
 							final Stream<TrafficRecording> recordings = this.trafficRecorder.getRecordings(
 								TrafficRecordingCaptureRequest.builder()
@@ -581,6 +588,9 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 							overallCount += recordings
 								.limit(50)
 								.count();
+
+							this.duration.addAndGet(System.currentTimeMillis() - start);
+							this.counter.incrementAndGet();
 						} catch (IndexNotReady ignored) {
 							// ignore and retry
 						}

@@ -240,16 +240,6 @@ public class TrafficRecordingIndex implements
 	}
 
 	/**
-	 * Checks if a session exists in the index based on the given session sequence order.
-	 *
-	 * @param sessionSequenceOrder the sequence order of the session to check for existence
-	 * @return true if the session exists in the index, false otherwise
-	 */
-	public boolean sessionExists(long sessionSequenceOrder) {
-		return this.sessionLocationIndex.containsKey(sessionSequenceOrder);
-	}
-
-	/**
 	 * Indexes a given traffic recording based on its type. The method updates internal indexes
 	 * to keep track of session-related data. The session sequence order is used as a key for these indexes.
 	 *
@@ -329,7 +319,12 @@ public class TrafficRecordingIndex implements
 					Spliterators.spliteratorUnknownSize(new CommonElementsIterator(streams), Spliterator.ORDERED | Spliterator.DISTINCT),
 					false
 				)
-				.map(sessionSequenceOrder -> new SessionLocation(sessionSequenceOrder, this.sessionLocationIndex.get(sessionSequenceOrder)));
+				.map(sessionSequenceOrder -> {
+					final FileLocation sessionLocation = this.sessionLocationIndex.get(sessionSequenceOrder);
+					// the location may have been removed in the meantime
+					return sessionLocation == null ? null : new SessionLocation(sessionSequenceOrder, sessionLocation);
+				})
+				.filter(Objects::nonNull);
 		}
 	}
 

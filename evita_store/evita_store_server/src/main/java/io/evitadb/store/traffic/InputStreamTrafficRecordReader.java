@@ -32,8 +32,10 @@ import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.store.kryo.ObservableInput;
+import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.query.QuerySerializationKryoConfigurer;
 import io.evitadb.store.service.KryoFactory;
+import io.evitadb.store.traffic.serializer.SessionSequenceOrderContext;
 import io.evitadb.store.wal.WalKryoConfigurer;
 import io.evitadb.stream.AbstractRandomAccessInputStream;
 import io.evitadb.utils.IOUtils;
@@ -84,7 +86,9 @@ public class InputStreamTrafficRecordReader implements TrafficRecordingReader, C
 	public InputStreamTrafficRecordReader(@Nonnull AbstractRandomAccessInputStream inputStream) throws IOException {
 		this.inputStream = inputStream;
 		this.index = new TrafficRecordingIndex();
-		inputStream.seek(0);
+		long position = 0L;
+
+		inputStream.seek(position);
 		this.input = new ObservableInput<>(inputStream);
 
 		final int read = inputStream.read(this.descriptorByteBufferArray, 0, this.descriptorByteBufferArray.length);
@@ -93,7 +97,17 @@ public class InputStreamTrafficRecordReader implements TrafficRecordingReader, C
 			this.descriptorByteBuffer.flip();
 			final long sessionSequenceOrder = this.descriptorByteBuffer.getLong();
 			final int totalSize = this.descriptorByteBuffer.getInt();
-
+			position += totalSize;
+			StorageRecord<TrafficRecording> theRecord;
+			do {
+				theRecord = StorageRecord.read(
+					input,
+					(theInput, recordLength) -> SessionSequenceOrderContext.fetch(
+						sessionSequenceOrder,
+						() -> (TrafficRecording) this.trafficRecorderKryo.readClassAndObject(input)
+					)
+				);
+			} while (theRecord.fileLocation().endPosition() == position);
 		}
 	}
 
