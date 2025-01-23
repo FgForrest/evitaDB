@@ -43,6 +43,7 @@ import io.evitadb.stream.RandomAccessFileInputStream;
 import io.evitadb.utils.IOUtils;
 import lombok.AccessLevel;
 import lombok.Getter;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -167,6 +168,12 @@ public class DiskRingBuffer {
 	 */
 	@Getter(AccessLevel.PROTECTED)
 	private long ringBufferTail = 0L;
+
+	/**
+	 * Last real sampling rate to be propagated to the sink.
+	 */
+	@Setter
+	private int lastRealSamplingRate = 0;
 
 	/**
 	 * Allows to export session data before being deleted.
@@ -590,7 +597,7 @@ public class DiskRingBuffer {
 		try {
 			final SessionSink theSink = this.sessionSink.get();
 			if (theSink != null) {
-				theSink.onClose(this.sessionLocations);
+				theSink.onClose(this.sessionLocations, this.lastRealSamplingRate);
 			}
 
 			this.sessionLocations.clear();
@@ -684,7 +691,7 @@ public class DiskRingBuffer {
 
 		final SessionSink theSink = this.sessionSink.get();
 		if (theSink != null) {
-			theSink.onSessionLocationsUpdated(this.sessionLocations);
+			theSink.onSessionLocationsUpdated(this.sessionLocations, this.lastRealSamplingRate);
 		}
 	}
 

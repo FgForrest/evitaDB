@@ -56,7 +56,7 @@ public interface SessionSink {
 	 * @param sessionLocations the deque of {@link SessionLocation} instances representing the
 	 *                         sessions in the current disk buffer
 	 */
-	void onSessionLocationsUpdated(@Nonnull Deque<SessionLocation> sessionLocations);
+	void onSessionLocationsUpdated(@Nonnull Deque<SessionLocation> sessionLocations, int realSamplingRate);
 
 	/**
 	 * Handles cleanup operations when the disk buffer is closed. This method will handle final tasks
@@ -66,6 +66,6 @@ public interface SessionSink {
 	 * @param sessionLocations the deque of {@link SessionLocation} instances representing the sessions
 	 *                         in the current disk buffer to be processed during the close operation
 	 */
-	void onClose(@Nonnull Deque<SessionLocation> sessionLocations);
+	void onClose(@Nonnull Deque<SessionLocation> sessionLocations, int realSamplingRate);
 
 }

@@ -220,6 +220,8 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 
 	@Override
 	public void setSamplingPercentage(int samplingPercentage) {
+		this.recordedRecords.set(0);
+		this.missedRecords.set(0);
 		this.samplingPercentage = samplingPercentage;
 	}
 
@@ -230,12 +232,8 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 
 	@Override
 	public void createSession(@Nonnull UUID sessionId, long catalogVersion, @Nonnull OffsetDateTime created) {
-		final long recorded = this.recordedRecords.get();
-		final long missed = this.missedRecords.get();
-		final long recordedAndMissed = recorded + missed;
-		final boolean record = this.samplingPercentage > 0 && (recordedAndMissed == 0 || ((double) recorded / (double) recordedAndMissed * 100.0) <= this.samplingPercentage);
-
-		if (record) {
+		// test sampling rate
+		if (this.samplingPercentage > 0 && computeCurrentSamplingRate() <= this.samplingPercentage) {
 			final SessionTraffic sessionTraffic = new SessionTraffic(
 				sessionId,
 				catalogVersion,
@@ -466,6 +464,14 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		);
 	}
 
+	@Override
+	public void close() throws IOException {
+		this.freeMemory();
+		this.memoryBlock.set(null);
+		this.trackedSessionsIndex.clear();
+		this.diskBuffer.close(filePath -> this.exportFileService.purgeManagedTempFile(filePath));
+	}
+
 	@Nonnull
 	@Override
 	public Stream<TrafficRecording> getRecordings(@Nonnull TrafficRecordingCaptureRequest request) throws TemporalDataNotAvailableException, IndexNotReady {
@@ -506,14 +512,6 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 			this.indexTask.schedule();
 			throw ex;
 		}
-	}
-
-	@Override
-	public void close() throws IOException {
-		this.freeMemory();
-		this.memoryBlock.set(null);
-		this.trackedSessionsIndex.clear();
-		this.diskBuffer.close(filePath -> this.exportFileService.purgeManagedTempFile(filePath));
 	}
 
 	void init(
@@ -566,6 +564,20 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 				return new byte[storageOptions.outputBufferSize()];
 			}
 		};
+	}
+
+	/**
+	 * Calculates the current sampling rate as a percentage.
+	 * The sampling rate is determined based on the ratio of recorded records to the total of recorded and missed records.
+	 * If no records have been recorded or missed, the method returns 100% by default.
+	 *
+	 * @return the current sampling rate as an integer percentage (0-100)
+	 */
+	private int computeCurrentSamplingRate() {
+		final long recorded = this.recordedRecords.get();
+		final long missed = this.missedRecords.get();
+		final long recordedAndMissed = recorded + missed;
+		return recordedAndMissed == 0 ? 0 : (int) (((double) recorded / (double) recordedAndMissed) * 100.0);
 	}
 
 	/**
@@ -696,6 +708,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 	private synchronized long freeMemory() {
 		this.diskBuffer.updateIndexTransactionally(
 			() -> {
+				this.diskBuffer.setLastRealSamplingRate(computeCurrentSamplingRate());
 				final ByteBuffer memoryByteBuffer = this.memoryBlock.get();
 				do {
 					//noinspection resource

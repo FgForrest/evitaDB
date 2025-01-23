@@ -75,7 +75,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * This test is a integration test for on-demand traffic recording facility in evitaDB.
- * TODO JNO - přidat podporu pro načtení obsahu z FileToFetch, alespoň pro testy
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
@@ -271,14 +270,15 @@ public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 		assertNotNull(fileForFetch);
 
 		// list files in the ZIP archive
-		final String[] fileNames = listFilesInArchive(fileForFetch);
+		final String[] fileNames = listAndVerifyFilesInArchive(fileForFetch);
 
 		assertTrue(fileForFetch.totalSizeInBytes() > 8000);
 		assertArrayEquals(
 			new String[]{
 				"traffic_recording_1.bin",
 				"traffic_recording_16.bin",
-				"traffic_recording_31.bin"
+				"traffic_recording_31.bin",
+				"metadata.txt"
 			},
 			fileNames
 		);
@@ -339,7 +339,7 @@ public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 		assertNotNull(fileForFetch);
 
 		// list files in the ZIP archive
-		final String[] fileNames = listFilesInArchive(fileForFetch);
+		final String[] fileNames = listAndVerifyFilesInArchive(fileForFetch);
 
 		assertTrue(
 			// the size might be bigger because we flush entire sessions and deflater has its own 8KB buffer
@@ -349,7 +349,8 @@ public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 		assertArrayEquals(
 			new String[]{
 				"traffic_recording_1.bin",
-				"traffic_recording_16.bin"
+				"traffic_recording_16.bin",
+				"metadata.txt"
 			},
 			fileNames
 		);
@@ -392,7 +393,7 @@ public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 		System.out.println("Export file contains these files: ");
 
 		// list files in the ZIP archive
-		final String[] fileNames = listFilesInArchive(fileForFetch);
+		final String[] fileNames = listAndVerifyFilesInArchive(fileForFetch);
 		for (String fileName : fileNames) {
 			System.out.println(" - " + fileName);
 		}
@@ -424,7 +425,7 @@ public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 	}
 
 	@Nonnull
-	private String[] listFilesInArchive(@Nonnull FileForFetch fileForFetch) throws IOException {
+	private String[] listAndVerifyFilesInArchive(@Nonnull FileForFetch fileForFetch) throws IOException {
 		final List<String> filesInZip = new ArrayList<>();
 		try (
 			final InputStream inputStream = evita.management().fetchFile(fileForFetch.fileId());

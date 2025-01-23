@@ -185,6 +185,12 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 			null : exportSessionSink.getFileForFetch();
 	}
 
+	/**
+	 * A private static class responsible for exporting session data to a compressed archive. This class implements
+	 * {@link SessionSink} and {@link Closeable}, enabling it to act as a sink for session data and supporting proper
+	 * resource management. The class ensures session data is exported in chunks, handles file compression using
+	 * a zip archive, and maintains metadata about the export operation such as exported size and session count.
+	 */
 	private static class ExportSessionSink implements SessionSink, Closeable {
 		private final ExportFileHandle exportFileHandle;
 		private final long chunkFileSizeInBytes;
@@ -195,9 +201,15 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 		private final AtomicBoolean closed = new AtomicBoolean();
 		private final AtomicBoolean corrupted = new AtomicBoolean();
 		private final Runnable finalizer;
+		private final TrafficRecordingSettings settings;
+		private final OffsetDateTime startTime = OffsetDateTime.now();
+
 		private RandomAccessFileInputStream inputStream;
-		private long nonExportedSize = 0;
-		private long currentChunkSize = -1;
+		private int lastSamplingRate = 0;
+		private long exportedSessionCount = 0L;
+		private long exportedSessionOriginalSize = 0L;
+		private long nonExportedSize = 0L;
+		private long currentChunkSize = -1L;
 		@Nullable private SessionLocation lastExportedLocation;
 		@Nullable private SessionLocation lastSeenLocation;
 
@@ -212,6 +224,7 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 			this.chunkFileSizeInBytes = settings.chunkFileSizeInBytes();
 			this.exportedSizeLimit = settings.recordingSizeLimitInBytes() == null ? Long.MAX_VALUE : settings.recordingSizeLimitInBytes();
 			this.finalizer = finalizer;
+			this.settings = settings;
 			//noinspection CheckForOutOfMemoryOnLargeArrayAllocation
 			this.buffer = new byte[8192];
 
@@ -234,8 +247,9 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 		}
 
 		@Override
-		public void onSessionLocationsUpdated(@Nonnull Deque<SessionLocation> sessionLocations) {
+		public void onSessionLocationsUpdated(@Nonnull Deque<SessionLocation> sessionLocations, int realSamplingRate) {
 			Assert.isPremiseValid(!this.closed.get(), "Session sink is already closed.");
+			this.lastSamplingRate = realSamplingRate;
 			// first update the non-exported size
 			updateNonExportedSize(sessionLocations);
 			// if the non-exported size grows too much, export it to a file
@@ -245,7 +259,8 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 		}
 
 		@Override
-		public void onClose(@Nonnull Deque<SessionLocation> sessionLocations) {
+		public void onClose(@Nonnull Deque<SessionLocation> sessionLocations, int realSamplingRate) {
+			this.lastSamplingRate = realSamplingRate;
 			exportAllSessionLocations(sessionLocations);
 		}
 
@@ -272,6 +287,17 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 						if (this.currentChunkSize > -1) {
 							this.outputStream.closeEntry();
 						}
+						final OffsetDateTime finishTime = OffsetDateTime.now();
+						this.outputStream.putNextEntry(new ZipEntry("metadata.txt"));
+						this.outputStream.write("Traffic recording: \n".getBytes());
+						this.outputStream.write(("\n   - started at " + this.startTime.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)).getBytes());
+						this.outputStream.write(("\n   - finished at " + finishTime.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)).getBytes());
+						this.outputStream.write(("\n   - requested sampling rate " + this.settings.samplingRate() + "%").getBytes());
+						this.outputStream.write(("\n   - real sampling rate " + this.lastSamplingRate + "%").getBytes());
+						this.outputStream.write(("\n   - duration " + StringUtils.formatDuration(Duration.between(this.startTime, finishTime))).getBytes());
+						this.outputStream.write(("\n   - exported " + this.exportedSessionCount + " sessions").getBytes());
+						this.outputStream.write(("\n   - exported " + StringUtils.formatByteSize(this.exportedSessionOriginalSize) + " of data").getBytes());
+						this.outputStream.write(("\n   - task was" + getFinishCondition(settings)).getBytes());
 					},
 					this.outputStream::close
 				);
@@ -324,6 +350,8 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 				IOUtils.copy(this.inputStream, this.outputStream, bytesToWrite, this.buffer);
 				this.outputStream.flush();
 				this.currentChunkSize += bytesToWrite;
+				this.exportedSessionCount++;
+				this.exportedSessionOriginalSize += bytesToWrite;
 
 				if (this.currentChunkSize >= this.chunkFileSizeInBytes) {
 					this.outputStream.closeEntry();
