@@ -38,6 +38,7 @@ server:                                           # [see Server configuration](#
     sourceQueryTracking: false
     trafficMemoryBufferSizeInBytes: 4MB
     trafficDiskBufferSizeInBytes: 32MB
+    exportFileChunkSizeInBytes: 16MB
     trafficSamplingPercentage: 100
 
 storage:                                          # [see Storage configuration](#storage-configuration)
@@ -483,6 +484,12 @@ This section contains general settings for the evitaDB server. It allows configu
         this property will be used when on-demand traffic recording is requested. The disk buffer represents a ring
         buffer that is indexed and available for viewing in the evitaLab interface. The larger the buffer, the more 
         historical data it can hold.</p>
+    </dd>
+    <dt>exportFileChunkSizeInBytes</dt>
+    <dd>
+        <p>**Default:** `16MB`</p>
+        <p>Sets the size in bytes of the exported file chunk. The file is split into chunks of this size when exporting 
+        the traffic recording contents. The chunks are then compressed and stored in the export directory.</p>
     </dd>
     <dt>trafficSamplingPercentage</dt>
     <dd>
