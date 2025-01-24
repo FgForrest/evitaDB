@@ -179,18 +179,20 @@ public interface EvitaInternalSessionContract extends EvitaSessionContract, Traf
 	 *
 	 * @param sourceQuery unparsed, raw source query in particular format
 	 * @param queryType   type of the query (e.g. GraphQL, REST, etc.)
+	 * @param finishedWithError error message if the source was not parsed properly
 	 * @return unique identifier of the source query
 	 */
 	@Nonnull
-	UUID recordSourceQuery(@Nonnull String sourceQuery, @Nonnull String queryType);
+	UUID recordSourceQuery(@Nonnull String sourceQuery, @Nonnull String queryType, @Nullable String finishedWithError);
 
 	/**
 	 * Method closes the source query and marks it as finalized. Overall statistics for all registered sub-queries
 	 * will be aggregated and stored in the traffic recording along with this record.
 	 *
 	 * @param sourceQueryId unique identifier of the source query
+	 * @param finishedWithError error message if the source query was not finished properly
 	 */
-	void finalizeSourceQuery(@Nonnull UUID sourceQueryId);
+	void finalizeSourceQuery(@Nonnull UUID sourceQueryId, @Nullable String finishedWithError);
 
 	/**
 	 * Returns a stream of all unique labels names ordered by cardinality of their values present in the traffic recording.

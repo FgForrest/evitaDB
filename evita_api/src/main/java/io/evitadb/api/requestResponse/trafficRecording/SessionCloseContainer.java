@@ -63,7 +63,8 @@ public record SessionCloseContainer(
 	int trafficRecordsMissedOut,
 	int queryCount,
 	int entityFetchCount,
-	int mutationCount
+	int mutationCount,
+	@Nullable String finishedWithError
 ) implements TrafficRecording {
 
 	public SessionCloseContainer(
@@ -79,7 +80,8 @@ public record SessionCloseContainer(
 		int trafficRecordsMissedOut,
 		int queryCount,
 		int entityFetchCount,
-		int mutationCount
+		int mutationCount,
+		@Nullable String finishedWithError
 	) {
 		this(
 			null,
@@ -95,7 +97,8 @@ public record SessionCloseContainer(
 			trafficRecordsMissedOut,
 			queryCount,
 			entityFetchCount,
-			mutationCount
+			mutationCount,
+			finishedWithError
 		);
 	}
 

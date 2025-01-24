@@ -58,16 +58,18 @@ message GrpcTrafficRecord {
   int32 ioFetchedSizeBytes = 8;
   // The number of objects fetched from the permanent storage.
   int32 ioFetchCount = 9;
+  // Returns non-null error message if the action the recording relates to finished with an error.
+  google.protobuf.StringValue finishedWithError = 10;
   // optional body of the traffic recording when it is requested by the GrpcTrafficCaptureContent
   oneof body {
-    GrpcTrafficMutationContainer mutation = 10;
-    GrpcTrafficQueryContainer query = 11;
-    GrpcTrafficEntityEnrichmentContainer enrichment = 12;
-    GrpcTrafficEntityFetchContainer fetch = 13;
-    GrpcTrafficSessionCloseContainer sessionClose = 14;
-    GrpcTrafficSessionStartContainer sessionStart = 15;
-    GrpcTrafficSourceQueryContainer sourceQuery = 16;
-    GrpcTrafficSourceQueryStatisticsContainer sourceQueryStatistics = 17;
+    GrpcTrafficMutationContainer mutation = 101;
+    GrpcTrafficQueryContainer query = 102;
+    GrpcTrafficEntityEnrichmentContainer enrichment = 103;
+    GrpcTrafficEntityFetchContainer fetch = 104;
+    GrpcTrafficSessionCloseContainer sessionClose = 105;
+    GrpcTrafficSessionStartContainer sessionStart = 106;
+    GrpcTrafficSourceQueryContainer sourceQuery = 107;
+    GrpcTrafficSourceQueryStatisticsContainer sourceQueryStatistics = 108;
   }
 }
 
@@ -84,15 +86,17 @@ message GrpcTrafficMutationContainer {
 
 // Container for a query and its metadata.
 message GrpcTrafficQueryContainer {
+  // The shortened description of the query and its purpose
+  string queryDescription = 1;
   // The query operation.
-  string query = 1;
+  string query = 2;
   // The total number of records calculated by the query.
-  int32 totalRecordCount = 2;
+  int32 totalRecordCount = 3;
   // The primary keys of the records returned by the query (in returned data chunk). I.e. number of records actually
   // returned by the pagination requirement of the query.
-  repeated int32 primaryKeys = 3;
+  repeated int32 primaryKeys = 4;
   // The client labels associated with the query.
-  repeated GrpcQueryLabel labels = 4;
+  repeated GrpcQueryLabel labels = 5;
 }
 
 // This container holds information about single entity enrichment.

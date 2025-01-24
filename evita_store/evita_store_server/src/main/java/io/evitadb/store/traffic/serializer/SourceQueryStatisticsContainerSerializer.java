@@ -49,6 +49,7 @@ public class SourceQueryStatisticsContainerSerializer extends Serializer<SourceQ
 		output.writeVarInt(object.ioFetchedSizeBytes(), true);
 		output.writeVarInt(object.returnedRecordCount(), true);
 		output.writeVarInt(object.totalRecordCount(), true);
+		output.writeString(object.finishedWithError());
 	}
 
 	@Override
@@ -65,7 +66,8 @@ public class SourceQueryStatisticsContainerSerializer extends Serializer<SourceQ
 			input.readVarInt(true),
 			input.readVarInt(true),
 			input.readVarInt(true),
-			input.readVarInt(true)
+			input.readVarInt(true),
+			input.readString()
 		);
 	}
 

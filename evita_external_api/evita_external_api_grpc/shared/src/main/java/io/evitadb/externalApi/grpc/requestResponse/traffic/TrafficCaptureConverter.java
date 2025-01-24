@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.grpc.requestResponse.traffic;
 
+import com.google.protobuf.StringValue;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
@@ -109,6 +110,11 @@ public class TrafficCaptureConverter {
 			.setDurationInMilliseconds(trafficRecording.durationInMilliseconds())
 			.setIoFetchCount(trafficRecording.ioFetchCount())
 			.setIoFetchedSizeBytes(trafficRecording.ioFetchedSizeBytes());
+
+		final String finishedWithError = trafficRecording.finishedWithError();
+		if (finishedWithError != null) {
+			builder.setFinishedWithError(StringValue.newBuilder().setValue(finishedWithError).build());
+		}
 
 		if (content == TrafficRecordingContent.BODY) {
 			switch (trafficRecording.type()) {
@@ -237,6 +243,7 @@ public class TrafficCaptureConverter {
 			builder.setQuery(
 				GrpcTrafficQueryContainer.newBuilder()
 					.addAllLabels(Arrays.stream(queryContainer.labels()).map(TrafficCaptureConverter::toGrpcQueryLabel).toList())
+					.setQueryDescription(queryContainer.queryDescription())
 					.setQuery(queryContainer.query().toString())
 					.setTotalRecordCount(queryContainer.totalRecordCount())
 					.addAllPrimaryKeys(Arrays.stream(queryContainer.primaryKeys()).boxed().toList())

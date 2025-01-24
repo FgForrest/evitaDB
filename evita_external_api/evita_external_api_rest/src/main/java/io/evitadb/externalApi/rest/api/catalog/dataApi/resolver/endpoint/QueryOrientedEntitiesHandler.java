@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -164,10 +164,14 @@ public abstract class QueryOrientedEntitiesHandler extends JsonRestHandler<Colle
 			if (executionContext.session() instanceof EvitaInternalSessionContract evitaInternalSession) {
 				try {
 					final String serializedSourceQuery = restHandlingContext.getObjectMapper().writeValueAsString(queryDto);
-					final UUID recordingId = evitaInternalSession.recordSourceQuery(serializedSourceQuery, TRAFFIC_SOURCE_QUERY_RECORDING_TYPE);
+					/* TODO LHO - insert finishedWithError if parsing failed */
+					final UUID recordingId = evitaInternalSession.recordSourceQuery(
+						serializedSourceQuery, TRAFFIC_SOURCE_QUERY_RECORDING_TYPE, null
+					);
 
 					executionContext.provideTrafficSourceQueryRecordingId(recordingId);
-					executionContext.addCloseCallback(ctx -> evitaInternalSession.finalizeSourceQuery(recordingId));
+					/* TODO LHO - insert finishedWithError if any of the queries failed with error */
+					executionContext.addCloseCallback(ctx -> evitaInternalSession.finalizeSourceQuery(recordingId, null));
 				} catch (JsonProcessingException e) {
 					log.error("Cannot serialize source queryDto for traffic recording. Aborting.", e);
 				}

@@ -290,7 +290,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		if (catalog.supportsTransaction() && sessionTraits.isReadWrite()) {
 			this.transactionAccessor.set(createAndInitTransaction());
 		}
-		catalog.getTrafficRecordingEngine().createSession(this.id, catalog.getVersion(), this.created);
+		catalog.getTrafficRecordingEngine()
+			.createSession(this.id, catalog.getVersion(), this.created);
 	}
 
 	@Nonnull
@@ -385,11 +386,13 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			// join both futures together and apply termination callback
 			this.closedFuture = this.finalizationFuture.whenComplete((aLong, throwable) -> {
 				// then apply termination callbacks
+				String finishedWithError = null;
 				try {
 					this.beingClosed = true;
 					ofNullable(this.terminationCallback)
 						.ifPresent(it -> it.onTermination(this));
 				} catch (Throwable tcException) {
+					finishedWithError = tcException.getClass().getName() + ": " + (tcException.getMessage() == null ? "no message" : tcException.getMessage());
 					log.error("Error occurred while executing termination callback!", tcException);
 					if (throwable == null) {
 						throw new TransactionException("Error occurred while executing termination callback!", tcException);
@@ -397,7 +400,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 						throwable.addSuppressed(tcException);
 					}
 				} finally {
-					theCatalog.getTrafficRecordingEngine().closeSession(this.id);
+					theCatalog.getTrafficRecordingEngine().closeSession(this.id, finishedWithError);
 					this.beingClosed = false;
 				}
 				if (throwable instanceof CancellationException cancellationException) {
@@ -1418,17 +1421,17 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 
 	@Nonnull
 	@Override
-	public UUID recordSourceQuery(@Nonnull String sourceQuery, @Nonnull String queryType) {
+	public UUID recordSourceQuery(@Nonnull String sourceQuery, @Nonnull String queryType, @Nullable String finishedWithError) {
 		final TrafficRecordingEngine trafficRecorder = this.catalog.get().getTrafficRecordingEngine();
 		final UUID sourceQueryId = UUIDUtil.randomUUID();
-		trafficRecorder.setupSourceQuery(id, sourceQueryId, sourceQuery, queryType);
+		trafficRecorder.setupSourceQuery(id, sourceQueryId, sourceQuery, queryType, finishedWithError);
 		return sourceQueryId;
 	}
 
 	@Override
-	public void finalizeSourceQuery(@Nonnull UUID sourceQueryId) {
+	public void finalizeSourceQuery(@Nonnull UUID sourceQueryId, @Nullable String finishedWithError) {
 		final TrafficRecordingEngine trafficRecorder = this.catalog.get().getTrafficRecordingEngine();
-		trafficRecorder.closeSourceQuery(id, sourceQueryId);
+		trafficRecorder.closeSourceQuery(id, sourceQueryId, finishedWithError);
 	}
 
 	@Nonnull

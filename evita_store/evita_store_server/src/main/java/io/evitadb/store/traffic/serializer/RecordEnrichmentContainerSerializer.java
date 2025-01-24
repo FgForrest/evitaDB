@@ -52,6 +52,7 @@ public class RecordEnrichmentContainerSerializer extends Serializer<EntityEnrich
 		output.writeVarInt(object.ioFetchCount(), true);
 		output.writeVarInt(object.ioFetchedSizeBytes(), true);
 		output.writeInt(object.primaryKey());
+		output.writeString(object.finishedWithError());
 	}
 
 	@Override
@@ -68,7 +69,8 @@ public class RecordEnrichmentContainerSerializer extends Serializer<EntityEnrich
 			input.readVarInt(true),
 			input.readVarInt(true),
 			input.readVarInt(true),
-			input.readInt()
+			input.readInt(),
+			input.readString()
 		);
 	}
 

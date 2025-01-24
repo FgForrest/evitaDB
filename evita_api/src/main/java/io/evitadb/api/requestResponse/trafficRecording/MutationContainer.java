@@ -50,7 +50,8 @@ public record MutationContainer(
 	@Nullable Integer sessionRecordsCount,
 	@Nonnull OffsetDateTime created,
 	int durationInMilliseconds,
-	@Nonnull Mutation mutation
+	@Nonnull Mutation mutation,
+	@Nullable String finishedWithError
 ) implements TrafficRecording {
 
 	public MutationContainer(
@@ -58,7 +59,8 @@ public record MutationContainer(
 		int recordSessionOffset,
 		@Nonnull OffsetDateTime created,
 		int durationInMilliseconds,
-		@Nonnull Mutation mutation
+		@Nonnull Mutation mutation,
+		@Nullable String finishedWithError
 	) {
 		this(
 			null,
@@ -67,7 +69,8 @@ public record MutationContainer(
 			null,
 			created,
 			durationInMilliseconds,
-			mutation
+			mutation,
+			finishedWithError
 		);
 	}
 

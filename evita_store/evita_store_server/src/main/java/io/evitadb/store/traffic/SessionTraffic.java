@@ -334,7 +334,7 @@ public class SessionTraffic implements Closeable {
 	 * @param sourceQueryId Id of the source query.
 	 * @return Traffic recording container with aggregated data.
 	 */
-	public TrafficRecording closeSourceQuery(@Nonnull UUID sourceQueryId) {
+	public TrafficRecording closeSourceQuery(@Nonnull UUID sourceQueryId, @Nullable String finishedWithError) {
 		final Optional<SourceQueryCounter> sourceQueryCounter = Optional.ofNullable(this.sourceQueryCounterIndex)
 			.map(it -> it.remove(sourceQueryId));
 		return new SourceQueryStatisticsContainer(
@@ -346,7 +346,8 @@ public class SessionTraffic implements Closeable {
 			sourceQueryCounter.map(SourceQueryCounter::getRecordsReturned).orElse(0),
 			sourceQueryCounter.map(SourceQueryCounter::getTotalRecordCount).orElse(0),
 			sourceQueryCounter.map(SourceQueryCounter::getIoFetchCount).orElse(0),
-			sourceQueryCounter.map(SourceQueryCounter::getIoFetchedSizeBytes).orElse(0)
+			sourceQueryCounter.map(SourceQueryCounter::getIoFetchedSizeBytes).orElse(0),
+			finishedWithError
 		);
 	}
 

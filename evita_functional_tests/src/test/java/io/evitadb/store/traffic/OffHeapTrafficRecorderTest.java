@@ -129,6 +129,7 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 		this.trafficRecorder.createSession(sessionId, 1, OffsetDateTime.now());
 		this.trafficRecorder.recordQuery(
 			sessionId,
+			"Some query",
 			query(
 				collection(Entities.PRODUCT),
 				filterBy(entityPrimaryKeyInSet(1, 2, 3)),
@@ -143,7 +144,8 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 			15,
 			456,
 			12311,
-			1, 2, 3
+			new int[] {1, 2, 3},
+			null
 		);
 		this.trafficRecorder.recordFetch(
 			sessionId,
@@ -155,7 +157,8 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 			OffsetDateTime.now(),
 			15,
 			456,
-			1
+			1,
+			null
 		);
 		this.trafficRecorder.recordEnrichment(
 			sessionId,
@@ -167,7 +170,8 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 			OffsetDateTime.now(),
 			15,
 			456,
-			1
+			1,
+			null
 		);
 		this.trafficRecorder.recordMutation(
 			sessionId,
@@ -177,9 +181,10 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 				2,
 				EntityExistence.MUST_NOT_EXIST,
 				new UpsertAttributeMutation("a", "b")
-			)
+			),
+			null
 		);
-		this.trafficRecorder.closeSession(sessionId);
+		this.trafficRecorder.closeSession(sessionId, null);
 
 		final List<TrafficRecording> recordings = this.trafficRecorder.getRecordings(
 			TrafficRecordingCaptureRequest.builder()
@@ -208,7 +213,7 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 		final UUID firstSourceQueryId = UUIDUtil.randomUUID();
 		this.trafficRecorder.setupSourceQuery(
 			firstSessionId, firstSourceQueryId, OffsetDateTime.now(),
-			"Whatever query", GraphQLProvider.CODE
+			"Whatever query", GraphQLProvider.CODE, null
 		);
 		createLabeledQuery(
 			firstSessionId,
@@ -225,8 +230,8 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 			label("ced", "dff")
 		);
 
-		this.trafficRecorder.closeSourceQuery(firstSessionId, firstSourceQueryId);
-		this.trafficRecorder.closeSession(firstSessionId);
+		this.trafficRecorder.closeSourceQuery(firstSessionId, firstSourceQueryId, null);
+		this.trafficRecorder.closeSession(firstSessionId, null);
 
 		final UUID secondSessionId = UUID.randomUUID();
 		this.trafficRecorder.createSession(secondSessionId, 1, OffsetDateTime.now());
@@ -234,7 +239,7 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 		final UUID secondSourceQueryId = UUIDUtil.randomUUID();
 		this.trafficRecorder.setupSourceQuery(
 			secondSessionId, secondSourceQueryId, OffsetDateTime.now(),
-			"Whatever different query", GraphQLProvider.CODE
+			"Whatever different query", GraphQLProvider.CODE, null
 		);
 		createLabeledQuery(
 			secondSessionId,
@@ -250,8 +255,8 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 			label("abc", "bee"),
 			label("ce", "whatever")
 		);
-		this.trafficRecorder.closeSourceQuery(secondSessionId, secondSourceQueryId);
-		this.trafficRecorder.closeSession(secondSessionId);
+		this.trafficRecorder.closeSourceQuery(secondSessionId, secondSourceQueryId, null);
+		this.trafficRecorder.closeSession(secondSessionId, null);
 
 		final List<TrafficRecording> firstSourceQuerySubQueries = this.trafficRecorder.getRecordings(
 			TrafficRecordingCaptureRequest.builder()
@@ -425,6 +430,7 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 	private void createLabeledQuery(@Nonnull UUID sessionId, @Nonnull Label... labels) {
 		this.trafficRecorder.recordQuery(
 			sessionId,
+			"Some query",
 			query(
 				collection(Entities.PRODUCT),
 				filterBy(entityPrimaryKeyInSet(1, 2, 3)),
@@ -436,7 +442,8 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 			15,
 			456,
 			12311,
-			1, 2, 3
+			new int[] {1, 2, 3},
+			null
 		);
 	}
 
@@ -496,6 +503,7 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 			for (int j = 0; j < queryCountInSession; j++) {
 				this.trafficRecorder.recordQuery(
 					sessionId,
+					"Some query",
 					query(
 						collection(Entities.PRODUCT),
 						filterBy(entityPrimaryKeyInSet(1, 2, 3)),
@@ -510,10 +518,11 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 					15,
 					456,
 					12311,
-					1, 2, 3
+					new int[] {1, 2, 3},
+					null
 				);
 			}
-			this.trafficRecorder.closeSession(sessionId);
+			this.trafficRecorder.closeSession(sessionId, null);
 			System.out.println("Session #" + (i + 1) + " " + sessionId + " closed.");
 		}
 		return Objects.requireNonNull(sessionId);
@@ -532,6 +541,7 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 						for (int queryIndex = 0; queryIndex < 5; queryIndex++) {
 							this.trafficRecorder.recordQuery(
 								sessionId,
+								"Some query",
 								query(
 									collection(Entities.PRODUCT),
 									filterBy(entityPrimaryKeyInSet(1, 2, 3)),
@@ -546,10 +556,11 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 								15,
 								456,
 								12311,
-								1, 2, 3
+								new int[] {1, 2, 3},
+								null
 							);
 						}
-						this.trafficRecorder.closeSession(sessionId);
+						this.trafficRecorder.closeSession(sessionId, null);
 
 						try {
 							Thread.sleep(delayInMilliseconds);

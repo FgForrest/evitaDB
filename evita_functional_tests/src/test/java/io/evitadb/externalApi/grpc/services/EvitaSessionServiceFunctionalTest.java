@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -67,6 +67,7 @@ import io.evitadb.externalApi.grpc.testUtils.TestDataProvider;
 import io.evitadb.externalApi.grpc.utils.QueryUtil;
 import io.evitadb.externalApi.grpc.utils.QueryWithParameters;
 import io.evitadb.externalApi.system.SystemProvider;
+import io.evitadb.function.QuadriConsumer;
 import io.evitadb.server.EvitaServer;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
@@ -111,6 +112,9 @@ import static org.junit.jupiter.api.Assertions.*;
 @Slf4j
 class EvitaSessionServiceFunctionalTest {
 	private static final String GRPC_THOUSAND_PRODUCTS = "GrpcEvitaSessionServiceFunctionalTest";
+	private static final QuadriConsumer<String, List<Object>, Map<String, Object>, String> NO_OP = (queryString, positionalArguments, namedArguments, error) -> {
+		// no-op
+	};
 
 	@DataSet(value = GRPC_THOUSAND_PRODUCTS, openWebApi = {GrpcProvider.CODE, SystemProvider.CODE}, readOnly = false, destroyAfterClass = true)
 	DataCarrier setUp(Evita evita, EvitaServer evitaServer) {
@@ -257,7 +261,7 @@ class EvitaSessionServiceFunctionalTest {
 
 		assertDoesNotThrow(executable);
 
-		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, params, Collections.emptyMap(), null);
+		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, params, Collections.emptyMap(), null, NO_OP);
 
 		assertNotNull(query);
 
@@ -313,7 +317,7 @@ class EvitaSessionServiceFunctionalTest {
 
 		assertDoesNotThrow(executable);
 
-		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, params, Collections.emptyMap(), null);
+		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, params, Collections.emptyMap(), null, NO_OP);
 
 		assertNotNull(query);
 
@@ -402,7 +406,7 @@ class EvitaSessionServiceFunctionalTest {
 
 		assertDoesNotThrow(executable);
 
-		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, params, Collections.emptyMap(), null);
+		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, params, Collections.emptyMap(), null, NO_OP);
 
 		assertNotNull(query);
 
@@ -512,7 +516,7 @@ class EvitaSessionServiceFunctionalTest {
 
 		assertDoesNotThrow(executable);
 
-		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, params, Collections.emptyMap(), null);
+		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, params, Collections.emptyMap(), null, NO_OP);
 
 		assertNotNull(query);
 
@@ -576,7 +580,7 @@ class EvitaSessionServiceFunctionalTest {
 
 		assertDoesNotThrow(executable);
 
-		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, params, Collections.emptyMap(), null);
+		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, params, Collections.emptyMap(), null, NO_OP);
 
 		assertNotNull(query);
 
@@ -686,7 +690,7 @@ class EvitaSessionServiceFunctionalTest {
 
 		assertDoesNotThrow(executable);
 
-		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, params, Collections.emptyMap(), null);
+		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, params, Collections.emptyMap(), null, NO_OP);
 
 		assertNotNull(query);
 
@@ -779,7 +783,7 @@ class EvitaSessionServiceFunctionalTest {
 
 		assertDoesNotThrow(executable);
 
-		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, positionalParams, namedParams, null);
+		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, positionalParams, namedParams, null, NO_OP);
 
 		assertNotNull(query);
 
@@ -876,7 +880,7 @@ class EvitaSessionServiceFunctionalTest {
 
 		assertDoesNotThrow(executable);
 
-		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, positionalParams, Collections.emptyMap(), null);
+		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, positionalParams, Collections.emptyMap(), null, NO_OP);
 
 		assertNotNull(query);
 
@@ -969,7 +973,7 @@ class EvitaSessionServiceFunctionalTest {
 
 		assertDoesNotThrow(executable);
 
-		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, Collections.emptyList(), namedParams, null);
+		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, Collections.emptyList(), namedParams, null, NO_OP);
 
 		assertNotNull(query);
 
@@ -1051,7 +1055,7 @@ class EvitaSessionServiceFunctionalTest {
 
 		assertDoesNotThrow(executable);
 
-		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, params, Collections.emptyMap(), null);
+		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, params, Collections.emptyMap(), null, NO_OP);
 
 		assertNotNull(query);
 
@@ -1141,7 +1145,7 @@ class EvitaSessionServiceFunctionalTest {
 
 		assertDoesNotThrow(executable);
 
-		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, params, Collections.emptyMap(), null);
+		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, params, Collections.emptyMap(), null, NO_OP);
 
 		assertNotNull(query);
 
@@ -1219,7 +1223,7 @@ class EvitaSessionServiceFunctionalTest {
 
 		assertDoesNotThrow(executable);
 
-		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, params, Collections.emptyMap(), null);
+		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, params, Collections.emptyMap(), null, NO_OP);
 
 		assertNotNull(query);
 
@@ -1285,7 +1289,7 @@ class EvitaSessionServiceFunctionalTest {
 
 		assertDoesNotThrow(executable);
 
-		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, params, Collections.emptyMap(), null);
+		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, params, Collections.emptyMap(), null, NO_OP);
 
 		assertNotNull(query);
 
@@ -1339,7 +1343,7 @@ class EvitaSessionServiceFunctionalTest {
 
 		assertDoesNotThrow(executable);
 
-		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, params, Collections.emptyMap(), null);
+		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, params, Collections.emptyMap(), null, NO_OP);
 
 		assertNotNull(query);
 
@@ -1404,7 +1408,7 @@ class EvitaSessionServiceFunctionalTest {
 
 		assertDoesNotThrow(executable);
 
-		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, params, Collections.emptyMap(), null);
+		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, params, Collections.emptyMap(), null, NO_OP);
 
 		assertNotNull(query);
 
@@ -2486,7 +2490,7 @@ class EvitaSessionServiceFunctionalTest {
 
 		assertDoesNotThrow(executable);
 
-		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, params, Collections.emptyMap(), null);
+		final QueryWithParameters query = QueryUtil.parseQuery(stringQuery, params, Collections.emptyMap(), null, NO_OP);
 
 		assertNotNull(query);
 

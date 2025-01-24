@@ -105,4 +105,11 @@ public interface TrafficRecording {
 	 */
 	int ioFetchCount();
 
+	/**
+	 * Returns non-null error message if the action the recording relates to finished with an error.
+	 * @return the error message
+	 */
+	@Nullable
+	String finishedWithError();
+
 }

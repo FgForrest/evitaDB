@@ -32,6 +32,7 @@ import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.grpc.generated.GrpcQueryParam;
 import io.evitadb.externalApi.grpc.query.QueryConverter;
+import io.evitadb.function.QuadriConsumer;
 import io.grpc.stub.StreamObserver;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -122,8 +123,11 @@ public class QueryUtil {
 		@Nonnull String queryString,
 		@Nonnull List<GrpcQueryParam> queryParamsList,
 		@Nonnull Map<String, GrpcQueryParam> queryParamsMap,
-		@Nullable StreamObserver<T> responseObserver
+		@Nullable StreamObserver<T> responseObserver,
+		@Nonnull QuadriConsumer<String, List<Object>, Map<String, Object>, String> onParseError
 	) {
+		List<Object> positionalArguments = Collections.emptyList();
+		Map<String, Object> namedArguments = Collections.emptyMap();
 		try {
 			if (queryParamsList.isEmpty() && queryParamsMap.isEmpty()) {
 				return new QueryWithParameters(
@@ -132,22 +136,22 @@ public class QueryUtil {
 					Collections.emptyMap()
 				);
 			} else if (queryParamsList.isEmpty()) {
-				final Map<String, Object> namedArguments = QueryConverter.convertQueryParamsMap(queryParamsMap);
+				namedArguments = QueryConverter.convertQueryParamsMap(queryParamsMap);
 				return new QueryWithParameters(
 					parser.parseQuery(queryString, namedArguments, Collections.emptyList()),
 					Collections.emptyList(),
 					namedArguments
 				);
 			} else if (queryParamsMap.isEmpty()) {
-				final List<Object> positionalArguments = QueryConverter.convertQueryParamsList(queryParamsList);
+				positionalArguments = QueryConverter.convertQueryParamsList(queryParamsList);
 				return new QueryWithParameters(
 					parser.parseQuery(queryString, Collections.emptyMap(), positionalArguments),
 					positionalArguments,
 					Collections.emptyMap()
 				);
 			} else {
-				final Map<String, Object> namedArguments = QueryConverter.convertQueryParamsMap(queryParamsMap);
-				final List<Object> positionalArguments = QueryConverter.convertQueryParamsList(queryParamsList);
+				namedArguments = QueryConverter.convertQueryParamsMap(queryParamsMap);
+				positionalArguments = QueryConverter.convertQueryParamsList(queryParamsList);
 				return new QueryWithParameters(
 					parser.parseQuery(
 						queryString,
@@ -159,6 +163,10 @@ public class QueryUtil {
 				);
 			}
 		} catch (Exception ex) {
+			onParseError.accept(
+				queryString, positionalArguments, namedArguments,
+				ex.getClass().getName() + ": " + (ex.getMessage() == null ? "no message" : ex.getMessage())
+			);
 			if (responseObserver != null) {
 				sendErrorToClient(ex, responseObserver);
 			}
@@ -182,8 +190,11 @@ public class QueryUtil {
 		@Nonnull String queryString,
 		@Nonnull List<GrpcQueryParam> queryParamsList,
 		@Nonnull Map<String, GrpcQueryParam> queryParamsMap,
-		@Nullable StreamObserver<T> responseObserver
+		@Nullable StreamObserver<T> responseObserver,
+		@Nonnull QuadriConsumer<String, List<Object>, Map<String, Object>, String> onParseError
 	) {
+		List<Object> positionalArguments = Collections.emptyList();
+		Map<String, Object> namedArguments = Collections.emptyMap();
 		try {
 			if (queryParamsList.isEmpty() && queryParamsMap.isEmpty()) {
 				return new QueryWithParameters(
@@ -192,22 +203,22 @@ public class QueryUtil {
 					Collections.emptyMap()
 				);
 			} else if (queryParamsList.isEmpty()) {
-				final Map<String, Object> namedArguments = QueryConverter.convertQueryParamsMap(queryParamsMap);
+				namedArguments = QueryConverter.convertQueryParamsMap(queryParamsMap);
 				return new QueryWithParameters(
 					parser.parseQueryUnsafe(queryString, namedArguments, Collections.emptyList()),
 					Collections.emptyList(),
 					namedArguments
 				);
 			} else if (queryParamsMap.isEmpty()) {
-				final List<Object> positionalArguments = QueryConverter.convertQueryParamsList(queryParamsList);
+				positionalArguments = QueryConverter.convertQueryParamsList(queryParamsList);
 				return new QueryWithParameters(
 					parser.parseQueryUnsafe(queryString, Collections.emptyMap(), positionalArguments),
 					positionalArguments,
 					Collections.emptyMap()
 				);
 			} else {
-				final Map<String, Object> namedArguments = QueryConverter.convertQueryParamsMap(queryParamsMap);
-				final List<Object> positionalArguments = QueryConverter.convertQueryParamsList(queryParamsList);
+				namedArguments = QueryConverter.convertQueryParamsMap(queryParamsMap);
+				positionalArguments = QueryConverter.convertQueryParamsList(queryParamsList);
 				return new QueryWithParameters(
 					parser.parseQueryUnsafe(
 						queryString,
@@ -219,6 +230,10 @@ public class QueryUtil {
 				);
 			}
 		} catch (Exception ex) {
+			onParseError.accept(
+				queryString, positionalArguments, namedArguments,
+				ex.getClass().getName() + ": " + (ex.getMessage() == null ? "no message" : ex.getMessage())
+			);
 			if (responseObserver != null) {
 				sendErrorToClient(ex, responseObserver);
 			}

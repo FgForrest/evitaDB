@@ -46,6 +46,7 @@ class QueryContainerSerializerTest extends AbstractContainerSerializerTest {
 			new QueryContainer(
 				UUID.randomUUID(),
 				4,
+				"Some query",
 				query(
 					collection("a"),
 					filterBy(entityPrimaryKeyInSet(1, 2)),
@@ -61,7 +62,8 @@ class QueryContainerSerializerTest extends AbstractContainerSerializerTest {
 				4,
 				7,
 				650,
-				new int[]{1, 2, 3}
+				new int[]{1, 2, 3},
+				"error"
 			)
 		);
 	}

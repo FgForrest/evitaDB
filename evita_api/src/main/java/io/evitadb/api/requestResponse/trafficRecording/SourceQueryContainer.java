@@ -51,7 +51,8 @@ public record SourceQueryContainer(
 	@Nonnull UUID sourceQueryId,
 	@Nonnull OffsetDateTime created,
 	@Nonnull String sourceQuery,
-	@Nonnull String queryType
+	@Nonnull String queryType,
+	@Nullable String finishedWithError
 ) implements TrafficRecording {
 
 	public SourceQueryContainer(
@@ -60,7 +61,8 @@ public record SourceQueryContainer(
 		@Nonnull UUID sourceQueryId,
 		@Nonnull OffsetDateTime created,
 		@Nonnull String sourceQuery,
-		@Nonnull String queryType
+		@Nonnull String queryType,
+		@Nullable String finishedWithError
 	) {
 		this(
 			null,
@@ -70,7 +72,8 @@ public record SourceQueryContainer(
 			sourceQueryId,
 			created,
 			sourceQuery,
-			queryType
+			queryType,
+			finishedWithError
 		);
 	}
 

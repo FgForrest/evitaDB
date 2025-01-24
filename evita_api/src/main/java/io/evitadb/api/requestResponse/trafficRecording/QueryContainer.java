@@ -56,6 +56,7 @@ public record QueryContainer(
 	@Nonnull UUID sessionId,
 	int recordSessionOffset,
 	@Nullable Integer sessionRecordsCount,
+	@Nonnull String queryDescription,
 	@Nonnull Query query,
 	@Nonnull Label[] labels,
 	@Nonnull OffsetDateTime created,
@@ -63,12 +64,14 @@ public record QueryContainer(
 	int totalRecordCount,
 	int ioFetchCount,
 	int ioFetchedSizeBytes,
-	@Nonnull int[] primaryKeys
+	@Nonnull int[] primaryKeys,
+	@Nullable String finishedWithError
 ) implements TrafficRecording {
 
 	public QueryContainer(
 		@Nonnull UUID sessionId,
 		int recordSessionOffset,
+		@Nonnull String queryDescription,
 		@Nonnull Query query,
 		@Nonnull Label[] labels,
 		@Nonnull OffsetDateTime created,
@@ -76,13 +79,15 @@ public record QueryContainer(
 		int totalRecordCount,
 		int ioFetchCount,
 		int ioFetchedSizeBytes,
-		@Nonnull int[] primaryKeys
+		@Nonnull int[] primaryKeys,
+		@Nullable String finishedWithError
 	) {
 		this(
 			null,
 			sessionId,
 			recordSessionOffset,
 			null,
+			queryDescription,
 			query,
 			labels,
 			created,
@@ -90,7 +95,8 @@ public record QueryContainer(
 			totalRecordCount,
 			ioFetchCount,
 			ioFetchedSizeBytes,
-			primaryKeys
+			primaryKeys,
+			finishedWithError
 		);
 	}
 
@@ -115,7 +121,8 @@ public record QueryContainer(
 			Arrays.equals(primaryKeys, that.primaryKeys) &&
 			created.equals(that.created) &&
 			Objects.equals(sessionSequenceOrder, that.sessionSequenceOrder) &&
-			Objects.equals(sessionRecordsCount, that.sessionRecordsCount);
+			Objects.equals(sessionRecordsCount, that.sessionRecordsCount) &&
+			Objects.equals(finishedWithError, that.finishedWithError);
 	}
 
 	@Override
@@ -132,6 +139,7 @@ public record QueryContainer(
 		result = 31 * result + ioFetchCount;
 		result = 31 * result + ioFetchedSizeBytes;
 		result = 31 * result + Arrays.hashCode(primaryKeys);
+		result = 31 * result + Objects.hashCode(finishedWithError);
 		return result;
 	}
 }

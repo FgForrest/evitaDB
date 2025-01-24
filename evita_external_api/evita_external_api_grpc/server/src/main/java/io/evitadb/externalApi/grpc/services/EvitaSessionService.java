@@ -416,7 +416,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		final UUID sourceQueryId = trackSourceQueries ?
 			session.recordSourceQuery(
 				completeSourceQuery(sourceQuery, parsedQuery.positionalParameters(), parsedQuery.namedParameters()),
-				GrpcProvider.CODE
+				GrpcProvider.CODE,
+				null
 			) : null;
 		try {
 			handler.accept(
@@ -428,8 +429,35 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 			);
 		} finally {
 			if (trackSourceQueries) {
-				session.finalizeSourceQuery(sourceQueryId);
+				session.finalizeSourceQuery(sourceQueryId, null);
 			}
+		}
+	}
+
+	/**
+	 * Executes a query by parsing the provided source query, resolving its parameters,
+	 * and delegating the handling to a provided consumer.
+	 *
+	 * @param session            the internal session used for query execution; cannot be null
+	 * @param sourceQuery        the query string to be parsed and executed; cannot be null
+	 * @param trackSourceQueries a flag indicating whether source queries should be tracked
+	 */
+	private static void trackFailedQuery(
+		@Nonnull EvitaInternalSessionContract session,
+		@Nonnull String sourceQuery,
+		@Nonnull List<Object> positionalQueryParamsList,
+		@Nonnull Map<String, Object> namedQueryParamsMap,
+		@Nonnull String finishedWithError,
+		boolean trackSourceQueries
+	) {
+		if (trackSourceQueries) {
+			final UUID sourceQueryId = session.recordSourceQuery(
+				completeSourceQuery(sourceQuery, positionalQueryParamsList, namedQueryParamsMap),
+				GrpcProvider.CODE,
+				finishedWithError
+			);
+
+			session.finalizeSourceQuery(sourceQueryId, null);
 		}
 	}
 
@@ -751,7 +779,9 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 					request.getQuery(),
 					request.getPositionalQueryParamsList(),
 					request.getNamedQueryParamsMap(),
-					responseObserver
+					responseObserver,
+					(sourceQuery, positionalParams, namedParams, error) ->
+						trackFailedQuery(session, sourceQuery, positionalParams, namedParams, error, this.trackSourceQueries)
 				)
 			).ifPresent(
 				theQuery -> doQuery(
@@ -780,7 +810,9 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 					request.getQuery(),
 					request.getPositionalQueryParamsList(),
 					request.getNamedQueryParamsMap(),
-					responseObserver
+					responseObserver,
+					(sourceQuery, positionalParams, namedParams, error) ->
+						trackFailedQuery(session, sourceQuery, positionalParams, namedParams, error, this.trackSourceQueries)
 				)
 			).ifPresent(
 				theQuery -> doQuery(
@@ -809,7 +841,9 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 					request.getQuery(),
 					request.getPositionalQueryParamsList(),
 					request.getNamedQueryParamsMap(),
-					responseObserver
+					responseObserver,
+					(sourceQuery, positionalParams, namedParams, error) ->
+						trackFailedQuery(session, sourceQuery, positionalParams, namedParams, error, this.trackSourceQueries)
 				)
 			).ifPresent(
 				theQuery -> doQuery(
@@ -840,7 +874,9 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 					request.getQuery(),
 					Collections.emptyList(),
 					Collections.emptyMap(),
-					responseObserver
+					responseObserver,
+					(sourceQuery, positionalParams, namedParams, error) ->
+						trackFailedQuery(session, sourceQuery, positionalParams, namedParams, error, this.trackSourceQueries)
 				)
 			).ifPresent(
 				theQuery -> doQuery(
@@ -870,7 +906,9 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 					request.getQuery(),
 					Collections.emptyList(),
 					Collections.emptyMap(),
-					responseObserver
+					responseObserver,
+					(sourceQuery, positionalParams, namedParams, error) ->
+						trackFailedQuery(session, sourceQuery, positionalParams, namedParams, error, this.trackSourceQueries)
 				)
 			).ifPresent(
 				theQuery -> doQuery(
@@ -900,7 +938,9 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 					request.getQuery(),
 					Collections.emptyList(),
 					Collections.emptyMap(),
-					responseObserver
+					responseObserver,
+					(sourceQuery, positionalParams, namedParams, error) ->
+						trackFailedQuery(session, sourceQuery, positionalParams, namedParams, error, this.trackSourceQueries)
 				)
 			).ifPresent(
 				theQuery ->
@@ -1283,7 +1323,9 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 					request.getQuery(),
 					request.getPositionalQueryParamsList(),
 					request.getNamedQueryParamsMap(),
-					responseObserver
+					responseObserver,
+					(sourceQuery, positionalParams, namedParams, error) ->
+						trackFailedQuery(session, sourceQuery, positionalParams, namedParams, error, this.trackSourceQueries)
 				)
 			).ifPresent(
 				theQuery -> doQuery(

@@ -45,6 +45,7 @@ public class SourceQueryContainerSerializer extends Serializer<SourceQueryContai
 		kryo.writeObject(output, object.created());
 		output.writeString(object.sourceQuery());
 		output.writeString(object.queryType());
+		output.writeString(object.finishedWithError());
 	}
 
 	@Override
@@ -57,6 +58,7 @@ public class SourceQueryContainerSerializer extends Serializer<SourceQueryContai
 			sessionRecordContext == null ? null : sessionRecordContext.sessionRecordsCount(),
 			kryo.readObject(input, java.util.UUID.class),
 			kryo.readObject(input, java.time.OffsetDateTime.class),
+			input.readString(),
 			input.readString(),
 			input.readString()
 		);

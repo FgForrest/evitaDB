@@ -51,6 +51,7 @@ public class SessionCloseContainerSerializer extends Serializer<SessionCloseCont
 		output.writeVarInt(object.queryCount(), true);
 		output.writeVarInt(object.entityFetchCount(), true);
 		output.writeVarInt(object.mutationCount(), true);
+		output.writeString(object.finishedWithError());
 	}
 
 	@Override
@@ -70,7 +71,8 @@ public class SessionCloseContainerSerializer extends Serializer<SessionCloseCont
 			input.readVarInt(true),
 			input.readVarInt(true),
 			input.readVarInt(true),
-			input.readVarInt(true)
+			input.readVarInt(true),
+			input.readString()
 		);
 	}
 

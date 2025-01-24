@@ -72,23 +72,32 @@ public class NoOpTrafficRecorder implements TrafficRecorder {
 	}
 
 	@Override
-	public void createSession(@Nonnull UUID sessionId, long catalogId, @Nonnull OffsetDateTime created) {
+	public void createSession(
+		@Nonnull UUID sessionId,
+		long catalogId,
+		@Nonnull OffsetDateTime created
+	) {
 		// no-op
 	}
 
 	@Override
-	public void closeSession(@Nonnull UUID sessionId) {
+	public void closeSession(
+		@Nonnull UUID sessionId,
+		@Nullable String finishedWithError
+	) {
 		// no-op
 	}
 
 	@Override
 	public void recordQuery(
 		@Nonnull UUID sessionId,
+		@Nonnull String queryDescription,
 		@Nonnull Query query,
 		@Nonnull Label[] labels,
 		@Nonnull OffsetDateTime now,
 		int totalRecordCount, int ioFetchCount, int ioFetchedSizeBytes,
-		@Nonnull int[] primaryKeys
+		@Nonnull int[] primaryKeys,
+		@Nullable String finishedWithError
 	) {
 		// no-op
 	}
@@ -96,7 +105,8 @@ public class NoOpTrafficRecorder implements TrafficRecorder {
 	@Override
 	public void recordFetch(
 		@Nonnull UUID sessionId, @Nonnull Query query, @Nonnull OffsetDateTime now,
-		int ioFetchCount, int ioFetchedSizeBytes, int primaryKey
+		int ioFetchCount, int ioFetchedSizeBytes, int primaryKey,
+		@Nullable String finishedWithError
 	) {
 		// no-op
 	}
@@ -104,23 +114,40 @@ public class NoOpTrafficRecorder implements TrafficRecorder {
 	@Override
 	public void recordEnrichment(
 		@Nonnull UUID sessionId, @Nonnull Query query, @Nonnull OffsetDateTime now,
-		int ioFetchCount, int ioFetchedSizeBytes, int primaryKey
+		int ioFetchCount, int ioFetchedSizeBytes, int primaryKey,
+		@Nullable String finishedWithError
 	) {
 		// no-op
 	}
 
 	@Override
-	public void recordMutation(@Nonnull UUID sessionId, @Nonnull OffsetDateTime now, @Nonnull Mutation mutation) {
+	public void recordMutation(
+		@Nonnull UUID sessionId,
+		@Nonnull OffsetDateTime now,
+		@Nonnull Mutation mutation,
+		@Nullable String finishedWithError
+	) {
 		// no-op
 	}
 
 	@Override
-	public void setupSourceQuery(@Nonnull UUID sessionId, @Nonnull UUID sourceQueryId, @Nonnull OffsetDateTime now, @Nonnull String sourceQuery, @Nonnull String queryType) {
+	public void setupSourceQuery(
+		@Nonnull UUID sessionId,
+		@Nonnull UUID sourceQueryId,
+		@Nonnull OffsetDateTime now,
+		@Nonnull String sourceQuery,
+		@Nonnull String queryType,
+		@Nullable String finishedWithError
+	) {
 		// no-op
 	}
 
 	@Override
-	public void closeSourceQuery(@Nonnull UUID sessionId, @Nonnull UUID sourceQueryId) {
+	public void closeSourceQuery(
+		@Nonnull UUID sessionId,
+		@Nonnull UUID sourceQueryId,
+		@Nullable String finishedWithError
+	) {
 		// no-op
 	}
 

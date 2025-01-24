@@ -52,7 +52,8 @@ class SessionCloseContainerSerializerTest extends AbstractContainerSerializerTes
 				4,
 				7,
 				9,
-				4
+				4,
+				"error"
 			)
 		);
 	}

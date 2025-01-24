@@ -88,4 +88,9 @@ public record SessionStartContainer(
 		return 0;
 	}
 
+	@Nullable
+	@Override
+	public String finishedWithError() {
+		return null;
+	}
 }

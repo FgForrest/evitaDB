@@ -266,7 +266,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 	}
 
 	@Override
-	public void closeSession(@Nonnull UUID sessionId) {
+	public void closeSession(@Nonnull UUID sessionId, @Nullable String finishedWithError) {
 		final SessionTraffic sessionTraffic = this.trackedSessionsIndex.remove(sessionId);
 		if (sessionTraffic != null && !sessionTraffic.isFinished()) {
 			final byte[] bufferToReturn = sessionTraffic.finish();
@@ -284,7 +284,8 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 					sessionTraffic.getRecordsMissedOut(),
 					sessionTraffic.getQueryCount(),
 					sessionTraffic.getEntityFetchCount(),
-					sessionTraffic.getMutationCount()
+					sessionTraffic.getMutationCount(),
+					finishedWithError
 				),
 				ex -> {
 					this.copyBufferPool.free(ex.getWriteBuffer());
@@ -307,13 +308,15 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 	@Override
 	public void recordQuery(
 		@Nonnull UUID sessionId,
+		@Nonnull String queryDescription,
 		@Nonnull Query query,
 		@Nonnull Label[] labels,
 		@Nonnull OffsetDateTime now,
 		int totalRecordCount,
 		int ioFetchCount,
 		int ioFetchedSizeBytes,
-		@Nonnull int... primaryKeys
+		@Nonnull int[] primaryKeys,
+		@Nullable String finishedWithError
 	) {
 		doRecord(
 			this.trackedSessionsIndex.get(sessionId),
@@ -338,10 +341,12 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 				return new QueryContainer(
 					sessionId,
 					sessionTraffic.nextRecordingId(),
+					queryDescription,
 					query,
 					finalLabels,
 					now, (int) (System.currentTimeMillis() - now.toInstant().toEpochMilli()),
-					totalRecordCount, ioFetchCount, ioFetchedSizeBytes, primaryKeys
+					totalRecordCount, ioFetchCount, ioFetchedSizeBytes, primaryKeys,
+					finishedWithError
 				);
 			}
 		);
@@ -354,7 +359,8 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		@Nonnull OffsetDateTime now,
 		int ioFetchCount,
 		int ioFetchedSizeBytes,
-		int primaryKey
+		int primaryKey,
+		@Nullable String finishedWithError
 	) {
 		doRecord(
 			this.trackedSessionsIndex.get(sessionId),
@@ -364,7 +370,8 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 				query,
 				now,
 				(int) (System.currentTimeMillis() - now.toInstant().toEpochMilli()),
-				ioFetchCount, ioFetchedSizeBytes, primaryKey
+				ioFetchCount, ioFetchedSizeBytes, primaryKey,
+				finishedWithError
 			)
 		);
 	}
@@ -376,7 +383,8 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		@Nonnull OffsetDateTime now,
 		int ioFetchCount,
 		int ioFetchedSizeBytes,
-		int primaryKey
+		int primaryKey,
+		@Nullable String finishedWithError
 	) {
 		doRecord(
 			this.trackedSessionsIndex.get(sessionId),
@@ -386,7 +394,8 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 				query,
 				now,
 				(int) (System.currentTimeMillis() - now.toInstant().toEpochMilli()),
-				ioFetchCount, ioFetchedSizeBytes, primaryKey
+				ioFetchCount, ioFetchedSizeBytes, primaryKey,
+				finishedWithError
 			)
 		);
 	}
@@ -395,7 +404,8 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 	public void recordMutation(
 		@Nonnull UUID sessionId,
 		@Nonnull OffsetDateTime now,
-		@Nonnull Mutation mutation
+		@Nonnull Mutation mutation,
+		@Nullable String finishedWithError
 	) {
 		doRecord(
 			this.trackedSessionsIndex.get(sessionId),
@@ -404,7 +414,8 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 				sessionTraffic.nextRecordingId(),
 				now,
 				(int) (System.currentTimeMillis() - now.toInstant().toEpochMilli()),
-				mutation
+				mutation,
+				finishedWithError
 			)
 		);
 	}
@@ -415,7 +426,8 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		@Nonnull UUID sourceQueryId,
 		@Nonnull OffsetDateTime now,
 		@Nonnull String sourceQuery,
-		@Nonnull String queryType
+		@Nonnull String queryType,
+		@Nullable String finishedWithError
 	) {
 		doRecord(
 			this.trackedSessionsIndex.get(sessionId),
@@ -428,7 +440,8 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 					sourceQueryId,
 					now,
 					sourceQuery,
-					queryType
+					queryType,
+					finishedWithError
 				);
 			}
 		);
@@ -437,11 +450,12 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 	@Override
 	public void closeSourceQuery(
 		@Nonnull UUID sessionId,
-		@Nonnull UUID sourceQueryId
+		@Nonnull UUID sourceQueryId,
+		@Nullable String finishedWithError
 	) {
 		doRecord(
 			this.trackedSessionsIndex.get(sessionId),
-			sessionTraffic -> sessionTraffic.closeSourceQuery(sourceQueryId)
+			sessionTraffic -> sessionTraffic.closeSourceQuery(sourceQueryId, finishedWithError)
 		);
 	}
 

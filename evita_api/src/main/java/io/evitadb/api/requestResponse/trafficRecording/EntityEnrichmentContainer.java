@@ -56,7 +56,8 @@ public record EntityEnrichmentContainer(
 	int durationInMilliseconds,
 	int ioFetchCount,
 	int ioFetchedSizeBytes,
-	int primaryKey
+	int primaryKey,
+	@Nullable String finishedWithError
 ) implements TrafficRecording {
 
 	public EntityEnrichmentContainer(
@@ -67,7 +68,8 @@ public record EntityEnrichmentContainer(
 		int durationInMilliseconds,
 		int ioFetchCount,
 		int ioFetchedSizeBytes,
-		int primaryKey
+		int primaryKey,
+		@Nullable String finishedWithError
 	) {
 		this(
 			null,
@@ -79,7 +81,8 @@ public record EntityEnrichmentContainer(
 			durationInMilliseconds,
 			ioFetchCount,
 			ioFetchedSizeBytes,
-			primaryKey
+			primaryKey,
+			finishedWithError
 		);
 	}
 

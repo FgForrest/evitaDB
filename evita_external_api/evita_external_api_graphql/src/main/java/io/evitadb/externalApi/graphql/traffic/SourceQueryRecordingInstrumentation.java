@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -85,16 +85,19 @@ public class SourceQueryRecordingInstrumentation extends SimplePerformantInstrum
 			return noOp();
 		}
 
+		/* TODO LHO - insert finishedWithError if parsing failed */
 		final UUID recordingId = evitaInternalSession.recordSourceQuery(
 			serializedSourceQuery,
-			SOURCE_QUERY_TYPE
+			SOURCE_QUERY_TYPE,
+			null
 		);
 		executionContext.getGraphQLContext().put(GraphQLContextKey.TRAFFIC_SOURCE_QUERY_RECORDING_ID, recordingId);
 
 		return new SimpleInstrumentationContext<>() {
 			@Override
 			public void onCompleted(ExecutionResult result, Throwable t) {
-				evitaInternalSession.finalizeSourceQuery(recordingId);
+				/* TODO LHO - insert finishedWithError if any of the queries failed with error */
+				evitaInternalSession.finalizeSourceQuery(recordingId, null);
 				executionContext.getGraphQLContext().delete(GraphQLContextKey.TRAFFIC_SOURCE_QUERY_RECORDING_ID);
 			}
 		};

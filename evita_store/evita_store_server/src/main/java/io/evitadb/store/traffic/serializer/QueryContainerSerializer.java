@@ -47,6 +47,7 @@ public class QueryContainerSerializer extends Serializer<QueryContainer> {
 	public void write(Kryo kryo, Output output, QueryContainer object) {
 		kryo.writeObject(output, object.sessionId());
 		output.writeVarInt(object.recordSessionOffset(), true);
+		output.writeString(object.queryDescription());
 		kryo.writeObject(output, object.query());
 		output.writeVarInt(object.labels().length, true);
 		for (int i = 0; i < object.labels().length; i++) {
@@ -60,12 +61,14 @@ public class QueryContainerSerializer extends Serializer<QueryContainer> {
 		output.writeVarInt(object.ioFetchedSizeBytes(), true);
 		output.writeVarInt(object.primaryKeys().length, true);
 		output.writeInts(object.primaryKeys(), 0, object.primaryKeys().length);
+		output.writeString(object.finishedWithError());
 	}
 
 	@Override
 	public QueryContainer read(Kryo kryo, Input input, Class<? extends QueryContainer> type) {
 		final UUID sessionId = kryo.readObject(input, UUID.class);
 		final int recordSessionOffset = input.readVarInt(true);
+		final String queryDescription = input.readString();
 		final Query query = kryo.readObject(input, Query.class);
 		final int labelCount = input.readVarInt(true);
 		final Label[] labels = labelCount == 0 ? Label.EMPTY_LABELS : new Label[labelCount];
@@ -82,6 +85,7 @@ public class QueryContainerSerializer extends Serializer<QueryContainer> {
 			sessionId,
 			recordSessionOffset,
 			sessionRecordContext == null ? null : sessionRecordContext.sessionRecordsCount(),
+			queryDescription,
 			query,
 			labels,
 			kryo.readObject(input, OffsetDateTime.class),
@@ -89,7 +93,8 @@ public class QueryContainerSerializer extends Serializer<QueryContainer> {
 			input.readVarInt(true),
 			input.readVarInt(true),
 			input.readVarInt(true),
-			input.readInts(input.readVarInt(true))
+			input.readInts(input.readVarInt(true)),
+			input.readString()
 		);
 	}
 

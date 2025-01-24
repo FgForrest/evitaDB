@@ -49,6 +49,7 @@ public class MutationContainerSerializer extends Serializer<MutationContainer> {
 		kryo.writeObject(output, object.created());
 		output.writeVarInt(object.durationInMilliseconds(), true);
 		kryo.writeClassAndObject(output, object.mutation());
+		output.writeString(object.finishedWithError());
 	}
 
 	@Override
@@ -61,7 +62,8 @@ public class MutationContainerSerializer extends Serializer<MutationContainer> {
 			sessionRecordContext == null ? null : sessionRecordContext.sessionRecordsCount(),
 			kryo.readObject(input, OffsetDateTime.class),
 			input.readVarInt(true),
-			(Mutation) kryo.readClassAndObject(input)
+			(Mutation) kryo.readClassAndObject(input),
+			input.readString()
 		);
 	}
 

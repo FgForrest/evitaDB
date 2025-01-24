@@ -43,6 +43,7 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcTrafficQueryContainer() {
+    queryDescription_ = "";
     query_ = "";
     primaryKeys_ = emptyIntList();
     labels_ = java.util.Collections.emptyList();
@@ -82,15 +83,21 @@ private static final long serialVersionUID = 0L;
           case 10: {
             java.lang.String s = input.readStringRequireUtf8();
 
+            queryDescription_ = s;
+            break;
+          }
+          case 18: {
+            java.lang.String s = input.readStringRequireUtf8();
+
             query_ = s;
             break;
           }
-          case 16: {
+          case 24: {
 
             totalRecordCount_ = input.readInt32();
             break;
           }
-          case 24: {
+          case 32: {
             if (!((mutable_bitField0_ & 0x00000001) != 0)) {
               primaryKeys_ = newIntList();
               mutable_bitField0_ |= 0x00000001;
@@ -98,7 +105,7 @@ private static final long serialVersionUID = 0L;
             primaryKeys_.addInt(input.readInt32());
             break;
           }
-          case 26: {
+          case 34: {
             int length = input.readRawVarint32();
             int limit = input.pushLimit(length);
             if (!((mutable_bitField0_ & 0x00000001) != 0) && input.getBytesUntilLimit() > 0) {
@@ -111,7 +118,7 @@ private static final long serialVersionUID = 0L;
             input.popLimit(limit);
             break;
           }
-          case 34: {
+          case 42: {
             if (!((mutable_bitField0_ & 0x00000002) != 0)) {
               labels_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcQueryLabel>();
               mutable_bitField0_ |= 0x00000002;
@@ -158,14 +165,60 @@ private static final long serialVersionUID = 0L;
             io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainer.class, io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainer.Builder.class);
   }
 
-  public static final int QUERY_FIELD_NUMBER = 1;
+  public static final int QUERYDESCRIPTION_FIELD_NUMBER = 1;
+  private volatile java.lang.Object queryDescription_;
+  /**
+   * <pre>
+   * The shortened description of the query and its purpose
+   * </pre>
+   *
+   * <code>string queryDescription = 1;</code>
+   * @return The queryDescription.
+   */
+  @java.lang.Override
+  public java.lang.String getQueryDescription() {
+    java.lang.Object ref = queryDescription_;
+    if (ref instanceof java.lang.String) {
+      return (java.lang.String) ref;
+    } else {
+      com.google.protobuf.ByteString bs =
+          (com.google.protobuf.ByteString) ref;
+      java.lang.String s = bs.toStringUtf8();
+      queryDescription_ = s;
+      return s;
+    }
+  }
+  /**
+   * <pre>
+   * The shortened description of the query and its purpose
+   * </pre>
+   *
+   * <code>string queryDescription = 1;</code>
+   * @return The bytes for queryDescription.
+   */
+  @java.lang.Override
+  public com.google.protobuf.ByteString
+      getQueryDescriptionBytes() {
+    java.lang.Object ref = queryDescription_;
+    if (ref instanceof java.lang.String) {
+      com.google.protobuf.ByteString b =
+          com.google.protobuf.ByteString.copyFromUtf8(
+              (java.lang.String) ref);
+      queryDescription_ = b;
+      return b;
+    } else {
+      return (com.google.protobuf.ByteString) ref;
+    }
+  }
+
+  public static final int QUERY_FIELD_NUMBER = 2;
   private volatile java.lang.Object query_;
   /**
    * <pre>
    * The query operation.
    * </pre>
    *
-   * <code>string query = 1;</code>
+   * <code>string query = 2;</code>
    * @return The query.
    */
   @java.lang.Override
@@ -186,7 +239,7 @@ private static final long serialVersionUID = 0L;
    * The query operation.
    * </pre>
    *
-   * <code>string query = 1;</code>
+   * <code>string query = 2;</code>
    * @return The bytes for query.
    */
   @java.lang.Override
@@ -204,14 +257,14 @@ private static final long serialVersionUID = 0L;
     }
   }
 
-  public static final int TOTALRECORDCOUNT_FIELD_NUMBER = 2;
+  public static final int TOTALRECORDCOUNT_FIELD_NUMBER = 3;
   private int totalRecordCount_;
   /**
    * <pre>
    * The total number of records calculated by the query.
    * </pre>
    *
-   * <code>int32 totalRecordCount = 2;</code>
+   * <code>int32 totalRecordCount = 3;</code>
    * @return The totalRecordCount.
    */
   @java.lang.Override
@@ -219,7 +272,7 @@ private static final long serialVersionUID = 0L;
     return totalRecordCount_;
   }
 
-  public static final int PRIMARYKEYS_FIELD_NUMBER = 3;
+  public static final int PRIMARYKEYS_FIELD_NUMBER = 4;
   private com.google.protobuf.Internal.IntList primaryKeys_;
   /**
    * <pre>
@@ -227,7 +280,7 @@ private static final long serialVersionUID = 0L;
    * returned by the pagination requirement of the query.
    * </pre>
    *
-   * <code>repeated int32 primaryKeys = 3;</code>
+   * <code>repeated int32 primaryKeys = 4;</code>
    * @return A list containing the primaryKeys.
    */
   @java.lang.Override
@@ -241,7 +294,7 @@ private static final long serialVersionUID = 0L;
    * returned by the pagination requirement of the query.
    * </pre>
    *
-   * <code>repeated int32 primaryKeys = 3;</code>
+   * <code>repeated int32 primaryKeys = 4;</code>
    * @return The count of primaryKeys.
    */
   public int getPrimaryKeysCount() {
@@ -253,7 +306,7 @@ private static final long serialVersionUID = 0L;
    * returned by the pagination requirement of the query.
    * </pre>
    *
-   * <code>repeated int32 primaryKeys = 3;</code>
+   * <code>repeated int32 primaryKeys = 4;</code>
    * @param index The index of the element to return.
    * @return The primaryKeys at the given index.
    */
@@ -262,14 +315,14 @@ private static final long serialVersionUID = 0L;
   }
   private int primaryKeysMemoizedSerializedSize = -1;
 
-  public static final int LABELS_FIELD_NUMBER = 4;
+  public static final int LABELS_FIELD_NUMBER = 5;
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryLabel> labels_;
   /**
    * <pre>
    * The client labels associated with the query.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 4;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 5;</code>
    */
   @java.lang.Override
   public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryLabel> getLabelsList() {
@@ -280,7 +333,7 @@ private static final long serialVersionUID = 0L;
    * The client labels associated with the query.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 4;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 5;</code>
    */
   @java.lang.Override
   public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryLabelOrBuilder>
@@ -292,7 +345,7 @@ private static final long serialVersionUID = 0L;
    * The client labels associated with the query.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 4;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 5;</code>
    */
   @java.lang.Override
   public int getLabelsCount() {
@@ -303,7 +356,7 @@ private static final long serialVersionUID = 0L;
    * The client labels associated with the query.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 4;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 5;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcQueryLabel getLabels(int index) {
@@ -314,7 +367,7 @@ private static final long serialVersionUID = 0L;
    * The client labels associated with the query.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 4;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 5;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcQueryLabelOrBuilder getLabelsOrBuilder(
@@ -337,21 +390,24 @@ private static final long serialVersionUID = 0L;
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
     getSerializedSize();
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(queryDescription_)) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, queryDescription_);
+    }
     if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(query_)) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, query_);
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 2, query_);
     }
     if (totalRecordCount_ != 0) {
-      output.writeInt32(2, totalRecordCount_);
+      output.writeInt32(3, totalRecordCount_);
     }
     if (getPrimaryKeysList().size() > 0) {
-      output.writeUInt32NoTag(26);
+      output.writeUInt32NoTag(34);
       output.writeUInt32NoTag(primaryKeysMemoizedSerializedSize);
     }
     for (int i = 0; i < primaryKeys_.size(); i++) {
       output.writeInt32NoTag(primaryKeys_.getInt(i));
     }
     for (int i = 0; i < labels_.size(); i++) {
-      output.writeMessage(4, labels_.get(i));
+      output.writeMessage(5, labels_.get(i));
     }
     unknownFields.writeTo(output);
   }
@@ -362,12 +418,15 @@ private static final long serialVersionUID = 0L;
     if (size != -1) return size;
 
     size = 0;
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(queryDescription_)) {
+      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, queryDescription_);
+    }
     if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(query_)) {
-      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, query_);
+      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(2, query_);
     }
     if (totalRecordCount_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(2, totalRecordCount_);
+        .computeInt32Size(3, totalRecordCount_);
     }
     {
       int dataSize = 0;
@@ -385,7 +444,7 @@ private static final long serialVersionUID = 0L;
     }
     for (int i = 0; i < labels_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(4, labels_.get(i));
+        .computeMessageSize(5, labels_.get(i));
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -402,6 +461,8 @@ private static final long serialVersionUID = 0L;
     }
     io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainer other = (io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainer) obj;
 
+    if (!getQueryDescription()
+        .equals(other.getQueryDescription())) return false;
     if (!getQuery()
         .equals(other.getQuery())) return false;
     if (getTotalRecordCount()
@@ -421,6 +482,8 @@ private static final long serialVersionUID = 0L;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
+    hash = (37 * hash) + QUERYDESCRIPTION_FIELD_NUMBER;
+    hash = (53 * hash) + getQueryDescription().hashCode();
     hash = (37 * hash) + QUERY_FIELD_NUMBER;
     hash = (53 * hash) + getQuery().hashCode();
     hash = (37 * hash) + TOTALRECORDCOUNT_FIELD_NUMBER;
@@ -571,6 +634,8 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
+      queryDescription_ = "";
+
       query_ = "";
 
       totalRecordCount_ = 0;
@@ -610,6 +675,7 @@ private static final long serialVersionUID = 0L;
     public io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainer buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainer result = new io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainer(this);
       int from_bitField0_ = bitField0_;
+      result.queryDescription_ = queryDescription_;
       result.query_ = query_;
       result.totalRecordCount_ = totalRecordCount_;
       if (((bitField0_ & 0x00000001) != 0)) {
@@ -674,6 +740,10 @@ private static final long serialVersionUID = 0L;
 
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainer other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainer.getDefaultInstance()) return this;
+      if (!other.getQueryDescription().isEmpty()) {
+        queryDescription_ = other.queryDescription_;
+        onChanged();
+      }
       if (!other.getQuery().isEmpty()) {
         query_ = other.query_;
         onChanged();
@@ -747,13 +817,109 @@ private static final long serialVersionUID = 0L;
     }
     private int bitField0_;
 
+    private java.lang.Object queryDescription_ = "";
+    /**
+     * <pre>
+     * The shortened description of the query and its purpose
+     * </pre>
+     *
+     * <code>string queryDescription = 1;</code>
+     * @return The queryDescription.
+     */
+    public java.lang.String getQueryDescription() {
+      java.lang.Object ref = queryDescription_;
+      if (!(ref instanceof java.lang.String)) {
+        com.google.protobuf.ByteString bs =
+            (com.google.protobuf.ByteString) ref;
+        java.lang.String s = bs.toStringUtf8();
+        queryDescription_ = s;
+        return s;
+      } else {
+        return (java.lang.String) ref;
+      }
+    }
+    /**
+     * <pre>
+     * The shortened description of the query and its purpose
+     * </pre>
+     *
+     * <code>string queryDescription = 1;</code>
+     * @return The bytes for queryDescription.
+     */
+    public com.google.protobuf.ByteString
+        getQueryDescriptionBytes() {
+      java.lang.Object ref = queryDescription_;
+      if (ref instanceof String) {
+        com.google.protobuf.ByteString b =
+            com.google.protobuf.ByteString.copyFromUtf8(
+                (java.lang.String) ref);
+        queryDescription_ = b;
+        return b;
+      } else {
+        return (com.google.protobuf.ByteString) ref;
+      }
+    }
+    /**
+     * <pre>
+     * The shortened description of the query and its purpose
+     * </pre>
+     *
+     * <code>string queryDescription = 1;</code>
+     * @param value The queryDescription to set.
+     * @return This builder for chaining.
+     */
+    public Builder setQueryDescription(
+        java.lang.String value) {
+      if (value == null) {
+    throw new NullPointerException();
+  }
+
+      queryDescription_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The shortened description of the query and its purpose
+     * </pre>
+     *
+     * <code>string queryDescription = 1;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearQueryDescription() {
+
+      queryDescription_ = getDefaultInstance().getQueryDescription();
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The shortened description of the query and its purpose
+     * </pre>
+     *
+     * <code>string queryDescription = 1;</code>
+     * @param value The bytes for queryDescription to set.
+     * @return This builder for chaining.
+     */
+    public Builder setQueryDescriptionBytes(
+        com.google.protobuf.ByteString value) {
+      if (value == null) {
+    throw new NullPointerException();
+  }
+  checkByteStringIsUtf8(value);
+
+      queryDescription_ = value;
+      onChanged();
+      return this;
+    }
+
     private java.lang.Object query_ = "";
     /**
      * <pre>
      * The query operation.
      * </pre>
      *
-     * <code>string query = 1;</code>
+     * <code>string query = 2;</code>
      * @return The query.
      */
     public java.lang.String getQuery() {
@@ -773,7 +939,7 @@ private static final long serialVersionUID = 0L;
      * The query operation.
      * </pre>
      *
-     * <code>string query = 1;</code>
+     * <code>string query = 2;</code>
      * @return The bytes for query.
      */
     public com.google.protobuf.ByteString
@@ -794,7 +960,7 @@ private static final long serialVersionUID = 0L;
      * The query operation.
      * </pre>
      *
-     * <code>string query = 1;</code>
+     * <code>string query = 2;</code>
      * @param value The query to set.
      * @return This builder for chaining.
      */
@@ -813,7 +979,7 @@ private static final long serialVersionUID = 0L;
      * The query operation.
      * </pre>
      *
-     * <code>string query = 1;</code>
+     * <code>string query = 2;</code>
      * @return This builder for chaining.
      */
     public Builder clearQuery() {
@@ -827,7 +993,7 @@ private static final long serialVersionUID = 0L;
      * The query operation.
      * </pre>
      *
-     * <code>string query = 1;</code>
+     * <code>string query = 2;</code>
      * @param value The bytes for query to set.
      * @return This builder for chaining.
      */
@@ -849,7 +1015,7 @@ private static final long serialVersionUID = 0L;
      * The total number of records calculated by the query.
      * </pre>
      *
-     * <code>int32 totalRecordCount = 2;</code>
+     * <code>int32 totalRecordCount = 3;</code>
      * @return The totalRecordCount.
      */
     @java.lang.Override
@@ -861,7 +1027,7 @@ private static final long serialVersionUID = 0L;
      * The total number of records calculated by the query.
      * </pre>
      *
-     * <code>int32 totalRecordCount = 2;</code>
+     * <code>int32 totalRecordCount = 3;</code>
      * @param value The totalRecordCount to set.
      * @return This builder for chaining.
      */
@@ -876,7 +1042,7 @@ private static final long serialVersionUID = 0L;
      * The total number of records calculated by the query.
      * </pre>
      *
-     * <code>int32 totalRecordCount = 2;</code>
+     * <code>int32 totalRecordCount = 3;</code>
      * @return This builder for chaining.
      */
     public Builder clearTotalRecordCount() {
@@ -899,7 +1065,7 @@ private static final long serialVersionUID = 0L;
      * returned by the pagination requirement of the query.
      * </pre>
      *
-     * <code>repeated int32 primaryKeys = 3;</code>
+     * <code>repeated int32 primaryKeys = 4;</code>
      * @return A list containing the primaryKeys.
      */
     public java.util.List<java.lang.Integer>
@@ -913,7 +1079,7 @@ private static final long serialVersionUID = 0L;
      * returned by the pagination requirement of the query.
      * </pre>
      *
-     * <code>repeated int32 primaryKeys = 3;</code>
+     * <code>repeated int32 primaryKeys = 4;</code>
      * @return The count of primaryKeys.
      */
     public int getPrimaryKeysCount() {
@@ -925,7 +1091,7 @@ private static final long serialVersionUID = 0L;
      * returned by the pagination requirement of the query.
      * </pre>
      *
-     * <code>repeated int32 primaryKeys = 3;</code>
+     * <code>repeated int32 primaryKeys = 4;</code>
      * @param index The index of the element to return.
      * @return The primaryKeys at the given index.
      */
@@ -938,7 +1104,7 @@ private static final long serialVersionUID = 0L;
      * returned by the pagination requirement of the query.
      * </pre>
      *
-     * <code>repeated int32 primaryKeys = 3;</code>
+     * <code>repeated int32 primaryKeys = 4;</code>
      * @param index The index to set the value at.
      * @param value The primaryKeys to set.
      * @return This builder for chaining.
@@ -956,7 +1122,7 @@ private static final long serialVersionUID = 0L;
      * returned by the pagination requirement of the query.
      * </pre>
      *
-     * <code>repeated int32 primaryKeys = 3;</code>
+     * <code>repeated int32 primaryKeys = 4;</code>
      * @param value The primaryKeys to add.
      * @return This builder for chaining.
      */
@@ -972,7 +1138,7 @@ private static final long serialVersionUID = 0L;
      * returned by the pagination requirement of the query.
      * </pre>
      *
-     * <code>repeated int32 primaryKeys = 3;</code>
+     * <code>repeated int32 primaryKeys = 4;</code>
      * @param values The primaryKeys to add.
      * @return This builder for chaining.
      */
@@ -990,7 +1156,7 @@ private static final long serialVersionUID = 0L;
      * returned by the pagination requirement of the query.
      * </pre>
      *
-     * <code>repeated int32 primaryKeys = 3;</code>
+     * <code>repeated int32 primaryKeys = 4;</code>
      * @return This builder for chaining.
      */
     public Builder clearPrimaryKeys() {
@@ -1017,7 +1183,7 @@ private static final long serialVersionUID = 0L;
      * The client labels associated with the query.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 5;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryLabel> getLabelsList() {
       if (labelsBuilder_ == null) {
@@ -1031,7 +1197,7 @@ private static final long serialVersionUID = 0L;
      * The client labels associated with the query.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 5;</code>
      */
     public int getLabelsCount() {
       if (labelsBuilder_ == null) {
@@ -1045,7 +1211,7 @@ private static final long serialVersionUID = 0L;
      * The client labels associated with the query.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 5;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcQueryLabel getLabels(int index) {
       if (labelsBuilder_ == null) {
@@ -1059,7 +1225,7 @@ private static final long serialVersionUID = 0L;
      * The client labels associated with the query.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 5;</code>
      */
     public Builder setLabels(
         int index, io.evitadb.externalApi.grpc.generated.GrpcQueryLabel value) {
@@ -1080,7 +1246,7 @@ private static final long serialVersionUID = 0L;
      * The client labels associated with the query.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 5;</code>
      */
     public Builder setLabels(
         int index, io.evitadb.externalApi.grpc.generated.GrpcQueryLabel.Builder builderForValue) {
@@ -1098,7 +1264,7 @@ private static final long serialVersionUID = 0L;
      * The client labels associated with the query.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 5;</code>
      */
     public Builder addLabels(io.evitadb.externalApi.grpc.generated.GrpcQueryLabel value) {
       if (labelsBuilder_ == null) {
@@ -1118,7 +1284,7 @@ private static final long serialVersionUID = 0L;
      * The client labels associated with the query.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 5;</code>
      */
     public Builder addLabels(
         int index, io.evitadb.externalApi.grpc.generated.GrpcQueryLabel value) {
@@ -1139,7 +1305,7 @@ private static final long serialVersionUID = 0L;
      * The client labels associated with the query.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 5;</code>
      */
     public Builder addLabels(
         io.evitadb.externalApi.grpc.generated.GrpcQueryLabel.Builder builderForValue) {
@@ -1157,7 +1323,7 @@ private static final long serialVersionUID = 0L;
      * The client labels associated with the query.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 5;</code>
      */
     public Builder addLabels(
         int index, io.evitadb.externalApi.grpc.generated.GrpcQueryLabel.Builder builderForValue) {
@@ -1175,7 +1341,7 @@ private static final long serialVersionUID = 0L;
      * The client labels associated with the query.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 5;</code>
      */
     public Builder addAllLabels(
         java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryLabel> values) {
@@ -1194,7 +1360,7 @@ private static final long serialVersionUID = 0L;
      * The client labels associated with the query.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 5;</code>
      */
     public Builder clearLabels() {
       if (labelsBuilder_ == null) {
@@ -1211,7 +1377,7 @@ private static final long serialVersionUID = 0L;
      * The client labels associated with the query.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 5;</code>
      */
     public Builder removeLabels(int index) {
       if (labelsBuilder_ == null) {
@@ -1228,7 +1394,7 @@ private static final long serialVersionUID = 0L;
      * The client labels associated with the query.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 5;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcQueryLabel.Builder getLabelsBuilder(
         int index) {
@@ -1239,7 +1405,7 @@ private static final long serialVersionUID = 0L;
      * The client labels associated with the query.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 5;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcQueryLabelOrBuilder getLabelsOrBuilder(
         int index) {
@@ -1253,7 +1419,7 @@ private static final long serialVersionUID = 0L;
      * The client labels associated with the query.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 5;</code>
      */
     public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryLabelOrBuilder>
          getLabelsOrBuilderList() {
@@ -1268,7 +1434,7 @@ private static final long serialVersionUID = 0L;
      * The client labels associated with the query.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 5;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcQueryLabel.Builder addLabelsBuilder() {
       return getLabelsFieldBuilder().addBuilder(
@@ -1279,7 +1445,7 @@ private static final long serialVersionUID = 0L;
      * The client labels associated with the query.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 5;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcQueryLabel.Builder addLabelsBuilder(
         int index) {
@@ -1291,7 +1457,7 @@ private static final long serialVersionUID = 0L;
      * The client labels associated with the query.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 5;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryLabel.Builder>
          getLabelsBuilderList() {

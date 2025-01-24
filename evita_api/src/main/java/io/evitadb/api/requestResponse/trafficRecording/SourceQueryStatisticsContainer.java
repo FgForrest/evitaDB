@@ -59,7 +59,8 @@ public record SourceQueryStatisticsContainer(
 	int ioFetchCount,
 	int ioFetchedSizeBytes,
 	int returnedRecordCount,
-	int totalRecordCount
+	int totalRecordCount,
+	@Nullable String finishedWithError
 ) implements TrafficRecording {
 
 	public SourceQueryStatisticsContainer(
@@ -71,7 +72,8 @@ public record SourceQueryStatisticsContainer(
 		int ioFetchCount,
 		int ioFetchedSizeBytes,
 		int returnedRecordCount,
-		int totalRecordCount
+		int totalRecordCount,
+		@Nullable String finishedWithError
 	) {
 		this(
 			null,
@@ -84,7 +86,8 @@ public record SourceQueryStatisticsContainer(
 			ioFetchCount,
 			ioFetchedSizeBytes,
 			returnedRecordCount,
-			totalRecordCount
+			totalRecordCount,
+			finishedWithError
 		);
 	}
 
