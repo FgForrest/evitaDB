@@ -57,7 +57,7 @@ import io.evitadb.store.spi.SessionLocation;
 import io.evitadb.store.spi.SessionSink;
 import io.evitadb.store.spi.TrafficRecorder;
 import io.evitadb.store.traffic.event.TrafficRecorderStatisticsEvent;
-import io.evitadb.store.traffic.serializer.SessionSequenceOrderContext;
+import io.evitadb.store.traffic.serializer.CurrentSessionRecordContext;
 import io.evitadb.store.traffic.stream.RingBufferInputStream;
 import io.evitadb.store.wal.WalKryoConfigurer;
 import io.evitadb.stream.RandomAccessFileInputStream;
@@ -290,6 +290,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 						final SessionCloseContainer container = new SessionCloseContainer(
 							sessionId,
 							sessionTraffic.nextRecordingId(),
+							sessionTraffic.getRecordCount(),
 							sessionTraffic.getCatalogVersion(),
 							sessionTraffic.getCreated(),
 							sessionTraffic.getDurationInMillis(),
@@ -583,12 +584,18 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 	 * Reads a traffic record from a specified file position.
 	 *
 	 * @param sessionSequenceOrder  the session sequence order of the recording
+	 * @param sessionRecordsCount   the number of records in this session
 	 * @param filePosition          the position within the file to read the traffic record from
 	 * @param targetFileInputStream the file input stream to read the traffic record from
 	 * @return a {@code StorageRecord} containing the traffic recording
 	 */
 	@Nonnull
-	private StorageRecord<TrafficRecording> readTrafficRecord(long sessionSequenceOrder, long filePosition, @Nonnull RandomAccessFileInputStream targetFileInputStream) {
+	private StorageRecord<TrafficRecording> readTrafficRecord(
+		long sessionSequenceOrder,
+		int sessionRecordsCount,
+		long filePosition,
+		@Nonnull RandomAccessFileInputStream targetFileInputStream
+	) {
 		final byte[] byteBuffer = this.copyBufferPool.obtain();
 		final Kryo kryoInstance = this.trafficRecorderKryoPool.obtain();
 		try {
@@ -602,8 +609,9 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 			);
 			return StorageRecord.read(
 				input,
-				(theInput, recordLength) -> SessionSequenceOrderContext.fetch(
+				(theInput, recordLength) -> CurrentSessionRecordContext.fetch(
 					sessionSequenceOrder,
+					sessionRecordsCount,
 					() -> (TrafficRecording) kryoInstance.readClassAndObject(input)
 				)
 			);
@@ -689,10 +697,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 	 * @return always -1 - reschedule according to plan
 	 */
 	private long index() {
-		this.diskBuffer.indexData(
-			(sessionSequenceOrder, filePosition, diskRingBufferReadInputStream) ->
-				readTrafficRecord(sessionSequenceOrder, filePosition, diskRingBufferReadInputStream)
-		);
+		this.diskBuffer.indexData(this::readTrafficRecord);
 		return -1L;
 	}
 
@@ -721,7 +726,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 								this.blockSizeBytes : finalizedSession.getCurrentByteBufferPosition();
 						}
 
-						final SessionLocation sessionLocation = this.diskBuffer.appendSession(totalSize);
+						final SessionLocation sessionLocation = this.diskBuffer.appendSession(finalizedSession.getRecordCount(), totalSize);
 						final OfInt memoryBlockIdsToFree = finalizedSession.getMemoryBlockIds();
 						while (memoryBlockIdsToFree.hasNext()) {
 							final int freeBlock = memoryBlockIdsToFree.nextInt();

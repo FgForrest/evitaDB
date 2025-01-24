@@ -35,7 +35,7 @@ import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRe
 import io.evitadb.core.Transaction;
 import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.exception.UnexpectedIOException;
-import io.evitadb.function.LongBiObjectFunction;
+import io.evitadb.function.LongIntLongObjectFunction;
 import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.spi.SessionLocation;
@@ -94,7 +94,7 @@ import static java.util.Optional.ofNullable;
  */
 @Slf4j
 public class DiskRingBuffer {
-	public static final int LEAD_DESCRIPTOR_BYTE_SIZE = 12;
+	public static final int LEAD_DESCRIPTOR_BYTE_SIZE = 16;
 	/**
 	 * Byte buffer used for writing the descriptor to the disk buffer file.
 	 */
@@ -356,7 +356,7 @@ public class DiskRingBuffer {
 	 * @return sequence order of the appended session
 	 */
 	@Nonnull
-	public SessionLocation appendSession(int totalSize) {
+	public SessionLocation appendSession(int sessionRecordsCount, int totalSize) {
 		final int totalSizeWithHeader = totalSize + LEAD_DESCRIPTOR_BYTE_SIZE;
 		if (totalSizeWithHeader > this.diskBufferFileSize) {
 			throw MemoryNotAvailableException.DATA_TOO_LARGE;
@@ -364,10 +364,11 @@ public class DiskRingBuffer {
 
 		final long sessionSequenceOrder = this.sequenceOrder.incrementAndGet();
 		final FileLocation fileLocation = new FileLocation(this.ringBufferTail, totalSizeWithHeader);
-		final SessionLocation sessionLocation = new SessionLocation(sessionSequenceOrder, fileLocation);
+		final SessionLocation sessionLocation = new SessionLocation(sessionSequenceOrder, sessionRecordsCount, fileLocation);
 
 		// Prepare descriptor
 		this.descriptorByteBuffer.putLong(sessionSequenceOrder);
+		this.descriptorByteBuffer.putInt(sessionRecordsCount);
 		this.descriptorByteBuffer.putInt(totalSize);
 		this.descriptorByteBuffer.flip();
 
@@ -517,7 +518,7 @@ public class DiskRingBuffer {
 	@Nonnull
 	public Stream<TrafficRecording> getSessionRecordsStream(
 		@Nonnull TrafficRecordingCaptureRequest request,
-		@Nonnull LongBiObjectFunction<RandomAccessFileInputStream, StorageRecord<TrafficRecording>> reader
+		@Nonnull LongIntLongObjectFunction<RandomAccessFileInputStream, StorageRecord<TrafficRecording>> reader
 	) {
 		TrafficRecordingIndex sessionIndex = this.sessionIndex.get();
 		notNull(sessionIndex, () -> new IndexNotReady(calculateIndexingPercentage()));
@@ -528,7 +529,7 @@ public class DiskRingBuffer {
 		return sessionIndex.getSessionStream(request)
 			.flatMap(
 				it -> this.readSessionRecords(
-					readerId, it.sequenceOrder(), it.fileLocation(), inputStream, reader
+					readerId, it.sequenceOrder(), it.sessionRecordsCount(), it.fileLocation(), inputStream, reader
 				)
 			)
 			.filter(requestPredicate)
@@ -568,7 +569,7 @@ public class DiskRingBuffer {
 	 *               TrafficRecording instances, given a long identifier.
 	 */
 	public void indexData(
-		@Nonnull LongBiObjectFunction<RandomAccessFileInputStream, StorageRecord<TrafficRecording>> reader
+		@Nonnull LongIntLongObjectFunction<RandomAccessFileInputStream, StorageRecord<TrafficRecording>> reader
 	) {
 		if (this.sessionIndexingRunning.compareAndSet(false, true)) {
 			final long readerId = readerSequence.incrementAndGet();
@@ -583,6 +584,7 @@ public class DiskRingBuffer {
 					this.readSessionRecords(
 							readerId,
 							sessionLocation.sequenceOrder(),
+							sessionLocation.sessionRecordsCount(),
 							sessionLocation.fileLocation(),
 							diskBufferFileReadInputStream,
 							reader
@@ -772,9 +774,10 @@ public class DiskRingBuffer {
 	private Stream<TrafficRecording> readSessionRecords(
 		long readerId,
 		long sessionSequenceId,
+		int sessionRecordsCount,
 		@Nonnull FileLocation fileLocation,
 		@Nonnull RandomAccessFileInputStream inputStream,
-		@Nonnull LongBiObjectFunction<RandomAccessFileInputStream, StorageRecord<TrafficRecording>> reader
+		@Nonnull LongIntLongObjectFunction<RandomAccessFileInputStream, StorageRecord<TrafficRecording>> reader
 	) {
 		final AtomicLong lastLocationRead = new AtomicLong(-1);
 		return Stream.generate(
@@ -796,7 +799,9 @@ public class DiskRingBuffer {
 									fileLocation.startingPosition() + LEAD_DESCRIPTOR_BYTE_SIZE :
 									lastFileLocation;
 								try {
-									final StorageRecord<TrafficRecording> tr = reader.apply(sessionSequenceId, startPosition, inputStream);
+									final StorageRecord<TrafficRecording> tr = reader.apply(
+										sessionSequenceId, sessionRecordsCount, startPosition, inputStream
+									);
 									if (tr == null) {
 										// finalize the stream on first error
 										return null;

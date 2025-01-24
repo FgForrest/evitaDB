@@ -45,26 +45,29 @@ message GrpcTrafficRecord {
   // The order (sequence) of the traffic recording in the session. First record in the session has sequence ID 0 and
   // represents the session start, additional records are numbered sequentially.
   int32 recordSessionOffset = 3;
+  // Total count of the records in the session. This number allows clients to determine whether the recordSessionOffset
+  // is the last record in the session (i.e. when recordSessionOffset = recordsInSession - 1, then it is the last record).
+  int32 sessionRecordsCount = 4;
   // The type of the recording.
-  GrpcTrafficRecordingType type = 4;
+  GrpcTrafficRecordingType type = 5;
   // The time when the recording was created.
-  GrpcOffsetDateTime created = 5;
+  GrpcOffsetDateTime created = 6;
   // The duration of the operation in milliseconds.
-  int32 durationInMilliseconds = 6;
+  int32 durationInMilliseconds = 7;
   // The size of the data fetched from the permanent storage in bytes.
-  int32 ioFetchedSizeBytes = 7;
+  int32 ioFetchedSizeBytes = 8;
   // The number of objects fetched from the permanent storage.
-  int32 ioFetchCount = 8;
+  int32 ioFetchCount = 9;
   // optional body of the traffic recording when it is requested by the GrpcTrafficCaptureContent
   oneof body {
-    GrpcTrafficMutationContainer mutation = 9;
-    GrpcTrafficQueryContainer query = 10;
-    GrpcTrafficEntityEnrichmentContainer enrichment = 11;
-    GrpcTrafficEntityFetchContainer fetch = 12;
-    GrpcTrafficSessionCloseContainer sessionClose = 13;
-    GrpcTrafficSessionStartContainer sessionStart = 14;
-    GrpcTrafficSourceQueryContainer sourceQuery = 15;
-    GrpcTrafficSourceQueryStatisticsContainer sourceQueryStatistics = 16;
+    GrpcTrafficMutationContainer mutation = 10;
+    GrpcTrafficQueryContainer query = 11;
+    GrpcTrafficEntityEnrichmentContainer enrichment = 12;
+    GrpcTrafficEntityFetchContainer fetch = 13;
+    GrpcTrafficSessionCloseContainer sessionClose = 14;
+    GrpcTrafficSessionStartContainer sessionStart = 15;
+    GrpcTrafficSourceQueryContainer sourceQuery = 16;
+    GrpcTrafficSourceQueryStatisticsContainer sourceQueryStatistics = 17;
   }
 }
 

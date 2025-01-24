@@ -46,6 +46,7 @@ public record SessionStartContainer(
 	@Nullable Long sessionSequenceOrder,
 	@Nonnull UUID sessionId,
 	int recordSessionOffset,
+	@Nullable Integer sessionRecordsCount,
 	long catalogVersion,
 	@Nonnull OffsetDateTime created
 ) implements TrafficRecording {
@@ -60,6 +61,7 @@ public record SessionStartContainer(
 			null,
 			sessionId,
 			recordSessionOffset,
+			null,
 			catalogVersion,
 			created
 		);

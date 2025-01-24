@@ -35,7 +35,7 @@ import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.query.QuerySerializationKryoConfigurer;
 import io.evitadb.store.service.KryoFactory;
-import io.evitadb.store.traffic.serializer.SessionSequenceOrderContext;
+import io.evitadb.store.traffic.serializer.CurrentSessionRecordContext;
 import io.evitadb.store.wal.WalKryoConfigurer;
 import io.evitadb.stream.AbstractRandomAccessInputStream;
 import io.evitadb.utils.IOUtils;
@@ -96,14 +96,16 @@ public class InputStreamTrafficRecordReader implements TrafficRecordingReader, C
 			this.descriptorByteBuffer.put(this.descriptorByteBufferArray);
 			this.descriptorByteBuffer.flip();
 			final long sessionSequenceOrder = this.descriptorByteBuffer.getLong();
+			final int sessionRecordsCount = this.descriptorByteBuffer.getInt();
 			final int totalSize = this.descriptorByteBuffer.getInt();
 			position += totalSize;
 			StorageRecord<TrafficRecording> theRecord;
 			do {
 				theRecord = StorageRecord.read(
 					input,
-					(theInput, recordLength) -> SessionSequenceOrderContext.fetch(
+					(theInput, recordLength) -> CurrentSessionRecordContext.fetch(
 						sessionSequenceOrder,
+						sessionRecordsCount,
 						() -> (TrafficRecording) this.trafficRecorderKryo.readClassAndObject(input)
 					)
 				);

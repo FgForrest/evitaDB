@@ -103,6 +103,7 @@ public class TrafficCaptureConverter {
 			.setSessionSequenceOrder(Objects.requireNonNull(trafficRecording.sessionSequenceOrder()))
 			.setSessionId(toGrpcUuid(trafficRecording.sessionId()))
 			.setRecordSessionOffset(trafficRecording.recordSessionOffset())
+			.setSessionRecordsCount(Objects.requireNonNull(trafficRecording.sessionRecordsCount()))
 			.setType(EvitaEnumConverter.toGrpcTrafficRecordingType(trafficRecording.type()))
 			.setCreated(toGrpcOffsetDateTime(trafficRecording.created()))
 			.setDurationInMilliseconds(trafficRecording.durationInMilliseconds())

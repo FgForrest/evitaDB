@@ -35,8 +35,8 @@ import java.util.function.Supplier;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-public class SessionSequenceOrderContext {
-	private static final ThreadLocal<Long> SESSION_SEQUENCE_ORDER = new ThreadLocal<>();
+public class CurrentSessionRecordContext {
+	private static final ThreadLocal<SessionRecordContext> SESSION_SEQUENCE_ORDER = new ThreadLocal<>();
 
 	/**
 	 * Executes a provided fetch operation within the context of a thread-local session sequence order.
@@ -44,14 +44,15 @@ public class SessionSequenceOrderContext {
 	 * and is removed once the operation completes.
 	 *
 	 * @param sessionSequenceOrder the session sequence order to associate with the current thread context
+	 * @param sessionRecordsCount the total number of records associated with the current session
 	 * @param fetcher the supplier function representing the operation to execute in the context
 	 * @param <V> the type of the value returned by the supplier function
 	 * @return the result of the supplier function execution
 	 */
 	@Nonnull
-	public static <V> V fetch(long sessionSequenceOrder, @Nonnull Supplier<V> fetcher) {
+	public static <V> V fetch(long sessionSequenceOrder, int sessionRecordsCount, @Nonnull Supplier<V> fetcher) {
 		try {
-			SESSION_SEQUENCE_ORDER.set(sessionSequenceOrder);
+			SESSION_SEQUENCE_ORDER.set(new SessionRecordContext(sessionSequenceOrder, sessionRecordsCount));
 			return fetcher.get();
 		} finally {
 			SESSION_SEQUENCE_ORDER.remove();
@@ -64,8 +65,25 @@ public class SessionSequenceOrderContext {
 	 * @return the session sequence order associated with the current thread context
 	 */
 	@Nullable
-	public static Long getSessionSequenceOrder() {
+	public static SessionRecordContext get() {
 		return SESSION_SEQUENCE_ORDER.get();
+	}
+
+	/**
+	 * Represents the context of session-related metadata, encapsulating information about
+	 * the order of a session sequence and the count of records associated with the session.
+	 * This record can be used as a data holder for session-specific operations and metadata tracking.
+	 *
+	 * @param sessionSequenceOrder the sequence order of the session, which is a long value used to
+	 *                              uniquely identify the sequence within the session.
+	 * @param sessionRecordsCount the total number of records associated with the current session,
+	 *                             represented as an integer.
+	 */
+	public record SessionRecordContext(
+		long sessionSequenceOrder,
+		int sessionRecordsCount
+	) {
+
 	}
 
 }

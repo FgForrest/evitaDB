@@ -53,10 +53,12 @@ public class SourceQueryStatisticsContainerSerializer extends Serializer<SourceQ
 
 	@Override
 	public SourceQueryStatisticsContainer read(Kryo kryo, Input input, Class<? extends SourceQueryStatisticsContainer> type) {
+		final CurrentSessionRecordContext.SessionRecordContext sessionRecordContext = CurrentSessionRecordContext.get();
 		return new SourceQueryStatisticsContainer(
-			SessionSequenceOrderContext.getSessionSequenceOrder(),
+			sessionRecordContext == null ? null : sessionRecordContext.sessionSequenceOrder(),
 			kryo.readObject(input, java.util.UUID.class),
 			input.readVarInt(true),
+			sessionRecordContext == null ? null : sessionRecordContext.sessionRecordsCount(),
 			kryo.readObject(input, java.util.UUID.class),
 			kryo.readObject(input, java.time.OffsetDateTime.class),
 			input.readVarInt(true),

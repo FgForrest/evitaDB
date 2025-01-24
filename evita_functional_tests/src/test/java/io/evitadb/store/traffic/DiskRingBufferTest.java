@@ -90,7 +90,7 @@ class DiskRingBufferTest {
 			buffer.put((byte) i);
 		}
 		buffer.flip(); // Reset buffer position to 0 before writing
-		final SessionLocation sessionLocation = diskRingBuffer.appendSession(theFilledSize);
+		final SessionLocation sessionLocation = diskRingBuffer.appendSession(theFilledSize, theFilledSize);
 		diskRingBuffer.append(sessionLocation, buffer);
 		diskRingBuffer.sessionWritten(sessionLocation, UUID.randomUUID(), OffsetDateTime.now(), 0, Set.of(), Set.of(), 0, 0);
 		assertEquals(theFilledSize + LEAD_DESCRIPTOR_BYTE_SIZE, diskRingBuffer.getRingBufferTail());
@@ -120,7 +120,7 @@ class DiskRingBufferTest {
 					buffer.put((byte) i);
 				}
 				buffer.flip(); // Reset buffer position to 0 before writing
-				final SessionLocation sessionLocation = diskRingBuffer.appendSession(1500);
+				final SessionLocation sessionLocation = diskRingBuffer.appendSession(theFilledSize, theFilledSize);
 				diskRingBuffer.append(sessionLocation, buffer);
 			}
 		);
@@ -138,11 +138,12 @@ class DiskRingBufferTest {
 		ByteBuffer bufferWithDescriptors = ByteBuffer.allocate(theFilledSize + 5 * LEAD_DESCRIPTOR_BYTE_SIZE);
 
 		BiConsumer<Integer, Integer> writer = (index, length) -> {
-			final SessionLocation sessionLocation = diskRingBuffer.appendSession(length);
+			final SessionLocation sessionLocation = diskRingBuffer.appendSession(0, length);
 			diskRingBuffer.append(sessionLocation, buffer.slice(index, length));
 			diskRingBuffer.sessionWritten(sessionLocation, UUID.randomUUID(), OffsetDateTime.now(), 0, Set.of(), Set.of(), 0, 0);
 
 			bufferWithDescriptors.putLong(sessionLocation.sequenceOrder());
+			bufferWithDescriptors.putInt(0);
 			bufferWithDescriptors.putInt(length);
 			bufferWithDescriptors.put(buffer.slice(index, length));
 		};

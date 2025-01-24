@@ -53,6 +53,7 @@ public record SessionCloseContainer(
 	@Nullable Long sessionSequenceOrder,
 	@Nonnull UUID sessionId,
 	int recordSessionOffset,
+	@Nullable Integer sessionRecordsCount,
 	long catalogVersion,
 	@Nonnull OffsetDateTime created,
 	int durationInMilliseconds,
@@ -68,6 +69,7 @@ public record SessionCloseContainer(
 	public SessionCloseContainer(
 		@Nonnull UUID sessionId,
 		int recordSessionOffset,
+		@Nullable Integer sessionRecordsCount,
 		long catalogVersion,
 		@Nonnull OffsetDateTime created,
 		int durationInMilliseconds,
@@ -83,6 +85,7 @@ public record SessionCloseContainer(
 			null,
 			sessionId,
 			recordSessionOffset,
+			sessionRecordsCount,
 			catalogVersion,
 			created,
 			durationInMilliseconds,

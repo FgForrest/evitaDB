@@ -53,10 +53,12 @@ public class MutationContainerSerializer extends Serializer<MutationContainer> {
 
 	@Override
 	public MutationContainer read(Kryo kryo, Input input, Class<? extends MutationContainer> type) {
+		final CurrentSessionRecordContext.SessionRecordContext sessionRecordContext = CurrentSessionRecordContext.get();
 		return new MutationContainer(
-			SessionSequenceOrderContext.getSessionSequenceOrder(),
+			sessionRecordContext == null ? null : sessionRecordContext.sessionSequenceOrder(),
 			kryo.readObject(input, UUID.class),
 			input.readVarInt(true),
+			sessionRecordContext == null ? null : sessionRecordContext.sessionRecordsCount(),
 			kryo.readObject(input, OffsetDateTime.class),
 			input.readVarInt(true),
 			(Mutation) kryo.readClassAndObject(input)

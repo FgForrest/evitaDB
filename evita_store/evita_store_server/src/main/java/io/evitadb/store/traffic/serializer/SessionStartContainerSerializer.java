@@ -47,10 +47,12 @@ public class SessionStartContainerSerializer extends Serializer<SessionStartCont
 
 	@Override
 	public SessionStartContainer read(Kryo kryo, Input input, Class<? extends SessionStartContainer> type) {
+		final CurrentSessionRecordContext.SessionRecordContext sessionRecordContext = CurrentSessionRecordContext.get();
 		return new SessionStartContainer(
-			SessionSequenceOrderContext.getSessionSequenceOrder(),
+			sessionRecordContext == null ? null : sessionRecordContext.sessionSequenceOrder(),
 			kryo.readObject(input, java.util.UUID.class),
 			input.readVarInt(true),
+			sessionRecordContext == null ? null : sessionRecordContext.sessionRecordsCount(),
 			input.readLong(),
 			kryo.readObject(input, java.time.OffsetDateTime.class)
 		);

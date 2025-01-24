@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,31 +21,34 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.spi;
+package io.evitadb.function;
 
-
-import io.evitadb.store.model.FileLocation;
-import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import java.util.function.Function;
 
 /**
- * This record contains information about the single session to evitaDB. Sessions are assigned a sequence order as
- * they are registered in {@link TrafficRecorder} and are stored to a particular file location.
+ * Represents a function that accepts three arguments and produces a result.
+ * This is the three-arity specialization of {@link Function}.
  *
- * @param sequenceOrder       the sequence order of the session
- * @param sessionRecordsCount the number of records in the session
- * @param fileLocation        the file location of the session in the file
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
+ * <p>This is a <a href="package-summary.html">functional interface</a>
+ * whose functional method is {@link #apply(long, int, long, S)}.
+ *
+ * @param <S> the type of the third argument to the function
+ * @param <R> the type of the result of the function
+ *
+ * @see Function
+ * @apiNote inspired by the JDK interface
  */
-public record SessionLocation(
-	long sequenceOrder,
-	int sessionRecordsCount,
-	@Nonnull FileLocation fileLocation
-) {
-
-	public SessionLocation {
-		Assert.notNull(fileLocation, "File location must not be null");
-	}
+@FunctionalInterface
+public interface LongIntLongObjectFunction<S, R> {
+	/**
+	 * Applies this function to the given arguments.
+	 *
+	 * @param t the first function argument
+	 * @param u the second function argument
+	 * @return the function result
+	 */
+	R apply(long t, int u, long v, @Nonnull S s);
 
 }

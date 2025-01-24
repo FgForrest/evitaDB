@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -38,6 +38,7 @@ import org.slf4j.MDC;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 /**
@@ -103,6 +104,17 @@ public class ObservabilityTracingContext implements TracingContext {
 	@Override
 	public TracingContextReference<?> getCurrentContext() {
 		return new ObservabilityTracingContextReference(Context.current());
+	}
+
+	@Nonnull
+	@Override
+	public Optional<String> getClientId() {
+		return Optional.ofNullable(MDC.get(MDC_CLIENT_ID_PROPERTY));
+	}
+
+	@Nonnull
+	public Optional<String> getTraceId() {
+		return Optional.ofNullable(MDC.get(MDC_TRACE_ID_PROPERTY));
 	}
 
 	@Nonnull

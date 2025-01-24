@@ -49,6 +49,7 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.store.spi.SessionSink;
 import io.evitadb.store.spi.TrafficRecorder;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.IOUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -60,6 +61,7 @@ import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.ServiceLoader;
 import java.util.UUID;
@@ -82,6 +84,8 @@ import java.util.stream.Stream;
  */
 @RequiredArgsConstructor
 public class TrafficRecordingEngine implements TrafficRecordingReader {
+	public static final String LABEL_TRACE_ID = "traceId";
+	public static final String LABEL_CLIENT_ID = "clientId";
 	private final String catalogName;
 	private final StorageOptions storageOptions;
 	@Getter private final TrafficRecordingOptions trafficOptions;
@@ -262,7 +266,19 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 		this.trafficRecorder.get().recordQuery(
 			sessionId,
 			result.getSourceQuery(),
-			queryPlan.getEvitaRequest().getLabels(),
+			ArrayUtils.mergeArrays(
+				queryPlan.getEvitaRequest().getLabels(),
+				Stream.of(
+						this.tracingContext.getTraceId()
+							.map(it -> new Label(LABEL_TRACE_ID, it))
+							.orElse(null),
+						this.tracingContext.getClientId()
+							.map(it -> new Label(LABEL_CLIENT_ID, it))
+							.orElse(null)
+					)
+					.filter(Objects::nonNull)
+					.toArray(Label[]::new)
+			),
 			queryPlan.getEvitaRequest().getAlignedNow(),
 			result.getTotalRecordCount(),
 			result.getIoFetchCount(),
@@ -293,7 +309,11 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 				() -> SpanAttribute.EMPTY_ARRAY
 			)
 			.map(entity -> {
-				recordFetch(sessionId, evitaRequest, entity);
+				recordFetch(
+					sessionId,
+					evitaRequest,
+					entity
+				);
 				return entity;
 			});
 	}
@@ -382,7 +402,11 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 		@Nonnull String queryType
 	) {
 		this.trafficRecorder.get().setupSourceQuery(
-			sessionId, sourceQueryId, OffsetDateTime.now(), sourceQuery, queryType
+			sessionId,
+			sourceQueryId,
+			OffsetDateTime.now(),
+			sourceQuery,
+			queryType
 		);
 	}
 

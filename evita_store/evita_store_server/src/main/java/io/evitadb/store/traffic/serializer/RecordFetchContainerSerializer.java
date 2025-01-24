@@ -56,10 +56,12 @@ public class RecordFetchContainerSerializer extends Serializer<EntityFetchContai
 
 	@Override
 	public EntityFetchContainer read(Kryo kryo, Input input, Class<? extends EntityFetchContainer> type) {
+		final CurrentSessionRecordContext.SessionRecordContext sessionRecordContext = CurrentSessionRecordContext.get();
 		return new EntityFetchContainer(
-			SessionSequenceOrderContext.getSessionSequenceOrder(),
+			sessionRecordContext == null ? null : sessionRecordContext.sessionSequenceOrder(),
 			kryo.readObject(input, UUID.class),
 			input.readVarInt(true),
+			sessionRecordContext == null ? null : sessionRecordContext.sessionRecordsCount(),
 			kryo.readObject(input, Query.class),
 			kryo.readObject(input, OffsetDateTime.class),
 			input.readVarInt(true),

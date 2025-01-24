@@ -63,6 +63,18 @@ public interface TrafficRecording {
 	int recordSessionOffset();
 
 	/**
+	 * Contains total count of the records in the session. This number allows clients to determine whether
+	 * the {@link #recordSessionOffset()} is the last record in the session
+	 * (i.e. when recordSessionOffset = recordsInSession - 1, then it is the last record).
+	 *
+	 * The value is known only when the entire session has been stored.
+	 *
+	 * @return the total count of the records in the session
+	 */
+	@Nullable
+	Integer sessionRecordsCount();
+
+	/**
 	 * The type of the recording.
 	 * @return the recording type
 	 */

@@ -47,6 +47,7 @@ public record MutationContainer(
 	@Nullable Long sessionSequenceOrder,
 	@Nonnull UUID sessionId,
 	int recordSessionOffset,
+	@Nullable Integer sessionRecordsCount,
 	@Nonnull OffsetDateTime created,
 	int durationInMilliseconds,
 	@Nonnull Mutation mutation
@@ -63,6 +64,7 @@ public record MutationContainer(
 			null,
 			sessionId,
 			recordSessionOffset,
+			null,
 			created,
 			durationInMilliseconds,
 			mutation

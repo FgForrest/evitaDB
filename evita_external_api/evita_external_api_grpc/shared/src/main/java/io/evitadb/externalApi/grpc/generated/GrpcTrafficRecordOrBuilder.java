@@ -80,10 +80,21 @@ public interface GrpcTrafficRecordOrBuilder extends
 
   /**
    * <pre>
+   * Total count of the records in the session. This number allows clients to determine whether the recordSessionOffset
+   * is the last record in the session (i.e. when recordSessionOffset = recordsInSession - 1, then it is the last record).
+   * </pre>
+   *
+   * <code>int32 sessionRecordsCount = 4;</code>
+   * @return The sessionRecordsCount.
+   */
+  int getSessionRecordsCount();
+
+  /**
+   * <pre>
    * The type of the recording.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingType type = 4;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingType type = 5;</code>
    * @return The enum numeric value on the wire for type.
    */
   int getTypeValue();
@@ -92,7 +103,7 @@ public interface GrpcTrafficRecordOrBuilder extends
    * The type of the recording.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingType type = 4;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingType type = 5;</code>
    * @return The type.
    */
   io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingType getType();
@@ -102,7 +113,7 @@ public interface GrpcTrafficRecordOrBuilder extends
    * The time when the recording was created.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 5;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 6;</code>
    * @return Whether the created field is set.
    */
   boolean hasCreated();
@@ -111,7 +122,7 @@ public interface GrpcTrafficRecordOrBuilder extends
    * The time when the recording was created.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 5;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 6;</code>
    * @return The created.
    */
   io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getCreated();
@@ -120,7 +131,7 @@ public interface GrpcTrafficRecordOrBuilder extends
    * The time when the recording was created.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 5;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 6;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getCreatedOrBuilder();
 
@@ -129,7 +140,7 @@ public interface GrpcTrafficRecordOrBuilder extends
    * The duration of the operation in milliseconds.
    * </pre>
    *
-   * <code>int32 durationInMilliseconds = 6;</code>
+   * <code>int32 durationInMilliseconds = 7;</code>
    * @return The durationInMilliseconds.
    */
   int getDurationInMilliseconds();
@@ -139,7 +150,7 @@ public interface GrpcTrafficRecordOrBuilder extends
    * The size of the data fetched from the permanent storage in bytes.
    * </pre>
    *
-   * <code>int32 ioFetchedSizeBytes = 7;</code>
+   * <code>int32 ioFetchedSizeBytes = 8;</code>
    * @return The ioFetchedSizeBytes.
    */
   int getIoFetchedSizeBytes();
@@ -149,128 +160,128 @@ public interface GrpcTrafficRecordOrBuilder extends
    * The number of objects fetched from the permanent storage.
    * </pre>
    *
-   * <code>int32 ioFetchCount = 8;</code>
+   * <code>int32 ioFetchCount = 9;</code>
    * @return The ioFetchCount.
    */
   int getIoFetchCount();
 
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficMutationContainer mutation = 9;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficMutationContainer mutation = 10;</code>
    * @return Whether the mutation field is set.
    */
   boolean hasMutation();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficMutationContainer mutation = 9;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficMutationContainer mutation = 10;</code>
    * @return The mutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcTrafficMutationContainer getMutation();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficMutationContainer mutation = 9;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficMutationContainer mutation = 10;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcTrafficMutationContainerOrBuilder getMutationOrBuilder();
 
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainer query = 10;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainer query = 11;</code>
    * @return Whether the query field is set.
    */
   boolean hasQuery();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainer query = 10;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainer query = 11;</code>
    * @return The query.
    */
   io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainer getQuery();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainer query = 10;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainer query = 11;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainerOrBuilder getQueryOrBuilder();
 
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityEnrichmentContainer enrichment = 11;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityEnrichmentContainer enrichment = 12;</code>
    * @return Whether the enrichment field is set.
    */
   boolean hasEnrichment();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityEnrichmentContainer enrichment = 11;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityEnrichmentContainer enrichment = 12;</code>
    * @return The enrichment.
    */
   io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityEnrichmentContainer getEnrichment();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityEnrichmentContainer enrichment = 11;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityEnrichmentContainer enrichment = 12;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityEnrichmentContainerOrBuilder getEnrichmentOrBuilder();
 
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityFetchContainer fetch = 12;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityFetchContainer fetch = 13;</code>
    * @return Whether the fetch field is set.
    */
   boolean hasFetch();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityFetchContainer fetch = 12;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityFetchContainer fetch = 13;</code>
    * @return The fetch.
    */
   io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityFetchContainer getFetch();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityFetchContainer fetch = 12;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityFetchContainer fetch = 13;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityFetchContainerOrBuilder getFetchOrBuilder();
 
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionCloseContainer sessionClose = 13;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionCloseContainer sessionClose = 14;</code>
    * @return Whether the sessionClose field is set.
    */
   boolean hasSessionClose();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionCloseContainer sessionClose = 13;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionCloseContainer sessionClose = 14;</code>
    * @return The sessionClose.
    */
   io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionCloseContainer getSessionClose();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionCloseContainer sessionClose = 13;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionCloseContainer sessionClose = 14;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionCloseContainerOrBuilder getSessionCloseOrBuilder();
 
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainer sessionStart = 14;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainer sessionStart = 15;</code>
    * @return Whether the sessionStart field is set.
    */
   boolean hasSessionStart();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainer sessionStart = 14;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainer sessionStart = 15;</code>
    * @return The sessionStart.
    */
   io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainer getSessionStart();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainer sessionStart = 14;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainer sessionStart = 15;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainerOrBuilder getSessionStartOrBuilder();
 
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryContainer sourceQuery = 15;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryContainer sourceQuery = 16;</code>
    * @return Whether the sourceQuery field is set.
    */
   boolean hasSourceQuery();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryContainer sourceQuery = 15;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryContainer sourceQuery = 16;</code>
    * @return The sourceQuery.
    */
   io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryContainer getSourceQuery();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryContainer sourceQuery = 15;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryContainer sourceQuery = 16;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryContainerOrBuilder getSourceQueryOrBuilder();
 
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryStatisticsContainer sourceQueryStatistics = 16;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryStatisticsContainer sourceQueryStatistics = 17;</code>
    * @return Whether the sourceQueryStatistics field is set.
    */
   boolean hasSourceQueryStatistics();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryStatisticsContainer sourceQueryStatistics = 16;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryStatisticsContainer sourceQueryStatistics = 17;</code>
    * @return The sourceQueryStatistics.
    */
   io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryStatisticsContainer getSourceQueryStatistics();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryStatisticsContainer sourceQueryStatistics = 16;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryStatisticsContainer sourceQueryStatistics = 17;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryStatisticsContainerOrBuilder getSourceQueryStatisticsOrBuilder();
 

@@ -75,10 +75,13 @@ public class QueryContainerSerializer extends Serializer<QueryContainer> {
 				(Serializable) kryo.readClassAndObject(input)
 			);
 		}
+
+		final CurrentSessionRecordContext.SessionRecordContext sessionRecordContext = CurrentSessionRecordContext.get();
 		return new QueryContainer(
-			SessionSequenceOrderContext.getSessionSequenceOrder(),
+			sessionRecordContext == null ? null : sessionRecordContext.sessionSequenceOrder(),
 			sessionId,
 			recordSessionOffset,
+			sessionRecordContext == null ? null : sessionRecordContext.sessionRecordsCount(),
 			query,
 			labels,
 			kryo.readObject(input, OffsetDateTime.class),

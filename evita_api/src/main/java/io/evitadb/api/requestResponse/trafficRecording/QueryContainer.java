@@ -31,6 +31,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -54,6 +55,7 @@ public record QueryContainer(
 	@Nullable Long sessionSequenceOrder,
 	@Nonnull UUID sessionId,
 	int recordSessionOffset,
+	@Nullable Integer sessionRecordsCount,
 	@Nonnull Query query,
 	@Nonnull Label[] labels,
 	@Nonnull OffsetDateTime created,
@@ -80,6 +82,7 @@ public record QueryContainer(
 			null,
 			sessionId,
 			recordSessionOffset,
+			null,
 			query,
 			labels,
 			created,
@@ -106,16 +109,21 @@ public record QueryContainer(
 			ioFetchedSizeBytes == that.ioFetchedSizeBytes &&
 			recordSessionOffset == that.recordSessionOffset &&
 			durationInMilliseconds == that.durationInMilliseconds &&
-			query.equals(that.query) && sessionId.equals(that.sessionId) &&
+			query.equals(that.query) &&
+			sessionId.equals(that.sessionId) &&
 			Arrays.equals(labels, that.labels) &&
 			Arrays.equals(primaryKeys, that.primaryKeys) &&
-			created.equals(that.created);
+			created.equals(that.created) &&
+			Objects.equals(sessionSequenceOrder, that.sessionSequenceOrder) &&
+			Objects.equals(sessionRecordsCount, that.sessionRecordsCount);
 	}
 
 	@Override
 	public int hashCode() {
-		int result = sessionId.hashCode();
+		int result = Objects.hashCode(sessionSequenceOrder);
+		result = 31 * result + sessionId.hashCode();
 		result = 31 * result + recordSessionOffset;
+		result = 31 * result + Objects.hashCode(sessionRecordsCount);
 		result = 31 * result + query.hashCode();
 		result = 31 * result + Arrays.hashCode(labels);
 		result = 31 * result + created.hashCode();
@@ -126,5 +134,4 @@ public record QueryContainer(
 		result = 31 * result + Arrays.hashCode(primaryKeys);
 		return result;
 	}
-
 }

@@ -41,7 +41,6 @@ import io.evitadb.function.TriConsumer;
 import io.evitadb.index.bPlusTree.TransactionalObjectBPlusTree;
 import io.evitadb.index.bPlusTree.TransactionalObjectBPlusTree.Entry;
 import io.evitadb.index.map.TransactionalMap;
-import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.spi.SessionLocation;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
@@ -77,7 +76,7 @@ public class TrafficRecordingIndex implements
 	/**
 	 * Map of session positions in the disk buffer file.
 	 */
-	private final TransactionalMap<Long, FileLocation> sessionLocationIndex;
+	private final TransactionalMap<Long, SessionLocation> sessionLocationIndex;
 	private final TransactionalMap<UUID, Long> sessionIdIndex;
 	private final TransactionalMap<Long, SessionDescriptor> sessionUuidIndex;
 	private final TransactionalObjectBPlusTree<Long, Long> sessionSequenceOrderIndex;
@@ -115,7 +114,7 @@ public class TrafficRecordingIndex implements
 	}
 
 	private TrafficRecordingIndex(
-		@Nonnull Map<Long, FileLocation> sessionLocationIndex,
+		@Nonnull Map<Long, SessionLocation> sessionLocationIndex,
 		@Nonnull Map<UUID, Long> sessionIdIndex,
 		@Nonnull Map<Long, SessionDescriptor> sessionUuidIndex,
 		@Nonnull TransactionalObjectBPlusTree<Long, Long> sessionSequenceOrderIndex,
@@ -154,7 +153,7 @@ public class TrafficRecordingIndex implements
 	public void setupSession(@Nonnull SessionLocation sessionLocation) {
 		this.sessionLocationIndex.put(
 			sessionLocation.sequenceOrder(),
-			sessionLocation.fileLocation()
+			sessionLocation
 		);
 	}
 
@@ -181,9 +180,9 @@ public class TrafficRecordingIndex implements
 		@Nonnull Set<Label> labels
 	) {
 		final Long sessionSequenceOrder = sessionLocation.sequenceOrder();
-		final FileLocation previousLocation = this.sessionLocationIndex.putIfAbsent(
+		final SessionLocation previousLocation = this.sessionLocationIndex.putIfAbsent(
 			sessionSequenceOrder,
-			sessionLocation.fileLocation()
+			sessionLocation
 		);
 		// the file reader should not be ever faster, but this a safety check, for avoiding double indexing
 		if (previousLocation == null) {
@@ -311,19 +310,14 @@ public class TrafficRecordingIndex implements
 
 		if (streams.isEmpty()) {
 			return this.sessionLocationIndex
-				.entrySet()
-				.stream()
-				.map(entry -> new SessionLocation(entry.getKey(), entry.getValue()));
+				.values()
+				.stream();
 		} else {
 			return StreamSupport.stream(
 					Spliterators.spliteratorUnknownSize(new CommonElementsIterator(streams), Spliterator.ORDERED | Spliterator.DISTINCT),
 					false
 				)
-				.map(sessionSequenceOrder -> {
-					final FileLocation sessionLocation = this.sessionLocationIndex.get(sessionSequenceOrder);
-					// the location may have been removed in the meantime
-					return sessionLocation == null ? null : new SessionLocation(sessionSequenceOrder, sessionLocation);
-				})
+				.map(this.sessionLocationIndex::get)
 				.filter(Objects::nonNull);
 		}
 	}

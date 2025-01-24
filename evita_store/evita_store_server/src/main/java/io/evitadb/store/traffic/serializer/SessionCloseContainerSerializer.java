@@ -55,10 +55,12 @@ public class SessionCloseContainerSerializer extends Serializer<SessionCloseCont
 
 	@Override
 	public SessionCloseContainer read(Kryo kryo, Input input, Class<? extends SessionCloseContainer> type) {
+		final CurrentSessionRecordContext.SessionRecordContext sessionRecordContext = CurrentSessionRecordContext.get();
 		return new SessionCloseContainer(
-			SessionSequenceOrderContext.getSessionSequenceOrder(),
+			sessionRecordContext == null ? null : sessionRecordContext.sessionSequenceOrder(),
 			kryo.readObject(input, java.util.UUID.class),
 			input.readVarInt(true),
+			sessionRecordContext == null ? null : sessionRecordContext.sessionRecordsCount(),
 			input.readLong(),
 			kryo.readObject(input, java.time.OffsetDateTime.class),
 			input.readVarInt(true),
