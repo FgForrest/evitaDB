@@ -126,6 +126,20 @@ public class DelayedAsyncTask {
 	}
 
 	/**
+	 * Schedules the execution of the task immediately if it has not been scheduled already.
+	 * The task is scheduled using the scheduler's schedule method.
+	 */
+	public void scheduleImmediately() {
+		final OffsetDateTime nextTick = OffsetDateTime.now();
+		if (this.nextPlannedExecution.compareAndExchange(OffsetDateTime.MIN, nextTick) == OffsetDateTime.MIN) {
+			this.scheduler.schedule(this.lambda, 0, TimeUnit.MILLISECONDS);
+		} else if (this.running.get()) {
+			// if this task is currently running, we need to schedule it again after it finishes
+			this.reSchedule.set(true);
+		}
+	}
+
+	/**
 	 * Schedules the execution of the task if it has not been scheduled already.
 	 * It calculates the next planned execution time based on the specified delay and delay units.
 	 * The task is scheduled using the scheduler's schedule method.

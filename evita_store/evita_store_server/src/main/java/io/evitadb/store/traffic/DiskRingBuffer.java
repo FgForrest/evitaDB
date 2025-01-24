@@ -42,6 +42,7 @@ import io.evitadb.store.spi.SessionLocation;
 import io.evitadb.store.spi.SessionSink;
 import io.evitadb.store.traffic.OffHeapTrafficRecorder.MemoryNotAvailableException;
 import io.evitadb.stream.RandomAccessFileInputStream;
+import io.evitadb.utils.FileUtils;
 import io.evitadb.utils.IOUtils;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -50,6 +51,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
@@ -259,11 +261,16 @@ public class DiskRingBuffer {
 		try {
 			this.diskBufferFilePath = diskBufferFilePath;
 			this.diskBufferFileSize = diskBufferFileSize;
-			this.diskBufferFile = new RandomAccessFile(this.diskBufferFilePath.toFile(), "rw");
+
+			// we need to start with empty file
+			FileUtils.deleteFileIfExists(this.diskBufferFilePath);
+			final File plainDiskBufferFile = this.diskBufferFilePath.toFile();
+
+			this.diskBufferFile = new RandomAccessFile(plainDiskBufferFile, "rw");
 			this.diskBufferFileReadInputStreamFactory = () -> {
 				try {
 					return new RandomAccessFileInputStream(
-						new RandomAccessFile(this.diskBufferFilePath.toFile(), "r"), true
+						new RandomAccessFile(plainDiskBufferFile, "r"), true
 					);
 				} catch (FileNotFoundException e) {
 					throw new UnexpectedIOException(
@@ -273,7 +280,7 @@ public class DiskRingBuffer {
 					);
 				}
 			};
-			// Initialize the file size
+			// Initialize the file size (allocate space on disk)
 			this.diskBufferFile.setLength(diskBufferFileSize);
 			this.fileChannel = this.diskBufferFile.getChannel();
 		} catch (Exception e) {

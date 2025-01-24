@@ -145,6 +145,13 @@ public class ExportFileService implements Closeable {
 				);
 			}
 		} else {
+			Assert.isPremiseValid(
+				this.storageOptions.exportDirectory().toFile().mkdirs(),
+				() -> new UnexpectedIOException(
+					"Failed to create directory: " + this.storageOptions.exportDirectory(),
+					"Failed to create directory."
+				)
+			);
 			this.files = new CopyOnWriteArrayList<>();
 		}
 		// schedule automatic purging task

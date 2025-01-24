@@ -23,6 +23,7 @@
 
 package io.evitadb.store.traffic;
 
+import com.esotericsoftware.kryo.Kryo;
 import io.evitadb.api.requestResponse.trafficRecording.EntityFetchContainer;
 import io.evitadb.api.requestResponse.trafficRecording.Label;
 import io.evitadb.api.requestResponse.trafficRecording.MutationContainer;
@@ -32,9 +33,11 @@ import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest.TrafficRecordingType;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.store.kryo.ObservableOutput;
+import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.traffic.OffHeapTrafficRecorder.MemoryNotAvailableException;
 import io.evitadb.store.traffic.OffHeapTrafficRecorder.NumberedByteBuffer;
 import io.evitadb.store.traffic.stream.RecoverableOutputStream;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.IOUtils;
 import lombok.Getter;
@@ -45,13 +48,17 @@ import javax.annotation.Nullable;
 import java.io.Closeable;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
+import java.util.Deque;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -87,13 +94,25 @@ public class SessionTraffic implements Closeable {
 	 */
 	private final CompositeIntArray blockIds;
 	/**
+	 * Kryo instance supplier.
+	 */
+	private final Supplier<Kryo> obtain;
+	/**
+	 * Kryo instance consumer (for the case of freeing).
+	 */
+	private final Consumer<Kryo> free;
+	/**
 	 * Contains current byte buffer where the queries and mutations are stored.
 	 */
 	private final ObservableOutput<RecoverableOutputStream> observableOutput;
 	/**
-	 * Index of source query counters indexed by `sourceQueryId`.
+	 * Queue of record serialization tasks.
 	 */
-	private Map<UUID, SourceQueryCounter> sourceQueryCounterIndex;
+	private final Deque<Consumer<Kryo>> serializationQueue = new ConcurrentLinkedDeque<>();
+	/**
+	 * Flag indicating whether serialization is in progress.
+	 */
+	private final AtomicBoolean serializationInProgress = new AtomicBoolean();
 	/**
 	 * Counter of records in this session.
 	 */
@@ -110,6 +129,10 @@ public class SessionTraffic implements Closeable {
 	 * Counter of mutations in this session.
 	 */
 	private final AtomicInteger mutationCounter = new AtomicInteger();
+	/**
+	 * Index of source query counters indexed by `sourceQueryId`.
+	 */
+	private Map<UUID, SourceQueryCounter> sourceQueryCounterIndex;
 	/**
 	 * Duration of the session in milliseconds.
 	 */
@@ -157,12 +180,16 @@ public class SessionTraffic implements Closeable {
 		long catalogVersion,
 		@Nonnull OffsetDateTime created,
 		@Nonnull byte[] writeBuffer,
-		@Nonnull Supplier<NumberedByteBuffer> bufferSupplier
+		@Nonnull Supplier<NumberedByteBuffer> bufferSupplier,
+		@Nonnull Supplier<Kryo> obtain,
+		@Nonnull Consumer<Kryo> free
 	) {
 		this.sessionId = sessionId;
 		this.catalogVersion = catalogVersion;
 		this.created = created;
 		this.blockIds = new CompositeIntArray();
+		this.obtain = obtain;
+		this.free = free;
 		this.observableOutput = new ObservableOutput<>(
 			new RecoverableOutputStream(
 				() -> {
@@ -182,17 +209,8 @@ public class SessionTraffic implements Closeable {
 	}
 
 	/**
-	 * Provides the observable output associated with this session's traffic.
-	 *
-	 * @return an instance of ObservableOutput containing a RecoverableOutputStream
-	 */
-	@Nonnull
-	public ObservableOutput<RecoverableOutputStream> getObservableOutput() {
-		return observableOutput;
-	}
-
-	/**
 	 * Reserves and returns next recording id.
+	 *
 	 * @return Next recording id.
 	 */
 	public int nextRecordingId() {
@@ -201,6 +219,7 @@ public class SessionTraffic implements Closeable {
 
 	/**
 	 * Returns count of records in this session.
+	 *
 	 * @return Count of records in this session.
 	 */
 	public int getRecordCount() {
@@ -209,6 +228,7 @@ public class SessionTraffic implements Closeable {
 
 	/**
 	 * Returns count of queries in this session.
+	 *
 	 * @return Count of queries in this session.
 	 */
 	public int getQueryCount() {
@@ -217,6 +237,7 @@ public class SessionTraffic implements Closeable {
 
 	/**
 	 * Returns count of separate entity fetches in this session.
+	 *
 	 * @return Count of separate entity fetches in this session.
 	 */
 	public int getEntityFetchCount() {
@@ -225,42 +246,11 @@ public class SessionTraffic implements Closeable {
 
 	/**
 	 * Returns count of mutations in this session.
+	 *
 	 * @return Count of mutations in this session.
 	 */
 	public int getMutationCount() {
 		return this.mutationCounter.get();
-	}
-
-	/**
-	 * Registers a new traffic recording in this session.
-	 *
-	 * @param container Traffic recording container to be registered.
-	 */
-	public <T extends TrafficRecording> void registerRecording(T container) {
-		this.recordingTypes.add(container.type());
-		this.fetchCount += container.ioFetchCount();
-		this.bytesFetchedTotal += container.ioFetchedSizeBytes();
-		if (container instanceof QueryContainer queryContainer && this.sourceQueryCounterIndex != null) {
-			this.queryCounter.incrementAndGet();
-			final UUID sourceQueryId = getSourceQueryId(queryContainer);
-			if (sourceQueryId != null) {
-				final SourceQueryCounter sourceQueryCounter = this.sourceQueryCounterIndex.get(sourceQueryId);
-				if (sourceQueryCounter != null) {
-					sourceQueryCounter.append(
-						queryContainer.primaryKeys().length,
-						queryContainer.totalRecordCount(),
-						queryContainer.ioFetchCount(),
-						queryContainer.ioFetchedSizeBytes(),
-						queryContainer.durationInMilliseconds()
-					);
-				}
-			}
-			this.labels.addAll(Arrays.asList(queryContainer.labels()));
-		} else if (container instanceof MutationContainer) {
-			this.mutationCounter.incrementAndGet();
-		} else if (container instanceof EntityFetchContainer) {
-			this.entityFetchCounter.incrementAndGet();
-		}
 	}
 
 	/**
@@ -299,6 +289,8 @@ public class SessionTraffic implements Closeable {
 	public byte[] finish() {
 		this.durationInMillis = (int) (System.currentTimeMillis() - this.created.toInstant().toEpochMilli());
 		this.finished = FinishReason.REGULAR_FINISH;
+		// process the queue to ensure all records are serialized
+		this.processQueue(true);
 		return this.observableOutput.getBuffer();
 	}
 
@@ -361,6 +353,110 @@ public class SessionTraffic implements Closeable {
 	@Override
 	public void close() {
 		IOUtils.closeQuietly(this.observableOutput::close);
+	}
+
+	/**
+	 * Records traffic data and processes it synchronously unless other thread is currently processing it.
+	 * This method inserts the given traffic recording container into a serialization queue,
+	 * serializes it using the provided operations, and triggers callback actions upon success
+	 * or in case of a memory availability exception.
+	 *
+	 * @param container                     The traffic recording container to be recorded. Must not be null.
+	 * @param onMemoryNotAvailableException Consumer action to handle cases where memory is unavailable. Must not be null.
+	 * @param onSuccess                     Runnable action to execute upon successful recording of the traffic data. Must not be null.
+	 */
+	public <T extends TrafficRecording> void record(
+		@Nonnull T container,
+		@Nonnull Consumer<MemoryNotAvailableException> onMemoryNotAvailableException,
+		@Nonnull Runnable onSuccess
+	) {
+		this.serializationQueue.add(
+			kryoInstance -> {
+				try {
+					final StorageRecord<T> storageRecord = new StorageRecord<>(
+						this.observableOutput,
+						0L,
+						false,
+						output -> {
+							kryoInstance.writeClassAndObject(output, container);
+							return container;
+						}
+					);
+					Assert.isPremiseValid(storageRecord.fileLocation() != null, "Location must not be null.");
+					this.registerRecording(container);
+					onSuccess.run();
+				} catch (MemoryNotAvailableException ex) {
+					onMemoryNotAvailableException.accept(ex);
+				}
+			}
+		);
+		// try to process the record immediately, but give up if another thread is already processing
+		this.processQueue(false);
+	}
+
+	/**
+	 * Processes the serialization queue and performs serialization tasks in a thread-safe manner.
+	 *
+	 * This method ensures that only one thread can process the serialization queue at a time
+	 * by utilizing a compare-and-set mechanism on the `serializationInProgress` flag. If the
+	 * queue is non-empty, it retrieves a Kryo instance via the provided supplier, processes all
+	 * queued serialization tasks by consuming elements from the queue, and then releases the
+	 * Kryo instance via the designated consumer after processing.
+	 *
+	 * The method plays a critical role in managing the lifecycle of Kryo instances and ensuring
+	 * proper serialization of session data while avoiding concurrency issues during processing.
+	 */
+	private void processQueue(boolean force) {
+		do {
+			if (this.serializationInProgress.compareAndSet(false, true)) {
+				try {
+					if (!this.serializationQueue.isEmpty()) {
+						final Kryo kryoInstance = this.obtain.get();
+						try {
+							while (!this.serializationQueue.isEmpty()) {
+								this.serializationQueue.pollFirst().accept(kryoInstance);
+							}
+						} finally {
+							this.free.accept(kryoInstance);
+						}
+					}
+				} finally {
+					this.serializationInProgress.set(false);
+				}
+			}
+		} while (force && !this.serializationQueue.isEmpty());
+	}
+
+	/**
+	 * Registers a new traffic recording in this session.
+	 *
+	 * @param container Traffic recording container to be registered.
+	 */
+	private <T extends TrafficRecording> void registerRecording(T container) {
+		this.recordingTypes.add(container.type());
+		this.fetchCount += container.ioFetchCount();
+		this.bytesFetchedTotal += container.ioFetchedSizeBytes();
+		if (container instanceof QueryContainer queryContainer && this.sourceQueryCounterIndex != null) {
+			this.queryCounter.incrementAndGet();
+			final UUID sourceQueryId = getSourceQueryId(queryContainer);
+			if (sourceQueryId != null) {
+				final SourceQueryCounter sourceQueryCounter = this.sourceQueryCounterIndex.get(sourceQueryId);
+				if (sourceQueryCounter != null) {
+					sourceQueryCounter.append(
+						queryContainer.primaryKeys().length,
+						queryContainer.totalRecordCount(),
+						queryContainer.ioFetchCount(),
+						queryContainer.ioFetchedSizeBytes(),
+						queryContainer.durationInMilliseconds()
+					);
+				}
+			}
+			this.labels.addAll(Arrays.asList(queryContainer.labels()));
+		} else if (container instanceof MutationContainer) {
+			this.mutationCounter.incrementAndGet();
+		} else if (container instanceof EntityFetchContainer) {
+			this.entityFetchCounter.incrementAndGet();
+		}
 	}
 
 	/**

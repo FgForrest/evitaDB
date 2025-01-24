@@ -104,8 +104,10 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.UnaryOperator;
+import java.util.stream.BaseStream;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.head;
@@ -363,6 +365,13 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		responseObserver.onCompleted();
 	}
 
+	/**
+	 * Normalizes the given query and optionally appends additional labels to the query's head.
+	 *
+	 * @param query The query to be normalized. Must not be null.
+	 * @param additionalLabels Optional list of labels to be added to the query's head. Can be null or empty.
+	 * @return A normalized query object with additional labels appended if provided.
+	 */
 	@Nonnull
 	private static Query normalizeQueryWithAddingLabel(
 		@Nonnull Query query,
@@ -389,49 +398,37 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	 * Executes a query by parsing the provided source query, resolving its parameters,
 	 * and delegating the handling to a provided consumer.
 	 *
-	 * @param responseObserver          the observer to stream the results back to; cannot be null
-	 * @param session                   the internal session used for query execution; cannot be null
-	 * @param sourceQuery               the query string to be parsed and executed; cannot be null
-	 * @param positionalQueryParamsList a list of positional parameters for the query; cannot be null
-	 * @param namedQueryParamsMap       a map of named parameters for the query; cannot be null
-	 * @param handler                   a consumer that handles the parsed query and streams the results using the observer; cannot be null
-	 * @param trackSourceQueries        a flag indicating whether source queries should be tracked
-	 * @param <T>                       the type of the response that extends {@link GeneratedMessageV3}
+	 * @param <T>                the type of the response that extends {@link GeneratedMessageV3}
+	 * @param responseObserver   the observer to stream the results back to; cannot be null
+	 * @param session            the internal session used for query execution; cannot be null
+	 * @param sourceQuery        the query string to be parsed and executed; cannot be null
+	 * @param trackSourceQueries a flag indicating whether source queries should be tracked
+	 * @param handler            a consumer that handles the parsed query and streams the results using the observer; cannot be null
 	 */
 	private static <T extends GeneratedMessageV3> void doQuery(
 		@Nonnull StreamObserver<T> responseObserver,
 		@Nonnull EvitaInternalSessionContract session,
 		@Nonnull String sourceQuery,
-		@Nonnull List<GrpcQueryParam> positionalQueryParamsList,
-		@Nonnull Map<String, GrpcQueryParam> namedQueryParamsMap,
+		@Nonnull QueryWithParameters parsedQuery,
 		boolean trackSourceQueries,
 		@Nonnull QuadriConsumer<StreamObserver<T>, EvitaInternalSessionContract, Query, Label[]> handler
 	) {
-		final QueryWithParameters query = QueryUtil.parseQuery(
-			sourceQuery,
-			positionalQueryParamsList,
-			namedQueryParamsMap,
-			responseObserver
-		);
-
-		if (query != null) {
-			final UUID sourceQueryId = trackSourceQueries ?
-				session.recordSourceQuery(
-					completeSourceQuery(sourceQuery, query.positionalParameters(), query.namedParameters()),
-					GrpcProvider.CODE
-				) : null;
-			try {
-				handler.accept(
-					responseObserver, session, query.parsedQuery(),
-					new Label[] {
-						label(Label.LABEL_SOURCE_TYPE, GRPC_SOURCE_TYPE_LABEL_VALUE),
-						sourceQueryId == null ? null : label(Label.LABEL_SOURCE_QUERY, sourceQueryId)
-					}
-				);
-			} finally {
-				if (trackSourceQueries) {
-					session.finalizeSourceQuery(sourceQueryId);
+		final UUID sourceQueryId = trackSourceQueries ?
+			session.recordSourceQuery(
+				completeSourceQuery(sourceQuery, parsedQuery.positionalParameters(), parsedQuery.namedParameters()),
+				GrpcProvider.CODE
+			) : null;
+		try {
+			handler.accept(
+				responseObserver, session, parsedQuery.parsedQuery(),
+				new Label[]{
+					label(Label.LABEL_SOURCE_TYPE, GRPC_SOURCE_TYPE_LABEL_VALUE),
+					sourceQueryId == null ? null : label(Label.LABEL_SOURCE_QUERY, sourceQueryId)
 				}
+			);
+		} finally {
+			if (trackSourceQueries) {
+				session.finalizeSourceQuery(sourceQueryId);
 			}
 		}
 	}
@@ -578,18 +575,23 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		ServerCallStreamObserver<GetMutationsHistoryResponse> serverCallStreamObserver =
 			(ServerCallStreamObserver<GetMutationsHistoryResponse>) responseObserver;
 
+		final AtomicReference<Stream<ChangeCatalogCapture>> mutationsHistoryStreamRef = new AtomicReference<>();
+
+		// avoid returning error when client cancels the stream
+		serverCallStreamObserver.setOnCancelHandler(
+			() -> {
+				log.info("Client cancelled the mutation history request.");
+				ofNullable(mutationsHistoryStreamRef.get())
+					.ifPresent(BaseStream::close);
+			}
+		);
+
 		executeWithClientContext(
 			session -> {
 				final Stream<ChangeCatalogCapture> mutationsHistoryStream = session.getMutationsHistory(
 					ChangeCaptureConverter.toChangeCaptureRequest(request)
 				);
-				// avoid returning error when client cancels the stream
-				serverCallStreamObserver.setOnCancelHandler(
-					() -> {
-						log.info("Client cancelled the mutation history request.");
-						mutationsHistoryStream.close();
-					}
-				);
+				mutationsHistoryStreamRef.set(mutationsHistoryStream);
 
 				mutationsHistoryStream.forEach(
 					cdcEvent -> {
@@ -744,16 +746,24 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	@Override
 	public void queryOne(GrpcQueryRequest request, StreamObserver<GrpcQueryOneResponse> responseObserver) {
 		executeWithClientContext(
-			session -> doQuery(
-				responseObserver, session,
-				request.getQuery(),
-				request.getPositionalQueryParamsList(),
-				request.getNamedQueryParamsMap(),
-				this.trackSourceQueries,
-				EvitaSessionService::queryOneInternal
+			session -> ofNullable(
+				QueryUtil.parseQuery(
+					request.getQuery(),
+					request.getPositionalQueryParamsList(),
+					request.getNamedQueryParamsMap(),
+					responseObserver
+				)
+			).ifPresent(
+				theQuery -> doQuery(
+					responseObserver, session,
+					request.getQuery(),
+					theQuery, this.trackSourceQueries,
+					EvitaSessionService::queryOneInternal
+				)
 			),
 			evita.getRequestExecutor(),
-			responseObserver);
+			responseObserver
+		);
 	}
 
 	/**
@@ -765,13 +775,20 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	@Override
 	public void queryList(GrpcQueryRequest request, StreamObserver<GrpcQueryListResponse> responseObserver) {
 		executeWithClientContext(
-			session -> doQuery(
-				responseObserver, session,
-				request.getQuery(),
-				request.getPositionalQueryParamsList(),
-				request.getNamedQueryParamsMap(),
-				this.trackSourceQueries,
-				EvitaSessionService::queryListInternal
+			session -> ofNullable(
+				QueryUtil.parseQuery(
+					request.getQuery(),
+					request.getPositionalQueryParamsList(),
+					request.getNamedQueryParamsMap(),
+					responseObserver
+				)
+			).ifPresent(
+				theQuery -> doQuery(
+					responseObserver, session,
+					request.getQuery(),
+					theQuery, this.trackSourceQueries,
+					EvitaSessionService::queryListInternal
+				)
 			),
 			evita.getRequestExecutor(),
 			responseObserver
@@ -787,16 +804,25 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	@Override
 	public void query(GrpcQueryRequest request, StreamObserver<GrpcQueryResponse> responseObserver) {
 		executeWithClientContext(
-			session -> doQuery(
-				responseObserver, session,
-				request.getQuery(),
-				request.getPositionalQueryParamsList(),
-				request.getNamedQueryParamsMap(),
-				this.trackSourceQueries,
-				EvitaSessionService::queryInternal
+			session -> ofNullable(
+				QueryUtil.parseQuery(
+					request.getQuery(),
+					request.getPositionalQueryParamsList(),
+					request.getNamedQueryParamsMap(),
+					responseObserver
+				)
+			).ifPresent(
+				theQuery -> doQuery(
+					responseObserver, session,
+					request.getQuery(),
+					theQuery,
+					this.trackSourceQueries,
+					EvitaSessionService::queryInternal
+				)
 			),
 			evita.getRequestExecutor(),
-			responseObserver);
+			responseObserver
+		);
 	}
 
 	/**
@@ -809,13 +835,21 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	@Override
 	public void queryOneUnsafe(GrpcQueryUnsafeRequest request, StreamObserver<GrpcQueryOneResponse> responseObserver) {
 		executeWithClientContext(
-			session -> doQuery(
-				responseObserver, session,
-				request.getQuery(),
-				Collections.emptyList(),
-				Collections.emptyMap(),
-				this.trackSourceQueries,
-				EvitaSessionService::queryOneInternal
+			session -> ofNullable(
+				QueryUtil.parseQueryUnsafe(
+					request.getQuery(),
+					Collections.emptyList(),
+					Collections.emptyMap(),
+					responseObserver
+				)
+			).ifPresent(
+				theQuery -> doQuery(
+					responseObserver, session,
+					request.getQuery(),
+					theQuery,
+					this.trackSourceQueries,
+					EvitaSessionService::queryOneInternal
+				)
 			),
 			evita.getRequestExecutor(),
 			responseObserver);
@@ -831,13 +865,21 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	@Override
 	public void queryListUnsafe(GrpcQueryUnsafeRequest request, StreamObserver<GrpcQueryListResponse> responseObserver) {
 		executeWithClientContext(
-			session -> doQuery(
-				responseObserver, session,
-				request.getQuery(),
-				Collections.emptyList(),
-				Collections.emptyMap(),
-				this.trackSourceQueries,
-				EvitaSessionService::queryListInternal
+			session -> ofNullable(
+				QueryUtil.parseQueryUnsafe(
+					request.getQuery(),
+					Collections.emptyList(),
+					Collections.emptyMap(),
+					responseObserver
+				)
+			).ifPresent(
+				theQuery -> doQuery(
+					responseObserver, session,
+					request.getQuery(),
+					theQuery,
+					this.trackSourceQueries,
+					EvitaSessionService::queryListInternal
+				)
 			),
 			evita.getRequestExecutor(),
 			responseObserver);
@@ -853,13 +895,22 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	@Override
 	public void queryUnsafe(GrpcQueryUnsafeRequest request, StreamObserver<GrpcQueryResponse> responseObserver) {
 		executeWithClientContext(
-			session -> doQuery(
-				responseObserver, session,
-				request.getQuery(),
-				Collections.emptyList(),
-				Collections.emptyMap(),
-				this.trackSourceQueries,
-				EvitaSessionService::queryInternal
+			session -> ofNullable(
+				QueryUtil.parseQueryUnsafe(
+					request.getQuery(),
+					Collections.emptyList(),
+					Collections.emptyMap(),
+					responseObserver
+				)
+			).ifPresent(
+				theQuery ->
+					doQuery(
+						responseObserver, session,
+						request.getQuery(),
+						theQuery,
+						this.trackSourceQueries,
+						EvitaSessionService::queryInternal
+					)
 			),
 			evita.getRequestExecutor(),
 			responseObserver);
@@ -1227,43 +1278,52 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	@Override
 	public void deleteEntities(GrpcDeleteEntitiesRequest request, StreamObserver<GrpcDeleteEntitiesResponse> responseObserver) {
 		executeWithClientContext(
-			session -> doQuery(
-				responseObserver, session,
-				request.getQuery(),
-				request.getPositionalQueryParamsList(),
-				request.getNamedQueryParamsMap(),
-				this.trackSourceQueries,
-				(grpcDeleteEntitiesResponseStreamObserver, evitaInternalSessionContract, query, label) -> {
-					if (query != null) {
-						final int deletedEntities;
-						final SealedEntity[] deletedEntityBodies;
-						if (query.getRequire() == null ||
-							FinderVisitor.findConstraints(query.getRequire(), EntityFetch.class::isInstance).isEmpty()) {
-							deletedEntities = session.deleteEntities(query);
-							deletedEntityBodies = null;
-						} else {
-							deletedEntityBodies = session.deleteSealedEntitiesAndReturnBodies(query);
-							deletedEntities = deletedEntityBodies.length;
-						}
+			session -> ofNullable(
+				QueryUtil.parseQuery(
+					request.getQuery(),
+					request.getPositionalQueryParamsList(),
+					request.getNamedQueryParamsMap(),
+					responseObserver
+				)
+			).ifPresent(
+				theQuery -> doQuery(
+					responseObserver, session,
+					request.getQuery(),
+					theQuery,
+					this.trackSourceQueries,
+					(grpcDeleteEntitiesResponseStreamObserver, evitaInternalSessionContract, query, label) -> {
+						if (query != null) {
+							final int deletedEntities;
+							final SealedEntity[] deletedEntityBodies;
+							if (query.getRequire() == null ||
+								FinderVisitor.findConstraints(query.getRequire(), EntityFetch.class::isInstance).isEmpty()) {
+								deletedEntities = session.deleteEntities(query);
+								deletedEntityBodies = null;
+							} else {
+								deletedEntityBodies = session.deleteSealedEntitiesAndReturnBodies(query);
+								deletedEntities = deletedEntityBodies.length;
+							}
 
-						final GrpcDeleteEntitiesResponse.Builder response = GrpcDeleteEntitiesResponse
-							.newBuilder()
-							.setDeletedEntities(deletedEntities);
-						ofNullable(deletedEntityBodies)
-							.ifPresent(
-								it -> Arrays.stream(it)
-									.map(EntityConverter::toGrpcSealedEntity)
-									.forEach(response::addDeletedEntityBodies)
+							final GrpcDeleteEntitiesResponse.Builder response = GrpcDeleteEntitiesResponse
+								.newBuilder()
+								.setDeletedEntities(deletedEntities);
+							ofNullable(deletedEntityBodies)
+								.ifPresent(
+									it -> Arrays.stream(it)
+										.map(EntityConverter::toGrpcSealedEntity)
+										.forEach(response::addDeletedEntityBodies)
+								);
+							responseObserver.onNext(
+								response.build()
 							);
-						responseObserver.onNext(
-							response.build()
-						);
+						}
+						responseObserver.onCompleted();
 					}
-					responseObserver.onCompleted();
-				}
+				)
 			),
 			evita.getRequestExecutor(),
-			responseObserver);
+			responseObserver
+		);
 	}
 
 	/**

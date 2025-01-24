@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -150,6 +150,66 @@ public class QueryUtil {
 				final List<Object> positionalArguments = QueryConverter.convertQueryParamsList(queryParamsList);
 				return new QueryWithParameters(
 					parser.parseQuery(
+						queryString,
+						namedArguments,
+						positionalArguments
+					),
+					positionalArguments,
+					namedArguments
+				);
+			}
+		} catch (Exception ex) {
+			if (responseObserver != null) {
+				sendErrorToClient(ex, responseObserver);
+			}
+			return null;
+		}
+	}
+
+	/**
+	 * Parse query with provided list of positional parameters accepting parameters directly in the input query.
+	 * This method is unsafe and should be used only when the query is known to be from the trustworthy source.
+	 *
+	 * @param queryString      to be parsed
+	 * @param queryParamsList  to be used for parsing query with substitutions placeholder characters for this list values
+	 * @param queryParamsMap   to be used for parsing query with substitutions named placeholders for this map values (key is name of placeholder)
+	 * @param responseObserver response observer for error handling
+	 * @param <T>              type of response message to be able to pass generic {@link StreamObserver}
+	 * @return parsed {@link Query}
+	 */
+	@Nullable
+	public static <T extends GeneratedMessageV3> QueryWithParameters parseQueryUnsafe(
+		@Nonnull String queryString,
+		@Nonnull List<GrpcQueryParam> queryParamsList,
+		@Nonnull Map<String, GrpcQueryParam> queryParamsMap,
+		@Nullable StreamObserver<T> responseObserver
+	) {
+		try {
+			if (queryParamsList.isEmpty() && queryParamsMap.isEmpty()) {
+				return new QueryWithParameters(
+					parser.parseQueryUnsafe(queryString),
+					Collections.emptyList(),
+					Collections.emptyMap()
+				);
+			} else if (queryParamsList.isEmpty()) {
+				final Map<String, Object> namedArguments = QueryConverter.convertQueryParamsMap(queryParamsMap);
+				return new QueryWithParameters(
+					parser.parseQueryUnsafe(queryString, namedArguments, Collections.emptyList()),
+					Collections.emptyList(),
+					namedArguments
+				);
+			} else if (queryParamsMap.isEmpty()) {
+				final List<Object> positionalArguments = QueryConverter.convertQueryParamsList(queryParamsList);
+				return new QueryWithParameters(
+					parser.parseQueryUnsafe(queryString, Collections.emptyMap(), positionalArguments),
+					positionalArguments,
+					Collections.emptyMap()
+				);
+			} else {
+				final Map<String, Object> namedArguments = QueryConverter.convertQueryParamsMap(queryParamsMap);
+				final List<Object> positionalArguments = QueryConverter.convertQueryParamsList(queryParamsList);
+				return new QueryWithParameters(
+					parser.parseQueryUnsafe(
 						queryString,
 						namedArguments,
 						positionalArguments

@@ -239,36 +239,27 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 				catalogVersion,
 				created,
 				this.copyBufferPool.obtain(),
-				this::prepareStorageBlock
+				this::prepareStorageBlock,
+				this.trafficRecorderKryoPool::obtain,
+				this.trafficRecorderKryoPool::free
 			);
-			final Kryo kryoInstance = this.trafficRecorderKryoPool.obtain();
-			try {
-				final StorageRecord<SessionStartContainer> sessionStartRecord = new StorageRecord<>(
-					sessionTraffic.getObservableOutput(),
-					0L,
-					false,
-					output -> {
-						final SessionStartContainer container = new SessionStartContainer(
-							sessionId,
-							sessionTraffic.nextRecordingId(),
-							catalogVersion,
-							created
-						);
-						kryoInstance.writeClassAndObject(output, container);
-						sessionTraffic.registerRecording(container);
-						return container;
-					}
-				);
-				Assert.isPremiseValid(sessionStartRecord.fileLocation() != null, "Location must not be null.");
-				this.createdSessions.incrementAndGet();
-				this.trackedSessionsIndex.put(sessionId, sessionTraffic);
-			} catch (MemoryNotAvailableException ex) {
-				this.copyBufferPool.free(ex.getWriteBuffer());
-				this.droppedSessions.incrementAndGet();
-				this.missedRecords.incrementAndGet();
-			} finally {
-				this.trafficRecorderKryoPool.free(kryoInstance);
-			}
+			sessionTraffic.record(
+				new SessionStartContainer(
+					sessionId,
+					sessionTraffic.nextRecordingId(),
+					catalogVersion,
+					created
+				),
+				ex -> {
+					this.copyBufferPool.free(ex.getWriteBuffer());
+					this.droppedSessions.incrementAndGet();
+					this.missedRecords.incrementAndGet();
+				},
+				() -> {
+					this.createdSessions.incrementAndGet();
+					this.trackedSessionsIndex.put(sessionId, sessionTraffic);
+				}
+			);
 		} else {
 			this.missedRecords.incrementAndGet();
 		}
@@ -279,46 +270,35 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		final SessionTraffic sessionTraffic = this.trackedSessionsIndex.remove(sessionId);
 		if (sessionTraffic != null && !sessionTraffic.isFinished()) {
 			final byte[] bufferToReturn = sessionTraffic.finish();
-
-			final Kryo kryoInstance = this.trafficRecorderKryoPool.obtain();
-			try {
-				final StorageRecord<SessionCloseContainer> sessionCloseRecord = new StorageRecord<>(
-					sessionTraffic.getObservableOutput(),
-					0L,
-					false,
-					output -> {
-						final SessionCloseContainer container = new SessionCloseContainer(
-							sessionId,
-							sessionTraffic.nextRecordingId(),
-							sessionTraffic.getRecordCount(),
-							sessionTraffic.getCatalogVersion(),
-							sessionTraffic.getCreated(),
-							sessionTraffic.getDurationInMillis(),
-							sessionTraffic.getFetchCount(),
-							sessionTraffic.getBytesFetchedTotal(),
-							sessionTraffic.getRecordCount(),
-							sessionTraffic.getRecordsMissedOut(),
-							sessionTraffic.getQueryCount(),
-							sessionTraffic.getEntityFetchCount(),
-							sessionTraffic.getMutationCount()
-						);
-						kryoInstance.writeClassAndObject(output, container);
-						sessionTraffic.registerRecording(container);
-						return container;
-					}
-				);
-				Assert.isPremiseValid(sessionCloseRecord.fileLocation() != null, "Location must not be null.");
-			} catch (MemoryNotAvailableException ex) {
-				this.droppedSessions.incrementAndGet();
-				this.missedRecords.incrementAndGet();
-			} finally {
-				this.trafficRecorderKryoPool.free(kryoInstance);
-				sessionTraffic.close();
-				this.copyBufferPool.free(bufferToReturn);
-				this.finishedSessions.incrementAndGet();
-				this.finalizedSessions.offer(sessionTraffic);
-				this.freeMemoryTask.schedule();
-			}
+			sessionTraffic.record(
+				new SessionCloseContainer(
+					sessionId,
+					sessionTraffic.nextRecordingId(),
+					sessionTraffic.getRecordCount(),
+					sessionTraffic.getCatalogVersion(),
+					sessionTraffic.getCreated(),
+					sessionTraffic.getDurationInMillis(),
+					sessionTraffic.getFetchCount(),
+					sessionTraffic.getBytesFetchedTotal(),
+					sessionTraffic.getRecordCount(),
+					sessionTraffic.getRecordsMissedOut(),
+					sessionTraffic.getQueryCount(),
+					sessionTraffic.getEntityFetchCount(),
+					sessionTraffic.getMutationCount()
+				),
+				ex -> {
+					this.copyBufferPool.free(ex.getWriteBuffer());
+					this.droppedSessions.incrementAndGet();
+					this.missedRecords.incrementAndGet();
+				},
+				() -> {
+					sessionTraffic.close();
+					this.copyBufferPool.free(bufferToReturn);
+					this.finishedSessions.incrementAndGet();
+					this.finalizedSessions.offer(sessionTraffic);
+					this.freeMemoryTask.schedule();
+				}
+			);
 		} else {
 			this.missedRecords.incrementAndGet();
 		}
@@ -483,7 +463,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 				this::readTrafficRecord
 			);
 		} catch (IndexNotReady ex) {
-			this.indexTask.schedule();
+			this.indexTask.scheduleImmediately();
 			throw ex;
 		}
 	}
@@ -495,7 +475,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 			this.lastRead = System.currentTimeMillis();
 			return this.diskBuffer.getLabelsNamesOrderedByCardinality(nameStartingWith, limit);
 		} catch (IndexNotReady ex) {
-			this.indexTask.schedule();
+			this.indexTask.scheduleImmediately();
 			throw ex;
 		}
 	}
@@ -509,7 +489,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 				nameEquals, valueStartingWith, limit
 			);
 		} catch (IndexNotReady ex) {
-			this.indexTask.schedule();
+			this.indexTask.scheduleImmediately();
 			throw ex;
 		}
 	}
@@ -637,27 +617,15 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		@Nonnull Function<SessionTraffic, T> containerFactory
 	) {
 		if (sessionTraffic != null && !sessionTraffic.isFinished()) {
-			final Kryo kryoInstance = this.trafficRecorderKryoPool.obtain();
-			try {
-				final T container = containerFactory.apply(sessionTraffic);
-				final StorageRecord<T> storageRecord = new StorageRecord<>(
-					sessionTraffic.getObservableOutput(),
-					0L,
-					false,
-					output -> {
-						kryoInstance.writeClassAndObject(output, container);
-						return container;
-					}
-				);
-				Assert.isPremiseValid(storageRecord.fileLocation() != null, "Location must not be null.");
-				sessionTraffic.registerRecording(container);
-				this.recordedRecords.incrementAndGet();
-			} catch (MemoryNotAvailableException ex) {
-				this.copyBufferPool.free(ex.getWriteBuffer());
-				this.missedRecords.incrementAndGet();
-			} finally {
-				this.trafficRecorderKryoPool.free(kryoInstance);
-			}
+			final T container = containerFactory.apply(sessionTraffic);
+			sessionTraffic.record(
+				container,
+				ex -> {
+					this.copyBufferPool.free(ex.getWriteBuffer());
+					this.missedRecords.incrementAndGet();
+				},
+				this.recordedRecords::incrementAndGet
+			);
 		} else {
 			if (sessionTraffic != null) {
 				sessionTraffic.registerRecordMissedOut();

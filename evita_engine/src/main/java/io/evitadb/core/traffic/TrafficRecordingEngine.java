@@ -80,6 +80,8 @@ import java.util.stream.Stream;
  * fetches, enrichments, and mutations, and ensures that these operations are executed within a
  * traceable context and recorded for analysis, debugging, or monitoring purposes.
  *
+ * TODO - add try catch, aby se nezabily dotazy!!
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @RequiredArgsConstructor

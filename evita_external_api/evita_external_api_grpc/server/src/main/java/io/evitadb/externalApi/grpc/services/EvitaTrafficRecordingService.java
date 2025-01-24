@@ -40,11 +40,14 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.time.Duration;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.BaseStream;
 import java.util.stream.Stream;
 
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrpcTaskStatus;
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toUuid;
 import static io.evitadb.externalApi.grpc.services.EvitaSessionService.executeWithClientContext;
+import static java.util.Optional.ofNullable;
 
 /**
  * This service contains methods that could be called by gRPC clients on {@link GrpcEvitaTrafficRecordingAPI}.
@@ -99,18 +102,22 @@ public class EvitaTrafficRecordingService extends GrpcEvitaTrafficRecordingServi
 		ServerCallStreamObserver<GetTrafficHistoryResponse> serverCallStreamObserver =
 			(ServerCallStreamObserver<GetTrafficHistoryResponse>) responseObserver;
 
+		final AtomicReference<Stream<TrafficRecording>> trafficHistoryStreamRef = new AtomicReference<>();
+
+		// avoid returning error when client cancels the stream
+		serverCallStreamObserver.setOnCancelHandler(
+			() -> {
+				log.info("Client cancelled the traffic history request.");
+				ofNullable(trafficHistoryStreamRef.get())
+					.ifPresent(BaseStream::close);
+			}
+		);
+
 		executeWithClientContext(
 			session -> {
 				final TrafficRecordingCaptureRequest captureRequest = TrafficCaptureConverter.toTrafficRecordingCaptureRequest(request);
 				final Stream<TrafficRecording> trafficHistoryStream = session.getRecordings(captureRequest);
-
-				// avoid returning error when client cancels the stream
-				serverCallStreamObserver.setOnCancelHandler(
-					() -> {
-						log.info("Client cancelled the traffic history request.");
-						trafficHistoryStream.close();
-					}
-				);
+				trafficHistoryStreamRef.set(trafficHistoryStream);
 
 				trafficHistoryStream.forEach(
 					trafficRecording -> {
