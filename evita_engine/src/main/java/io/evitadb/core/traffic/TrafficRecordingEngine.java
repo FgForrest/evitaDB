@@ -53,6 +53,7 @@ import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.IOUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -80,10 +81,9 @@ import java.util.stream.Stream;
  * fetches, enrichments, and mutations, and ensures that these operations are executed within a
  * traceable context and recorded for analysis, debugging, or monitoring purposes.
  *
- * TODO - add try catch, aby se nezabily dotazy!!
- *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
+@Slf4j
 @RequiredArgsConstructor
 public class TrafficRecordingEngine implements TrafficRecordingReader {
 	public static final String LABEL_TRACE_ID = "traceId";
@@ -231,7 +231,11 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 	 * @param created        timestamp when the session was created
 	 */
 	public void createSession(@Nonnull UUID sessionId, long catalogVersion, @Nonnull OffsetDateTime created) {
-		this.trafficRecorder.get().createSession(sessionId, catalogVersion, created);
+		try {
+			this.trafficRecorder.get().createSession(sessionId, catalogVersion, created);
+		} catch (Exception ex) {
+			log.error("Failed to create a new session in traffic recorder!", ex);
+		}
 	}
 
 	/**
@@ -240,7 +244,11 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 	 * @param sessionId unique identifier of the session
 	 */
 	public void closeSession(@Nonnull UUID sessionId) {
-		this.trafficRecorder.get().closeSession(sessionId);
+		try {
+			this.trafficRecorder.get().closeSession(sessionId);
+		} catch (Exception ex) {
+			log.error("Failed to close the session in traffic recorder!", ex);
+		}
 	}
 
 	/**
@@ -265,28 +273,32 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 			(Supplier<T>) queryPlan::execute,
 			queryPlan::getSpanAttributes
 		);
-		this.trafficRecorder.get().recordQuery(
-			sessionId,
-			result.getSourceQuery(),
-			ArrayUtils.mergeArrays(
-				queryPlan.getEvitaRequest().getLabels(),
-				Stream.of(
-						this.tracingContext.getTraceId()
-							.map(it -> new Label(LABEL_TRACE_ID, it))
-							.orElse(null),
-						this.tracingContext.getClientId()
-							.map(it -> new Label(LABEL_CLIENT_ID, it))
-							.orElse(null)
-					)
-					.filter(Objects::nonNull)
-					.toArray(Label[]::new)
-			),
-			queryPlan.getEvitaRequest().getAlignedNow(),
-			result.getTotalRecordCount(),
-			result.getIoFetchCount(),
-			result.getIoFetchedSizeBytes(),
-			result.getPrimaryKeys()
-		);
+		try {
+			this.trafficRecorder.get().recordQuery(
+				sessionId,
+				result.getSourceQuery(),
+				ArrayUtils.mergeArrays(
+					queryPlan.getEvitaRequest().getLabels(),
+					Stream.of(
+							this.tracingContext.getTraceId()
+								.map(it -> new Label(LABEL_TRACE_ID, it))
+								.orElse(null),
+							this.tracingContext.getClientId()
+								.map(it -> new Label(LABEL_CLIENT_ID, it))
+								.orElse(null)
+						)
+						.filter(Objects::nonNull)
+						.toArray(Label[]::new)
+				),
+				queryPlan.getEvitaRequest().getAlignedNow(),
+				result.getTotalRecordCount(),
+				result.getIoFetchCount(),
+				result.getIoFetchedSizeBytes(),
+				result.getPrimaryKeys()
+			);
+		} catch (Exception ex) {
+			log.error("Failed to execute query in traffic recorder!", ex);
+		}
 		return result;
 	}
 
@@ -343,23 +355,27 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 			lambda,
 			() -> SpanAttribute.EMPTY_ARRAY
 		);
-		final int ioFetchCount;
-		final int ioFetchedBytes;
-		if (entity instanceof EntityFetchAwareDecorator efad) {
-			ioFetchCount = efad.getIoFetchCount();
-			ioFetchedBytes = efad.getIoFetchedBytes();
-		} else {
-			ioFetchCount = -1;
-			ioFetchedBytes = -1;
+		try {
+			final int ioFetchCount;
+			final int ioFetchedBytes;
+			if (entity instanceof EntityFetchAwareDecorator efad) {
+				ioFetchCount = efad.getIoFetchCount();
+				ioFetchedBytes = efad.getIoFetchedBytes();
+			} else {
+				ioFetchCount = -1;
+				ioFetchedBytes = -1;
+			}
+			this.trafficRecorder.get().recordEnrichment(
+				sessionId,
+				evitaRequest.getQuery(),
+				evitaRequest.getAlignedNow(),
+				ioFetchCount,
+				ioFetchedBytes,
+				entity.getPrimaryKeyOrThrowException()
+			);
+		} catch (Exception ex) {
+			log.error("Failed to record enrichment in traffic recorder!", ex);
 		}
-		this.trafficRecorder.get().recordEnrichment(
-			sessionId,
-			evitaRequest.getQuery(),
-			evitaRequest.getAlignedNow(),
-			ioFetchCount,
-			ioFetchedBytes,
-			entity.getPrimaryKeyOrThrowException()
-		);
 		return result;
 	}
 
@@ -403,13 +419,17 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 		@Nonnull String sourceQuery,
 		@Nonnull String queryType
 	) {
-		this.trafficRecorder.get().setupSourceQuery(
-			sessionId,
-			sourceQueryId,
-			OffsetDateTime.now(),
-			sourceQuery,
-			queryType
-		);
+		try {
+			this.trafficRecorder.get().setupSourceQuery(
+				sessionId,
+				sourceQueryId,
+				OffsetDateTime.now(),
+				sourceQuery,
+				queryType
+			);
+		} catch (Exception e) {
+			log.error("Failed to setup source query in traffic recorder!", e);
+		}
 	}
 
 	/**
@@ -423,7 +443,11 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 		@Nonnull UUID sessionId,
 		@Nonnull UUID sourceQueryId
 	) {
-		this.trafficRecorder.get().closeSourceQuery(sessionId, sourceQueryId);
+		try {
+			this.trafficRecorder.get().closeSourceQuery(sessionId, sourceQueryId);
+		} catch (Exception e) {
+			log.error("Failed to close source query in traffic recorder!", e);
+		}
 	}
 
 	/**
@@ -436,23 +460,27 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 	 * @param entity       the entity that has been fetched, used to extract metrics and primary key information
 	 */
 	private <T extends EntityContract> void recordFetch(@Nonnull UUID sessionId, @Nonnull EvitaRequest evitaRequest, @Nonnull T entity) {
-		final int ioFetchCount;
-		final int ioFetchedBytes;
-		if (entity instanceof EntityFetchAwareDecorator efad) {
-			ioFetchCount = efad.getIoFetchCount();
-			ioFetchedBytes = efad.getIoFetchedBytes();
-		} else {
-			ioFetchCount = -1;
-			ioFetchedBytes = -1;
+		try {
+			final int ioFetchCount;
+			final int ioFetchedBytes;
+			if (entity instanceof EntityFetchAwareDecorator efad) {
+				ioFetchCount = efad.getIoFetchCount();
+				ioFetchedBytes = efad.getIoFetchedBytes();
+			} else {
+				ioFetchCount = -1;
+				ioFetchedBytes = -1;
+			}
+			this.trafficRecorder.get().recordFetch(
+				sessionId,
+				evitaRequest.getQuery(),
+				evitaRequest.getAlignedNow(),
+				ioFetchCount,
+				ioFetchedBytes,
+				entity.getPrimaryKeyOrThrowException()
+			);
+		} catch (Exception ex) {
+			log.error("Failed to record fetch in traffic recorder!", ex);
 		}
-		this.trafficRecorder.get().recordFetch(
-			sessionId,
-			evitaRequest.getQuery(),
-			evitaRequest.getAlignedNow(),
-			ioFetchCount,
-			ioFetchedBytes,
-			entity.getPrimaryKeyOrThrowException()
-		);
 	}
 
 	@Nonnull
@@ -499,6 +527,7 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 	 * utilizing tracing and traffic recording mechanisms. It ensures that a mutation is traced and its execution
 	 * is duly recorded for further analysis or debugging purposes.
 	 */
+	@Slf4j
 	@RequiredArgsConstructor
 	public static class MutationApplicationRecord {
 		private final TracingBlockReference ref;
@@ -513,7 +542,11 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 		 */
 		public void finish() {
 			this.ref.close();
-			this.trafficRecorder.recordMutation(this.sessionId, this.now, this.mutation);
+			try {
+				this.trafficRecorder.recordMutation(this.sessionId, this.now, this.mutation);
+			} catch (Exception ex) {
+				log.error("Failed to record mutation in traffic recorder!", ex);
+			}
 		}
 
 		/**
@@ -525,7 +558,11 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 		public void finishWithException(@Nonnull Exception ex) {
 			this.ref.setError(ex);
 			this.ref.close();
-			this.trafficRecorder.recordMutation(this.sessionId, this.now, this.mutation);
+			try {
+				this.trafficRecorder.recordMutation(this.sessionId, this.now, this.mutation);
+			} catch (Exception e) {
+				log.error("Failed to record mutation in traffic recorder!", e);
+			}
 		}
 
 	}
