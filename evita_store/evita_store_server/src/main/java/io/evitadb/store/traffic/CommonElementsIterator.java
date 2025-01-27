@@ -102,8 +102,8 @@ public class CommonElementsIterator implements Iterator<Long> {
 					}
 					final Long theNextValue = iterator.next();
 					Assert.isPremiseValid(
-						theNextValue > (itNext == null ? this.currentValues[i] : itNext),
-						"Iterator is not sorted or contains duplicates"
+						theNextValue >= (itNext == null ? this.currentValues[i] : itNext),
+						"Iterator is not sorted"
 					);
 					itNext = theNextValue;
 				} while (itNext < max);

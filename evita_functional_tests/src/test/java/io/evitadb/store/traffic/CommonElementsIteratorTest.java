@@ -159,4 +159,14 @@ class CommonElementsIteratorTest {
 		verifyCommonElements(commonElementsIterator, 8L, 14L, 18L, 20L);
 	}
 
+	@Test
+	void shouldHandleDuplicatesInIndividualIterators() {
+		List<Iterator<Long>> iterators = new ArrayList<>();
+		iterators.add(List.of(1L, 2L, 3L, 3L, 4L, 5L).iterator());
+		iterators.add(List.of(2L, 3L, 3L, 4L, 5L).iterator());
+
+		CommonElementsIterator commonElementsIterator = new CommonElementsIterator(iterators);
+
+		verifyCommonElements(commonElementsIterator, 2L, 3L, 4L, 5L);
+	}
 }
