@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -154,7 +154,8 @@ public class RestoreTask extends ClientRunnableTask<RestoreSettings> {
 			while ((entry = zipInputStream.getNextEntry()) != null) {
 				// get the name of the file in the zip and create the file in the storage
 				final String fileName = getFileNameWithCatalogRename(entry.getName(), directoryName, catalogName);
-				final Path entryPath = storagePath.resolve(fileName);
+				final Path entryPath = storagePath.resolve(fileName).normalize();
+				Assert.isTrue(entryPath.startsWith(storagePath), "Bad ZIP entry!");
 				try (final FileChannel fileChannel = FileChannel.open(entryPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
 					// read the file from the zip and write it to the storage
 					int bytesRead;

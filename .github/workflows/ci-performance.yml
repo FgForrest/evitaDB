@@ -6,6 +6,11 @@ on:
   push:
     branches: [ "performance" ]    # trap each push to performance branch
 
+permissions:
+  contents: read                   # To checkout the repository code using actions/checkout.
+  packages: write                  # To publish the Docker image to the GitHub Packages registry.
+  secrets: read                    # To access the secrets.
+
 concurrency:
   group: ${{ github.head_ref || github.ref_name }}  # for the same branch (dev or PR)
   cancel-in-progress: true        # run only one workflow at a time (cancel the previous)

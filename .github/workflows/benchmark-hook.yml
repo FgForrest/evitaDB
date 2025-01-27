@@ -7,6 +7,11 @@ on:
     types:
       - clean-webhook
 
+permissions:
+  contents: read   # Required for actions/checkout@v3 to clone the repository
+  id-token: write  # Required for authentication in certain actions (e.g., digitalocean/action-doctl@v2)
+  secrets: read    # Required to access the DIGITALOCEAN_ACCESS_TOKEN secret
+
 env:
   KUBECONFIG: ${{ github.workspace }}/evita_performance_tests/src/do_k8s_automation/deploy/kube.cfg
 

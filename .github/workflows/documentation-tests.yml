@@ -6,6 +6,10 @@ on:
   schedule:
     - cron: '0 0 * * 1' # runs on Monday morning
 
+permissions:
+  contents: read  # Required for actions/checkout@v3 to access the repository
+  actions: write  # Required for uploading artifacts using actions/upload-artifact@v4
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -24,19 +28,19 @@ jobs:
 
       - name: Setup Java JDK   # this should setup JDK 17 but only if something was committed this day
         uses: actions/setup-java@v3
-        if: ${{ env.NEW_COMMIT_COUNT > 0 }}
+        if: ${{ env.NEW_COMMIT_COUNT != '0' }}
         with:
            distribution: 'temurin'
            java-version: '17'
            cache: 'maven'
 
       - name: Documentation tests   # this run Maven tests but only if something was committed this day
-        if: ${{ env.NEW_COMMIT_COUNT > 0 }}
+        if: ${{ env.NEW_COMMIT_COUNT != '0' }}
         run: mvn -T 1C -B package -P documentation -Dsurefire.reportNameSuffix=documentation -V --fail-at-end -Dmaven.test.skip=false --file pom.xml
 
       - name: Upload test results  # this upload test results but only if something was committed this day
         uses: actions/upload-artifact@v4
-        if: ${{ env.NEW_COMMIT_COUNT > 0 }} && (success() || failure())
+        if: ${{ env.NEW_COMMIT_COUNT != '0' }} && always()
         with:
           name: test-results
           path: 'evita*/**/target/surefire-reports/TEST-*.xml'

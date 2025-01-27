@@ -8,6 +8,11 @@ on:
     types:
       - completed
 
+permissions:
+  contents: read          # Required for actions/checkout to read the repository
+  actions: read           # Required to download artifacts from the triggering workflow
+  packages: write         # Required for pushing Docker images to DockerHub
+
 jobs:
   on-success:
     runs-on: ubuntu-latest
