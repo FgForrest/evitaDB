@@ -24,7 +24,7 @@ jobs:
       checks: write
     steps:
       - name: Download a test results # download `evita-server.jar` artifact if the workflow we react to was successful
-        uses: dawidd6/action-download-artifact@v6
+        uses: dawidd6/action-download-artifact@20319c5641d495c8a52e688b7dc5fada6c3a9fbc # v8
         with:
           workflow: ${{ github.event.workflow_run.workflow_id }}
           run_id: ${{ github.event.workflow_run.id }}
