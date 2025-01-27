@@ -28,6 +28,9 @@ import io.evitadb.api.configuration.TrafficRecordingOptions;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.head.Label;
 import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.api.requestResponse.trafficRecording.QueryContainer;
+import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
+import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest;
 import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.file.ExportFileService;
 
@@ -36,7 +39,9 @@ import javax.annotation.Nullable;
 import java.io.Closeable;
 import java.io.IOException;
 import java.time.OffsetDateTime;
+import java.util.Arrays;
 import java.util.UUID;
+import java.util.function.Predicate;
 
 /**
  * Traffic recorder captures incoming queries and mutations and stores them for later analysis / replay. It can be used
@@ -46,6 +51,52 @@ import java.util.UUID;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public interface TrafficRecorder extends Closeable {
+
+	/**
+	 * Creates a predicate for filtering TrafficRecording objects based on the criteria specified
+	 * in the given TrafficRecordingCaptureRequest. The predicate checks each TrafficRecording
+	 * against multiple criteria including type, sessionId, creation time, fetched bytes, and duration.
+	 *
+	 * @param request the TrafficRecordingCaptureRequest containing the criteria to be used for filtering
+	 * @return a predicate that evaluates to true for TrafficRecording objects matching the specified criteria
+	 */
+	@Nonnull
+	static Predicate<TrafficRecording> createRequestPredicate(@Nonnull TrafficRecordingCaptureRequest request) {
+		Predicate<TrafficRecording> requestPredicate = tr -> true;
+		if (request.sessionId() != null) {
+			requestPredicate = requestPredicate.and(
+				tr -> request.sessionId().equals(tr.sessionId())
+			);
+		}
+		if (request.since() != null) {
+			requestPredicate = requestPredicate.and(
+				tr -> tr.created().isAfter(request.since())
+			);
+		}
+		if (request.fetchingMoreBytesThan() != null) {
+			requestPredicate = requestPredicate.and(
+				tr -> tr.ioFetchedSizeBytes() > request.fetchingMoreBytesThan()
+			);
+		}
+		if (request.longerThan() != null) {
+			final long thresholdMillis = request.longerThan().toMillis();
+			requestPredicate = requestPredicate.and(
+				trafficRecording -> trafficRecording.durationInMilliseconds() > thresholdMillis
+			);
+		}
+		if (request.types() != null) {
+			requestPredicate = requestPredicate.and(
+				tr -> Arrays.stream(request.types()).anyMatch(it -> it == tr.type())
+			);
+		}
+		if (request.labels() != null) {
+			requestPredicate = requestPredicate.and(
+				tr -> tr instanceof QueryContainer qc &&
+					Arrays.stream(request.labels()).anyMatch(it -> Arrays.asList(qc.labels()).contains(it))
+			);
+		}
+		return requestPredicate;
+	}
 
 	/**
 	 * Initializes traffic recorder with server options. Method is guaranteed to be called before any other method.

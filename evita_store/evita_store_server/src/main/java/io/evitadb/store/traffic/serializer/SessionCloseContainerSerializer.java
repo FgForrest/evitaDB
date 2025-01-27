@@ -47,7 +47,6 @@ public class SessionCloseContainerSerializer extends Serializer<SessionCloseCont
 		output.writeVarInt(object.ioFetchCount(), true);
 		output.writeVarInt(object.ioFetchedSizeBytes(), true);
 		output.writeVarInt(object.trafficRecordCount(), true);
-		output.writeVarInt(object.trafficRecordsMissedOut(), true);
 		output.writeVarInt(object.queryCount(), true);
 		output.writeVarInt(object.entityFetchCount(), true);
 		output.writeVarInt(object.mutationCount(), true);
@@ -64,7 +63,6 @@ public class SessionCloseContainerSerializer extends Serializer<SessionCloseCont
 			sessionRecordContext == null ? null : sessionRecordContext.sessionRecordsCount(),
 			input.readLong(),
 			kryo.readObject(input, java.time.OffsetDateTime.class),
-			input.readVarInt(true),
 			input.readVarInt(true),
 			input.readVarInt(true),
 			input.readVarInt(true),

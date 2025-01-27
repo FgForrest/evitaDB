@@ -250,11 +250,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 					catalogVersion,
 					created
 				),
-				ex -> {
-					this.copyBufferPool.free(ex.getWriteBuffer());
-					this.droppedSessions.incrementAndGet();
-					this.missedRecords.incrementAndGet();
-				},
+				ex -> discardSession(ex, sessionTraffic),
 				() -> {
 					this.createdSessions.incrementAndGet();
 					this.trackedSessionsIndex.put(sessionId, sessionTraffic);
@@ -287,11 +283,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 					sessionTraffic.getMutationCount(),
 					finishedWithError
 				),
-				ex -> {
-					this.copyBufferPool.free(ex.getWriteBuffer());
-					this.droppedSessions.incrementAndGet();
-					this.missedRecords.incrementAndGet();
-				},
+				ex -> discardSession(ex, sessionTraffic),
 				() -> {
 					sessionTraffic.close();
 					this.copyBufferPool.free(bufferToReturn);
@@ -561,6 +553,28 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 	}
 
 	/**
+	 * Discards the current session by freeing associated memory resources and
+	 * incrementing relevant counters for dropped sessions and missed records.
+	 * This is typically invoked in scenarios where there's a memory shortage,
+	 * and the session needs to be closed with its data being discarded.
+	 *
+	 * @param ex             the exception containing the write buffer that needs to be freed
+	 * @param sessionTraffic the session traffic containing memory block IDs and record count
+	 */
+	private void discardSession(@Nonnull MemoryNotAvailableException ex, @Nonnull SessionTraffic sessionTraffic) {
+		this.copyBufferPool.free(ex.getWriteBuffer());
+		this.droppedSessions.incrementAndGet();
+		this.missedRecords.addAndGet(sessionTraffic.getRecordCount());
+		// when there is memory shortage, when session is closed - free the memory and throw away the data
+		final OfInt memoryBlockIds = sessionTraffic.getMemoryBlockIds();
+		while (memoryBlockIds.hasNext()) {
+			this.freeBlocks.offer(memoryBlockIds.nextInt());
+		}
+		// remove the session from the tracked sessions index
+		this.trackedSessionsIndex.remove(sessionTraffic.getSessionId());
+	}
+
+	/**
 	 * Calculates the current sampling rate as a percentage.
 	 * The sampling rate is determined based on the ratio of recorded records to the total of recorded and missed records.
 	 * If no records have been recorded or missed, the method returns 100% by default.
@@ -634,10 +648,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 			final T container = containerFactory.apply(sessionTraffic);
 			sessionTraffic.record(
 				container,
-				ex -> {
-					this.copyBufferPool.free(ex.getWriteBuffer());
-					this.missedRecords.incrementAndGet();
-				},
+				ex -> discardSession(ex, sessionTraffic),
 				this.recordedRecords::incrementAndGet
 			);
 		} else {

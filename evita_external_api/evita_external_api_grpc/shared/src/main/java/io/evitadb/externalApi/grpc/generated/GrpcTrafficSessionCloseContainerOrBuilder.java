@@ -52,20 +52,10 @@ public interface GrpcTrafficSessionCloseContainerOrBuilder extends
 
   /**
    * <pre>
-   * The number of records missed out in this session due to memory shortage (not sampling, sampling affects entire sessions).
-   * </pre>
-   *
-   * <code>int32 trafficRecordsMissedOut = 3;</code>
-   * @return The trafficRecordsMissedOut.
-   */
-  int getTrafficRecordsMissedOut();
-
-  /**
-   * <pre>
    * The overall number of queries executed in this session.
    * </pre>
    *
-   * <code>int32 queryCount = 4;</code>
+   * <code>int32 queryCount = 3;</code>
    * @return The queryCount.
    */
   int getQueryCount();
@@ -75,7 +65,7 @@ public interface GrpcTrafficSessionCloseContainerOrBuilder extends
    * The overall number of entities fetched in this session (excluding the entities fetched by queries).
    * </pre>
    *
-   * <code>int32 entityFetchCount = 5;</code>
+   * <code>int32 entityFetchCount = 4;</code>
    * @return The entityFetchCount.
    */
   int getEntityFetchCount();
@@ -85,7 +75,7 @@ public interface GrpcTrafficSessionCloseContainerOrBuilder extends
    * The overall number of mutations executed in this session.
    * </pre>
    *
-   * <code>int32 mutationCount = 6;</code>
+   * <code>int32 mutationCount = 5;</code>
    * @return The mutationCount.
    */
   int getMutationCount();

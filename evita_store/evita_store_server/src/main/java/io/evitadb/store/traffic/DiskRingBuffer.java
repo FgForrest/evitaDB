@@ -28,7 +28,6 @@ import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
 import io.evitadb.api.exception.IndexNotReady;
 import io.evitadb.api.requestResponse.trafficRecording.Label;
-import io.evitadb.api.requestResponse.trafficRecording.QueryContainer;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest.TrafficRecordingType;
@@ -40,6 +39,7 @@ import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.spi.SessionLocation;
 import io.evitadb.store.spi.SessionSink;
+import io.evitadb.store.spi.TrafficRecorder;
 import io.evitadb.store.traffic.OffHeapTrafficRecorder.MemoryNotAvailableException;
 import io.evitadb.stream.RandomAccessFileInputStream;
 import io.evitadb.utils.FileUtils;
@@ -197,52 +197,6 @@ public class DiskRingBuffer {
 		}
 		return locationA.startingPosition() <= locationB.endPosition()
 			&& locationB.startingPosition() <= locationA.endPosition();
-	}
-
-	/**
-	 * Creates a predicate for filtering TrafficRecording objects based on the criteria specified
-	 * in the given TrafficRecordingCaptureRequest. The predicate checks each TrafficRecording
-	 * against multiple criteria including type, sessionId, creation time, fetched bytes, and duration.
-	 *
-	 * @param request the TrafficRecordingCaptureRequest containing the criteria to be used for filtering
-	 * @return a predicate that evaluates to true for TrafficRecording objects matching the specified criteria
-	 */
-	@Nonnull
-	private static Predicate<TrafficRecording> createRequestPredicate(@Nonnull TrafficRecordingCaptureRequest request) {
-		Predicate<TrafficRecording> requestPredicate = tr -> true;
-		if (request.sessionId() != null) {
-			requestPredicate = requestPredicate.and(
-				tr -> request.sessionId().equals(tr.sessionId())
-			);
-		}
-		if (request.since() != null) {
-			requestPredicate = requestPredicate.and(
-				tr -> tr.created().isAfter(request.since())
-			);
-		}
-		if (request.fetchingMoreBytesThan() != null) {
-			requestPredicate = requestPredicate.and(
-				tr -> tr.ioFetchedSizeBytes() > request.fetchingMoreBytesThan()
-			);
-		}
-		if (request.longerThan() != null) {
-			final long thresholdMillis = request.longerThan().toMillis();
-			requestPredicate = requestPredicate.and(
-				trafficRecording -> trafficRecording.durationInMilliseconds() > thresholdMillis
-			);
-		}
-		if (request.types() != null) {
-			requestPredicate = requestPredicate.and(
-				tr -> Arrays.stream(request.types()).anyMatch(it -> it == tr.type())
-			);
-		}
-		if (request.labels() != null) {
-			requestPredicate = requestPredicate.and(
-				tr -> tr instanceof QueryContainer qc &&
-					Arrays.stream(request.labels()).anyMatch(it -> Arrays.asList(qc.labels()).contains(it))
-			);
-		}
-		return requestPredicate;
 	}
 
 	/**
@@ -532,7 +486,7 @@ public class DiskRingBuffer {
 
 		final RandomAccessFileInputStream inputStream = this.getDiskBufferFileReadInputStream();
 		final long readerId = readerSequence.incrementAndGet();
-		final Predicate<TrafficRecording> requestPredicate = createRequestPredicate(request);
+		final Predicate<TrafficRecording> requestPredicate = TrafficRecorder.createRequestPredicate(request);
 		return sessionIndex.getSessionStream(request)
 			.flatMap(
 				it -> this.readSessionRecords(
@@ -763,7 +717,6 @@ public class DiskRingBuffer {
 		return Arrays.stream(waste)
 			.anyMatch(wasteRange -> Arrays.stream(recordRanges).anyMatch(wasteRange::overlaps));
 	}
-
 
 	/**
 	 * Reads session records from a specified file location and provides a stream of TrafficRecording objects.

@@ -169,7 +169,6 @@ public class TrafficCaptureConverter {
 				GrpcTrafficSessionCloseContainer.newBuilder()
 					.setCatalogVersion(sessionCloseContainer.catalogVersion())
 					.setTrafficRecordCount(sessionCloseContainer.trafficRecordCount())
-					.setTrafficRecordsMissedOut(sessionCloseContainer.trafficRecordsMissedOut())
 					.setQueryCount(sessionCloseContainer.queryCount())
 					.setEntityFetchCount(sessionCloseContainer.entityFetchCount())
 					.setMutationCount(sessionCloseContainer.mutationCount())

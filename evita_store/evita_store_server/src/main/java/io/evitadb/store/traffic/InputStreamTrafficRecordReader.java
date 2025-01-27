@@ -26,41 +26,49 @@ package io.evitadb.store.traffic;
 
 import com.esotericsoftware.kryo.Kryo;
 import io.evitadb.api.TrafficRecordingReader;
-import io.evitadb.api.exception.IndexNotReady;
-import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.store.kryo.ObservableInput;
+import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.query.QuerySerializationKryoConfigurer;
 import io.evitadb.store.service.KryoFactory;
+import io.evitadb.store.spi.SessionLocation;
 import io.evitadb.store.traffic.serializer.CurrentSessionRecordContext;
 import io.evitadb.store.wal.WalKryoConfigurer;
 import io.evitadb.stream.AbstractRandomAccessInputStream;
 import io.evitadb.utils.IOUtils;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
+import static io.evitadb.store.spi.TrafficRecorder.createRequestPredicate;
 import static io.evitadb.store.traffic.DiskRingBuffer.LEAD_DESCRIPTOR_BYTE_SIZE;
+import static java.util.Optional.ofNullable;
 
 /**
- * TODO JNO - document me
+ * InputStreamTrafficRecordReader reads traffic records from an input stream and allows querying of these records
+ * based on specific criteria. This class is not thread-safe and requires external synchronization if accessed from
+ * multiple threads.
+ *
+ * It makes use of a Kryo instance pool for deserialization purposes and maintains an index for the records to support
+ * efficient querying. The reader also handles session records and can stream recordings from storage based on a file
+ * location and session details.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
+@Slf4j
 @NotThreadSafe
 public class InputStreamTrafficRecordReader implements TrafficRecordingReader, Closeable {
-	/**
-	 * Byte buffer used for writing the descriptor to the disk buffer file.
-	 */
-	private final byte[] descriptorByteBufferArray = new byte[LEAD_DESCRIPTOR_BYTE_SIZE];
-	private final ByteBuffer descriptorByteBuffer = ByteBuffer.allocate(LEAD_DESCRIPTOR_BYTE_SIZE);
 	/**
 	 * Pool of Kryo instances used for serialization of traffic data.
 	 */
@@ -69,55 +77,81 @@ public class InputStreamTrafficRecordReader implements TrafficRecordingReader, C
 			.andThen(QuerySerializationKryoConfigurer.INSTANCE)
 			.andThen(TrafficRecordingSerializationKryoConfigurer.INSTANCE)
 	);
-
+	private final ObservableInput<AbstractRandomAccessInputStream> input;
 	/**
 	 * Index used for querying the traffic data.
 	 */
-	private final TrafficRecordingIndex index;
+	private final TrafficRecordingIndex sessionIndex;
 	/**
 	 * Input stream used for reading the traffic data.
 	 */
 	private final AbstractRandomAccessInputStream inputStream;
-	/**
-	 * Observable input stream used for reading the traffic data.
-	 */
-	private final ObservableInput<AbstractRandomAccessInputStream> input;
 
 	public InputStreamTrafficRecordReader(@Nonnull AbstractRandomAccessInputStream inputStream) throws IOException {
 		this.inputStream = inputStream;
-		this.index = new TrafficRecordingIndex();
+		this.sessionIndex = new TrafficRecordingIndex();
 		long position = 0L;
 
 		inputStream.seek(position);
 		this.input = new ObservableInput<>(inputStream);
 
-		final int read = inputStream.read(this.descriptorByteBufferArray, 0, this.descriptorByteBufferArray.length);
-		while (read == this.descriptorByteBufferArray.length) {
-			this.descriptorByteBuffer.put(this.descriptorByteBufferArray);
-			this.descriptorByteBuffer.flip();
-			final long sessionSequenceOrder = this.descriptorByteBuffer.getLong();
-			final int sessionRecordsCount = this.descriptorByteBuffer.getInt();
-			final int totalSize = this.descriptorByteBuffer.getInt();
+		final byte[] descriptorByteBufferArray = new byte[LEAD_DESCRIPTOR_BYTE_SIZE];
+		final ByteBuffer descriptorByteBuffer = ByteBuffer.allocate(LEAD_DESCRIPTOR_BYTE_SIZE);
+		int read = inputStream.read(descriptorByteBufferArray, 0, descriptorByteBufferArray.length);
+		position += read;
+
+		long lastSessionSequenceOrder = -1;
+		while (read == descriptorByteBufferArray.length) {
+			descriptorByteBuffer.clear();
+			descriptorByteBuffer.put(descriptorByteBufferArray);
+			descriptorByteBuffer.flip();
+			long sessionSequenceOrder = descriptorByteBuffer.getLong();
+			final int sessionRecordsCount = descriptorByteBuffer.getInt();
+			final int totalSize = descriptorByteBuffer.getInt();
+			this.sessionIndex.setupSession(new SessionLocation(sessionSequenceOrder, sessionRecordsCount, new FileLocation(position, totalSize)));
+
+			if (lastSessionSequenceOrder != -1 && lastSessionSequenceOrder + 1 != sessionSequenceOrder) {
+				log.warn(
+					"Session sequence order mismatch detected: expected {}, got {}",
+					lastSessionSequenceOrder + 1, sessionSequenceOrder
+				);
+			}
+
+			this.input.seekWithUnknownLength(position);
 			position += totalSize;
 			StorageRecord<TrafficRecording> theRecord;
-			do {
+			for (int i = 0; i < sessionRecordsCount; i++) {
 				theRecord = StorageRecord.read(
-					input,
+					this.input,
 					(theInput, recordLength) -> CurrentSessionRecordContext.fetch(
 						sessionSequenceOrder,
 						sessionRecordsCount,
-						() -> (TrafficRecording) this.trafficRecorderKryo.readClassAndObject(input)
+						() -> (TrafficRecording) this.trafficRecorderKryo.readClassAndObject(this.input)
 					)
 				);
-			} while (theRecord.fileLocation().endPosition() == position);
+				ofNullable(theRecord.payload()).ifPresent(
+					recording -> this.sessionIndex.indexRecording(sessionSequenceOrder, recording)
+				);
+			}
+
+			this.inputStream.seek(position);
+			read = inputStream.read(descriptorByteBufferArray);
+			position += read;
+			lastSessionSequenceOrder = sessionSequenceOrder;
 		}
 	}
 
 	@Nonnull
 	@Override
-	public Stream<TrafficRecording> getRecordings(@Nonnull TrafficRecordingCaptureRequest request)
-		throws TemporalDataNotAvailableException, IndexNotReady {
-		return Stream.empty();
+	public Stream<TrafficRecording> getRecordings(@Nonnull TrafficRecordingCaptureRequest request) {
+		final Predicate<TrafficRecording> requestPredicate = createRequestPredicate(request);
+		return this.sessionIndex.getSessionStream(request)
+			.flatMap(
+				it -> this.readSessionRecords(
+					it.sequenceOrder(), it.sessionRecordsCount(), it.fileLocation()
+				)
+			)
+			.filter(requestPredicate);
 	}
 
 	@Override
@@ -127,4 +161,57 @@ public class InputStreamTrafficRecordReader implements TrafficRecordingReader, C
 			this.input::close
 		);
 	}
+
+	/**
+	 * Reads session records from a specified file location and provides a stream of TrafficRecording objects.
+	 * The method ensures that the records are read only if the session exists and the file location is updated
+	 * accordingly to prevent redundant reads.
+	 *
+	 * @param sessionSequenceId the unique identifier for the session sequence to read records for
+	 * @param fileLocation      the file location specifying where to read the session records from
+	 * @return a stream of TrafficRecording objects read from the specified file location
+	 */
+	@Nonnull
+	private Stream<TrafficRecording> readSessionRecords(
+		long sessionSequenceId,
+		int sessionRecordsCount,
+		@Nonnull FileLocation fileLocation
+	) {
+		final AtomicLong lastLocationRead = new AtomicLong(-1);
+		return Stream.generate(
+				() -> {
+					final long lastFileLocation = lastLocationRead.get();
+					// finalize stream when the expected session end position is reached
+					if (lastFileLocation != -1L && lastFileLocation == fileLocation.endPosition()) {
+						return null;
+					} else {
+						// read the next record from the file
+						final long startPosition = lastLocationRead.get() == -1 ?
+							fileLocation.startingPosition() : lastFileLocation;
+						try {
+							this.input.seekWithUnknownLength(startPosition);
+							final StorageRecord<TrafficRecording> tr = StorageRecord.read(
+								this.input,
+								(theInput, recordLength) -> CurrentSessionRecordContext.fetch(
+									sessionSequenceId,
+									sessionRecordsCount,
+									() -> (TrafficRecording) trafficRecorderKryo.readClassAndObject(this.input)
+								)
+							);
+							lastLocationRead.set(startPosition + tr.fileLocation().recordLength());
+							// return the payload of the record
+							return tr.payload();
+						} catch (Exception ex) {
+							log.error(
+								"Error reading session #{} traffic record from disk buffer at position {}: {}",
+								sessionSequenceId, startPosition, ex.getMessage()
+							);
+							return null;
+						}
+					}
+				}
+			)
+			.takeWhile(Objects::nonNull);
+	}
+
 }

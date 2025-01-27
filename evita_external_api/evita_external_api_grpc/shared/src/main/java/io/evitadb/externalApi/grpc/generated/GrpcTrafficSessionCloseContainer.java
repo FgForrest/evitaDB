@@ -87,20 +87,15 @@ private static final long serialVersionUID = 0L;
           }
           case 24: {
 
-            trafficRecordsMissedOut_ = input.readInt32();
+            queryCount_ = input.readInt32();
             break;
           }
           case 32: {
 
-            queryCount_ = input.readInt32();
-            break;
-          }
-          case 40: {
-
             entityFetchCount_ = input.readInt32();
             break;
           }
-          case 48: {
+          case 40: {
 
             mutationCount_ = input.readInt32();
             break;
@@ -167,29 +162,14 @@ private static final long serialVersionUID = 0L;
     return trafficRecordCount_;
   }
 
-  public static final int TRAFFICRECORDSMISSEDOUT_FIELD_NUMBER = 3;
-  private int trafficRecordsMissedOut_;
-  /**
-   * <pre>
-   * The number of records missed out in this session due to memory shortage (not sampling, sampling affects entire sessions).
-   * </pre>
-   *
-   * <code>int32 trafficRecordsMissedOut = 3;</code>
-   * @return The trafficRecordsMissedOut.
-   */
-  @java.lang.Override
-  public int getTrafficRecordsMissedOut() {
-    return trafficRecordsMissedOut_;
-  }
-
-  public static final int QUERYCOUNT_FIELD_NUMBER = 4;
+  public static final int QUERYCOUNT_FIELD_NUMBER = 3;
   private int queryCount_;
   /**
    * <pre>
    * The overall number of queries executed in this session.
    * </pre>
    *
-   * <code>int32 queryCount = 4;</code>
+   * <code>int32 queryCount = 3;</code>
    * @return The queryCount.
    */
   @java.lang.Override
@@ -197,14 +177,14 @@ private static final long serialVersionUID = 0L;
     return queryCount_;
   }
 
-  public static final int ENTITYFETCHCOUNT_FIELD_NUMBER = 5;
+  public static final int ENTITYFETCHCOUNT_FIELD_NUMBER = 4;
   private int entityFetchCount_;
   /**
    * <pre>
    * The overall number of entities fetched in this session (excluding the entities fetched by queries).
    * </pre>
    *
-   * <code>int32 entityFetchCount = 5;</code>
+   * <code>int32 entityFetchCount = 4;</code>
    * @return The entityFetchCount.
    */
   @java.lang.Override
@@ -212,14 +192,14 @@ private static final long serialVersionUID = 0L;
     return entityFetchCount_;
   }
 
-  public static final int MUTATIONCOUNT_FIELD_NUMBER = 6;
+  public static final int MUTATIONCOUNT_FIELD_NUMBER = 5;
   private int mutationCount_;
   /**
    * <pre>
    * The overall number of mutations executed in this session.
    * </pre>
    *
-   * <code>int32 mutationCount = 6;</code>
+   * <code>int32 mutationCount = 5;</code>
    * @return The mutationCount.
    */
   @java.lang.Override
@@ -247,17 +227,14 @@ private static final long serialVersionUID = 0L;
     if (trafficRecordCount_ != 0) {
       output.writeInt32(2, trafficRecordCount_);
     }
-    if (trafficRecordsMissedOut_ != 0) {
-      output.writeInt32(3, trafficRecordsMissedOut_);
-    }
     if (queryCount_ != 0) {
-      output.writeInt32(4, queryCount_);
+      output.writeInt32(3, queryCount_);
     }
     if (entityFetchCount_ != 0) {
-      output.writeInt32(5, entityFetchCount_);
+      output.writeInt32(4, entityFetchCount_);
     }
     if (mutationCount_ != 0) {
-      output.writeInt32(6, mutationCount_);
+      output.writeInt32(5, mutationCount_);
     }
     unknownFields.writeTo(output);
   }
@@ -276,21 +253,17 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeInt32Size(2, trafficRecordCount_);
     }
-    if (trafficRecordsMissedOut_ != 0) {
-      size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(3, trafficRecordsMissedOut_);
-    }
     if (queryCount_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(4, queryCount_);
+        .computeInt32Size(3, queryCount_);
     }
     if (entityFetchCount_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(5, entityFetchCount_);
+        .computeInt32Size(4, entityFetchCount_);
     }
     if (mutationCount_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(6, mutationCount_);
+        .computeInt32Size(5, mutationCount_);
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -311,8 +284,6 @@ private static final long serialVersionUID = 0L;
         != other.getCatalogVersion()) return false;
     if (getTrafficRecordCount()
         != other.getTrafficRecordCount()) return false;
-    if (getTrafficRecordsMissedOut()
-        != other.getTrafficRecordsMissedOut()) return false;
     if (getQueryCount()
         != other.getQueryCount()) return false;
     if (getEntityFetchCount()
@@ -335,8 +306,6 @@ private static final long serialVersionUID = 0L;
         getCatalogVersion());
     hash = (37 * hash) + TRAFFICRECORDCOUNT_FIELD_NUMBER;
     hash = (53 * hash) + getTrafficRecordCount();
-    hash = (37 * hash) + TRAFFICRECORDSMISSEDOUT_FIELD_NUMBER;
-    hash = (53 * hash) + getTrafficRecordsMissedOut();
     hash = (37 * hash) + QUERYCOUNT_FIELD_NUMBER;
     hash = (53 * hash) + getQueryCount();
     hash = (37 * hash) + ENTITYFETCHCOUNT_FIELD_NUMBER;
@@ -484,8 +453,6 @@ private static final long serialVersionUID = 0L;
 
       trafficRecordCount_ = 0;
 
-      trafficRecordsMissedOut_ = 0;
-
       queryCount_ = 0;
 
       entityFetchCount_ = 0;
@@ -520,7 +487,6 @@ private static final long serialVersionUID = 0L;
       io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionCloseContainer result = new io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionCloseContainer(this);
       result.catalogVersion_ = catalogVersion_;
       result.trafficRecordCount_ = trafficRecordCount_;
-      result.trafficRecordsMissedOut_ = trafficRecordsMissedOut_;
       result.queryCount_ = queryCount_;
       result.entityFetchCount_ = entityFetchCount_;
       result.mutationCount_ = mutationCount_;
@@ -577,9 +543,6 @@ private static final long serialVersionUID = 0L;
       }
       if (other.getTrafficRecordCount() != 0) {
         setTrafficRecordCount(other.getTrafficRecordCount());
-      }
-      if (other.getTrafficRecordsMissedOut() != 0) {
-        setTrafficRecordsMissedOut(other.getTrafficRecordsMissedOut());
       }
       if (other.getQueryCount() != 0) {
         setQueryCount(other.getQueryCount());
@@ -705,56 +668,13 @@ private static final long serialVersionUID = 0L;
       return this;
     }
 
-    private int trafficRecordsMissedOut_ ;
-    /**
-     * <pre>
-     * The number of records missed out in this session due to memory shortage (not sampling, sampling affects entire sessions).
-     * </pre>
-     *
-     * <code>int32 trafficRecordsMissedOut = 3;</code>
-     * @return The trafficRecordsMissedOut.
-     */
-    @java.lang.Override
-    public int getTrafficRecordsMissedOut() {
-      return trafficRecordsMissedOut_;
-    }
-    /**
-     * <pre>
-     * The number of records missed out in this session due to memory shortage (not sampling, sampling affects entire sessions).
-     * </pre>
-     *
-     * <code>int32 trafficRecordsMissedOut = 3;</code>
-     * @param value The trafficRecordsMissedOut to set.
-     * @return This builder for chaining.
-     */
-    public Builder setTrafficRecordsMissedOut(int value) {
-
-      trafficRecordsMissedOut_ = value;
-      onChanged();
-      return this;
-    }
-    /**
-     * <pre>
-     * The number of records missed out in this session due to memory shortage (not sampling, sampling affects entire sessions).
-     * </pre>
-     *
-     * <code>int32 trafficRecordsMissedOut = 3;</code>
-     * @return This builder for chaining.
-     */
-    public Builder clearTrafficRecordsMissedOut() {
-
-      trafficRecordsMissedOut_ = 0;
-      onChanged();
-      return this;
-    }
-
     private int queryCount_ ;
     /**
      * <pre>
      * The overall number of queries executed in this session.
      * </pre>
      *
-     * <code>int32 queryCount = 4;</code>
+     * <code>int32 queryCount = 3;</code>
      * @return The queryCount.
      */
     @java.lang.Override
@@ -766,7 +686,7 @@ private static final long serialVersionUID = 0L;
      * The overall number of queries executed in this session.
      * </pre>
      *
-     * <code>int32 queryCount = 4;</code>
+     * <code>int32 queryCount = 3;</code>
      * @param value The queryCount to set.
      * @return This builder for chaining.
      */
@@ -781,7 +701,7 @@ private static final long serialVersionUID = 0L;
      * The overall number of queries executed in this session.
      * </pre>
      *
-     * <code>int32 queryCount = 4;</code>
+     * <code>int32 queryCount = 3;</code>
      * @return This builder for chaining.
      */
     public Builder clearQueryCount() {
@@ -797,7 +717,7 @@ private static final long serialVersionUID = 0L;
      * The overall number of entities fetched in this session (excluding the entities fetched by queries).
      * </pre>
      *
-     * <code>int32 entityFetchCount = 5;</code>
+     * <code>int32 entityFetchCount = 4;</code>
      * @return The entityFetchCount.
      */
     @java.lang.Override
@@ -809,7 +729,7 @@ private static final long serialVersionUID = 0L;
      * The overall number of entities fetched in this session (excluding the entities fetched by queries).
      * </pre>
      *
-     * <code>int32 entityFetchCount = 5;</code>
+     * <code>int32 entityFetchCount = 4;</code>
      * @param value The entityFetchCount to set.
      * @return This builder for chaining.
      */
@@ -824,7 +744,7 @@ private static final long serialVersionUID = 0L;
      * The overall number of entities fetched in this session (excluding the entities fetched by queries).
      * </pre>
      *
-     * <code>int32 entityFetchCount = 5;</code>
+     * <code>int32 entityFetchCount = 4;</code>
      * @return This builder for chaining.
      */
     public Builder clearEntityFetchCount() {
@@ -840,7 +760,7 @@ private static final long serialVersionUID = 0L;
      * The overall number of mutations executed in this session.
      * </pre>
      *
-     * <code>int32 mutationCount = 6;</code>
+     * <code>int32 mutationCount = 5;</code>
      * @return The mutationCount.
      */
     @java.lang.Override
@@ -852,7 +772,7 @@ private static final long serialVersionUID = 0L;
      * The overall number of mutations executed in this session.
      * </pre>
      *
-     * <code>int32 mutationCount = 6;</code>
+     * <code>int32 mutationCount = 5;</code>
      * @param value The mutationCount to set.
      * @return This builder for chaining.
      */
@@ -867,7 +787,7 @@ private static final long serialVersionUID = 0L;
      * The overall number of mutations executed in this session.
      * </pre>
      *
-     * <code>int32 mutationCount = 6;</code>
+     * <code>int32 mutationCount = 5;</code>
      * @return This builder for chaining.
      */
     public Builder clearMutationCount() {

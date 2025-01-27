@@ -35,22 +35,33 @@ import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
+import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.core.Evita;
 import io.evitadb.core.EvitaInternalSessionContract;
 import io.evitadb.core.traffic.TrafficRecordingSettings;
+import io.evitadb.store.traffic.InputStreamTrafficRecordReader;
+import io.evitadb.stream.AbstractRandomAccessInputStream;
+import io.evitadb.stream.RandomAccessFileInputStream;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.generator.DataGenerator;
+import io.evitadb.utils.IOUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.RandomAccessFile;
 import java.io.Serializable;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -427,18 +438,37 @@ public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 
 	@Nonnull
 	private String[] listAndVerifyFilesInArchive(@Nonnull FileForFetch fileForFetch) throws IOException {
-		final List<String> filesInZip = new ArrayList<>();
+		System.out.println("Verifying the content of the ZIP archive: " + fileForFetch);
+
+		final byte[] buffer = new byte[4_096];
+		final List<String> filesInZip = new ArrayList<>(16);
 		try (
 			final InputStream inputStream = evita.management().fetchFile(fileForFetch.fileId());
 			final ZipInputStream zipInputStream = new ZipInputStream(inputStream)
 		) {
-			while (zipInputStream.available() > 0) {
-				final ZipEntry nextEntry = zipInputStream.getNextEntry();
-				if (nextEntry == null) {
-					break;
-				}
-				// do something with the entry
+			ZipEntry nextEntry;
+			while ((nextEntry = zipInputStream.getNextEntry()) != null) {
 				filesInZip.add(nextEntry.getName());
+				if (nextEntry.getName().endsWith(".bin")) {
+					// extract the entry
+					final Path tempFile = Files.createTempFile("evitaTrafficRecordingTest", nextEntry.getName());
+					try (final OutputStream outputStream = new BufferedOutputStream(Files.newOutputStream(tempFile, StandardOpenOption.TRUNCATE_EXISTING), 4_096)) {
+						IOUtils.copy(zipInputStream, outputStream, buffer);
+					}
+					// verify the entry
+					try (
+						final AbstractRandomAccessInputStream tempInputStream = new RandomAccessFileInputStream(new RandomAccessFile(tempFile.toFile(), "r"));
+						final InputStreamTrafficRecordReader reader = new InputStreamTrafficRecordReader(tempInputStream)
+					) {
+						final long count = reader.getRecordings(
+							TrafficRecordingCaptureRequest.builder()
+								.build()
+						).count();
+						assertTrue(count > 0, "The file " + nextEntry.getName() + " contains no records.");
+						System.out.println(" - " + nextEntry.getName() + " contains " + count + " records.");
+					}
+				}
+				zipInputStream.closeEntry();
 			}
 		}
 		return filesInZip.toArray(String[]::new);

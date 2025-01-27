@@ -127,14 +127,12 @@ message GrpcTrafficSessionCloseContainer {
   int64 catalogVersion = 1;
   // The overall number of traffic records recorded for this session.
   int32 trafficRecordCount = 2;
-  // The number of records missed out in this session due to memory shortage (not sampling, sampling affects entire sessions).
-  int32 trafficRecordsMissedOut = 3;
   // The overall number of queries executed in this session.
-  int32 queryCount = 4;
+  int32 queryCount = 3;
   // The overall number of entities fetched in this session (excluding the entities fetched by queries).
-  int32 entityFetchCount = 5;
+  int32 entityFetchCount = 4;
   // The overall number of mutations executed in this session.
-  int32 mutationCount = 6;
+  int32 mutationCount = 5;
 }
 
 // This container holds information about the source query.

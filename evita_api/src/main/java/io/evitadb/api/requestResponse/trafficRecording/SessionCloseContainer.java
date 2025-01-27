@@ -43,7 +43,6 @@ import java.util.UUID;
  * @param ioFetchCount            the overall number of IO fetches performed in this session
  * @param ioFetchedSizeBytes      the overall total size of the data fetched in this session in bytes
  * @param trafficRecordCount      the overall number of traffic records recorded for this session
- * @param trafficRecordsMissedOut the number of records missed out in this session due to memory shortage or sampling
  * @param queryCount              the overall number of queries executed in this session
  * @param entityFetchCount        the overall number of entities fetched in this session (excluding the entities fetched by queries)
  * @param mutationCount           the overall number of mutations executed in this session
@@ -60,7 +59,6 @@ public record SessionCloseContainer(
 	int ioFetchCount,
 	int ioFetchedSizeBytes,
 	int trafficRecordCount,
-	int trafficRecordsMissedOut,
 	int queryCount,
 	int entityFetchCount,
 	int mutationCount,
@@ -94,7 +92,6 @@ public record SessionCloseContainer(
 			ioFetchCount,
 			ioFetchedSizeBytes,
 			trafficRecordCount,
-			trafficRecordsMissedOut,
 			queryCount,
 			entityFetchCount,
 			mutationCount,
