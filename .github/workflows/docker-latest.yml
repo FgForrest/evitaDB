@@ -57,7 +57,11 @@ jobs:
       - name: Extract major version
         id: major_version
         # create a new output variable with the major version (like 2024.4)
-        run: |        
+        run: |
+          if ! grep -Eq '^[0-9]{4}\.[0-9]+\.[0-9]+$' version.txt; then
+            echo "Invalid version format in version.txt"
+            exit 1
+          fi  
           echo "fullVersion=$(cat version.txt)"
           echo "fullVersion=$(cat version.txt)" >> $GITHUB_ENV
           echo "version=$(cat version.txt | cut -d'.' -f1,2)"

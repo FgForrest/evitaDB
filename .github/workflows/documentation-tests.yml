@@ -40,7 +40,7 @@ jobs:
 
       - name: Upload test results  # this upload test results but only if something was committed this day
         uses: actions/upload-artifact@v4
-        if: ${{ env.NEW_COMMIT_COUNT != '0' }} && always()
+        if: ${{ env.NEW_COMMIT_COUNT != '0' && always() }}
         with:
           name: test-results
           path: 'evita*/**/target/surefire-reports/TEST-*.xml'
