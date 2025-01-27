@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -101,10 +101,10 @@ public class ExactSorter implements Sorter {
 			}
 
 			// sort the filtered entity primary keys along the exact order in input
-			final int lastSortedItem = ArrayUtils.sortAlong(exactOrder, filteredRecordIds);
+			final int lastSortedItem = ArrayUtils.sortAlong(this.exactOrder, filteredRecordIds);
 
 			// copy the sorted data to result
-			final int toAppend = Math.min(lastSortedItem, endIndex - startIndex);
+			final int toAppend = Math.min(lastSortedItem - startIndex, endIndex - startIndex);
 			System.arraycopy(filteredRecordIds, startIndex, result, peak, toAppend);
 
 			// if there are no more records to sort or no additional sorter is present, return entire result
