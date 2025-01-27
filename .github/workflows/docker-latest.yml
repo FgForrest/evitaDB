@@ -62,11 +62,13 @@ jobs:
             echo "Invalid version format in version.txt"
             exit 1
           fi  
-          echo "fullVersion=$(cat version.txt | tr -d '\r\n')"
-          echo "fullVersion=$(cat version.txt | tr -d '\r\n')" >> $GITHUB_ENV
-          echo "version=$(cat version.txt | tr -d '\r\n' | cut -d'.' -f1,2)"
-          echo "version=$(cat version.txt | tr -d '\r\n' | cut -d'.' -f1,2)" >> $GITHUB_ENV    
-          echo "releaseDate=$(date +%Y-%m-%d)" >> $GITHUB_ENV    
+          export sanitizedVersionContents=$(tr -d '\r\n' < version.txt)
+          fullVersion=$sanitizedVersionContents
+          version=$(echo "$sanitizedVersionContents" | cut -d '.' -f1,2)
+          echo "fullVersion=$fullVersion" >> "$GITHUB_ENV"
+          echo "version=$version" >> "$GITHUB_ENV"
+          releaseDate=$(date +%Y-%m-%d)
+          echo "releaseDate=$releaseDate" >> "$GITHUB_ENV"    
 
       - name: Build and push Docker image
         env:
