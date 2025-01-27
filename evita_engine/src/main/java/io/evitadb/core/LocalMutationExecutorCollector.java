@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -171,7 +171,10 @@ class LocalMutationExecutorCollector {
 			if (entityMutation instanceof EntityRemoveMutation erm) {
 				result = getFullEntityById(entityMutation.getEntityPrimaryKey(), entitySchema, entityFetcher);
 				localMutations = erm.computeLocalMutationsForEntityRemoval(
-					Objects.requireNonNull(result.entity())
+					Objects.requireNonNull(
+						result.entity(),
+						"Entity `" + entitySchema.getName() + "` with primary key " + entityMutation.getEntityPrimaryKey() + " unexpectedly not found!"
+					)
 				);
 			} else {
 				localMutations = entityMutation.getLocalMutations();
