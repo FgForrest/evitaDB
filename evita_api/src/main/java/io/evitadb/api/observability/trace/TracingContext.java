@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import org.slf4j.MDC;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 /**
@@ -44,6 +45,20 @@ public interface TracingContext {
 	 * Name of property representing the trace identifier in the {@link MDC}.
 	 */
 	String MDC_TRACE_ID_PROPERTY = "traceId";
+
+	/**
+	 * Returns the trace identifier associated with the trace.
+	 * @return the trace identifier
+	 */
+	@Nonnull
+	Optional<String> getTraceId();
+
+	/**
+	 * Returns the client identifier associated with the trace.
+	 * @return the client identifier
+	 */
+	@Nonnull
+	Optional<String> getClientId();
 
 	/**
 	 * Returns a reference to currently active underlying context implementation.

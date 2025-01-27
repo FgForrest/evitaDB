@@ -35,6 +35,7 @@ java \
         -jar "target/evita-server.jar" \
         "configDir=../conf/" \
         "logback.configurationFile=./logback.xml" \
+        "server.trafficRecording.enabled=true " \
         "storage.storageDirectory=../data " \
         "api.exposedOn=localhost" \
         "api.accessLog=true" \

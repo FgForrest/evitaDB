@@ -110,16 +110,6 @@ import java.util.OptionalInt;
 public class Segment extends AbstractOrderConstraintContainer implements GenericConstraint<OrderConstraint> {
 	@Serial private static final long serialVersionUID = -4576848889850648026L;
 
-	/**
-	 * Internal constructor, should be used only by deserializers.
-	 * @param children The order constraints of this segment.
-	 * @param additionalChildren The additional constraints of this segment.
-	 */
-	@Nonnull
-	public static Segment _internalBuild(Segment[] children, Constraint<?>[] additionalChildren) {
-		return new Segment(children, additionalChildren);
-	}
-
 	private Segment(@Nonnull OrderConstraint[] children, @Nonnull Constraint<?>... additionalChildren) {
 		super(children, additionalChildren);
 	}

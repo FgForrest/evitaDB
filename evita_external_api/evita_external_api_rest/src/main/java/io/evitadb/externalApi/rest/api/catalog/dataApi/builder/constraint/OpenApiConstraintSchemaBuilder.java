@@ -38,6 +38,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ContainerKe
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.WrapperObjectKey;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintProcessingUtils;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
+import io.evitadb.externalApi.dataType.Any;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.rest.api.dataType.DataTypesConverter;
 import io.evitadb.externalApi.rest.api.dataType.DataTypesConverter.ConvertedEnum;
@@ -156,15 +157,10 @@ public abstract class OpenApiConstraintSchemaBuilder
 	                                                          @Nullable ValueTypeSupplier valueTypeSupplier) {
 		final Class<? extends Serializable> valueParameterType = valueParameter.type();
 		if (isJavaTypeGeneric(valueParameterType)) {
-			// value has generic type, we need to supply value type
-			Assert.isPremiseValid(
-				valueTypeSupplier != null,
-				() -> createSchemaBuildingError(
-					"Value parameter `" + valueParameter.name() + "` has generic type but no value type supplier is present."
-				)
-			);
-
-			final Class<?> suppliedValueType = valueTypeSupplier.apply(valueParameter);
+			// value has generic type, we need to supply value type or fallback to generic GQL type
+			final Class<?> suppliedValueType = valueTypeSupplier != null
+				? valueTypeSupplier.apply(valueParameter)
+				: Any.class;
 			Assert.isPremiseValid(
 				suppliedValueType != null,
 				() -> createSchemaBuildingError("Expected value type supplier to supply type not null.")

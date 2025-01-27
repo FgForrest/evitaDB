@@ -38,6 +38,6 @@ public sealed interface ChangeCaptureRequest permits ChangeSystemCaptureRequest,
 	 * The requested content of the capture, by default only the header information is sent.
 	 */
 	@Nonnull
-	CaptureContent content();
+	ChangeCaptureContent content();
 
 }

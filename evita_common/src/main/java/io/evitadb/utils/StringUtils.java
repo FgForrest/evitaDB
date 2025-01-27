@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -403,6 +403,19 @@ public class StringUtils {
 	@Nonnull
 	public static String rightPad(@Nonnull String theText, @Nonnull String padCharacter, int requestedSize) {
 		return theText + padCharacter.repeat(Math.max(0, requestedSize - theText.length()));
+	}
+
+	/**
+	 * Returns `theText` padded with `padCharacter` to the requested size on the left.
+	 *
+	 * @param theText       to repeat
+	 * @param padCharacter  padding character
+	 * @param requestedSize requested total size
+	 * @return padded string
+	 */
+	@Nonnull
+	public static String leftPad(@Nonnull String theText, @Nonnull String padCharacter, int requestedSize) {
+		return padCharacter.repeat(Math.max(0, requestedSize - theText.length())) + theText;
 	}
 
 	/**

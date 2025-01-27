@@ -32,6 +32,7 @@ import io.evitadb.utils.Assert;
 import io.evitadb.utils.BitUtils;
 import lombok.Getter;
 
+import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -115,17 +116,23 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 	 */
 	private int atomicPosition = -1;
 
+	public ObservableOutput(@Nonnull T outputStream, @Nonnull byte[] buffer) {
+		super(buffer);
+		super.setOutputStream(outputStream);
+		this.flushSize = buffer.length;
+	}
+
 	/**
 	 * Initializes {@link ObservableInput} with recommended settings for SSD drives.
 	 *
 	 * @implNote <a href="https://codecapsule.com/2014/02/12/coding-for-ssds-part-6-a-summary-what-every-programmer-should-know-about-solid-state-drives/">Source</a>
 	 * @param bufferSize maximal size of the single record that can be stored
 	 */
-	public ObservableOutput(T outputStream, int bufferSize, long currentFileSize) {
+	public ObservableOutput(@Nonnull T outputStream, int bufferSize, long currentFileSize) {
 		this(outputStream, 16_384, bufferSize, currentFileSize);
 	}
 
-	public ObservableOutput(T outputStream, int flushSize, int bufferSize, long currentFileSize) {
+	public ObservableOutput(@Nonnull T outputStream, int flushSize, int bufferSize, long currentFileSize) {
 		super(outputStream, bufferSize);
 		if (bufferSize < flushSize) {
 			throw new StorageException("Buffer size cannot be lower than flush limit with some reserve space!");
@@ -236,16 +243,6 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 	public T getOutputStream() {
 		//noinspection unchecked
 		return (T) super.getOutputStream();
-	}
-
-	@Override
-	public void setBuffer(byte[] buffer) {
-		throw new UnsupportedOperationException();
-	}
-
-	@Override
-	public void setBuffer(byte[] buffer, int maxBufferSize) {
-		throw new UnsupportedOperationException();
 	}
 
 	@Override

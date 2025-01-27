@@ -23,11 +23,13 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher;
 
+import graphql.GraphQLContext;
 import graphql.execution.DataFetcherResult;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import graphql.schema.SelectedField;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.query.HeadConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.RequireConstraint;
@@ -36,6 +38,8 @@ import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.PriceInCurrency;
 import io.evitadb.api.query.filter.PriceInPriceLists;
 import io.evitadb.api.query.filter.PriceValidIn;
+import io.evitadb.api.query.head.Head;
+import io.evitadb.api.query.head.Label;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.Require;
@@ -46,7 +50,6 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
@@ -56,6 +59,7 @@ import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
 import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidResponseUsageException;
 import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
+import io.evitadb.externalApi.graphql.traffic.GraphQLQueryLabels;
 import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 
@@ -70,12 +74,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.api.query.Query.query;
-import static io.evitadb.api.query.QueryConstraints.collection;
-import static io.evitadb.api.query.QueryConstraints.require;
-import static io.evitadb.api.query.QueryConstraints.strip;
+import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
@@ -96,6 +99,7 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 	 */
 	@Nonnull private final Map<String, EntitySchemaContract> referencedEntitySchemas;
 
+	@Nonnull private final HeadConstraintResolver headConstraintResolver;
 	@Nonnull private final FilterConstraintResolver filterConstraintResolver;
 	@Nonnull private final OrderConstraintResolver orderConstraintResolver;
 	@Nonnull private final RequireConstraintResolver requireConstraintResolver;
@@ -128,6 +132,7 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 				this.referencedEntitySchemas.put(referenceSchema.getName(), referencedEntitySchema);
 			});
 
+		this.headConstraintResolver = new HeadConstraintResolver(catalogSchema);
 		this.filterConstraintResolver = new FilterConstraintResolver(catalogSchema);
 		this.orderConstraintResolver = new OrderConstraintResolver(
 			catalogSchema,
@@ -166,23 +171,21 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
     @Nonnull
     @Override
     public DataFetcherResult<EvitaResponse<EntityClassifier>> get(DataFetchingEnvironment environment) {
+	    final GraphQLContext graphQlContext = environment.getGraphQlContext();
+
         final Arguments arguments = Arguments.from(environment);
-		final ExecutedEvent requestExecutedEvent = environment.getGraphQlContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
+	    final ExecutedEvent requestExecutedEvent = graphQlContext.get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
 
 	    final Query query = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> {
-			final FilterBy filterBy = buildFilterBy(arguments);
+			final Head head = buildHead(environment, arguments);
+		    final FilterBy filterBy = buildFilterBy(arguments);
 			final OrderBy orderBy = buildOrderBy(arguments);
 			final Require require = buildRequire(environment, arguments, extractDesiredLocale(filterBy));
-			return query(
-				collection(entitySchema.getName()),
-				filterBy,
-				orderBy,
-				require
-			);
+			return query(head, filterBy, orderBy, require);
 		});
 		log.debug("Generated evitaDB query for entity query fetch of type `{}` is `{}`.", entitySchema.getName(), query);
 
-		final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
+		final EvitaSessionContract evitaSession = graphQlContext.get(GraphQLContextKey.EVITA_SESSION);
 		final EvitaResponse<EntityClassifier> response = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
 			evitaSession.query(query, EntityClassifier.class));
 
@@ -190,6 +193,31 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 			.data(response)
 			.localContext(buildResultContext(query))
 			.build();
+	}
+
+	@Nullable
+	private Head buildHead(@Nonnull DataFetchingEnvironment environment, @Nonnull Arguments arguments) {
+		final List<HeadConstraint> headConstraints = new LinkedList<>();
+		headConstraints.add(collection(entitySchema.getName()));
+		headConstraints.add(label(Label.LABEL_SOURCE_TYPE, GraphQLQueryLabels.GRAPHQL_SOURCE_TYPE_VALUE));
+		headConstraints.add(label(GraphQLQueryLabels.OPERATION_NAME, environment.getOperationDefinition().getName()));
+
+		final GraphQLContext graphQlContext = environment.getGraphQlContext();
+		final UUID sourceRecordingId = graphQlContext.get(GraphQLContextKey.TRAFFIC_SOURCE_QUERY_RECORDING_ID);
+		if (sourceRecordingId != null) {
+			headConstraints.add(label(Label.LABEL_SOURCE_QUERY, sourceRecordingId));
+		}
+
+		final Head userHeadConstraints = (Head) headConstraintResolver.resolve(
+			entitySchema.getName(),
+			QueryEntitiesHeaderDescriptor.HEAD.name(),
+			arguments.head()
+		);
+		if (userHeadConstraints != null) {
+			headConstraints.addAll(Arrays.asList(userHeadConstraints.getChildren()));
+		}
+
+		return head(headConstraints.toArray(HeadConstraint[]::new));
 	}
 
 	@Nullable
@@ -320,16 +348,18 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 	/**
 	 * Holds parsed GraphQL query arguments relevant for entity query
 	 */
-	private record Arguments(@Nullable Object filterBy,
+	private record Arguments(@Nullable Object head,
+	                         @Nullable Object filterBy,
 	                         @Nullable Object orderBy,
 	                         @Nullable Object require) {
 
 		private static Arguments from(@Nonnull DataFetchingEnvironment environment) {
+			final Object head = environment.getArgument(QueryEntitiesHeaderDescriptor.HEAD.name());
 			final Object filterBy = environment.getArgument(QueryEntitiesHeaderDescriptor.FILTER_BY.name());
 			final Object orderBy = environment.getArgument(QueryEntitiesHeaderDescriptor.ORDER_BY.name());
 			final Object require = environment.getArgument(QueryEntitiesHeaderDescriptor.REQUIRE.name());
 
-			return new Arguments(filterBy, orderBy, require);
+			return new Arguments(head, filterBy, orderBy, require);
 		}
 	}
 }

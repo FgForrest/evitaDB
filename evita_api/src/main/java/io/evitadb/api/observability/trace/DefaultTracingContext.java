@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 /**
@@ -44,6 +45,18 @@ public class DefaultTracingContext implements TracingContext {
 	public TracingContextReference<?> getCurrentContext() {
 		// this is dummy implementation, it doesn't do anything
 		return EMPTY_CONTEXT_HOLDER;
+	}
+
+	@Nonnull
+	@Override
+	public Optional<String> getTraceId() {
+		return Optional.empty();
+	}
+
+	@Nonnull
+	@Override
+	public Optional<String> getClientId() {
+		return Optional.empty();
 	}
 
 	@Override

@@ -24,7 +24,10 @@
 package io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint;
 
 import com.linecorp.armeria.common.HttpMethod;
+import io.evitadb.api.query.HeadConstraint;
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.head.Head;
+import io.evitadb.api.query.head.Label;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.NotFoundEndpointResponse;
@@ -34,13 +37,22 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.Requi
 import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
 import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
 import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
+import io.evitadb.externalApi.rest.traffic.RestQueryLabels;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+
+import static io.evitadb.api.query.QueryConstraints.collection;
+import static io.evitadb.api.query.QueryConstraints.head;
+import static io.evitadb.api.query.QueryConstraints.label;
 
 /**
  * Handle requests for unknown entity when entity is identified only by its URL or Code.
@@ -65,6 +77,7 @@ public class GetUnknownEntityHandler extends EntityHandler<CatalogRestHandlingCo
 				requestExecutedEvent.finishInputDeserialization();
 
 				final Query query = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> Query.query(
+					buildHead(executionContext),
 					FilterByConstraintFromRequestQueryBuilder.buildFilterByForUnknownEntity(parametersFromRequest, restHandlingContext.getCatalogSchema()),
 					RequireConstraintFromRequestQueryBuilder.buildRequire(parametersFromRequest)
 				));
@@ -83,6 +96,19 @@ public class GetUnknownEntityHandler extends EntityHandler<CatalogRestHandlingCo
 					.orElse(new NotFoundEndpointResponse());
 			}
 		);
+	}
+
+	@Nullable
+	protected Head buildHead(@Nonnull RestEndpointExecutionContext executionContext) {
+		final List<HeadConstraint> headConstraints = new LinkedList<>();
+		headConstraints.add(label(Label.LABEL_SOURCE_TYPE, RestQueryLabels.REST_SOURCE_TYPE_VALUE));
+
+		executionContext.trafficSourceQueryRecordingId()
+			.ifPresent(uuid -> headConstraints.add(label(Label.LABEL_SOURCE_QUERY, uuid)));
+
+		headConstraints.addAll(parseQueryLabelsFromHeaders(executionContext));
+
+		return head(headConstraints.toArray(HeadConstraint[]::new));
 	}
 
 	@Nonnull

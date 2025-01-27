@@ -403,7 +403,7 @@ public interface GrpcReferenceSchemaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 13;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant>
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant> 
       getNameVariantList();
   /**
    * <pre>
@@ -428,7 +428,7 @@ public interface GrpcReferenceSchemaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 13;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder> 
       getNameVariantOrBuilderList();
   /**
    * <pre>
@@ -447,7 +447,7 @@ public interface GrpcReferenceSchemaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant entityTypeNameVariant = 14;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant>
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant> 
       getEntityTypeNameVariantList();
   /**
    * <pre>
@@ -472,7 +472,7 @@ public interface GrpcReferenceSchemaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant entityTypeNameVariant = 14;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder> 
       getEntityTypeNameVariantOrBuilderList();
   /**
    * <pre>
@@ -491,7 +491,7 @@ public interface GrpcReferenceSchemaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant groupTypeNameVariant = 15;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant>
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant> 
       getGroupTypeNameVariantList();
   /**
    * <pre>
@@ -516,7 +516,7 @@ public interface GrpcReferenceSchemaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant groupTypeNameVariant = 15;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder> 
       getGroupTypeNameVariantOrBuilderList();
   /**
    * <pre>

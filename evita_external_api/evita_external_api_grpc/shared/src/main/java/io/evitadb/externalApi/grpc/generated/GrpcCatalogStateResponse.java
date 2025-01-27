@@ -468,7 +468,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setStateValue(int value) {
-
+      
       state_ = value;
       onChanged();
       return this;
@@ -500,7 +500,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-
+      
       state_ = value.getNumber();
       onChanged();
       return this;
@@ -514,7 +514,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearState() {
-
+      
       state_ = 0;
       onChanged();
       return this;

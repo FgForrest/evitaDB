@@ -39,6 +39,7 @@ import java.util.PrimitiveIterator.OfLong;
  * Composite array is a way around fixed size arrays. It allows to have arrays with elastic size composed of handful of
  * smaller arrays of specified CHUNK_SIZE, that are created as necessary. This class is similar to ArrayList but doesn't
  * reallocate entire array to the bigger one, just asks for another small chunk if the current array limit is exceeded.
+ * This implementation is append only.
  *
  * When you know the array will hold ordered distinct longs it's much more efficient to use Roaring64Bitmap instead of
  * this data structure.

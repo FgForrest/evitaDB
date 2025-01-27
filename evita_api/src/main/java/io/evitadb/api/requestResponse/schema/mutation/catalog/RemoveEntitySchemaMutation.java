@@ -44,7 +44,7 @@ import java.io.Serial;
 
 /**
  * Mutation is responsible for removing an existing {@link EntitySchemaContract} - or more precisely the entity
- * collection instance itself. The mutation is used by {@link CatalogContract#deleteCollectionOfEntity(String, EvitaSessionContract)}
+ * collection instance itself. The mutation is used by {@link CatalogContract#deleteCollectionOfEntity(EvitaSessionContract, String)}
  * method internally.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022

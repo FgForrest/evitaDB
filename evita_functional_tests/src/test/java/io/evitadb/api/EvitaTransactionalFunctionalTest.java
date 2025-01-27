@@ -161,7 +161,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 	};
 	private static final Pattern DATE_TIME_PATTERN_1 = Pattern.compile("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d+\\+\\d{2}:\\d{2}");
 	private static final Pattern DATE_TIME_PATTERN_2 = Pattern.compile("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d+Z");
-	private static final Pattern LAG_PATTERN = Pattern.compile("lag \\d*m?s");
+	private static final Pattern LAG_PATTERN = Pattern.compile("lag -?\\d*m?s");
 	private static final Supplier<DataGenerator> GENERATOR_FACTORY = () -> new DataGenerator.Builder()
 		.withCurrencies(CURRENCY_CZK)
 		.withPriceLists(PRICE_LIST_BASIC)

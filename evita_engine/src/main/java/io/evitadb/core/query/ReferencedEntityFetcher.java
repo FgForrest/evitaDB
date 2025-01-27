@@ -246,6 +246,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		final QueryPlanningContext nestedQueryContext = referencedCollection.createQueryContext(queryContext, fetchRequest, queryContext.getEvitaSession());
 		final Map<String, RequirementContext> referenceEntityFetch = fetchRequest.getReferenceEntityFetch();
 		final ReferenceFetcher subReferenceFetcher = createSubReferenceFetcher(
+			fetchRequest,
 			fetchRequest.getHierarchyContent(),
 			referenceEntityFetch,
 			fetchRequest.getDefaultReferenceRequirement(),
@@ -287,6 +288,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		final QueryPlanningContext nestedQueryContext = hierarchyCollection.createQueryContext(queryContext, fetchRequest, queryContext.getEvitaSession());
 		final Map<String, RequirementContext> referenceEntityFetch = fetchRequest.getReferenceEntityFetch();
 		final ReferenceFetcher subReferenceFetcher = createSubReferenceFetcher(
+			fetchRequest,
 			null,
 			referenceEntityFetch,
 			fetchRequest.getDefaultReferenceRequirement(),
@@ -332,7 +334,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 					entityIndex.put(entity.getPrimaryKey(), entity);
 				} else {
 					// if not, fetch the fresh entity from the collection
-					entityCollection.getEntityDecorator(
+					entityCollection.fetchEntityDecorator(
 							referencedRecordId, fetchRequest, queryContext.getEvitaSession()
 						)
 						.ifPresent(entity -> entityIndex.put(entity.getPrimaryKey(), entity));
@@ -361,6 +363,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 */
 	@Nonnull
 	private static ReferenceFetcher createSubReferenceFetcher(
+		@Nonnull EvitaRequest evitaRequest,
 		@Nullable HierarchyContent hierarchyContent,
 		@Nonnull Map<String, RequirementContext> referenceEntityFetch,
 		@Nullable RequirementContext defaultRequirementContext,

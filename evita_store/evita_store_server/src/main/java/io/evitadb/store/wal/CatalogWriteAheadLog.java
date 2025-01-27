@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -54,7 +54,6 @@ import io.evitadb.store.exception.WriteAheadLogCorruptedException;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
-import io.evitadb.store.offsetIndex.stream.RandomAccessFileInputStream;
 import io.evitadb.store.spi.OffHeapWithFileBackupReference;
 import io.evitadb.store.spi.exception.CatalogWriteAheadLastTransactionMismatchException;
 import io.evitadb.store.spi.model.reference.WalFileReference;
@@ -63,6 +62,7 @@ import io.evitadb.store.wal.supplier.ReverseMutationSupplier;
 import io.evitadb.store.wal.supplier.TransactionLocations;
 import io.evitadb.store.wal.supplier.TransactionMutationWithLocation;
 import io.evitadb.store.wal.transaction.TransactionMutationSerializer;
+import io.evitadb.stream.RandomAccessFileInputStream;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.FileUtils;

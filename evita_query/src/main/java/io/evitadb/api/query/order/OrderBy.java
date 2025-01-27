@@ -29,6 +29,7 @@ import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -84,15 +85,20 @@ public class OrderBy extends AbstractOrderConstraintContainer implements Generic
 	@Nullable
 	public OrderConstraint getChild() {
 		final OrderConstraint[] children = getChildren();
-		if (children.length > 1) {
-			throw new IllegalStateException("OrderBy ordering query has more than one child!");
-		}
+		Assert.isPremiseValid(
+			children.length <= 1,
+			"OrderBy ordering query has more than one child!"
+		);
 		return children.length == 1 ? children[0] : null;
 	}
 
 	@Nonnull
 	@Override
 	public OrderConstraint getCopyWithNewChildren(@Nonnull OrderConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+		Assert.isPremiseValid(
+			additionalChildren.length == 0,
+			"OrderBy ordering query allows no additional children!"
+		);
 		return new OrderBy(children);
 	}
 

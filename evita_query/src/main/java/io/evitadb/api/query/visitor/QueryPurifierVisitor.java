@@ -53,16 +53,21 @@ public class QueryPurifierVisitor implements ConstraintVisitor {
 	private final UnaryOperator<Constraint<?>> constraintTranslator;
 	private Constraint<?> result = null;
 
-	public static Constraint<?> purify(@Nonnull Constraint<?> constraint) {
+	@Nullable
+	public static <T extends Constraint<T>> T purify(@Nonnull T constraint) {
 		final QueryPurifierVisitor visitor = new QueryPurifierVisitor();
 		constraint.accept(visitor);
-		return visitor.getResult();
+		//noinspection unchecked
+		return (T) visitor.getResult();
 	}
 
-	public static Constraint<?> purify(@Nonnull Constraint<?> constraint, @Nullable UnaryOperator<Constraint<?>> constraintTranslator) {
-		final QueryPurifierVisitor visitor = new QueryPurifierVisitor(constraintTranslator);
+	@Nullable
+	public static <T extends Constraint<T>> T purify(@Nonnull T constraint, @Nullable UnaryOperator<T> constraintTranslator) {
+		//noinspection unchecked
+		final QueryPurifierVisitor visitor = new QueryPurifierVisitor((UnaryOperator<Constraint<?>>) constraintTranslator);
 		constraint.accept(visitor);
-		return visitor.getResult();
+		//noinspection unchecked
+		return (T) visitor.getResult();
 	}
 
 	/**
@@ -143,9 +148,9 @@ public class QueryPurifierVisitor implements ConstraintVisitor {
 		}
 	}
 
-	@Nonnull
+	@Nullable
 	public Constraint<?> getResult() {
-		return result;
+		return this.result;
 	}
 
 	/**

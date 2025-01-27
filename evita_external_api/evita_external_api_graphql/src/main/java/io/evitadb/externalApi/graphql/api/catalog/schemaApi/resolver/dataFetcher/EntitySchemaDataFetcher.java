@@ -47,7 +47,7 @@ public class EntitySchemaDataFetcher implements DataFetcher<EntitySchemaContract
 
 	@Nonnull
 	@Override
-	public EntitySchemaContract get(@Nonnull DataFetchingEnvironment environment) {
+	public EntitySchemaContract get(DataFetchingEnvironment environment) {
 		final ExecutedEvent requestExecutedEvent = environment.getGraphQlContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
 		final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
 		return requestExecutedEvent.measureInternalEvitaDBExecution(() -> evitaSession.getEntitySchemaOrThrow(entityType));

@@ -577,13 +577,16 @@ public class EvitaClientSession implements EvitaSessionContract {
 				)
 		);
 		if (EntityReferenceContract.class.isAssignableFrom(expectedType)) {
+			final int[] primaryKeys = grpcResponse.getRecordPage().getEntityReferencesList().stream()
+				.mapToInt(GrpcEntityReference::getPrimaryKey)
+				.toArray();
 			final DataChunk<EntityReference> recordPage = ResponseConverter.convertToDataChunk(
 				grpcResponse,
 				grpcRecordPage -> EntityConverter.toEntityReferences(grpcRecordPage.getEntityReferencesList())
 			);
 			//noinspection unchecked
 			return (T) new EvitaEntityReferenceResponse(
-				finalQuery, recordPage,
+				finalQuery, recordPage, primaryKeys,
 				getEvitaResponseExtraResults(
 					grpcResponse,
 					new EvitaRequest(
@@ -599,8 +602,12 @@ public class EvitaClientSession implements EvitaSessionContract {
 				.map(io.evitadb.api.query.head.Collection::getEntityType)
 				.orElse(null);
 
+			final int[] primaryKeys;
 			final DataChunk<S> recordPage;
 			if (grpcResponse.getRecordPage().getBinaryEntitiesList().isEmpty()) {
+				primaryKeys = grpcResponse.getRecordPage().getSealedEntitiesList().stream()
+					.mapToInt(GrpcSealedEntity::getPrimaryKey)
+					.toArray();
 				// convert to Sealed entities
 				recordPage = ResponseConverter.convertToDataChunk(
 					grpcResponse,
@@ -620,6 +627,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 					)
 				);
 			} else {
+				primaryKeys = grpcResponse.getRecordPage().getBinaryEntitiesList().stream()
+					.mapToInt(GrpcBinaryEntity::getPrimaryKey)
+					.toArray();
 				// parse the entities
 				//noinspection unchecked
 				recordPage = ResponseConverter.convertToDataChunk(
@@ -634,7 +644,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 			//noinspection unchecked
 			return (T) new EvitaEntityResponse<>(
-				finalQuery, recordPage,
+				finalQuery, recordPage, primaryKeys,
 				getEvitaResponseExtraResults(
 					grpcResponse,
 					new EvitaRequest(
@@ -704,7 +714,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	public <T extends Serializable> T enrichEntity(@Nonnull T partiallyLoadedEntity, EntityContentRequire... require) {
 		assertActive();
 
-		/* TOBEDONE https://gitlab.fg.cz/hv/evita/-/issues/118 */
+		/* TOBEDONE https://github.com/FgForrest/evitaDB/issues/13 */
 		final EntityReference entityReference = toEntityReference(partiallyLoadedEntity);
 		final Class<?> expectedType = partiallyLoadedEntity instanceof SealedEntityProxy sealedEntityProxy ?
 			sealedEntityProxy.getProxyClass() : partiallyLoadedEntity.getClass();
@@ -731,7 +741,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	public <T extends Serializable> T enrichOrLimitEntity(@Nonnull T partiallyLoadedEntity, EntityContentRequire... require) {
 		assertActive();
 
-		/* TOBEDONE https://gitlab.fg.cz/hv/evita/-/issues/118 */
+		/* TOBEDONE https://github.com/FgForrest/evitaDB/issues/13 */
 		final EntityReference entityReference = toEntityReference(partiallyLoadedEntity);
 		final Class<?> expectedType = partiallyLoadedEntity instanceof SealedEntityProxy sealedEntityProxy ?
 			sealedEntityProxy.getProxyClass() : partiallyLoadedEntity.getClass();
@@ -2082,6 +2092,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 			);
 			return new DeletedHierarchy<>(
 				grpcResponse.getDeletedEntities(),
+				grpcResponse.getDeletedEntityPrimaryKeysList().stream().mapToInt(Integer::intValue).toArray(),
 				grpcResponse.hasDeletedRootEntity() ?
 					EntityConverter.toEntity(
 						entity -> schemaCache.getEntitySchemaOrThrowException(

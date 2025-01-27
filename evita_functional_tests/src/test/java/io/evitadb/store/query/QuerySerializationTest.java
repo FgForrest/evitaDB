@@ -36,6 +36,7 @@ import io.evitadb.api.query.require.ManagedReferencesBehaviour;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
+import io.evitadb.dataType.Scope;
 import io.evitadb.store.service.KryoFactory;
 import org.junit.jupiter.api.Test;
 
@@ -91,14 +92,6 @@ public class QuerySerializationTest {
 		assertSerializationRound(attributeEndsWith("a", "b"));
 		assertSerializationRound(entityLocaleEquals(Locale.ENGLISH));
 		assertSerializationRound(entityHaving(attributeEquals("a", "b")));
-		assertSerializationRound(referenceHaving("d", attributeEquals("a", "b")));
-		assertSerializationRound(priceInCurrency(Currency.getInstance("USD")));
-		assertSerializationRound(priceValidIn(OffsetDateTime.now()));
-		assertSerializationRound(priceValidInNow());
-		assertSerializationRound(priceInPriceLists("basic", "vip"));
-		assertSerializationRound(priceBetween(BigDecimal.ZERO, BigDecimal.ONE));
-		assertSerializationRound(priceBetween(null, BigDecimal.ONE));
-		assertSerializationRound(priceBetween(BigDecimal.ONE, null));
 		assertSerializationRound(hierarchyWithin("d", attributeEquals("code", "a")));
 		assertSerializationRound(hierarchyWithin("d", attributeEquals("code", "a"), excluding(attributeEquals("code", "a"))));
 		assertSerializationRound(hierarchyWithin("d", attributeEquals("code", "a"), having(attributeEquals("code", "a"))));
@@ -107,7 +100,17 @@ public class QuerySerializationTest {
 		assertSerializationRound(hierarchyWithinRoot("d"));
 		assertSerializationRound(hierarchyWithinRoot("d", excluding(attributeEquals("code", "a"))));
 		assertSerializationRound(hierarchyWithinRoot("d", having(attributeEquals("code", "a"))));
+		assertSerializationRound(inScope(Scope.LIVE, attributeEquals("a", "b")));
 		assertSerializationRound(facetHaving("d", or(attributeEquals("code", "a"), attributeEquals("code", "b"))));
+		assertSerializationRound(priceInCurrency(Currency.getInstance("USD")));
+		assertSerializationRound(priceValidIn(OffsetDateTime.now()));
+		assertSerializationRound(priceValidInNow());
+		assertSerializationRound(priceInPriceLists("basic", "vip"));
+		assertSerializationRound(priceBetween(BigDecimal.ZERO, BigDecimal.ONE));
+		assertSerializationRound(priceBetween(null, BigDecimal.ONE));
+		assertSerializationRound(priceBetween(BigDecimal.ONE, null));
+		assertSerializationRound(referenceHaving("d", attributeEquals("a", "b")));
+		assertSerializationRound(scope(Scope.LIVE, Scope.ARCHIVED));
 		assertSerializationRound(userFilter(attributeEquals("a", "b"), priceBetween(BigDecimal.ZERO, BigDecimal.ONE)));
 	}
 
@@ -116,15 +119,27 @@ public class QuerySerializationTest {
 		assertSerializationRound(orderBy(attributeNatural("a", OrderDirection.ASC)));
 		assertSerializationRound(orderBy(attributeNatural("a", OrderDirection.ASC), attributeNatural("b", OrderDirection.DESC)));
 		assertSerializationRound(attributeNatural("a", OrderDirection.DESC));
-		assertSerializationRound(referenceProperty("d", attributeNatural("a", OrderDirection.ASC)));
-		assertSerializationRound(random());
-		assertSerializationRound(randomWithSeed(42));
-		assertSerializationRound(priceNatural(OrderDirection.ASC));
+		assertSerializationRound(attributeSetExact("a", "b", "c"));
+		assertSerializationRound(attributeSetInFilter("a"));
 		assertSerializationRound(entityPrimaryKeyInFilter());
 		assertSerializationRound(entityPrimaryKeyNatural(OrderDirection.DESC));
 		assertSerializationRound(entityPrimaryKeyExact(1, 8, 10, 3));
-		assertSerializationRound(attributeSetInFilter("a"));
-		assertSerializationRound(attributeSetExact("a", "b", "c"));
+		assertSerializationRound(inScope(Scope.LIVE, attributeNatural("a", OrderDirection.ASC)));
+		assertSerializationRound(priceNatural(OrderDirection.ASC));
+		assertSerializationRound(random());
+		assertSerializationRound(randomWithSeed(42));
+		assertSerializationRound(referenceProperty("d", attributeNatural("a", OrderDirection.ASC)));
+		assertSerializationRound(limit(10));
+		assertSerializationRound(segment(orderBy(attributeNatural("a", OrderDirection.DESC))));
+		assertSerializationRound(segment(entityHaving(attributeEquals("a", "b")), orderBy(attributeNatural("a", OrderDirection.DESC))));
+		assertSerializationRound(
+			segments(
+				segment(orderBy(attributeNatural("a", OrderDirection.DESC))),
+				segment(orderBy(attributeNatural("a", OrderDirection.DESC)), limit(10)),
+				segment(entityHaving(attributeEquals("a", "b")), orderBy(attributeNatural("a", OrderDirection.DESC))),
+				segment(entityHaving(attributeEquals("a", "b")), orderBy(attributeNatural("a", OrderDirection.DESC)), limit(10))
+			)
+		);
 	}
 
 	@Test
@@ -184,6 +199,7 @@ public class QuerySerializationTest {
 		assertSerializationRound(entityFetchAll());
 		assertSerializationRound(entityGroupFetchAll());
 		assertSerializationRound(entityGroupFetch(attributeContentAll(), priceContentAll()));
+		assertSerializationRound(inScope(Scope.LIVE, facetSummary()));
 
 		assertSerializationRound(facetSummary((FacetStatisticsDepth) null));
 		assertSerializationRound(facetSummary(FacetStatisticsDepth.IMPACT));

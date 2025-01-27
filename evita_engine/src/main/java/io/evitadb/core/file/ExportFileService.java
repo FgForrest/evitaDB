@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -78,7 +78,7 @@ import static java.util.Optional.of;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Slf4j
-public class ExportFileService {
+public class ExportFileService implements Closeable {
 	/**
 	 * Storage options.
 	 */
@@ -87,6 +87,10 @@ public class ExportFileService {
 	 * Cached list of files to fetch.
 	 */
 	private final CopyOnWriteArrayList<FileForFetch> files;
+	/**
+	 * List of reserved temporary files that won't be purged automatically.
+	 */
+	private final CopyOnWriteArrayList<Path> reservedFiles = new CopyOnWriteArrayList<>();
 
 	/**
 	 * Parses metadata file and creates {@link FileForFetch} instance.
@@ -141,6 +145,13 @@ public class ExportFileService {
 				);
 			}
 		} else {
+			Assert.isPremiseValid(
+				this.storageOptions.exportDirectory().toFile().mkdirs(),
+				() -> new UnexpectedIOException(
+					"Failed to create directory: " + this.storageOptions.exportDirectory(),
+					"Failed to create directory."
+				)
+			);
 			this.files = new CopyOnWriteArrayList<>();
 		}
 		// schedule automatic purging task
@@ -232,6 +243,7 @@ public class ExportFileService {
 			final CompletableFuture<FileForFetch> fileForFetchCompletableFuture = new CompletableFuture<>();
 			return new ExportFileHandle(
 				fileForFetchCompletableFuture,
+				finalFilePath,
 				new WriteMetadataOnCloseOutputStream(
 					finalFilePath,
 					fileForFetchCompletableFuture,
@@ -325,9 +337,9 @@ public class ExportFileService {
 	@Nonnull
 	public Path createTempFile(@Nonnull String fileName) {
 		try {
-			return Files.createFile(
-				this.storageOptions.exportDirectory().resolve(fileName)
-			);
+			final Path filePath = this.storageOptions.exportDirectory().resolve(fileName);
+			Files.deleteIfExists(filePath);
+			return Files.createFile(filePath);
 		} catch (IOException e) {
 			throw new UnexpectedIOException(
 				"Failed to create temporary file: " + e.getMessage(),
@@ -335,6 +347,30 @@ public class ExportFileService {
 				e
 			);
 		}
+	}
+
+	/**
+	 * Creates temporary file using {@link #createTempFile(String)} and adds it to reserved files that won't be purged
+	 * automatically - unless explicitly removed by the owner.
+	 *
+	 * @param fileName the name of the file to be created
+	 * @return the Path of the created temporary file
+	 */
+	@Nonnull
+	public Path createManagedTempFile(@Nonnull String fileName) {
+		final Path reservedFile = createTempFile(fileName);
+		this.reservedFiles.add(reservedFile.normalize());
+		return reservedFile;
+	}
+
+	/**
+	 * Removes the specified temporary file from the managed files list and deletes it from the file system if it exists.
+	 *
+	 * @param file the path to the temporary file to be purged; must not be null
+	 */
+	public void purgeManagedTempFile(@Nonnull Path file) {
+		this.reservedFiles.remove(file.normalize());
+		FileUtils.deleteFileIfExists(file);
 	}
 
 	/**
@@ -366,6 +402,17 @@ public class ExportFileService {
 	@Nonnull
 	public Path getPathOf(@Nonnull FileForFetch file) {
 		return file.path(this.storageOptions.exportDirectory());
+	}
+
+	/**
+	 * Removes all reserved files and purges unmanaged temp files from the directory on closing.
+	 */
+	@Override
+	public void close() {
+		for (Path reservedFile : this.reservedFiles) {
+			FileUtils.deleteFileIfExists(reservedFile);
+		}
+		purgeFiles();
 	}
 
 	/**
@@ -409,7 +456,9 @@ public class ExportFileService {
 		// then go through the directory files, that does not have metadata file and delete all that were created before the threshold
 		try (final Stream<Path> fileStream = Files.list(this.storageOptions.exportDirectory())) {
 			fileStream
+				.map(Path::normalize)
 				.filter(it -> !getUuidFromPath(it).map(knownFiles::contains).orElse(false))
+				.filter(it -> !this.reservedFiles.contains(it))
 				.filter(it -> FileUtils.getFileLastModifiedTime(it).map(lastModifiedDate -> lastModifiedDate.isBefore(thresholdDate)).orElse(true))
 				.forEach(it -> {
 					log.info("Purging temporary file, because it has been last modified before {}: {}", thresholdDate, it);
@@ -421,14 +470,14 @@ public class ExportFileService {
 
 		// then check the size of the directory and delete oldest files until the directory size is below the limit
 		final long directorySize = FileUtils.getDirectorySize(this.storageOptions.exportDirectory());
-		// delete oldest files until the directory size is below the limit
+		// delete the oldest files until the directory size is below the limit
 		if (directorySize > this.storageOptions.exportDirectorySizeLimitBytes()) {
 			final List<FileForFetch> filesByCreationDate = this.files.stream()
 				.sorted(Comparator.comparing(FileForFetch::created))
 				.toList();
 			long savedSize = 0L;
 			for (FileForFetch it : filesByCreationDate) {
-				log.info("Purging oldest file, because the export directory grew too big: {}", it);
+				log.info("Purging the oldest file, because the export directory grew too big: {}", it);
 				final long metadataFileSize = it.metadataPath(this.storageOptions.exportDirectory()).toFile().length();
 				deleteFile(it.fileId());
 				savedSize += it.totalSizeInBytes() + metadataFileSize;
@@ -460,12 +509,22 @@ public class ExportFileService {
 	 * file is written.
 	 *
 	 * @param fileForFetchFuture Future that will be completed when the file is written.
+	 * @param filePath		     Path to the file.
 	 * @param outputStream       Output stream the file can be written to.
 	 */
 	public record ExportFileHandle(
 		@Nonnull CompletableFuture<FileForFetch> fileForFetchFuture,
+		@Nonnull Path filePath,
 		@Nonnull OutputStream outputStream
 	) {
+
+		/**
+		 * Returns the size of the target file.
+		 * @return the size of the target file
+		 */
+		public long size() {
+			return this.filePath.toFile().length();
+		}
 
 	}
 
@@ -491,7 +550,7 @@ public class ExportFileService {
 			try {
 				super.close();
 			} finally {
-				this.fileForFetchFuture.complete(onClose.get());
+				this.fileForFetchFuture.complete(this.onClose.get());
 			}
 		}
 

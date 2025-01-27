@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -475,7 +475,7 @@ public final class Evita implements EvitaContract {
 			commitBehaviour,
 			flags == null ?
 				new SessionFlags[]{SessionFlags.READ_WRITE} :
-				ArrayUtils.insertRecordIntoArray(SessionFlags.READ_WRITE, flags, flags.length)
+				ArrayUtils.insertRecordIntoArrayOnIndex(SessionFlags.READ_WRITE, flags, flags.length)
 		);
 		final CreatedSession createdSession = this.createSessionInternal(traits);
 		try {
@@ -515,7 +515,7 @@ public final class Evita implements EvitaContract {
 			commitBehaviour,
 			flags == null ?
 				new SessionFlags[]{SessionFlags.READ_WRITE} :
-				ArrayUtils.insertRecordIntoArray(SessionFlags.READ_WRITE, flags, flags.length)
+				ArrayUtils.insertRecordIntoArrayOnIndex(SessionFlags.READ_WRITE, flags, flags.length)
 		);
 
 		final CreatedSession createdSession = this.createSessionInternal(traits);
@@ -565,9 +565,9 @@ public final class Evita implements EvitaContract {
 	 * @throws IllegalArgumentException when no catalog of such name is found
 	 */
 	@Nonnull
-	public Optional<CatalogContract> getCatalogInstance(@Nonnull String catalog) throws IllegalArgumentException {
-		return ofNullable(catalogs.get(catalog))
-			.or(() -> Optional.ofNullable(removedCatalog.get()));
+	public Optional<CatalogContract> getCatalogInstance(@Nonnull String catalog) {
+		return ofNullable(this.catalogs.get(catalog))
+			.or(() -> Optional.ofNullable(this.removedCatalog.get()));
 	}
 
 	/**
@@ -576,7 +576,7 @@ public final class Evita implements EvitaContract {
 	 * @throws IllegalArgumentException when no catalog of such name is found
 	 */
 	@Nonnull
-	public CatalogContract getCatalogInstanceOrThrowException(@Nonnull String catalog) throws IllegalArgumentException {
+	public CatalogContract getCatalogInstanceOrThrowException(@Nonnull String catalog) throws CatalogNotFoundException {
 		return getCatalogInstance(catalog)
 			.orElseThrow(() -> new CatalogNotFoundException(catalog));
 	}
@@ -1010,6 +1010,7 @@ public final class Evita implements EvitaContract {
 	private void closeInternal() {
 		CompletableFuture.allOf(
 			CompletableFuture.runAsync(this::closeAllSessions),
+			CompletableFuture.runAsync(this.management::close),
 			CompletableFuture.runAsync(() -> shutdownScheduler("request", this.requestExecutor, 60)),
 			CompletableFuture.runAsync(() -> shutdownScheduler("transaction", this.transactionExecutor, 60)),
 			CompletableFuture.runAsync(() -> shutdownScheduler("service", this.serviceExecutor, 60))

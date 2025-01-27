@@ -46,8 +46,8 @@ import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.offsetIndex.model.RecordKey;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.offsetIndex.model.VersionedValue;
-import io.evitadb.store.offsetIndex.stream.RandomAccessFileInputStream;
 import io.evitadb.store.service.KeyCompressor;
+import io.evitadb.stream.RandomAccessFileInputStream;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -493,7 +493,7 @@ public class OffsetIndex {
 			} else {
 				try {
 					// if the record was not yet flushed to the disk we need to enforce sync so that we can read it
-					if (lastSyncedPosition < nonFlushedValue.fileLocation().getEndPosition()) {
+					if (lastSyncedPosition < nonFlushedValue.fileLocation().endPosition()) {
 						doSoftFlush();
 					}
 					//noinspection unchecked
@@ -557,7 +557,7 @@ public class OffsetIndex {
 			} else {
 				try {
 					// if the record was not yet flushed to the disk we need to enforce sync so that we can read it
-					if (lastSyncedPosition < nonFlushedValue.fileLocation().getEndPosition()) {
+					if (lastSyncedPosition < nonFlushedValue.fileLocation().endPosition()) {
 						doSoftFlush();
 					}
 					return getBinary(nonFlushedValue.fileLocation(), recordTypeRegistry.typeFor(nonFlushedValue.recordType()));

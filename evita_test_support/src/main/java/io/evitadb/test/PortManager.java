@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -34,6 +34,7 @@ import java.util.Map.Entry;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentSkipListSet;
 
 import static java.util.Optional.ofNullable;
 
@@ -45,9 +46,9 @@ import static java.util.Optional.ofNullable;
 public class PortManager {
 	private final Random random = new Random(1L);
 	private final Object monitor = new Object();
-	private final Map<String, int[]> portAllocationTable = CollectionUtils.createHashMap(64);
-	private final Set<Integer> allocatedPorts = CollectionUtils.createLinkedHashSet(64);
-	private final Map<String, CompletableFuture<Void>> pendingReleases = CollectionUtils.createHashMap(64);
+	private final Map<String, int[]> portAllocationTable = CollectionUtils.createConcurrentHashMap(64);
+	private final Set<Integer> allocatedPorts = new ConcurrentSkipListSet<>();
+	private final Map<String, CompletableFuture<Void>> pendingReleases = CollectionUtils.createConcurrentHashMap(64);
 	@Getter private int counter;
 	@Getter private int peak;
 
@@ -62,7 +63,8 @@ public class PortManager {
 			final Iterator<Entry<String, CompletableFuture<Void>>> it = pendingReleases.entrySet().iterator();
 			while (it.hasNext()) {
 				Entry<String, CompletableFuture<Void>> entry = it.next();
-				if (entry.getValue().isDone()) {
+				final CompletableFuture<Void> future = entry.getValue();
+				if (future != null && future.isDone()) {
 					releasePorts(entry.getKey());
 					it.remove();
 				}

@@ -31,11 +31,13 @@ import javax.annotation.Nullable;
 /**
  * Provides access to the result of {@link EvitaSessionContract#deleteEntityAndItsHierarchy(String, int, EntityContentRequire...)} .
  *
- * @param deletedEntities   count of all removed entities in the hierarchy
- * @param deletedRootEntity requested contents of the removed root entity
+ * @param deletedEntities          count of all removed entities in the hierarchy
+ * @param deletedEntityPrimaryKeys primary keys of all removed entities in the hierarchy
+ * @param deletedRootEntity        requested contents of the removed root entity
  */
 public record DeletedHierarchy<T>(
 	int deletedEntities,
+	int[] deletedEntityPrimaryKeys,
 	@Nullable T deletedRootEntity
 ) {
 }

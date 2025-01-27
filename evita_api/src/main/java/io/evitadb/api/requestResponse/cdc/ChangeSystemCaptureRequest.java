@@ -35,6 +35,6 @@ import javax.annotation.Nonnull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public record ChangeSystemCaptureRequest(
-	@Nonnull CaptureContent content
+	@Nonnull ChangeCaptureContent content
 ) implements ChangeCaptureRequest {
 }
