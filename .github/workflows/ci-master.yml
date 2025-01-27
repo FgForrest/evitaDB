@@ -36,7 +36,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3    # checkout sources
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2    # checkout sources
       with:
         ref: ${{ github.head_ref }}
         fetch-depth: 0
@@ -50,7 +50,7 @@ jobs:
         minor-identifier: '/feat(?:\\([^)]+\\))?:/'
 
     - name: Setup Java JDK
-      uses: actions/setup-java@v3  # setup JDK 17 for building
+      uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.03  # setup JDK 17 for building
       with:
          distribution: 'temurin'
          java-version: '17'
@@ -123,14 +123,14 @@ jobs:
         asset_content_type: application/gzip
 
     - name: Upload evitaDB server artifact   # upload `evita-server.jar` for `docker-latest.yml` to deploy to DockerHub
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
       if: success()
       with:
         name: evita-server.jar
         path: 'evita_server/target/evita-server.jar'
 
     - name: Upload evitaDB version.txt      # upload `version.txt` for `docker-latest.yml` to deploy to DockerHub
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
       if: success()
       with:
         name: version.txt
