@@ -68,6 +68,11 @@ public interface TrafficRecorder extends Closeable {
 				tr -> request.sessionId().equals(tr.sessionId())
 			);
 		}
+		if (request.sinceRecordSessionOffset() != null) {
+			requestPredicate = requestPredicate.and(
+				tr -> tr.recordSessionOffset() >= request.sinceRecordSessionOffset()
+			);
+		}
 		if (request.since() != null) {
 			requestPredicate = requestPredicate.and(
 				tr -> tr.created().isAfter(request.since())

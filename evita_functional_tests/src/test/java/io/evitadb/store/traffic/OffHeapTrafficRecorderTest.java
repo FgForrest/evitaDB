@@ -293,6 +293,17 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 		assertEquals(secondSessionId, beeSubQueries.get(1).sessionId());
 		assertEquals(3, beeSubQueries.get(1).recordSessionOffset());
 
+		// now try to get records with record offset
+		final TrafficRecording firstRecordByOffset = this.trafficRecorder.getRecordings(
+			TrafficRecordingCaptureRequest.builder()
+				.content(TrafficRecordingContent.BODY)
+				.sinceSessionSequenceId(1L)
+				.sinceRecordSessionOffset(2)
+				.build()
+		).findFirst().orElseThrow();
+		assertEquals(1, firstRecordByOffset.sessionSequenceOrder());
+		assertEquals(2, firstRecordByOffset.recordSessionOffset());
+
 		final Collection<String> labelNamesByCardinality = this.trafficRecorder.getLabelsNamesOrderedByCardinality(null, 10);
 		assertEquals(8, labelNamesByCardinality.size());
 		assertArrayEquals(
