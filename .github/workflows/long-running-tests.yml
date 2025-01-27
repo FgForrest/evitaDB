@@ -6,6 +6,12 @@ on:
   schedule:
     - cron: '0 0 * * 1' # runs on Monday morning
 
+permissions:
+  contents: read      # Required for actions/checkout to fetch the repository code.
+  actions: read       # Required for the workflow to use the actions/checkout action.
+  checks: write       # Required for the workflow to create check runs.
+  statuses: write     # Required for the workflow to update commit statuses.
+
 jobs:
   build:
     runs-on: ubuntu-latest
