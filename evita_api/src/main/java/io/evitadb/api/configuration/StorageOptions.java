@@ -104,7 +104,7 @@ public record StorageOptions(
 	public static final boolean DEFAULT_COMPUTE_CRC = true;
 	public static final double DEFAULT_MINIMAL_ACTIVE_RECORD_SHARE = 0.5;
 	public static final long DEFAULT_MINIMAL_FILE_SIZE_COMPACTION_THRESHOLD = 104_857_600L; // 100MB
-	public static final boolean DEFAULT_TIME_TRAVEL_ENABLED = true;
+	public static final boolean DEFAULT_TIME_TRAVEL_ENABLED = false;
 	public static final long DEFAULT_EXPORT_DIRECTORY_SIZE_LIMIT_BYTES = 1_073_741_824L; // 1GB
 	public static final long DEFAULT_EXPORT_FILE_HISTORY_EXPIRATION_SECONDS = 604_800L; // 7 days
 
