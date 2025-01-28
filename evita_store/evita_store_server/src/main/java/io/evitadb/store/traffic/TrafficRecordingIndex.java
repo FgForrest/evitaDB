@@ -69,8 +69,7 @@ import static java.util.Optional.ofNullable;
  */
 public class TrafficRecordingIndex implements
 	TransactionalLayerProducer<Void, TrafficRecordingIndex>,
-	Serializable
-{
+	Serializable {
 	@Serial private static final long serialVersionUID = 1416655137041708718L;
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 
@@ -85,10 +84,26 @@ public class TrafficRecordingIndex implements
 	private final TransactionalObjectBPlusTree<Integer, Long> sessionDurationIndex;
 	private final TransactionalObjectBPlusTree<Integer, Long> sessionFetchCountIndex;
 	private final TransactionalObjectBPlusTree<Integer, Long> sessionBytesFetchedIndex;
-	private final TransactionalObjectBPlusTree<Label, TransactionalObjectBPlusTree<Long, Long>> labelIndex;
+	private final TransactionalObjectBPlusTree<LabelWithOptimizedComparator, TransactionalObjectBPlusTree<Long, Long>> labelIndex;
 	private final TransactionalMap<TrafficRecordingType, TransactionalObjectBPlusTree<Long, Long>> sessionRecordingTypeIndex;
 	private final AtomicLong sessionBeingIndexed;
 	private final Deque<Long> sessionsToRemove;
+
+	/**
+	 * Converts an iterator of Long values into a Roaring64Bitmap by adding each element from the iterator
+	 * to the bitmap.
+	 *
+	 * @param it an iterator of Long values to be added to the Roaring64Bitmap, must not be null
+	 * @return a Roaring64Bitmap containing all Long values from the iterator
+	 */
+	@Nonnull
+	private static Roaring64Bitmap toRoaringBitmap(@Nonnull Iterator<Long> it) {
+		final Roaring64Bitmap bitmap = new Roaring64Bitmap();
+		while (it.hasNext()) {
+			bitmap.add(it.next());
+		}
+		return bitmap;
+	}
 
 	public TrafficRecordingIndex() {
 		this.sessionLocationIndex = new TransactionalMap<>(CollectionUtils.createHashMap(1_024));
@@ -101,7 +116,7 @@ public class TrafficRecordingIndex implements
 		this.sessionBytesFetchedIndex = new TransactionalObjectBPlusTree<>(Integer.class, Long.class);
 		//noinspection unchecked,rawtypes
 		this.labelIndex = new TransactionalObjectBPlusTree<>(
-			Label.class,
+			LabelWithOptimizedComparator.class,
 			TransactionalObjectBPlusTree.genericClass(),
 			TransactionalObjectBPlusTree.class::cast
 		);
@@ -123,7 +138,7 @@ public class TrafficRecordingIndex implements
 		@Nonnull TransactionalObjectBPlusTree<Integer, Long> sessionDurationIndex,
 		@Nonnull TransactionalObjectBPlusTree<Integer, Long> sessionFetchCountIndex,
 		@Nonnull TransactionalObjectBPlusTree<Integer, Long> sessionBytesFetchedIndex,
-		@Nonnull TransactionalObjectBPlusTree<Label, TransactionalObjectBPlusTree<Long, Long>> labelIndex,
+		@Nonnull TransactionalObjectBPlusTree<LabelWithOptimizedComparator, TransactionalObjectBPlusTree<Long, Long>> labelIndex,
 		@Nonnull Map<TrafficRecordingType, TransactionalObjectBPlusTree<Long, Long>> sessionRecordingTypeIndex,
 		@Nonnull AtomicLong sessionBeingIndexed,
 		@Nonnull Deque<Long> sessionsToRemove
@@ -209,7 +224,7 @@ public class TrafficRecordingIndex implements
 			}
 			for (Label label : labels) {
 				this.labelIndex.upsert(
-					new Label(label.name(), EvitaDataTypes.formatValue(label.value())),
+					new LabelWithOptimizedComparator(label.name(), label.value(), EvitaDataTypes.formatValue(label.value())),
 					values -> {
 						if (values == null) {
 							values = new TransactionalObjectBPlusTree<>(Long.class, Long.class);
@@ -284,26 +299,35 @@ public class TrafficRecordingIndex implements
 	 */
 	@Nonnull
 	public Stream<SessionLocation> getSessionStream(@Nonnull TrafficRecordingCaptureRequest request) {
-		final List<Iterator<Long>> streams = Stream.<Stream<Iterator<Long>>>of(
+		final List<Roaring64Bitmap> streams = Stream.of(
 				Stream.of(
-					request.sinceSessionSequenceId() == null ? null : this.sessionSequenceOrderIndex.greaterOrEqualValueIterator(request.sinceSessionSequenceId()),
-					request.sessionId() == null ? null : ofNullable(this.sessionIdIndex.get(request.sessionId())).map(sid -> List.of(sid).iterator()).orElse(null),
-					request.since() == null ? null : this.sessionCreationIndex.greaterOrEqualValueIterator(request.since()),
-					request.longerThan() == null ? null : this.sessionDurationIndex.greaterOrEqualValueIterator(Math.toIntExact(request.longerThan().toMillis())),
-					request.fetchingMoreBytesThan() == null ? null : this.sessionBytesFetchedIndex.greaterOrEqualValueIterator(request.fetchingMoreBytesThan())
-				),
+						request.sinceSessionSequenceId() == null ? null : this.sessionSequenceOrderIndex.greaterOrEqualValueIterator(request.sinceSessionSequenceId()),
+						request.sessionId() == null ? null : ofNullable(this.sessionIdIndex.get(request.sessionId())).map(sid -> List.of(sid).iterator()).orElse(null),
+						request.since() == null ? null : this.sessionCreationIndex.greaterOrEqualValueIterator(request.since()),
+						request.longerThan() == null ? null : this.sessionDurationIndex.greaterOrEqualValueIterator(Math.toIntExact(request.longerThan().toMillis())),
+						request.fetchingMoreBytesThan() == null ? null : this.sessionBytesFetchedIndex.greaterOrEqualValueIterator(request.fetchingMoreBytesThan())
+					)
+					.filter(Objects::nonNull)
+					.map(TrafficRecordingIndex::toRoaringBitmap),
 				request.types() == null ?
-					Stream.empty() :
+					Stream.<Roaring64Bitmap>empty() :
 					Arrays.stream(request.types()).map(this.sessionRecordingTypeIndex::get)
 						.filter(Objects::nonNull)
-						.map(TransactionalObjectBPlusTree::valueIterator),
+						.map(TransactionalObjectBPlusTree::valueIterator)
+						.map(TrafficRecordingIndex::toRoaringBitmap)
+						.reduce((a, b) -> Roaring64Bitmap.or(a, b))
+						.stream(),
 				request.labels() == null ?
-					Stream.empty() :
+					Stream.<Roaring64Bitmap>empty() :
 					Arrays.stream(request.labels())
+						.map(it -> new LabelWithOptimizedComparator(it.name(), it.value(), it.value() instanceof String str ? str : null))
 						.map(this.labelIndex::search)
 						.filter(Optional::isPresent)
 						.map(Optional::get)
 						.map(TransactionalObjectBPlusTree::valueIterator)
+						.map(TrafficRecordingIndex::toRoaringBitmap)
+						.reduce((a, b) -> Roaring64Bitmap.and(a, b))
+						.stream()
 			)
 			.flatMap(UnaryOperator.identity())
 			.filter(Objects::nonNull)
@@ -315,13 +339,6 @@ public class TrafficRecordingIndex implements
 				.stream();
 		} else {
 			return streams.stream()
-				.map(it -> {
-					final Roaring64Bitmap bitmap = new Roaring64Bitmap();
-					while (it.hasNext()) {
-						bitmap.add(it.next());
-					}
-					return bitmap;
-				})
 				.reduce((a, b) -> Roaring64Bitmap.and(a, b))
 				.stream().flatMapToLong(ImmutableLongBitmapDataProvider::stream)
 				.mapToObj(this.sessionLocationIndex::get)
@@ -373,13 +390,13 @@ public class TrafficRecordingIndex implements
 	 */
 	@Nonnull
 	public Collection<String> getLabelsNamesOrderedByCardinality(@Nullable String nameStartingWith, int limit) {
-		final Iterator<Entry<Label, TransactionalObjectBPlusTree<Long, Long>>> it = nameStartingWith == null ?
+		final Iterator<Entry<LabelWithOptimizedComparator, TransactionalObjectBPlusTree<Long, Long>>> it = nameStartingWith == null ?
 			this.labelIndex.entryIterator() :
-			this.labelIndex.greaterOrEqualEntryIterator(new Label(nameStartingWith, null));
+			this.labelIndex.greaterOrEqualEntryIterator(new LabelWithOptimizedComparator(nameStartingWith, null, null));
 		final ObjectIntMap<String> cardinalities = new ObjectIntHashMap<>(256);
 		while (it.hasNext()) {
-			final Entry<Label, TransactionalObjectBPlusTree<Long, Long>> entry = it.next();
-			final Label nextLabel = entry.key();
+			final Entry<LabelWithOptimizedComparator, TransactionalObjectBPlusTree<Long, Long>> entry = it.next();
+			final LabelWithOptimizedComparator nextLabel = entry.key();
 			if (nameStartingWith == null || nextLabel.name().startsWith(nameStartingWith)) {
 				final int labelCardinality = entry.value().size();
 				cardinalities.putOrAdd(nextLabel.name(), labelCardinality, labelCardinality);
@@ -409,11 +426,11 @@ public class TrafficRecordingIndex implements
 	 */
 	@Nonnull
 	public Collection<String> getLabelValuesOrderedByCardinality(@Nonnull String nameEquals, @Nullable String valueStartingWith, int limit) {
-		final Iterator<Entry<Label, TransactionalObjectBPlusTree<Long, Long>>> it = this.labelIndex.greaterOrEqualEntryIterator(new Label(nameEquals, valueStartingWith));
+		final Iterator<Entry<LabelWithOptimizedComparator, TransactionalObjectBPlusTree<Long, Long>>> it = this.labelIndex.greaterOrEqualEntryIterator(new LabelWithOptimizedComparator(nameEquals, null, valueStartingWith));
 		final ObjectIntMap<String> cardinalities = new ObjectIntHashMap<>(256);
 		while (it.hasNext()) {
-			final Entry<Label, TransactionalObjectBPlusTree<Long, Long>> entry = it.next();
-			final Label nextLabel = entry.key();
+			final Entry<LabelWithOptimizedComparator, TransactionalObjectBPlusTree<Long, Long>> entry = it.next();
+			final LabelWithOptimizedComparator nextLabel = entry.key();
 			final String valueAsString = ofNullable(nextLabel.value()).map(EvitaDataTypes::formatValue).orElse("");
 			if (nextLabel.name().equals(nameEquals) && (valueStartingWith == null || valueAsString.startsWith(valueStartingWith))) {
 				final int labelCardinality = entry.value().size();
@@ -473,7 +490,7 @@ public class TrafficRecordingIndex implements
 		if (trafficRecording instanceof QueryContainer queryContainer) {
 			for (Label label : queryContainer.labels()) {
 				this.labelIndex.upsert(
-					label,
+					new LabelWithOptimizedComparator(label.name(), label.value(), EvitaDataTypes.formatValue(label.value())),
 					values -> {
 						if (values == null) {
 							values = new TransactionalObjectBPlusTree<>(Long.class, Long.class);
@@ -621,4 +638,65 @@ public class TrafficRecordingIndex implements
 		int cardinality
 	) {
 	}
+
+	/**
+	 * The LabelWithOptimizedComparator class is a record used for representing a label
+	 * that contains a name, a value, and an optional formatted value. It provides optimized
+	 * methods for equality checks, hash code computation, and comparison logic, which can
+	 * be useful in indexing and searching operations where such labels are involved.
+	 *
+	 * This record implements {@link Comparable}, allowing it to be sorted based on
+	 * the name, value, and formattedValue fields with specific optimization logic.
+	 */
+	public record LabelWithOptimizedComparator(
+		@Nonnull String name,
+		@Nullable Serializable value,
+		@Nullable String formattedValue
+	) implements Comparable<LabelWithOptimizedComparator> {
+
+		@Override
+		public boolean equals(Object o) {
+			if (!(o instanceof LabelWithOptimizedComparator label)) return false;
+
+			return name.equals(label.name) &&
+				(Objects.equals(value, label.value) || Objects.equals(formattedValue, label.formattedValue));
+		}
+
+		@Override
+		public int hashCode() {
+			int result = name.hashCode();
+			result = 31 * result + Objects.hashCode(value);
+			return result;
+		}
+
+		@SuppressWarnings({"rawtypes", "unchecked"})
+		@Override
+		public int compareTo(@Nonnull LabelWithOptimizedComparator that) {
+			final int first = this.name.compareTo(that.name);
+			if (first != 0) {
+				return first;
+			} else if (this.value instanceof String comparable && this.value.getClass().isInstance(that.value)) {
+				if (this.formattedValue != null && that.formattedValue != null) {
+					return this.formattedValue.compareTo(that.formattedValue);
+				} else {
+					return comparable.compareTo((String) that.value);
+				}
+			} else if (this.value instanceof Comparable comparable && this.value.getClass().isInstance(that.value)) {
+				return comparable.compareTo(that.value);
+			} else if (this.value == null && this.formattedValue != null && that.formattedValue != null) {
+				return this.formattedValue.compareTo(that.formattedValue);
+			} else if (that.value == null && this.formattedValue != null && that.formattedValue != null) {
+				return this.formattedValue.compareTo(that.formattedValue);
+			} else if (this.value != null && that.value != null) {
+				return EvitaDataTypes.formatValue(this.value).compareTo(EvitaDataTypes.formatValue(that.value));
+			} else if (this.value != null) {
+				return 1;
+			} else if (that.value != null) {
+				return -1;
+			} else {
+				return 0;
+			}
+		}
+	}
+
 }

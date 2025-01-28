@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest;
 import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.file.ExportFileService;
+import io.evitadb.dataType.EvitaDataTypes;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -40,6 +41,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Predicate;
 
@@ -97,7 +99,15 @@ public interface TrafficRecorder extends Closeable {
 		if (request.labels() != null) {
 			requestPredicate = requestPredicate.and(
 				tr -> tr instanceof QueryContainer qc &&
-					Arrays.stream(request.labels()).anyMatch(it -> Arrays.asList(qc.labels()).contains(it))
+					Arrays.stream(request.labels())
+						.anyMatch(
+							it -> Arrays.stream(qc.labels())
+								.allMatch(
+									// this is a bit tricky, data can come in formatted form, so we need to compare it in both ways
+									that -> Objects.equals(it.name(), that.name()) &&
+										(Objects.equals(it.value(), that.value()) || (that.value() instanceof String && Objects.equals(it.value(), EvitaDataTypes.formatValue(that.value()))))
+								)
+						)
 			);
 		}
 		return requestPredicate;

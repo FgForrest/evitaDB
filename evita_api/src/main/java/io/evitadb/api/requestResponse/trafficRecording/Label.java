@@ -24,6 +24,8 @@
 package io.evitadb.api.requestResponse.trafficRecording;
 
 
+import io.evitadb.dataType.EvitaDataTypes;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
@@ -67,7 +69,7 @@ public record Label(
 		} else if (this.value instanceof Comparable comparable && this.value.getClass().isInstance(that.value)) {
 			return comparable.compareTo(that.value);
 		} else if (this.value != null && that.value != null) {
-			return this.value.toString().compareTo(that.value.toString());
+			return EvitaDataTypes.formatValue(this.value).compareTo(EvitaDataTypes.formatValue(that.value));
 		} else if (this.value != null) {
 			return 1;
 		} else if (that.value != null) {
