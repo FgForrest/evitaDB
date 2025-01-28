@@ -44,6 +44,8 @@ import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.store.spi.SessionLocation;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
+import org.roaringbitmap.longlong.ImmutableLongBitmapDataProvider;
+import org.roaringbitmap.longlong.Roaring64Bitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -55,7 +57,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 import static java.util.Optional.ofNullable;
 
@@ -208,7 +209,7 @@ public class TrafficRecordingIndex implements
 			}
 			for (Label label : labels) {
 				this.labelIndex.upsert(
-					label,
+					new Label(label.name(), EvitaDataTypes.formatValue(label.value())),
 					values -> {
 						if (values == null) {
 							values = new TransactionalObjectBPlusTree<>(Long.class, Long.class);
@@ -313,11 +314,17 @@ public class TrafficRecordingIndex implements
 				.values()
 				.stream();
 		} else {
-			return StreamSupport.stream(
-					Spliterators.spliteratorUnknownSize(new CommonElementsIterator(streams), Spliterator.ORDERED | Spliterator.DISTINCT),
-					false
-				)
-				.map(this.sessionLocationIndex::get)
+			return streams.stream()
+				.map(it -> {
+					final Roaring64Bitmap bitmap = new Roaring64Bitmap();
+					while (it.hasNext()) {
+						bitmap.add(it.next());
+					}
+					return bitmap;
+				})
+				.reduce((a, b) -> Roaring64Bitmap.and(a, b))
+				.stream().flatMapToLong(ImmutableLongBitmapDataProvider::stream)
+				.mapToObj(this.sessionLocationIndex::get)
 				.filter(Objects::nonNull);
 		}
 	}

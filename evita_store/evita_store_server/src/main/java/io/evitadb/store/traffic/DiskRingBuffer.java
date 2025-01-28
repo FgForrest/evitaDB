@@ -24,8 +24,6 @@
 package io.evitadb.store.traffic;
 
 
-import com.carrotsearch.hppc.LongHashSet;
-import com.carrotsearch.hppc.LongSet;
 import io.evitadb.api.exception.IndexNotReady;
 import io.evitadb.api.requestResponse.trafficRecording.Label;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
@@ -57,14 +55,14 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
+import java.nio.channels.OverlappingFileLockException;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Deque;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -73,12 +71,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.Condition;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
 
 import static io.evitadb.utils.Assert.isPremiseValid;
@@ -147,22 +142,9 @@ public class DiskRingBuffer {
 	 */
 	@Getter private final long diskBufferFileSize;
 	/**
-	 * Atomic reference holding the segments which are currently in active use (read / write).
-	 */
-	private final AtomicReference<ActiveSegments> activeSegments = new AtomicReference<>(new ActiveSegments());
-	/**
-	 * Sequence for assigning unique identifiers to the readers.
-	 */
-	private final AtomicLong readerSequence = new AtomicLong();
-	/**
 	 * Consumer for the recorded data (optional).
 	 */
 	private final AtomicReference<SessionSink> sessionSink = new AtomicReference<>();
-	/**
-	 * Lock with condition for the segments atomic update.
-	 */
-	private final ReentrantLock segmentsLock = new ReentrantLock();
-	private final Condition segmentsCondition = segmentsLock.newCondition();
 	/**
 	 * Data available only when indexing is running on background.
 	 */
@@ -334,7 +316,7 @@ public class DiskRingBuffer {
 		this.descriptorByteBuffer.flip();
 
 		// Write descriptor
-		this.append(sessionLocation, this.descriptorByteBuffer);
+		this.append(this.descriptorByteBuffer);
 		this.descriptorByteBuffer.clear();
 
 		return sessionLocation;
@@ -345,7 +327,7 @@ public class DiskRingBuffer {
 	 *
 	 * @param memoryByteBuffer source memory buffer
 	 */
-	public void append(@Nonnull SessionLocation sessionLocation, @Nonnull ByteBuffer memoryByteBuffer) {
+	public void append(@Nonnull ByteBuffer memoryByteBuffer) {
 		try {
 			final int totalBytesToWrite = memoryByteBuffer.limit();
 			if (totalBytesToWrite > this.diskBufferFileSize) {
@@ -358,13 +340,11 @@ public class DiskRingBuffer {
 			if (lengthToWrite < totalBytesToWrite) {
 				lockAndWrite(
 					new FileLocation(this.fileChannel.position(), lengthToWrite),
-					sessionLocation,
 					() -> writeDataToFileChannel(memoryByteBuffer.slice(0, lengthToWrite), lengthToWrite)
 				);
 				this.fileChannel.position(0);
 				lockAndWrite(
 					new FileLocation(this.fileChannel.position(), totalBytesToWrite - lengthToWrite),
-					sessionLocation,
 					() -> {
 						final int restLengthToWrite = totalBytesToWrite - lengthToWrite;
 						writeDataToFileChannel(memoryByteBuffer.slice(lengthToWrite, restLengthToWrite), restLengthToWrite);
@@ -373,7 +353,6 @@ public class DiskRingBuffer {
 			} else {
 				lockAndWrite(
 					new FileLocation(this.fileChannel.position(), totalBytesToWrite),
-					sessionLocation,
 					() -> writeDataToFileChannel(memoryByteBuffer, totalBytesToWrite)
 				);
 			}
@@ -407,30 +386,6 @@ public class DiskRingBuffer {
 		int fetchCount,
 		int bytesFetchedTotal
 	) {
-		// finish writing the session
-		ActiveSegments newValue;
-		do {
-			newValue = updateSegments(
-				() -> this.activeSegments.updateAndGet(
-					currentlyActiveSegments -> {
-						isPremiseValid(
-							currentlyActiveSegments.writeSegment() == null,
-							"Write segment is locked. This is not expected!"
-						);
-						isPremiseValid(
-							currentlyActiveSegments.sessionBeingWritten() == sessionLocation,
-							"Different session is being written. This is not expected!"
-						);
-						return new ActiveSegments(
-							currentlyActiveSegments.readSegment(),
-							null,
-							null
-						);
-					}
-				)
-			);
-		} while (newValue.sessionBeingWritten() != null);
-
 		// update index if present
 		this.sessionLocations.add(sessionLocation);
 		final TrafficRecordingIndex index = this.sessionIndex.get();
@@ -485,12 +440,11 @@ public class DiskRingBuffer {
 		notNull(sessionIndex, () -> new IndexNotReady(calculateIndexingPercentage()));
 
 		final RandomAccessFileInputStream inputStream = this.getDiskBufferFileReadInputStream();
-		final long readerId = readerSequence.incrementAndGet();
 		final Predicate<TrafficRecording> requestPredicate = TrafficRecorder.createRequestPredicate(request);
 		return sessionIndex.getSessionStream(request)
 			.flatMap(
 				it -> this.readSessionRecords(
-					readerId, it.sequenceOrder(), it.sessionRecordsCount(), it.fileLocation(), inputStream, reader
+					it.sequenceOrder(), it.sessionRecordsCount(), it.fileLocation(), inputStream, reader
 				)
 			)
 			.filter(requestPredicate)
@@ -533,7 +487,6 @@ public class DiskRingBuffer {
 		@Nonnull LongIntLongObjectFunction<RandomAccessFileInputStream, StorageRecord<TrafficRecording>> reader
 	) {
 		if (this.sessionIndexingRunning.compareAndSet(false, true)) {
-			final long readerId = readerSequence.incrementAndGet();
 			try (final RandomAccessFileInputStream diskBufferFileReadInputStream = this.getDiskBufferFileReadInputStream()) {
 				this.indexedSessions.set(0);
 				this.postponedIndexUpdates.set(new ArrayDeque<>(512));
@@ -543,7 +496,6 @@ public class DiskRingBuffer {
 					// and also to allow write logic to remove the session early when overwritten by the new data
 					index.setupSession(sessionLocation);
 					this.readSessionRecords(
-							readerId,
 							sessionLocation.sequenceOrder(),
 							sessionLocation.sessionRecordsCount(),
 							sessionLocation.fileLocation(),
@@ -723,7 +675,6 @@ public class DiskRingBuffer {
 	 * The method ensures that the records are read only if the session exists and the file location is updated
 	 * accordingly to prevent redundant reads.
 	 *
-	 * @param readerId          the unique identifier for the reader
 	 * @param sessionSequenceId the unique identifier for the session sequence to read records for
 	 * @param fileLocation      the file location specifying where to read the session records from
 	 * @param inputStream       the input stream for reading the disk buffer file
@@ -732,7 +683,6 @@ public class DiskRingBuffer {
 	 */
 	@Nonnull
 	private Stream<TrafficRecording> readSessionRecords(
-		long readerId,
 		long sessionSequenceId,
 		int sessionRecordsCount,
 		@Nonnull FileLocation fileLocation,
@@ -742,7 +692,6 @@ public class DiskRingBuffer {
 		final AtomicLong lastLocationRead = new AtomicLong(-1);
 		return Stream.generate(
 				() -> lockAndRead(
-					readerId,
 					fileLocation,
 					() -> {
 						if (!isSessionLocationStillInValidArea(fileLocation)) {
@@ -772,8 +721,8 @@ public class DiskRingBuffer {
 									}
 								} catch (Exception ex) {
 									log.error(
-										"Error reading session #{} traffic record from disk buffer at position {} ({}): {}",
-										sessionSequenceId, startPosition, this.activeSegments.get(), ex.getMessage()
+										"Error reading session #{} traffic record from disk buffer at position {}: {}",
+										sessionSequenceId, startPosition, ex.getMessage()
 									);
 									return null;
 								}
@@ -792,7 +741,7 @@ public class DiskRingBuffer {
 	 * @param fileLocation the file location to check, containing starting and
 	 *                     ending positions.
 	 * @return true if the file location is within the valid area of the ring buffer,
-	 *         false otherwise.
+	 * false otherwise.
 	 */
 	private boolean isSessionLocationStillInValidArea(@Nonnull FileLocation fileLocation) {
 		final LongNumberRange[] validArea = this.ringBufferHead <= this.ringBufferTail ?
@@ -812,86 +761,30 @@ public class DiskRingBuffer {
 	 * being written by a different session before proceeding. After writing, it releases the lock
 	 * on the write segment.
 	 *
-	 * @param writeSegment        the file location to be locked and written to
-	 * @param sessionBeingWritten the session currently being written
-	 * @param writeLambda         the lambda function that performs the write operation
+	 * @param writeSegment the file location to be locked and written to
+	 * @param writeLambda  the lambda function that performs the write operation
 	 * @throws IOException if an I/O error occurs during the write process
 	 */
 	private void lockAndWrite(
 		@Nonnull FileLocation writeSegment,
-		@Nonnull SessionLocation sessionBeingWritten,
 		@Nonnull IOExceptionThrowingLambda writeLambda
 	) throws IOException {
-		// Step 1: lock the write segment and write the data
-		ActiveSegments newValue;
-		while (true) {
-			// Try to update the segments
-			newValue = updateSegments(
-				() -> this.activeSegments.updateAndGet(
-					currentlyActiveSegments -> {
-						isPremiseValid(
-							currentlyActiveSegments.writeSegment() == null,
-							"Write segment is already locked. This is not expected!"
-						);
-						isPremiseValid(
-							currentlyActiveSegments.sessionBeingWritten() == null || currentlyActiveSegments.sessionBeingWritten() == sessionBeingWritten,
-							"Different session is being written. This is not expected!"
-						);
-						// If the write segment is currently being read, we cannot proceed yet
-						if (
-							currentlyActiveSegments.readSegment()
-								.keySet()
-								.stream()
-								.anyMatch(readSegment -> segmentsOverlap(readSegment, writeSegment))
-						) {
-							// Return existing state (i.e. we failed to lock)
-							return currentlyActiveSegments;
-						} else {
-							// Otherwise lock the write segment and move on
-							return new ActiveSegments(
-								currentlyActiveSegments.readSegment(),
-								writeSegment,
-								sessionBeingWritten
-							);
-						}
-					}
-				)
+		FileLock lock = null;
+		try {
+			lock = this.fileChannel.lock(
+				writeSegment.startingPosition(),
+				writeSegment.recordLength(),
+				false
 			);
-			// If we successfully locked the segment, break out of the loop
-			if (newValue.writeSegment() == writeSegment) {
-				break;
-			}
-			// otherwise, wait until someone else changes the state (i.e., finishes reading)
-			waitForSegmentUpdate();
-		}
 
-		// Step 2: write the data
-		writeLambda.run();
+			writeLambda.run();
 
-		// Step 3: release the lock on the write segment
-		while (true) {
-			newValue = updateSegments(
-				() -> this.activeSegments.updateAndGet(
-					currentlyActiveSegments -> {
-						isPremiseValid(
-							currentlyActiveSegments.writeSegment() == writeSegment,
-							"Write segment is not locked. This is not expected!"
-						);
-						// unlock the write segment
-						return new ActiveSegments(
-							currentlyActiveSegments.readSegment(),
-							null,
-							sessionBeingWritten
-						);
-					}
-				)
-			);
-			// If the write segment is unlocked, we’re done
-			if (newValue.writeSegment() == null) {
-				break;
+		} catch (IOException e) {
+			log.error("Failed to finalize writing of session: " + e.getMessage(), e);
+		} finally {
+			if (lock != null) {
+				IOUtils.closeQuietly(lock::release);
 			}
-			// Otherwise, wait for the condition to change
-			waitForSegmentUpdate();
 		}
 	}
 
@@ -907,114 +800,29 @@ public class DiskRingBuffer {
 	 */
 	@Nullable
 	private <T> T lockAndRead(
-		long readerId,
 		@Nonnull FileLocation readSegment,
 		@Nonnull Supplier<T> readLambda
 	) {
-		// lock the read segment and execute the read lambda
-		ActiveSegments newValue = updateSegments(
-			() -> this.activeSegments.updateAndGet(
-				currentlyActiveSegments -> {
-					if (segmentsOverlap(currentlyActiveSegments.writeSegment(), readSegment)) {
-						// if the read segment is currently being written, do not read from it,
-						// this will cause reading to be skipped entirely - the data will be mangled anyway
-						return currentlyActiveSegments;
-					} else {
-						// otherwise lock the read segment and execute the read lambda
-						final Map<FileLocation, LongSet> readers = currentlyActiveSegments.readSegment();
-						readers.compute(
-							readSegment,
-							(fileLocation, theReaderIds) -> {
-								if (theReaderIds == null) {
-									theReaderIds = new LongHashSet();
-								}
-								theReaderIds.add(readerId);
-								return theReaderIds;
-							});
-						return new ActiveSegments(
-							readers,
-							currentlyActiveSegments.writeSegment(),
-							currentlyActiveSegments.sessionBeingWritten()
-						);
-					}
-				}
-			)
-		);
+		FileLock lock = null;
+		try {
+			lock = this.fileChannel.lock(
+				readSegment.startingPosition(),
+				readSegment.recordLength(),
+				true
+			);
 
-		// if we succeeded in locking the read segment, execute the read lambda
-		if (
-			ofNullable(newValue.readSegment().get(readSegment))
-				.map(theReaders -> theReaders.contains(readerId))
-				.orElse(false)
-		) {
-			try {
-				return readLambda.get();
-			} finally {
-				updateSegments(
-					() -> this.activeSegments.updateAndGet(
-						currentlyActiveSegments -> {
-							final Map<FileLocation, LongSet> readers = currentlyActiveSegments.readSegment();
-							readers.compute(
-								readSegment,
-								(fileLocation, theReaders) -> {
-									isPremiseValid(theReaders != null, "Read segment counter is null. This is not expected!");
-									isPremiseValid(theReaders.removeAll(readerId) == 1, "Reader ID not found. This is not expected!");
-									return theReaders.isEmpty() ? null : theReaders;
-								}
-							);
-							return new ActiveSegments(
-								readers,
-								currentlyActiveSegments.writeSegment(),
-								currentlyActiveSegments.sessionBeingWritten()
-							);
-						}
-					)
-				);
-			}
-		} else {
-			// we failed to lock the read segment, return null
+			return readLambda.get();
+
+		} catch (OverlappingFileLockException e) {
+			log.debug("Failed to acquire lock on read segment: " + e.getMessage());
 			return null;
-		}
-	}
-
-	/**
-	 * Waits for the segment update signal.
-	 *
-	 * This method blocks the current thread until a signal is received
-	 * on the segmentsCondition, indicating that a segment update has occurred.
-	 * The method utilizes a lock to ensure thread safety when waiting
-	 * for the condition to be signaled.
-	 *
-	 * This wait is uninterruptible and will not respond to thread interruptions.
-	 */
-	private void waitForSegmentUpdate() {
-		this.segmentsLock.lock();
-		try {
-			this.segmentsCondition.awaitUninterruptibly();
+		} catch (IOException e) {
+			log.error("Failed to finalize writing of session: " + e.getMessage(), e);
+			return null;
 		} finally {
-			this.segmentsLock.unlock();
-		}
-	}
-
-	/**
-	 * Updates the active segments by executing the provided supplier within a thread-safe context. The plain
-	 * {@link AtomicReference#updateAndGet(UnaryOperator)} doesn't guarantee that the lambda will be executed
-	 * concurrently on top of different witness values, which is necessary for the correct operation of the
-	 * disk ring buffer.
-	 *
-	 * @param lambda a supplier that provides the updated ActiveSegments instance
-	 * @return the updated ActiveSegments instance
-	 */
-	@Nonnull
-	private ActiveSegments updateSegments(@Nonnull Supplier<ActiveSegments> lambda) {
-		this.segmentsLock.lock();
-		try {
-			ActiveSegments result = lambda.get();
-			// notify any threads waiting to see if they can progress (e.g. waiting readers/writers)
-			this.segmentsCondition.signalAll();
-			return result;
-		} finally {
-			this.segmentsLock.unlock();
+			if (lock != null) {
+				IOUtils.closeQuietly(lock::release);
+			}
 		}
 	}
 
@@ -1037,38 +845,6 @@ public class DiskRingBuffer {
 		 */
 		void run() throws IOException;
 
-	}
-
-	/**
-	 * Represents the segments currently active for reading and writing within a disk-based ring buffer system.
-	 *
-	 * This record is used to track the current read segment, write segment, and any session that is being actively
-	 * written. The use of nullable fields allows flexibility in indicating the absence of a particular segment or
-	 * session activity.
-	 *
-	 * @param readSegment         the file location currently being read by some process; can be null if no process is reading
-	 * @param writeSegment        the file location currently being written by some process; can be null if no process is writing
-	 * @param sessionBeingWritten the session location that is in the process of being written; can be null if no session is being written;
-	 *                            this field is used for sanity check, to ensure that the session being written is the one that was locked
-	 */
-	private record ActiveSegments(
-		@Nonnull Map<FileLocation, LongSet> readSegment,
-		@Nullable FileLocation writeSegment,
-		@Nullable SessionLocation sessionBeingWritten
-	) {
-
-		private ActiveSegments() {
-			this(new HashMap<>(256), null, null);
-		}
-
-		@Override
-		public String toString() {
-			return "ActiveSegments{" +
-				"readSegment=" + readSegment +
-				", writeSegment=" + writeSegment +
-				", sessionBeingWritten=" + sessionBeingWritten +
-				'}';
-		}
 	}
 
 }

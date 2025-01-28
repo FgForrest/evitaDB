@@ -437,9 +437,10 @@ public class SessionTraffic implements Closeable {
 		this.recordingTypes.add(container.type());
 		this.fetchCount += container.ioFetchCount();
 		this.bytesFetchedTotal += container.ioFetchedSizeBytes();
-		if (container instanceof QueryContainer queryContainer && this.sourceQueryCounterIndex != null) {
+		if (container instanceof QueryContainer queryContainer) {
 			this.queryCounter.incrementAndGet();
-			final UUID sourceQueryId = getSourceQueryId(queryContainer);
+			final UUID sourceQueryId = this.sourceQueryCounterIndex == null ?
+				null : getSourceQueryId(queryContainer);
 			if (sourceQueryId != null) {
 				final SourceQueryCounter sourceQueryCounter = this.sourceQueryCounterIndex.get(sourceQueryId);
 				if (sourceQueryCounter != null) {
@@ -452,6 +453,7 @@ public class SessionTraffic implements Closeable {
 					);
 				}
 			}
+
 			this.labels.addAll(Arrays.asList(queryContainer.labels()));
 		} else if (container instanceof MutationContainer) {
 			this.mutationCounter.incrementAndGet();

@@ -728,7 +728,6 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 							final int blockLength = memoryBlockIdsToFree.hasNext() ?
 								this.blockSizeBytes : finalizedSession.getCurrentByteBufferPosition();
 							this.diskBuffer.append(
-								sessionLocation,
 								memoryByteBuffer.slice(blockStart, blockLength)
 							);
 							this.freeBlocks.offer(freeBlock);
