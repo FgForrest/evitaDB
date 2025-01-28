@@ -33,6 +33,8 @@ import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.store.exception.InvalidFileNameException;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.FileUtils;
+import io.evitadb.utils.FolderLock;
+import io.evitadb.utils.IOUtils;
 import io.evitadb.utils.UUIDUtil;
 import lombok.extern.slf4j.Slf4j;
 
@@ -79,6 +81,10 @@ import static java.util.Optional.of;
  */
 @Slf4j
 public class ExportFileService implements Closeable {
+	/**
+	 * Folder lock to prevent concurrent access to the export directory.
+	 */
+	private final FolderLock folderLock;
 	/**
 	 * Storage options.
 	 */
@@ -154,6 +160,9 @@ public class ExportFileService implements Closeable {
 			);
 			this.files = new CopyOnWriteArrayList<>();
 		}
+		// init folder lock
+		this.folderLock = new FolderLock(this.storageOptions.exportDirectory());
+		this.reservedFiles.add(this.folderLock.lockFilePath());
 		// schedule automatic purging task
 		new DelayedAsyncTask(
 			null,
@@ -413,6 +422,13 @@ public class ExportFileService implements Closeable {
 			FileUtils.deleteFileIfExists(reservedFile);
 		}
 		purgeFiles();
+		IOUtils.close(
+			() -> new UnexpectedIOException(
+				"Failed to close the folder lock: " + this.folderLock,
+				"Failed to close the folder lock."
+			),
+			this.folderLock::close
+		);
 	}
 
 	/**

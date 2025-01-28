@@ -735,17 +735,17 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 
 	@Override
 	public void delete() {
-		persistenceService.delete();
+		this.persistenceService.delete();
 	}
 
 	@Nonnull
 	@Override
 	public CatalogContract replace(@Nonnull CatalogSchemaContract updatedSchema, @Nonnull CatalogContract catalogToBeReplaced) {
-		final long catalogVersion = versionId.get();
+		final long catalogVersion = this.versionId.get();
 		this.entityCollections.values().forEach(EntityCollection::terminate);
 		final CatalogSchema renamedSchema = CatalogSchema._internalBuild(updatedSchema);
 		exchangeCatalogSchema(renamedSchema, getInternalSchema());
-		final CatalogPersistenceService newIoService = persistenceService.replaceWith(
+		final CatalogPersistenceService newIoService = this.persistenceService.replaceWith(
 			catalogVersion,
 			updatedSchema.getName(),
 			updatedSchema.getNameVariants(),

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -47,7 +47,6 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
-import java.nio.file.Path;
 import java.util.function.BiFunction;
 
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
@@ -60,7 +59,8 @@ import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_URL;
  */
 @Slf4j
 class EvitaWarmUpTest implements EvitaTestSupport {
-	public static final String DIR_EVITA_TEST = "evitaTest";
+	public static final String DIR_EVITA_TEST = "evitaWarmUpTest";
+	public static final String DIR_EVITA_TEST_EXPORT = "evitaWarmUpTest_export";
 	private static final String ATTRIBUTE_ORDER = "order";
 	private static final String ATTRIBUTE_CATEGORY_ORDER = "categoryOrder";
 	private static final String REFERENCE_CATEGORY_PRODUCTS = "products";
@@ -75,6 +75,7 @@ class EvitaWarmUpTest implements EvitaTestSupport {
 	@BeforeEach
 	void setUp() {
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST);
+		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST_EXPORT);
 		evita = new Evita(
 			getEvitaConfiguration()
 		);
@@ -85,6 +86,7 @@ class EvitaWarmUpTest implements EvitaTestSupport {
 	void tearDown() {
 		evita.close();
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST);
+		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST_EXPORT);
 	}
 
 	/**
@@ -226,19 +228,14 @@ class EvitaWarmUpTest implements EvitaTestSupport {
 			)
 			.storage(
 				StorageOptions.builder()
-					.storageDirectory(getEvitaTestDirectory())
-					.exportDirectory(getEvitaTestDirectory())
+					.storageDirectory(getTestDirectory().resolve(DIR_EVITA_TEST))
+					.exportDirectory(getTestDirectory().resolve(DIR_EVITA_TEST_EXPORT))
 					.timeTravelEnabled(false)
 					.fileSizeCompactionThresholdBytes(1_000_000)
 					.minimalActiveRecordShare(0.8)
 					.build()
 			)
 			.build();
-	}
-
-	@Nonnull
-	private Path getEvitaTestDirectory() {
-		return getTestDirectory().resolve(DIR_EVITA_TEST);
 	}
 
 }

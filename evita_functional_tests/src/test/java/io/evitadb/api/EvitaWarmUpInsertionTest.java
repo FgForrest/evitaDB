@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -37,7 +37,6 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
-import java.nio.file.Path;
 
 /**
  * This test contains various integration tests for {@link Evita}.
@@ -46,13 +45,15 @@ import java.nio.file.Path;
  */
 @Slf4j
 class EvitaWarmUpInsertionTest implements EvitaTestSupport {
-	public static final String DIR_EVITA_TEST = "evitaTest";
+	public static final String DIR_EVITA_TEST = "evitaWarmUpInsertionTest";
+	public static final String DIR_EVITA_TEST_EXPORT = "evitaWarmUpInsertionTest_export";
 	public static final String THE_ENTITY = "theEntity";
 	private Evita evita;
 
 	@BeforeEach
 	void setUp() {
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST);
+		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST_EXPORT);
 		evita = new Evita(
 			getEvitaConfiguration()
 		);
@@ -63,6 +64,7 @@ class EvitaWarmUpInsertionTest implements EvitaTestSupport {
 	void tearDown() {
 		evita.close();
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST);
+		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST_EXPORT);
 	}
 
 	@Tag(LONG_RUNNING_TEST)
@@ -115,19 +117,14 @@ class EvitaWarmUpInsertionTest implements EvitaTestSupport {
 			)
 			.storage(
 				StorageOptions.builder()
-					.storageDirectory(getEvitaTestDirectory())
-					.exportDirectory(getEvitaTestDirectory())
+					.storageDirectory(getTestDirectory().resolve(DIR_EVITA_TEST))
+					.exportDirectory(getTestDirectory().resolve(DIR_EVITA_TEST_EXPORT))
 					.timeTravelEnabled(false)
 					.fileSizeCompactionThresholdBytes(100_000_000)
 					.minimalActiveRecordShare(0.8)
 					.build()
 			)
 			.build();
-	}
-
-	@Nonnull
-	private Path getEvitaTestDirectory() {
-		return getTestDirectory().resolve(DIR_EVITA_TEST);
 	}
 
 }

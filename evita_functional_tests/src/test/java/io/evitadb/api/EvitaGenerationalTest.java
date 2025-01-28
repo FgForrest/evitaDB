@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -85,6 +85,7 @@ class EvitaGenerationalTest implements EvitaTestSupport, TimeBoundedTestSupport 
 	 */
 	private static final int INITIAL_COUNT_OF_PRODUCTS = 1000;
 	public static final String DIRECTORY_EVITA_GENERATIONAL_TEST = "evitaGenerationalTest";
+	public static final String DIRECTORY_EVITA_GENERATIONAL_TEST_EXPORT = "evitaGenerationalTest_export";
 	/**
 	 * Instance of the data generator that is used for randomizing artificial test data.
 	 */
@@ -143,6 +144,7 @@ class EvitaGenerationalTest implements EvitaTestSupport, TimeBoundedTestSupport 
 	@BeforeEach
 	void setUp() throws IOException {
 		cleanTestSubDirectory(DIRECTORY_EVITA_GENERATIONAL_TEST);
+		cleanTestSubDirectory(DIRECTORY_EVITA_GENERATIONAL_TEST_EXPORT);
 		this.dataGenerator.clear();
 		this.generatedEntities.clear();
 		final String catalogName = "testCatalog";
@@ -238,8 +240,10 @@ class EvitaGenerationalTest implements EvitaTestSupport, TimeBoundedTestSupport 
 	}
 
 	@AfterEach
-	void tearDown() {
+	void tearDown() throws IOException {
 		this.evita.close();
+		cleanTestSubDirectory(DIRECTORY_EVITA_GENERATIONAL_TEST);
+		cleanTestSubDirectory(DIRECTORY_EVITA_GENERATIONAL_TEST_EXPORT);
 	}
 
 	@Test
@@ -355,6 +359,7 @@ class EvitaGenerationalTest implements EvitaTestSupport, TimeBoundedTestSupport 
 			.storage(
 				StorageOptions.builder()
 					.storageDirectory(getTestDirectory().resolve(DIRECTORY_EVITA_GENERATIONAL_TEST))
+					.exportDirectory(getTestDirectory().resolve(DIRECTORY_EVITA_GENERATIONAL_TEST_EXPORT))
 					.build()
 			)
 			.build();

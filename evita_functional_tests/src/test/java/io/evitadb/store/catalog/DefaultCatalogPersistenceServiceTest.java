@@ -363,6 +363,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		assertEntityCollectionsHaveIdenticalContent(ioService, SEALED_CATALOG_SCHEMA, brandCollection, ioService.getEntityCollectionHeader(0L, entityTypesIndex.get(Entities.BRAND).entityTypePrimaryKey()));
 		assertEntityCollectionsHaveIdenticalContent(ioService, SEALED_CATALOG_SCHEMA, storeCollection, ioService.getEntityCollectionHeader(0L, entityTypesIndex.get(Entities.STORE).entityTypePrimaryKey()));
 		assertEntityCollectionsHaveIdenticalContent(ioService, SEALED_CATALOG_SCHEMA, productCollection, ioService.getEntityCollectionHeader(0L, entityTypesIndex.get(Entities.PRODUCT).entityTypePrimaryKey()));
+
+		ioService.close();
 	}
 
 	@Test
@@ -801,6 +803,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 
 		// finally rename folder
 		assertTrue(catalogPath.toFile().renameTo(renamedCatalogPath.toFile()));
+
+		ioService.close();
 
 		return renamedCatalogPath;
 	}

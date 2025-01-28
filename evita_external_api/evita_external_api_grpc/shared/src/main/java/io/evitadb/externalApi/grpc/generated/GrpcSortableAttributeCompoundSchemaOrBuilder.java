@@ -123,7 +123,7 @@ public interface GrpcSortableAttributeCompoundSchemaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeElement attributeElements = 4;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcAttributeElement> 
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcAttributeElement>
       getAttributeElementsList();
   /**
    * <pre>
@@ -151,7 +151,7 @@ public interface GrpcSortableAttributeCompoundSchemaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeElement attributeElements = 4;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcAttributeElementOrBuilder> 
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcAttributeElementOrBuilder>
       getAttributeElementsOrBuilderList();
   /**
    * <pre>
@@ -171,7 +171,7 @@ public interface GrpcSortableAttributeCompoundSchemaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 5;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant> 
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant>
       getNameVariantList();
   /**
    * <pre>
@@ -196,7 +196,7 @@ public interface GrpcSortableAttributeCompoundSchemaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 5;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder> 
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
       getNameVariantOrBuilderList();
   /**
    * <pre>

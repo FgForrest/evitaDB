@@ -1386,12 +1386,15 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void shouldCorrectlyRotateAllFiles(GenerationalTestInput input) throws Exception {
 		final Path testDirectory = getTestDirectory().resolve("shouldCorrectlyRotateAllFiles");
+		final Path testDirectoryExport = getTestDirectory().resolve("shouldCorrectlyRotateAllFiles_export");
 		cleanTestSubDirectory("shouldCorrectlyRotateAllFiles");
+		cleanTestSubDirectory("shouldCorrectlyRotateAllFiles_export");
 		final Evita evita = new Evita(
 			EvitaConfiguration.builder()
 				.storage(
 					StorageOptions.builder()
 						.storageDirectory(testDirectory)
+						.exportDirectory(testDirectoryExport)
 						.minimalActiveRecordShare(0.9)
 						.fileSizeCompactionThresholdBytes(16_384)
 						.build()
