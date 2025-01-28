@@ -24,6 +24,7 @@
 package io.evitadb.core.traffic.task;
 
 import io.evitadb.api.file.FileForFetch;
+import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.TaskTrait;
 import io.evitadb.core.async.ClientInfiniteCallableTask;
 import io.evitadb.core.async.Scheduler;
@@ -54,6 +55,7 @@ import java.util.Iterator;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.IntConsumer;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -76,6 +78,10 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 	 * Export file service that manages the target file.
 	 */
 	private final ExportFileService exportFileService;
+	/**
+	 * Scheduler used for scheduling the task stop and progress update.
+	 */
+	private final Scheduler scheduler;
 
 	/**
 	 * Determines the finish condition for the traffic recording based on the given settings.
@@ -120,9 +126,11 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 				new TaskTrait[]{TaskTrait.CAN_BE_STARTED, TaskTrait.CAN_BE_CANCELLED}
 		);
 		this.exportFileService = exportFileService;
+		this.scheduler = scheduler;
 		this.trafficRecordingEngine = trafficRecordingEngine;
 		if (recordingDuration != null) {
 			scheduler.schedule(this::stopInternal, recordingDuration.toMillis(), TimeUnit.MILLISECONDS);
+			scheduler.schedule(this::updateTaskProgress, 5, TimeUnit.SECONDS);
 		}
 	}
 
@@ -135,6 +143,25 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 	@Override
 	protected void stopInternal() {
 		this.finalizationLatch.countDown();
+		this.updateTaskNameAndTraits("Stopping traffic recording and finalizing the file.");
+	}
+
+	/**
+	 * Updates the task progress based on the remaining time until the recording finishes.
+	 */
+	private void updateTaskProgress() {
+		final TaskStatus<TrafficRecordingSettings, FileForFetch> theStatus = getStatus();
+		final Duration duration = theStatus.settings().recordingDuration();
+		if (theStatus.started() != null && duration != null) {
+			final OffsetDateTime finishTime = theStatus.started().plusSeconds(duration.getSeconds());
+			final long remaining = finishTime.toEpochSecond() - OffsetDateTime.now().toEpochSecond();
+			this.updateProgress((int) ((1.0 - ((float) remaining / (float) duration.getSeconds())) * 100.0));
+			if (remaining > 5) {
+				this.scheduler.schedule(this::updateTaskProgress, 5, TimeUnit.SECONDS);
+			}
+		} else {
+			this.scheduler.schedule(this::updateTaskProgress, 5, TimeUnit.SECONDS);
+		}
 	}
 
 	/**
@@ -145,14 +172,24 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 		final TrafficRecordingSettings settings = getStatus().settings();
 		ExportSessionSink exportSessionSink = null;
 		try {
-			exportSessionSink = settings.exportFile() ? new ExportSessionSink(
-				settings.catalogName(),
-				this.exportFileService,
-				this.trafficRecordingEngine.getTrafficOptions().trafficDiskBufferSizeInBytes(),
-				settings,
-				this::stopInternal
-			) : null;
+			final String fileName = "traffic_recording_" + settings.catalogName() + "_" + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+			final ExportFileHandle exportFileHandle = this.exportFileService.storeFile(
+				fileName + ".zip",
+				"Traffic recording started at " + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) +
+					" with sampling rate " + settings.samplingRate() + "%" + getFinishCondition(settings) + ".",
+				"application/zip",
+				this.getClass().getSimpleName()
+			);
 
+			exportSessionSink = settings.exportFile() ?
+				new ExportSessionSink(
+					this.trafficRecordingEngine.getTrafficOptions().trafficDiskBufferSizeInBytes(),
+					settings,
+					this::stopInternal,
+					this::updateProgress,
+					exportFileHandle
+				) :
+				null;
 
 			// start recording
 			this.trafficRecordingEngine.startRecording(settings.samplingRate(), exportSessionSink);
@@ -192,6 +229,7 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 	 * a zip archive, and maintains metadata about the export operation such as exported size and session count.
 	 */
 	private static class ExportSessionSink implements SessionSink, Closeable {
+		private final IntConsumer updateProgress;
 		private final ExportFileHandle exportFileHandle;
 		private final long chunkFileSizeInBytes;
 		private final long nonExportedSizeLimit;
@@ -214,11 +252,11 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 		@Nullable private SessionLocation lastSeenLocation;
 
 		public ExportSessionSink(
-			@Nonnull String catalogName,
-			@Nonnull ExportFileService exportFileService,
 			long diskBufferSizeInBytes,
 			@Nonnull TrafficRecordingSettings settings,
-			@Nonnull Runnable finalizer
+			@Nonnull Runnable finalizer,
+			@Nonnull IntConsumer updateProgress,
+			@Nonnull ExportFileHandle exportFileHandle
 		) throws FileNotFoundException {
 			this.nonExportedSizeLimit = diskBufferSizeInBytes / 2;
 			this.chunkFileSizeInBytes = settings.chunkFileSizeInBytes();
@@ -227,16 +265,8 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 			this.settings = settings;
 			//noinspection CheckForOutOfMemoryOnLargeArrayAllocation
 			this.buffer = new byte[8192];
-
-			final String fileName = "traffic_recording_" + catalogName + "_" + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
-			this.exportFileHandle = exportFileService.storeFile(
-				fileName + ".zip",
-				"Traffic recording started at " + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) +
-					" with sampling rate " + settings.samplingRate() + "%" + getFinishCondition(settings) + ".",
-				"application/zip",
-				this.getClass().getSimpleName()
-			);
-
+			this.updateProgress = updateProgress;
+			this.exportFileHandle = exportFileHandle;
 			this.outputStream = new ZipOutputStream(new BufferedOutputStream(this.exportFileHandle.outputStream()));
 		}
 
@@ -320,7 +350,9 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 					compressToFinalDestination(next);
 					this.nonExportedSize -= next.fileLocation().recordLength();
 					this.lastExportedLocation = next;
-					if (this.exportFileHandle.size() > this.exportedSizeLimit) {
+					final long currentFileSize = this.exportFileHandle.size();
+					this.updateProgress.accept((int) (((float) currentFileSize / (float) this.exportedSizeLimit) * 100.0));
+					if (currentFileSize > this.exportedSizeLimit) {
 						this.finalizer.run();
 						break;
 					}

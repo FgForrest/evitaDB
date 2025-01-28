@@ -249,6 +249,11 @@ public class DiskRingBuffer {
 					e
 				);
 			}
+		} else {
+			final SessionSink currentSessionSing = this.sessionSink.get();
+			if (currentSessionSing != null) {
+				currentSessionSing.onClose(this.sessionLocations, this.lastRealSamplingRate);
+			}
 		}
 		this.sessionSink.set(sessionSink);
 	}
