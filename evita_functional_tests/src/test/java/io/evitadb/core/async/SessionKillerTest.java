@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
 import io.evitadb.test.EvitaTestSupport;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -58,17 +59,20 @@ import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
 @Tag(LONG_RUNNING_TEST)
 class SessionKillerTest implements EvitaTestSupport {
 	public static final String SUB_DIRECTORY = "SessionKillerTest";
+	public static final String SUB_DIRECTORY_EXPORT = "SessionKillerTest_export";
 	private Evita evita;
 	private SessionKiller sessionKiller;
 
 	@BeforeEach
 	void setUp() throws IOException, NoSuchFieldException, IllegalAccessException {
 		cleanTestSubDirectory(SUB_DIRECTORY);
+		cleanTestSubDirectory(SUB_DIRECTORY_EXPORT);
 		this.evita = new Evita(
 			EvitaConfiguration.builder()
 				.storage(
 					StorageOptions.builder()
 						.storageDirectory(getTestDirectory().resolve(SUB_DIRECTORY))
+						.exportDirectory(getTestDirectory().resolve(SUB_DIRECTORY_EXPORT))
 						.build()
 				)
 				.server(
@@ -81,6 +85,13 @@ class SessionKillerTest implements EvitaTestSupport {
 		final Field sessionKillerField = Evita.class.getDeclaredField("sessionKiller");
 		sessionKillerField.setAccessible(true);
 		this.sessionKiller = (SessionKiller) sessionKillerField.get(this.evita);
+	}
+
+	@AfterEach
+	void tearDown() throws IOException {
+		this.evita.close();
+		cleanTestSubDirectory(SUB_DIRECTORY);
+		cleanTestSubDirectory(SUB_DIRECTORY_EXPORT);
 	}
 
 	@Test

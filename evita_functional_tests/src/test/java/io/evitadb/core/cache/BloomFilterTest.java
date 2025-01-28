@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -91,14 +91,14 @@ class BloomFilterTest {
 		int acc = 0;
 		final long start = System.nanoTime();
 		for (long i = 0; i < 20_000_000_000L; i++) {
-			acc += i % 8;
+			acc += (int) (i % 8);
 		}
 		System.out.println(System.nanoTime() - start + ", " + acc);
 
 		acc = 0;
 		final long start2 = System.nanoTime();
 		for (long i = 0; i < 20_000_000_000L; i++) {
-			acc += i & (8 - 1);
+			acc += (int) (i & (8 - 1));
 		}
 		System.out.println(System.nanoTime() - start2 + ", " + acc);
 	}

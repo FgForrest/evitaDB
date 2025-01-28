@@ -4,7 +4,9 @@ name: CI Master branch
 
 on:
   push:
-    branches: [ "master" ]         # trap each push to master branch
+    branches:
+      - "master"        # trap each push to master branch
+      - "release_*"     # trap each push to branches starting with release_
     paths:                         # but react only to changes in code or pipeline definition
       - evita*/**/*.java
       - evita*/**/pom.xml
@@ -34,7 +36,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3    # checkout sources
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2    # checkout sources
       with:
         ref: ${{ github.head_ref }}
         fetch-depth: 0
@@ -48,21 +50,21 @@ jobs:
         minor-identifier: '/feat(?:\\([^)]+\\))?:/'
 
     - name: Setup Java JDK
-      uses: actions/setup-java@v3  # setup JDK 17 for building
+      uses: actions/setup-java@7a6d8a8234af8eb26422e24e3006232cccaa061b # v4.6.0 setup JDK 17 for building
       with:
-         distribution: 'temurin'
-         java-version: '17'
-         cache: 'maven'
-         server-id: ossrh
-         server-username: MAVEN_USERNAME
-         server-password: MAVEN_CENTRAL_TOKEN
-         gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
-         gpg-passphrase: MAVEN_GPG_PASSPHRASE
+        distribution: 'temurin'
+        java-version: '17'
+        cache: 'maven'
+        server-id: ossrh
+        server-username: MAVEN_USERNAME
+        server-password: MAVEN_CENTRAL_TOKEN
+        gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+        gpg-passphrase: MAVEN_GPG_PASSPHRASE
 
     - name: Build with Maven       # run Maven without tests (tests must pass in dev branch)
       run: |      
-        export CURRENT_VERSION="${{ steps.release_version.outputs.version }}"
-        export NEW_VERSION="$( echo ${CURRENT_VERSION} | sed 's/^v//')"
+        export SANITIZED_VERSION=$(echo "$EVITA_BUILD_VERSION" | tr -d '\r\n')
+        export NEW_VERSION="$( echo "${SANITIZED_VERSION}" | sed 's/^v//; s/-.*//')"
         echo $NEW_VERSION > version.txt
         echo "Version: $(cat version.txt)"
         mvn versions:set -DnewVersion=$NEW_VERSION
@@ -82,14 +84,14 @@ jobs:
         cp 'evita_server/dist/logback.xml' './dist'
 
     - name: Create .zip of dist
-      uses: thedoctor0/zip-release@0.7.1
+      uses: thedoctor0/zip-release@b57d897cb5d60cb78b51a507f63fa184cfe35554 # v0.7.6
       with:
         type: 'zip'
         filename: 'dist.zip'
         path: './dist'
 
     - name: Create .tar.gz of dist
-      uses: thedoctor0/zip-release@0.7.1
+      uses: thedoctor0/zip-release@b57d897cb5d60cb78b51a507f63fa184cfe35554 # v0.7.6
       with:
         type: 'tar'
         filename: 'dist.tar.gz'
@@ -97,13 +99,13 @@ jobs:
 
     - name: Create release
       id: create_release
-      uses: release-drafter/release-drafter@v5
+      uses: release-drafter/release-drafter@b1476f6e6eb133afa41ed8589daba6dc69b4d3f5 # v6.1.0
       with:
         version: ${{ steps.release_version.outputs.version }}
         publish: true
 
     - name: Upload dist.zip to release
-      uses: actions/upload-release-asset@v1
+      uses: actions/upload-release-asset@64e5e85fc528f162d7ba7ce2d15a3bb67efb3d80 # v1.0.1
       if: success()
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
@@ -112,7 +114,7 @@ jobs:
         asset_content_type: application/zip
 
     - name: Upload dist.tar.gz to release
-      uses: actions/upload-release-asset@v1
+      uses: actions/upload-release-asset@64e5e85fc528f162d7ba7ce2d15a3bb67efb3d80 # v1.0.1
       if: success()
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
@@ -121,14 +123,14 @@ jobs:
         asset_content_type: application/gzip
 
     - name: Upload evitaDB server artifact   # upload `evita-server.jar` for `docker-latest.yml` to deploy to DockerHub
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
       if: success()
       with:
         name: evita-server.jar
         path: 'evita_server/target/evita-server.jar'
 
     - name: Upload evitaDB version.txt      # upload `version.txt` for `docker-latest.yml` to deploy to DockerHub
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
       if: success()
       with:
         name: version.txt

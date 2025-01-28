@@ -92,6 +92,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 	public static final String ATTRIBUTE_CODE = "code";
 	public static final String DIRECTORY_EVITA_TRAFFIC_RECORDING_TEST = "evitaTrafficRecordingTest";
+	public static final String DIRECTORY_EVITA_TRAFFIC_RECORDING_TEST_EXPORT = "evitaTrafficRecordingTestExport";
 	/**
 	 * Seed for data generation.
 	 */
@@ -154,6 +155,7 @@ public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 	@BeforeEach
 	void setUp() throws IOException {
 		cleanTestSubDirectory(DIRECTORY_EVITA_TRAFFIC_RECORDING_TEST);
+		cleanTestSubDirectory(DIRECTORY_EVITA_TRAFFIC_RECORDING_TEST_EXPORT);
 		this.dataGenerator.clear();
 		this.generatedEntities.clear();
 		final String catalogName = "testCatalog";
@@ -249,8 +251,10 @@ public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 	}
 
 	@AfterEach
-	void tearDown() {
+	void tearDown() throws IOException {
 		this.evita.close();
+		cleanTestSubDirectory(DIRECTORY_EVITA_TRAFFIC_RECORDING_TEST);
+		cleanTestSubDirectory(DIRECTORY_EVITA_TRAFFIC_RECORDING_TEST_EXPORT);
 	}
 
 	@Test
@@ -489,6 +493,7 @@ public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 			.storage(
 				StorageOptions.builder()
 					.storageDirectory(getTestDirectory().resolve(DIRECTORY_EVITA_TRAFFIC_RECORDING_TEST))
+					.exportDirectory(getTestDirectory().resolve(DIRECTORY_EVITA_TRAFFIC_RECORDING_TEST_EXPORT))
 					.build()
 			)
 			.build();

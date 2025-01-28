@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -50,12 +50,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 class EvitaSchemaCallbackTest implements EvitaTestSupport {
 	public static final String DIR_EVITA_NOTIFICATION_TEST = "evitaNotificationTest";
+	public static final String DIR_EVITA_NOTIFICATION_TEST_EXPORT = "evitaNotificationTest_export";
 	private Evita evita;
 	private String evitaInstanceId;
 
 	@BeforeEach
 	void setUp() {
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_NOTIFICATION_TEST);
+		cleanTestSubDirectoryWithRethrow(DIR_EVITA_NOTIFICATION_TEST_EXPORT);
 		evita = new Evita(
 			getEvitaConfiguration()
 		);
@@ -67,6 +69,7 @@ class EvitaSchemaCallbackTest implements EvitaTestSupport {
 	void tearDown() {
 		evita.close();
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_NOTIFICATION_TEST);
+		cleanTestSubDirectoryWithRethrow(DIR_EVITA_NOTIFICATION_TEST_EXPORT);
 	}
 
 	@Test
@@ -265,6 +268,7 @@ class EvitaSchemaCallbackTest implements EvitaTestSupport {
 			.storage(
 				StorageOptions.builder()
 					.storageDirectory(getTestDirectory().resolve(DIR_EVITA_NOTIFICATION_TEST))
+					.exportDirectory(getTestDirectory().resolve(DIR_EVITA_NOTIFICATION_TEST_EXPORT))
 					.build()
 			)
 			.build();

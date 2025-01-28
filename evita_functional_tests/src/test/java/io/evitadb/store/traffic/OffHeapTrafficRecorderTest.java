@@ -369,7 +369,7 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 		final UUID sessionId = writeBunchOfData(10, 100);
 
 		// wait for the data to be written to the disk
-		waitUntilDataBecomeAvailable(sessionId, 1000_000);
+		waitUntilDataBecomeAvailable(sessionId, 1_000_000);
 
 		final List<TrafficRecording> allRecordings = this.trafficRecorder.getRecordings(
 			TrafficRecordingCaptureRequest.builder()
@@ -379,7 +379,7 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 				.build()
 		).toList();
 
-		assertTrue(allRecordings.size() > 120);
+		assertTrue(allRecordings.size() > 120, "Actual size: " + allRecordings.size());
 	}
 
 	@Test
@@ -494,7 +494,9 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 						.type(TrafficRecordingType.SESSION_CLOSE)
 						.build()
 				).toList();
-				break;
+				if (!recordings.isEmpty()) {
+					break;
+				}
 			} catch (IndexNotReady ignored) {
 				// ignore and retry
 			}

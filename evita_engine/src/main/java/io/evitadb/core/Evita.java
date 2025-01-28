@@ -72,6 +72,8 @@ import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.FileUtils;
+import io.evitadb.utils.FolderLock;
+import io.evitadb.utils.IOUtils;
 import io.evitadb.utils.NamingConvention;
 import io.evitadb.utils.ReflectionLookup;
 import io.evitadb.utils.StringUtils;
@@ -195,6 +197,10 @@ public final class Evita implements EvitaContract {
 	 */
 	@Getter private boolean active;
 	/**
+	 * The folder lock instance that is used for safeguarding exclusive access to the catalog storage directory.
+	 */
+	private final FolderLock folderLock;
+	/**
 	 * Flag that is initially set to {@link ServerOptions#readOnly()} from {@link EvitaConfiguration}.
 	 * The flag might be changed from false to TRUE one time using internal Evita API. This is used in test support.
 	 */
@@ -222,6 +228,10 @@ public final class Evita implements EvitaContract {
 
 	public Evita(@Nonnull EvitaConfiguration configuration) {
 		this.configuration = configuration;
+
+		// try to acquire lock over storage directory
+		this.folderLock = new FolderLock(configuration.storage().storageDirectory());
+
 		this.serviceExecutor = new Scheduler(
 			configuration.server().serviceThreadPool()
 		);
@@ -1026,6 +1036,8 @@ public final class Evita implements EvitaContract {
 
 		// clear map
 		this.catalogs.clear();
+		// release lock
+		IOUtils.closeQuietly(this.folderLock::close);
 	}
 
 	/**

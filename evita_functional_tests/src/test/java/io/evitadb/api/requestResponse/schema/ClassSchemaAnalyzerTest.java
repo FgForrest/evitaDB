@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.model.*;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.test.EvitaTestSupport;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -53,6 +54,7 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	public static final String DIR_CLASS_SCHEMA_ANALYZER_TEST = "classSchemaAnalyzerTest";
+	public static final String DIR_CLASS_SCHEMA_ANALYZER_TEST_EXPORT = "classSchemaAnalyzerTest_export";
 	private Evita evita;
 
 	private static void assertAttribute(
@@ -169,16 +171,25 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	@BeforeEach
 	void setUp() throws IOException {
 		cleanTestSubDirectory(DIR_CLASS_SCHEMA_ANALYZER_TEST);
-		evita = new Evita(
+		cleanTestSubDirectory(DIR_CLASS_SCHEMA_ANALYZER_TEST_EXPORT);
+		this.evita = new Evita(
 			EvitaConfiguration.builder()
 				.storage(
 					StorageOptions.builder()
 						.storageDirectory(getTestDirectory().resolve(DIR_CLASS_SCHEMA_ANALYZER_TEST))
+						.exportDirectory(getTestDirectory().resolve(DIR_CLASS_SCHEMA_ANALYZER_TEST_EXPORT))
 						.build()
 				)
 				.build()
 		);
 		evita.defineCatalog(TEST_CATALOG);
+	}
+
+	@AfterEach
+	void tearDown() throws IOException {
+		this.evita.close();
+		cleanTestSubDirectory(DIR_CLASS_SCHEMA_ANALYZER_TEST);
+		cleanTestSubDirectory(DIR_CLASS_SCHEMA_ANALYZER_TEST_EXPORT);
 	}
 
 	@DisplayName("Verify that interface methods re analyzed and set up with defaults")

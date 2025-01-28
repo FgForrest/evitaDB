@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -131,6 +131,7 @@ class EvitaTest implements EvitaTestSupport {
 	public static final String ATTRIBUTE_NAME = "name";
 	public static final String ATTRIBUTE_URL = "url";
 	public static final String DIR_EVITA_TEST = "evitaTest";
+	public static final String DIR_EVITA_TEST_EXPORT = "evitaTest_export";
 	public static final String REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY = "productsInCategory";
 	public static final String REFERENCE_PRODUCT_CATEGORY = "productCategory";
 	private static final Locale LOCALE_CZ = new Locale("cs", "CZ");
@@ -144,6 +145,7 @@ class EvitaTest implements EvitaTestSupport {
 	@BeforeEach
 	void setUp() {
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST);
+		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST_EXPORT);
 		evita = new Evita(
 			getEvitaConfiguration()
 		);
@@ -155,6 +157,7 @@ class EvitaTest implements EvitaTestSupport {
 	void tearDown() {
 		evita.close();
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST);
+		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST_EXPORT);
 	}
 
 	@Test
@@ -2970,7 +2973,7 @@ class EvitaTest implements EvitaTestSupport {
 			.storage(
 				StorageOptions.builder()
 					.storageDirectory(getEvitaTestDirectory())
-					.exportDirectory(getEvitaTestDirectory())
+					.exportDirectory(getTestDirectory().resolve(DIR_EVITA_TEST_EXPORT))
 					.timeTravelEnabled(false)
 					.build()
 			)
