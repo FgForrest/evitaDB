@@ -67,6 +67,37 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
     return getGetTrafficRecordingHistoryListMethod;
   }
 
+  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListRequest,
+      io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListResponse> getGetTrafficRecordingHistoryListReversedMethod;
+
+  @io.grpc.stub.annotations.RpcMethod(
+      fullMethodName = SERVICE_NAME + '/' + "GetTrafficRecordingHistoryListReversed",
+      requestType = io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListRequest.class,
+      responseType = io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListResponse.class,
+      methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
+  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListRequest,
+      io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListResponse> getGetTrafficRecordingHistoryListReversedMethod() {
+    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListRequest, io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListResponse> getGetTrafficRecordingHistoryListReversedMethod;
+    if ((getGetTrafficRecordingHistoryListReversedMethod = GrpcEvitaTrafficRecordingServiceGrpc.getGetTrafficRecordingHistoryListReversedMethod) == null) {
+      synchronized (GrpcEvitaTrafficRecordingServiceGrpc.class) {
+        if ((getGetTrafficRecordingHistoryListReversedMethod = GrpcEvitaTrafficRecordingServiceGrpc.getGetTrafficRecordingHistoryListReversedMethod) == null) {
+          GrpcEvitaTrafficRecordingServiceGrpc.getGetTrafficRecordingHistoryListReversedMethod = getGetTrafficRecordingHistoryListReversedMethod =
+              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListRequest, io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListResponse>newBuilder()
+              .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
+              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "GetTrafficRecordingHistoryListReversed"))
+              .setSampledToLocalTracing(true)
+              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListRequest.getDefaultInstance()))
+              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListResponse.getDefaultInstance()))
+              .setSchemaDescriptor(new GrpcEvitaTrafficRecordingServiceMethodDescriptorSupplier("GetTrafficRecordingHistoryListReversed"))
+              .build();
+        }
+      }
+    }
+    return getGetTrafficRecordingHistoryListReversedMethod;
+  }
+
   private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GetTrafficHistoryRequest,
       io.evitadb.externalApi.grpc.generated.GetTrafficHistoryResponse> getGetTrafficRecordingHistoryMethod;
 
@@ -273,13 +304,25 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
     /**
      * <pre>
      * Procedure that returns requested list of past traffic records with limited size that match the request criteria.
-     * Order of the returned records is from the newest sessions to the oldest,
-     * traffic records within the session are ordered from the newest to the oldest.
+     * Order of the returned records is from the oldest sessions to the newest,
+     * traffic records within the session are ordered from the oldest to the newest.
      * </pre>
      */
     default void getTrafficRecordingHistoryList(io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getGetTrafficRecordingHistoryListMethod(), responseObserver);
+    }
+
+    /**
+     * <pre>
+     * Procedure that returns requested list of past traffic records with limited size that match the request criteria.
+     * Order of the returned records is from the newest sessions to the oldest,
+     * traffic records within the session are ordered from the newest to the oldest.
+     * </pre>
+     */
+    default void getTrafficRecordingHistoryListReversed(io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListResponse> responseObserver) {
+      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getGetTrafficRecordingHistoryListReversedMethod(), responseObserver);
     }
 
     /**
@@ -365,14 +408,27 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
     /**
      * <pre>
      * Procedure that returns requested list of past traffic records with limited size that match the request criteria.
-     * Order of the returned records is from the newest sessions to the oldest,
-     * traffic records within the session are ordered from the newest to the oldest.
+     * Order of the returned records is from the oldest sessions to the newest,
+     * traffic records within the session are ordered from the oldest to the newest.
      * </pre>
      */
     public void getTrafficRecordingHistoryList(io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListResponse> responseObserver) {
       io.grpc.stub.ClientCalls.asyncUnaryCall(
           getChannel().newCall(getGetTrafficRecordingHistoryListMethod(), getCallOptions()), request, responseObserver);
+    }
+
+    /**
+     * <pre>
+     * Procedure that returns requested list of past traffic records with limited size that match the request criteria.
+     * Order of the returned records is from the newest sessions to the oldest,
+     * traffic records within the session are ordered from the newest to the oldest.
+     * </pre>
+     */
+    public void getTrafficRecordingHistoryListReversed(io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListResponse> responseObserver) {
+      io.grpc.stub.ClientCalls.asyncUnaryCall(
+          getChannel().newCall(getGetTrafficRecordingHistoryListReversedMethod(), getCallOptions()), request, responseObserver);
     }
 
     /**
@@ -452,13 +508,25 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
     /**
      * <pre>
      * Procedure that returns requested list of past traffic records with limited size that match the request criteria.
-     * Order of the returned records is from the newest sessions to the oldest,
-     * traffic records within the session are ordered from the newest to the oldest.
+     * Order of the returned records is from the oldest sessions to the newest,
+     * traffic records within the session are ordered from the oldest to the newest.
      * </pre>
      */
     public io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListResponse getTrafficRecordingHistoryList(io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListRequest request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
           getChannel(), getGetTrafficRecordingHistoryListMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure that returns requested list of past traffic records with limited size that match the request criteria.
+     * Order of the returned records is from the newest sessions to the oldest,
+     * traffic records within the session are ordered from the newest to the oldest.
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListResponse getTrafficRecordingHistoryListReversed(io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListRequest request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+          getChannel(), getGetTrafficRecordingHistoryListReversedMethod(), getCallOptions(), request);
     }
 
     /**
@@ -534,14 +602,27 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
     /**
      * <pre>
      * Procedure that returns requested list of past traffic records with limited size that match the request criteria.
-     * Order of the returned records is from the newest sessions to the oldest,
-     * traffic records within the session are ordered from the newest to the oldest.
+     * Order of the returned records is from the oldest sessions to the newest,
+     * traffic records within the session are ordered from the oldest to the newest.
      * </pre>
      */
     public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListResponse> getTrafficRecordingHistoryList(
         io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListRequest request) {
       return io.grpc.stub.ClientCalls.futureUnaryCall(
           getChannel().newCall(getGetTrafficRecordingHistoryListMethod(), getCallOptions()), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure that returns requested list of past traffic records with limited size that match the request criteria.
+     * Order of the returned records is from the newest sessions to the oldest,
+     * traffic records within the session are ordered from the newest to the oldest.
+     * </pre>
+     */
+    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListResponse> getTrafficRecordingHistoryListReversed(
+        io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListRequest request) {
+      return io.grpc.stub.ClientCalls.futureUnaryCall(
+          getChannel().newCall(getGetTrafficRecordingHistoryListReversedMethod(), getCallOptions()), request);
     }
 
     /**
@@ -590,11 +671,12 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
   }
 
   private static final int METHODID_GET_TRAFFIC_RECORDING_HISTORY_LIST = 0;
-  private static final int METHODID_GET_TRAFFIC_RECORDING_HISTORY = 1;
-  private static final int METHODID_GET_TRAFFIC_RECORDING_LABELS_NAMES_ORDERED_BY_CARDINALITY = 2;
-  private static final int METHODID_GET_TRAFFIC_RECORDING_LABEL_VALUES_ORDERED_BY_CARDINALITY = 3;
-  private static final int METHODID_START_TRAFFIC_RECORDING = 4;
-  private static final int METHODID_STOP_TRAFFIC_RECORDING = 5;
+  private static final int METHODID_GET_TRAFFIC_RECORDING_HISTORY_LIST_REVERSED = 1;
+  private static final int METHODID_GET_TRAFFIC_RECORDING_HISTORY = 2;
+  private static final int METHODID_GET_TRAFFIC_RECORDING_LABELS_NAMES_ORDERED_BY_CARDINALITY = 3;
+  private static final int METHODID_GET_TRAFFIC_RECORDING_LABEL_VALUES_ORDERED_BY_CARDINALITY = 4;
+  private static final int METHODID_START_TRAFFIC_RECORDING = 5;
+  private static final int METHODID_STOP_TRAFFIC_RECORDING = 6;
 
   private static final class MethodHandlers<Req, Resp> implements
       io.grpc.stub.ServerCalls.UnaryMethod<Req, Resp>,
@@ -615,6 +697,10 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
       switch (methodId) {
         case METHODID_GET_TRAFFIC_RECORDING_HISTORY_LIST:
           serviceImpl.getTrafficRecordingHistoryList((io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListRequest) request,
+              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListResponse>) responseObserver);
+          break;
+        case METHODID_GET_TRAFFIC_RECORDING_HISTORY_LIST_REVERSED:
+          serviceImpl.getTrafficRecordingHistoryListReversed((io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListResponse>) responseObserver);
           break;
         case METHODID_GET_TRAFFIC_RECORDING_HISTORY:
@@ -662,6 +748,13 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
               io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListRequest,
               io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListResponse>(
                 service, METHODID_GET_TRAFFIC_RECORDING_HISTORY_LIST)))
+        .addMethod(
+          getGetTrafficRecordingHistoryListReversedMethod(),
+          io.grpc.stub.ServerCalls.asyncUnaryCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListRequest,
+              io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListResponse>(
+                service, METHODID_GET_TRAFFIC_RECORDING_HISTORY_LIST_REVERSED)))
         .addMethod(
           getGetTrafficRecordingHistoryMethod(),
           io.grpc.stub.ServerCalls.asyncServerStreamingCall(
@@ -746,6 +839,7 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
           serviceDescriptor = result = io.grpc.ServiceDescriptor.newBuilder(SERVICE_NAME)
               .setSchemaDescriptor(new GrpcEvitaTrafficRecordingServiceFileDescriptorSupplier())
               .addMethod(getGetTrafficRecordingHistoryListMethod())
+              .addMethod(getGetTrafficRecordingHistoryListReversedMethod())
               .addMethod(getGetTrafficRecordingHistoryMethod())
               .addMethod(getGetTrafficRecordingLabelsNamesOrderedByCardinalityMethod())
               .addMethod(getGetTrafficRecordingLabelValuesOrderedByCardinalityMethod())

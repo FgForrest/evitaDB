@@ -29,18 +29,21 @@ import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRe
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
+import java.util.Arrays;
+import java.util.Objects;
 import java.util.UUID;
 
 /**
  * This container holds information about the source query handling start.
  *
- * @param sessionSequenceOrder   the session sequence order of the source query (similar to session id but monotonic)
- * @param sessionId     unique identifier of the session the mutation belongs to
- * @param recordSessionOffset    the order (sequence) of the record in the session
- * @param sourceQueryId unique identifier of the source query
- * @param created       time when the mutation was created
- * @param sourceQuery   unparsed, raw source query in particular format
- * @param queryType     type of the query (e.g. GraphQL, REST, etc.)
+ * @param sessionSequenceOrder the session sequence order of the source query (similar to session id but monotonic)
+ * @param sessionId            unique identifier of the session the mutation belongs to
+ * @param recordSessionOffset  the order (sequence) of the record in the session
+ * @param sourceQueryId        unique identifier of the source query
+ * @param created              time when the mutation was created
+ * @param sourceQuery          unparsed, raw source query in particular format
+ * @param labels               the client labels associated with the query
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public record SourceQueryContainer(
@@ -51,7 +54,7 @@ public record SourceQueryContainer(
 	@Nonnull UUID sourceQueryId,
 	@Nonnull OffsetDateTime created,
 	@Nonnull String sourceQuery,
-	@Nonnull String queryType,
+	@Nonnull Label[] labels,
 	@Nullable String finishedWithError
 ) implements TrafficRecording {
 
@@ -61,7 +64,7 @@ public record SourceQueryContainer(
 		@Nonnull UUID sourceQueryId,
 		@Nonnull OffsetDateTime created,
 		@Nonnull String sourceQuery,
-		@Nonnull String queryType,
+		@Nonnull Label[] labels,
 		@Nullable String finishedWithError
 	) {
 		this(
@@ -72,7 +75,7 @@ public record SourceQueryContainer(
 			sourceQueryId,
 			created,
 			sourceQuery,
-			queryType,
+			labels,
 			finishedWithError
 		);
 	}
@@ -98,4 +101,32 @@ public record SourceQueryContainer(
 		return 0;
 	}
 
+	@Override
+	public boolean equals(Object o) {
+		if (!(o instanceof SourceQueryContainer that)) return false;
+
+		return recordSessionOffset == that.recordSessionOffset &&
+			sessionId.equals(that.sessionId) &&
+			Arrays.equals(labels, that.labels) &&
+			sourceQueryId.equals(that.sourceQueryId) &&
+			sourceQuery.equals(that.sourceQuery) &&
+			created.equals(that.created) &&
+			Objects.equals(finishedWithError, that.finishedWithError) &&
+			Objects.equals(sessionSequenceOrder, that.sessionSequenceOrder) &&
+			Objects.equals(sessionRecordsCount, that.sessionRecordsCount);
+	}
+
+	@Override
+	public int hashCode() {
+		int result = Objects.hashCode(sessionSequenceOrder);
+		result = 31 * result + sessionId.hashCode();
+		result = 31 * result + recordSessionOffset;
+		result = 31 * result + Objects.hashCode(sessionRecordsCount);
+		result = 31 * result + sourceQueryId.hashCode();
+		result = 31 * result + created.hashCode();
+		result = 31 * result + sourceQuery.hashCode();
+		result = 31 * result + Arrays.hashCode(labels);
+		result = 31 * result + Objects.hashCode(finishedWithError);
+		return result;
+	}
 }

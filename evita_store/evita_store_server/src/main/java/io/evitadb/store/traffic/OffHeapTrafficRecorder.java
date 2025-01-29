@@ -213,8 +213,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 			scheduler,
 			storageOptions,
 			recordingOptions,
-			60,
-			10
+			recordingOptions.trafficFlushIntervalInMilliseconds()
 		);
 	}
 
@@ -418,7 +417,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		@Nonnull UUID sourceQueryId,
 		@Nonnull OffsetDateTime now,
 		@Nonnull String sourceQuery,
-		@Nonnull String queryType,
+		@Nonnull Label[] labels,
 		@Nullable String finishedWithError
 	) {
 		doRecord(
@@ -432,7 +431,9 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 					sourceQueryId,
 					now,
 					sourceQuery,
-					queryType,
+					Arrays.stream(labels)
+						.map(label -> new io.evitadb.api.requestResponse.trafficRecording.Label(label.getLabelName(), label.getLabelValue()))
+						.toArray(io.evitadb.api.requestResponse.trafficRecording.Label[]::new),
 					finishedWithError
 				);
 			}
@@ -476,6 +477,21 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 
 	@Nonnull
 	@Override
+	public Stream<TrafficRecording> getRecordingsReversed(@Nonnull TrafficRecordingCaptureRequest request) throws TemporalDataNotAvailableException, IndexNotReady {
+		try {
+			this.lastRead = System.currentTimeMillis();
+			return this.diskBuffer.getSessionRecordsReversedStream(
+				request,
+				this::readTrafficRecord
+			);
+		} catch (IndexNotReady ex) {
+			this.indexTask.scheduleImmediately();
+			throw ex;
+		}
+	}
+
+	@Nonnull
+	@Override
 	public java.util.Collection<String> getLabelsNamesOrderedByCardinality(@Nullable String nameStartingWith, int limit) throws IndexNotReady {
 		try {
 			this.lastRead = System.currentTimeMillis();
@@ -506,8 +522,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		@Nonnull Scheduler scheduler,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TrafficRecordingOptions recordingOptions,
-		int flushIntervalInSeconds,
-		int minimalSchedulingGapInSeconds
+		long trafficFlushIntervalInMilliseconds
 	) {
 		this.catalogName = catalogName;
 		this.exportFileService = exportFileService;
@@ -536,12 +551,12 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 
 		this.freeMemoryTask = new DelayedAsyncTask(
 			this.catalogName, "Traffic recorder - memory buffer cleanup", scheduler,
-			this::freeMemory, flushIntervalInSeconds, TimeUnit.SECONDS, minimalSchedulingGapInSeconds
+			this::freeMemory, trafficFlushIntervalInMilliseconds, TimeUnit.MILLISECONDS, 0
 		);
 
 		this.indexTask = new DelayedAsyncTask(
 			this.catalogName, "Traffic recorder - disk buffer indexing", scheduler,
-			this::index, flushIntervalInSeconds, TimeUnit.SECONDS, minimalSchedulingGapInSeconds
+			this::index, trafficFlushIntervalInMilliseconds, TimeUnit.MILLISECONDS, 0
 		);
 
 		this.copyBufferPool = new Pool<>(true, true) {

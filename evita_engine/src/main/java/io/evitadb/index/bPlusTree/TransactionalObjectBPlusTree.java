@@ -719,13 +719,25 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 	}
 
 	/**
+	 * Returns an iterator that traverses the B+ tree keys from left to right starting from the specified key or
+	 * a key that is immediately greater than the specified key. The key may not be present in the tree.
+	 *
+	 * @param key the key from which to start the iteration
+	 * @return an iterator that traverses the B+ tree keys from left to right starting from the specified key
+	 */
+	@Nonnull
+	public Iterator<K> lesserOrEqualKeyIterator(@Nonnull K key) {
+		return new ReverseTreeKeyIterator<>(createCursor(key), key);
+	}
+
+	/**
 	 * Returns an iterator that traverses the B+ tree keys from right to left.
 	 *
 	 * @return an iterator that traverses the B+ tree keys from right to left
 	 */
 	@Nonnull
 	public Iterator<K> keyReverseIterator() {
-		return new ReverseKeyIterator<>(createRightmostCursor());
+		return new ReverseTreeKeyIterator<>(createRightmostCursor());
 	}
 
 	/**
@@ -748,6 +760,18 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 	@Nonnull
 	public Iterator<V> greaterOrEqualValueIterator(@Nonnull K key) {
 		return new ForwardTreeValueIterator<>(createCursor(key), key);
+	}
+
+	/**
+	 * Returns an iterator that traverses the B+ tree values from left to right starting from the specified key or
+	 * a key that is immediately greater than the specified key. The key may not be present in the tree.
+	 *
+	 * @param key the key from which to start the iteration
+	 * @return an iterator that traverses the B+ tree values from left to right starting from the specified key
+	 */
+	@Nonnull
+	public Iterator<V> lesserOrEqualValueIterator(@Nonnull K key) {
+		return new ReverseTreeValueIterator<>(createCursor(key), key);
 	}
 
 	/**
@@ -780,6 +804,18 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 	@Nonnull
 	public Iterator<Entry<K, V>> greaterOrEqualEntryIterator(@Nonnull K key) {
 		return new ForwardTreeEntryIterator<>(createCursor(key), key);
+	}
+
+	/**
+	 * Returns an iterator that traverses the B+ tree entries (both keys and values) from left to right starting from the specified key or
+	 * a key that is immediately greater than the specified key. The key may not be present in the tree.
+	 *
+	 * @param key the key from which to start the iteration
+	 * @return an iterator that traverses the B+ tree entries (both keys and values) from left to right starting from the specified key
+	 */
+	@Nonnull
+	public Iterator<Entry<K, V>> lesserOrEqualEntryIterator(@Nonnull K key) {
+		return new ReverseTreeEntryIterator<>(createCursor(key), key);
 	}
 
 	@Override
@@ -3029,6 +3065,21 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 			this.outputExtractor = outputExtractor;
 		}
 
+		public AbstractReverseTreeIterator(@Nonnull Cursor<M, N> cursor, @Nonnull M key, @Nonnull IntObjBiFunction<BPlusLeafTreeNode<M, N>, S> outputExtractor) {
+			//noinspection unchecked
+			this.path = new BPlusTreeNode[cursor.path().size()][];
+			this.pathIndex = new int[this.path.length];
+			for (int i = 0; i < cursor.path().size(); i++) {
+				final CursorLevel<M> cursorLevel = cursor.path().get(i);
+				this.path[i] = cursorLevel.siblings();
+				this.pathIndex[i] = cursorLevel.index();
+			}
+			final InsertionPosition insertionPosition = computeInsertPositionOfObjInOrderedArray(key, cursor.leafNode().getKeys(), 0, cursor.leafNode().size());
+			this.currentIndex = insertionPosition.position();
+			this.hasNext = (this.currentIndex >= 0 && insertionPosition.alreadyPresent()) || this.currentIndex > 0;
+			this.outputExtractor = outputExtractor;
+		}
+
 		@Override
 		public boolean hasNext() {
 			return this.hasNext;
@@ -3096,10 +3147,14 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 	/**
 	 * Iterator that traverses the B+ Tree from right to left.
 	 */
-	private static class ReverseKeyIterator<M extends Comparable<M>, N> extends AbstractReverseTreeIterator<M, N, M> {
+	private static class ReverseTreeKeyIterator<M extends Comparable<M>, N> extends AbstractReverseTreeIterator<M, N, M> {
 
-		public ReverseKeyIterator(@Nonnull Cursor<M, N> cursor) {
+		public ReverseTreeKeyIterator(@Nonnull Cursor<M, N> cursor) {
 			super(cursor, (index, leafNode) -> leafNode.getKeys()[index]);
+		}
+
+		public ReverseTreeKeyIterator(@Nonnull Cursor<M, N> cursor, @Nonnull M key) {
+			super(cursor, key, (index, leafNode) -> leafNode.getKeys()[index]);
 		}
 
 	}
@@ -3127,6 +3182,10 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 			super(cursor, (index, leafNode) -> leafNode.getValues()[index]);
 		}
 
+		public ReverseTreeValueIterator(@Nonnull Cursor<M, N> cursor, @Nonnull M key) {
+			super(cursor, key, (index, leafNode) -> leafNode.getValues()[index]);
+		}
+
 	}
 
 	/**
@@ -3141,6 +3200,21 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 		public ForwardTreeEntryIterator(@Nonnull Cursor<M, N> cursor, @Nonnull M key) {
 			super(cursor, key, (index, leafNode) -> new Entry<>(leafNode.getKeys()[index], leafNode.getValues()[index]));
 		}
+	}
+
+	/**
+	 * Iterator that traverses the B+ Tree from left to right and provides access to entries (both keys and values).
+	 */
+	static class ReverseTreeEntryIterator<M extends Comparable<M>, N> extends AbstractReverseTreeIterator<M, N, Entry<M, N>> {
+
+		public ReverseTreeEntryIterator(@Nonnull Cursor<M, N> cursor) {
+			super(cursor, (index, leafNode) -> new Entry<>(leafNode.getKeys()[index], leafNode.getValues()[index]));
+		}
+
+		public ReverseTreeEntryIterator(@Nonnull Cursor<M, N> cursor, @Nonnull M key) {
+			super(cursor, key, (index, leafNode) -> new Entry<>(leafNode.getKeys()[index], leafNode.getValues()[index]));
+		}
+
 	}
 
 	/**

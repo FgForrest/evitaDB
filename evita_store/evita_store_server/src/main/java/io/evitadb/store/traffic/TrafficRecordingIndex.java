@@ -57,6 +57,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import static java.util.Optional.ofNullable;
 
@@ -309,38 +310,68 @@ public class TrafficRecordingIndex implements
 					)
 					.filter(Objects::nonNull)
 					.map(TrafficRecordingIndex::toRoaringBitmap),
-				request.types() == null ?
-					Stream.<Roaring64Bitmap>empty() :
-					Arrays.stream(request.types()).map(this.sessionRecordingTypeIndex::get)
-						.filter(Objects::nonNull)
-						.map(TransactionalObjectBPlusTree::valueIterator)
-						.map(TrafficRecordingIndex::toRoaringBitmap)
-						.reduce((a, b) -> Roaring64Bitmap.or(a, b))
-						.stream(),
-				request.labels() == null ?
-					Stream.<Roaring64Bitmap>empty() :
-					Arrays.stream(request.labels())
-						.map(it -> new LabelWithOptimizedComparator(it.name(), it.value(), it.value() instanceof String str ? str : null))
-						.map(this.labelIndex::search)
-						.filter(Optional::isPresent)
-						.map(Optional::get)
-						.map(TransactionalObjectBPlusTree::valueIterator)
-						.map(TrafficRecordingIndex::toRoaringBitmap)
-						.reduce((a, b) -> Roaring64Bitmap.and(a, b))
-						.stream()
+				getTypesMatchingStream(request.types()),
+				getLabelsMatchingStream(request.labels())
 			)
 			.flatMap(UnaryOperator.identity())
 			.filter(Objects::nonNull)
 			.toList();
 
 		if (streams.isEmpty()) {
-			return this.sessionLocationIndex
-				.values()
-				.stream();
+			return StreamSupport.stream(
+					Spliterators.spliteratorUnknownSize(this.sessionSequenceOrderIndex.keyIterator(), Spliterator.DISTINCT | Spliterator.ORDERED),
+					false
+				)
+				.map(this.sessionLocationIndex::get)
+				.filter(Objects::nonNull);
 		} else {
 			return streams.stream()
 				.reduce((a, b) -> Roaring64Bitmap.and(a, b))
 				.stream().flatMapToLong(ImmutableLongBitmapDataProvider::stream)
+				.mapToObj(this.sessionLocationIndex::get)
+				.filter(Objects::nonNull);
+		}
+	}
+
+	/**
+	 * Retrieves a stream of session locations filtered by the criteria specified in the given
+	 * TrafficRecordingCaptureRequest. The stream provides access to session data that can be
+	 * processed lazily.
+	 *
+	 * @param request the TrafficRecordingCaptureRequest containing criteria for filtering the sessions,
+	 *                must not be null
+	 * @return a stream of SessionLocation objects that match the specified criteria
+	 */
+	@Nonnull
+	public Stream<SessionLocation> getSessionReversedStream(@Nonnull TrafficRecordingCaptureRequest request) {
+		final List<Roaring64Bitmap> streams = Stream.of(
+				Stream.of(
+						request.sinceSessionSequenceId() == null ? null : this.sessionSequenceOrderIndex.lesserOrEqualValueIterator(request.sinceSessionSequenceId()),
+						request.sessionId() == null ? null : ofNullable(this.sessionIdIndex.get(request.sessionId())).map(sid -> List.of(sid).iterator()).orElse(null),
+						request.since() == null ? null : this.sessionCreationIndex.lesserOrEqualValueIterator(request.since()),
+						request.longerThan() == null ? null : this.sessionDurationIndex.lesserOrEqualValueIterator(Math.toIntExact(request.longerThan().toMillis())),
+						request.fetchingMoreBytesThan() == null ? null : this.sessionBytesFetchedIndex.lesserOrEqualValueIterator(request.fetchingMoreBytesThan())
+					)
+					.filter(Objects::nonNull)
+					.map(TrafficRecordingIndex::toRoaringBitmap),
+				getTypesMatchingStream(request.types()),
+				getLabelsMatchingStream(request.labels())
+			)
+			.flatMap(UnaryOperator.identity())
+			.filter(Objects::nonNull)
+			.toList();
+
+		if (streams.isEmpty()) {
+			return StreamSupport.stream(
+					Spliterators.spliteratorUnknownSize(this.sessionSequenceOrderIndex.keyReverseIterator(), Spliterator.DISTINCT | Spliterator.ORDERED),
+					false
+				)
+				.map(this.sessionLocationIndex::get)
+				.filter(Objects::nonNull);
+		} else {
+			return streams.stream()
+				.reduce((a, b) -> Roaring64Bitmap.and(a, b))
+				.stream().flatMapToLong(ImmutableLongBitmapDataProvider::reverseStream)
 				.mapToObj(this.sessionLocationIndex::get)
 				.filter(Objects::nonNull);
 		}
@@ -450,6 +481,53 @@ public class TrafficRecordingIndex implements
 			.limit(limit)
 			.map(Object::toString)
 			.toList();
+	}
+
+	/**
+	 * Retrieves a stream of Roaring64Bitmap objects that represent the intersection of the results of searching
+	 * the label index for each label in the given array. Each label in the provided array is matched against
+	 * the internal label index. If the corresponding bitmaps for all matches can be intersected, the resulting
+	 * bitmap is returned as part of the stream. If the label array is null, an empty stream is returned.
+	 *
+	 * @param labels an array of Label objects to filter entries, may be null. If null, an empty stream is returned.
+	 * @return a Stream of Roaring64Bitmap objects representing the intersection of bitmaps matched by the given labels.
+	 */
+	@Nonnull
+	private Stream<Roaring64Bitmap> getLabelsMatchingStream(@Nullable Label[] labels) {
+		return labels == null ?
+			Stream.empty() :
+			Arrays.stream(labels)
+				.map(it -> new LabelWithOptimizedComparator(it.name(), it.value(), it.value() instanceof String str ? str : null))
+				.map(this.labelIndex::search)
+				.filter(Optional::isPresent)
+				.map(Optional::get)
+				.map(TransactionalObjectBPlusTree::valueIterator)
+				.map(TrafficRecordingIndex::toRoaringBitmap)
+				.reduce((a, b) -> Roaring64Bitmap.and(a, b))
+				.stream();
+	}
+
+	/**
+	 * Retrieves a stream of Roaring64Bitmap objects based on the given array of TrafficRecordingType.
+	 * If the input array is null, an empty stream is returned. Otherwise, for each type in the array,
+	 * it fetches the corresponding session recording type index, filters out null values,
+	 * converts them to Roaring64Bitmap instances, and combines them using a logical OR operation.
+	 *
+	 * @param types an array of TrafficRecordingType objects, may be null.
+	 *              If null, an empty stream is returned.
+	 * @return a Stream of Roaring64Bitmap objects representing the combined bitmaps
+	 * for the provided types, or an empty stream if the input is null.
+	 */
+	@Nonnull
+	private Stream<Roaring64Bitmap> getTypesMatchingStream(@Nullable TrafficRecordingType[] types) {
+		return types == null ?
+			Stream.empty() :
+			Arrays.stream(types).map(this.sessionRecordingTypeIndex::get)
+				.filter(Objects::nonNull)
+				.map(TransactionalObjectBPlusTree::valueIterator)
+				.map(TrafficRecordingIndex::toRoaringBitmap)
+				.reduce((a, b) -> Roaring64Bitmap.or(a, b))
+				.stream();
 	}
 
 	/**

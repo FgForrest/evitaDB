@@ -36,6 +36,7 @@ java \
         "configDir=../conf/" \
         "logback.configurationFile=./logback.xml" \
         "server.trafficRecording.enabled=true " \
+        "server.trafficRecording.trafficFlushIntervalInMilliseconds=0 " \
         "storage.storageDirectory=../data " \
         "api.exposedOn=localhost" \
         "api.accessLog=true" \

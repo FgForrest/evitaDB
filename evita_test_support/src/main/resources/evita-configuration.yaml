@@ -28,6 +28,7 @@ server:
     trafficDiskBufferSizeInBytes: ${server.trafficRecording.trafficDiskBufferSizeInBytes:32MB}
     exportFileChunkSizeInBytes: ${server.trafficRecording.exportFileChunkSizeInBytes:16MB}
     trafficSamplingPercentage: ${server.trafficRecording.trafficSamplingPercentage:100}
+    trafficFlushIntervalInMilliseconds: ${server.trafficRecording.trafficFlushIntervalInMilliseconds:1m}
 
 storage:
   storageDirectory: ${storage.storageDirectory:null}

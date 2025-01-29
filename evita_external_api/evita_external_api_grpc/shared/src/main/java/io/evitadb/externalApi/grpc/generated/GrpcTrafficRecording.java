@@ -173,26 +173,28 @@ public final class GrpcTrafficRecording {
       "ner\022\026\n\016catalogVersion\030\001 \001(\003\022\032\n\022trafficRe" +
       "cordCount\030\002 \001(\005\022\022\n\nqueryCount\030\003 \001(\005\022\030\n\020e" +
       "ntityFetchCount\030\004 \001(\005\022\025\n\rmutationCount\030\005" +
-      " \001(\005\"\221\001\n\037GrpcTrafficSourceQueryContainer" +
+      " \001(\005\"\305\001\n\037GrpcTrafficSourceQueryContainer" +
       "\022F\n\rsourceQueryId\030\001 \001(\0132/.io.evitadb.ext" +
       "ernalApi.grpc.generated.GrpcUuid\022\023\n\013sour" +
-      "ceQuery\030\002 \001(\t\022\021\n\tqueryType\030\003 \001(\t\"\252\001\n)Grp" +
-      "cTrafficSourceQueryStatisticsContainer\022F" +
-      "\n\rsourceQueryId\030\001 \001(\0132/.io.evitadb.exter" +
-      "nalApi.grpc.generated.GrpcUuid\022\033\n\023return" +
-      "edRecordCount\030\002 \001(\005\022\030\n\020totalRecordCount\030" +
-      "\003 \001(\005\"-\n\016GrpcQueryLabel\022\014\n\004name\030\001 \001(\t\022\r\n" +
-      "\005value\030\002 \001(\t*W\n\033GrpcTrafficRecordingCont" +
-      "ent\022\034\n\030TRAFFIC_RECORDING_HEADER\020\000\022\032\n\026TRA" +
-      "FFIC_RECORDING_BODY\020\001*\264\002\n\030GrpcTrafficRec" +
-      "ordingType\022#\n\037TRAFFIC_RECORDING_SESSION_" +
-      "START\020\000\022$\n TRAFFIC_RECORDING_SESSION_FIN" +
-      "ISH\020\001\022\"\n\036TRAFFIC_RECORDING_SOURCE_QUERY\020" +
-      "\002\022-\n)TRAFFIC_RECORDING_SOURCE_QUERY_STAT" +
-      "ISTICS\020\003\022\033\n\027TRAFFIC_RECORDING_QUERY\020\004\022\033\n" +
-      "\027TRAFFIC_RECORDING_FETCH\020\005\022 \n\034TRAFFIC_RE" +
-      "CORDING_ENRICHMENT\020\006\022\036\n\032TRAFFIC_RECORDIN" +
-      "G_MUTATION\020\007B\014P\001\252\002\007EvitaDBb\006proto3"
+      "ceQuery\030\002 \001(\t\022E\n\006labels\030\003 \003(\01325.io.evita" +
+      "db.externalApi.grpc.generated.GrpcQueryL" +
+      "abel\"\252\001\n)GrpcTrafficSourceQueryStatistic" +
+      "sContainer\022F\n\rsourceQueryId\030\001 \001(\0132/.io.e" +
+      "vitadb.externalApi.grpc.generated.GrpcUu" +
+      "id\022\033\n\023returnedRecordCount\030\002 \001(\005\022\030\n\020total" +
+      "RecordCount\030\003 \001(\005\"-\n\016GrpcQueryLabel\022\014\n\004n" +
+      "ame\030\001 \001(\t\022\r\n\005value\030\002 \001(\t*W\n\033GrpcTrafficR" +
+      "ecordingContent\022\034\n\030TRAFFIC_RECORDING_HEA" +
+      "DER\020\000\022\032\n\026TRAFFIC_RECORDING_BODY\020\001*\264\002\n\030Gr" +
+      "pcTrafficRecordingType\022#\n\037TRAFFIC_RECORD" +
+      "ING_SESSION_START\020\000\022$\n TRAFFIC_RECORDING" +
+      "_SESSION_FINISH\020\001\022\"\n\036TRAFFIC_RECORDING_S" +
+      "OURCE_QUERY\020\002\022-\n)TRAFFIC_RECORDING_SOURC" +
+      "E_QUERY_STATISTICS\020\003\022\033\n\027TRAFFIC_RECORDIN" +
+      "G_QUERY\020\004\022\033\n\027TRAFFIC_RECORDING_FETCH\020\005\022 " +
+      "\n\034TRAFFIC_RECORDING_ENRICHMENT\020\006\022\036\n\032TRAF" +
+      "FIC_RECORDING_MUTATION\020\007B\014P\001\252\002\007EvitaDBb\006" +
+      "proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
@@ -256,7 +258,7 @@ public final class GrpcTrafficRecording {
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcTrafficSourceQueryContainer_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcTrafficSourceQueryContainer_descriptor,
-        new java.lang.String[] { "SourceQueryId", "SourceQuery", "QueryType", });
+        new java.lang.String[] { "SourceQueryId", "SourceQuery", "Labels", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcTrafficSourceQueryStatisticsContainer_descriptor =
       getDescriptor().getMessageTypes().get(9);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcTrafficSourceQueryStatisticsContainer_fieldAccessorTable = new

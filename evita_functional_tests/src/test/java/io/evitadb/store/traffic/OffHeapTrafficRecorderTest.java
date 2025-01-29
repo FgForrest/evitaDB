@@ -112,7 +112,7 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 				.trafficMemoryBufferSizeInBytes(32768L)
 				.trafficDiskBufferSizeInBytes(65536L)
 				.build(),
-			0, 0
+			0
 		);
 	}
 
@@ -213,7 +213,7 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 		final UUID firstSourceQueryId = UUIDUtil.randomUUID();
 		this.trafficRecorder.setupSourceQuery(
 			firstSessionId, firstSourceQueryId, OffsetDateTime.now(),
-			"Whatever query", GraphQLProvider.CODE, null
+			"Whatever query", new Label[]{ label(Label.LABEL_SOURCE_TYPE, GraphQLProvider.CODE) }, null
 		);
 		createLabeledQuery(
 			firstSessionId,
@@ -239,7 +239,7 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 		final UUID secondSourceQueryId = UUIDUtil.randomUUID();
 		this.trafficRecorder.setupSourceQuery(
 			secondSessionId, secondSourceQueryId, OffsetDateTime.now(),
-			"Whatever different query", GraphQLProvider.CODE, null
+			"Whatever different query", new Label[]{ label(Label.LABEL_SOURCE_TYPE, GraphQLProvider.CODE) }, null
 		);
 		createLabeledQuery(
 			secondSessionId,

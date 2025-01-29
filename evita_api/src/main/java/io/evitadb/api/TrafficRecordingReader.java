@@ -57,4 +57,22 @@ public interface TrafficRecordingReader {
 		@Nonnull TrafficRecordingCaptureRequest request
 	) throws TemporalDataNotAvailableException, IndexNotReady;
 
+	/**
+	 * Returns stream of recordings that occurred in the catalog that match the specified criteria
+	 * in the request. The method returns the stream of recordings in the order of their execution within sessions, and
+	 * sessions are ordered by the timestamp of their finalization. The newest records are returned first.
+	 *
+	 * !!! Important: remember to close the stream after you are done with it to release the resources
+	 *
+	 * @param request request that specifies the criteria for the recordings to be returned, multiple criteria definitions
+	 *                 are combined with logical OR
+	 * @return stream of recordings that match the specified criteria in reversed order
+	 * @throws TemporalDataNotAvailableException when data for particular moment is not available anymore
+	 * @throws IndexNotReady when the index is not ready yet and the data cannot be read
+	 */
+	@Nonnull
+	Stream<TrafficRecording> getRecordingsReversed(
+		@Nonnull TrafficRecordingCaptureRequest request
+	) throws TemporalDataNotAvailableException, IndexNotReady;
+
 }

@@ -29,6 +29,7 @@ import io.evitadb.api.TrafficRecordingReader;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TrafficRecordingOptions;
+import io.evitadb.api.exception.IndexNotReady;
 import io.evitadb.api.exception.SingletonTaskAlreadyRunningException;
 import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.observability.trace.TracingBlockReference;
@@ -86,8 +87,10 @@ import java.util.stream.Stream;
 @Slf4j
 @RequiredArgsConstructor
 public class TrafficRecordingEngine implements TrafficRecordingReader {
-	public static final String LABEL_TRACE_ID = "traceId";
-	public static final String LABEL_CLIENT_ID = "clientId";
+	public static final String LABEL_TRACE_ID = "trace-id";
+	public static final String LABEL_CLIENT_ID = "client-id";
+	/* TODO JNO - track IP address */
+	public static final String LABEL_IP_ADDRESS = "ip-address";
 	private final String catalogName;
 	private final StorageOptions storageOptions;
 	@Getter private final TrafficRecordingOptions trafficOptions;
@@ -107,6 +110,40 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 	 * Flag indicating whether traffic recording is currently active.
 	 */
 	private final AtomicBoolean recordingActive = new AtomicBoolean();
+
+	/**
+	 * Attempts to initialize and return a {@link TrafficRecorder} instance. If no implementation of
+	 * {@link TrafficRecorder} is available, an exception is thrown. The method configures the traffic
+	 * recorder with the provided parameters.
+	 *
+	 * @param catalogName       the name of the catalog to associate with the traffic recorder, must not be null
+	 * @param exportFileService the service responsible for handling file exports during traffic recording, must not be null
+	 * @param scheduler         the scheduler used for executing scheduled tasks within the traffic recorder, must not be null
+	 * @param storageOptions    the storageOptions options to be used by the traffic recorder, must not be null
+	 * @param recordingOptions  the traffic recording options to be used by the traffic recorder, must not be null
+	 * @return a configured instance of {@link TrafficRecorder}
+	 * @throws EvitaInvalidUsageException if no implementation of {@link TrafficRecorder} is available
+	 */
+	@Nonnull
+	private static TrafficRecorder getRichTrafficRecorderIfPossible(
+		@Nonnull String catalogName,
+		@Nonnull ExportFileService exportFileService,
+		@Nonnull Scheduler scheduler,
+		@Nonnull StorageOptions storageOptions,
+		@Nonnull TrafficRecordingOptions recordingOptions
+	) {
+		final TrafficRecorder trafficRecorderInstance = ServiceLoader.load(TrafficRecorder.class)
+			.stream()
+			.findFirst()
+			.orElseThrow(() -> new EvitaInvalidUsageException("Traffic recorder implementation is not available!"))
+			.get();
+		trafficRecorderInstance.init(
+			catalogName, exportFileService, scheduler,
+			storageOptions,
+			recordingOptions
+		);
+		return trafficRecorderInstance;
+	}
 
 	public TrafficRecordingEngine(
 		@Nonnull String catalogName,
@@ -132,46 +169,12 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 	}
 
 	/**
-	 * Attempts to initialize and return a {@link TrafficRecorder} instance. If no implementation of
-	 * {@link TrafficRecorder} is available, an exception is thrown. The method configures the traffic
-	 * recorder with the provided parameters.
-	 *
-	 * @param catalogName the name of the catalog to associate with the traffic recorder, must not be null
-	 * @param exportFileService the service responsible for handling file exports during traffic recording, must not be null
-	 * @param scheduler the scheduler used for executing scheduled tasks within the traffic recorder, must not be null
-	 * @param storageOptions the storageOptions options to be used by the traffic recorder, must not be null
-	 * @param recordingOptions the traffic recording options to be used by the traffic recorder, must not be null
-	 * @return a configured instance of {@link TrafficRecorder}
-	 * @throws EvitaInvalidUsageException if no implementation of {@link TrafficRecorder} is available
-	 */
-	@Nonnull
-	private static TrafficRecorder getRichTrafficRecorderIfPossible(
-		@Nonnull String catalogName,
-		@Nonnull ExportFileService exportFileService,
-		@Nonnull Scheduler scheduler,
-		@Nonnull StorageOptions storageOptions,
-		@Nonnull TrafficRecordingOptions recordingOptions
-	) {
-		final TrafficRecorder trafficRecorderInstance = ServiceLoader.load(TrafficRecorder.class)
-			.stream()
-			.findFirst()
-			.orElseThrow(() -> new EvitaInvalidUsageException("Traffic recorder implementation is not available!"))
-			.get();
-		trafficRecorderInstance.init(
-			catalogName, exportFileService, scheduler,
-			storageOptions,
-			recordingOptions
-		);
-		return trafficRecorderInstance;
-	}
-
-	/**
 	 * Starts recording traffic data with the specified sampling rate and session sink.
 	 * This method initializes and configures a traffic recorder and ensures that only one instance
 	 * of the recording task is active at any given time.
 	 *
 	 * @param samplingRate the percentage of traffic to be sampled, represented as an integer.
-	 * @param sessionSink the session sink instance where recorded traffic data will be sent, must not be null.
+	 * @param sessionSink  the session sink instance where recorded traffic data will be sent, must not be null.
 	 * @throws SingletonTaskAlreadyRunningException if a recording task is already active.
 	 */
 	public void startRecording(int samplingRate, @Nullable SessionSink sessionSink) {
@@ -195,7 +198,7 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 	/**
 	 * Stops the active traffic recording session if it is currently active. Upon execution:
 	 * - Safely closes the current active {@link TrafficRecorder} if it exists and ensures any
-	 *   {@link UnexpectedIOException} during the closure process is properly handled.
+	 * {@link UnexpectedIOException} during the closure process is properly handled.
 	 * - Replaces the current traffic recorder with a previously suppressed recorder, if applicable.
 	 * - Resets the suppressed traffic recorder to null state.
 	 * - Updates the final traffic recorder instance with the sampling percentage and resets the session sink.
@@ -446,10 +449,11 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 	 * Method registers RAW input query and assigns a unique identifier to it. All queries in this session that are
 	 * labeled with {@link Label#LABEL_SOURCE_QUERY} will be registered as sub-queries of this source query.
 	 *
-	 * @param sessionId unique identifier of the session the mutation belongs to
-	 * @param sourceQueryId unique identifier of the source query
-	 * @param sourceQuery   unparsed, raw source query in particular format
-	 * @param queryType     type of the query (e.g. GraphQL, REST, etc.)
+	 * @param sessionId         unique identifier of the session the mutation belongs to
+	 * @param sourceQueryId     unique identifier of the source query
+	 * @param sourceQuery       unparsed, raw source query in particular format
+	 * @param queryType		    type of the query (e.g. REST, GraphQL, etc.)
+	 * @param finishedWithError error message if the query finished with an error or NULL if it finished successfully
 	 */
 	public void setupSourceQuery(
 		@Nonnull UUID sessionId,
@@ -464,7 +468,21 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 				sourceQueryId,
 				OffsetDateTime.now(),
 				sourceQuery,
-				queryType,
+				ArrayUtils.mergeArrays(
+					new Label[] {
+						new Label(Label.LABEL_SOURCE_QUERY, queryType)
+					},
+					Stream.of(
+							this.tracingContext.getTraceId()
+								.map(it -> new Label(LABEL_TRACE_ID, it))
+								.orElse(null),
+							this.tracingContext.getClientId()
+								.map(it -> new Label(LABEL_CLIENT_ID, it))
+								.orElse(null)
+						)
+						.filter(Objects::nonNull)
+						.toArray(Label[]::new)
+				),
 				finishedWithError
 			);
 		} catch (Exception e) {
@@ -476,8 +494,9 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 	 * Method closes the source query and marks it as finalized. Overall statistics for all registered sub-queries
 	 * will be aggregated and stored in the traffic recording along with this record.
 	 *
-	 * @param sessionId unique identifier of the session the mutation belongs to
-	 * @param sourceQueryId unique identifier of the source query
+	 * @param sessionId         unique identifier of the session the mutation belongs to
+	 * @param sourceQueryId     unique identifier of the source query
+	 * @param finishedWithError error message if the query finished with an error or NULL if it finished successfully
 	 */
 	public void closeSourceQuery(
 		@Nonnull UUID sessionId,
@@ -493,6 +512,57 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 		} catch (Exception e) {
 			log.error("Failed to close source query in traffic recorder!", e);
 		}
+	}
+
+	@Nonnull
+	@Override
+	public Stream<TrafficRecording> getRecordings(@Nonnull TrafficRecordingCaptureRequest request) throws TemporalDataNotAvailableException {
+		if (this.trafficRecorder.get() instanceof TrafficRecordingReader trr) {
+			return trr.getRecordings(request);
+		} else {
+			throw new EvitaInvalidUsageException(
+				"Traffic recording is disabled in configuration settings and no on-demand traffic recording has been started!"
+			);
+		}
+	}
+
+	@Nonnull
+	@Override
+	public Stream<TrafficRecording> getRecordingsReversed(@Nonnull TrafficRecordingCaptureRequest request) throws TemporalDataNotAvailableException, IndexNotReady {
+		if (this.trafficRecorder.get() instanceof TrafficRecordingReader trr) {
+			return trr.getRecordingsReversed(request);
+		} else {
+			throw new EvitaInvalidUsageException(
+				"Traffic recording is disabled in configuration settings and no on-demand traffic recording has been started!"
+			);
+		}
+	}
+
+	/**
+	 * Returns a stream of all unique labels names ordered by cardinality of their values present in the traffic recording.
+	 *
+	 * @param nameStartingWith optional prefix to filter the labels by
+	 * @return stream of unique label names ordered by cardinality of their values
+	 */
+	@Nonnull
+	public Collection<String> getLabelsNamesOrderedByCardinality(@Nullable String nameStartingWith, int limit) {
+		return this.trafficRecorder.get() instanceof LabelIntrospector li ?
+			li.getLabelsNamesOrderedByCardinality(nameStartingWith, limit) :
+			List.of();
+	}
+
+	/**
+	 * Returns a stream of all unique label values ordered by cardinality present in the traffic recording.
+	 *
+	 * @param labelName         name of the label to get values for
+	 * @param valueStartingWith optional prefix to filter the labels by
+	 * @return stream of unique label values ordered by cardinality
+	 */
+	@Nonnull
+	public Collection<String> getLabelValuesOrderedByCardinality(@Nonnull String labelName, @Nullable String valueStartingWith, int limit) {
+		return this.trafficRecorder.get() instanceof LabelIntrospector li ?
+			li.getLabelValuesOrderedByCardinality(labelName, valueStartingWith, limit) :
+			List.of();
 	}
 
 	/**
@@ -532,45 +602,6 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 		} catch (Exception ex) {
 			log.error("Failed to record fetch in traffic recorder!", ex);
 		}
-	}
-
-	@Nonnull
-	@Override
-	public Stream<TrafficRecording> getRecordings(@Nonnull TrafficRecordingCaptureRequest request) throws TemporalDataNotAvailableException {
-		if (this.trafficRecorder.get() instanceof TrafficRecordingReader trr) {
-			return trr.getRecordings(request);
-		} else {
-			throw new EvitaInvalidUsageException(
-				"Traffic recording is disabled in configuration settings and no on-demand traffic recording has been started!"
-			);
-		}
-	}
-
-	/**
-	 * Returns a stream of all unique labels names ordered by cardinality of their values present in the traffic recording.
-	 *
-	 * @param nameStartingWith optional prefix to filter the labels by
-	 * @return stream of unique label names ordered by cardinality of their values
-	 */
-	@Nonnull
-	public Collection<String> getLabelsNamesOrderedByCardinality(@Nullable String nameStartingWith, int limit) {
-		return this.trafficRecorder.get() instanceof LabelIntrospector li ?
-			li.getLabelsNamesOrderedByCardinality(nameStartingWith, limit) :
-			List.of();
-	}
-
-	/**
-	 * Returns a stream of all unique label values ordered by cardinality present in the traffic recording.
-	 *
-	 * @param labelName         name of the label to get values for
-	 * @param valueStartingWith optional prefix to filter the labels by
-	 * @return stream of unique label values ordered by cardinality
-	 */
-	@Nonnull
-	public Collection<String> getLabelValuesOrderedByCardinality(@Nonnull String labelName, @Nullable String valueStartingWith, int limit) {
-		return this.trafficRecorder.get() instanceof LabelIntrospector li ?
-			li.getLabelValuesOrderedByCardinality(labelName, valueStartingWith, limit) :
-			List.of();
 	}
 
 	/**

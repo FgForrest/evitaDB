@@ -40,6 +40,7 @@ server:                                           # [see Server configuration](#
     trafficDiskBufferSizeInBytes: 32MB
     exportFileChunkSizeInBytes: 16MB
     trafficSamplingPercentage: 100
+    trafficFlushIntervalInMilliseconds: 1m
 
 storage:                                          # [see Storage configuration](#storage-configuration)
   storageDirectory: "./data"
@@ -496,6 +497,13 @@ This section contains general settings for the evitaDB server. It allows configu
         <p>**Default:** `100`</p>
         <p>Specifies the percentage of traffic to be captured. The value is between 0 and 100 - zero means that no 
            traffic is captured (equivalent to `enabled: false`) and 100 means that all traffic is attempted to be captured.</p>
+    </dd>
+    <dt>trafficFlushIntervalInMilliseconds</dt>
+    <dd>
+        <p>**Default:** `1m`</p>
+        <p>Sets the interval in milliseconds at which the traffic buffer is flushed to disk. For development 
+        (i.e. low traffic, immediate debugging) it can be set to 0. For production it should be set to a reasonable 
+        value (e.g. 60000 = minute).</p>
     </dd>
 </dl>
 

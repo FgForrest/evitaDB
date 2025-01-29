@@ -67,6 +67,7 @@ public class EvitaTrafficRecordingService extends GrpcEvitaTrafficRecordingServi
 	 *
 	 * @param request          request containing the criteria
 	 * @param responseObserver observer on which errors might be thrown and result returned
+	 *                         TODO JNO - source query container se nevrací, když je zafiltrováno
 	 */
 	@Override
 	public void getTrafficRecordingHistoryList(GetTrafficHistoryListRequest request, StreamObserver<GetTrafficHistoryListResponse> responseObserver) {
@@ -75,6 +76,35 @@ public class EvitaTrafficRecordingService extends GrpcEvitaTrafficRecordingServi
 				final TrafficRecordingCaptureRequest captureRequest = TrafficCaptureConverter.toTrafficRecordingCaptureRequest(request);
 				final GetTrafficHistoryListResponse.Builder builder = GetTrafficHistoryListResponse.newBuilder();
 				try (final Stream<TrafficRecording> recordings = session.getRecordings(captureRequest)) {
+					recordings
+						.limit(request.getLimit())
+						.forEach(
+							trafficRecording -> builder.addTrafficRecord(
+								TrafficCaptureConverter.toGrpcGrpcTrafficRecord(trafficRecording, captureRequest.content())
+							)
+						);
+				}
+				responseObserver.onNext(builder.build());
+				responseObserver.onCompleted();
+			},
+			evita.getRequestExecutor(),
+			responseObserver
+		);
+	}
+
+	/**
+	 * Method returns list of traffic recording history entries that match given criteria in reversed order.
+	 *
+	 * @param request          request containing the criteria
+	 * @param responseObserver observer on which errors might be thrown and result returned
+	 */
+	@Override
+	public void getTrafficRecordingHistoryListReversed(GetTrafficHistoryListRequest request, StreamObserver<GetTrafficHistoryListResponse> responseObserver) {
+		executeWithClientContext(
+			session -> {
+				final TrafficRecordingCaptureRequest captureRequest = TrafficCaptureConverter.toTrafficRecordingCaptureRequest(request);
+				final GetTrafficHistoryListResponse.Builder builder = GetTrafficHistoryListResponse.newBuilder();
+				try (final Stream<TrafficRecording> recordings = session.getRecordingsReversed(captureRequest)) {
 					recordings
 						.limit(request.getLimit())
 						.forEach(

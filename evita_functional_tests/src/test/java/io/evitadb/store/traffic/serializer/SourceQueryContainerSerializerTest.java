@@ -23,7 +23,9 @@
 
 package io.evitadb.store.traffic.serializer;
 
+import io.evitadb.api.requestResponse.trafficRecording.Label;
 import io.evitadb.api.requestResponse.trafficRecording.SourceQueryContainer;
+import io.evitadb.externalApi.grpc.GrpcProvider;
 import org.junit.jupiter.api.Test;
 
 import java.time.OffsetDateTime;
@@ -45,7 +47,7 @@ class SourceQueryContainerSerializerTest extends AbstractContainerSerializerTest
 				UUID.randomUUID(),
 				OffsetDateTime.now(),
 				"queryMe",
-				"gRPC",
+				new Label []{ new Label(io.evitadb.api.query.head.Label.LABEL_SOURCE_TYPE, GrpcProvider.CODE) },
 				"error"
 			)
 		);

@@ -141,8 +141,8 @@ message GrpcTrafficSourceQueryContainer {
   GrpcUuid sourceQueryId = 1;
   // unparsed, raw source query in particular format
   string sourceQuery = 2;
-  // type of the query (e.g. GraphQL, REST, etc.)
-  string queryType = 3;
+  // The automatic labels associated with the query.
+  repeated GrpcQueryLabel labels = 3;
 }
 
 // This container holds information about the source query statistics.

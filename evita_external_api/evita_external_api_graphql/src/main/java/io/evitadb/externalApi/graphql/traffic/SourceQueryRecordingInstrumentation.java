@@ -36,6 +36,7 @@ import graphql.execution.instrumentation.parameters.InstrumentationExecuteOperat
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.TrafficRecordingOptions;
 import io.evitadb.core.EvitaInternalSessionContract;
+import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -55,9 +56,6 @@ import static graphql.execution.instrumentation.SimpleInstrumentationContext.noO
 @RequiredArgsConstructor
 @Slf4j
 public class SourceQueryRecordingInstrumentation extends SimplePerformantInstrumentation {
-
-	private static final String SOURCE_QUERY_TYPE = "GraphQL";
-
 	@Nonnull private final ObjectMapper objectMapper;
 	@Nonnull private final TrafficRecordingOptions trafficRecordingOptions;
 
@@ -88,7 +86,7 @@ public class SourceQueryRecordingInstrumentation extends SimplePerformantInstrum
 		/* TODO LHO - insert finishedWithError if parsing failed */
 		final UUID recordingId = evitaInternalSession.recordSourceQuery(
 			serializedSourceQuery,
-			SOURCE_QUERY_TYPE,
+			GraphQLProvider.CODE,
 			null
 		);
 		executionContext.getGraphQLContext().put(GraphQLContextKey.TRAFFIC_SOURCE_QUERY_RECORDING_ID, recordingId);

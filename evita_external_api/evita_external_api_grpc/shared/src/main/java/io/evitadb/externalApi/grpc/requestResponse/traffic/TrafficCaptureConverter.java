@@ -195,7 +195,7 @@ public class TrafficCaptureConverter {
 				GrpcTrafficSourceQueryContainer.newBuilder()
 					.setSourceQueryId(toGrpcUuid(sourceQueryContainer.sourceQueryId()))
 					.setSourceQuery(sourceQueryContainer.sourceQuery())
-					.setQueryType(sourceQueryContainer.queryType())
+					.addAllLabels(Arrays.stream(sourceQueryContainer.labels()).map(TrafficCaptureConverter::toGrpcQueryLabel).toList())
 					.build()
 			);
 		} else {

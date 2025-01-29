@@ -1271,6 +1271,18 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		}
 	}
 
+	@Nonnull
+	@Override
+	public Stream<TrafficRecording> getRecordingsReversed(@Nonnull TrafficRecordingCaptureRequest request) throws TemporalDataNotAvailableException, IndexNotReady {
+		assertActive();
+		final CatalogContract currentCatalog = getCatalog();
+		if (currentCatalog instanceof Catalog theCatalog) {
+			return theCatalog.getTrafficRecordingEngine().getRecordingsReversed(request);
+		} else {
+			throw new CatalogCorruptedException((CorruptedCatalog) currentCatalog);
+		}
+	}
+
 	@Interruptible
 	@Traced
 	@Nonnull
@@ -1421,7 +1433,11 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 
 	@Nonnull
 	@Override
-	public UUID recordSourceQuery(@Nonnull String sourceQuery, @Nonnull String queryType, @Nullable String finishedWithError) {
+	public UUID recordSourceQuery(
+		@Nonnull String sourceQuery,
+		@Nonnull String queryType,
+		@Nullable String finishedWithError
+	) {
 		final TrafficRecordingEngine trafficRecorder = this.catalog.get().getTrafficRecordingEngine();
 		final UUID sourceQueryId = UUIDUtil.randomUUID();
 		trafficRecorder.setupSourceQuery(id, sourceQueryId, sourceQuery, queryType, finishedWithError);

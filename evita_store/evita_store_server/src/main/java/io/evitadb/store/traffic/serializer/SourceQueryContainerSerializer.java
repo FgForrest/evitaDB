@@ -28,7 +28,12 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.api.requestResponse.trafficRecording.Label;
 import io.evitadb.api.requestResponse.trafficRecording.SourceQueryContainer;
+
+import java.io.Serializable;
+import java.time.OffsetDateTime;
+import java.util.UUID;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link SourceQueryContainer} type.
@@ -44,23 +49,42 @@ public class SourceQueryContainerSerializer extends Serializer<SourceQueryContai
 		kryo.writeObject(output, object.sourceQueryId());
 		kryo.writeObject(output, object.created());
 		output.writeString(object.sourceQuery());
-		output.writeString(object.queryType());
+		output.writeVarInt(object.labels().length, true);
+		for (int i = 0; i < object.labels().length; i++) {
+			output.writeString(object.labels()[i].name());
+			kryo.writeClassAndObject(output, object.labels()[i].value());
+		}
 		output.writeString(object.finishedWithError());
 	}
 
 	@Override
 	public SourceQueryContainer read(Kryo kryo, Input input, Class<? extends SourceQueryContainer> type) {
 		final CurrentSessionRecordContext.SessionRecordContext sessionRecordContext = CurrentSessionRecordContext.get();
+		final UUID sessionId = kryo.readObject(input, UUID.class);
+		final int recordSessionOffset = input.readVarInt(true);
+		final UUID sourceQueryId = kryo.readObject(input, UUID.class);
+		final OffsetDateTime created = kryo.readObject(input, OffsetDateTime.class);
+		final String sourceQuery = input.readString();
+		final int labelCount = input.readVarInt(true);
+		final Label[] labels = labelCount == 0 ? Label.EMPTY_LABELS : new Label[labelCount];
+		for (int i = 0; i < labelCount; i++) {
+			labels[i] = new Label(
+				input.readString(),
+				(Serializable) kryo.readClassAndObject(input)
+			);
+		}
+		final String finishedWithError = input.readString();
+
 		return new SourceQueryContainer(
 			sessionRecordContext == null ? null : sessionRecordContext.sessionSequenceOrder(),
-			kryo.readObject(input, java.util.UUID.class),
-			input.readVarInt(true),
+			sessionId,
+			recordSessionOffset,
 			sessionRecordContext == null ? null : sessionRecordContext.sessionRecordsCount(),
-			kryo.readObject(input, java.util.UUID.class),
-			kryo.readObject(input, java.time.OffsetDateTime.class),
-			input.readString(),
-			input.readString(),
-			input.readString()
+			sourceQueryId,
+			created,
+			sourceQuery,
+			labels,
+			finishedWithError
 		);
 	}
 

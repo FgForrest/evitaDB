@@ -25,6 +25,7 @@ package io.evitadb.index.bPlusTree;
 
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyReport;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyState;
+import io.evitadb.index.bPlusTree.TransactionalObjectBPlusTree.Entry;
 import io.evitadb.index.list.TransactionalList;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
@@ -258,13 +259,6 @@ class TransactionalObjectBPlusTreeTest implements TimeBoundedTestSupport {
 	}
 
 	@Test
-	void shouldFailToIterateThroughNonExistingValues() {
-		final TreeTuple testTree = prepareRandomTree(42, 100);
-		final Iterator<String> it = testTree.bPlusTree().greaterOrEqualValueIterator(1000);
-		assertFalse(it.hasNext());
-	}
-
-	@Test
 	void shouldIterateThroughLeafNodeKeysFromLeftToRight() {
 		final TreeTuple testTree = prepareRandomTree(System.currentTimeMillis(), 100);
 
@@ -317,6 +311,186 @@ class TransactionalObjectBPlusTreeTest implements TimeBoundedTestSupport {
 
 		assertArrayEquals(partialCopy, reconstructedArray);
 		assertThrows(NoSuchElementException.class, it::next);
+	}
+
+	@Test
+	void shouldFailToIterateValuesLeftToRightThroughNonExistingValues() {
+		final TreeTuple testTree = prepareRandomTree(42, 100);
+		final Iterator<String> it = testTree.bPlusTree().greaterOrEqualValueIterator(1000);
+		assertFalse(it.hasNext());
+	}
+
+	@Test
+	void shouldIterateThroughLeafNodeKeysLeftToRightFromExactPosition() {
+		final TreeTuple testTree = prepareRandomTree(42, 100);
+		final Iterator<Integer> it = testTree.bPlusTree().greaterOrEqualKeyIterator(40);
+		final int[] plainFullArray = testTree.plainArray();
+		final InsertionPosition insertionPosition = ArrayUtils.computeInsertPositionOfIntInOrderedArray(40, plainFullArray);
+
+		assertTrue(insertionPosition.alreadyPresent());
+		final Integer[] partialCopy = new Integer[plainFullArray.length - insertionPosition.position()];
+		for (int i = insertionPosition.position(); i < plainFullArray.length; i++) {
+			partialCopy[i - insertionPosition.position()] = plainFullArray[i];
+		}
+
+		final Integer[] reconstructedArray = new Integer[partialCopy.length];
+		int index = 0;
+		while (it.hasNext()) {
+			reconstructedArray[index++] = it.next();
+		}
+
+		assertArrayEquals(partialCopy, reconstructedArray);
+		assertThrows(NoSuchElementException.class, it::next);
+	}
+
+	@Test
+	void shouldFailToIterateEntriesLeftToRightThroughNonExistingValues() {
+		final TreeTuple testTree = prepareRandomTree(42, 100);
+		final Iterator<Entry<Integer, String>> it = testTree.bPlusTree().greaterOrEqualEntryIterator(1000);
+		assertFalse(it.hasNext());
+	}
+
+	@Test
+	void shouldIterateThroughLeafNodeEntriesLeftToRightFromExactPosition() {
+		final TreeTuple testTree = prepareRandomTree(42, 100);
+		final Iterator<Entry<Integer, String>> it = testTree.bPlusTree().greaterOrEqualEntryIterator(40);
+		final int[] plainFullArray = testTree.plainArray();
+		final InsertionPosition insertionPosition = ArrayUtils.computeInsertPositionOfIntInOrderedArray(40, plainFullArray);
+
+		assertTrue(insertionPosition.alreadyPresent());
+		final Entry<Integer, String>[] partialCopy = new Entry[plainFullArray.length - insertionPosition.position()];
+		for (int i = insertionPosition.position(); i < plainFullArray.length; i++) {
+			partialCopy[i - insertionPosition.position()] = new Entry<>(plainFullArray[i], "Value" + plainFullArray[i]);
+		}
+
+		final Entry<Integer, String>[] reconstructedArray = new Entry[partialCopy.length];
+		int index = 0;
+		while (it.hasNext()) {
+			reconstructedArray[index++] = it.next();
+		}
+
+		assertArrayEquals(partialCopy, reconstructedArray);
+		assertThrows(NoSuchElementException.class, it::next);
+	}
+
+	@Test
+	void shouldFailToIterateKeysLeftToRightThroughNonExistingValues() {
+		final TreeTuple testTree = prepareRandomTree(42, 100);
+		final Iterator<Integer> it = testTree.bPlusTree().greaterOrEqualKeyIterator(1000);
+		assertFalse(it.hasNext());
+	}
+
+	@Test
+	void shouldIterateThroughLeafNodeValuesRightToLeftFromExactPosition() {
+		final TreeTuple testTree = prepareRandomTree(42, 100);
+		final Iterator<String> it = testTree.bPlusTree().lesserOrEqualValueIterator(40);
+		final int[] plainFullArray = testTree.plainArray();
+		final InsertionPosition insertionPosition = ArrayUtils.computeInsertPositionOfIntInOrderedArray(40, plainFullArray);
+
+		assertTrue(insertionPosition.alreadyPresent());
+		final String[] partialCopy = new String[insertionPosition.position() + 1];
+		for (int i = insertionPosition.position(); i >= 0; i--) {
+			partialCopy[insertionPosition.position() - i] = "Value" + plainFullArray[i];
+		}
+
+		final String[] reconstructedArray = new String[partialCopy.length];
+		int index = 0;
+		while (it.hasNext()) {
+			reconstructedArray[index++] = it.next();
+		}
+
+		assertArrayEquals(partialCopy, reconstructedArray);
+		assertThrows(NoSuchElementException.class, it::next);
+	}
+
+	@Test
+	void shouldIterateThroughLeafNodeValuesRightToLeftFromExactNonExistingPosition() {
+		final TreeTuple testTree = prepareRandomTree(42, 100);
+		final Iterator<String> it = testTree.bPlusTree().lesserOrEqualValueIterator(39);
+		final int[] plainFullArray = testTree.plainArray();
+		final InsertionPosition insertionPosition = ArrayUtils.computeInsertPositionOfIntInOrderedArray(39, plainFullArray);
+
+		assertFalse(insertionPosition.alreadyPresent());
+		final String[] partialCopy = new String[insertionPosition.position() + 1];
+		for (int i = insertionPosition.position(); i >= 0; i--) {
+			partialCopy[insertionPosition.position() - i] = "Value" + plainFullArray[i];
+		}
+
+		final String[] reconstructedArray = new String[partialCopy.length];
+		int index = 0;
+		while (it.hasNext()) {
+			reconstructedArray[index++] = it.next();
+		}
+
+		assertArrayEquals(partialCopy, reconstructedArray);
+		assertThrows(NoSuchElementException.class, it::next);
+	}
+
+	@Test
+	void shouldFailToIterateValuesRightToLeftThroughNonExistingValues() {
+		final TreeTuple testTree = prepareRandomTree(42, 100);
+		final Iterator<String> it = testTree.bPlusTree().lesserOrEqualValueIterator(-1000);
+		assertFalse(it.hasNext());
+	}
+
+	@Test
+	void shouldIterateThroughLeafNodeKeysRightToLeftFromExactPosition() {
+		final TreeTuple testTree = prepareRandomTree(42, 100);
+		final Iterator<Integer> it = testTree.bPlusTree().lesserOrEqualKeyIterator(40);
+		final int[] plainFullArray = testTree.plainArray();
+		final InsertionPosition insertionPosition = ArrayUtils.computeInsertPositionOfIntInOrderedArray(40, plainFullArray);
+
+		assertTrue(insertionPosition.alreadyPresent());
+		final Integer[] partialCopy = new Integer[insertionPosition.position() + 1];
+		for (int i = insertionPosition.position(); i >= 0; i--) {
+			partialCopy[insertionPosition.position() - i] = plainFullArray[i];
+		}
+
+		final Integer[] reconstructedArray = new Integer[partialCopy.length];
+		int index = 0;
+		while (it.hasNext()) {
+			reconstructedArray[index++] = it.next();
+		}
+
+		assertArrayEquals(partialCopy, reconstructedArray);
+		assertThrows(NoSuchElementException.class, it::next);
+	}
+
+	@Test
+	void shouldFailToIterateEntriesRightToLeftThroughNonExistingValues() {
+		final TreeTuple testTree = prepareRandomTree(42, 100);
+		final Iterator<Entry<Integer, String>> it = testTree.bPlusTree().lesserOrEqualEntryIterator(-1000);
+		assertFalse(it.hasNext());
+	}
+
+	@Test
+	void shouldIterateThroughLeafNodeEntriesRightToLeftFromExactPosition() {
+		final TreeTuple testTree = prepareRandomTree(42, 100);
+		final Iterator<Entry<Integer, String>> it = testTree.bPlusTree().lesserOrEqualEntryIterator(40);
+		final int[] plainFullArray = testTree.plainArray();
+		final InsertionPosition insertionPosition = ArrayUtils.computeInsertPositionOfIntInOrderedArray(40, plainFullArray);
+
+		assertTrue(insertionPosition.alreadyPresent());
+		final Entry<Integer, String>[] partialCopy = new Entry[insertionPosition.position() + 1];
+		for (int i = insertionPosition.position(); i >= 0; i--) {
+			partialCopy[insertionPosition.position() - i] = new Entry<>(plainFullArray[i], "Value" + plainFullArray[i]);
+		}
+
+		final Entry<Integer, String>[] reconstructedArray = new Entry[partialCopy.length];
+		int index = 0;
+		while (it.hasNext()) {
+			reconstructedArray[index++] = it.next();
+		}
+
+		assertArrayEquals(partialCopy, reconstructedArray);
+		assertThrows(NoSuchElementException.class, it::next);
+	}
+
+	@Test
+	void shouldFailToIterateKeysRightToLeftThroughNonExistingValues() {
+		final TreeTuple testTree = prepareRandomTree(42, 100);
+		final Iterator<Integer> it = testTree.bPlusTree().lesserOrEqualKeyIterator(-1000);
+		assertFalse(it.hasNext());
 	}
 
 	@Test

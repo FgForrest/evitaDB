@@ -79,21 +79,45 @@ public interface GrpcTrafficSourceQueryContainerOrBuilder extends
 
   /**
    * <pre>
-   * type of the query (e.g. GraphQL, REST, etc.)
+   * The automatic labels associated with the query.
    * </pre>
    *
-   * <code>string queryType = 3;</code>
-   * @return The queryType.
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 3;</code>
    */
-  java.lang.String getQueryType();
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryLabel>
+      getLabelsList();
   /**
    * <pre>
-   * type of the query (e.g. GraphQL, REST, etc.)
+   * The automatic labels associated with the query.
    * </pre>
    *
-   * <code>string queryType = 3;</code>
-   * @return The bytes for queryType.
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 3;</code>
    */
-  com.google.protobuf.ByteString
-      getQueryTypeBytes();
+  io.evitadb.externalApi.grpc.generated.GrpcQueryLabel getLabels(int index);
+  /**
+   * <pre>
+   * The automatic labels associated with the query.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 3;</code>
+   */
+  int getLabelsCount();
+  /**
+   * <pre>
+   * The automatic labels associated with the query.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 3;</code>
+   */
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryLabelOrBuilder>
+      getLabelsOrBuilderList();
+  /**
+   * <pre>
+   * The automatic labels associated with the query.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 3;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcQueryLabelOrBuilder getLabelsOrBuilder(
+      int index);
 }

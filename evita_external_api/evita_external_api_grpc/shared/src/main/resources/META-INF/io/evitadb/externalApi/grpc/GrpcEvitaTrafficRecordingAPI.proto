@@ -96,9 +96,13 @@ message GetTrafficRecordingStatusResponse {
 service GrpcEvitaTrafficRecordingService {
 
   // Procedure that returns requested list of past traffic records with limited size that match the request criteria.
+  // Order of the returned records is from the oldest sessions to the newest,
+  // traffic records within the session are ordered from the oldest to the newest.
+  rpc GetTrafficRecordingHistoryList(GetTrafficHistoryListRequest) returns (GetTrafficHistoryListResponse);
+  // Procedure that returns requested list of past traffic records with limited size that match the request criteria.
   // Order of the returned records is from the newest sessions to the oldest,
   // traffic records within the session are ordered from the newest to the oldest.
-  rpc GetTrafficRecordingHistoryList(GetTrafficHistoryListRequest) returns (GetTrafficHistoryListResponse);
+  rpc GetTrafficRecordingHistoryListReversed(GetTrafficHistoryListRequest) returns (GetTrafficHistoryListResponse);
   // Procedure that returns stream of all past traffic records that match the request criteria.
   // Order of the returned records is from the newest sessions to the oldest,
   // traffic records within the session are ordered from the newest to the oldest.

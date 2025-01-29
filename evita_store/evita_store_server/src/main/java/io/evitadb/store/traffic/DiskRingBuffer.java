@@ -38,6 +38,7 @@ import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.spi.SessionLocation;
 import io.evitadb.store.spi.SessionSink;
 import io.evitadb.store.spi.TrafficRecorder;
+import io.evitadb.store.spi.TrafficRecorder.StreamDirection;
 import io.evitadb.store.traffic.OffHeapTrafficRecorder.MemoryNotAvailableException;
 import io.evitadb.stream.RandomAccessFileInputStream;
 import io.evitadb.utils.FileUtils;
@@ -59,13 +60,7 @@ import java.nio.channels.FileLock;
 import java.nio.channels.OverlappingFileLockException;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
-import java.util.ArrayDeque;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Deque;
-import java.util.Objects;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -74,6 +69,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static io.evitadb.utils.Assert.isPremiseValid;
@@ -445,12 +441,47 @@ public class DiskRingBuffer {
 		notNull(sessionIndex, () -> new IndexNotReady(calculateIndexingPercentage()));
 
 		final RandomAccessFileInputStream inputStream = this.getDiskBufferFileReadInputStream();
-		final Predicate<TrafficRecording> requestPredicate = TrafficRecorder.createRequestPredicate(request);
+		final Predicate<TrafficRecording> requestPredicate = TrafficRecorder.createRequestPredicate(request, StreamDirection.FORWARD);
 		return sessionIndex.getSessionStream(request)
 			.flatMap(
 				it -> this.readSessionRecords(
 					it.sequenceOrder(), it.sessionRecordsCount(), it.fileLocation(), inputStream, reader
 				)
+			)
+			.filter(requestPredicate)
+			.onClose(inputStream::close);
+	}
+
+	/**
+	 * Retrieves a stream of TrafficRecording objects based on the criteria specified in the given request.
+	 * The TrafficRecording objects are filtered according to the criteria from the request. Method creates missing
+	 * memory index if it is not present yet. The stream is ordered in reversed order (newest records first).
+	 *
+	 * @param request the TrafficRecordingCaptureRequest containing criteria to filter the recordings.
+	 * @param reader  a function that retrieves a StorageRecord of TrafficRecording given a long identifier.
+	 * @return a stream of TrafficRecording objects matching the request criteria.
+	 */
+	@Nonnull
+	public Stream<TrafficRecording> getSessionRecordsReversedStream(
+		@Nonnull TrafficRecordingCaptureRequest request,
+		@Nonnull LongIntLongObjectFunction<RandomAccessFileInputStream, StorageRecord<TrafficRecording>> reader
+	) {
+		TrafficRecordingIndex sessionIndex = this.sessionIndex.get();
+		notNull(sessionIndex, () -> new IndexNotReady(calculateIndexingPercentage()));
+
+		final RandomAccessFileInputStream inputStream = this.getDiskBufferFileReadInputStream();
+		final Predicate<TrafficRecording> requestPredicate = TrafficRecorder.createRequestPredicate(request, StreamDirection.REVERSE);
+		return sessionIndex.getSessionReversedStream(request)
+			.flatMap(
+				it -> {
+					// this is inefficient, but we need to reverse the order of the records and there is no other simple way around
+					// if it happens to be slow in real world scenarios, we'd have to add a support to the index
+					final List<TrafficRecording> recordings = this.readSessionRecords(
+						it.sequenceOrder(), it.sessionRecordsCount(), it.fileLocation(), inputStream, reader
+					).collect(Collectors.toCollection(ArrayList::new));
+					Collections.reverse(recordings);
+					return recordings.stream();
+				}
 			)
 			.filter(requestPredicate)
 			.onClose(inputStream::close);

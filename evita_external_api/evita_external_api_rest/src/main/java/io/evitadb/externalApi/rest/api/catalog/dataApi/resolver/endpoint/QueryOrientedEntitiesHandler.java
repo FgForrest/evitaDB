@@ -37,6 +37,7 @@ import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.Require;
 import io.evitadb.core.EvitaInternalSessionContract;
 import io.evitadb.externalApi.http.MimeTypes;
+import io.evitadb.externalApi.rest.RestProvider;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.QueryEntityRequestDto;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.FetchEntityRequestDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.FetchEntityEndpointHeaderDescriptor;
@@ -81,9 +82,6 @@ import static java.util.Optional.ofNullable;
  */
 @Slf4j
 public abstract class QueryOrientedEntitiesHandler extends JsonRestHandler<CollectionRestHandlingContext> {
-
-	private static final String TRAFFIC_SOURCE_QUERY_RECORDING_TYPE = "REST";
-
 	@Nonnull private final FilterConstraintResolver filterConstraintResolver;
 	@Nonnull private final OrderConstraintResolver orderConstraintResolver;
 	@Nonnull private final RequireConstraintResolver requireConstraintResolver;
@@ -166,7 +164,7 @@ public abstract class QueryOrientedEntitiesHandler extends JsonRestHandler<Colle
 					final String serializedSourceQuery = restHandlingContext.getObjectMapper().writeValueAsString(queryDto);
 					/* TODO LHO - insert finishedWithError if parsing failed */
 					final UUID recordingId = evitaInternalSession.recordSourceQuery(
-						serializedSourceQuery, TRAFFIC_SOURCE_QUERY_RECORDING_TYPE, null
+						serializedSourceQuery, RestProvider.CODE, null
 					);
 
 					executionContext.provideTrafficSourceQueryRecordingId(recordingId);

@@ -35,22 +35,25 @@ import javax.annotation.Nonnull;
  * traffic (e.g., 10% of the traffic). The traffic recording can be done in memory or on disk. The traffic recording
  * is always related to a single catalog.
  *
- * @param enabled                        If true, the server records all traffic to the database (all catalogs)
- *                                       in a single shared memory and disk buffer that could be optionally
- *                                       persisted to file. If traffic recording is disabled, it can still be enabled
- *                                       on demand via the API (but it's not automatically enabled and recording).
- * @param sourceQueryTracking            If true, the server records the query in its original form (GraphQL / REST)
- *                                       and tracks sub-queries related to the original query. This is useful for
- *                                       debugging and performance analysis.
- * @param trafficSamplingPercentage      Sets the percentage of traffic that should be recorded. The value is
- *                                       between 0 and 100.
- * @param trafficMemoryBufferSizeInBytes Sets the size of the memory buffer used for traffic recording in Bytes.
- *                                       Even if `enabled` is disabled this property is used when on
- *                                       demand traffic recording is requested.
- * @param trafficDiskBufferSizeInBytes   Sets the size of the disk buffer used for traffic recording in Bytes.
- *                                       Even if `enabled` is disabled this property is used when on
- *                                       demand traffic recording is requested.
- *
+ * @param enabled                            If true, the server records all traffic to the database (all catalogs)
+ *                                           in a single shared memory and disk buffer that could be optionally
+ *                                           persisted to file. If traffic recording is disabled, it can still be enabled
+ *                                           on demand via the API (but it's not automatically enabled and recording).
+ * @param sourceQueryTracking                If true, the server records the query in its original form (GraphQL / REST)
+ *                                           and tracks sub-queries related to the original query. This is useful for
+ *                                           debugging and performance analysis.
+ * @param trafficSamplingPercentage          Sets the percentage of traffic that should be recorded. The value is
+ *                                           between 0 and 100.
+ * @param trafficMemoryBufferSizeInBytes     Sets the size of the memory buffer used for traffic recording in Bytes.
+ *                                           Even if `enabled` is disabled this property is used when on
+ *                                           demand traffic recording is requested.
+ * @param trafficDiskBufferSizeInBytes       Sets the size of the disk buffer used for traffic recording in Bytes.
+ *                                           Even if `enabled` is disabled this property is used when on
+ *                                           demand traffic recording is requested.
+ * @param trafficFlushIntervalInMilliseconds Sets the interval in milliseconds at which the traffic buffer is flushed
+ *                                           to disk. For development (i.e. low traffic, immediate debugging) it can be
+ *                                           set to 0. For production it should be set to a reasonable value
+ *                                           (e.g. 60000 = minute).
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public record TrafficRecordingOptions(
@@ -59,7 +62,8 @@ public record TrafficRecordingOptions(
 	long trafficMemoryBufferSizeInBytes,
 	long trafficDiskBufferSizeInBytes,
 	long exportFileChunkSizeInBytes,
-	int trafficSamplingPercentage
+	int trafficSamplingPercentage,
+	long trafficFlushIntervalInMilliseconds
 ) {
 	public static final long DEFAULT_TRAFFIC_MEMORY_BUFFER = 4_194_304L;
 	public static final long DEFAULT_TRAFFIC_DISK_BUFFER = 33_554_432L;
@@ -67,6 +71,7 @@ public record TrafficRecordingOptions(
 	public static final boolean DEFAULT_TRAFFIC_RECORDING = false;
 	public static final boolean DEFAULT_TRAFFIC_SOURCE_QUERY_TRACKING = false;
 	public static final long DEFAULT_EXPORT_FILE_CHUNK_SIZE = 16_777_216L;
+	public static final long DEFAULT_TRAFFIC_FLUSH_INTERVAL = 60_000L;
 
 	/**
 	 * Builder for the server options. Recommended to use to avoid binary compatibility problems in the future.
@@ -82,14 +87,6 @@ public record TrafficRecordingOptions(
 		return new Builder(trafficRecordingOptions);
 	}
 
-	/**
-	 * Returns true if both traffic recording and source query tracking are enabled.
-	 * @return true if both traffic recording and source query tracking are enabled.
-	 */
-	public boolean sourceQueryTrackingEnabled() {
-		return this.enabled() && this.sourceQueryTracking();
-	}
-
 	public TrafficRecordingOptions() {
 		this(
 			DEFAULT_TRAFFIC_RECORDING,
@@ -97,8 +94,18 @@ public record TrafficRecordingOptions(
 			DEFAULT_TRAFFIC_MEMORY_BUFFER,
 			DEFAULT_TRAFFIC_DISK_BUFFER,
 			DEFAULT_EXPORT_FILE_CHUNK_SIZE,
-			DEFAULT_TRAFFIC_SAMPLING_PERCENTAGE
+			DEFAULT_TRAFFIC_SAMPLING_PERCENTAGE,
+			DEFAULT_TRAFFIC_FLUSH_INTERVAL
 		);
+	}
+
+	/**
+	 * Returns true if both traffic recording and source query tracking are enabled.
+	 *
+	 * @return true if both traffic recording and source query tracking are enabled.
+	 */
+	public boolean sourceQueryTrackingEnabled() {
+		return this.enabled() && this.sourceQueryTracking();
 	}
 
 	/**
@@ -112,6 +119,7 @@ public record TrafficRecordingOptions(
 		private long trafficDiskBufferSizeInBytes = DEFAULT_TRAFFIC_DISK_BUFFER;
 		private long exportFileChunkSizeInBytes = DEFAULT_EXPORT_FILE_CHUNK_SIZE;
 		private int trafficSamplingPercentage = DEFAULT_TRAFFIC_SAMPLING_PERCENTAGE;
+		private long trafficFlushIntervalInMilliseconds = DEFAULT_TRAFFIC_FLUSH_INTERVAL;
 
 		Builder() {
 		}
@@ -123,6 +131,7 @@ public record TrafficRecordingOptions(
 			this.trafficDiskBufferSizeInBytes = trafficRecordingOptions.trafficDiskBufferSizeInBytes();
 			this.exportFileChunkSizeInBytes = trafficRecordingOptions.exportFileChunkSizeInBytes();
 			this.trafficSamplingPercentage = trafficRecordingOptions.trafficSamplingPercentage();
+			this.trafficFlushIntervalInMilliseconds = trafficRecordingOptions.trafficFlushIntervalInMilliseconds();
 		}
 
 		@Nonnull
@@ -162,6 +171,12 @@ public record TrafficRecordingOptions(
 		}
 
 		@Nonnull
+		public TrafficRecordingOptions.Builder trafficFlushIntervalInMilliseconds(long trafficFlushIntervalInMilliseconds) {
+			this.trafficFlushIntervalInMilliseconds = trafficFlushIntervalInMilliseconds;
+			return this;
+		}
+
+		@Nonnull
 		public TrafficRecordingOptions build() {
 			return new TrafficRecordingOptions(
 				enabled,
@@ -169,7 +184,8 @@ public record TrafficRecordingOptions(
 				trafficMemoryBufferSizeInBytes,
 				trafficDiskBufferSizeInBytes,
 				exportFileChunkSizeInBytes,
-				trafficSamplingPercentage
+				trafficSamplingPercentage,
+				trafficFlushIntervalInMilliseconds
 			);
 		}
 

@@ -136,7 +136,7 @@ public class NoOpTrafficRecorder implements TrafficRecorder {
 		@Nonnull UUID sourceQueryId,
 		@Nonnull OffsetDateTime now,
 		@Nonnull String sourceQuery,
-		@Nonnull String queryType,
+		@Nonnull Label[] labels,
 		@Nullable String finishedWithError
 	) {
 		// no-op

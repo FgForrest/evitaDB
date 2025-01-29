@@ -26,6 +26,8 @@ package io.evitadb.store.traffic;
 
 import com.esotericsoftware.kryo.Kryo;
 import io.evitadb.api.TrafficRecordingReader;
+import io.evitadb.api.exception.IndexNotReady;
+import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest;
 import io.evitadb.exception.UnexpectedIOException;
@@ -35,6 +37,7 @@ import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.query.QuerySerializationKryoConfigurer;
 import io.evitadb.store.service.KryoFactory;
 import io.evitadb.store.spi.SessionLocation;
+import io.evitadb.store.spi.TrafficRecorder.StreamDirection;
 import io.evitadb.store.traffic.serializer.CurrentSessionRecordContext;
 import io.evitadb.store.wal.WalKryoConfigurer;
 import io.evitadb.stream.AbstractRandomAccessInputStream;
@@ -46,9 +49,13 @@ import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static io.evitadb.store.spi.TrafficRecorder.createRequestPredicate;
@@ -144,12 +151,31 @@ public class InputStreamTrafficRecordReader implements TrafficRecordingReader, C
 	@Nonnull
 	@Override
 	public Stream<TrafficRecording> getRecordings(@Nonnull TrafficRecordingCaptureRequest request) {
-		final Predicate<TrafficRecording> requestPredicate = createRequestPredicate(request);
+		final Predicate<TrafficRecording> requestPredicate = createRequestPredicate(request, StreamDirection.FORWARD);
 		return this.sessionIndex.getSessionStream(request)
 			.flatMap(
 				it -> this.readSessionRecords(
 					it.sequenceOrder(), it.sessionRecordsCount(), it.fileLocation()
 				)
+			)
+			.filter(requestPredicate);
+	}
+
+	@Nonnull
+	@Override
+	public Stream<TrafficRecording> getRecordingsReversed(@Nonnull TrafficRecordingCaptureRequest request) throws TemporalDataNotAvailableException, IndexNotReady {
+		final Predicate<TrafficRecording> requestPredicate = createRequestPredicate(request, StreamDirection.REVERSE);
+		return this.sessionIndex.getSessionReversedStream(request)
+			.flatMap(
+				it -> {
+					// this is inefficient, but we need to reverse the order of the records and there is no other simple way around
+					// if it happens to be slow in real world scenarios, we'd have to add a support to the index
+					final List<TrafficRecording> recordings = this.readSessionRecords(
+						it.sequenceOrder(), it.sessionRecordsCount(), it.fileLocation()
+					).collect(Collectors.toCollection(ArrayList::new));
+					Collections.reverse(recordings);
+					return recordings.stream();
+				}
 			)
 			.filter(requestPredicate);
 	}

@@ -63,7 +63,10 @@ public interface TrafficRecorder extends Closeable {
 	 * @return a predicate that evaluates to true for TrafficRecording objects matching the specified criteria
 	 */
 	@Nonnull
-	static Predicate<TrafficRecording> createRequestPredicate(@Nonnull TrafficRecordingCaptureRequest request) {
+	static Predicate<TrafficRecording> createRequestPredicate(
+		@Nonnull TrafficRecordingCaptureRequest request,
+		@Nonnull StreamDirection direction
+	) {
 		Predicate<TrafficRecording> requestPredicate = tr -> true;
 		if (request.sessionId() != null) {
 			requestPredicate = requestPredicate.and(
@@ -71,24 +74,36 @@ public interface TrafficRecorder extends Closeable {
 			);
 		}
 		if (request.sinceRecordSessionOffset() != null) {
-			requestPredicate = requestPredicate.and(
-				tr -> tr.recordSessionOffset() >= request.sinceRecordSessionOffset()
-			);
+			if (direction == StreamDirection.FORWARD) {
+				requestPredicate = requestPredicate.and(
+					tr -> tr.recordSessionOffset() >= request.sinceRecordSessionOffset()
+				);
+			} else {
+				requestPredicate = requestPredicate.and(
+					tr -> tr.recordSessionOffset() <= request.sinceRecordSessionOffset()
+				);
+			}
 		}
 		if (request.since() != null) {
-			requestPredicate = requestPredicate.and(
-				tr -> tr.created().isAfter(request.since())
-			);
+			if (direction == StreamDirection.FORWARD) {
+				requestPredicate = requestPredicate.and(
+					tr -> tr.created().isAfter(request.since()) || tr.created().isEqual(request.since())
+				);
+			} else {
+				requestPredicate = requestPredicate.and(
+					tr -> tr.created().isBefore(request.since()) || tr.created().isEqual(request.since())
+				);
+			}
 		}
 		if (request.fetchingMoreBytesThan() != null) {
 			requestPredicate = requestPredicate.and(
-				tr -> tr.ioFetchedSizeBytes() > request.fetchingMoreBytesThan()
+				tr -> tr.ioFetchedSizeBytes() >= request.fetchingMoreBytesThan()
 			);
 		}
 		if (request.longerThan() != null) {
 			final long thresholdMillis = request.longerThan().toMillis();
 			requestPredicate = requestPredicate.and(
-				trafficRecording -> trafficRecording.durationInMilliseconds() > thresholdMillis
+				trafficRecording -> trafficRecording.durationInMilliseconds() >= thresholdMillis
 			);
 		}
 		if (request.types() != null) {
@@ -100,9 +115,9 @@ public interface TrafficRecorder extends Closeable {
 			requestPredicate = requestPredicate.and(
 				tr -> tr instanceof QueryContainer qc &&
 					Arrays.stream(request.labels())
-						.anyMatch(
+						.allMatch(
 							it -> Arrays.stream(qc.labels())
-								.allMatch(
+								.anyMatch(
 									// this is a bit tricky, data can come in formatted form, so we need to compare it in both ways
 									that -> Objects.equals(it.name(), that.name()) &&
 										(Objects.equals(it.value(), that.value()) || (that.value() instanceof String && Objects.equals(it.value(), EvitaDataTypes.formatValue(that.value()))))
@@ -150,9 +165,9 @@ public interface TrafficRecorder extends Closeable {
 	/**
 	 * Function is called when a new session is created.
 	 *
-	 * @param sessionId         unique identifier of the session
-	 * @param catalogVersion    snapshot version of the catalog this session is working with
-	 * @param created           timestamp when the session was created
+	 * @param sessionId      unique identifier of the session
+	 * @param catalogVersion snapshot version of the catalog this session is working with
+	 * @param created        timestamp when the session was created
 	 */
 	void createSession(
 		@Nonnull UUID sessionId,
@@ -176,6 +191,7 @@ public interface TrafficRecorder extends Closeable {
 	 *
 	 * @param sessionId          unique identifier of the session the query belongs to
 	 * @param query              query that was executed
+	 * @param labels             labels associated with the query
 	 * @param totalRecordCount   total number of records that match the query
 	 *                           (not necessarily all of them were fetched)
 	 * @param ioFetchCount       number of IO fetches that were needed to fetch all records
@@ -257,7 +273,7 @@ public interface TrafficRecorder extends Closeable {
 	 * @param sessionId         unique identifier of the session the mutation belongs to
 	 * @param sourceQueryId     unique identifier of the source query
 	 * @param sourceQuery       unparsed, raw source query in particular format
-	 * @param queryType         type of the query (e.g. GraphQL, REST, etc.)
+	 * @param labels            labels associated with the query
 	 * @param finishedWithError error message if the source query was not registered due to an error
 	 */
 	void setupSourceQuery(
@@ -265,7 +281,7 @@ public interface TrafficRecorder extends Closeable {
 		@Nonnull UUID sourceQueryId,
 		@Nonnull OffsetDateTime now,
 		@Nonnull String sourceQuery,
-		@Nonnull String queryType,
+		@Nonnull Label[] labels,
 		@Nullable String finishedWithError
 	);
 
@@ -289,5 +305,14 @@ public interface TrafficRecorder extends Closeable {
 	 */
 	@Override
 	void close() throws IOException;
+
+	/**
+	 * Direction of the record stream.
+	 */
+	enum StreamDirection {
+
+		FORWARD, REVERSE;
+
+	}
 
 }
