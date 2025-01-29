@@ -114,6 +114,7 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 		@Nonnull Scheduler scheduler
 	) {
 		super(
+			catalogName,
 			TrafficRecorderTask.class.getSimpleName(),
 			"Traffic recording",
 			new TrafficRecordingSettings(
