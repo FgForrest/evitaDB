@@ -164,7 +164,7 @@ public abstract class QueryOrientedEntitiesHandler extends JsonRestHandler<Colle
 					final String serializedSourceQuery = restHandlingContext.getObjectMapper().writeValueAsString(queryDto);
 					/* TODO LHO - insert finishedWithError if parsing failed */
 					final UUID recordingId = evitaInternalSession.recordSourceQuery(
-						serializedSourceQuery, RestProvider.CODE, null
+						serializedSourceQuery, RestQueryLabels.REST_SOURCE_TYPE_VALUE, null
 					);
 
 					executionContext.provideTrafficSourceQueryRecordingId(recordingId);

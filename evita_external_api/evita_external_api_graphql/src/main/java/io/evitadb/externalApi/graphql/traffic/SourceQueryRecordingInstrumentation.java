@@ -86,7 +86,7 @@ public class SourceQueryRecordingInstrumentation extends SimplePerformantInstrum
 		/* TODO LHO - insert finishedWithError if parsing failed */
 		final UUID recordingId = evitaInternalSession.recordSourceQuery(
 			serializedSourceQuery,
-			GraphQLProvider.CODE,
+			GraphQLQueryLabels.GRAPHQL_SOURCE_TYPE_VALUE,
 			null
 		);
 		executionContext.getGraphQLContext().put(GraphQLContextKey.TRAFFIC_SOURCE_QUERY_RECORDING_ID, recordingId);
