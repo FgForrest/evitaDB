@@ -259,7 +259,8 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 			@Nonnull IntConsumer updateProgress,
 			@Nonnull ExportFileHandle exportFileHandle
 		) throws FileNotFoundException {
-			this.nonExportedSizeLimit = diskBufferSizeInBytes / 2;
+			// export by 64kB or half of the disk buffer size if it's lower
+			this.nonExportedSizeLimit = Math.min(65_536L, diskBufferSizeInBytes / 2);
 			this.chunkFileSizeInBytes = settings.chunkFileSizeInBytes();
 			this.exportedSizeLimit = settings.recordingSizeLimitInBytes() == null ? Long.MAX_VALUE : settings.recordingSizeLimitInBytes();
 			this.finalizer = finalizer;
