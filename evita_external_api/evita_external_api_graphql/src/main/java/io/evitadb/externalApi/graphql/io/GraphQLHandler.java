@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -59,10 +59,12 @@ import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.netty.channel.EventLoop;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -145,11 +147,17 @@ public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExecutionCont
     @Override
     @Nonnull
     protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull GraphQLEndpointExecutionContext executionContext) {
+        final Map<String, String> mdc = MDC.getCopyOfContextMap();
         return parseRequestBody(executionContext, GraphQLRequest.class)
             .thenApply(graphQLRequest -> {
-	            executionContext.requestExecutedEvent().finishInputDeserialization();
-                final GraphQLResponse<?> graphQLResponse = executeRequest(executionContext, graphQLRequest);
-                return new SuccessEndpointResponse(graphQLResponse);
+                MDC.setContextMap(mdc);
+                try {
+                    executionContext.requestExecutedEvent().finishInputDeserialization();
+                    final GraphQLResponse<?> graphQLResponse = executeRequest(executionContext, graphQLRequest);
+                    return new SuccessEndpointResponse(graphQLResponse);
+                } finally {
+                    MDC.clear();
+                }
             });
     }
 

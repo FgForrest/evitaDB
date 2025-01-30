@@ -89,7 +89,6 @@ import java.util.stream.Stream;
 public class TrafficRecordingEngine implements TrafficRecordingReader {
 	public static final String LABEL_TRACE_ID = "trace-id";
 	public static final String LABEL_CLIENT_ID = "client-id";
-	/* TODO JNO - track IP address */
 	public static final String LABEL_IP_ADDRESS = "ip-address";
 	private final String catalogName;
 	private final StorageOptions storageOptions;
@@ -299,16 +298,7 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 					queryPlan.getSourceQuery(),
 					ArrayUtils.mergeArrays(
 						queryPlan.getEvitaRequest().getLabels(),
-						Stream.of(
-								this.tracingContext.getTraceId()
-									.map(it -> new Label(LABEL_TRACE_ID, it))
-									.orElse(null),
-								this.tracingContext.getClientId()
-									.map(it -> new Label(LABEL_CLIENT_ID, it))
-									.orElse(null)
-							)
-							.filter(Objects::nonNull)
-							.toArray(Label[]::new)
+						collectSystemLabels()
 					),
 					queryPlan.getEvitaRequest().getAlignedNow(),
 					result == null ? 0 : result.getTotalRecordCount(),
@@ -452,7 +442,7 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 	 * @param sessionId         unique identifier of the session the mutation belongs to
 	 * @param sourceQueryId     unique identifier of the source query
 	 * @param sourceQuery       unparsed, raw source query in particular format
-	 * @param queryType		    type of the query (e.g. REST, GraphQL, etc.)
+	 * @param queryType         type of the query (e.g. REST, GraphQL, etc.)
 	 * @param finishedWithError error message if the query finished with an error or NULL if it finished successfully
 	 */
 	public void setupSourceQuery(
@@ -469,19 +459,10 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 				OffsetDateTime.now(),
 				sourceQuery,
 				ArrayUtils.mergeArrays(
-					new Label[] {
+					new Label[]{
 						new Label(Label.LABEL_SOURCE_TYPE, queryType)
 					},
-					Stream.of(
-							this.tracingContext.getTraceId()
-								.map(it -> new Label(LABEL_TRACE_ID, it))
-								.orElse(null),
-							this.tracingContext.getClientId()
-								.map(it -> new Label(LABEL_CLIENT_ID, it))
-								.orElse(null)
-						)
-						.filter(Objects::nonNull)
-						.toArray(Label[]::new)
+					collectSystemLabels()
 				),
 				finishedWithError
 			);
@@ -563,6 +544,31 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 		return this.trafficRecorder.get() instanceof LabelIntrospector li ?
 			li.getLabelValuesOrderedByCardinality(labelName, valueStartingWith, limit) :
 			List.of();
+	}
+
+	/**
+	 * Collects system labels associated with the current tracing context. These labels encapsulate
+	 * metadata, such as trace ID, client ID, and client IP address, if available. If a specific
+	 * value is unavailable in the tracing context, the corresponding label is omitted.
+	 *
+	 * @return an array of {@link Label} objects containing system metadata; the array will not
+	 * contain null elements and will always be non-null, though it may be empty.
+	 */
+	@Nonnull
+	private Label[] collectSystemLabels() {
+		return Stream.of(
+				this.tracingContext.getTraceId()
+					.map(it -> new Label(LABEL_TRACE_ID, it))
+					.orElse(null),
+				this.tracingContext.getClientId()
+					.map(it -> new Label(LABEL_CLIENT_ID, it))
+					.orElse(null),
+				this.tracingContext.getClientIpAddress()
+					.map(it -> new Label(LABEL_IP_ADDRESS, it))
+					.orElse(null)
+			)
+			.filter(Objects::nonNull)
+			.toArray(Label[]::new);
 	}
 
 	/**

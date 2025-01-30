@@ -45,6 +45,30 @@ public interface TracingContext {
 	 * Name of property representing the trace identifier in the {@link MDC}.
 	 */
 	String MDC_TRACE_ID_PROPERTY = "traceId";
+	/**
+	 * Name of property representing the client IP address in the {@link MDC}.
+	 */
+	String MDC_CLIENT_IP_ADDRESS = "clientIp";
+
+	/**
+	 * Executes the provided operation within the context of the specified client IP address.
+	 * The client IP address is temporarily stored in the MDC (Mapped Diagnostic Context) for tracking
+	 * or logging purposes during the execution of the operation. After execution, the client IP address
+	 * is removed from the MDC.
+	 *
+	 * @param clientIpAddress the IP address of the client, which will be added to the MDC for the scope of this execution
+	 * @param runnable the operation to be executed, provided as a {@code SupplierThrowingException} returning a result of type {@code T}
+	 * @return the result of the operation executed by {@code runnable}
+	 * @throws Exception if the provided {@code runnable} operation throws an exception
+	 */
+	static <T> T executeWithClientIpAddress(@Nonnull String clientIpAddress, @Nonnull SupplierThrowingException<T> runnable) throws Exception {
+		MDC.put(MDC_CLIENT_IP_ADDRESS, clientIpAddress);
+		try {
+			return runnable.get();
+		} finally {
+			MDC.remove(MDC_CLIENT_IP_ADDRESS);
+		}
+	}
 
 	/**
 	 * Returns the trace identifier associated with the trace.
@@ -59,6 +83,15 @@ public interface TracingContext {
 	 */
 	@Nonnull
 	Optional<String> getClientId();
+
+	/**
+	 * Returns the client IP address associated with the trace.
+	 * @return the client IP address
+	 */
+	@Nonnull
+	default Optional<String> getClientIpAddress() {
+		return Optional.ofNullable(MDC.get(MDC_CLIENT_IP_ADDRESS));
+	}
 
 	/**
 	 * Returns a reference to currently active underlying context implementation.
@@ -290,6 +323,16 @@ public interface TracingContext {
 		@Nullable Object value
 	) {
 		public static final SpanAttribute[] EMPTY_ARRAY = new SpanAttribute[0];
+	}
+
+	/**
+	 * Interface similar to {@link Supplier} but allows to throw checked exceptions.
+	 */
+	@FunctionalInterface
+	interface SupplierThrowingException<T> {
+
+		T get() throws Exception;
+
 	}
 
 }

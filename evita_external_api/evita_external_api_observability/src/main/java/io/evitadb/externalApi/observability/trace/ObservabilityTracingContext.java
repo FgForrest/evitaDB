@@ -67,6 +67,9 @@ public class ObservabilityTracingContext implements TracingContext {
 		MDC.put(MDC_TRACE_ID_PROPERTY, traceId);
 	}
 
+	/**
+	 * Clears MDC from the client ID and trace ID.
+	 */
 	protected static void clearMdc() {
 		MDC.remove(MDC_CLIENT_ID_PROPERTY);
 		MDC.remove(MDC_TRACE_ID_PROPERTY);

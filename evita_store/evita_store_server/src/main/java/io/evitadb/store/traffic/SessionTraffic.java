@@ -343,10 +343,10 @@ public class SessionTraffic implements Closeable {
 			sourceQueryId,
 			OffsetDateTime.now(),
 			sourceQueryCounter.map(SourceQueryCounter::getComputeTime).orElse(0),
-			sourceQueryCounter.map(SourceQueryCounter::getRecordsReturned).orElse(0),
-			sourceQueryCounter.map(SourceQueryCounter::getTotalRecordCount).orElse(0),
 			sourceQueryCounter.map(SourceQueryCounter::getIoFetchCount).orElse(0),
 			sourceQueryCounter.map(SourceQueryCounter::getIoFetchedSizeBytes).orElse(0),
+			sourceQueryCounter.map(SourceQueryCounter::getRecordsReturned).orElse(0),
+			sourceQueryCounter.map(SourceQueryCounter::getTotalRecordCount).orElse(0),
 			finishedWithError
 		);
 	}

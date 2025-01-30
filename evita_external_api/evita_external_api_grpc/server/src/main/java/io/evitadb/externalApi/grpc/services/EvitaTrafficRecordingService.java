@@ -67,7 +67,6 @@ public class EvitaTrafficRecordingService extends GrpcEvitaTrafficRecordingServi
 	 *
 	 * @param request          request containing the criteria
 	 * @param responseObserver observer on which errors might be thrown and result returned
-	 *                         TODO JNO - source query container se nevrací, když je zafiltrováno
 	 */
 	@Override
 	public void getTrafficRecordingHistoryList(GetTrafficHistoryListRequest request, StreamObserver<GetTrafficHistoryListResponse> responseObserver) {
