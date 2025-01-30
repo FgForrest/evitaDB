@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -72,9 +72,15 @@ public class DeferredSorter implements Sorter {
 		int peak,
 		@Nullable IntConsumer skippedRecordsConsumer
 	) {
-		return executionWrapper.applyAsInt(
-			() -> ConditionalSorter.getFirstApplicableSorter(queryContext, sorter)
-				.sortAndSlice(queryContext, input, startIndex, endIndex, result, peak, skippedRecordsConsumer)
-		);
+		final Sorter firstApplicableSorter = ConditionalSorter.getFirstApplicableSorter(queryContext, sorter);
+		if (firstApplicableSorter == null) {
+			return 0;
+		} else {
+			return executionWrapper.applyAsInt(
+				() -> firstApplicableSorter.sortAndSlice(
+					queryContext, input, startIndex, endIndex, result, peak, skippedRecordsConsumer
+				)
+			);
+		}
 	}
 }
