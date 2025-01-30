@@ -24,6 +24,7 @@
 package io.evitadb.store.traffic;
 
 
+import com.google.common.collect.Lists;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TrafficRecordingOptions;
 import io.evitadb.api.exception.IndexNotReady;
@@ -61,9 +62,12 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
@@ -187,23 +191,40 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 		this.trafficRecorder.closeSession(sessionId, null);
 
 		try (
-			final Stream<TrafficRecording> recordings = this.trafficRecorder.getRecordings(
+			final Stream<TrafficRecording> recordings = this.trafficRecorder.getRecordingsReversed(
 				TrafficRecordingCaptureRequest.builder()
 					.content(TrafficRecordingContent.BODY)
-					.sinceSessionSequenceId(0L)
-					.sinceRecordSessionOffset(0)
+					.sinceSessionSequenceId(80L)
 					.build()
 			)
 		) {
 			final List<TrafficRecording> theRecordings = recordings.toList();
 
 			assertEquals(6, theRecordings.size());
-			assertInstanceOf(SessionStartContainer.class, theRecordings.get(0));
-			assertInstanceOf(QueryContainer.class, theRecordings.get(1));
-			assertInstanceOf(EntityFetchContainer.class, theRecordings.get(2));
-			assertInstanceOf(EntityEnrichmentContainer.class, theRecordings.get(3));
-			assertInstanceOf(MutationContainer.class, theRecordings.get(4));
-			assertInstanceOf(SessionCloseContainer.class, theRecordings.get(5));
+			assertInstanceOf(SessionStartContainer.class, theRecordings.get(5));
+			assertInstanceOf(QueryContainer.class, theRecordings.get(4));
+			assertInstanceOf(EntityFetchContainer.class, theRecordings.get(3));
+			assertInstanceOf(EntityEnrichmentContainer.class, theRecordings.get(2));
+			assertInstanceOf(MutationContainer.class, theRecordings.get(1));
+			assertInstanceOf(SessionCloseContainer.class, theRecordings.get(0));
+		}
+
+		try (
+			final Stream<TrafficRecording> recordings = this.trafficRecorder.getRecordingsReversed(
+				TrafficRecordingCaptureRequest.builder()
+					.content(TrafficRecordingContent.BODY)
+					.sinceSessionSequenceId(1L)
+					.sinceRecordSessionOffset(3)
+					.build()
+			)
+		) {
+			final List<TrafficRecording> theRecordings = recordings.toList();
+
+			assertEquals(4, theRecordings.size());
+			assertInstanceOf(SessionStartContainer.class, theRecordings.get(3));
+			assertInstanceOf(QueryContainer.class, theRecordings.get(2));
+			assertInstanceOf(EntityFetchContainer.class, theRecordings.get(1));
+			assertInstanceOf(EntityEnrichmentContainer.class, theRecordings.get(0));
 		}
 	}
 
@@ -368,6 +389,98 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 
 			assertEquals(120, allRecordings.size());
 		}
+	}
+
+	@Test
+	void shouldGraduallyTraverseThroughDataInBothWays() {
+		warmUpEmptyIndex();
+
+		final UUID sessionId = writeBunchOfData(10, 10);
+
+		// wait for the data to be written to the disk
+		waitUntilDataBecomeAvailable(sessionId, 10_000);
+
+		final List<TrafficRecording> forwardRecords = collectForwardRecords();
+
+		assertEquals(120, forwardRecords.size());
+		final Set<TrafficRecordId> ids = new HashSet<>(512);
+		for (TrafficRecording forwardRecord : forwardRecords) {
+			final TrafficRecordId trId = new TrafficRecordId(forwardRecord.sessionSequenceOrder(), forwardRecord.recordSessionOffset());
+			assertFalse(ids.contains(trId));
+			ids.add(trId);
+		}
+
+		final List<TrafficRecording> reverseRecords = collectReverseRecords();
+		assertEquals(120, reverseRecords.size());
+
+		// reversed reverse records should be the same as forward records
+		assertEquals(forwardRecords, Lists.reverse(reverseRecords));
+	}
+
+	@Nonnull
+	private List<TrafficRecording> collectForwardRecords() {
+		final List<TrafficRecording> forwardRecords = new ArrayList<>(512);
+		long lastSessionSequenceId = 0;
+		int lastRecordSessionOffset = 0;
+		boolean nextPage;
+		do {
+			try (
+				final Stream<TrafficRecording> recordings = this.trafficRecorder.getRecordings(
+					TrafficRecordingCaptureRequest.builder()
+						.content(TrafficRecordingContent.BODY)
+						.sinceSessionSequenceId(lastSessionSequenceId)
+						.sinceRecordSessionOffset(lastRecordSessionOffset)
+						.build()
+				)
+			) {
+				final List<TrafficRecording> allRecordings = recordings.limit(5).toList();
+				for (int i = 0; i < 4 && i < allRecordings.size(); i++) {
+					forwardRecords.add(allRecordings.get(i));
+				}
+
+				final int size = allRecordings.size();
+				nextPage = size == 5;
+				if (nextPage) {
+					final TrafficRecording lastRecording = Objects.requireNonNull(allRecordings.get(size - 1));
+					lastSessionSequenceId = Objects.requireNonNull(lastRecording.sessionSequenceOrder());
+					lastRecordSessionOffset = lastRecording.recordSessionOffset();
+				}
+			}
+		} while (nextPage);
+		return forwardRecords;
+	}
+
+	@Nonnull
+	private List<TrafficRecording> collectReverseRecords() {
+		final List<TrafficRecording> reverseRecords = new ArrayList<>(512);
+		long lastSessionSequenceId = Long.MAX_VALUE;
+		int lastRecordSessionOffset = Integer.MAX_VALUE;
+		boolean nextPage;
+		do {
+			try (
+				final Stream<TrafficRecording> recordings = this.trafficRecorder.getRecordingsReversed(
+					TrafficRecordingCaptureRequest.builder()
+						.content(TrafficRecordingContent.BODY)
+						.sinceSessionSequenceId(lastSessionSequenceId)
+						.sinceRecordSessionOffset(lastRecordSessionOffset)
+						.build()
+				)
+			) {
+				final List<TrafficRecording> allRecordings = recordings.limit(5).toList();
+				for (int i = 0; i < 4 && i < allRecordings.size(); i++) {
+					reverseRecords.add(allRecordings.get(i));
+				}
+
+				final int size = allRecordings.size();
+				nextPage = size == 5;
+				if (nextPage) {
+					final TrafficRecording lastRecording = Objects.requireNonNull(allRecordings.get(size - 1));
+					lastSessionSequenceId = Objects.requireNonNull(lastRecording.sessionSequenceOrder());
+					lastRecordSessionOffset = lastRecording.recordSessionOffset();
+				}
+			}
+		} while (nextPage);
+		return reverseRecords;
 	}
 
 	@Test
@@ -760,5 +873,11 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 			}
 
 		}
+	}
+
+	private record TrafficRecordId(
+		long sessionSequenceId,
+		int recordSessionOffset
+	) {
 	}
 }

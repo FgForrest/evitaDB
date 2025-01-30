@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRe
 import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.file.ExportFileService;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -74,13 +75,19 @@ public interface TrafficRecorder extends Closeable {
 			);
 		}
 		if (request.sinceRecordSessionOffset() != null) {
+			Assert.isTrue(
+				request.sinceSessionSequenceId() != null,
+				"Filter `sinceRecordSessionOffset` requires `sinceSessionSequenceId` to be set!"
+			);
 			if (direction == StreamDirection.FORWARD) {
 				requestPredicate = requestPredicate.and(
-					tr -> tr.recordSessionOffset() >= request.sinceRecordSessionOffset()
+					tr -> !Objects.equals(tr.sessionSequenceOrder(), request.sinceSessionSequenceId()) ||
+						tr.recordSessionOffset() >= request.sinceRecordSessionOffset()
 				);
 			} else {
 				requestPredicate = requestPredicate.and(
-					tr -> tr.recordSessionOffset() <= request.sinceRecordSessionOffset()
+					tr -> !Objects.equals(tr.sessionSequenceOrder(), request.sinceSessionSequenceId()) ||
+						tr.recordSessionOffset() <= request.sinceRecordSessionOffset()
 				);
 			}
 		}

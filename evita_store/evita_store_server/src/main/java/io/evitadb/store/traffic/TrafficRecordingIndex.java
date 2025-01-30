@@ -45,6 +45,7 @@ import io.evitadb.store.spi.SessionLocation;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
 import org.roaringbitmap.longlong.ImmutableLongBitmapDataProvider;
+import org.roaringbitmap.longlong.ImmutableLongBitmapDataProvider.RoaringOfLong;
 import org.roaringbitmap.longlong.Roaring64Bitmap;
 
 import javax.annotation.Nonnull;
@@ -371,7 +372,12 @@ public class TrafficRecordingIndex implements
 		} else {
 			return streams.stream()
 				.reduce((a, b) -> Roaring64Bitmap.and(a, b))
-				.stream().flatMapToLong(ImmutableLongBitmapDataProvider::reverseStream)
+				.stream()
+				.flatMapToLong(it -> {
+					int characteristics = Spliterator.ORDERED | Spliterator.DISTINCT | Spliterator.SIZED;
+					Spliterator.OfLong x = Spliterators.spliterator(new RoaringOfLong(it.getReverseLongIterator()), it.getLongCardinality(), characteristics);
+					return StreamSupport.longStream(x, false);
+				})
 				.mapToObj(this.sessionLocationIndex::get)
 				.filter(Objects::nonNull);
 		}
