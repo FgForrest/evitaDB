@@ -556,7 +556,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 
 		this.indexTask = new DelayedAsyncTask(
 			this.catalogName, "Traffic recorder - disk buffer indexing", scheduler,
-			this::index, trafficFlushIntervalInMilliseconds, TimeUnit.MILLISECONDS, 0
+			this::index, Long.MAX_VALUE, TimeUnit.MILLISECONDS, 0
 		);
 
 		this.copyBufferPool = new Pool<>(true, true) {
@@ -705,7 +705,11 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 	 * @return always -1 - reschedule according to plan
 	 */
 	private long index() {
-		this.diskBuffer.indexData(this::readTrafficRecord);
+		try {
+			this.diskBuffer.indexData(this::readTrafficRecord);
+		} catch (IndexNotReady ex) {
+			this.indexTask.scheduleImmediately();
+		}
 		return -1L;
 	}
 

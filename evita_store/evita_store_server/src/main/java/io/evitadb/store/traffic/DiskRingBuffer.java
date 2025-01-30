@@ -67,6 +67,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -352,6 +353,10 @@ public class DiskRingBuffer {
 					}
 				);
 			} else {
+				// we may have written exactly to the last byte of the buffer last time
+				if (this.fileChannel.position() >= this.diskBufferFileSize) {
+					this.fileChannel.position(0);
+				}
 				lockAndWrite(
 					new FileLocation(this.fileChannel.position(), totalBytesToWrite),
 					() -> writeDataToFileChannel(memoryByteBuffer, totalBytesToWrite)
@@ -445,7 +450,9 @@ public class DiskRingBuffer {
 		return sessionIndex.getSessionStream(request)
 			.flatMap(
 				it -> this.readSessionRecords(
-					it.sequenceOrder(), it.sessionRecordsCount(), it.fileLocation(), inputStream, reader
+					it.sequenceOrder(), it.sessionRecordsCount(), it.fileLocation(), inputStream, reader,
+					// finish, stream in case of error
+					e -> null
 				)
 			)
 			.filter(requestPredicate)
@@ -477,7 +484,9 @@ public class DiskRingBuffer {
 					// this is inefficient, but we need to reverse the order of the records and there is no other simple way around
 					// if it happens to be slow in real world scenarios, we'd have to add a support to the index
 					final List<TrafficRecording> recordings = this.readSessionRecords(
-						it.sequenceOrder(), it.sessionRecordsCount(), it.fileLocation(), inputStream, reader
+						it.sequenceOrder(), it.sessionRecordsCount(), it.fileLocation(), inputStream, reader,
+						// finish, stream in case of error
+						e -> null
 					).collect(Collectors.toCollection(ArrayList::new));
 					Collections.reverse(recordings);
 					return recordings.stream();
@@ -521,7 +530,7 @@ public class DiskRingBuffer {
 	 */
 	public void indexData(
 		@Nonnull LongIntLongObjectFunction<RandomAccessFileInputStream, StorageRecord<TrafficRecording>> reader
-	) {
+	) throws IndexNotReady {
 		if (this.sessionIndexingRunning.compareAndSet(false, true)) {
 			try (final RandomAccessFileInputStream diskBufferFileReadInputStream = this.getDiskBufferFileReadInputStream()) {
 				this.indexedSessions.set(0);
@@ -536,21 +545,26 @@ public class DiskRingBuffer {
 							sessionLocation.sessionRecordsCount(),
 							sessionLocation.fileLocation(),
 							diskBufferFileReadInputStream,
-							reader
+							reader,
+							e -> {
+								throw new IndexNotReady(0);
+							}
 						)
 						.forEach(tr -> index.indexRecording(sessionLocation.sequenceOrder(), tr));
 					this.indexedSessions.incrementAndGet();
 				}
 
-				// when session index is ready, set it as the active index
-				this.sessionIndex.set(index);
-			} finally {
+				// index is ready, process postponed updates
 				final Deque<Runnable> theLambdasToExecute = this.postponedIndexUpdates.getAndSet(null);
 				notNull(theLambdasToExecute, "Postponed index updates are null. This is not expected!");
 				theLambdasToExecute.forEach(lambda -> {
 					lambda.run();
 					this.indexedSessions.incrementAndGet();
 				});
+
+				// when session index is ready, set it as the active index
+				this.sessionIndex.set(index);
+			} finally {
 				isPremiseValid(
 					this.sessionIndexingRunning.compareAndSet(true, false),
 					"Session indexing is not running. This is not expected!"
@@ -723,7 +737,8 @@ public class DiskRingBuffer {
 		int sessionRecordsCount,
 		@Nonnull FileLocation fileLocation,
 		@Nonnull RandomAccessFileInputStream inputStream,
-		@Nonnull LongIntLongObjectFunction<RandomAccessFileInputStream, StorageRecord<TrafficRecording>> reader
+		@Nonnull LongIntLongObjectFunction<RandomAccessFileInputStream, StorageRecord<TrafficRecording>> reader,
+		@Nonnull Function<Exception, TrafficRecording> onError
 	) {
 		final AtomicLong lastLocationRead = new AtomicLong(-1);
 		return Stream.generate(
@@ -760,7 +775,7 @@ public class DiskRingBuffer {
 										"Error reading session #{} traffic record from disk buffer at position {}: {}",
 										sessionSequenceId, startPosition, ex.getMessage()
 									);
-									return null;
+									return onError.apply(ex);
 								}
 							}
 						}

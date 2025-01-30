@@ -378,6 +378,14 @@ class TransactionalObjectBPlusTreeTest implements TimeBoundedTestSupport {
 		final TreeTuple testTree = prepareRandomTree(42, 100);
 		final Iterator<Integer> it = testTree.bPlusTree().greaterOrEqualKeyIterator(1000);
 		assertFalse(it.hasNext());
+
+		final Iterator<Integer> it2 = testTree.bPlusTree().greaterOrEqualKeyIterator(-1000);
+		assertTrue(it2.hasNext());
+		assertEquals(0, it2.next());
+
+		final Iterator<Integer> it3 = testTree.bPlusTree().greaterOrEqualKeyIterator(177);
+		assertTrue(it3.hasNext());
+		assertEquals(179, it3.next());
 	}
 
 	@Test
@@ -431,6 +439,14 @@ class TransactionalObjectBPlusTreeTest implements TimeBoundedTestSupport {
 		final TreeTuple testTree = prepareRandomTree(42, 100);
 		final Iterator<String> it = testTree.bPlusTree().lesserOrEqualValueIterator(-1000);
 		assertFalse(it.hasNext());
+
+		final Iterator<String> it2 = testTree.bPlusTree().lesserOrEqualValueIterator(1000);
+		assertTrue(it2.hasNext());
+		assertEquals("Value198", it2.next());
+
+		final Iterator<String> it3 = testTree.bPlusTree().lesserOrEqualValueIterator(177);
+		assertTrue(it3.hasNext());
+		assertEquals("Value176", it3.next());
 	}
 
 	@Test

@@ -153,6 +153,11 @@ public class DelayedAsyncTask {
 	 * The task is scheduled using the scheduler's schedule method.
 	 */
 	public void schedule() {
+		if (this.delay == Long.MAX_VALUE) {
+			// the task is manual task and will never be scheduled
+			return;
+		}
+
 		final OffsetDateTime now = OffsetDateTime.now();
 		final OffsetDateTime nextTick = now.plus(this.delay, this.delayUnits.toChronoUnit());
 		if (this.nextPlannedExecution.compareAndExchange(OffsetDateTime.MIN, nextTick) == OffsetDateTime.MIN) {

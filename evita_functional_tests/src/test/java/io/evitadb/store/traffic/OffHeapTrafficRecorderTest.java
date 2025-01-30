@@ -144,7 +144,7 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 			15,
 			456,
 			12311,
-			new int[] {1, 2, 3},
+			new int[]{1, 2, 3},
 			null
 		);
 		this.trafficRecorder.recordFetch(
@@ -186,21 +186,25 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 		);
 		this.trafficRecorder.closeSession(sessionId, null);
 
-		final List<TrafficRecording> recordings = this.trafficRecorder.getRecordings(
-			TrafficRecordingCaptureRequest.builder()
-				.content(TrafficRecordingContent.BODY)
-				.sinceSessionSequenceId(0L)
-				.sinceRecordSessionOffset(0)
-				.build()
-		).toList();
+		try (
+			final Stream<TrafficRecording> recordings = this.trafficRecorder.getRecordings(
+				TrafficRecordingCaptureRequest.builder()
+					.content(TrafficRecordingContent.BODY)
+					.sinceSessionSequenceId(0L)
+					.sinceRecordSessionOffset(0)
+					.build()
+			)
+		) {
+			final List<TrafficRecording> theRecordings = recordings.toList();
 
-		assertEquals(6, recordings.size());
-		assertInstanceOf(SessionStartContainer.class, recordings.get(0));
-		assertInstanceOf(QueryContainer.class, recordings.get(1));
-		assertInstanceOf(EntityFetchContainer.class, recordings.get(2));
-		assertInstanceOf(EntityEnrichmentContainer.class, recordings.get(3));
-		assertInstanceOf(MutationContainer.class, recordings.get(4));
-		assertInstanceOf(SessionCloseContainer.class, recordings.get(5));
+			assertEquals(6, theRecordings.size());
+			assertInstanceOf(SessionStartContainer.class, theRecordings.get(0));
+			assertInstanceOf(QueryContainer.class, theRecordings.get(1));
+			assertInstanceOf(EntityFetchContainer.class, theRecordings.get(2));
+			assertInstanceOf(EntityEnrichmentContainer.class, theRecordings.get(3));
+			assertInstanceOf(MutationContainer.class, theRecordings.get(4));
+			assertInstanceOf(SessionCloseContainer.class, theRecordings.get(5));
+		}
 	}
 
 	@Test
@@ -213,7 +217,7 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 		final UUID firstSourceQueryId = UUIDUtil.randomUUID();
 		this.trafficRecorder.setupSourceQuery(
 			firstSessionId, firstSourceQueryId, OffsetDateTime.now(),
-			"Whatever query", new Label[]{ label(Label.LABEL_SOURCE_TYPE, GraphQLProvider.CODE) }, null
+			"Whatever query", new Label[]{label(Label.LABEL_SOURCE_TYPE, GraphQLProvider.CODE)}, null
 		);
 		createLabeledQuery(
 			firstSessionId,
@@ -239,7 +243,7 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 		final UUID secondSourceQueryId = UUIDUtil.randomUUID();
 		this.trafficRecorder.setupSourceQuery(
 			secondSessionId, secondSourceQueryId, OffsetDateTime.now(),
-			"Whatever different query", new Label[]{ label(Label.LABEL_SOURCE_TYPE, GraphQLProvider.CODE) }, null
+			"Whatever different query", new Label[]{label(Label.LABEL_SOURCE_TYPE, GraphQLProvider.CODE)}, null
 		);
 		createLabeledQuery(
 			secondSessionId,
@@ -258,72 +262,88 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 		this.trafficRecorder.closeSourceQuery(secondSessionId, secondSourceQueryId, null);
 		this.trafficRecorder.closeSession(secondSessionId, null);
 
-		final List<TrafficRecording> firstSourceQuerySubQueries = this.trafficRecorder.getRecordings(
-			TrafficRecordingCaptureRequest.builder()
-				.content(TrafficRecordingContent.BODY)
-				.labels(new io.evitadb.api.requestResponse.trafficRecording.Label(Label.LABEL_SOURCE_QUERY, firstSourceQueryId))
-				.build()
-		).toList();
+		try (
+			final Stream<TrafficRecording> recordings = this.trafficRecorder.getRecordings(
+				TrafficRecordingCaptureRequest.builder()
+					.content(TrafficRecordingContent.BODY)
+					.labels(new io.evitadb.api.requestResponse.trafficRecording.Label(Label.LABEL_SOURCE_QUERY, firstSourceQueryId))
+					.build()
+			)
+		) {
+			final List<TrafficRecording> firstSourceQuerySubQueries = recordings.toList();
 
-		assertEquals(2, firstSourceQuerySubQueries.size());
-		assertEquals(2, firstSourceQuerySubQueries.get(0).recordSessionOffset());
-		assertEquals(3, firstSourceQuerySubQueries.get(1).recordSessionOffset());
+			assertEquals(2, firstSourceQuerySubQueries.size());
+			assertEquals(2, firstSourceQuerySubQueries.get(0).recordSessionOffset());
+			assertEquals(3, firstSourceQuerySubQueries.get(1).recordSessionOffset());
+		}
 
-		final List<TrafficRecording> secondSourceQuerySubQueries = this.trafficRecorder.getRecordings(
-			TrafficRecordingCaptureRequest.builder()
-				.content(TrafficRecordingContent.BODY)
-				.labels(new io.evitadb.api.requestResponse.trafficRecording.Label(Label.LABEL_SOURCE_QUERY, secondSourceQueryId))
-				.build()
-		).toList();
+		try (
+			final Stream<TrafficRecording> recordings = this.trafficRecorder.getRecordings(
+				TrafficRecordingCaptureRequest.builder()
+					.content(TrafficRecordingContent.BODY)
+					.labels(new io.evitadb.api.requestResponse.trafficRecording.Label(Label.LABEL_SOURCE_QUERY, secondSourceQueryId))
+					.build()
+			)
+		) {
+			final List<TrafficRecording> secondSourceQuerySubQueries = recordings.toList();
 
-		assertEquals(2, secondSourceQuerySubQueries.size());
-		assertEquals(2, secondSourceQuerySubQueries.get(0).recordSessionOffset());
-		assertEquals(3, secondSourceQuerySubQueries.get(1).recordSessionOffset());
+			assertEquals(2, secondSourceQuerySubQueries.size());
+			assertEquals(2, secondSourceQuerySubQueries.get(0).recordSessionOffset());
+			assertEquals(3, secondSourceQuerySubQueries.get(1).recordSessionOffset());
+		}
 
-		final List<TrafficRecording> beeSubQueries = this.trafficRecorder.getRecordings(
-			TrafficRecordingCaptureRequest.builder()
-				.content(TrafficRecordingContent.BODY)
-				.labels(new io.evitadb.api.requestResponse.trafficRecording.Label("abc", "bee"))
-				.build()
-		).toList();
+		try (
+			final Stream<TrafficRecording> recordings = this.trafficRecorder.getRecordings(
+				TrafficRecordingCaptureRequest.builder()
+					.content(TrafficRecordingContent.BODY)
+					.labels(new io.evitadb.api.requestResponse.trafficRecording.Label("abc", "bee"))
+					.build()
+			)
+		) {
+			final List<TrafficRecording> beeSubQueries = recordings.toList();
 
-		assertEquals(2, beeSubQueries.size());
-		assertEquals(firstSessionId, beeSubQueries.get(0).sessionId());
-		assertEquals(3, beeSubQueries.get(0).recordSessionOffset());
-		assertEquals(secondSessionId, beeSubQueries.get(1).sessionId());
-		assertEquals(3, beeSubQueries.get(1).recordSessionOffset());
+			assertEquals(2, beeSubQueries.size());
+			assertEquals(firstSessionId, beeSubQueries.get(0).sessionId());
+			assertEquals(3, beeSubQueries.get(0).recordSessionOffset());
+			assertEquals(secondSessionId, beeSubQueries.get(1).sessionId());
+			assertEquals(3, beeSubQueries.get(1).recordSessionOffset());
+		}
 
 		// now try to get records with record offset
-		final TrafficRecording firstRecordByOffset = this.trafficRecorder.getRecordings(
-			TrafficRecordingCaptureRequest.builder()
-				.content(TrafficRecordingContent.BODY)
-				.sinceSessionSequenceId(1L)
-				.sinceRecordSessionOffset(2)
-				.build()
-		).findFirst().orElseThrow();
-		assertEquals(1, firstRecordByOffset.sessionSequenceOrder());
-		assertEquals(2, firstRecordByOffset.recordSessionOffset());
+		try (
+			final Stream<TrafficRecording> recordings = this.trafficRecorder.getRecordings(
+				TrafficRecordingCaptureRequest.builder()
+					.content(TrafficRecordingContent.BODY)
+					.sinceSessionSequenceId(1L)
+					.sinceRecordSessionOffset(2)
+					.build()
+			)
+		) {
+			final TrafficRecording firstRecordByOffset = recordings.findFirst().orElseThrow();
+			assertEquals(1, firstRecordByOffset.sessionSequenceOrder());
+			assertEquals(2, firstRecordByOffset.recordSessionOffset());
 
-		final Collection<String> labelNamesByCardinality = this.trafficRecorder.getLabelsNamesOrderedByCardinality(null, 10);
-		assertEquals(8, labelNamesByCardinality.size());
-		assertArrayEquals(
-			new String[]{"a", "abc", "c", "entity-type", Label.LABEL_SOURCE_QUERY, Label.LABEL_SOURCE_TYPE, "ce", "ced"},
-			labelNamesByCardinality.toArray(String[]::new)
-		);
+			final Collection<String> labelNamesByCardinality = this.trafficRecorder.getLabelsNamesOrderedByCardinality(null, 10);
+			assertEquals(8, labelNamesByCardinality.size());
+			assertArrayEquals(
+				new String[]{"a", "abc", "c", "entity-type", Label.LABEL_SOURCE_QUERY, Label.LABEL_SOURCE_TYPE, "ce", "ced"},
+				labelNamesByCardinality.toArray(String[]::new)
+			);
 
-		final Collection<String> labelValuesByCardinality = this.trafficRecorder.getLabelValuesOrderedByCardinality(Label.LABEL_SOURCE_QUERY, null, 10);
-		assertEquals(2, labelValuesByCardinality.size());
+			final Collection<String> labelValuesByCardinality = this.trafficRecorder.getLabelValuesOrderedByCardinality(Label.LABEL_SOURCE_QUERY, null, 10);
+			assertEquals(2, labelValuesByCardinality.size());
 
-		final Collection<String> entityType = this.trafficRecorder.getLabelValuesOrderedByCardinality("entity-type", null, 10);
-		assertEquals(1, entityType.size());
-		assertEquals(EvitaDataTypes.formatValue(Entities.PRODUCT), entityType.iterator().next());
+			final Collection<String> entityType = this.trafficRecorder.getLabelValuesOrderedByCardinality("entity-type", null, 10);
+			assertEquals(1, entityType.size());
+			assertEquals(EvitaDataTypes.formatValue(Entities.PRODUCT), entityType.iterator().next());
 
-		final Collection<String> valueAByCardinality = this.trafficRecorder.getLabelValuesOrderedByCardinality("a", null, 10);
-		assertEquals(2, valueAByCardinality.size());
-		assertArrayEquals(
-			new String[]{"'b'", "'bee'"},
-			valueAByCardinality.toArray(String[]::new)
-		);
+			final Collection<String> valueAByCardinality = this.trafficRecorder.getLabelValuesOrderedByCardinality("a", null, 10);
+			assertEquals(2, valueAByCardinality.size());
+			assertArrayEquals(
+				new String[]{"'b'", "'bee'"},
+				valueAByCardinality.toArray(String[]::new)
+			);
+		}
 	}
 
 	@Test
@@ -335,15 +355,19 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 		// wait for the data to be written to the disk
 		waitUntilDataBecomeAvailable(sessionId, 10_000);
 
-		final List<TrafficRecording> allRecordings = this.trafficRecorder.getRecordings(
-			TrafficRecordingCaptureRequest.builder()
-				.content(TrafficRecordingContent.BODY)
-				.sinceSessionSequenceId(0L)
-				.sinceRecordSessionOffset(0)
-				.build()
-		).toList();
+		try (
+			final Stream<TrafficRecording> recordings = this.trafficRecorder.getRecordings(
+				TrafficRecordingCaptureRequest.builder()
+					.content(TrafficRecordingContent.BODY)
+					.sinceSessionSequenceId(0L)
+					.sinceRecordSessionOffset(0)
+					.build()
+			)
+		) {
+			final List<TrafficRecording> allRecordings = recordings.toList();
 
-		assertEquals(120, allRecordings.size());
+			assertEquals(120, allRecordings.size());
+		}
 	}
 
 	@Test
@@ -353,15 +377,19 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 		// wait for the data to be written to the disk
 		waitUntilDataBecomeAvailable(sessionId, 10_000);
 
-		final List<TrafficRecording> allRecordings = this.trafficRecorder.getRecordings(
-			TrafficRecordingCaptureRequest.builder()
-				.content(TrafficRecordingContent.BODY)
-				.sinceSessionSequenceId(0L)
-				.sinceRecordSessionOffset(0)
-				.build()
-		).toList();
+		try (
+			final Stream<TrafficRecording> recordings = this.trafficRecorder.getRecordings(
+				TrafficRecordingCaptureRequest.builder()
+					.content(TrafficRecordingContent.BODY)
+					.sinceSessionSequenceId(0L)
+					.sinceRecordSessionOffset(0)
+					.build()
+			)
+		) {
+			final List<TrafficRecording> allRecordings = recordings.toList();
 
-		assertEquals(120, allRecordings.size());
+			assertEquals(120, allRecordings.size());
+		}
 	}
 
 	@Test
@@ -369,17 +397,21 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 		final UUID sessionId = writeBunchOfData(10, 100);
 
 		// wait for the data to be written to the disk
-		waitUntilDataBecomeAvailable(sessionId, 1_000_000);
+		waitUntilDataBecomeAvailable(sessionId, 10_000);
 
-		final List<TrafficRecording> allRecordings = this.trafficRecorder.getRecordings(
-			TrafficRecordingCaptureRequest.builder()
-				.content(TrafficRecordingContent.BODY)
-				.sinceSessionSequenceId(0L)
-				.sinceRecordSessionOffset(0)
-				.build()
-		).toList();
+		try (
+			final Stream<TrafficRecording> recordings = this.trafficRecorder.getRecordings(
+				TrafficRecordingCaptureRequest.builder()
+					.content(TrafficRecordingContent.BODY)
+					.sinceSessionSequenceId(0L)
+					.sinceRecordSessionOffset(0)
+					.build()
+			)
+		) {
+			final List<TrafficRecording> allRecordings = recordings.toList();
 
-		assertTrue(allRecordings.size() > 120, "Actual size: " + allRecordings.size());
+			assertTrue(allRecordings.size() > 120, "Actual size: " + allRecordings.size());
+		}
 	}
 
 	@Test
@@ -401,41 +433,51 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 
 		System.out.println("Average read duration: " + (this.duration.get() / this.counter.get()) + " ms.");
 
-		final List<TrafficRecording> allRecordings = this.trafficRecorder.getRecordings(
-			TrafficRecordingCaptureRequest.builder()
-				.content(TrafficRecordingContent.BODY)
-				.sinceSessionSequenceId(0L)
-				.sinceRecordSessionOffset(0)
-				.build()
-		).toList();
-
-		assertTrue(allRecordings.size() > 120);
-	}
-
-	private void warmUpEmptyIndex() {
-		// initialize empty index
-		assertThrows(
-			IndexNotReady.class,
-			() -> this.trafficRecorder.getRecordings(
+		try (
+			final Stream<TrafficRecording> recordings = this.trafficRecorder.getRecordings(
 				TrafficRecordingCaptureRequest.builder()
 					.content(TrafficRecordingContent.BODY)
 					.sinceSessionSequenceId(0L)
 					.sinceRecordSessionOffset(0)
 					.build()
 			)
+		) {
+			final List<TrafficRecording> allRecordings = recordings.toList();
+
+			assertTrue(allRecordings.size() > 120);
+		}
+	}
+
+	private void warmUpEmptyIndex() {
+		// initialize empty index
+		assertThrows(
+			IndexNotReady.class,
+			() -> {
+				try (
+					final Stream<?> stream = this.trafficRecorder.getRecordings(
+						TrafficRecordingCaptureRequest.builder()
+							.content(TrafficRecordingContent.BODY)
+							.sinceSessionSequenceId(0L)
+							.sinceRecordSessionOffset(0)
+							.build()
+					)
+				) {
+				}
+			}
 		);
 
 		// check index is empty
-		assertEquals(
-			0L,
-			this.trafficRecorder.getRecordings(
+		try (
+			final Stream<TrafficRecording> stream = this.trafficRecorder.getRecordings(
 				TrafficRecordingCaptureRequest.builder()
 					.content(TrafficRecordingContent.BODY)
 					.sinceSessionSequenceId(0L)
 					.sinceRecordSessionOffset(0)
 					.build()
-			).count()
-		);
+			)
+		) {
+			assertEquals(0L, stream.count());
+		}
 	}
 
 	private void createLabeledQuery(@Nonnull UUID sessionId, @Nonnull Label... labels) {
@@ -453,7 +495,7 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 			15,
 			456,
 			12311,
-			new int[] {1, 2, 3},
+			new int[]{1, 2, 3},
 			null
 		);
 	}
@@ -462,14 +504,16 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 		final long start = System.currentTimeMillis();
 		List<TrafficRecording> recordings = null;
 		do {
-			try {
-				recordings = this.trafficRecorder.getRecordings(
+			try (
+				final Stream<TrafficRecording> stream = this.trafficRecorder.getRecordings(
 					TrafficRecordingCaptureRequest.builder()
 						.content(TrafficRecordingContent.BODY)
 						.sinceSessionSequenceId(sessionSequenceId)
 						.type(TrafficRecordingType.SESSION_CLOSE)
 						.build()
-				).toList();
+				);
+			) {
+				recordings = stream.toList();
 				break;
 			} catch (IndexNotReady ignored) {
 				// ignore and retry
@@ -485,15 +529,17 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 		final long start = System.currentTimeMillis();
 		List<TrafficRecording> recordings = null;
 		do {
-			try {
-				recordings = this.trafficRecorder.getRecordings(
+			try (
+				final Stream<TrafficRecording> stream = this.trafficRecorder.getRecordings(
 					TrafficRecordingCaptureRequest.builder()
 						.content(TrafficRecordingContent.BODY)
 						.sessionId(sessionId)
 						.sinceSessionSequenceId(0L)
 						.type(TrafficRecordingType.SESSION_CLOSE)
 						.build()
-				).toList();
+				)
+			) {
+				recordings = stream.toList();
 				if (!recordings.isEmpty()) {
 					break;
 				}
@@ -531,7 +577,7 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 					15,
 					456,
 					12311,
-					new int[] {1, 2, 3},
+					new int[]{1, 2, 3},
 					null
 				);
 			}
@@ -569,7 +615,7 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 								15,
 								456,
 								12311,
-								new int[] {1, 2, 3},
+								new int[]{1, 2, 3},
 								null
 							);
 						}

@@ -243,7 +243,7 @@ public class TrafficCaptureConverter {
 				GrpcTrafficQueryContainer.newBuilder()
 					.addAllLabels(Arrays.stream(queryContainer.labels()).map(TrafficCaptureConverter::toGrpcQueryLabel).toList())
 					.setQueryDescription(queryContainer.queryDescription())
-					.setQuery(queryContainer.query().toString())
+					.setQuery(queryContainer.query().prettyPrint())
 					.setTotalRecordCount(queryContainer.totalRecordCount())
 					.addAllPrimaryKeys(Arrays.stream(queryContainer.primaryKeys()).boxed().toList())
 					.build()

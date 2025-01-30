@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
+import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.core.Evita;
@@ -464,12 +465,16 @@ public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 						final AbstractRandomAccessInputStream tempInputStream = new RandomAccessFileInputStream(new RandomAccessFile(tempFile.toFile(), "r"));
 						final InputStreamTrafficRecordReader reader = new InputStreamTrafficRecordReader(tempInputStream)
 					) {
-						final long count = reader.getRecordings(
-							TrafficRecordingCaptureRequest.builder()
-								.build()
-						).count();
-						assertTrue(count > 0, "The file " + nextEntry.getName() + " contains no records.");
-						System.out.println(" - " + nextEntry.getName() + " contains " + count + " records.");
+						try (
+							final Stream<TrafficRecording> recordings = reader.getRecordings(
+								TrafficRecordingCaptureRequest.builder()
+									.build()
+							)
+						) {
+							final long count = recordings.count();
+							assertTrue(count > 0, "The file " + nextEntry.getName() + " contains no records.");
+							System.out.println(" - " + nextEntry.getName() + " contains " + count + " records.");
+						}
 					}
 				}
 				zipInputStream.closeEntry();

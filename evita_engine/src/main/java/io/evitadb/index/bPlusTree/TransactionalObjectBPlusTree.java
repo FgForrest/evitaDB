@@ -3075,8 +3075,16 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 				this.pathIndex[i] = cursorLevel.index();
 			}
 			final InsertionPosition insertionPosition = computeInsertPositionOfObjInOrderedArray(key, cursor.leafNode().getKeys(), 0, cursor.leafNode().size());
-			this.currentIndex = insertionPosition.position();
-			this.hasNext = (this.currentIndex >= 0 && insertionPosition.alreadyPresent()) || this.currentIndex > 0;
+			if (insertionPosition.alreadyPresent()) {
+				this.currentIndex = insertionPosition.position();
+				this.hasNext = true;
+			} else {
+				this.currentIndex = insertionPosition.position() - 1;
+				this.hasNext = true;
+				if (this.currentIndex < 0) {
+					calculateNextValue();
+				}
+			}
 			this.outputExtractor = outputExtractor;
 		}
 
@@ -3099,34 +3107,53 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 				this.currentIndex--;
 			} else {
 				// we need to traverse up the path to find the next sibling
-				int level = this.pathIndex.length - 1;
-				BPlusTreeNode<M, ?>[] parentLevel = this.path[level];
-				while (parentLevel != null) {
-					// if parent has index greater than zero
-					if (this.pathIndex[level] > 0) {
-						// we found the parent that has a next sibling - so move the index
-						this.pathIndex[level] = this.pathIndex[level] - 1;
-						BPlusTreeNode<M, ?> currentNode = this.path[level][this.pathIndex[level]];
-						// all levels below, will point to the first child of the new cursor level
-						for (int i = level + 1; i <= this.pathIndex.length - 1; i++) {
-							Assert.isPremiseValid(currentNode instanceof BPlusInternalTreeNode, "Internal node expected!");
-							//noinspection unchecked
-							this.path[i] = ((BPlusInternalTreeNode<M>) currentNode).getChildren();
-							this.pathIndex[i] = currentNode.getPeek();
-							currentNode = this.path[i][this.pathIndex[i]];
-						}
-						this.hasNext = true;
-						this.currentIndex = this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]].getPeek();
-						return key;
-					} else {
-						// we need to continue search with the parent of the parent
-						level--;
-						parentLevel = level > 0 ? this.path[level] : null;
-					}
-				}
-				this.hasNext = false;
+				calculateNextValue();
 			}
 			return key;
+		}
+
+		/**
+		 * Iterates through the path of B+ tree nodes in reverse order to calculate the next valid entry.
+		 * The method updates internal tracking indexes and flags to determine if there is a next valid entry.
+		 *
+		 * The method operates by traversing the parent nodes from the current position, and:
+		 * 1. Checks if the current parent node has a previous sibling node that can be accessed.
+		 * 2. If such a sibling exists, updates internal paths and indices to point to the next valid value.
+		 * 3. Ensures that the search continues upwards in the tree hierarchy if no valid sibling is found.
+		 * 4. Verifies consistency for internal tree nodes during updates.
+		 *
+		 * This method sets the `hasNext` field to true if a next valid value is found, and false otherwise.
+		 * Additionally, it updates the current index (`currentIndex`) to reflect the new position of the iterator.
+		 */
+		private void calculateNextValue() {
+			boolean found = false;
+			int level = this.pathIndex.length - 1;
+			BPlusTreeNode<M, ?>[] parentLevel = this.path[level];
+			while (parentLevel != null) {
+				// if parent has index greater than zero
+				if (this.pathIndex[level] > 0) {
+					// we found the parent that has a next sibling - so move the index
+					this.pathIndex[level] = this.pathIndex[level] - 1;
+					BPlusTreeNode<M, ?> currentNode = this.path[level][this.pathIndex[level]];
+					// all levels below, will point to the first child of the new cursor level
+					for (int i = level + 1; i <= this.pathIndex.length - 1; i++) {
+						Assert.isPremiseValid(currentNode instanceof BPlusInternalTreeNode, "Internal node expected!");
+						//noinspection unchecked
+						this.path[i] = ((BPlusInternalTreeNode<M>) currentNode).getChildren();
+						this.pathIndex[i] = currentNode.getPeek();
+						currentNode = this.path[i][this.pathIndex[i]];
+					}
+					this.hasNext = true;
+					this.currentIndex = this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]].getPeek();
+					found = true;
+					break;
+				} else {
+					// we need to continue search with the parent of the parent
+					level--;
+					parentLevel = level > 0 ? this.path[level] : null;
+				}
+			}
+			this.hasNext = found;
 		}
 	}
 
