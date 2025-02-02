@@ -27,22 +27,28 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import graphql.ExecutionInput;
 import graphql.ExecutionResult;
+import graphql.GraphQLContext;
 import graphql.execution.ExecutionContext;
 import graphql.execution.instrumentation.InstrumentationContext;
 import graphql.execution.instrumentation.InstrumentationState;
 import graphql.execution.instrumentation.SimpleInstrumentationContext;
 import graphql.execution.instrumentation.SimplePerformantInstrumentation;
 import graphql.execution.instrumentation.parameters.InstrumentationExecuteOperationParameters;
+import graphql.execution.instrumentation.parameters.InstrumentationExecutionParameters;
+import graphql.execution.instrumentation.parameters.InstrumentationValidationParameters;
+import graphql.language.Document;
+import graphql.validation.ValidationError;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.TrafficRecordingOptions;
 import io.evitadb.core.EvitaInternalSessionContract;
-import io.evitadb.externalApi.graphql.GraphQLProvider;
+import io.evitadb.exception.EvitaError;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -59,46 +65,112 @@ public class SourceQueryRecordingInstrumentation extends SimplePerformantInstrum
 	@Nonnull private final ObjectMapper objectMapper;
 	@Nonnull private final TrafficRecordingOptions trafficRecordingOptions;
 
+	@Nullable
+	@Override
+	public InstrumentationContext<Document> beginParse(InstrumentationExecutionParameters parameters, InstrumentationState state) {
+		return logFailedSourceQuery(parameters);
+	}
+
+	@Nullable
+	@Override
+	public InstrumentationContext<List<ValidationError>> beginValidation(InstrumentationValidationParameters parameters, InstrumentationState state) {
+		return logFailedSourceQuery(parameters);
+	}
+
+	@Nonnull
+	private <T> InstrumentationContext<T> logFailedSourceQuery(InstrumentationExecutionParameters parameters) {
+		final EvitaInternalSessionContract internalSession = getInternalSession(parameters.getGraphQLContext());
+		if (internalSession == null) {
+			return noOp();
+		}
+
+		return new SimpleInstrumentationContext<>() {
+			@Override
+			public void onCompleted(T result, Throwable t) {
+				if (t != null) {
+					final String serializedSourceQuery = serializeSourceQuery(parameters.getExecutionInput());
+					if (serializedSourceQuery == null) {
+						return;
+					}
+
+					internalSession.recordSourceQuery(
+						serializedSourceQuery,
+						GraphQLQueryLabels.GRAPHQL_SOURCE_TYPE_VALUE,
+						t.getMessage()
+					);
+				}
+			}
+		};
+	}
+
 	@Override
 	@Nullable
 	public InstrumentationContext<ExecutionResult> beginExecuteOperation(InstrumentationExecuteOperationParameters parameters,
 	                                                                     InstrumentationState state) {
-		if (!trafficRecordingOptions.sourceQueryTrackingEnabled()) {
-			return noOp();
-		}
-
 		final ExecutionContext executionContext = parameters.getExecutionContext();
-		final EvitaSessionContract evitaSession = executionContext.getGraphQLContext().get(GraphQLContextKey.EVITA_SESSION);
-		if (!(evitaSession instanceof EvitaInternalSessionContract evitaInternalSession)) {
-			log.error("Source query tracking is enabled but Evita session is not of internal type. Cannot record source query. Aborting.");
+		final GraphQLContext graphQLContext = executionContext.getGraphQLContext();
+		final EvitaInternalSessionContract internalSession = getInternalSession(graphQLContext);
+		if (internalSession == null) {
 			return noOp();
 		}
 
-		final SourceQueryDto sourceQuery = SourceQueryDto.from(executionContext.getExecutionInput());
-		final String serializedSourceQuery;
-		try {
-			serializedSourceQuery = objectMapper.writeValueAsString(sourceQuery);
-		} catch (JsonProcessingException e) {
-			log.error("Cannot serialize source query for traffic recording. Aborting.", e);
+		final String serializedSourceQuery = serializeSourceQuery(executionContext.getExecutionInput());
+		if (serializedSourceQuery == null) {
 			return noOp();
 		}
 
-		/* TODO LHO - insert finishedWithError if parsing failed */
-		final UUID recordingId = evitaInternalSession.recordSourceQuery(
+		final UUID recordingId = internalSession.recordSourceQuery(
 			serializedSourceQuery,
 			GraphQLQueryLabels.GRAPHQL_SOURCE_TYPE_VALUE,
 			null
 		);
-		executionContext.getGraphQLContext().put(GraphQLContextKey.TRAFFIC_SOURCE_QUERY_RECORDING_ID, recordingId);
+		graphQLContext.put(GraphQLContextKey.TRAFFIC_SOURCE_QUERY_RECORDING_ID, recordingId);
 
 		return new SimpleInstrumentationContext<>() {
 			@Override
 			public void onCompleted(ExecutionResult result, Throwable t) {
-				/* TODO LHO - insert finishedWithError if any of the queries failed with error */
-				evitaInternalSession.finalizeSourceQuery(recordingId, null);
-				executionContext.getGraphQLContext().delete(GraphQLContextKey.TRAFFIC_SOURCE_QUERY_RECORDING_ID);
+				final StringBuilder combinedErrorMessage = new StringBuilder();
+				if (t != null) {
+					combinedErrorMessage.append(t.getMessage());
+				}
+				final List<EvitaError> exceptionExceptions = graphQLContext.get(GraphQLContextKey.TRAFFIC_SOURCE_QUERY_RECORDING_EXCEPTIONS);
+				if (exceptionExceptions != null && !exceptionExceptions.isEmpty()) {
+					exceptionExceptions.forEach(exception ->
+						combinedErrorMessage.append("; ").append(exception.getPublicMessage()));
+				}
+
+				internalSession.finalizeSourceQuery(
+					recordingId,
+					!combinedErrorMessage.isEmpty() ? combinedErrorMessage.toString() : null
+				);
+				graphQLContext.delete(GraphQLContextKey.TRAFFIC_SOURCE_QUERY_RECORDING_ID);
 			}
 		};
+	}
+
+	@Nullable
+	private EvitaInternalSessionContract getInternalSession(@Nonnull GraphQLContext graphQLContext) {
+		if (!trafficRecordingOptions.sourceQueryTrackingEnabled()) {
+			return null;
+		}
+
+		final EvitaSessionContract evitaSession = graphQLContext.get(GraphQLContextKey.EVITA_SESSION);
+		if (!(evitaSession instanceof EvitaInternalSessionContract evitaInternalSession)) {
+			log.error("Source query tracking is enabled but Evita session is not of internal type. Cannot record source query. Aborting.");
+			return null;
+		}
+		return evitaInternalSession;
+	}
+
+	@Nullable
+	private String serializeSourceQuery(@Nonnull ExecutionInput executionInput) {
+		final SourceQueryDto sourceQuery = SourceQueryDto.from(executionInput);
+		try {
+			return objectMapper.writeValueAsString(sourceQuery);
+		} catch (JsonProcessingException e) {
+			log.error("Cannot serialize source query for traffic recording. Aborting.", e);
+			return null;
+		}
 	}
 
 	private record SourceQueryDto(@Nonnull String query, @Nonnull Map<String, Object> variables, @Nonnull Map<String, Object> extensions) {

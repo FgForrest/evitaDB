@@ -69,6 +69,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -122,10 +123,16 @@ public abstract class QueryOrientedEntitiesHandler extends JsonRestHandler<Colle
 	@Nonnull
 	protected CompletableFuture<Query> resolveQuery(@Nonnull RestEndpointExecutionContext executionContext) {
 		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
-		return parseRequestBody(executionContext, QueryEntityRequestDto.class)
-			.thenApply(requestData -> {
-				trackSourceQuery(executionContext, requestData);
-				return requestData;
+		return readRawRequestBody(executionContext)
+			.thenApply(rawRequestBody -> {
+				try {
+					final QueryEntityRequestDto body = parseRequestBody(rawRequestBody, QueryEntityRequestDto.class);
+					trackSourceQuery(executionContext, rawRequestBody, null);
+					return body;
+				} catch (Exception e) {
+					trackSourceQuery(executionContext, rawRequestBody, e);
+					throw e;
+				}
 			})
 			.thenApply(requestData -> {
 				final Head head = buildHead(executionContext);
@@ -157,24 +164,25 @@ public abstract class QueryOrientedEntitiesHandler extends JsonRestHandler<Colle
 			});
 	}
 
-	private void trackSourceQuery(@Nonnull RestEndpointExecutionContext executionContext, @Nonnull QueryEntityRequestDto queryDto) {
+	private void trackSourceQuery(@Nonnull RestEndpointExecutionContext executionContext, @Nonnull String rawQuery, @Nullable Exception parsingError) {
 		if (restHandlingContext.getEvita().getConfiguration().server().trafficRecording().sourceQueryTrackingEnabled()) {
 			if (executionContext.session() instanceof EvitaInternalSessionContract evitaInternalSession) {
 				try {
-					final String serializedSourceQuery = restHandlingContext.getObjectMapper().writeValueAsString(queryDto);
-					/* TODO LHO - insert finishedWithError if parsing failed */
+					final String serializedSourceQuery = restHandlingContext.getObjectMapper().writeValueAsString(rawQuery);
 					final UUID recordingId = evitaInternalSession.recordSourceQuery(
-						serializedSourceQuery, RestQueryLabels.REST_SOURCE_TYPE_VALUE, null
+						serializedSourceQuery, RestQueryLabels.REST_SOURCE_TYPE_VALUE, parsingError != null ? parsingError.getMessage() : null
 					);
 
 					executionContext.provideTrafficSourceQueryRecordingId(recordingId);
-					/* TODO LHO - insert finishedWithError if any of the queries failed with error */
-					executionContext.addCloseCallback(ctx -> evitaInternalSession.finalizeSourceQuery(recordingId, null));
+					executionContext.addCloseCallback(ctx -> {
+						final String combinedErrorMessage = ctx.exceptions().stream().map(Throwable::getMessage).collect(Collectors.joining("; "));
+						evitaInternalSession.finalizeSourceQuery(recordingId, !combinedErrorMessage.isBlank() ? combinedErrorMessage : null);
+					});
 				} catch (JsonProcessingException e) {
-					log.error("Cannot serialize source queryDto for traffic recording. Aborting.", e);
+					log.error("Cannot serialize source rawQuery for traffic recording. Aborting.", e);
 				}
 			} else {
-				log.error("Source queryDto tracking is enabled but Evita session is not of internal type. Cannot record source queryDto. Aborting.");
+				log.error("Source rawQuery tracking is enabled but Evita session is not of internal type. Cannot record source rawQuery. Aborting.");
 			}
 		}
 	}
