@@ -365,6 +365,29 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 				valueAByCardinality.toArray(String[]::new)
 			);
 		}
+
+		// try to lookup multiple labels with same and different keys
+		try (
+			final Stream<TrafficRecording> recordings = this.trafficRecorder.getRecordings(
+				TrafficRecordingCaptureRequest.builder()
+					.content(TrafficRecordingContent.BODY)
+					.labels(
+						new io.evitadb.api.requestResponse.trafficRecording.Label("a", "b"),
+						new io.evitadb.api.requestResponse.trafficRecording.Label("a", "bee"),
+						new io.evitadb.api.requestResponse.trafficRecording.Label("c", "d"),
+						new io.evitadb.api.requestResponse.trafficRecording.Label("c", "dfr")
+					)
+					.build()
+			)
+		) {
+			final List<TrafficRecording> recordingsByMultipleLabels = recordings.toList();
+
+			assertEquals(2, recordingsByMultipleLabels.size());
+			assertEquals(firstSessionId, recordingsByMultipleLabels.get(0).sessionId());
+			assertEquals(2, recordingsByMultipleLabels.get(0).recordSessionOffset());
+			assertEquals(secondSessionId, recordingsByMultipleLabels.get(1).sessionId());
+			assertEquals(2, recordingsByMultipleLabels.get(1).recordSessionOffset());
+		}
 	}
 
 	@Test

@@ -26,9 +26,15 @@ package io.evitadb.api.requestResponse.trafficRecording;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Traffic recording capture request is used to specify the criteria for retrieving contents from the traffic recording
@@ -58,7 +64,8 @@ public record TrafficRecordingCaptureRequest(
 	@Nullable UUID sessionId,
 	@Nullable Duration longerThan,
 	@Nullable Integer fetchingMoreBytesThan,
-	@Nullable Label[] labels
+	@Nullable Label[] labels,
+	@Nonnull Map<String, List<Serializable>> labelsGroupedByName
 ) {
 
 	/**
@@ -75,6 +82,42 @@ public record TrafficRecordingCaptureRequest(
 	@Nonnull
 	public static TrafficRecordingCaptureRequest.Builder builder(@Nonnull TrafficRecordingCaptureRequest request) {
 		return new TrafficRecordingCaptureRequest.Builder(request);
+	}
+
+	public TrafficRecordingCaptureRequest(
+		@Nonnull TrafficRecordingContent content,
+		@Nullable OffsetDateTime since,
+		@Nullable Long sinceSessionSequenceId,
+		@Nullable Integer sinceRecordSessionOffset,
+		@Nullable TrafficRecordingType[] types,
+		@Nullable UUID sessionId,
+		@Nullable Duration longerThan,
+		@Nullable Integer fetchingMoreBytesThan,
+		@Nullable Label[] labels
+	) {
+		this(
+			content,
+			since,
+			sinceSessionSequenceId,
+			sinceRecordSessionOffset,
+			types,
+			sessionId,
+			longerThan,
+			fetchingMoreBytesThan,
+			labels,
+			// initialize the labelsGroupedByName map
+			labels == null ?
+				Collections.emptyMap() :
+				Arrays.stream(labels)
+					.collect(
+						// group by label name
+						Collectors.groupingBy(
+							Label::name,
+							// map to label values
+							Collectors.mapping(Label::value, Collectors.toList())
+						)
+					)
+		);
 	}
 
 	/**

@@ -40,6 +40,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.Objects;
@@ -121,14 +122,26 @@ public interface TrafficRecorder extends Closeable {
 		if (request.labels() != null) {
 			requestPredicate = requestPredicate.and(
 				tr -> tr instanceof QueryContainer qc &&
-					Arrays.stream(request.labels())
+					request.labelsGroupedByName()
+						.entrySet()
+						.stream()
 						.allMatch(
-							it -> Arrays.stream(qc.labels())
-								.anyMatch(
-									// this is a bit tricky, data can come in formatted form, so we need to compare it in both ways
-									that -> Objects.equals(it.name(), that.name()) &&
-										(Objects.equals(it.value(), that.value()) || (that.value() instanceof String && Objects.equals(it.value(), EvitaDataTypes.formatValue(that.value()))))
-								)
+							it -> {
+								for (io.evitadb.api.requestResponse.trafficRecording.Label label : qc.labels()) {
+									final String containerKey = it.getKey();
+									if (Objects.equals(containerKey, label.name())) {
+										for (Serializable value : it.getValue()) {
+											// this is a bit tricky, data can come in formatted form, so we need to compare it in both ways
+											final Serializable containerValue = label.value();
+											if (Objects.equals(value, containerValue) ||
+												(containerValue instanceof String && Objects.equals(value, EvitaDataTypes.formatValue(containerValue)))) {
+												return true;
+											}
+										}
+									}
+								}
+								return false;
+							}
 						)
 			);
 		}

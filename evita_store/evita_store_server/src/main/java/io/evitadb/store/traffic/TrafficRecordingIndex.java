@@ -312,7 +312,7 @@ public class TrafficRecordingIndex implements
 					.filter(Objects::nonNull)
 					.map(TrafficRecordingIndex::toRoaringBitmap),
 				getTypesMatchingStream(request.types()),
-				getLabelsMatchingStream(request.labels())
+				getLabelsMatchingStream(request.labelsGroupedByName())
 			)
 			.flatMap(UnaryOperator.identity())
 			.filter(Objects::nonNull)
@@ -356,7 +356,7 @@ public class TrafficRecordingIndex implements
 					.filter(Objects::nonNull)
 					.map(TrafficRecordingIndex::toRoaringBitmap),
 				getTypesMatchingStream(request.types()),
-				getLabelsMatchingStream(request.labels())
+				getLabelsMatchingStream(request.labelsGroupedByName())
 			)
 			.flatMap(UnaryOperator.identity())
 			.filter(Objects::nonNull)
@@ -499,18 +499,21 @@ public class TrafficRecordingIndex implements
 	 * @return a Stream of Roaring64Bitmap objects representing the intersection of bitmaps matched by the given labels.
 	 */
 	@Nonnull
-	private Stream<Roaring64Bitmap> getLabelsMatchingStream(@Nullable Label[] labels) {
-		return labels == null ?
-			Stream.empty() :
-			Arrays.stream(labels)
-				.map(it -> new LabelWithOptimizedComparator(it.name(), it.value(), it.value() instanceof String str ? str : null))
+	private Stream<Roaring64Bitmap> getLabelsMatchingStream(@Nonnull Map<String, List<Serializable>> labels) {
+		return labels.entrySet()
+			.stream()
+			.map(entry -> entry.getValue().stream()
+				.map(value -> new LabelWithOptimizedComparator(entry.getKey(), value, value instanceof String str ? str : null))
 				.map(this.labelIndex::search)
 				.filter(Optional::isPresent)
 				.map(Optional::get)
 				.map(TransactionalObjectBPlusTree::valueIterator)
 				.map(TrafficRecordingIndex::toRoaringBitmap)
-				.reduce((a, b) -> Roaring64Bitmap.and(a, b))
-				.stream();
+				.reduce((a, b) -> Roaring64Bitmap.or(a, b))
+				.orElse(null))
+			.filter(Objects::nonNull)
+			.reduce((a, b) -> Roaring64Bitmap.and(a, b))
+			.stream();
 	}
 
 	/**
