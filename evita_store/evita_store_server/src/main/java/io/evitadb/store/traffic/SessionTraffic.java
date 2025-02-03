@@ -198,9 +198,8 @@ public class SessionTraffic implements Closeable {
 						this.blockIds.add(numberedByteBuffer.number());
 						return numberedByteBuffer.buffer();
 					} catch (MemoryNotAvailableException ex) {
-						throw new MemoryNotAvailableException(
-							finishDueToMemoryShortage(), ex
-						);
+						finishDueToMemoryShortage();
+						throw new MemoryNotAvailableException();
 					}
 				}
 			),
@@ -278,6 +277,20 @@ public class SessionTraffic implements Closeable {
 	 */
 	public int getCurrentByteBufferPosition() {
 		return this.observableOutput.getOutputStream().getBufferPosition();
+	}
+
+	/**
+	 * Discards the current session by calculating its duration, marking it as discarded,
+	 * and returning the current buffer data.
+	 *
+	 * @return a byte array representing the current buffer contents for the session.
+	 */
+	public byte[] discard() {
+		if (this.finished == null) {
+			this.durationInMillis = (int) (System.currentTimeMillis() - this.created.toInstant().toEpochMilli());
+			this.finished = FinishReason.DISCARDED;
+		}
+		return this.observableOutput.getBuffer();
 	}
 
 	/**
@@ -362,13 +375,15 @@ public class SessionTraffic implements Closeable {
 	 * serializes it using the provided operations, and triggers callback actions upon success
 	 * or in case of a memory availability exception.
 	 *
-	 * @param container                     The traffic recording container to be recorded. Must not be null.
-	 * @param onMemoryNotAvailableException Consumer action to handle cases where memory is unavailable. Must not be null.
-	 * @param onSuccess                     Runnable action to execute upon successful recording of the traffic data. Must not be null.
+	 * @param container                            The traffic recording container to be recorded. Must not be null.
+	 * @param onMemoryNotAvailableExceptionHandler Consumer action to handle cases where memory is unavailable. Must not be null.
+	 * @param otherExceptionHandler                Consumer action to handle unexpected exceptions. Must not be null.
+	 * @param onSuccess                            Runnable action to execute upon successful recording of the traffic data. Must not be null.
 	 */
 	public <T extends TrafficRecording> void record(
 		@Nonnull T container,
-		@Nonnull Consumer<MemoryNotAvailableException> onMemoryNotAvailableException,
+		@Nonnull Consumer<MemoryNotAvailableException> onMemoryNotAvailableExceptionHandler,
+		@Nonnull Consumer<Throwable> otherExceptionHandler,
 		@Nonnull Runnable onSuccess
 	) {
 		this.serializationQueue.add(
@@ -387,7 +402,9 @@ public class SessionTraffic implements Closeable {
 					this.registerRecording(container);
 					onSuccess.run();
 				} catch (MemoryNotAvailableException ex) {
-					onMemoryNotAvailableException.accept(ex);
+					onMemoryNotAvailableExceptionHandler.accept(ex);
+				} catch (Throwable ex) {
+					otherExceptionHandler.accept(ex);
 				}
 			}
 		);
@@ -474,7 +491,11 @@ public class SessionTraffic implements Closeable {
 		/**
 		 * The session was prematurely abandoned due to memory shortage.
 		 */
-		MEMORY_SHORTAGE
+		MEMORY_SHORTAGE,
+		/**
+		 * The session was prematurely abandoned (probably due to an error or other exceptional reason).
+		 */
+		DISCARDED
 
 	}
 

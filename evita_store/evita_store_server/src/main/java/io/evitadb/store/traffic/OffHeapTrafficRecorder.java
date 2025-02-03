@@ -62,7 +62,6 @@ import io.evitadb.store.traffic.stream.RingBufferInputStream;
 import io.evitadb.store.wal.WalKryoConfigurer;
 import io.evitadb.stream.RandomAccessFileInputStream;
 import io.evitadb.utils.Assert;
-import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -249,7 +248,11 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 					catalogVersion,
 					created
 				),
-				ex -> discardSession(ex, sessionTraffic),
+				ex -> discardSession(sessionTraffic),
+				ex -> {
+					discardSession(sessionTraffic);
+					log.error("Failed to record session start for session {}.", sessionId, ex);
+				},
 				() -> {
 					this.createdSessions.incrementAndGet();
 					this.trackedSessionsIndex.put(sessionId, sessionTraffic);
@@ -282,7 +285,11 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 					sessionTraffic.getMutationCount(),
 					finishedWithError
 				),
-				ex -> discardSession(ex, sessionTraffic),
+				ex -> discardSession(sessionTraffic),
+				ex -> {
+					discardSession(sessionTraffic);
+					log.error("Failed to record session close for session {}.", sessionId, ex);
+				},
 				() -> {
 					sessionTraffic.close();
 					this.copyBufferPool.free(bufferToReturn);
@@ -573,11 +580,10 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 	 * This is typically invoked in scenarios where there's a memory shortage,
 	 * and the session needs to be closed with its data being discarded.
 	 *
-	 * @param ex             the exception containing the write buffer that needs to be freed
 	 * @param sessionTraffic the session traffic containing memory block IDs and record count
 	 */
-	private void discardSession(@Nonnull MemoryNotAvailableException ex, @Nonnull SessionTraffic sessionTraffic) {
-		this.copyBufferPool.free(ex.getWriteBuffer());
+	private void discardSession(@Nonnull SessionTraffic sessionTraffic) {
+		this.copyBufferPool.free(sessionTraffic.discard());
 		this.droppedSessions.incrementAndGet();
 		this.missedRecords.addAndGet(sessionTraffic.getRecordCount());
 		// when there is memory shortage, when session is closed - free the memory and throw away the data
@@ -663,7 +669,11 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 			final T container = containerFactory.apply(sessionTraffic);
 			sessionTraffic.record(
 				container,
-				ex -> discardSession(ex, sessionTraffic),
+				ex -> discardSession(sessionTraffic),
+				ex -> {
+					log.error("Failed to record traffic data for session {}.", sessionTraffic.getSessionId(), ex);
+					discardSession(sessionTraffic);
+				},
 				this.recordedRecords::incrementAndGet
 			);
 		} else {
@@ -816,20 +826,15 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		public static final MemoryNotAvailableException DATA_TOO_LARGE = new MemoryNotAvailableException("No free slot in memory buffer!");
 
 		@Serial private static final long serialVersionUID = 567086221625997669L;
-		@Getter private final byte[] writeBuffer;
+
+		public MemoryNotAvailableException() {
+			super("Memory shortage during session recording.");
+		}
 
 		MemoryNotAvailableException(@Nonnull String message) {
 			super(message);
-			this.writeBuffer = null;
 		}
 
-		public MemoryNotAvailableException(
-			@Nonnull byte[] writeBuffer,
-			@Nonnull MemoryNotAvailableException originException
-		) {
-			super(originException.getPrivateMessage(), originException.getPublicMessage());
-			this.writeBuffer = writeBuffer;
-		}
 	}
 
 }

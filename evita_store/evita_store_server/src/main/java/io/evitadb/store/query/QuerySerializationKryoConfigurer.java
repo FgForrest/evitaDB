@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -129,6 +129,8 @@ public class QuerySerializationKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(Segments.class, new SegmentsSerializer(), index++);
 		kryo.register(Segment.class, new SegmentSerializer(), index++);
 		kryo.register(SegmentLimit.class, new SegmentLimitSerializer(), index++);
+		kryo.register(EntityGroupProperty.class, new EntityGroupPropertySerializer(), index++);
+		kryo.register(EntityProperty.class, new EntityPropertySerializer(), index++);
 
 		index = QUERY_BASE + 400;
 		kryo.register(AssociatedDataContent.class, new AssociatedDataContentSerializer(), index++);
