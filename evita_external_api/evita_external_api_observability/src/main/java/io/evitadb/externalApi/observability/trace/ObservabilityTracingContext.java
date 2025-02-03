@@ -60,10 +60,7 @@ public class ObservabilityTracingContext implements TracingContext {
 	 * Initializes MDC with the given client ID and trace ID. It is used for logging purposes.
 	 */
 	private static void initMdc(@Nonnull String clientId, @Nonnull String traceId) {
-		MDC.remove(MDC_CLIENT_ID_PROPERTY);
 		MDC.put(MDC_CLIENT_ID_PROPERTY, clientId);
-
-		MDC.remove(MDC_TRACE_ID_PROPERTY);
 		MDC.put(MDC_TRACE_ID_PROPERTY, traceId);
 	}
 
@@ -112,12 +109,12 @@ public class ObservabilityTracingContext implements TracingContext {
 	@Nonnull
 	@Override
 	public Optional<String> getClientId() {
-		return Optional.ofNullable(MDC.get(MDC_CLIENT_ID_PROPERTY));
+		return Optional.ofNullable(Context.current().get(OpenTelemetryTracerSetup.CONTEXT_KEY));
 	}
 
 	@Nonnull
 	public Optional<String> getTraceId() {
-		return Optional.ofNullable(MDC.get(MDC_TRACE_ID_PROPERTY));
+		return Optional.ofNullable(Span.current().getSpanContext().getTraceId());
 	}
 
 	@Nonnull

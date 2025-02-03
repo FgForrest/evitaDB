@@ -32,6 +32,7 @@ import io.evitadb.api.exception.SessionNotFoundException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.query.HeadConstraint;
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.head.Head;
 import io.evitadb.api.query.head.Label;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetch;
@@ -82,6 +83,7 @@ import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionIntercepto
 import io.evitadb.externalApi.grpc.utils.QueryUtil;
 import io.evitadb.externalApi.grpc.utils.QueryWithParameters;
 import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
+import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.evitadb.function.QuadriConsumer;
 import io.evitadb.utils.ArrayUtils;
 import io.grpc.Metadata;
@@ -158,31 +160,27 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		final long requestTimeoutMillis = ServiceRequestContext.current().requestTimeoutMillis();
 		final Metadata metadata = ServerSessionInterceptor.METADATA.get();
 		final String methodName = GrpcHeaders.getGrpcTraceTaskNameWithMethodName(metadata);
-		final Runnable theMethod =
-			() -> {
-				final EvitaInternalSessionContract session = ServerSessionInterceptor.SESSION.get();
-				executor.execute(
-					executor.createTask(
-						methodName,
-						() -> {
-							try {
-								lambda.accept(session);
-							} catch (RuntimeException exception) {
-								// Delegate exception handling to GlobalExceptionHandlerInterceptor
-								GlobalExceptionHandlerInterceptor.sendErrorToClient(exception, responseObserver);
-							}
-						},
-						requestTimeoutMillis
-					)
-				);
-			};
-
-		ExternalApiTracingContextProvider.getContext()
-			.executeWithinBlock(
+		final ExternalApiTracingContext<Object> context = ExternalApiTracingContextProvider.getContext();
+		final EvitaInternalSessionContract session = ServerSessionInterceptor.SESSION.get();
+		executor.execute(
+			executor.createTask(
 				methodName,
-				metadata,
-				theMethod
-			);
+				() -> {
+					try {
+						context
+							.executeWithinBlock(
+								methodName,
+								metadata,
+								() -> lambda.accept(session)
+							);
+					} catch (RuntimeException exception) {
+						// Delegate exception handling to GlobalExceptionHandlerInterceptor
+						GlobalExceptionHandlerInterceptor.sendErrorToClient(exception, responseObserver);
+					}
+				},
+				requestTimeoutMillis
+			)
+		);
 	}
 
 	/**
@@ -386,11 +384,23 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				query.getOrderBy(),
 				query.getRequire()
 			).normalizeQuery();
-		} else {
+		} else if (query.getHead() instanceof Head) {
 			return query.normalizeQuery(
 				new LabelAppender(additionalLabels),
 				null, null, null
 			);
+		} else {
+			return Query.query(
+				head(
+					ArrayUtils.mergeArrays(
+						new HeadConstraint[]{query.getHead()},
+						additionalLabels
+					)
+				),
+				query.getFilterBy(),
+				query.getOrderBy(),
+				query.getRequire()
+			).normalizeQuery();
 		}
 	}
 

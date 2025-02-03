@@ -155,6 +155,9 @@ public class SourceQueryRecordingInstrumentation extends SimplePerformantInstrum
 		}
 
 		final EvitaSessionContract evitaSession = graphQLContext.get(GraphQLContextKey.EVITA_SESSION);
+		if (evitaSession == null) {
+			return null;
+		}
 		if (!(evitaSession instanceof EvitaInternalSessionContract evitaInternalSession)) {
 			log.error("Source query tracking is enabled but Evita session is not of internal type. Cannot record source query. Aborting.");
 			return null;
