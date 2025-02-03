@@ -292,9 +292,9 @@ public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 		assertArrayEquals(
 			new String[]{
 				"traffic_recording_1.bin",
-				"traffic_recording_13.bin",
-				"traffic_recording_25.bin",
-				"traffic_recording_37.bin",
+				"traffic_recording_11.bin",
+				"traffic_recording_21.bin",
+				"traffic_recording_31.bin",
 				"metadata.txt"
 			},
 			fileNames
@@ -366,7 +366,7 @@ public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 		assertArrayEquals(
 			new String[]{
 				"traffic_recording_1.bin",
-				"traffic_recording_13.bin",
+				"traffic_recording_11.bin",
 				"metadata.txt"
 			},
 			fileNames

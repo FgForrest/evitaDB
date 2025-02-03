@@ -419,9 +419,10 @@ class TransactionalObjectBPlusTreeTest implements TimeBoundedTestSupport {
 		final InsertionPosition insertionPosition = ArrayUtils.computeInsertPositionOfIntInOrderedArray(39, plainFullArray);
 
 		assertFalse(insertionPosition.alreadyPresent());
-		final String[] partialCopy = new String[insertionPosition.position() + 1];
-		for (int i = insertionPosition.position(); i >= 0; i--) {
-			partialCopy[insertionPosition.position() - i] = "Value" + plainFullArray[i];
+		final int thePosition = insertionPosition.alreadyPresent() ? insertionPosition.position() + 1 : insertionPosition.position();
+		final String[] partialCopy = new String[thePosition];
+		for (int i = partialCopy.length - 1; i >= 0; i--) {
+			partialCopy[thePosition - i - 1] = "Value" + plainFullArray[i];
 		}
 
 		final String[] reconstructedArray = new String[partialCopy.length];
