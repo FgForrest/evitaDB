@@ -6,6 +6,11 @@ on:
   push:
     branches: [ "performance" ]    # trap each push to performance branch
 
+permissions:
+  contents: read                   # To checkout the repository code using actions/checkout.
+  packages: write                  # To publish the Docker image to the GitHub Packages registry.
+  secrets: read                    # To access the secrets.
+
 concurrency:
   group: ${{ github.head_ref || github.ref_name }}  # for the same branch (dev or PR)
   cancel-in-progress: true        # run only one workflow at a time (cancel the previous)
@@ -15,10 +20,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3    # checkout sources
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2    # checkout sources
 
     - name: Setup Java JDK
-      uses: actions/setup-java@v3  # setup JDK 17 for building
+      uses: actions/setup-java@7a6d8a8234af8eb26422e24e3006232cccaa061b # v4.6.0  # setup JDK 17 for building
       with:
          distribution: 'temurin'
          java-version: '17'
