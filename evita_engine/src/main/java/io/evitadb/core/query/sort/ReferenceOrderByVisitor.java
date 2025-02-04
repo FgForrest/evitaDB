@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -60,6 +60,7 @@ import io.evitadb.core.query.sort.attribute.translator.EntityPropertyTranslator;
 import io.evitadb.core.query.sort.translator.OrderByTranslator;
 import io.evitadb.core.query.sort.translator.OrderInScopeTranslator;
 import io.evitadb.core.query.sort.translator.ReferenceOrderingConstraintTranslator;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
@@ -73,9 +74,12 @@ import lombok.experimental.Delegate;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 import static io.evitadb.utils.Assert.isPremiseValid;
 import static java.util.Optional.ofNullable;
@@ -137,6 +141,10 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 	 * This variable is internally updated during the traversal and comparison of constraints.
 	 */
 	@Nullable private ChainIndex lastRetrievedChainIndex;
+	/**
+	 * Contemporary stack for scopes used on each level of the ordering query tree.
+	 */
+	private final Deque<Set<Scope>> scope = new ArrayDeque<>(16);
 
 	/**
 	 * Extracts {@link OrderingDescriptor} from the passed `orderBy` constraint using passed `queryContext` for
@@ -274,7 +282,7 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 		@Nonnull String attributeName
 	) {
 		return attributeSchemaAccessor.getAttributeSchemaOrSortableAttributeCompound(
-			attributeName, this.getScopes()
+			attributeName, this.scope.isEmpty() ? this.getScopes() : this.scope.peek()
 		);
 	}
 
@@ -366,6 +374,24 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 				this.lastRetrievedChainIndex = chainIndex.orElse(null);
 				return chainIndex;
 			}
+		}
+	}
+
+	/**
+	 * Executes the given {@link Runnable} within the context of the specified {@link Scope scopes}.
+	 * The method temporarily pushes the provided scopes to the current scope stack,
+	 * executes the runnable, and ensures the stack is restored to its previous state
+	 * afterward, even if the runnable throws an exception.
+	 *
+	 * @param scopesToUse the set of scopes to apply during the execution of the runnable
+	 * @param runnable the code to be executed within the given scopes
+	 */
+	public void doWithScope(@Nonnull Set<Scope> scopesToUse, @Nonnull Runnable runnable) {
+		try {
+			this.scope.push(scopesToUse);
+			runnable.run();
+		} finally {
+			this.scope.pop();
 		}
 	}
 
