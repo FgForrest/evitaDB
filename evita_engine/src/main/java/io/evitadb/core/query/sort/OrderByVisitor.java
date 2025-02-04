@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -130,10 +130,6 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	 * Contemporary stack for auxiliary data resolved for each level of the query.
 	 */
 	private final Deque<ProcessingScope> scope = new ArrayDeque<>(16);
-	/**
-	 * Contains the created sorter from the ordering query source tree.
-	 */
-	private final Deque<Sorter> sorters = new ArrayDeque<>(16);
 
 	public OrderByVisitor(
 		@Nonnull QueryPlanningContext queryContext,
@@ -175,7 +171,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 				null,
 				attributeSchemaAccessor,
 				EntityAttributeExtractor.INSTANCE,
-				this.sorters
+				new ArrayDeque<>(16)
 			)
 		);
 	}

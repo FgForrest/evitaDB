@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -68,7 +68,22 @@ public class OrderInScopeTranslator implements OrderingConstraintTranslator<Orde
 
 	@Override
 	public void createComparator(@Nonnull OrderInScope inScope, @Nonnull ReferenceOrderByVisitor orderByVisitor) {
-		// do nothing
+		final Set<Scope> requestedScopes = orderByVisitor.getScopes();
+		final Scope scopeToUse = inScope.getScope();
+		Assert.isTrue(
+			requestedScopes.contains(scopeToUse),
+			"Scope `" + scopeToUse + "` used in `inScope` order container was not requested by `scope` constraint!"
+		);
+
+		// process inner constraints
+		orderByVisitor.doWithScope(
+			Set.of(scopeToUse),
+			() -> {
+				for (OrderConstraint innerConstraint : inScope.getChildren()) {
+					innerConstraint.accept(orderByVisitor);
+				}
+			}
+		);
 	}
 
 }
