@@ -6,13 +6,17 @@ on:
   schedule:
     - cron: '0 0 * * 1' # runs on Monday morning
 
+permissions:
+  contents: read  # Required for actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2 to access the repository
+  actions: write  # Required for uploading artifacts using actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
+
 jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 2
 
@@ -23,20 +27,20 @@ jobs:
           echo "Commits found: $NEW_COMMIT_COUNT"
 
       - name: Setup Java JDK   # this should setup JDK 17 but only if something was committed this day
-        uses: actions/setup-java@v3
-        if: ${{ env.NEW_COMMIT_COUNT > 0 }}
+        uses: actions/setup-java@7a6d8a8234af8eb26422e24e3006232cccaa061b # v4.6.0
+        if: ${{ env.NEW_COMMIT_COUNT != '0' }}
         with:
            distribution: 'temurin'
            java-version: '17'
            cache: 'maven'
 
       - name: Documentation tests   # this run Maven tests but only if something was committed this day
-        if: ${{ env.NEW_COMMIT_COUNT > 0 }}
+        if: ${{ env.NEW_COMMIT_COUNT != '0' }}
         run: mvn -T 1C -B package -P documentation -Dsurefire.reportNameSuffix=documentation -V --fail-at-end -Dmaven.test.skip=false --file pom.xml
 
       - name: Upload test results  # this upload test results but only if something was committed this day
-        uses: actions/upload-artifact@v4
-        if: ${{ env.NEW_COMMIT_COUNT > 0 }} && (success() || failure())
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
+        if: ${{ env.NEW_COMMIT_COUNT != '0' && always() }}
         with:
           name: test-results
           path: 'evita*/**/target/surefire-reports/TEST-*.xml'

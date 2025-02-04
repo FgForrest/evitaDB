@@ -33,17 +33,17 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3    # checkout sources
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2    # checkout sources
 
     - name: Setup Java JDK
-      uses: actions/setup-java@v3  # setup JDK 17 for building
+      uses: actions/setup-java@7a6d8a8234af8eb26422e24e3006232cccaa061b # v4.6.0  # setup JDK 17 for building
       with:
          distribution: 'temurin'
          java-version: '17'
          cache: 'maven'
 
     - name: Setup dotnet
-      uses: actions/setup-dotnet@v3
+      uses: actions/setup-dotnet@87b7050bc53ea08284295505d98d2aa94301e852 # v4.2.0
       with:
         dotnet-version: '8.0.X'    # setup dotnet 8.0.X for building
 
@@ -52,7 +52,7 @@ jobs:
         mvn -T 1C -B package -P documentation -V --fail-at-end -Dmaven.test.skip=false --file pom.xml
 
     - name: Publish Test Report
-      uses: mikepenz/action-junit-report@v3
+      uses: mikepenz/action-junit-report@ee6b445351cd81e2f73a16a0e52d598aeac2197f # v5.3.0
       if: success() || failure() # always run even if the previous step fails
       with:
         report_paths: '**/TEST-*.xml'
