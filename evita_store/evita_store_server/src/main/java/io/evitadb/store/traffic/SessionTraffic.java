@@ -361,7 +361,11 @@ public class SessionTraffic implements Closeable {
 			sourceQueryCounter.map(SourceQueryCounter::getIoFetchedSizeBytes).orElse(0),
 			sourceQueryCounter.map(SourceQueryCounter::getRecordsReturned).orElse(0),
 			sourceQueryCounter.map(SourceQueryCounter::getTotalRecordCount).orElse(0),
-			new Label[] { new Label(io.evitadb.api.query.head.Label.LABEL_SOURCE_QUERY, sourceQueryId) },
+			sourceQueryCounter.map(SourceQueryCounter::getLabels).orElseGet(
+				() -> new Label[] {
+					new Label(io.evitadb.api.query.head.Label.LABEL_SOURCE_QUERY, sourceQueryId),
+				}
+			),
 			finishedWithError
 		);
 	}
@@ -470,7 +474,8 @@ public class SessionTraffic implements Closeable {
 						queryContainer.totalRecordCount(),
 						queryContainer.ioFetchCount(),
 						queryContainer.ioFetchedSizeBytes(),
-						queryContainer.durationInMilliseconds()
+						queryContainer.durationInMilliseconds(),
+						queryContainer.labels()
 					);
 				}
 			}
@@ -510,6 +515,7 @@ public class SessionTraffic implements Closeable {
 	@RequiredArgsConstructor
 	private static class SourceQueryCounter {
 		private final long started;
+		private final Set<Label> labels = CollectionUtils.createHashSet(16);
 		private int recordsReturned;
 		private int totalRecordCount;
 		private int ioFetchCount;
@@ -525,14 +531,23 @@ public class SessionTraffic implements Closeable {
 		 * @param ioFetchedSizeBytes The size in bytes of fetched data to be added to the current total.
 		 * @param computeTime        The time spent computing the query to be added to the current total.
 		 */
-		void append(int recordsReturned, int totalRecordCount, int ioFetchCount, int ioFetchedSizeBytes, int computeTime) {
+		void append(int recordsReturned, int totalRecordCount, int ioFetchCount, int ioFetchedSizeBytes, int computeTime, Label... labels) {
 			this.recordsReturned += recordsReturned;
 			this.totalRecordCount += totalRecordCount;
 			this.ioFetchCount += ioFetchCount;
 			this.ioFetchedSizeBytes += ioFetchedSizeBytes;
 			this.computeTime += computeTime;
+			this.labels.addAll(Arrays.asList(labels));
 		}
 
+		/**
+		 * Returns the labels associated with the source query.
+		 * @return The labels associated with the source query.
+		 */
+		@Nonnull
+		public Label[] getLabels() {
+			return labels.toArray(Label[]::new);
+		}
 	}
 
 }

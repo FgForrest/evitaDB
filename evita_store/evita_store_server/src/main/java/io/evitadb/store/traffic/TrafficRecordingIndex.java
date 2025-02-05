@@ -458,8 +458,8 @@ public class TrafficRecordingIndex implements
 	@Nonnull
 	public Collection<String> getLabelsNamesOrderedByCardinality(@Nullable String nameStartingWith, int limit) {
 		final Iterator<Entry<Label, TransactionalObjectBPlusTree<Long, Long>>> it = nameStartingWith == null ?
-			this.stringLabelIndex.entryIterator() :
-			this.stringLabelIndex.greaterOrEqualEntryIterator(new Label(nameStartingWith, null));
+			this.labelIndex.entryIterator() :
+			this.labelIndex.greaterOrEqualEntryIterator(new Label(nameStartingWith, null));
 		final ObjectIntMap<String> cardinalities = new ObjectIntHashMap<>(256);
 		while (it.hasNext()) {
 			final Entry<Label, TransactionalObjectBPlusTree<Long, Long>> entry = it.next();
@@ -493,7 +493,7 @@ public class TrafficRecordingIndex implements
 	 */
 	@Nonnull
 	public Collection<String> getLabelValuesOrderedByCardinality(@Nonnull String nameEquals, @Nullable String valueStartingWith, int limit) {
-		final Iterator<Entry<Label, TransactionalObjectBPlusTree<Long, Long>>> it = this.stringLabelIndex.greaterOrEqualEntryIterator(new Label(nameEquals, valueStartingWith));
+		final Iterator<Entry<Label, TransactionalObjectBPlusTree<Long, Long>>> it = this.labelIndex.greaterOrEqualEntryIterator(new Label(nameEquals, valueStartingWith));
 		final ObjectIntMap<String> cardinalities = new ObjectIntHashMap<>(256);
 		while (it.hasNext()) {
 			final Entry<Label, TransactionalObjectBPlusTree<Long, Long>> entry = it.next();
