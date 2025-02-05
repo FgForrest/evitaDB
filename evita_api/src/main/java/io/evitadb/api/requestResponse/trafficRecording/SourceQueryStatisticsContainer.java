@@ -30,6 +30,8 @@ import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRe
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
+import java.util.Arrays;
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -100,4 +102,40 @@ public record SourceQueryStatisticsContainer(
 		return TrafficRecordingType.SOURCE_QUERY_STATISTICS;
 	}
 
+	@Override
+	public boolean equals(Object o) {
+		if (!(o instanceof SourceQueryStatisticsContainer that)) return false;
+
+		return ioFetchCount == that.ioFetchCount &&
+			totalRecordCount == that.totalRecordCount &&
+			ioFetchedSizeBytes == that.ioFetchedSizeBytes &&
+			recordSessionOffset == that.recordSessionOffset &&
+			returnedRecordCount == that.returnedRecordCount &&
+			durationInMilliseconds == that.durationInMilliseconds &&
+			sessionId.equals(that.sessionId) &&
+			Arrays.equals(labels, that.labels) &&
+			sourceQueryId.equals(that.sourceQueryId) &&
+			created.equals(that.created) &&
+			Objects.equals(finishedWithError, that.finishedWithError) &&
+			Objects.equals(sessionSequenceOrder, that.sessionSequenceOrder) &&
+			Objects.equals(sessionRecordsCount, that.sessionRecordsCount);
+	}
+
+	@Override
+	public int hashCode() {
+		int result = Objects.hashCode(sessionSequenceOrder);
+		result = 31 * result + sessionId.hashCode();
+		result = 31 * result + recordSessionOffset;
+		result = 31 * result + Objects.hashCode(sessionRecordsCount);
+		result = 31 * result + sourceQueryId.hashCode();
+		result = 31 * result + created.hashCode();
+		result = 31 * result + durationInMilliseconds;
+		result = 31 * result + ioFetchCount;
+		result = 31 * result + ioFetchedSizeBytes;
+		result = 31 * result + returnedRecordCount;
+		result = 31 * result + totalRecordCount;
+		result = 31 * result + Arrays.hashCode(labels);
+		result = 31 * result + Objects.hashCode(finishedWithError);
+		return result;
+	}
 }

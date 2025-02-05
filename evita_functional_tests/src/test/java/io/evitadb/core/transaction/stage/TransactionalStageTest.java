@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ package io.evitadb.core.transaction.stage;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashSet;
@@ -55,6 +56,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class TransactionalStageTest {
 
 	@Test
+	@Disabled("This test examines Java behaviour and is not a part of our test suite")
 	void shouldExecuteTransactionInSeparateStages() throws ExecutionException, InterruptedException, TimeoutException {
 		// given
 		SubmissionPublisher<Item> publisher = new SubmissionPublisher<>(

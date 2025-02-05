@@ -33,16 +33,8 @@ import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
-import io.evitadb.api.requestResponse.trafficRecording.EntityEnrichmentContainer;
-import io.evitadb.api.requestResponse.trafficRecording.EntityFetchContainer;
-import io.evitadb.api.requestResponse.trafficRecording.MutationContainer;
-import io.evitadb.api.requestResponse.trafficRecording.QueryContainer;
-import io.evitadb.api.requestResponse.trafficRecording.SessionCloseContainer;
-import io.evitadb.api.requestResponse.trafficRecording.SessionStartContainer;
-import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
-import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest;
+import io.evitadb.api.requestResponse.trafficRecording.*;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest.TrafficRecordingType;
-import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingContent;
 import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.file.ExportFileService;
 import io.evitadb.dataType.EvitaDataTypes;
@@ -293,9 +285,13 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 		) {
 			final List<TrafficRecording> firstSourceQuerySubQueries = recordings.toList();
 
-			assertEquals(2, firstSourceQuerySubQueries.size());
+			assertEquals(3, firstSourceQuerySubQueries.size());
 			assertEquals(2, firstSourceQuerySubQueries.get(0).recordSessionOffset());
+			assertInstanceOf(QueryContainer.class, firstSourceQuerySubQueries.get(0));
 			assertEquals(3, firstSourceQuerySubQueries.get(1).recordSessionOffset());
+			assertInstanceOf(QueryContainer.class, firstSourceQuerySubQueries.get(1));
+			assertEquals(4, firstSourceQuerySubQueries.get(2).recordSessionOffset());
+			assertInstanceOf(SourceQueryStatisticsContainer.class, firstSourceQuerySubQueries.get(2));
 		}
 
 		try (
@@ -308,9 +304,13 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 		) {
 			final List<TrafficRecording> secondSourceQuerySubQueries = recordings.toList();
 
-			assertEquals(2, secondSourceQuerySubQueries.size());
+			assertEquals(3, secondSourceQuerySubQueries.size());
 			assertEquals(2, secondSourceQuerySubQueries.get(0).recordSessionOffset());
+			assertInstanceOf(QueryContainer.class, secondSourceQuerySubQueries.get(0));
 			assertEquals(3, secondSourceQuerySubQueries.get(1).recordSessionOffset());
+			assertInstanceOf(QueryContainer.class, secondSourceQuerySubQueries.get(1));
+			assertEquals(4, secondSourceQuerySubQueries.get(2).recordSessionOffset());
+			assertInstanceOf(SourceQueryStatisticsContainer.class, secondSourceQuerySubQueries.get(2));
 		}
 
 		try (
@@ -323,11 +323,23 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 		) {
 			final List<TrafficRecording> beeSubQueries = recordings.toList();
 
-			assertEquals(2, beeSubQueries.size());
+			assertEquals(4, beeSubQueries.size());
+
 			assertEquals(firstSessionId, beeSubQueries.get(0).sessionId());
 			assertEquals(3, beeSubQueries.get(0).recordSessionOffset());
-			assertEquals(secondSessionId, beeSubQueries.get(1).sessionId());
-			assertEquals(3, beeSubQueries.get(1).recordSessionOffset());
+			assertInstanceOf(QueryContainer.class, beeSubQueries.get(0));
+
+			assertEquals(firstSessionId, beeSubQueries.get(1).sessionId());
+			assertEquals(4, beeSubQueries.get(1).recordSessionOffset());
+			assertInstanceOf(SourceQueryStatisticsContainer.class, beeSubQueries.get(1));
+
+			assertEquals(secondSessionId, beeSubQueries.get(2).sessionId());
+			assertEquals(3, beeSubQueries.get(2).recordSessionOffset());
+			assertInstanceOf(QueryContainer.class, beeSubQueries.get(2));
+
+			assertEquals(secondSessionId, beeSubQueries.get(3).sessionId());
+			assertEquals(4, beeSubQueries.get(3).recordSessionOffset());
+			assertInstanceOf(SourceQueryStatisticsContainer.class, beeSubQueries.get(3));
 		}
 
 		// now try to get records with record offset
@@ -382,11 +394,22 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 		) {
 			final List<TrafficRecording> recordingsByMultipleLabels = recordings.toList();
 
-			assertEquals(2, recordingsByMultipleLabels.size());
+			assertEquals(4, recordingsByMultipleLabels.size());
 			assertEquals(firstSessionId, recordingsByMultipleLabels.get(0).sessionId());
 			assertEquals(2, recordingsByMultipleLabels.get(0).recordSessionOffset());
-			assertEquals(secondSessionId, recordingsByMultipleLabels.get(1).sessionId());
-			assertEquals(2, recordingsByMultipleLabels.get(1).recordSessionOffset());
+			assertInstanceOf(QueryContainer.class, recordingsByMultipleLabels.get(0));
+
+			assertEquals(firstSessionId, recordingsByMultipleLabels.get(1).sessionId());
+			assertEquals(4, recordingsByMultipleLabels.get(1).recordSessionOffset());
+			assertInstanceOf(SourceQueryStatisticsContainer.class, recordingsByMultipleLabels.get(1));
+
+			assertEquals(secondSessionId, recordingsByMultipleLabels.get(2).sessionId());
+			assertEquals(2, recordingsByMultipleLabels.get(2).recordSessionOffset());
+			assertInstanceOf(QueryContainer.class, recordingsByMultipleLabels.get(2));
+
+			assertEquals(secondSessionId, recordingsByMultipleLabels.get(3).sessionId());
+			assertEquals(4, recordingsByMultipleLabels.get(3).recordSessionOffset());
+			assertInstanceOf(SourceQueryStatisticsContainer.class, recordingsByMultipleLabels.get(3));
 		}
 	}
 
