@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -58,6 +58,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static java.util.Optional.ofNullable;
+
 /**
  * This class is responsible for detecting health problems in the system. It monitors:
  *
@@ -93,30 +95,30 @@ public class ObservabilityProbesDetector implements ProbesProvider, Closeable {
 	private final AtomicBoolean seenReady = new AtomicBoolean();
 	private final AtomicReference<ReadinessWithTimestamp> lastReadinessSeen = new AtomicReference<>();
 	private ExecutorService internalExecutor;
-	private ObservabilityManager observabilityManager;
+	@Nullable private ObservabilityManager observabilityManager;
 
 	/**
 	 * Records the result of the health problem check.
 	 *
-	 * @param healthProblem           the result of the health problem check
-	 * @param healthProblems          the set of health problems
-	 * @param theObservabilityManager the observability manager for recording the health problem
+	 * @param healthProblemCheckResult the result of the health problem check
+	 * @param healthProblems           the set of health problems
+	 * @param theObservabilityManager  the observability manager for recording the health problem
 	 */
 	private static void recordResult(
-		@Nonnull HealthProblemCheckResult healthProblem,
+		@Nonnull HealthProblemCheckResult healthProblemCheckResult,
 		@Nonnull Set<HealthProblem> healthProblems,
 		@Nullable ObservabilityManager theObservabilityManager
 	) {
-		if (healthProblem.present()) {
-			if (healthProblem.healthProblem() != null) {
-				healthProblems.add(healthProblem.healthProblem());
+		if (healthProblemCheckResult.present()) {
+			if (healthProblemCheckResult.healthProblem() != null) {
+				healthProblems.add(healthProblemCheckResult.healthProblem());
 			}
 			if (theObservabilityManager != null) {
-				theObservabilityManager.recordHealthProblem(healthProblem.healthProblemName());
+				theObservabilityManager.recordHealthProblem(healthProblemCheckResult.healthProblemName());
 			}
 		} else {
 			if (theObservabilityManager != null) {
-				theObservabilityManager.clearHealthProblem(healthProblem.healthProblemName());
+				theObservabilityManager.clearHealthProblem(healthProblemCheckResult.healthProblemName());
 			}
 		}
 	}
@@ -171,11 +173,11 @@ public class ObservabilityProbesDetector implements ProbesProvider, Closeable {
 						futures[i] = CompletableFuture.runAsync(
 							() -> {
 								final ExternalApiProvider<?> apiProvider = externalApiServer.getExternalApiProviderByCode(apiCode);
-								final boolean ready = apiProvider.isReady();
+								final boolean ready = apiProvider != null && apiProvider.isReady();
 								synchronized (readiness) {
-									readiness.put(apiProvider.getCode(), ready);
+									readiness.put(apiCode, ready);
 								}
-								theObservabilityManager.ifPresent(it -> it.recordReadiness(apiProvider.getCode(), ready));
+								theObservabilityManager.ifPresent(it -> it.recordReadiness(apiCode, ready));
 							},
 							getInternalExecutor(availableExternalApis.size())
 						);
@@ -200,7 +202,17 @@ public class ObservabilityProbesDetector implements ProbesProvider, Closeable {
 					HEALTH_CHECK_RUNNING.compareAndSet(true, false);
 				}
 			} else {
-				currentReadiness = this.lastReadinessSeen.get().result();
+				currentReadiness = ofNullable(this.lastReadinessSeen.get())
+					.map(ReadinessWithTimestamp::result)
+					.orElse(
+						new Readiness(
+							ReadinessState.UNKNOWN,
+							ExternalApiServer.gatherExternalApiProviders()
+								.stream()
+								.map(it -> new ApiState(it.getExternalApiCode(), false))
+								.toArray(ApiState[]::new)
+						)
+					);
 			}
 		} else {
 			currentReadiness = readinessWithTimestamp.result();
@@ -338,14 +350,14 @@ public class ObservabilityProbesDetector implements ProbesProvider, Closeable {
 	@Nonnull
 	private Optional<ObservabilityManager> getObservabilityManager(@Nonnull ExternalApiServer externalApiServer) {
 		if (this.observabilityManager == null) {
-			final Optional<ObservabilityProvider> apiProvider = Optional.ofNullable(
+			final Optional<ObservabilityProvider> apiProvider = ofNullable(
 				externalApiServer.getExternalApiProviderByCode(ObservabilityProvider.CODE)
 			);
 			this.observabilityManager = apiProvider
 				.map(ObservabilityProvider::getObservabilityManager)
 				.orElse(null);
 		}
-		return Optional.ofNullable(this.observabilityManager);
+		return ofNullable(this.observabilityManager);
 	}
 
 	/**
@@ -360,11 +372,11 @@ public class ObservabilityProbesDetector implements ProbesProvider, Closeable {
 		boolean present
 	) {
 
-		public HealthProblemCheckResult(@Nullable HealthProblem healthProblem, boolean present) {
+		public HealthProblemCheckResult(@Nonnull HealthProblem healthProblem, boolean present) {
 			this(healthProblem, healthProblem.name(), present);
 		}
 
-		public HealthProblemCheckResult(@Nullable String healthProblem, boolean present) {
+		public HealthProblemCheckResult(@Nonnull String healthProblem, boolean present) {
 			this(null, healthProblem, present);
 		}
 

@@ -205,6 +205,7 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 	 * file). This method is only temporary and will be removed in the future.
 	 *
 	 * @return the last assigned price id from the global index
+	 * @deprecated connected with old storage format, will be removed in the future
 	 */
 	@Deprecated
 	@Nonnull

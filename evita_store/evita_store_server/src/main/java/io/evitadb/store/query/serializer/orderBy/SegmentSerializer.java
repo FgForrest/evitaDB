@@ -27,10 +27,15 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.api.query.Constraint;
-import io.evitadb.api.query.OrderConstraint;
+import io.evitadb.api.query.filter.EntityHaving;
+import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.order.Segment;
 import lombok.RequiredArgsConstructor;
+
+import java.util.Optional;
+import java.util.OptionalInt;
+
+import static io.evitadb.api.query.QueryConstraints.limit;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link Segment} from/to binary format.
@@ -41,30 +46,33 @@ import lombok.RequiredArgsConstructor;
 public class SegmentSerializer extends Serializer<Segment> {
 
 	@Override
-	public void write(Kryo kryo, Output output, Segment object) {
-		output.writeVarInt(object.getChildrenCount(), true);
-		for (OrderConstraint child : object.getChildren()) {
-			kryo.writeObject(output, child);
-		}
-		output.writeVarInt(object.getAdditionalChildrenCount(), true);
-		for (Constraint<?> child : object.getAdditionalChildren()) {
-			kryo.writeObject(output, child);
-		}
+	public void write(Kryo kryo, Output output, Segment segment) {
+		final OrderBy orderBy = segment.getOrderBy();
+		kryo.writeObject(output, orderBy);
+		final Optional<EntityHaving> entityHaving = segment.getEntityHaving();
+		output.writeBoolean(entityHaving.isPresent());
+		entityHaving.ifPresent(having -> kryo.writeObject(output, having));
+		final OptionalInt limit = segment.getLimit();
+		output.writeBoolean(limit.isPresent());
+		limit.ifPresent(output::writeInt);
 	}
 
 	@Override
 	public Segment read(Kryo kryo, Input input, Class<? extends Segment> type) {
-		final int childrenCount = input.readVarInt(true);
-		final Segment[] children = new Segment[childrenCount];
-		for (int i = 0; i < childrenCount; i++) {
-			children[i] = kryo.readObject(input, Segment.class);
+		final OrderBy orderBy = kryo.readObject(input, OrderBy.class);
+		final boolean hasEntityHaving = input.readBoolean();
+		final Optional<EntityHaving> entityHaving = hasEntityHaving ? Optional.of(kryo.readObject(input, EntityHaving.class)) : Optional.empty();
+		final boolean hasLimit = input.readBoolean();
+		final OptionalInt limit = hasLimit ? OptionalInt.of(input.readInt()) : OptionalInt.empty();
+		if (hasEntityHaving && hasLimit) {
+			return new Segment(entityHaving.get(), orderBy, limit(limit.getAsInt()));
+		} else if (hasEntityHaving) {
+			return new Segment(entityHaving.get(), orderBy);
+		} else if (hasLimit) {
+			return new Segment(orderBy, limit(limit.getAsInt()));
+		} else {
+			return new Segment(orderBy);
 		}
-		final int additionalChildrenCount = input.readVarInt(true);
-		final Constraint<?>[] additionalChildren = new Constraint<?>[additionalChildrenCount];
-		for (int i = 0; i < additionalChildrenCount; i++) {
-			additionalChildren[i] = kryo.readObject(input, Constraint.class);
-		}
-		return Segment._internalBuild(children, additionalChildren);
 	}
 
 }

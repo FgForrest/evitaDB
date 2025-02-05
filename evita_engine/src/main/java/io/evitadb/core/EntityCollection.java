@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -34,8 +34,6 @@ import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.exception.SchemaNotFoundException;
-import io.evitadb.api.observability.trace.TracingContext;
-import io.evitadb.api.proxy.SealedEntityProxy;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.requestResponse.EvitaEntityReferenceResponse;
@@ -43,7 +41,6 @@ import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.DeletedHierarchy;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
@@ -98,13 +95,13 @@ import io.evitadb.core.query.response.ServerBinaryEntityDecorator;
 import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.core.sequence.SequenceType;
+import io.evitadb.core.traffic.TrafficRecordingEngine;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.stage.mutation.ServerEntityRemoveMutation;
 import io.evitadb.core.transaction.stage.mutation.ServerEntityUpsertMutation;
 import io.evitadb.dataType.Scope;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
@@ -131,6 +128,7 @@ import io.evitadb.store.spi.EntityCollectionPersistenceService.BinaryEntityWithF
 import io.evitadb.store.spi.EntityCollectionPersistenceService.EntityWithFetchCount;
 import io.evitadb.store.spi.HeaderInfoSupplier;
 import io.evitadb.store.spi.StoragePartPersistenceService;
+import io.evitadb.store.spi.TrafficRecorder;
 import io.evitadb.store.spi.model.EntityCollectionHeader;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -242,9 +240,9 @@ public final class EntityCollection implements
 	 */
 	private final CacheSupervisor cacheSupervisor;
 	/**
-	 * Provides the tracing context for tracking the execution flow in the application.
-	 **/
-	private final TracingContext tracingContext;
+	 * Traffic recorder used for recording the traffic in the catalog.
+	 */
+	private final TrafficRecordingEngine trafficRecorder;
 	/**
 	 * Inner class that provides information for the {@link EntityCollectionHeader} when it's created in the persistence
 	 * layer.
@@ -276,22 +274,6 @@ public final class EntityCollection implements
 	 */
 	private TransactionalReference<EntitySchemaDecorator> schema;
 
-	/**
-	 * Retrieves the primary key of the given entity or throws an unified exception.
-	 */
-	private static int getPrimaryKey(@Nonnull Serializable entity) {
-		if (entity instanceof EntityClassifier entityClassifier) {
-			return Objects.requireNonNull(entityClassifier.getPrimaryKey());
-		} else if (entity instanceof SealedEntityProxy sealedEntityProxy) {
-			return Objects.requireNonNull(sealedEntityProxy.entity().getPrimaryKey());
-		} else {
-			throw new EvitaInvalidUsageException(
-				"Unsupported entity type `" + entity.getClass() + "`! The class doesn't implement EntityClassifier nor represents a SealedEntityProxy!",
-				"Unsupported entity type!"
-			);
-		}
-	}
-
 	public EntityCollection(
 		@Nonnull String catalogName,
 		long catalogVersion,
@@ -301,9 +283,9 @@ public final class EntityCollection implements
 		@Nonnull CatalogPersistenceService catalogPersistenceService,
 		@Nonnull CacheSupervisor cacheSupervisor,
 		@Nonnull SequenceService sequenceService,
-		@Nonnull TracingContext tracingContext
+		@Nonnull TrafficRecordingEngine trafficRecorder
 	) {
-		this.tracingContext = tracingContext;
+		this.trafficRecorder = trafficRecorder;
 		this.entityType = entityType;
 		this.entityTypePrimaryKey = entityTypePrimaryKey;
 		this.catalogPersistenceService = catalogPersistenceService;
@@ -398,9 +380,9 @@ public final class EntityCollection implements
 		@Nonnull EntityCollectionPersistenceService persistenceService,
 		@Nonnull Map<EntityIndexKey, EntityIndex> indexes,
 		@Nonnull CacheSupervisor cacheSupervisor,
-		@Nonnull TracingContext tracingContext
+		@Nonnull TrafficRecordingEngine trafficRecorder
 	) {
-		this.tracingContext = tracingContext;
+		this.trafficRecorder = trafficRecorder;
 		this.entityType = entitySchema.getName();
 		this.entityTypePrimaryKey = entityTypePrimaryKey;
 		this.initialSchema = entitySchema;
@@ -439,91 +421,31 @@ public final class EntityCollection implements
 		final QueryPlanningContext queryContext = createQueryContext(evitaRequest, session);
 		final QueryPlan queryPlan = QueryPlanner.planQuery(queryContext);
 
-		return tracingContext.executeWithinBlockIfParentContextAvailable(
-			"query - " + queryPlan.getDescription(),
-			(Supplier<T>) queryPlan::execute,
-			queryPlan::getSpanAttributes
+		// record query information
+		return this.trafficRecorder.recordQuery(
+			"query", session.getId(), queryPlan
 		);
-	}
-
-	@Override
-	@Nonnull
-	public Optional<BinaryEntity> getBinaryEntity(int primaryKey, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
-		final long catalogVersion = catalog.getVersion();
-		final Optional<BinaryEntity> entity = cacheSupervisor.analyse(
-				session,
-				primaryKey,
-				getSchema().getName(),
-				evitaRequest.getEntityRequirement(),
-				() -> {
-					final BinaryEntityWithFetchCount binaryEntityWithFetchCount = this.persistenceService.readBinaryEntity(
-						catalogVersion,
-						primaryKey,
-						evitaRequest,
-						getInternalSchema(),
-						session,
-						entityType -> entityType.equals(getEntityType()) ?
-							this : catalog.getCollectionForEntityOrThrowException(entityType),
-						this.dataStoreReader
-					);
-					return binaryEntityWithFetchCount == null ?
-						null :
-						new ServerBinaryEntityDecorator(
-							binaryEntityWithFetchCount.entity(),
-							binaryEntityWithFetchCount.ioFetchCount(),
-							binaryEntityWithFetchCount.ioFetchedBytes()
-						);
-				},
-				binaryEntity -> {
-					final BinaryEntityWithFetchCount binaryEntityWithFetchCount = this.persistenceService.enrichEntity(
-						catalogVersion,
-						getInternalSchema(),
-						binaryEntity,
-						evitaRequest,
-						this.dataStoreReader
-					);
-					return new ServerBinaryEntityDecorator(
-						binaryEntityWithFetchCount.entity(),
-						binaryEntity.getIoFetchCount() + binaryEntityWithFetchCount.ioFetchCount(),
-						binaryEntity.getIoFetchedBytes() + binaryEntityWithFetchCount.ioFetchedBytes()
-					);
-				}
-			)
-			.map(it -> it);
-		return entity.map(it -> limitEntity(it, Objects.requireNonNull(evitaRequest.getEntityRequirement())));
-	}
-
-	@Nonnull
-	@Override
-	public List<BinaryEntity> getBinaryEntities(@Nonnull int[] primaryKeys, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
-		return Arrays.stream(primaryKeys)
-			.mapToObj(it -> getBinaryEntity(it, evitaRequest, session))
-			.filter(Optional::isPresent)
-			.map(Optional::get)
-			.toList();
 	}
 
 	@Override
 	@Nonnull
 	public Optional<SealedEntity> getEntity(int primaryKey, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
 		final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
-		return getEntity(primaryKey, evitaRequest, session, referenceFetcher);
-	}
 
-	@Nonnull
-	@Override
-	public List<SealedEntity> getEntities(@Nonnull int[] primaryKeys, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
-		final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
-		return getEntities(primaryKeys, evitaRequest, session, referenceFetcher);
+		// record query information
+		return this.trafficRecorder.recordFetch(
+			session.getId(),
+			evitaRequest,
+			() -> fetchEntity(primaryKey, evitaRequest, session, referenceFetcher)
+		);
 	}
 
 	@Override
 	@Nonnull
 	public ServerEntityDecorator enrichEntity(@Nonnull EntityContract entity, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
 		final Map<String, RequirementContext> referenceEntityFetch = evitaRequest.getReferenceEntityFetch();
-		final ReferenceFetcher referenceFetcher;
 		final QueryPlanningContext queryContext = createQueryContext(evitaRequest, session);
-		referenceFetcher = referenceEntityFetch.isEmpty() &&
+		final ReferenceFetcher referenceFetcher = referenceEntityFetch.isEmpty() &&
 			!evitaRequest.isRequiresEntityReferences() &&
 			!evitaRequest.isRequiresParent() ?
 			ReferenceFetcher.NO_IMPLEMENTATION :
@@ -535,9 +457,15 @@ public final class EntityCollection implements
 				entity
 			);
 
-		return applyReferenceFetcher(
-			enrichEntityInternal(entity, evitaRequest),
-			referenceFetcher
+		// record query information
+		return this.trafficRecorder.recordEnrichment(
+			session.getId(),
+			entity,
+			evitaRequest,
+			() -> applyReferenceFetcher(
+				enrichEntityInternal(entity, evitaRequest),
+				referenceFetcher
+			)
 		);
 	}
 
@@ -559,10 +487,14 @@ public final class EntityCollection implements
 		return new InitialEntityBuilder(getSchema(), primaryKey);
 	}
 
-	@Override
+	/**
+	 * Same method as {@link #upsertEntity(EvitaSessionContract, EntityMutation)}, but in internal API that doesn't
+	 * require session in the input. This method is used from transactional replayer that doesn't have session available.
+	 */
 	@Nonnull
 	public EntityReference upsertEntity(@Nonnull EntityMutation entityMutation) throws InvalidMutationException {
 		return upsertEntityInternal(
+			null,
 			entityMutation,
 			entityMutation.getEntityPrimaryKey() == null ? this.defaultMinimalQuery : null,
 			EntityReference.class
@@ -579,11 +511,34 @@ public final class EntityCollection implements
 
 	@Override
 	@Nonnull
-	public SealedEntity upsertAndFetchEntity(@Nonnull EntityMutation entityMutation, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
+	public EntityReference upsertEntity(@Nonnull EvitaSessionContract session, @Nonnull EntityMutation entityMutation) throws InvalidMutationException {
+		return upsertEntityInternal(
+			session,
+			entityMutation,
+			entityMutation.getEntityPrimaryKey() == null ? this.defaultMinimalQuery : null,
+			EntityReference.class
+		).orElseThrow(
+			() -> new EntityMissingException(
+				getEntityType(),
+				entityMutation.getEntityPrimaryKey() == null ?
+					ArrayUtils.EMPTY_INT_ARRAY :
+					new int[]{entityMutation.getEntityPrimaryKey()},
+				null
+			)
+		);
+	}
+
+	@Override
+	@Nonnull
+	public SealedEntity upsertAndFetchEntity(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull EntityMutation entityMutation,
+		@Nonnull EvitaRequest evitaRequest
+	) {
 		final ServerEntityDecorator internalEntity =
 			wrapToDecorator(
 				evitaRequest,
-				upsertEntityInternal(entityMutation, evitaRequest, EntityWithFetchCount.class)
+				upsertEntityInternal(session, entityMutation, evitaRequest, EntityWithFetchCount.class)
 					.orElseThrow(
 						() -> new EntityMissingException(
 							getEntityType(),
@@ -603,10 +558,10 @@ public final class EntityCollection implements
 	}
 
 	@Override
-	public boolean deleteEntity(int primaryKey) {
+	public boolean deleteEntity(@Nonnull EvitaSessionContract session, int primaryKey) {
 		if (this.getGlobalIndexIfExists().map(it -> it.contains(primaryKey)).orElse(false) ||
 				this.getGlobalArchiveIndexIfExists().map(it -> it.contains(primaryKey)).orElse(false)) {
-			deleteEntityInternal(primaryKey, null, Void.class);
+			deleteEntityInternal(primaryKey, session,null, Void.class);
 			return true;
 		} else {
 			return false;
@@ -615,20 +570,26 @@ public final class EntityCollection implements
 
 	@Override
 	@Nonnull
-	public <T extends Serializable> Optional<T> deleteEntity(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
+	public <T extends Serializable> Optional<T> deleteEntity(@Nonnull EvitaSessionContract session, @Nonnull EvitaRequest evitaRequest) {
 		final int[] primaryKeys = evitaRequest.getPrimaryKeys();
 		Assert.isTrue(primaryKeys.length == 1, "Expected exactly one primary key to delete!");
 		if (getGlobalIndexIfExists().map(it -> it.contains(primaryKeys[0])).orElse(false)) {
-			final EntityWithFetchCount removedEntity = deleteEntityInternal(primaryKeys[0], evitaRequest, EntityWithFetchCount.class)
+			final EntityWithFetchCount removedEntity = deleteEntityInternal(primaryKeys[0], session, evitaRequest, EntityWithFetchCount.class)
 				.orElseThrow(
 					() -> new EntityMissingException(getEntityType(), primaryKeys, null)
 				);
 			final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
+			final ServerEntityDecorator entity = wrapToDecorator(evitaRequest, removedEntity, false);
 			//noinspection unchecked
-			return of(
-				(T) applyReferenceFetcher(
-					wrapToDecorator(evitaRequest, removedEntity, false),
-					referenceFetcher
+			return this.trafficRecorder.recordEnrichment(
+				session.getId(),
+				entity,
+				evitaRequest,
+				() -> of(
+					(T) applyReferenceFetcher(
+						entity,
+						referenceFetcher
+					)
 				)
 			);
 		} else {
@@ -661,16 +622,16 @@ public final class EntityCollection implements
 			Assert.isTrue(primaryKeys.length == 1, "Expected exactly one primary key to delete!");
 			final int[] entityHierarchy = globalIndex.listHierarchyNodesFromParentIncludingItself(primaryKeys[0]).getArray();
 			if (entityHierarchy.length == 0) {
-				return new DeletedHierarchy<>(0, null);
+				return new DeletedHierarchy<>(0, entityHierarchy, null);
 			} else {
 				ServerEntityDecorator removedRoot = null;
 				for (int entityToRemove : entityHierarchy) {
 					if (removedRoot == null) {
-						final EntityWithFetchCount removedEntity = deleteEntityInternal(entityToRemove, evitaRequest, EntityWithFetchCount.class)
+						final EntityWithFetchCount removedEntity = deleteEntityInternal(entityToRemove, session, evitaRequest, EntityWithFetchCount.class)
 							.orElseThrow(() -> new EntityMissingException(getEntityType(), primaryKeys, null));
 						removedRoot = wrapToDecorator(evitaRequest, removedEntity, false);
 					} else {
-						deleteEntityInternal(entityToRemove, evitaRequest, Void.class);
+						deleteEntityInternal(entityToRemove, session, evitaRequest, Void.class);
 					}
 				}
 
@@ -679,75 +640,48 @@ public final class EntityCollection implements
 				//noinspection unchecked
 				return new DeletedHierarchy<>(
 					entityHierarchy.length,
+					entityHierarchy,
 					ofNullable(removedRoot)
-						.map(it -> (T) applyReferenceFetcherInternal(
-								referenceFetcher.initReferenceIndex(it, this),
-								referenceFetcher
+						.map(entity -> this.trafficRecorder.recordEnrichment(
+								session.getId(),
+								entity,
+								evitaRequest,
+								() -> (T) applyReferenceFetcherInternal(
+									referenceFetcher.initReferenceIndex(entity, this),
+									referenceFetcher
+								)
 							)
 						)
 						.orElse(null)
 				);
 			}
 		}
-		return new DeletedHierarchy<>(0, null);
+		return new DeletedHierarchy<>(0, new int[0], null);
 	}
 
 	@Override
-	public int deleteEntities(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
+	public int deleteEntities(@Nonnull EvitaSessionContract session, @Nonnull EvitaRequest evitaRequest) {
 		final QueryPlanningContext queryContext = createQueryContext(evitaRequest, session);
 		final QueryPlan queryPlan = QueryPlanner.planQuery(queryContext);
 
-		final EvitaEntityReferenceResponse result = tracingContext.executeWithinBlockIfParentContextAvailable(
-			"delete - " + queryPlan.getDescription(),
-			(Supplier<EvitaEntityReferenceResponse>) queryPlan::execute,
-			queryPlan::getSpanAttributes
+		final EvitaEntityReferenceResponse result = this.trafficRecorder.recordQuery(
+			"delete",
+			session.getId(),
+			queryPlan
 		);
 
 		return result
 			.getRecordData()
 			.stream()
 			.mapToInt(EntityReference::getPrimaryKey)
-			.map(it -> this.deleteEntity(it) ? 1 : 0)
+			.map(it -> this.deleteEntity(session, it) ? 1 : 0)
 			.sum();
 	}
 
 	@Override
-	@Nonnull
-	public SealedEntity[] deleteEntitiesAndReturnThem(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
-		final QueryPlanningContext queryContext = createQueryContext(evitaRequest, session);
-		final QueryPlan queryPlan = QueryPlanner.planQuery(queryContext);
-
-		final EvitaResponse<? extends Serializable> result = tracingContext.executeWithinBlockIfParentContextAvailable(
-			"delete - " + queryPlan.getDescription(),
-			() -> queryPlan.execute(),
-			queryPlan::getSpanAttributes
-		);
-
-		final int[] entitiesToRemove = result.getRecordData()
-			.stream()
-			.mapToInt(EntityCollection::getPrimaryKey)
-			.toArray();
-
-		final List<SealedEntity> removedEntities = new ArrayList<>(entitiesToRemove.length);
-		for (int entityToRemove : entitiesToRemove) {
-			removedEntities.add(
-				wrapToDecorator(
-					evitaRequest,
-					deleteEntityInternal(entityToRemove, evitaRequest, EntityWithFetchCount.class)
-						.orElseThrow(() -> new GenericEvitaInternalError("Some entities were not found!")),
-					false
-				)
-			);
-		}
-
-		final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
-		return applyReferenceFetcher(removedEntities, referenceFetcher).toArray(SealedEntity[]::new);
-	}
-
-	@Override
-	public boolean archiveEntity(int primaryKey) {
+	public boolean archiveEntity(@Nonnull EvitaSessionContract session, int primaryKey) {
 		if (this.getGlobalIndexIfExists().map(it -> it.contains(primaryKey)).orElse(false)) {
-			changeEntityScopeInternal(primaryKey, Scope.ARCHIVED, null, Void.class);
+			changeEntityScopeInternal(primaryKey, Scope.ARCHIVED, session,null, Void.class);
 			return true;
 		} else {
 			return false;
@@ -756,19 +690,20 @@ public final class EntityCollection implements
 
 	@Nonnull
 	@Override
-	public <T extends Serializable> Optional<T> archiveEntity(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
+	public <T extends Serializable> Optional<T> archiveEntity(@Nonnull EvitaSessionContract session, @Nonnull EvitaRequest evitaRequest) {
 		final int[] primaryKeys = evitaRequest.getPrimaryKeys();
 		Assert.isTrue(primaryKeys.length == 1, "Expected exactly one primary key to delete!");
 		if (getGlobalIndexIfExists().map(it -> it.contains(primaryKeys[0])).orElse(false)) {
-			final EntityWithFetchCount archivedEntity = changeEntityScopeInternal(primaryKeys[0], Scope.ARCHIVED, evitaRequest, EntityWithFetchCount.class)
+			final EntityWithFetchCount archivedEntity = changeEntityScopeInternal(primaryKeys[0], Scope.ARCHIVED, session, evitaRequest, EntityWithFetchCount.class)
 				.orElseThrow(() -> new EntityMissingException(getEntityType(), primaryKeys, null));
 			final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
+			final ServerEntityDecorator entity = wrapToDecorator(evitaRequest, archivedEntity, false);
 			//noinspection unchecked
-			return of(
-				(T) applyReferenceFetcher(
-					wrapToDecorator(evitaRequest, archivedEntity, false),
-					referenceFetcher
-				)
+			return this.trafficRecorder.recordEnrichment(
+				session.getId(),
+				entity,
+				evitaRequest,
+				() -> of((T) applyReferenceFetcher(entity, referenceFetcher))
 			);
 		} else {
 			return empty();
@@ -776,9 +711,9 @@ public final class EntityCollection implements
 	}
 
 	@Override
-	public boolean restoreEntity(int primaryKey) {
+	public boolean restoreEntity(@Nonnull EvitaSessionContract session, int primaryKey) {
 		if (this.getGlobalArchiveIndexIfExists().map(it -> it.contains(primaryKey)).orElse(false)) {
-			changeEntityScopeInternal(primaryKey, Scope.LIVE, null, Void.class);
+			changeEntityScopeInternal(primaryKey, Scope.LIVE, session, null, Void.class);
 			return true;
 		} else {
 			return false;
@@ -787,20 +722,20 @@ public final class EntityCollection implements
 
 	@Nonnull
 	@Override
-	public <T extends Serializable> Optional<T> restoreEntity(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
+	public <T extends Serializable> Optional<T> restoreEntity(@Nonnull EvitaSessionContract session, @Nonnull EvitaRequest evitaRequest) {
 		final int[] primaryKeys = evitaRequest.getPrimaryKeys();
 		Assert.isTrue(primaryKeys.length == 1, "Expected exactly one primary key to delete!");
 		if (getGlobalArchiveIndexIfExists().map(it -> it.contains(primaryKeys[0])).orElse(false)) {
-			final EntityWithFetchCount restoredEntity = changeEntityScopeInternal(primaryKeys[0], Scope.LIVE, evitaRequest, EntityWithFetchCount.class)
+			final EntityWithFetchCount restoredEntity = changeEntityScopeInternal(primaryKeys[0], Scope.LIVE, session, evitaRequest, EntityWithFetchCount.class)
 				.orElseThrow(() -> new EntityMissingException(getEntityType(), primaryKeys, null));
 			final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
+			final ServerEntityDecorator entity = wrapToDecorator(evitaRequest, restoredEntity, false);
 			//noinspection unchecked
-			return ofNullable(restoredEntity)
-				.map(
-					it -> (T) applyReferenceFetcher(
-					wrapToDecorator(evitaRequest, it, false),
-					referenceFetcher
-				)
+			return this.trafficRecorder.recordEnrichment(
+				session.getId(),
+				entity,
+				evitaRequest,
+				() -> of((T) applyReferenceFetcher(entity, referenceFetcher))
 			);
 		} else {
 			return empty();
@@ -823,36 +758,17 @@ public final class EntityCollection implements
 		return schema.get();
 	}
 
-	@Override
+	/**
+	 * Same method as {@link #applyMutation(EvitaSessionContract, EntityMutation)}, but in internal API that doesn't
+	 * require session in the input. This method is used from transactional replayer that doesn't have session available.
+	 */
 	public void applyMutation(@Nonnull EntityMutation entityMutation) throws InvalidMutationException {
-		if (entityMutation instanceof EntityUpsertMutation upsertMutation) {
-			upsertEntityInternal(upsertMutation, null, Void.class);
-		} else if (entityMutation instanceof ServerEntityRemoveMutation removeMutation) {
-			applyMutations(
-				entityMutation,
-				removeMutation.shouldApplyUndoOnError(),
-				removeMutation.shouldVerifyConsistency(),
-				null,
-				removeMutation.getImplicitMutationsBehavior(),
-				new LocalMutationExecutorCollector(this.catalog, this.persistenceService, this.dataStoreReader),
-				Void.class
-			);
-		} else if (entityMutation instanceof EntityRemoveMutation) {
-			applyMutations(
-				entityMutation,
-				true,
-				true,
-				null,
-				EnumSet.noneOf(ImplicitMutationBehavior.class),
-				new LocalMutationExecutorCollector(this.catalog, this.persistenceService, this.dataStoreReader),
-				Void.class
-			);
-		} else {
-			throw new InvalidMutationException(
-				"Unexpected mutation type: " + entityMutation.getClass().getName(),
-				"Unexpected mutation type."
-			);
-		}
+		applyMutationInternal(null, entityMutation);
+	}
+
+	@Override
+	public void applyMutation(@Nonnull EvitaSessionContract session, @Nonnull EntityMutation entityMutation) throws InvalidMutationException {
+		applyMutationInternal(session, entityMutation);
 	}
 
 	@Nonnull
@@ -1017,28 +933,116 @@ public final class EntityCollection implements
 	}
 
 	/**
-	 * Retrieves a single `SealedEntity` objects based on the given primary key, request parameters,
-	 * session context, and reference fetcher. This method ensures that each entity is retrieved
-	 * in its current version and applies any necessary limitations and reference fetching specified
-	 * by the request.
+	 * Fetches a list of SealedEntity objects based on the provided primary keys, the EvitaRequest, and session
+	 * information. Method is part of the internal API and is used to fetch entities from the underlying storage as
+	 * a part of the larger query - thus it doesn't record data into {@link TrafficRecorder}.
 	 *
-	 * @param primaryKey the unique identifier for the entity.
-	 * @param evitaRequest the request object containing parameters for the Evita system.
-	 * @param session the session context for executing the request.
-	 * @param referenceFetcher the object responsible for fetching additional references related to the entity.
-	 * @return an Optional containing the SealedEntity if found; otherwise, an empty Optional.
+	 * @param primaryKeys an array of integer values representing the primary keys of the entities to be fetched
+	 * @param evitaRequest an instance of EvitaRequest that contains the request parameters
+	 * @param session an instance of EvitaSessionContract that represents the current session context
+	 *
+	 * @return a list of SealedEntity objects matching the provided primary keys and request parameters
 	 */
 	@Nonnull
-	public Optional<SealedEntity> getEntity(
-		int primaryKey,
-		@Nonnull EvitaRequest evitaRequest,
-		@Nonnull EvitaSessionContract session,
-		@Nonnull ReferenceFetcher referenceFetcher
-	) {
-		// retrieve current version of entity
-		return getEntityDecorator(primaryKey, evitaRequest, session)
-			.map(it -> limitEntity(it, evitaRequest, session))
-			.map(it -> applyReferenceFetcher(it, referenceFetcher));
+	public List<SealedEntity> fetchEntities(@Nonnull int[] primaryKeys, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
+		final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
+		return fetchEntities(primaryKeys, evitaRequest, session, referenceFetcher);
+	}
+
+	/**
+	 * Fetches an entity based on the provided primary key and session details. Method is part of the internal API and
+	 * is used to fetch entities from the underlying storage as a part of the larger query - thus it doesn't record data
+	 * into {@link TrafficRecorder}.
+	 *
+	 * @param primaryKey the unique identifier for the desired entity
+	 * @param evitaRequest the request object containing parameters and configurations for fetching the entity
+	 * @param session the session contract that manages interaction contexts for fetching entities
+	 * @return an {@link Optional} containing the sealed entity if found, otherwise an empty Optional
+	 */
+	@Nonnull
+	public Optional<SealedEntity> fetchEntity(int primaryKey, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
+		final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
+		return fetchEntity(primaryKey, evitaRequest, session, referenceFetcher);
+	}
+
+	/**
+	 * Fetches a list of BinaryEntity objects based on the provided primary keys, EvitaRequest, and session.
+	 * For each primary key, the method attempts to fetch the corresponding {@link BinaryEntity}.
+	 * Only the entities that are successfully fetched and present are returned in the list. Method is part of the
+	 * internal API and is used to fetch entities from the underlying storage as a part of the larger query - thus it
+	 * doesn't record data into {@link TrafficRecorder}.
+	 *
+	 * @param primaryKeys an array of primary keys used to identify the BinaryEntity objects
+	 * @param evitaRequest the request context in which the fetching process is executed
+	 * @param session the session contract containing session-related information and configurations
+	 * @return a list of successfully retrieved BinaryEntity objects
+	 */
+	@Nonnull
+	public List<BinaryEntity> fetchBinaryEntities(@Nonnull int[] primaryKeys, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
+		return Arrays.stream(primaryKeys)
+			.mapToObj(it -> fetchBinaryEntity(it, evitaRequest, session))
+			.filter(Optional::isPresent)
+			.map(Optional::get)
+			.toList();
+	}
+
+	/**
+	 * Retrieves a binary entity based on the provided primary key, evita request, and session contract.
+	 * Uses caching mechanism to analyze and potentially enrich the entity's data based on
+	 * entity requirements specified in the request. Method is part of the internal API and is used to fetch entities
+	 * from the underlying storage as a part of the larger query - thus it doesn't record data into {@link TrafficRecorder}.
+	 *
+	 * @param primaryKey the unique identifier of the binary entity to be fetched
+	 * @param evitaRequest the request containing specifications and requirements for entity retrieval
+	 * @param session the session contract representing the current session for database operations
+	 *
+	 * @return an Optional containing the fetched BinaryEntity if found, otherwise an empty Optional
+	 */
+	@Nonnull
+	public Optional<BinaryEntity> fetchBinaryEntity(int primaryKey, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
+		final long catalogVersion = catalog.getVersion();
+		final Optional<BinaryEntity> entity = cacheSupervisor.analyse(
+				session,
+				primaryKey,
+				getSchema().getName(),
+				evitaRequest.getEntityRequirement(),
+				() -> {
+					final BinaryEntityWithFetchCount binaryEntityWithFetchCount = this.persistenceService.readBinaryEntity(
+						catalogVersion,
+						primaryKey,
+						evitaRequest,
+						getInternalSchema(),
+						session,
+						entityType -> entityType.equals(getEntityType()) ?
+							this : this.catalog.getCollectionForEntityOrThrowException(entityType),
+						this.dataStoreReader
+					);
+
+					return binaryEntityWithFetchCount == null ?
+						null :
+						new ServerBinaryEntityDecorator(
+							binaryEntityWithFetchCount.entity(),
+							binaryEntityWithFetchCount.ioFetchCount(),
+							binaryEntityWithFetchCount.ioFetchedBytes()
+						);
+				},
+				binaryEntity -> {
+					final BinaryEntityWithFetchCount binaryEntityWithFetchCount = this.persistenceService.enrichEntity(
+						catalogVersion,
+						getInternalSchema(),
+						binaryEntity,
+						evitaRequest,
+						this.dataStoreReader
+					);
+					return new ServerBinaryEntityDecorator(
+						binaryEntityWithFetchCount.entity(),
+						binaryEntity.getIoFetchCount() + binaryEntityWithFetchCount.ioFetchCount(),
+						binaryEntity.getIoFetchedBytes() + binaryEntityWithFetchCount.ioFetchedBytes()
+					);
+				}
+			)
+			.map(it -> it);
+		return entity.map(it -> limitEntity(it, Objects.requireNonNull(evitaRequest.getEntityRequirement())));
 	}
 
 	/**
@@ -1054,7 +1058,7 @@ public final class EntityCollection implements
 	 * @return A list of `SealedEntity` objects that have been retrieved according to the specified parameters.
 	 */
 	@Nonnull
-	public List<SealedEntity> getEntities(
+	public List<SealedEntity> fetchEntities(
 		@Nonnull int[] primaryKeys,
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull EvitaSessionContract session,
@@ -1062,10 +1066,11 @@ public final class EntityCollection implements
 	) {
 		// retrieve current version of entity
 		final List<ServerEntityDecorator> entityDecorators = Arrays.stream(primaryKeys)
-			.mapToObj(it -> getEntityDecorator(it, evitaRequest, session))
+			.mapToObj(it -> fetchEntityDecorator(it, evitaRequest, session))
 			.filter(Optional::isPresent)
 			.map(Optional::get)
 			.toList();
+
 		return applyReferenceFetcher(
 			entityDecorators.stream().map(it -> limitEntity(it, evitaRequest, session)).toList(),
 			referenceFetcher
@@ -1084,7 +1089,7 @@ public final class EntityCollection implements
 	 * the criteria, otherwise an empty {@link Optional}
 	 */
 	@Nonnull
-	public Optional<ServerEntityDecorator> getEntityDecorator(
+	public Optional<ServerEntityDecorator> fetchEntityDecorator(
 		int primaryKey,
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull EvitaSessionContract session
@@ -1237,36 +1242,6 @@ public final class EntityCollection implements
 	}
 
 	/**
-	 * Flush operation persists immediately all information kept in non-transactional buffers to the disk.
-	 * {@link CatalogPersistenceService} is fully synced with the disk file and will not contain any non-persisted data. Flush operation
-	 * is ignored when there are no changes present in {@link CatalogPersistenceService}.
-	 */
-	@Nonnull
-	public EntityCollectionHeaderWithCollection flush() {
-		this.persistenceService.flushTrappedUpdates(0L, this.dataStoreBuffer.getTrappedChanges());
-		return this.catalogPersistenceService.flush(
-				0L,
-				this.headerInfoSupplier,
-				this.persistenceService.getEntityCollectionHeader(),
-				this.dataStoreBuffer
-			)
-			.map(
-				it -> {
-					final EntityCollectionHeader theHeader = it.getEntityCollectionHeader();
-					return this.persistenceService == it ?
-						new EntityCollectionHeaderWithCollection(theHeader, this) :
-						new EntityCollectionHeaderWithCollection(
-							theHeader,
-							this.createCopyWithNewPersistenceService(theHeader.version(), CatalogState.WARMING_UP, it)
-						);
-				}
-			)
-			.orElseGet(
-				() -> new EntityCollectionHeaderWithCollection(this.getEntityCollectionHeader(), this)
-			);
-	}
-
-	/**
 	 * Returns entity index by its key. If such index doesn't exist, NULL is returned.
 	 */
 	@Nullable
@@ -1351,6 +1326,75 @@ public final class EntityCollection implements
 		);
 	}
 
+	/**
+	 * Applies limit & enrich logic on provided collection of entities fetched in unknown richness so that they conform
+	 * to passed fetch request. For deep fetching of references, the reference fetcher is used.
+	 *
+	 * @param entities The collection of sealed entities to be processed.
+	 * @param fetchRequest The request containing the parameters for fetching and limiting the entities.
+	 * @param referenceFetcher The reference fetcher used to apply additional processing to the entities.
+	 * @return A list of sealed entities that have been limited and processed according to the given fetch request and reference fetcher.
+	 */
+	@Nonnull
+	public List<SealedEntity> limitAndFetchExistingEntities(
+		@Nonnull Collection<? extends SealedEntity> entities,
+		@Nonnull EvitaRequest fetchRequest,
+		@Nonnull ReferenceFetcher referenceFetcher
+	) {
+		return applyReferenceFetcher(
+			entities
+				.stream()
+				.map(it -> enrichEntityInternal(it, fetchRequest))
+				.map(it -> limitEntityInternal(it, fetchRequest))
+				.map(SealedEntity.class::cast)
+				.toList(),
+			referenceFetcher
+		);
+	}
+
+	/**
+	 * Flush operation persists immediately all information kept in non-transactional buffers to the disk.
+	 * {@link CatalogPersistenceService} is fully synced with the disk file and will not contain any non-persisted data. Flush operation
+	 * is ignored when there are no changes present in {@link CatalogPersistenceService}.
+	 */
+	@Nonnull
+	public EntityCollectionHeaderWithCollection flush() {
+		this.persistenceService.flushTrappedUpdates(0L, this.dataStoreBuffer.getTrappedChanges());
+		return this.catalogPersistenceService.flush(
+				0L,
+				this.headerInfoSupplier,
+				this.persistenceService.getEntityCollectionHeader(),
+				this.dataStoreBuffer
+			)
+			.map(
+				it -> {
+					final EntityCollectionHeader theHeader = it.getEntityCollectionHeader();
+					return this.persistenceService == it ?
+						new EntityCollectionHeaderWithCollection(theHeader, this) :
+						new EntityCollectionHeaderWithCollection(
+							theHeader,
+							this.createCopyWithNewPersistenceService(theHeader.version(), CatalogState.WARMING_UP, it)
+						);
+				}
+			)
+			.orElseGet(
+				() -> new EntityCollectionHeaderWithCollection(this.getEntityCollectionHeader(), this)
+			);
+	}
+
+	@Override
+	public void attachToCatalog(@Nullable String entityType, @Nonnull Catalog catalog) {
+		this.catalog = catalog;
+		this.schema = new TransactionalReference<>(
+			new EntitySchemaDecorator(catalog::getSchema, this.initialSchema)
+		);
+		for (EntityIndex entityIndex : this.indexes.values()) {
+			if (entityIndex instanceof CatalogRelatedDataStructure<?> catalogRelatedEntityIndex) {
+				catalogRelatedEntityIndex.attachToCatalog(this.entityType, this.catalog);
+			}
+		}
+	}
+
 	@Override
 	public DataStoreChanges createLayer() {
 		return new DataStoreChanges(
@@ -1390,7 +1434,7 @@ public final class EntityCollection implements
 				),
 				transactionalLayer.getStateCopyWithCommittedChanges(this.indexes),
 				this.cacheSupervisor,
-				this.tracingContext
+				this.trafficRecorder
 			);
 		} else {
 			final ReferenceChanges<EntitySchemaDecorator> schemaChanges = transactionalLayer.getTransactionalMemoryLayerIfExists(this.schema);
@@ -1408,32 +1452,6 @@ public final class EntityCollection implements
 			// no changes were present - we return shallow copy
 			return createCopyForNewCatalogAttachment(CatalogState.ALIVE);
 		}
-	}
-
-	/**
-	 * Applies limit & enrich logic on provided collection of entities fetched in unknown richness so that they conform
-	 * to passed fetch request. For deep fetching of references, the reference fetcher is used.
-	 *
-	 * @param entities The collection of sealed entities to be processed.
-	 * @param fetchRequest The request containing the parameters for fetching and limiting the entities.
-	 * @param referenceFetcher The reference fetcher used to apply additional processing to the entities.
-	 * @return A list of sealed entities that have been limited and processed according to the given fetch request and reference fetcher.
-	 */
-	@Nonnull
-	public List<SealedEntity> limitAndFetchExistingEntities(
-		@Nonnull Collection<? extends SealedEntity> entities,
-		@Nonnull EvitaRequest fetchRequest,
-		@Nonnull ReferenceFetcher referenceFetcher
-	) {
-		return applyReferenceFetcher(
-			entities
-				.stream()
-				.map(it -> enrichEntityInternal(it, fetchRequest))
-				.map(it -> limitEntityInternal(it, fetchRequest))
-				.map(SealedEntity.class::cast)
-				.toList(),
-			referenceFetcher
-		);
 	}
 
 	/**
@@ -1460,29 +1478,12 @@ public final class EntityCollection implements
 			newPersistenceService,
 			this.indexes,
 			this.cacheSupervisor,
-			this.tracingContext
+			this.trafficRecorder
 		);
 		// the catalog remains the same here
 		entityCollection.catalog = this.catalog;
 		entityCollection.schema = this.schema;
 		return entityCollection;
-	}
-
-	/*
-		TransactionalLayerProducer implementation
-	 */
-
-	@Override
-	public void attachToCatalog(@Nullable String entityType, @Nonnull Catalog catalog) {
-		this.catalog = catalog;
-		this.schema = new TransactionalReference<>(
-			new EntitySchemaDecorator(catalog::getSchema, this.initialSchema)
-		);
-		for (EntityIndex entityIndex : this.indexes.values()) {
-			if (entityIndex instanceof CatalogRelatedDataStructure<?> catalogRelatedEntityIndex) {
-				catalogRelatedEntityIndex.attachToCatalog(this.entityType, this.catalog);
-			}
-		}
 	}
 
 	/**
@@ -1515,7 +1516,7 @@ public final class EntityCollection implements
 					)
 				),
 			this.cacheSupervisor,
-			this.tracingContext
+			this.trafficRecorder
 		);
 	}
 
@@ -1551,15 +1552,83 @@ public final class EntityCollection implements
 	 */
 
 	/**
+	 * Retrieves a single `SealedEntity` objects based on the given primary key, request parameters,
+	 * session context, and reference fetcher. This method ensures that each entity is retrieved
+	 * in its current version and applies any necessary limitations and reference fetching specified
+	 * by the request.
+	 *
+	 * @param primaryKey the unique identifier for the entity.
+	 * @param evitaRequest the request object containing parameters for the Evita system.
+	 * @param session the session context for executing the request.
+	 * @param referenceFetcher the object responsible for fetching additional references related to the entity.
+	 * @return an Optional containing the SealedEntity if found; otherwise, an empty Optional.
+	 */
+	@Nonnull
+	private Optional<SealedEntity> fetchEntity(
+		int primaryKey,
+		@Nonnull EvitaRequest evitaRequest,
+		@Nonnull EvitaSessionContract session,
+		@Nonnull ReferenceFetcher referenceFetcher
+	) {
+		// retrieve current version of entity
+		return fetchEntityDecorator(primaryKey, evitaRequest, session)
+			.map(it -> limitEntity(it, evitaRequest, session))
+			.map(it -> applyReferenceFetcher(it, referenceFetcher));
+	}
+
+	/**
+	 * Applies an entity mutation internally by assessing the type of mutation
+	 * and performing the appropriate operation.
+	 *
+	 * @param session the Evita session that may be involved in the transaction; can be null.
+	 * @param entityMutation the mutation operation to be applied to an entity; must not be null.
+	 * @throws InvalidMutationException if an unsupported mutation type is encountered.
+	 */
+	private void applyMutationInternal(@Nullable EvitaSessionContract session, @Nonnull EntityMutation entityMutation) {
+		if (entityMutation instanceof EntityUpsertMutation upsertMutation) {
+			upsertEntityInternal(session, upsertMutation, null, Void.class);
+		} else if (entityMutation instanceof ServerEntityRemoveMutation removeMutation) {
+			applyMutations(
+				session,
+				entityMutation,
+				removeMutation.shouldApplyUndoOnError(),
+				removeMutation.shouldVerifyConsistency(),
+				null,
+				removeMutation.getImplicitMutationsBehavior(),
+				new LocalMutationExecutorCollector(this.catalog, this.persistenceService, this.dataStoreReader),
+				Void.class
+			);
+		} else if (entityMutation instanceof EntityRemoveMutation) {
+			applyMutations(
+				session,
+				entityMutation,
+				true,
+				true,
+				null,
+				EnumSet.noneOf(ImplicitMutationBehavior.class),
+				new LocalMutationExecutorCollector(this.catalog, this.persistenceService, this.dataStoreReader),
+				Void.class
+			);
+		} else {
+			throw new InvalidMutationException(
+				"Unexpected mutation type: " + entityMutation.getClass().getName(),
+				"Unexpected mutation type."
+			);
+		}
+	}
+
+	/**
 	 * Deletes passed entity both from indexes and the storage.
 	 */
 	@Nonnull
 	private <T> Optional<T> deleteEntityInternal(
 		int primaryKey,
+		@Nonnull EvitaSessionContract session,
 		@Nullable EvitaRequest returnDeletedEntity,
 		@Nonnull Class<T> returnType
 	) {
 		return applyMutations(
+			session,
 			new EntityRemoveMutation(getEntityType(), primaryKey),
 			true,
 			true,
@@ -1584,10 +1653,12 @@ public final class EntityCollection implements
 	private <T> Optional<T> changeEntityScopeInternal(
 		int primaryKey,
 		@Nonnull Scope scope,
+		@Nonnull EvitaSessionContract session,
 		@Nullable EvitaRequest returnEntity,
 		@Nonnull Class<T> returnType
 	) {
 		return applyMutations(
+			session,
 			new EntityUpsertMutation(
 				getEntityType(),
 				primaryKey,
@@ -1977,6 +2048,7 @@ public final class EntityCollection implements
 	 */
 	@Nonnull
 	private <T> Optional<T> upsertEntityInternal(
+		@Nullable EvitaSessionContract session,
 		@Nonnull EntityMutation entityMutation,
 		@Nullable EvitaRequest returnUpdatedEntity,
 		@Nonnull Class<T> returnType
@@ -1986,13 +2058,16 @@ public final class EntityCollection implements
 		// - we don't trust clients - in future it may be some external JS application
 		// - schema may have changed between entity was provided to the client and the moment upsert was called
 		final SealedCatalogSchema catalogSchema = this.catalog.getSchema();
-		entityMutation.verifyOrEvolveSchema(catalogSchema, getSchema(), emptyOnStart && isEmpty())
+		entityMutation.verifyOrEvolveSchema(catalogSchema, getSchema(), this.emptyOnStart && isEmpty())
 			.ifPresent(
 				it -> {
 					// we need to call apply mutation on the catalog level in order to insert the mutations to the WAL
-					this.catalog.applyMutation(
-						new ModifyEntitySchemaMutation(getEntityType(), it)
-					);
+					final ModifyEntitySchemaMutation modifyEntitySchemaMutation = new ModifyEntitySchemaMutation(getEntityType(), it);
+					if (session == null) {
+						this.catalog.applyMutation(modifyEntitySchemaMutation);
+					} else {
+						this.catalog.applyMutation(session, modifyEntitySchemaMutation);
+					}
 				}
 			);
 
@@ -2003,6 +2078,7 @@ public final class EntityCollection implements
 		if (entityMutation instanceof ServerEntityUpsertMutation veum) {
 			entityMutationToUpsert = entityMutation;
 			return applyMutations(
+				session,
 				entityMutationToUpsert,
 				veum.shouldApplyUndoOnError(),
 				veum.shouldVerifyConsistency(),
@@ -2014,6 +2090,7 @@ public final class EntityCollection implements
 		} else {
 			entityMutationToUpsert = verifyPrimaryKeyAssignment(entityMutation, currentSchema);
 			return applyMutations(
+				session,
 				entityMutationToUpsert,
 				true,
 				true,
@@ -2086,6 +2163,7 @@ public final class EntityCollection implements
 	 */
 	@Nonnull
 	<T> Optional<T> applyMutations(
+		@Nullable EvitaSessionContract session,
 		@Nonnull EntityMutation entityMutation,
 		boolean undoOnError,
 		boolean checkConsistency,
@@ -2120,6 +2198,7 @@ public final class EntityCollection implements
 		);
 
 		return localMutationExecutorCollector.execute(
+			session,
 			getInternalSchema(),
 			entityMutation,
 			checkConsistency,
@@ -2147,7 +2226,7 @@ public final class EntityCollection implements
 	 */
 	@Nonnull
 	private BinaryEntity limitEntity(@Nonnull BinaryEntity entity, @Nonnull EntityFetch fetchRequirements) {
-		/* TOBEDONE https://gitlab.fg.cz/hv/evita/-/issues/137 */
+		/* TOBEDONE https://github.com/FgForrest/evitaDB/issues/13 */
 		return entity;
 	}
 

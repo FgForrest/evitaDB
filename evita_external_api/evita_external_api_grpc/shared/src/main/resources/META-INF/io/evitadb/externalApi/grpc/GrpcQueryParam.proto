@@ -1,0 +1,107 @@
+syntax = "proto3";
+
+package io.evitadb.externalApi.grpc.generated;
+option java_multiple_files = true;
+option csharp_namespace = "EvitaDB";
+
+import "GrpcEvitaDataTypes.proto";
+import "GrpcEnums.proto";
+
+// Structure that supports storing all possible parameters that could be used within query.
+message GrpcQueryParam {
+  // The value of the parameter.
+  oneof queryParam {
+    // The string value.
+    string stringValue = 1;
+    // The integer value.
+    int32 integerValue = 2;
+    // The long value.
+    int64 longValue = 3;
+    // The boolean value.
+    bool booleanValue = 4;
+    // The big decimal value.
+    GrpcBigDecimal bigDecimalValue = 5;
+    // The date time range value.
+    GrpcDateTimeRange dateTimeRangeValue = 6;
+    // The integer number range value.
+    GrpcIntegerNumberRange integerNumberRangeValue = 7;
+    // The long number range value.
+    GrpcLongNumberRange longNumberRangeValue = 8;
+    // The big decimal number range value.
+    GrpcBigDecimalNumberRange bigDecimalNumberRangeValue = 9;
+    // The offset date time value.
+    GrpcOffsetDateTime offsetDateTimeValue = 10;
+    // The locale value.
+    GrpcLocale localeValue = 11;
+    // The currency value.
+    GrpcCurrency currencyValue = 12;
+    // The facet statistics depth enum value.
+    GrpcFacetStatisticsDepth facetStatisticsDepthValue = 13;
+    // The query price mode enum value.
+    GrpcQueryPriceMode queryPriceModelValue = 14;
+    // The price content mode enum value.
+    GrpcPriceContentMode priceContentModeValue = 15;
+    // The attribute special value enum value.
+    GrpcAttributeSpecialValue attributeSpecialValue = 16;
+    // The order direction enum value.
+    GrpcOrderDirection orderDirectionValue = 17;
+    // The empty hierarchical entity behaviour enum value.
+    GrpcEmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour = 18;
+    // The statistics base enum value.
+    GrpcStatisticsBase statisticsBase = 19;
+    // The statistics type enum value.
+    GrpcStatisticsType statisticsType = 20;
+    // The histogram behavior enum value.
+    GrpcHistogramBehavior histogramBehavior = 21;
+    // The managed references behaviour
+    GrpcManagedReferencesBehaviour managedReferencesBehaviour = 22;
+    // The expression
+    string expressionValue = 23;
+    // The scope enum value.
+    GrpcEntityScope scope = 24;
+
+    // The string array value.
+    GrpcStringArray stringArrayValue = 101;
+    // The integer array value.
+    GrpcIntegerArray integerArrayValue = 102;
+    // The long array value.
+    GrpcLongArray longArrayValue = 103;
+    // The boolean array value.
+    GrpcBooleanArray booleanArrayValue = 104;
+    // The big decimal array value.
+    GrpcBigDecimalArray bigDecimalArrayValue = 105;
+    // The date time range array value.
+    GrpcDateTimeRangeArray dateTimeRangeArrayValue = 106;
+    // The integer number range array value.
+    GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 107;
+    // The long number range array value.
+    GrpcLongNumberRangeArray longNumberRangeArrayValue = 108;
+    // The big decimal number range array value.
+    GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 109;
+    // The offset date time array value.
+    GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 110;
+    // The locale array value.
+    GrpcLocaleArray localeArrayValue = 111;
+    // The currency array value.
+    GrpcCurrencyArray currencyArrayValue = 112;
+    // The facet statistics depth array value.
+    GrpcFacetStatisticsDepthArray facetStatisticsDepthArrayValue = 113;
+    // The query price mode array value.
+    GrpcQueryPriceModeArray queryPriceModelArrayValue = 114;
+    // The price content mode array value.
+    GrpcPriceContentModeArray priceContentModeArrayValue = 115;
+    // The attribute special value array value.
+    GrpcAttributeSpecialValueArray attributeSpecialArrayValue = 116;
+    // The order direction array value.
+    GrpcOrderDirectionArray orderDirectionArrayValue = 117;
+    // The empty hierarchical entity behaviour array value.
+    GrpcEmptyHierarchicalEntityBehaviourArray emptyHierarchicalEntityBehaviourArrayValue = 118;
+    GrpcStatisticsBaseArray statisticsBaseArrayValue = 119;
+    // The statistics type array value.
+    GrpcStatisticsTypeArray statisticsTypeArrayValue = 120;
+    // The histogram behavior enum value.
+    GrpcHistogramBehaviorTypeArray histogramBehaviorTypeArrayValue = 121;
+    // The scope enum value.
+    GrpcEntityScopeArray scopeArrayValue = 122;
+  }
+}

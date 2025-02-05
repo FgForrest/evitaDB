@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.api.requestResponse.cdc.CaptureArea;
-import io.evitadb.api.requestResponse.cdc.CaptureContent;
+import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureCriteria;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
@@ -49,7 +49,6 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
-import java.nio.file.Path;
 import java.util.Currency;
 import java.util.List;
 
@@ -68,6 +67,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 	public static final String ATTRIBUTE_NAME = "name";
 	public static final String ATTRIBUTE_URL = "url";
 	public static final String DIR_EVITA_TEST = "evitaCdcTest";
+	public static final String DIR_EVITA_TEST_EXPORT = "evitaCdcTest_export";
 	public static final String PRICE_LIST_BASIC = "basic";
 	public static final Currency CURRENCY_CZK = Currency.getInstance("CZK");
 	public static final Currency CURRENCY_USD = Currency.getInstance("USD");
@@ -101,6 +101,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 	@BeforeEach
 	void setUp() {
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST);
+		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST_EXPORT);
 		evita = new Evita(
 			getEvitaConfiguration()
 		);
@@ -111,6 +112,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 	void tearDown() {
 		evita.close();
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST);
+		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST_EXPORT);
 	}
 
 	@Test
@@ -144,7 +146,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 							.area(CaptureArea.SCHEMA)
 							.build()
 					)
-					.content(CaptureContent.BODY)
+					.content(ChangeCaptureContent.BODY)
 					.build()
 			).toList();
 			assertEquals(10, reverseCaptures.size());
@@ -173,7 +175,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 							.area(CaptureArea.DATA)
 							.build()
 					)
-					.content(CaptureContent.BODY)
+					.content(ChangeCaptureContent.BODY)
 					.build()
 			).toList();
 			assertEquals(8, reverseCaptures.size());
@@ -205,7 +207,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 							.area(CaptureArea.INFRASTRUCTURE)
 							.build()
 					)
-					.content(CaptureContent.BODY)
+					.content(ChangeCaptureContent.BODY)
 					.build()
 			).toList();
 			assertEquals(9, reverseCaptures.size());
@@ -232,7 +234,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 		try (final EvitaSessionContract session = evita.createReadOnlySession(TEST_CATALOG)) {
 			final List<ChangeCatalogCapture> reverseCaptures = session.getMutationsHistory(
 				ChangeCatalogCaptureRequest.builder()
-					.content(CaptureContent.BODY)
+					.content(ChangeCaptureContent.BODY)
 					.build()
 			).toList();
 			assertEquals(19, reverseCaptures.size());
@@ -279,7 +281,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 							.area(CaptureArea.INFRASTRUCTURE)
 							.build()
 					)
-					.content(CaptureContent.BODY)
+					.content(ChangeCaptureContent.BODY)
 					.build()
 			).toList();
 			assertEquals(7, reverseCaptures.size());
@@ -316,7 +318,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 							)
 							.build()
 					)
-					.content(CaptureContent.BODY)
+					.content(ChangeCaptureContent.BODY)
 					.build()
 			).toList();
 
@@ -345,7 +347,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 							)
 							.build()
 					)
-					.content(CaptureContent.BODY)
+					.content(ChangeCaptureContent.BODY)
 					.build()
 			).toList();
 
@@ -377,7 +379,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 							)
 							.build()
 					)
-					.content(CaptureContent.BODY)
+					.content(ChangeCaptureContent.BODY)
 					.build()
 			).toList();
 
@@ -406,7 +408,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 							)
 							.build()
 					)
-					.content(CaptureContent.BODY)
+					.content(ChangeCaptureContent.BODY)
 					.build()
 			).toList();
 
@@ -448,7 +450,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 							)
 							.build()
 					)
-					.content(CaptureContent.BODY)
+					.content(ChangeCaptureContent.BODY)
 					.build()
 			).toList();
 
@@ -470,7 +472,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 							)
 							.build()
 					)
-					.content(CaptureContent.BODY)
+					.content(ChangeCaptureContent.BODY)
 					.build()
 			).toList();
 
@@ -492,7 +494,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 							)
 							.build()
 					)
-					.content(CaptureContent.BODY)
+					.content(ChangeCaptureContent.BODY)
 					.build()
 			).toList();
 
@@ -514,7 +516,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 							)
 							.build()
 					)
-					.content(CaptureContent.BODY)
+					.content(ChangeCaptureContent.BODY)
 					.build()
 			).toList();
 
@@ -570,17 +572,12 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 			)
 			.storage(
 				StorageOptions.builder()
-					.storageDirectory(getEvitaTestDirectory())
-					.exportDirectory(getEvitaTestDirectory())
+					.storageDirectory(getTestDirectory().resolve(DIR_EVITA_TEST))
+					.exportDirectory(getTestDirectory().resolve(DIR_EVITA_TEST_EXPORT))
 					.timeTravelEnabled(false)
 					.build()
 			)
 			.build();
-	}
-
-	@Nonnull
-	private Path getEvitaTestDirectory() {
-		return getTestDirectory().resolve(DIR_EVITA_TEST);
 	}
 
 }

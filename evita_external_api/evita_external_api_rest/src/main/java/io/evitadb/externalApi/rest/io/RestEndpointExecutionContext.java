@@ -34,6 +34,8 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Implementation of {@link EndpointExecutionContext} for REST API.
@@ -45,6 +47,7 @@ public class RestEndpointExecutionContext extends EndpointExecutionContext {
 	@Nonnull private final ExecutedEvent requestExecutedEvent;
 
 	@Nullable private EvitaSessionContract session;
+	@Nullable private UUID trafficSourceQueryRecordingId;
 
 	@Nullable private String requestBodyContentType;
 	@Nullable private String preferredResponseContentType;
@@ -82,9 +85,28 @@ public class RestEndpointExecutionContext extends EndpointExecutionContext {
 	public void provideSession(@Nonnull EvitaSessionContract session) {
 		Assert.isPremiseValid(
 			this.session == null,
-			() -> new RestInternalError("Session cannot overwritten when already set.")
+			() -> new RestInternalError("Session cannot be overwritten when already set.")
 		);
 		this.session = session;
+	}
+
+	/**
+	 * Returns source query recording ID for traffic tracking. If traffic tracking is disabled, ID is empty.
+	 */
+	@Nonnull
+	public Optional<UUID> trafficSourceQueryRecordingId() {
+		return Optional.ofNullable(trafficSourceQueryRecordingId);
+	}
+
+	/**
+	 * Sets a source query recording ID for traffic tracking. Can be set only once to avoid overwriting errors.
+	 */
+	public void provideTrafficSourceQueryRecordingId(@Nullable UUID trafficSourceQueryRecordingId) {
+		Assert.isPremiseValid(
+			this.trafficSourceQueryRecordingId == null,
+			() -> new RestInternalError("TrafficSourceQueryRecordingId cannot be overwritten when already set.")
+		);
+		this.trafficSourceQueryRecordingId = trafficSourceQueryRecordingId;
 	}
 
 	/**
@@ -133,6 +155,8 @@ public class RestEndpointExecutionContext extends EndpointExecutionContext {
 
 	@Override
 	public void close() {
+		super.close();
+
 		// the session may not be properly closed in case of exception during request handling
 		closeSessionIfOpen();
 

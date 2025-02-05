@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -1367,7 +1367,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 				Assert.isPremiseValid(references.size() < 2, "Cardinality is `" + cardinality + "` but there are more than one reference!");
 				if (!references.isEmpty()) {
 					final ReferenceContract singleReference = references.iterator().next();
-					if (singleReference.getReferencedPrimaryKey() == referencedEntity.getPrimaryKey()) {
+					if (singleReference.getReferencedPrimaryKey() == referencedEntity.getPrimaryKeyOrThrowException()) {
 						// just exchange registered object - the set entity and existing reference share same primary key
 						theState.registerReferencedEntityObject(expectedEntityType, singleReference.getReferencedPrimaryKey(), referencedEntity, ProxyType.REFERENCED_ENTITY);
 						return;

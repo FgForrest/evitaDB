@@ -54,7 +54,9 @@ public enum Scope {
 	 */
 	public static final Scope[] DEFAULT_SCOPES = new Scope[] { DEFAULT_SCOPE };
 	/**
-	 * Empty array of scopes.
+	 * Empty array of scopes. Makes no sense in queries - filtering in no scope would always produce empty result.
+	 * This constant is usually used when schema is defined and particular schema part should not be made indexed in
+	 * any scope.
 	 */
 	public static final Scope[] NO_SCOPE = new Scope[0];
 }

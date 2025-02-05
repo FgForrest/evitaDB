@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -50,11 +50,13 @@ class ReadOnlyEvitaTest implements EvitaTestSupport {
 	public static final String ATTRIBUTE_NAME = "name";
 	public static final String ATTRIBUTE_URL = "url";
 	public static final String DIR_READ_ONLY_EVITA_TEST = "readOnlyEvitaTest";
+	public static final String DIR_READ_ONLY_EVITA_TEST_EXPORT = "readOnlyEvitaTest_export";
 	private Evita evita;
 
 	@BeforeEach
 	void setUp() throws IOException {
 		cleanTestSubDirectory(DIR_READ_ONLY_EVITA_TEST);
+		cleanTestSubDirectory(DIR_READ_ONLY_EVITA_TEST_EXPORT);
 		evita = new Evita(
 			getEvitaConfiguration(false)
 		);
@@ -81,8 +83,10 @@ class ReadOnlyEvitaTest implements EvitaTestSupport {
 	}
 
 	@AfterEach
-	void tearDown() {
+	void tearDown() throws IOException {
 		evita.close();
+		cleanTestSubDirectory(DIR_READ_ONLY_EVITA_TEST);
+		cleanTestSubDirectory(DIR_READ_ONLY_EVITA_TEST_EXPORT);
 	}
 
 	@Test
@@ -131,6 +135,7 @@ class ReadOnlyEvitaTest implements EvitaTestSupport {
 			.storage(
 				StorageOptions.builder()
 					.storageDirectory(getTestDirectory().resolve(DIR_READ_ONLY_EVITA_TEST))
+					.exportDirectory(getTestDirectory().resolve(DIR_READ_ONLY_EVITA_TEST_EXPORT))
 					.build()
 			)
 			.build();

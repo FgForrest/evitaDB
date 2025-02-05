@@ -50,7 +50,7 @@ import java.util.stream.Collectors;
 
 import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
 import static io.evitadb.utils.ArrayUtils.computeInsertPositionOfObjInOrderedArray;
-import static io.evitadb.utils.ArrayUtils.insertRecordIntoArray;
+import static io.evitadb.utils.ArrayUtils.insertRecordIntoArrayOnIndex;
 import static io.evitadb.utils.ArrayUtils.isEmpty;
 import static io.evitadb.utils.ArrayUtils.removeRecordFromOrderedArray;
 import static io.evitadb.utils.AssertionUtils.assertIteratorContains;
@@ -865,7 +865,7 @@ class TransactionalComplexObjArrayTest implements TimeBoundedTestSupport {
 								if (position.alreadyPresent()) {
 									referenceArray[position.position()] = mergeArrays(upsertItem, referenceArray[position.position()]);
 								} else if (!upsertItem.getValues().isEmpty()) {
-									nextArrayToCompare.set(insertRecordIntoArray(upsertItem, referenceArray, position.position()));
+									nextArrayToCompare.set(insertRecordIntoArrayOnIndex(upsertItem, referenceArray, position.position()));
 								}
 								if (!upsertItem.getValues().isEmpty()) {
 									assertEquals(position.position(), txPosition, codeBuffer.toString());

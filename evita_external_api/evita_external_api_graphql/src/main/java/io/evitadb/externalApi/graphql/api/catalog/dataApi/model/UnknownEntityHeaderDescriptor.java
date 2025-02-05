@@ -32,7 +32,7 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface UnknownEntityHeaderDescriptor extends ScopeAwareFieldHeaderDescriptor {
+public interface UnknownEntityHeaderDescriptor extends ScopeAwareFieldHeaderDescriptor, MetadataAwareFieldHeaderDescriptor {
 
 	PropertyDescriptor LOCALE = PropertyDescriptor.builder()
 		.name("locale")

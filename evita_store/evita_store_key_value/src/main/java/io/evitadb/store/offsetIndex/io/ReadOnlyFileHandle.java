@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ import io.evitadb.core.metric.event.storage.ReadOnlyHandleOpenedEvent;
 import io.evitadb.store.exception.StorageException;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.offsetIndex.OffsetIndex;
-import io.evitadb.store.offsetIndex.stream.RandomAccessFileInputStream;
+import io.evitadb.stream.RandomAccessFileInputStream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;

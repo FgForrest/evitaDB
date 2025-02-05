@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -77,11 +77,13 @@ public class GlobalExceptionHandlerInterceptor implements ServerInterceptor {
 	private static com.google.rpc.Status createErrorStatus(@Nonnull Throwable exception) {
 		final com.google.rpc.Status rpcStatus;
 
-		log.error("Exception occurred during processing of gRPC call: " + exception.getMessage(), exception);
-
 		if (exception instanceof CompletionException completionException) {
 			return createErrorStatus(completionException.getCause());
 		} else if (exception instanceof EvitaInvalidUsageException invalidUsageException) {
+			if (log.isDebugEnabled()) {
+				log.debug("Invalid usage exception gRPC call: " + exception.getMessage(), exception);
+			}
+
 			final ErrorInfo errorInfo = ErrorInfo.newBuilder()
 				.setReason(invalidUsageException.getErrorCode() + ": " + invalidUsageException.getPublicMessage())
 				.setDomain(invalidUsageException.getClass().getSimpleName())
@@ -93,6 +95,8 @@ public class GlobalExceptionHandlerInterceptor implements ServerInterceptor {
 				.addDetails(Any.pack(errorInfo))
 				.build();
 		} else if (exception instanceof EvitaInternalError internalError) {
+			log.error("Internal error occurred during processing of gRPC call: " + exception.getMessage(), exception);
+
 			final ErrorInfo errorInfo = ErrorInfo.newBuilder()
 				.setReason(internalError.getErrorCode() + ": " + internalError.getPublicMessage())
 				.setDomain(internalError.getClass().getSimpleName())
@@ -104,6 +108,8 @@ public class GlobalExceptionHandlerInterceptor implements ServerInterceptor {
 				.addDetails(Any.pack(errorInfo))
 				.build();
 		} else {
+			log.error("Internal error occurred during processing of gRPC call: " + exception.getMessage(), exception);
+
 			rpcStatus = com.google.rpc.Status.newBuilder()
 				.setCode(Code.INTERNAL.value())
 				.build();

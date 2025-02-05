@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -71,7 +71,7 @@ import java.util.function.Function;
 public class HttpServiceSecurityDecorator implements DecoratingHttpServiceFunction {
 	public static final String SCHEME_HTTPS = "https";
 	public static final String SCHEME_HTTP = "http";
-	/*
+	/**
 	 * The following fields are used to store the host, scheme, and port configurations for the API endpoints in
 	 * the performance-optimized way. Arrays are big enough to store all configuration combinations from all provided
 	 * APIs, but only the first `peak` elements are actually used. We rely on the fact, that the configurations are

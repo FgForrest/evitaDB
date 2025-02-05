@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.core;
 
 
+import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.TransactionException;
 import io.evitadb.api.query.Query;
@@ -39,6 +40,7 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.buffer.DataStoreReader;
 import io.evitadb.core.buffer.TransactionalDataStoreMemoryBuffer;
+import io.evitadb.core.traffic.TrafficRecordingEngine.MutationApplicationRecord;
 import io.evitadb.core.transaction.stage.mutation.ServerEntityMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -73,6 +75,10 @@ import static io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation.
  */
 @RequiredArgsConstructor
 class LocalMutationExecutorCollector {
+	/**
+	 * The timestamp when the collector was created.
+	 */
+	private final OffsetDateTime created = OffsetDateTime.now();
 	/**
 	 * The catalog instance used to fetch collections for entities.
 	 */
@@ -166,6 +172,7 @@ class LocalMutationExecutorCollector {
 	 */
 	@Nonnull
 	public <T> Optional<T> execute(
+		@Nullable EvitaSessionContract session,
 		@Nonnull EntitySchema entitySchema,
 		@Nonnull EntityMutation entityMutation,
 		boolean checkConsistency,
@@ -181,13 +188,24 @@ class LocalMutationExecutorCollector {
 		// add the mutation to the list of mutations, but only for root level mutations
 		// mutations on lower levels are implicit mutations which should not be written to WAL (considered), because
 		// are automatically generated when top level mutation is applied (replayed)
+		final MutationApplicationRecord record;
 		if (level == 0) {
 			this.entityMutations.add(entityMutation);
 			// root level changes are applied immediately
 			changeCollector.setTrapChanges(false);
+			// record mutation to the traffic recorder
+			record = session == null ?
+				null :
+				this.catalog.getTrafficRecordingEngine().recordMutation(
+					session.getId(),
+					this.created,
+					entityMutation
+			);
 		} else {
 			// while implicit mutations are trapped in memory and stored on next flush
 			changeCollector.setTrapChanges(true);
+			// no record is created for implicit mutations
+			record = null;
 		}
 
 		// apply mutations using applicators
@@ -222,6 +240,7 @@ class LocalMutationExecutorCollector {
 					final ServerEntityMutation serverEntityMutation = (ServerEntityMutation) externalEntityMutations;
 					this.catalog.getCollectionForEntityOrThrowException(externalEntityMutations.getEntityType())
 						.applyMutations(
+							session,
 							externalEntityMutations,
 							serverEntityMutation.shouldApplyUndoOnError(),
 							serverEntityMutation.shouldVerifyConsistency(),
@@ -236,12 +255,21 @@ class LocalMutationExecutorCollector {
 				changeCollector.verifyConsistency();
 			}
 
+			// finish the record
+			if (record != null) {
+				record.finish();
+			}
+
 		} catch (RuntimeException ex) {
 			// we need to catch all exceptions and store them in the exception field
 			if (this.exception == null) {
 				this.exception = ex;
 			} else if (ex != this.exception) {
 				this.exception.addSuppressed(ex);
+			}
+			// finish the record with exception
+			if (record != null) {
+				record.finishWithException(ex);
 			}
 		} finally {
 			// we finalize this collector only on zero level

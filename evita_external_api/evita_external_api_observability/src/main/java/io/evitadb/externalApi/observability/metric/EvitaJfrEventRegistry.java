@@ -43,6 +43,7 @@ import io.evitadb.core.metric.event.transaction.*;
 import io.evitadb.externalApi.event.ReadinessEvent;
 import io.evitadb.externalApi.grpc.metric.event.EvitaProcedureCalledEvent;
 import io.evitadb.externalApi.grpc.metric.event.SessionProcedureCalledEvent;
+import io.evitadb.store.traffic.event.TrafficRecorderStatisticsEvent;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -101,6 +102,7 @@ public class EvitaJfrEventRegistry {
 		ReadOnlyHandleClosedEvent.class,
 		CatalogStatisticsEvent.class,
 		EvitaDBCompositionChangedEvent.class,
+		TrafficRecorderStatisticsEvent.class,
 
 		// query events
 		FinishedEvent.class,
@@ -554,7 +556,7 @@ public class EvitaJfrEventRegistry {
 	/**
 	 * Gets a set of {@link Class}es located in a specified package.
 	 */
-	@Nullable
+	@Nonnull
 	public static Optional<Class<? extends CustomMetricsExecutionEvent>[]> getEventClassesFromPackage(@Nonnull String eventPackageWithWildcard) {
 		return ofNullable(EVENT_MAP_BY_PACKAGE.get(eventPackageWithWildcard)).map(EvitaEventGroup::events);
 	}

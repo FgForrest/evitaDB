@@ -7,7 +7,7 @@
 #             |  __/\ V /| | || (_| | |_| | |_) |
 #              \___| \_/ |_|\__\__,_|____/|____/
 #
-#   Copyright (c) 2023-2024
+#   Copyright (c) 2023-2025
 #
 #   Licensed under the Business Source License, Version 1.1 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ if [ "$1" = "" ]; then
         -jar "${EVITA_BIN_DIR}${EVITA_JAR_NAME}" \
         "configDir=$EVITA_CONFIG_DIR" \
         "storage.storageDirectory=$EVITA_STORAGE_DIR" \
+        "storage.exportDirectory=$EVITA_EXPORT_DIR" \
         "api.certificate.folderPath=$EVITA_CERTIFICATE_DIR" \
         "logback.configurationFile=$EVITA_LOG_FILE" \
         $EVITA_ARGS

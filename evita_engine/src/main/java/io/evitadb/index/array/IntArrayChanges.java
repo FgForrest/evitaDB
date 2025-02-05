@@ -196,7 +196,7 @@ public class IntArrayChanges implements ArrayChangesIteratorSupport {
 				// if not - create new list of additions on expected position
 				final int startIndex = -1 * (index) - 1;
 				this.insertions = ArrayUtils.insertIntIntoArrayOnIndex(position.position(), this.insertions, startIndex);
-				this.insertedValues = ArrayUtils.insertRecordIntoArray(new int[]{recordId}, this.insertedValues, startIndex);
+				this.insertedValues = ArrayUtils.insertRecordIntoArrayOnIndex(new int[]{recordId}, this.insertedValues, startIndex);
 			}
 		}
 		// nullify memoized result that becomes obsolete by this operation

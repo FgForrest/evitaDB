@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -147,8 +147,12 @@ public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExecutionCont
     protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull GraphQLEndpointExecutionContext executionContext) {
         return parseRequestBody(executionContext, GraphQLRequest.class)
             .thenApply(graphQLRequest -> {
-	            executionContext.requestExecutedEvent().finishInputDeserialization();
-                final GraphQLResponse<?> graphQLResponse = executeRequest(executionContext, graphQLRequest);
+                executionContext.requestExecutedEvent().finishInputDeserialization();
+                final GraphQLResponse<?> graphQLResponse = this.tracingContext.executeWithinBlock(
+                    "GraphQL",
+                    executionContext.httpRequest(),
+                    () -> executeRequest(executionContext, graphQLRequest)
+                );
                 return new SuccessEndpointResponse(graphQLResponse);
             });
     }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.core.metric.event.system.BackgroundTaskTimedOutEvent;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 
 import javax.annotation.Nonnull;
 import java.lang.Thread.UncaughtExceptionHandler;
@@ -35,6 +36,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -500,6 +502,10 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 		 */
 		private final long timedOutAt;
 		/**
+		 * MDC context map that is set when the task is running.
+		 */
+		private final Map<String, String> mdcContextMap = MDC.getCopyOfContextMap();
+		/**
 		 * Future that is completed when the task is finished.
 		 */
 		private final CompletableFuture<Void> future = new CompletableFuture<>();
@@ -534,10 +540,12 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 
 		@Override
 		public void run() {
+			MDC.setContextMap(this.mdcContextMap);
 			try {
 				this.delegate.run();
 				this.future.complete(null);
 			} catch (Throwable e) {
+				MDC.clear();
 				this.future.completeExceptionally(e);
 				ObservableThreadExecutor.log.error("Uncaught exception in task.", e);
 				throw e;
@@ -567,6 +575,10 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 		 * Time when the task is considered timed out.
 		 */
 		private final long timedOutAt;
+		/**
+		 * MDC context map that is set when the task is running.
+		 */
+		private final Map<String, String> mdcContextMap = MDC.getCopyOfContextMap();
 		/**
 		 * Future that is completed when the task is finished.
 		 */
@@ -602,11 +614,13 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 
 		@Override
 		public V call() throws Exception {
+			MDC.setContextMap(this.mdcContextMap);
 			try {
 				final V result = this.delegate.call();
 				this.future.complete(result);
 				return result;
 			} catch (Throwable e) {
+				MDC.clear();
 				this.future.completeExceptionally(e);
 				ObservableThreadExecutor.log.error("Uncaught exception in task.", e);
 				throw e;

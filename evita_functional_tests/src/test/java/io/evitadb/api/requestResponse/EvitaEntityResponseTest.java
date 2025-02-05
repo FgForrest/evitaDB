@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse;
 
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.dataType.PaginatedList;
+import io.evitadb.utils.ArrayUtils;
 import org.junit.jupiter.api.Test;
 
 import java.io.Serial;
@@ -46,7 +47,8 @@ class EvitaEntityResponseTest {
 	void shouldPassExtraDataInResponse() {
 		final EvitaEntityResponse<SealedEntity> response = new EvitaEntityResponse<>(
 			query(collection("brand")),
-			PaginatedList.emptyList()
+			PaginatedList.emptyList(),
+			ArrayUtils.EMPTY_INT_ARRAY
 		);
 
 		response.addExtraResult(new MockEvitaResponseExtraResult("a"));

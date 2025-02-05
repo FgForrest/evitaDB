@@ -55,7 +55,7 @@ public interface GrpcChangeCatalogCaptureOrBuilder extends
    * the area of the operation
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureArea area = 3;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureArea area = 3;</code>
    * @return The enum numeric value on the wire for area.
    */
   int getAreaValue();
@@ -64,10 +64,10 @@ public interface GrpcChangeCatalogCaptureOrBuilder extends
    * the area of the operation
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureArea area = 3;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureArea area = 3;</code>
    * @return The area.
    */
-  io.evitadb.externalApi.grpc.generated.GrpcCaptureArea getArea();
+  io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureArea getArea();
 
   /**
    * <pre>
@@ -104,7 +104,7 @@ public interface GrpcChangeCatalogCaptureOrBuilder extends
    * the operation that was performed
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation operation = 5;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 5;</code>
    * @return The enum numeric value on the wire for operation.
    */
   int getOperationValue();
@@ -113,10 +113,10 @@ public interface GrpcChangeCatalogCaptureOrBuilder extends
    * the operation that was performed
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation operation = 5;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 5;</code>
    * @return The operation.
    */
-  io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation getOperation();
+  io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation getOperation();
 
   /**
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation schemaMutation = 6;</code>

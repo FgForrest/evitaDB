@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,7 +43,6 @@ import io.evitadb.core.metric.event.query.FinishedEvent;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.prefetch.PrefetchOrder;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
-import io.evitadb.core.query.response.EntityFetchAwareDecorator;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.core.query.slice.Slicer;
 import io.evitadb.core.query.slice.Slicer.OffsetAndLimit;
@@ -53,6 +52,7 @@ import io.evitadb.core.query.sort.utils.SortUtils;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.StripList;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -159,6 +159,16 @@ public class QueryPlan {
 	}
 
 	/**
+	 * Retrieves the source query associated with the current query context.
+	 *
+	 * @return the source {@link Query} used for the current Evita request
+	 */
+	@Nonnull
+	public Query getSourceQuery() {
+		return this.queryContext.getEvitaRequest().getQuery();
+	}
+
+	/**
 	 * This method will {@link Formula#compute()} the filtered result, applies ordering and cuts out the requested page.
 	 * Method is expected to be called only once per request.
 	 */
@@ -250,6 +260,7 @@ public class QueryPlan {
 							result = (T) new EvitaBinaryEntityResponse(
 								evitaRequest.getQuery(),
 								dataChunk,
+								this.primaryKeys,
 								extraResults
 							);
 						} else {
@@ -269,6 +280,7 @@ public class QueryPlan {
 							result = (T) new EvitaEntityResponse<>(
 								evitaRequest.getQuery(),
 								dataChunk,
+								this.primaryKeys,
 								extraResults
 							);
 						}
@@ -297,27 +309,20 @@ public class QueryPlan {
 					result = (T) new EvitaEntityReferenceResponse(
 						evitaRequest.getQuery(),
 						dataChunk,
+						this.primaryKeys,
 						extraResults
 					);
 				}
 
 				ofNullable(this.queryContext.getQueryFinishedEvent())
 					.ifPresent(it -> {
-						int ioFetchCount = 0;
-						int ioFetchedSizeBytes = 0;
-						for (S record : result.getRecordData()) {
-							if (record instanceof EntityFetchAwareDecorator efad) {
-								ioFetchCount += efad.getIoFetchCount();
-								ioFetchedSizeBytes += efad.getIoFetchedBytes();
-							}
-						}
 						it.finish(
 							prefetchedDataSuitableForFiltering,
 							this.filter.getEstimatedCardinality(),
 							this.primaryKeys == null ? 0 : this.primaryKeys.length,
 							this.totalRecordCount,
-							ioFetchCount,
-							ioFetchedSizeBytes,
+							result.getIoFetchCount(),
+							result.getIoFetchedSizeBytes(),
 							this.filter.getEstimatedCost(),
 							this.filter.getCost()
 						).commit();
@@ -405,12 +410,13 @@ public class QueryPlan {
 	 */
 	@Nonnull
 	public SpanAttribute[] getSpanAttributes() {
-		final Query query = this.getEvitaRequest().getQuery();
+		final EvitaRequest evitaRequest = this.getEvitaRequest();
+		final Query query = evitaRequest.getQuery();
 		final FinishedEvent queryFinishedEvent = queryContext.getQueryFinishedEvent();
 		if (queryFinishedEvent == null) {
 			return SpanAttribute.EMPTY_ARRAY;
 		} else {
-			return new SpanAttribute[]{
+			final SpanAttribute[] systemAttributes = {
 				new SpanAttribute("collection", query.getCollection() == null ? "<NONE>" : query.getCollection().toString()),
 				new SpanAttribute("filter", query.getFilterBy() == null ? "<NONE>" : query.getFilterBy().toString()),
 				new SpanAttribute("order", query.getOrderBy() == null ? "<NONE>" : query.getOrderBy().toString()),
@@ -424,6 +430,16 @@ public class QueryPlan {
 				new SpanAttribute("estimatedComplexity", queryFinishedEvent.getEstimatedComplexity()),
 				new SpanAttribute("complexity", queryFinishedEvent.getRealComplexity())
 			};
+			if (evitaRequest.getLabels().length > 0) {
+				return ArrayUtils.mergeArrays(
+					systemAttributes,
+					Arrays.stream(evitaRequest.getLabels())
+						.map(label -> new SpanAttribute(label.getLabelName(), label.getLabelValue()))
+						.toArray(SpanAttribute[]::new)
+				);
+			} else {
+				return systemAttributes;
+			}
 		}
 	}
 

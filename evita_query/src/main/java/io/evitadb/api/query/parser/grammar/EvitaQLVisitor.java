@@ -84,12 +84,26 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitConstraint(EvitaQLParser.ConstraintContext ctx);
 	/**
+	 * Visit a parse tree produced by the {@code headContainerConstraint}
+	 * labeled alternative in {@link EvitaQLParser#headConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitHeadContainerConstraint(EvitaQLParser.HeadContainerConstraintContext ctx);
+	/**
 	 * Visit a parse tree produced by the {@code collectionConstraint}
 	 * labeled alternative in {@link EvitaQLParser#headConstraint}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
 	T visitCollectionConstraint(EvitaQLParser.CollectionConstraintContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code labelConstraint}
+	 * labeled alternative in {@link EvitaQLParser#headConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitLabelConstraint(EvitaQLParser.LabelConstraintContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code filterByConstraint}
 	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
@@ -1111,6 +1125,12 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitEmptyArgs(EvitaQLParser.EmptyArgsContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link EvitaQLParser#headConstraintListArgs}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitHeadConstraintListArgs(EvitaQLParser.HeadConstraintListArgsContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link EvitaQLParser#filterConstraintListArgs}.
 	 * @param ctx the parse tree

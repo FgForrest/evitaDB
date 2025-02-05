@@ -137,6 +137,18 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override public void enterHeadContainerConstraint(EvitaQLParser.HeadContainerConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitHeadContainerConstraint(EvitaQLParser.HeadContainerConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterCollectionConstraint(EvitaQLParser.CollectionConstraintContext ctx) { }
 	/**
 	 * {@inheritDoc}
@@ -144,6 +156,18 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitCollectionConstraint(EvitaQLParser.CollectionConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterLabelConstraint(EvitaQLParser.LabelConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitLabelConstraint(EvitaQLParser.LabelConstraintContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
@@ -1908,6 +1932,18 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitEmptyArgs(EvitaQLParser.EmptyArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterHeadConstraintListArgs(EvitaQLParser.HeadConstraintListArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitHeadConstraintListArgs(EvitaQLParser.HeadConstraintListArgsContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *

@@ -23,6 +23,8 @@
     <dd><strong>HTTP method</strong>: The HTTP method of the request.</dd>
     <dt>initiator</dt>
     <dd><strong>Initiator of the call</strong>: Initiator of the gRPC call (either client or server).</dd>
+    <dt>labels</dt>
+    <dd><strong>Labels</strong>: Zero or more client labels associated with the query. Labels are delimited by comma, label consists of name and value separated by equals sign.</dd>
     <dt>name</dt>
     <dd><strong>Logical file name</strong>: The logical name of the file that was flushed. Identifies the file more precisely.</dd>
     <dt>operationId</dt>
@@ -183,27 +185,35 @@ duration of the probe.</dd>
   <dt><code>io_evitadb_query_entity_fetch_total</code> (COUNTER)</dt>
   <dd>Entity fetched<br/><br/><strong>Labels:</strong> <Term>entityType</Term><br/></dd>
   <dt><code>io_evitadb_query_finished_duration_milliseconds</code> (HISTOGRAM)</dt>
-  <dd>Query duration in milliseconds<br/><br/><strong>Labels:</strong> <Term>entityType</Term>, <Term>prefetched</Term><br/></dd>
+  <dd>Query duration in milliseconds<br/><br/><strong>Labels:</strong> <Term>entityType</Term>, <Term>labels</Term>, <Term>prefetched</Term><br/></dd>
   <dt><code>io_evitadb_query_finished_estimated</code> (HISTOGRAM)</dt>
-  <dd><strong>Estimated complexity info</strong>: The estimated complexity of the query.<br/><br/><strong>Labels:</strong> <Term>entityType</Term>, <Term>prefetched</Term><br/></dd>
+  <dd><strong>Estimated complexity info</strong>: The estimated complexity of the query.<br/><br/><strong>Labels:</strong> <Term>entityType</Term>, <Term>labels</Term>, <Term>prefetched</Term><br/></dd>
   <dt><code>io_evitadb_query_finished_execution_duration_milliseconds</code> (HISTOGRAM)</dt>
-  <dd><strong>Query execution duration in milliseconds</strong>: The time it took to execute the selected execution plan for the query.<br/><br/><strong>Labels:</strong> <Term>entityType</Term>, <Term>prefetched</Term><br/></dd>
+  <dd><strong>Query execution duration in milliseconds</strong>: The time it took to execute the selected execution plan for the query.<br/><br/><strong>Labels:</strong> <Term>entityType</Term>, <Term>labels</Term>, <Term>prefetched</Term><br/></dd>
   <dt><code>io_evitadb_query_finished_fetched</code> (HISTOGRAM)</dt>
-  <dd><strong>Records fetched total</strong>: The total number of records fetched from the data storage (excluding records found in the cache).<br/><br/><strong>Labels:</strong> <Term>entityType</Term>, <Term>prefetched</Term><br/></dd>
+  <dd><strong>Records fetched total</strong>: The total number of records fetched from the data storage (excluding records found in the cache).<br/><br/><strong>Labels:</strong> <Term>entityType</Term>, <Term>labels</Term>, <Term>prefetched</Term><br/></dd>
   <dt><code>io_evitadb_query_finished_fetched_size_bytes</code> (HISTOGRAM)</dt>
-  <dd><strong>Fetched size in bytes</strong>: The total size of the fetched data in Bytes.<br/><br/><strong>Labels:</strong> <Term>entityType</Term>, <Term>prefetched</Term><br/></dd>
+  <dd><strong>Fetched size in bytes</strong>: The total size of the fetched data in Bytes.<br/><br/><strong>Labels:</strong> <Term>entityType</Term>, <Term>labels</Term>, <Term>prefetched</Term><br/></dd>
   <dt><code>io_evitadb_query_finished_found</code> (HISTOGRAM)</dt>
-  <dd><strong>Records found total</strong>: The total number of records found (matching the query).<br/><br/><strong>Labels:</strong> <Term>entityType</Term>, <Term>prefetched</Term><br/></dd>
+  <dd><strong>Records found total</strong>: The total number of records found (matching the query).<br/><br/><strong>Labels:</strong> <Term>entityType</Term>, <Term>labels</Term>, <Term>prefetched</Term><br/></dd>
   <dt><code>io_evitadb_query_finished_plan_duration_milliseconds</code> (HISTOGRAM)</dt>
-  <dd><strong>Query planning duration in milliseconds</strong>: The time it took to build all the query execution plan variants.<br/><br/><strong>Labels:</strong> <Term>entityType</Term>, <Term>prefetched</Term><br/></dd>
+  <dd><strong>Query planning duration in milliseconds</strong>: The time it took to build all the query execution plan variants.<br/><br/><strong>Labels:</strong> <Term>entityType</Term>, <Term>labels</Term>, <Term>prefetched</Term><br/></dd>
   <dt><code>io_evitadb_query_finished_real</code> (HISTOGRAM)</dt>
-  <dd><strong>Filter complexity</strong>: The real complexity of the query.<br/><br/><strong>Labels:</strong> <Term>entityType</Term>, <Term>prefetched</Term><br/></dd>
+  <dd><strong>Filter complexity</strong>: The real complexity of the query.<br/><br/><strong>Labels:</strong> <Term>entityType</Term>, <Term>labels</Term>, <Term>prefetched</Term><br/></dd>
   <dt><code>io_evitadb_query_finished_returned</code> (HISTOGRAM)</dt>
-  <dd><strong>Records returned total</strong>: The total number of records returned (included in the result).<br/><br/><strong>Labels:</strong> <Term>entityType</Term>, <Term>prefetched</Term><br/></dd>
+  <dd><strong>Records returned total</strong>: The total number of records returned (included in the result).<br/><br/><strong>Labels:</strong> <Term>entityType</Term>, <Term>labels</Term>, <Term>prefetched</Term><br/></dd>
   <dt><code>io_evitadb_query_finished_scanned</code> (HISTOGRAM)</dt>
-  <dd><strong>Records scanned total</strong>: The total number of records scanned (included in the calculation).<br/><br/><strong>Labels:</strong> <Term>entityType</Term>, <Term>prefetched</Term><br/></dd>
+  <dd><strong>Records scanned total</strong>: The total number of records scanned (included in the calculation).<br/><br/><strong>Labels:</strong> <Term>entityType</Term>, <Term>labels</Term>, <Term>prefetched</Term><br/></dd>
   <dt><code>io_evitadb_query_finished_total</code> (COUNTER)</dt>
-  <dd>Query finished<br/><br/><strong>Labels:</strong> <Term>entityType</Term>, <Term>prefetched</Term><br/></dd>
+  <dd>Query finished<br/><br/><strong>Labels:</strong> <Term>entityType</Term>, <Term>labels</Term>, <Term>prefetched</Term><br/></dd>
+  <dt><code>io_evitadb_store_traffic_traffic_recorder_statistics_created_sessions</code> (COUNTER)</dt>
+  <dd><strong>Created sessions</strong>: Created sessions.</dd>
+  <dt><code>io_evitadb_store_traffic_traffic_recorder_statistics_dropped_sessions</code> (COUNTER)</dt>
+  <dd><strong>Dropped sessions</strong>: Counter of dropped sessions due to memory shortage.</dd>
+  <dt><code>io_evitadb_store_traffic_traffic_recorder_statistics_finished_sessions</code> (COUNTER)</dt>
+  <dd><strong>Finished sessions</strong>: Recorded sessions.</dd>
+  <dt><code>io_evitadb_store_traffic_traffic_recorder_statistics_missed_records</code> (COUNTER)</dt>
+  <dd><strong>Missed records</strong>: Counter of missed records due to memory shortage or sampling.</dd>
 </dl>
 
 #### Session

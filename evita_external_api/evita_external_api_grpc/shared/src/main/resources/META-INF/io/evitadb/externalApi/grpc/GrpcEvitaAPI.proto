@@ -8,7 +8,6 @@ import "google/protobuf/empty.proto";
 import "GrpcEnums.proto";
 import "GrpcEvitaDataTypes.proto";
 import "GrpcCatalogSchemaMutation.proto";
-import "google/protobuf/wrappers.proto";
 
 // Response to a server status request.
 message GrpcReadyResponse {

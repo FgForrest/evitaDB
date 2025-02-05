@@ -25,6 +25,7 @@ package io.evitadb.spike;
 
 
 import io.evitadb.dataType.array.CompositeIntArray;
+import io.evitadb.dataType.bPlusTree.IntBPlusTree;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.StringUtils;
 
@@ -34,10 +35,10 @@ import io.evitadb.utils.StringUtils;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public class ArrayOrCompositeOrBPlusTree {
-	public static final int AMOUNT = 1_000_000;
+	public static final int AMOUNT = 1_000_000_000;
 
 	public static void main(String[] args) {
-		insertIntoComposite();
+		insertIntoBPlusTree();
 	}
 
 	private static void insertIntoSimpleArray() {
@@ -57,6 +58,18 @@ public class ArrayOrCompositeOrBPlusTree {
 		final CompositeIntArray array = new CompositeIntArray();
 		for (int i = 0; i < AMOUNT; i++) {
 			array.add(i);
+			if (i % 100_000 == 0) {
+				System.out.println("Inserted " + i + " elements into Array in " + StringUtils.formatPreciseNano(System.nanoTime() - start));
+			}
+		}
+		System.out.println("Finished importing " + AMOUNT + " elements into Array in " + StringUtils.formatPreciseNano(System.nanoTime() - start));
+	}
+
+	private static void insertIntoBPlusTree() {
+		final long start = System.nanoTime();
+		final IntBPlusTree<Integer> array = new IntBPlusTree<>(63, Integer.class);
+		for (int i = 0; i < AMOUNT; i++) {
+			array.insert(i, i);
 			if (i % 100_000 == 0) {
 				System.out.println("Inserted " + i + " elements into Array in " + StringUtils.formatPreciseNano(System.nanoTime() - start));
 			}

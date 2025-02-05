@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import io.evitadb.api.observability.trace.TracingContextReference;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.SpanContext;
 import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.context.Context;
@@ -38,6 +39,7 @@ import org.slf4j.MDC;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 /**
@@ -59,13 +61,13 @@ public class ObservabilityTracingContext implements TracingContext {
 	 * Initializes MDC with the given client ID and trace ID. It is used for logging purposes.
 	 */
 	private static void initMdc(@Nonnull String clientId, @Nonnull String traceId) {
-		MDC.remove(MDC_CLIENT_ID_PROPERTY);
 		MDC.put(MDC_CLIENT_ID_PROPERTY, clientId);
-
-		MDC.remove(MDC_TRACE_ID_PROPERTY);
 		MDC.put(MDC_TRACE_ID_PROPERTY, traceId);
 	}
 
+	/**
+	 * Clears MDC from the client ID and trace ID.
+	 */
 	protected static void clearMdc() {
 		MDC.remove(MDC_CLIENT_ID_PROPERTY);
 		MDC.remove(MDC_TRACE_ID_PROPERTY);
@@ -103,6 +105,18 @@ public class ObservabilityTracingContext implements TracingContext {
 	@Override
 	public TracingContextReference<?> getCurrentContext() {
 		return new ObservabilityTracingContextReference(Context.current());
+	}
+
+	@Nonnull
+	@Override
+	public Optional<String> getClientId() {
+		return Optional.ofNullable(Context.current().get(OpenTelemetryTracerSetup.CONTEXT_KEY));
+	}
+
+	@Nonnull
+	public Optional<String> getTraceId() {
+		final SpanContext spanContext = Span.current().getSpanContext();
+		return spanContext != null && spanContext.isValid() ? Optional.of(spanContext.getTraceId()) : Optional.empty();
 	}
 
 	@Nonnull
