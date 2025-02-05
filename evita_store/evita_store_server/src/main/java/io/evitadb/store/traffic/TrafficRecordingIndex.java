@@ -502,6 +502,7 @@ public class TrafficRecordingIndex implements
 	private Stream<Roaring64Bitmap> getLabelsMatchingStream(@Nonnull Map<String, List<Serializable>> labels) {
 		return labels.entrySet()
 			.stream()
+			// todo jno verify that string client values can be compared to server non-string values and that labels are checked for all ContainerWithLabels records
 			.map(entry -> entry.getValue().stream()
 				.map(value -> new LabelWithOptimizedComparator(entry.getKey(), value, value instanceof String str ? str : null))
 				.map(this.labelIndex::search)

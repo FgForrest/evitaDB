@@ -460,7 +460,8 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 				sourceQuery,
 				ArrayUtils.mergeArrays(
 					new Label[]{
-						new Label(Label.LABEL_SOURCE_TYPE, queryType)
+						new Label(Label.LABEL_SOURCE_TYPE, queryType),
+						new Label(Label.LABEL_SOURCE_QUERY, sourceQueryId)
 					},
 					collectSystemLabels()
 				),

@@ -61,7 +61,7 @@ public record SourceQueryStatisticsContainer(
 	int returnedRecordCount,
 	int totalRecordCount,
 	@Nullable String finishedWithError
-) implements TrafficRecording {
+) implements TrafficRecording { // todo jno support ContainerWithLabels interfacesd
 
 	public SourceQueryStatisticsContainer(
 		@Nonnull UUID sessionId,

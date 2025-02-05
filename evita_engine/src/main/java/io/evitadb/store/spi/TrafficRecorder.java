@@ -28,7 +28,7 @@ import io.evitadb.api.configuration.TrafficRecordingOptions;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.head.Label;
 import io.evitadb.api.requestResponse.mutation.Mutation;
-import io.evitadb.api.requestResponse.trafficRecording.QueryContainer;
+import io.evitadb.api.requestResponse.trafficRecording.ContainerWithLabels;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest;
 import io.evitadb.core.async.Scheduler;
@@ -121,19 +121,21 @@ public interface TrafficRecorder extends Closeable {
 		}
 		if (request.labels() != null) {
 			requestPredicate = requestPredicate.and(
-				tr -> tr instanceof QueryContainer qc &&
+				tr -> tr instanceof ContainerWithLabels cwl &&
 					request.labelsGroupedByName()
 						.entrySet()
 						.stream()
 						.allMatch(
 							it -> {
-								for (io.evitadb.api.requestResponse.trafficRecording.Label label : qc.labels()) {
+								for (io.evitadb.api.requestResponse.trafficRecording.Label label : cwl.labels()) {
 									final String containerKey = it.getKey();
 									if (Objects.equals(containerKey, label.name())) {
 										for (Serializable value : it.getValue()) {
 											// this is a bit tricky, data can come in formatted form, so we need to compare it in both ways
 											final Serializable containerValue = label.value();
 											if (Objects.equals(value, containerValue) ||
+												// todo jno fix client string value cannot be matched to server non-string value when toString() results in same string
+//												Objects.equals(value, containerValue.toString()) ||
 												(containerValue instanceof String && Objects.equals(value, EvitaDataTypes.formatValue(containerValue)))) {
 												return true;
 											}
