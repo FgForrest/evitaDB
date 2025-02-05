@@ -74,7 +74,7 @@ import java.io.Serializable;
  * except those with attribute `visible` set to "INVISIBLE". The {@link FacetSummary} will take references to any of
  * the category children into account when calculating the impact of category facet selection.
  *
- * <p><a href="https://evitadb.io/documentation/query/filtering/references#including-children">Visit detailed user documentation</a></p>
+ * <p><a href="https://evitadb.io/documentation/query/filtering/references#including-children-except">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
@@ -84,19 +84,19 @@ import java.io.Serializable;
 	userDocsLink = "/documentation/query/filtering/references#including-children-except",
 	supportedIn = ConstraintDomain.FACET
 )
-public class FacetExcludingChildren extends AbstractFilterConstraintContainer implements FacetSpecificationFilterConstraint {
+public class FacetIncludingChildrenExcept extends AbstractFilterConstraintContainer implements FacetSpecificationFilterConstraint {
 	@Serial private static final long serialVersionUID = 3828147822588237136L;
 	private static final String CONSTRAINT_NAME = "includingChildrenExcept";
 
-	private FacetExcludingChildren(@Nonnull Serializable... arguments) {
+	public FacetIncludingChildrenExcept() {
 		// because this query can be used only within some other facet query, it would be
 		// unnecessary to duplicate the facet prefix
-		super(CONSTRAINT_NAME, arguments);
+		super(CONSTRAINT_NAME);
 	}
 
 	@Creator
-	public FacetExcludingChildren() {
-		super(CONSTRAINT_NAME);
+	public FacetIncludingChildrenExcept(@Nonnull FilterConstraint child) {
+		super(CONSTRAINT_NAME, child);
 	}
 
 	@Override
@@ -107,17 +107,21 @@ public class FacetExcludingChildren extends AbstractFilterConstraintContainer im
 	@Nonnull
 	@Override
 	public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
-		return new FacetExcludingChildren(newArguments, getChildren());
+		throw new UnsupportedOperationException("FacetIncludingChildrenExcept filtering constraint has no arguments!");
 	}
 
 	@Nonnull
 	@Override
 	public FilterConstraint getCopyWithNewChildren(@Nonnull FilterConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
-		Assert.isTrue(
+		Assert.isPremiseValid(
 			ArrayUtils.isEmpty(additionalChildren),
 			"FacetIncludingChildrenExcept cannot have additional children."
 		);
-		return new FacetExcludingChildren(getArguments(), children);
+		Assert.isPremiseValid(
+			children.length <= 1,
+			"FacetIncludingChildrenExcept can have only one child."
+		);
+		return children.length == 0 ? new FacetIncludingChildrenExcept() : new FacetIncludingChildrenExcept(children[0]);
 	}
 
 }

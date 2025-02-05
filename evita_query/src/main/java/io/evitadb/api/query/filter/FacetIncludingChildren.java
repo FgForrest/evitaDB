@@ -102,7 +102,7 @@ import java.util.Optional;
  * This query will select only children of the category "accessories" that have attribute `validity` range that includes
  * the current date or the attribute is not set at all.
  *
- * <p><a href="https://evitadb.io/documentation/query/filtering/references#including-children">Visit detailed user documentation</a></p>
+ * <p><a href="https://evitadb.io/documentation/query/filtering/references#including-children-having">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
@@ -117,15 +117,15 @@ public class FacetIncludingChildren extends AbstractFilterConstraintContainer im
 	private static final String SUFFIX_HAVING = "having";
 	private static final String CONSTRAINT_NAME = "includingChildren";
 
-	private FacetIncludingChildren(@Nonnull Serializable... arguments) {
+	public FacetIncludingChildren() {
 		// because this query can be used only within some other facet query, it would be
 		// unnecessary to duplicate the facet prefix
-		super(CONSTRAINT_NAME, arguments);
+		super(CONSTRAINT_NAME);
 	}
 
 	@Creator
-	public FacetIncludingChildren() {
-		super(CONSTRAINT_NAME);
+	public FacetIncludingChildren(@Nonnull FilterConstraint child) {
+		super(CONSTRAINT_NAME, child);
 	}
 
 	@Override
@@ -143,17 +143,21 @@ public class FacetIncludingChildren extends AbstractFilterConstraintContainer im
 	@Nonnull
 	@Override
 	public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
-		return new FacetIncludingChildren(newArguments, getChildren());
+		throw new UnsupportedOperationException("FacetIncludingChildren filtering constraint has no arguments!");
 	}
 
 	@Nonnull
 	@Override
 	public FilterConstraint getCopyWithNewChildren(@Nonnull FilterConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
-		Assert.isTrue(
+		Assert.isPremiseValid(
 			ArrayUtils.isEmpty(additionalChildren),
 			"FacetIncludingChildren cannot have additional children."
 		);
-		return new FacetIncludingChildren(getArguments(), children);
+		Assert.isPremiseValid(
+			children.length <= 1,
+			"FacetIncludingChildren can have only one child."
+		);
+		return children.length == 0 ? new FacetIncludingChildren() : new FacetIncludingChildren(children[0]);
 	}
 
 }

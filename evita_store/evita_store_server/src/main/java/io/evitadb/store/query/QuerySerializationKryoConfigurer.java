@@ -170,6 +170,13 @@ public class QuerySerializationKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(Debug.class, new DebugSerializer(), index++);
 		kryo.register(RequireInScope.class, new RequireInScopeSerializer(), index++);
 
+		kryo.register(Segments.class, new SegmentsSerializer(), index++);
+		kryo.register(Segment.class, new SegmentSerializer(), index++);
+		kryo.register(SegmentLimit.class, new SegmentLimitSerializer(), index++);
+
+		kryo.register(FacetIncludingChildren.class, new FacetIncludingChildrenSerializer(), index++);
+		kryo.register(FacetIncludingChildrenExcept.class, new FacetIncludingChildrenExceptSerializer(), index++);
+
 		Assert.isPremiseValid(index < 2000, "Index count overflow.");
 	}
 
