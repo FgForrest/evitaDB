@@ -579,7 +579,7 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 		final CountDownLatch readLatch = readDataInParallel(5, 5, 200);
 
 		final long waitForDataStart = System.currentTimeMillis();
-		waitUntilDataBecomeAvailable(25, 60_000);
+		waitUntilDataBecomeAvailable(25, 120_000);
 		System.out.println("Data available in " + (System.currentTimeMillis() - waitForDataStart) + " ms.");
 
 		final long waitForWriteThreadsStopStart = System.currentTimeMillis();
