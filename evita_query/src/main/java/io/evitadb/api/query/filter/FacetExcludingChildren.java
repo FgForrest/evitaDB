@@ -25,7 +25,6 @@ package io.evitadb.api.query.filter;
 
 
 import io.evitadb.api.query.Constraint;
-import io.evitadb.api.query.ConstraintWithSuffix;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
@@ -37,9 +36,9 @@ import io.evitadb.utils.Assert;
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.Optional;
 
 /**
+ * TODO JNO - Update documentation
  * The constraint `includingChildren` is a constraint that can only be used within {@link FacetHaving} parent constraint.
  * It simply makes no sense anywhere else because it changes the default behavior of this constraint. Facet having
  * filters entities that have a direct reference to matching faceted entity. When the `includingChildren` constraint is
@@ -107,24 +106,23 @@ import java.util.Optional;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @ConstraintDefinition(
-	name = "includingChildren",
-	shortDescription = "The constraint automatically selects all children (or their subset satisfying additional constraints) of the hierarchical entities matched by `facetHaving` container.",
-	userDocsLink = "/documentation/query/filtering/references#including-children-having",
+	name = "includingChildrenExcept",
+	shortDescription = "The constraint automatically selects all children except those matching specified sub-constraints of the hierarchical entities matched by `facetHaving` container.",
+	userDocsLink = "/documentation/query/filtering/references#including-children-except",
 	supportedIn = ConstraintDomain.FACET
 )
-public class FacetIncludingChildren extends AbstractFilterConstraintContainer implements ConstraintWithSuffix, FacetSpecificationFilterConstraint {
-	@Serial private static final long serialVersionUID = -7258410742839628308L;
-	private static final String SUFFIX_HAVING = "having";
-	private static final String CONSTRAINT_NAME = "includingChildren";
+public class FacetExcludingChildren extends AbstractFilterConstraintContainer implements FacetSpecificationFilterConstraint {
+	@Serial private static final long serialVersionUID = 3828147822588237136L;
+	private static final String CONSTRAINT_NAME = "includingChildrenExcept";
 
-	private FacetIncludingChildren(@Nonnull Serializable... arguments) {
+	private FacetExcludingChildren(@Nonnull Serializable... arguments) {
 		// because this query can be used only within some other facet query, it would be
 		// unnecessary to duplicate the facet prefix
 		super(CONSTRAINT_NAME, arguments);
 	}
 
 	@Creator
-	public FacetIncludingChildren() {
+	public FacetExcludingChildren() {
 		super(CONSTRAINT_NAME);
 	}
 
@@ -135,15 +133,8 @@ public class FacetIncludingChildren extends AbstractFilterConstraintContainer im
 
 	@Nonnull
 	@Override
-	public Optional<String> getSuffixIfApplied() {
-		return ArrayUtils.isEmpty(getChildren()) ?
-			Optional.empty() : Optional.of(SUFFIX_HAVING);
-	}
-
-	@Nonnull
-	@Override
 	public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
-		return new FacetIncludingChildren(newArguments, getChildren());
+		return new FacetExcludingChildren(newArguments, getChildren());
 	}
 
 	@Nonnull
@@ -151,9 +142,9 @@ public class FacetIncludingChildren extends AbstractFilterConstraintContainer im
 	public FilterConstraint getCopyWithNewChildren(@Nonnull FilterConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
 		Assert.isTrue(
 			ArrayUtils.isEmpty(additionalChildren),
-			"FacetIncludingChildren cannot have additional children."
+			"FacetIncludingChildrenExcept cannot have additional children."
 		);
-		return new FacetIncludingChildren(getArguments(), children);
+		return new FacetExcludingChildren(getArguments(), children);
 	}
 
 }
