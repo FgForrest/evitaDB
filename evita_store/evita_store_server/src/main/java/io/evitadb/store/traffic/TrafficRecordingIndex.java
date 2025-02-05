@@ -333,13 +333,13 @@ public class TrafficRecordingIndex implements
 		final List<Roaring64Bitmap> streams = Stream.of(
 				Stream.of(
 						request.sinceSessionSequenceId() == null ? null : this.sessionSequenceOrderIndex.greaterOrEqualValueIterator(request.sinceSessionSequenceId()),
-						request.sessionId() == null ? null : ofNullable(this.sessionIdIndex.get(request.sessionId())).map(sid -> List.of(sid).iterator()).orElse(null),
 						request.since() == null ? null : this.sessionCreationIndex.greaterOrEqualValueIterator(request.since()),
 						request.longerThan() == null ? null : this.sessionDurationIndex.greaterOrEqualValueIterator(Math.toIntExact(request.longerThan().toMillis())),
 						request.fetchingMoreBytesThan() == null ? null : this.sessionBytesFetchedIndex.greaterOrEqualValueIterator(request.fetchingMoreBytesThan())
 					)
 					.filter(Objects::nonNull)
 					.map(TrafficRecordingIndex::toRoaringBitmap),
+				getSessionMatchingStream(request.sessionId()),
 				getTypesMatchingStream(request.types()),
 				getLabelsMatchingStream(request.labelsGroupedByName())
 			)
@@ -377,13 +377,13 @@ public class TrafficRecordingIndex implements
 		final List<Roaring64Bitmap> streams = Stream.of(
 				Stream.of(
 						request.sinceSessionSequenceId() == null ? null : this.sessionSequenceOrderIndex.lesserOrEqualValueIterator(request.sinceSessionSequenceId()),
-						request.sessionId() == null ? null : ofNullable(this.sessionIdIndex.get(request.sessionId())).map(sid -> List.of(sid).iterator()).orElse(null),
 						request.since() == null ? null : this.sessionCreationIndex.lesserOrEqualValueIterator(request.since()),
 						request.longerThan() == null ? null : this.sessionDurationIndex.lesserOrEqualValueIterator(Math.toIntExact(request.longerThan().toMillis())),
 						request.fetchingMoreBytesThan() == null ? null : this.sessionBytesFetchedIndex.lesserOrEqualValueIterator(request.fetchingMoreBytesThan())
 					)
 					.filter(Objects::nonNull)
 					.map(TrafficRecordingIndex::toRoaringBitmap),
+				getSessionMatchingStream(request.sessionId()),
 				getTypesMatchingStream(request.types()),
 				getLabelsMatchingStream(request.labelsGroupedByName())
 			)
@@ -573,6 +573,25 @@ public class TrafficRecordingIndex implements
 				.map(TrafficRecordingIndex::toRoaringBitmap)
 				.reduce((a, b) -> Roaring64Bitmap.or(a, b))
 				.stream();
+	}
+
+	/**
+	 * Retrieves a stream of Roaring64Bitmap that corresponds to the provided session UUIDs.
+	 *
+	 * @param uuids an array of UUIDs representing session identifiers. May be null, in which case an empty stream is returned.
+	 * @return a stream containing Roaring64Bitmap objects created from the provided session UUIDs. If the input is null, an empty stream is returned.
+	 */
+	@Nonnull
+	private Stream<Roaring64Bitmap> getSessionMatchingStream(@Nullable UUID[] uuids) {
+		return uuids == null ?
+			Stream.empty() :
+			Stream.of(
+				toRoaringBitmap(
+					Arrays.stream(uuids).map(this.sessionIdIndex::get)
+						.filter(Objects::nonNull)
+						.iterator()
+				)
+			);
 	}
 
 	/**

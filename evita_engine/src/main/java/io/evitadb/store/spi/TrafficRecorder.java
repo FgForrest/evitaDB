@@ -72,7 +72,7 @@ public interface TrafficRecorder extends Closeable {
 		Predicate<TrafficRecording> requestPredicate = tr -> true;
 		if (request.sessionId() != null) {
 			requestPredicate = requestPredicate.and(
-				tr -> request.sessionId().equals(tr.sessionId())
+				tr -> Arrays.stream(request.sessionId()).anyMatch(sid -> sid.equals(tr.sessionId()))
 			);
 		}
 		if (request.sinceRecordSessionOffset() != null) {
@@ -332,7 +332,7 @@ public interface TrafficRecorder extends Closeable {
 	 */
 	enum StreamDirection {
 
-		FORWARD, REVERSE;
+		FORWARD, REVERSE
 
 	}
 

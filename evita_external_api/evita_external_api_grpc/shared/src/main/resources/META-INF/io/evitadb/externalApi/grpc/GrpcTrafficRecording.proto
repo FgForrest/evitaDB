@@ -27,7 +27,7 @@ message GrpcTrafficRecordingCaptureCriteria {
   // type specifies the types of traffic recording to be returned
   repeated GrpcTrafficRecordingType type = 5;
   // sessionId specifies the session ID from which the traffic recording should be returned
-  GrpcUuid sessionId = 6;
+  repeated GrpcUuid sessionId = 6;
   // longerThan specifies the minimum duration in milliseconds of the traffic recording to be returned
   google.protobuf.Int32Value longerThanMilliseconds = 7;
   // fetchingMoreBytesThan specifies the minimum number of bytes that record should have fetched from the disk

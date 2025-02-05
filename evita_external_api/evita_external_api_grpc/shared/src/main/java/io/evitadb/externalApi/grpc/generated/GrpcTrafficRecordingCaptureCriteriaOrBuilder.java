@@ -193,27 +193,44 @@ public interface GrpcTrafficRecordingCaptureCriteriaOrBuilder extends
    * sessionId specifies the session ID from which the traffic recording should be returned
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
-   * @return Whether the sessionId field is set.
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
    */
-  boolean hasSessionId();
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcUuid>
+      getSessionIdList();
   /**
    * <pre>
    * sessionId specifies the session ID from which the traffic recording should be returned
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
-   * @return The sessionId.
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
    */
-  io.evitadb.externalApi.grpc.generated.GrpcUuid getSessionId();
+  io.evitadb.externalApi.grpc.generated.GrpcUuid getSessionId(int index);
   /**
    * <pre>
    * sessionId specifies the session ID from which the traffic recording should be returned
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
    */
-  io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder getSessionIdOrBuilder();
+  int getSessionIdCount();
+  /**
+   * <pre>
+   * sessionId specifies the session ID from which the traffic recording should be returned
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
+   */
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder>
+      getSessionIdOrBuilderList();
+  /**
+   * <pre>
+   * sessionId specifies the session ID from which the traffic recording should be returned
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder getSessionIdOrBuilder(
+      int index);
 
   /**
    * <pre>

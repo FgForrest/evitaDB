@@ -46,6 +46,7 @@ private static final long serialVersionUID = 0L;
   private GrpcTrafficRecordingCaptureCriteria() {
     content_ = 0;
     type_ = java.util.Collections.emptyList();
+    sessionId_ = java.util.Collections.emptyList();
     labels_ = java.util.Collections.emptyList();
   }
 
@@ -149,16 +150,12 @@ private static final long serialVersionUID = 0L;
             break;
           }
           case 50: {
-            io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder subBuilder = null;
-            if (sessionId_ != null) {
-              subBuilder = sessionId_.toBuilder();
+            if (!((mutable_bitField0_ & 0x00000002) != 0)) {
+              sessionId_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcUuid>();
+              mutable_bitField0_ |= 0x00000002;
             }
-            sessionId_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcUuid.parser(), extensionRegistry);
-            if (subBuilder != null) {
-              subBuilder.mergeFrom(sessionId_);
-              sessionId_ = subBuilder.buildPartial();
-            }
-
+            sessionId_.add(
+                input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcUuid.parser(), extensionRegistry));
             break;
           }
           case 58: {
@@ -188,9 +185,9 @@ private static final long serialVersionUID = 0L;
             break;
           }
           case 74: {
-            if (!((mutable_bitField0_ & 0x00000002) != 0)) {
+            if (!((mutable_bitField0_ & 0x00000004) != 0)) {
               labels_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcQueryLabel>();
-              mutable_bitField0_ |= 0x00000002;
+              mutable_bitField0_ |= 0x00000004;
             }
             labels_.add(
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcQueryLabel.parser(), extensionRegistry));
@@ -215,6 +212,9 @@ private static final long serialVersionUID = 0L;
         type_ = java.util.Collections.unmodifiableList(type_);
       }
       if (((mutable_bitField0_ & 0x00000002) != 0)) {
+        sessionId_ = java.util.Collections.unmodifiableList(sessionId_);
+      }
+      if (((mutable_bitField0_ & 0x00000004) != 0)) {
         labels_ = java.util.Collections.unmodifiableList(labels_);
       }
       this.unknownFields = unknownFields.build();
@@ -463,41 +463,63 @@ private static final long serialVersionUID = 0L;
   private int typeMemoizedSerializedSize;
 
   public static final int SESSIONID_FIELD_NUMBER = 6;
-  private io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId_;
+  private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcUuid> sessionId_;
   /**
    * <pre>
    * sessionId specifies the session ID from which the traffic recording should be returned
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
-   * @return Whether the sessionId field is set.
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
    */
   @java.lang.Override
-  public boolean hasSessionId() {
-    return sessionId_ != null;
+  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcUuid> getSessionIdList() {
+    return sessionId_;
   }
   /**
    * <pre>
    * sessionId specifies the session ID from which the traffic recording should be returned
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
-   * @return The sessionId.
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
    */
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcUuid getSessionId() {
-    return sessionId_ == null ? io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance() : sessionId_;
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder>
+      getSessionIdOrBuilderList() {
+    return sessionId_;
   }
   /**
    * <pre>
    * sessionId specifies the session ID from which the traffic recording should be returned
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
    */
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder getSessionIdOrBuilder() {
-    return getSessionId();
+  public int getSessionIdCount() {
+    return sessionId_.size();
+  }
+  /**
+   * <pre>
+   * sessionId specifies the session ID from which the traffic recording should be returned
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcUuid getSessionId(int index) {
+    return sessionId_.get(index);
+  }
+  /**
+   * <pre>
+   * sessionId specifies the session ID from which the traffic recording should be returned
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder getSessionIdOrBuilder(
+      int index) {
+    return sessionId_.get(index);
   }
 
   public static final int LONGERTHANMILLISECONDS_FIELD_NUMBER = 7;
@@ -670,8 +692,8 @@ private static final long serialVersionUID = 0L;
     for (int i = 0; i < type_.size(); i++) {
       output.writeEnumNoTag(type_.get(i));
     }
-    if (sessionId_ != null) {
-      output.writeMessage(6, getSessionId());
+    for (int i = 0; i < sessionId_.size(); i++) {
+      output.writeMessage(6, sessionId_.get(i));
     }
     if (longerThanMilliseconds_ != null) {
       output.writeMessage(7, getLongerThanMilliseconds());
@@ -719,9 +741,9 @@ private static final long serialVersionUID = 0L;
           .computeUInt32SizeNoTag(dataSize);
       }typeMemoizedSerializedSize = dataSize;
     }
-    if (sessionId_ != null) {
+    for (int i = 0; i < sessionId_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(6, getSessionId());
+        .computeMessageSize(6, sessionId_.get(i));
     }
     if (longerThanMilliseconds_ != null) {
       size += com.google.protobuf.CodedOutputStream
@@ -767,11 +789,8 @@ private static final long serialVersionUID = 0L;
           .equals(other.getSinceRecordSessionOffset())) return false;
     }
     if (!type_.equals(other.type_)) return false;
-    if (hasSessionId() != other.hasSessionId()) return false;
-    if (hasSessionId()) {
-      if (!getSessionId()
-          .equals(other.getSessionId())) return false;
-    }
+    if (!getSessionIdList()
+        .equals(other.getSessionIdList())) return false;
     if (hasLongerThanMilliseconds() != other.hasLongerThanMilliseconds()) return false;
     if (hasLongerThanMilliseconds()) {
       if (!getLongerThanMilliseconds()
@@ -813,9 +832,9 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + TYPE_FIELD_NUMBER;
       hash = (53 * hash) + type_.hashCode();
     }
-    if (hasSessionId()) {
+    if (getSessionIdCount() > 0) {
       hash = (37 * hash) + SESSIONID_FIELD_NUMBER;
-      hash = (53 * hash) + getSessionId().hashCode();
+      hash = (53 * hash) + getSessionIdList().hashCode();
     }
     if (hasLongerThanMilliseconds()) {
       hash = (37 * hash) + LONGERTHANMILLISECONDS_FIELD_NUMBER;
@@ -962,6 +981,7 @@ private static final long serialVersionUID = 0L;
     private void maybeForceBuilderInitialization() {
       if (com.google.protobuf.GeneratedMessageV3
               .alwaysUseFieldBuilders) {
+        getSessionIdFieldBuilder();
         getLabelsFieldBuilder();
       }
     }
@@ -991,10 +1011,10 @@ private static final long serialVersionUID = 0L;
       type_ = java.util.Collections.emptyList();
       bitField0_ = (bitField0_ & ~0x00000001);
       if (sessionIdBuilder_ == null) {
-        sessionId_ = null;
+        sessionId_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00000002);
       } else {
-        sessionId_ = null;
-        sessionIdBuilder_ = null;
+        sessionIdBuilder_.clear();
       }
       if (longerThanMillisecondsBuilder_ == null) {
         longerThanMilliseconds_ = null;
@@ -1010,7 +1030,7 @@ private static final long serialVersionUID = 0L;
       }
       if (labelsBuilder_ == null) {
         labels_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000002);
+        bitField0_ = (bitField0_ & ~0x00000004);
       } else {
         labelsBuilder_.clear();
       }
@@ -1063,6 +1083,10 @@ private static final long serialVersionUID = 0L;
       }
       result.type_ = type_;
       if (sessionIdBuilder_ == null) {
+        if (((bitField0_ & 0x00000002) != 0)) {
+          sessionId_ = java.util.Collections.unmodifiableList(sessionId_);
+          bitField0_ = (bitField0_ & ~0x00000002);
+        }
         result.sessionId_ = sessionId_;
       } else {
         result.sessionId_ = sessionIdBuilder_.build();
@@ -1078,9 +1102,9 @@ private static final long serialVersionUID = 0L;
         result.fetchingMoreBytesThan_ = fetchingMoreBytesThanBuilder_.build();
       }
       if (labelsBuilder_ == null) {
-        if (((bitField0_ & 0x00000002) != 0)) {
+        if (((bitField0_ & 0x00000004) != 0)) {
           labels_ = java.util.Collections.unmodifiableList(labels_);
-          bitField0_ = (bitField0_ & ~0x00000002);
+          bitField0_ = (bitField0_ & ~0x00000004);
         }
         result.labels_ = labels_;
       } else {
@@ -1156,8 +1180,31 @@ private static final long serialVersionUID = 0L;
         }
         onChanged();
       }
-      if (other.hasSessionId()) {
-        mergeSessionId(other.getSessionId());
+      if (sessionIdBuilder_ == null) {
+        if (!other.sessionId_.isEmpty()) {
+          if (sessionId_.isEmpty()) {
+            sessionId_ = other.sessionId_;
+            bitField0_ = (bitField0_ & ~0x00000002);
+          } else {
+            ensureSessionIdIsMutable();
+            sessionId_.addAll(other.sessionId_);
+          }
+          onChanged();
+        }
+      } else {
+        if (!other.sessionId_.isEmpty()) {
+          if (sessionIdBuilder_.isEmpty()) {
+            sessionIdBuilder_.dispose();
+            sessionIdBuilder_ = null;
+            sessionId_ = other.sessionId_;
+            bitField0_ = (bitField0_ & ~0x00000002);
+            sessionIdBuilder_ =
+              com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
+                 getSessionIdFieldBuilder() : null;
+          } else {
+            sessionIdBuilder_.addAllMessages(other.sessionId_);
+          }
+        }
       }
       if (other.hasLongerThanMilliseconds()) {
         mergeLongerThanMilliseconds(other.getLongerThanMilliseconds());
@@ -1169,7 +1216,7 @@ private static final long serialVersionUID = 0L;
         if (!other.labels_.isEmpty()) {
           if (labels_.isEmpty()) {
             labels_ = other.labels_;
-            bitField0_ = (bitField0_ & ~0x00000002);
+            bitField0_ = (bitField0_ & ~0x00000004);
           } else {
             ensureLabelsIsMutable();
             labels_.addAll(other.labels_);
@@ -1182,7 +1229,7 @@ private static final long serialVersionUID = 0L;
             labelsBuilder_.dispose();
             labelsBuilder_ = null;
             labels_ = other.labels_;
-            bitField0_ = (bitField0_ & ~0x00000002);
+            bitField0_ = (bitField0_ & ~0x00000004);
             labelsBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getLabelsFieldBuilder() : null;
@@ -1975,33 +2022,30 @@ private static final long serialVersionUID = 0L;
       return this;
     }
 
-    private io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId_;
-    private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder> sessionIdBuilder_;
-    /**
-     * <pre>
-     * sessionId specifies the session ID from which the traffic recording should be returned
-     * </pre>
-     *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
-     * @return Whether the sessionId field is set.
-     */
-    public boolean hasSessionId() {
-      return sessionIdBuilder_ != null || sessionId_ != null;
+    private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcUuid> sessionId_ =
+      java.util.Collections.emptyList();
+    private void ensureSessionIdIsMutable() {
+      if (!((bitField0_ & 0x00000002) != 0)) {
+        sessionId_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcUuid>(sessionId_);
+        bitField0_ |= 0x00000002;
+       }
     }
+
+    private com.google.protobuf.RepeatedFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder> sessionIdBuilder_;
+
     /**
      * <pre>
      * sessionId specifies the session ID from which the traffic recording should be returned
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
-     * @return The sessionId.
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcUuid getSessionId() {
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcUuid> getSessionIdList() {
       if (sessionIdBuilder_ == null) {
-        return sessionId_ == null ? io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance() : sessionId_;
+        return java.util.Collections.unmodifiableList(sessionId_);
       } else {
-        return sessionIdBuilder_.getMessage();
+        return sessionIdBuilder_.getMessageList();
       }
     }
     /**
@@ -2009,19 +2053,48 @@ private static final long serialVersionUID = 0L;
      * sessionId specifies the session ID from which the traffic recording should be returned
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
      */
-    public Builder setSessionId(io.evitadb.externalApi.grpc.generated.GrpcUuid value) {
+    public int getSessionIdCount() {
+      if (sessionIdBuilder_ == null) {
+        return sessionId_.size();
+      } else {
+        return sessionIdBuilder_.getCount();
+      }
+    }
+    /**
+     * <pre>
+     * sessionId specifies the session ID from which the traffic recording should be returned
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcUuid getSessionId(int index) {
+      if (sessionIdBuilder_ == null) {
+        return sessionId_.get(index);
+      } else {
+        return sessionIdBuilder_.getMessage(index);
+      }
+    }
+    /**
+     * <pre>
+     * sessionId specifies the session ID from which the traffic recording should be returned
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
+     */
+    public Builder setSessionId(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcUuid value) {
       if (sessionIdBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        sessionId_ = value;
+        ensureSessionIdIsMutable();
+        sessionId_.set(index, value);
         onChanged();
       } else {
-        sessionIdBuilder_.setMessage(value);
+        sessionIdBuilder_.setMessage(index, value);
       }
-
       return this;
     }
     /**
@@ -2029,17 +2102,76 @@ private static final long serialVersionUID = 0L;
      * sessionId specifies the session ID from which the traffic recording should be returned
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
      */
     public Builder setSessionId(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder builderForValue) {
+      if (sessionIdBuilder_ == null) {
+        ensureSessionIdIsMutable();
+        sessionId_.set(index, builderForValue.build());
+        onChanged();
+      } else {
+        sessionIdBuilder_.setMessage(index, builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * sessionId specifies the session ID from which the traffic recording should be returned
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
+     */
+    public Builder addSessionId(io.evitadb.externalApi.grpc.generated.GrpcUuid value) {
+      if (sessionIdBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureSessionIdIsMutable();
+        sessionId_.add(value);
+        onChanged();
+      } else {
+        sessionIdBuilder_.addMessage(value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * sessionId specifies the session ID from which the traffic recording should be returned
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
+     */
+    public Builder addSessionId(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcUuid value) {
+      if (sessionIdBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureSessionIdIsMutable();
+        sessionId_.add(index, value);
+        onChanged();
+      } else {
+        sessionIdBuilder_.addMessage(index, value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * sessionId specifies the session ID from which the traffic recording should be returned
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
+     */
+    public Builder addSessionId(
         io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder builderForValue) {
       if (sessionIdBuilder_ == null) {
-        sessionId_ = builderForValue.build();
+        ensureSessionIdIsMutable();
+        sessionId_.add(builderForValue.build());
         onChanged();
       } else {
-        sessionIdBuilder_.setMessage(builderForValue.build());
+        sessionIdBuilder_.addMessage(builderForValue.build());
       }
-
       return this;
     }
     /**
@@ -2047,21 +2179,17 @@ private static final long serialVersionUID = 0L;
      * sessionId specifies the session ID from which the traffic recording should be returned
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
      */
-    public Builder mergeSessionId(io.evitadb.externalApi.grpc.generated.GrpcUuid value) {
+    public Builder addSessionId(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder builderForValue) {
       if (sessionIdBuilder_ == null) {
-        if (sessionId_ != null) {
-          sessionId_ =
-            io.evitadb.externalApi.grpc.generated.GrpcUuid.newBuilder(sessionId_).mergeFrom(value).buildPartial();
-        } else {
-          sessionId_ = value;
-        }
+        ensureSessionIdIsMutable();
+        sessionId_.add(index, builderForValue.build());
         onChanged();
       } else {
-        sessionIdBuilder_.mergeFrom(value);
+        sessionIdBuilder_.addMessage(index, builderForValue.build());
       }
-
       return this;
     }
     /**
@@ -2069,17 +2197,35 @@ private static final long serialVersionUID = 0L;
      * sessionId specifies the session ID from which the traffic recording should be returned
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
+     */
+    public Builder addAllSessionId(
+        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcUuid> values) {
+      if (sessionIdBuilder_ == null) {
+        ensureSessionIdIsMutable();
+        com.google.protobuf.AbstractMessageLite.Builder.addAll(
+            values, sessionId_);
+        onChanged();
+      } else {
+        sessionIdBuilder_.addAllMessages(values);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * sessionId specifies the session ID from which the traffic recording should be returned
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
      */
     public Builder clearSessionId() {
       if (sessionIdBuilder_ == null) {
-        sessionId_ = null;
+        sessionId_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00000002);
         onChanged();
       } else {
-        sessionId_ = null;
-        sessionIdBuilder_ = null;
+        sessionIdBuilder_.clear();
       }
-
       return this;
     }
     /**
@@ -2087,26 +2233,41 @@ private static final long serialVersionUID = 0L;
      * sessionId specifies the session ID from which the traffic recording should be returned
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder getSessionIdBuilder() {
-
-      onChanged();
-      return getSessionIdFieldBuilder().getBuilder();
+    public Builder removeSessionId(int index) {
+      if (sessionIdBuilder_ == null) {
+        ensureSessionIdIsMutable();
+        sessionId_.remove(index);
+        onChanged();
+      } else {
+        sessionIdBuilder_.remove(index);
+      }
+      return this;
     }
     /**
      * <pre>
      * sessionId specifies the session ID from which the traffic recording should be returned
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder getSessionIdOrBuilder() {
-      if (sessionIdBuilder_ != null) {
-        return sessionIdBuilder_.getMessageOrBuilder();
-      } else {
-        return sessionId_ == null ?
-            io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance() : sessionId_;
+    public io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder getSessionIdBuilder(
+        int index) {
+      return getSessionIdFieldBuilder().getBuilder(index);
+    }
+    /**
+     * <pre>
+     * sessionId specifies the session ID from which the traffic recording should be returned
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder getSessionIdOrBuilder(
+        int index) {
+      if (sessionIdBuilder_ == null) {
+        return sessionId_.get(index);  } else {
+        return sessionIdBuilder_.getMessageOrBuilder(index);
       }
     }
     /**
@@ -2114,15 +2275,58 @@ private static final long serialVersionUID = 0L;
      * sessionId specifies the session ID from which the traffic recording should be returned
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
      */
-    private com.google.protobuf.SingleFieldBuilderV3<
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder>
+         getSessionIdOrBuilderList() {
+      if (sessionIdBuilder_ != null) {
+        return sessionIdBuilder_.getMessageOrBuilderList();
+      } else {
+        return java.util.Collections.unmodifiableList(sessionId_);
+      }
+    }
+    /**
+     * <pre>
+     * sessionId specifies the session ID from which the traffic recording should be returned
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder addSessionIdBuilder() {
+      return getSessionIdFieldBuilder().addBuilder(
+          io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance());
+    }
+    /**
+     * <pre>
+     * sessionId specifies the session ID from which the traffic recording should be returned
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder addSessionIdBuilder(
+        int index) {
+      return getSessionIdFieldBuilder().addBuilder(
+          index, io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance());
+    }
+    /**
+     * <pre>
+     * sessionId specifies the session ID from which the traffic recording should be returned
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder>
+         getSessionIdBuilderList() {
+      return getSessionIdFieldBuilder().getBuilderList();
+    }
+    private com.google.protobuf.RepeatedFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder>
         getSessionIdFieldBuilder() {
       if (sessionIdBuilder_ == null) {
-        sessionIdBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+        sessionIdBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder>(
-                getSessionId(),
+                sessionId_,
+                ((bitField0_ & 0x00000002) != 0),
                 getParentForChildren(),
                 isClean());
         sessionId_ = null;
@@ -2443,9 +2647,9 @@ private static final long serialVersionUID = 0L;
     private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryLabel> labels_ =
       java.util.Collections.emptyList();
     private void ensureLabelsIsMutable() {
-      if (!((bitField0_ & 0x00000002) != 0)) {
+      if (!((bitField0_ & 0x00000004) != 0)) {
         labels_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcQueryLabel>(labels_);
-        bitField0_ |= 0x00000002;
+        bitField0_ |= 0x00000004;
        }
     }
 
@@ -2639,7 +2843,7 @@ private static final long serialVersionUID = 0L;
     public Builder clearLabels() {
       if (labelsBuilder_ == null) {
         labels_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000002);
+        bitField0_ = (bitField0_ & ~0x00000004);
         onChanged();
       } else {
         labelsBuilder_.clear();
@@ -2744,7 +2948,7 @@ private static final long serialVersionUID = 0L;
         labelsBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcQueryLabel, io.evitadb.externalApi.grpc.generated.GrpcQueryLabel.Builder, io.evitadb.externalApi.grpc.generated.GrpcQueryLabelOrBuilder>(
                 labels_,
-                ((bitField0_ & 0x00000002) != 0),
+                ((bitField0_ & 0x00000004) != 0),
                 getParentForChildren(),
                 isClean());
         labels_ = null;

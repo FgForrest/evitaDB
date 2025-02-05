@@ -116,7 +116,7 @@ public final class GrpcTrafficRecording {
       "SessionOffset\030\004 \001(\0132\033.google.protobuf.In" +
       "t32Value\022M\n\004type\030\005 \003(\0162?.io.evitadb.exte" +
       "rnalApi.grpc.generated.GrpcTrafficRecord" +
-      "ingType\022B\n\tsessionId\030\006 \001(\0132/.io.evitadb." +
+      "ingType\022B\n\tsessionId\030\006 \003(\0132/.io.evitadb." +
       "externalApi.grpc.generated.GrpcUuid\022;\n\026l" +
       "ongerThanMilliseconds\030\007 \001(\0132\033.google.pro" +
       "tobuf.Int32Value\022:\n\025fetchingMoreBytesTha" +

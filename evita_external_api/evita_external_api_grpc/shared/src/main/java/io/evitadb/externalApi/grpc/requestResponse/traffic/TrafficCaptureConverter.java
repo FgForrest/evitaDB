@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.trafficRecording.*;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest.TrafficRecordingType;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.DelegatingEntityMutationConverter;
@@ -41,11 +42,11 @@ import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.UUID;
 
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrpcOffsetDateTime;
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrpcUuid;
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toOffsetDateTime;
-import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toUuid;
 import static io.evitadb.externalApi.grpc.generated.GrpcTrafficRecord.newBuilder;
 
 /**
@@ -366,7 +367,11 @@ public class TrafficCaptureConverter {
 				criteria.getTypeList().stream()
 					.map(EvitaEnumConverter::toTrafficRecordingType)
 					.toArray(TrafficRecordingType[]::new) : null,
-			criteria.hasSessionId() ? toUuid(criteria.getSessionId()) : null,
+			criteria.getSessionIdCount() > 0 ?
+				criteria.getSessionIdList()
+					.stream()
+					.map(EvitaDataTypesConverter::toUuid)
+					.toArray(UUID[]::new) : null,
 			criteria.hasLongerThanMilliseconds() ? Duration.of(criteria.getLongerThanMilliseconds().getValue(), ChronoUnit.MILLIS) : null,
 			criteria.hasFetchingMoreBytesThan() ? criteria.getFetchingMoreBytesThan().getValue() : null,
 			criteria.getLabelsCount() > 0 ?

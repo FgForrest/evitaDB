@@ -61,7 +61,7 @@ public record TrafficRecordingCaptureRequest(
 	@Nullable Long sinceSessionSequenceId,
 	@Nullable Integer sinceRecordSessionOffset,
 	@Nullable TrafficRecordingType[] types,
-	@Nullable UUID sessionId,
+	@Nullable UUID[] sessionId,
 	@Nullable Duration longerThan,
 	@Nullable Integer fetchingMoreBytesThan,
 	@Nullable Label[] labels,
@@ -90,7 +90,7 @@ public record TrafficRecordingCaptureRequest(
 		@Nullable Long sinceSessionSequenceId,
 		@Nullable Integer sinceRecordSessionOffset,
 		@Nullable TrafficRecordingType[] types,
-		@Nullable UUID sessionId,
+		@Nullable UUID[] sessionId,
 		@Nullable Duration longerThan,
 		@Nullable Integer fetchingMoreBytesThan,
 		@Nullable Label[] labels
@@ -178,7 +178,7 @@ public record TrafficRecordingCaptureRequest(
 		@Nullable
 		private Label[] labels;
 		@Nullable
-		private UUID sessionId;
+		private UUID[] sessionId;
 		@Nullable
 		private Duration longerThan;
 		@Nullable
@@ -285,7 +285,7 @@ public record TrafficRecordingCaptureRequest(
 		 * @return this builder.
 		 */
 		@Nonnull
-		public Builder sessionId(@Nullable UUID sessionId) {
+		public Builder sessionId(@Nullable UUID... sessionId) {
 			this.sessionId = sessionId;
 			return this;
 		}
