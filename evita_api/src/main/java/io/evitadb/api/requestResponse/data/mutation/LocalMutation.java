@@ -23,7 +23,7 @@
 
 package io.evitadb.api.requestResponse.data.mutation;
 
-import io.evitadb.api.requestResponse.cdc.CaptureContent;
+import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.structure.Entity;
@@ -91,12 +91,12 @@ public non-sealed interface LocalMutation<T, S extends Comparable<S>> extends Mu
 	@Nonnull
 	default Stream<ChangeCatalogCapture> toChangeCatalogCapture(
 		@Nonnull MutationPredicate predicate,
-		@Nonnull CaptureContent content) {
+		@Nonnull ChangeCaptureContent content) {
 		return Stream.of(
 			ChangeCatalogCapture.dataCapture(
 				predicate.getContext(),
 				operation(),
-				content == CaptureContent.BODY ? this : null
+				content == ChangeCaptureContent.BODY ? this : null
 			)
 		);
 	}

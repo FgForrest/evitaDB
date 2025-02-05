@@ -25,7 +25,7 @@ package io.evitadb.api.requestResponse.schema.mutation.catalog;
 
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.requestResponse.cdc.CaptureContent;
+import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
@@ -51,7 +51,7 @@ import java.util.stream.Stream;
 /**
  * Mutation is responsible for setting up a new {@link EntitySchemaContract} - or more precisely
  * the {@link EntityCollectionContract} instance within {@link io.evitadb.api.CatalogContract} instance.
- * The mutation is used by {@link io.evitadb.api.CatalogContract#getOrCreateCollectionForEntity(String, EvitaSessionContract)} method
+ * The mutation is used by {@link io.evitadb.api.CatalogContract#getOrCreateCollectionForEntity(EvitaSessionContract, String)} method
  * internally.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
@@ -87,7 +87,7 @@ public class CreateEntitySchemaMutation implements LocalCatalogSchemaMutation, C
 	@Override
 	public Stream<ChangeCatalogCapture> toChangeCatalogCapture(
 		@Nonnull MutationPredicate predicate,
-		@Nonnull CaptureContent content
+		@Nonnull ChangeCaptureContent content
 	) {
 		if (predicate.test(this)) {
 			final MutationPredicateContext context = predicate.getContext();
@@ -98,7 +98,7 @@ public class CreateEntitySchemaMutation implements LocalCatalogSchemaMutation, C
 				ChangeCatalogCapture.schemaCapture(
 					context,
 					operation(),
-					content == CaptureContent.BODY ? this : null
+					content == ChangeCaptureContent.BODY ? this : null
 				)
 			);
 		} else {

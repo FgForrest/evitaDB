@@ -36,7 +36,9 @@ constraint
     ;
 
 headConstraint
-    : 'collection'                          args = classifierArgs                                           # collectionConstraint
+    : 'head'                                args = headConstraintListArgs                                   # headContainerConstraint
+    | 'collection'                          args = classifierArgs                                           # collectionConstraint
+    | 'label'                               args = classifierWithValueArgs                                  # labelConstraint
     ;
 
 filterConstraint
@@ -207,6 +209,8 @@ argsClosing :                                       (ARGS_DELIMITER)? ARGS_CLOSI
 constraintListArgs :                                argsOpening constraints += constraint (ARGS_DELIMITER constraints += constraint)* argsClosing ;
 
 emptyArgs :                                         argsOpening argsClosing ;
+
+headConstraintListArgs :                            argsOpening constraints += headConstraint (ARGS_DELIMITER constraints += headConstraint)* argsClosing ;
 
 filterConstraintListArgs :                          argsOpening constraints += filterConstraint (ARGS_DELIMITER constraints += filterConstraint)* argsClosing ;
 

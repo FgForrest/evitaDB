@@ -23,7 +23,6 @@
 
 package io.evitadb.index.attribute;
 
-import io.evitadb.ConsistencySensitiveDataStructure;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.Transaction;
@@ -32,6 +31,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.dataType.ChainableType;
+import io.evitadb.dataType.ConsistencySensitiveDataStructure;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.IndexDataStructure;

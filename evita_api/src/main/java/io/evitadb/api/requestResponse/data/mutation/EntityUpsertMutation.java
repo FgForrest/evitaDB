@@ -24,7 +24,7 @@
 package io.evitadb.api.requestResponse.data.mutation;
 
 import io.evitadb.api.exception.InvalidMutationException;
-import io.evitadb.api.requestResponse.cdc.CaptureContent;
+import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.Droppable;
@@ -205,7 +205,7 @@ public class EntityUpsertMutation implements EntityMutation {
 	@Override
 	public Stream<ChangeCatalogCapture> toChangeCatalogCapture(
 		@Nonnull MutationPredicate predicate,
-		@Nonnull CaptureContent content
+		@Nonnull ChangeCaptureContent content
 	) {
 		final MutationPredicateContext context = predicate.getContext();
 		context.setEntityType(this.entityType);
@@ -218,7 +218,7 @@ public class EntityUpsertMutation implements EntityMutation {
 				ChangeCatalogCapture.dataCapture(
 					context,
 					operation(),
-					content == CaptureContent.BODY ? this : null
+					content == ChangeCaptureContent.BODY ? this : null
 				)
 			);
 		} else {

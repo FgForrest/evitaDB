@@ -31,10 +31,10 @@ import io.evitadb.core.async.Interruptible;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.store.catalog.DefaultCatalogPersistenceService;
 import io.evitadb.store.catalog.task.RestoreTask.RestoreSettings;
+import io.evitadb.store.catalog.task.stream.CountingInputStream;
 import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.store.spi.CatalogPersistenceServiceFactory.FileIdCarrier;
 import io.evitadb.utils.Assert;
-import io.evitadb.utils.CountingInputStream;
 import io.evitadb.utils.StringUtils;
 import lombok.extern.slf4j.Slf4j;
 

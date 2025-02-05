@@ -139,7 +139,7 @@ public class ReferencesStoragePart implements EntityStoragePart {
 			}
 		} else {
 			mutatedReference = mutator.apply(null);
-			this.references = ArrayUtils.insertRecordIntoArray(mutatedReference, this.references, position);
+			this.references = ArrayUtils.insertRecordIntoArrayOnIndex(mutatedReference, this.references, position);
 			this.dirty = true;
 		}
 

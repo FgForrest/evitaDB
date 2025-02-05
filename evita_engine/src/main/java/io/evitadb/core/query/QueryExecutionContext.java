@@ -25,7 +25,6 @@ package io.evitadb.core.query;
 
 import com.carrotsearch.hppc.IntObjectHashMap;
 import com.carrotsearch.hppc.IntObjectMap;
-import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.EntityCollectionRequiredException;
 import io.evitadb.api.query.require.EntityFetchRequire;
@@ -156,7 +155,7 @@ public class QueryExecutionContext implements Closeable {
 	public Optional<SealedEntity> fetchEntity(@Nullable String entityType, int entityPrimaryKey, @Nonnull EntityFetchRequire requirements) {
 		final EntityCollection targetCollection = this.queryContext.getEntityCollectionOrThrowException(entityType, "fetch entity");
 		final EvitaRequest fetchRequest = this.queryContext.fabricateFetchRequest(entityType, requirements);
-		return targetCollection.getEntity(entityPrimaryKey, fetchRequest, this.queryContext.getEvitaSession());
+		return targetCollection.fetchEntity(entityPrimaryKey, fetchRequest, this.queryContext.getEvitaSession());
 	}
 
 	/**
@@ -166,7 +165,7 @@ public class QueryExecutionContext implements Closeable {
 	public List<SealedEntity> fetchEntities(@Nullable String entityType, @Nonnull int[] entityPrimaryKeys, @Nonnull EntityFetchRequire requirements) {
 		final EntityCollection entityCollection = this.queryContext.getEntityCollectionOrThrowException(entityType, "fetch entities");
 		final EvitaRequest fetchRequest = this.queryContext.fabricateFetchRequest(entityType, requirements);
-		return entityCollection.getEntities(entityPrimaryKeys, fetchRequest, this.queryContext.getEvitaSession());
+		return entityCollection.fetchEntities(entityPrimaryKeys, fetchRequest, this.queryContext.getEvitaSession());
 	}
 
 	/**
@@ -200,13 +199,13 @@ public class QueryExecutionContext implements Closeable {
 
 		if (this.prefetchedEntities == null) {
 			final EntityCollection entityCollection = this.queryContext.getEntityCollectionOrThrowException(entityType, "fetch entity");
-			return entityCollection.getEntities(entityPrimaryKey, evitaRequest, evitaSession, entityFetcher);
+			return entityCollection.fetchEntities(entityPrimaryKey, evitaRequest, evitaSession, entityFetcher);
 		} else {
 			return takeAdvantageOfPrefetchedEntities(
 				entityPrimaryKey,
 				entityType,
 				(entityCollection, entityPrimaryKeys, requestToUse) ->
-					entityCollection.getEntities(entityPrimaryKeys, evitaRequest, evitaSession),
+					entityCollection.fetchEntities(entityPrimaryKeys, evitaRequest, evitaSession),
 				(entityCollection, prefetchedEntities, requestToUse) ->
 					entityCollection.limitAndFetchExistingEntities(prefetchedEntities, requestToUse, entityFetcher)
 			);
@@ -224,16 +223,16 @@ public class QueryExecutionContext implements Closeable {
 		final EvitaRequest evitaRequest = this.queryContext.getEvitaRequest();
 		final EvitaSessionContract evitaSession = this.queryContext.getEvitaSession();
 		if (this.prefetchedEntities == null) {
-			final EntityCollectionContract entityCollection = this.queryContext.getEntityCollectionOrThrowException(entityType, "fetch entity");
-			return entityCollection.getBinaryEntities(entityPrimaryKey, evitaRequest, evitaSession);
+			final EntityCollection entityCollection = this.queryContext.getEntityCollectionOrThrowException(entityType, "fetch entity");
+			return entityCollection.fetchBinaryEntities(entityPrimaryKey, evitaRequest, evitaSession);
 		} else {
 			// we need to reread the contents of the prefetched entity in binary form
 			return takeAdvantageOfPrefetchedEntities(
 				entityPrimaryKey,
 				entityType,
 				(entityCollection, entityPrimaryKeys, requestToUse) ->
-					entityCollection.getBinaryEntities(entityPrimaryKeys, evitaRequest, evitaSession),
-				(entityCollection, prefetchedEntities, requestToUse) -> entityCollection.getBinaryEntities(
+					entityCollection.fetchBinaryEntities(entityPrimaryKeys, evitaRequest, evitaSession),
+				(entityCollection, prefetchedEntities, requestToUse) -> entityCollection.fetchBinaryEntities(
 					prefetchedEntities.stream()
 						.mapToInt(EntityDecorator::getPrimaryKeyOrThrowException)
 						.toArray(),
@@ -275,7 +274,7 @@ public class QueryExecutionContext implements Closeable {
 			final EntityCollection entityCollection = this.queryContext.getEntityCollectionOrThrowException(entityType, "fetch entities");
 			final EvitaRequest fetchRequest = this.queryContext.fabricateFetchRequest(entityType, requirements);
 			this.prefetchedEntities = Arrays.stream(entitiesToPrefetch.getArray())
-				.mapToObj(it -> entityCollection.getEntityDecorator(it, fetchRequest, evitaSession))
+				.mapToObj(it -> entityCollection.fetchEntityDecorator(it, fetchRequest, evitaSession))
 				.filter(Optional::isPresent)
 				.map(Optional::get)
 				.toList();
@@ -297,7 +296,7 @@ public class QueryExecutionContext implements Closeable {
 				final EntityCollection targetCollection = this.queryContext.getEntityCollectionOrThrowException(entityType, "fetch entity");
 				final EvitaRequest fetchRequest = this.queryContext.fabricateFetchRequest(entityType, requirements);
 				final int pk = entitiesToPrefetch[0].getPrimaryKey();
-				targetCollection.getEntityDecorator(pk, fetchRequest, evitaSession)
+				targetCollection.fetchEntityDecorator(pk, fetchRequest, evitaSession)
 					.ifPresent(it -> this.prefetchedEntities.add(it));
 			} else {
 				final Map<String, CompositeIntArray> entitiesByType = CollectionUtils.createHashMap(16);
@@ -313,7 +312,7 @@ public class QueryExecutionContext implements Closeable {
 						final EvitaRequest fetchRequest = this.queryContext.fabricateFetchRequest(entityType, requirements);
 						final EntityCollection targetCollection = this.queryContext.getEntityCollectionOrThrowException(entityType, "fetch entity");
 						return Arrays.stream(it.getValue().toArray())
-							.mapToObj(pk -> targetCollection.getEntityDecorator(pk, fetchRequest, evitaSession))
+							.mapToObj(pk -> targetCollection.fetchEntityDecorator(pk, fetchRequest, evitaSession))
 							.filter(Optional::isPresent)
 							.map(Optional::get);
 					})

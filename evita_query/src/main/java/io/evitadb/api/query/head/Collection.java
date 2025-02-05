@@ -45,15 +45,14 @@ import java.io.Serializable;
  * collection('category')
  * </pre>
  *
- * <p><a href="https://evitadb.io/documentation/query/basics#header">Visit detailed user documentation</a></p>
+ * <p><a href="https://evitadb.io/documentation/query/header/header#collection">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "collection",
 	shortDescription = "The constraint specifies which entity collection will be searched for results.",
-	userDocsLink = "/documentation/query/basics#header",
-	supportedIn = ConstraintDomain.GENERIC
+	userDocsLink = "/documentation/query/header/header#collection"
 )
 public class Collection extends ConstraintLeaf<HeadConstraint> implements HeadConstraint, GenericConstraint<HeadConstraint> {
 	@Serial private static final long serialVersionUID = -7064678623633579615L;

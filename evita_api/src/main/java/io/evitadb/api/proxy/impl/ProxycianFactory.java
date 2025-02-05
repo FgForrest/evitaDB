@@ -642,7 +642,7 @@ public class ProxycianFactory implements ProxyFactory {
 		@Nonnull EntityContract entity,
 		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas
 	) throws EntityClassInvalidException {
-		return createEntityProxy(expectedType, recipes, collectedRecipes, entity, referencedEntitySchemas, reflectionLookup);
+		return createEntityProxy(expectedType, this.recipes, this.collectedRecipes, entity, referencedEntitySchemas, this.reflectionLookup);
 	}
 
 	/**

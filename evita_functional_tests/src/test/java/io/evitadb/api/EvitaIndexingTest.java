@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -74,7 +74,6 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.math.BigDecimal;
-import java.nio.file.Path;
 import java.util.Currency;
 import java.util.Locale;
 import java.util.Optional;
@@ -94,6 +93,7 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class EvitaIndexingTest implements EvitaTestSupport {
 	private static final String DIR_EVITA_INDEXING_TEST = "evitaIndexingTest";
+	private static final String DIR_EVITA_INDEXING_TEST_EXPORT = "evitaIndexingTest_export";
 	private static final String REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY = "productsInCategory";
 	private static final String REFERENCE_PRODUCT_CATEGORY = "productCategory";
 
@@ -349,6 +349,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	@BeforeEach
 	void setUp() {
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_INDEXING_TEST);
+		cleanTestSubDirectoryWithRethrow(DIR_EVITA_INDEXING_TEST_EXPORT);
 		evita = new Evita(
 			getEvitaConfiguration()
 		);
@@ -359,6 +360,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	void tearDown() {
 		evita.close();
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_INDEXING_TEST);
+		cleanTestSubDirectoryWithRethrow(DIR_EVITA_INDEXING_TEST_EXPORT);
 	}
 
 	@DisplayName("Update catalog in warm-up mode with another product - synchronously.")
@@ -3700,15 +3702,11 @@ class EvitaIndexingTest implements EvitaTestSupport {
 			)
 			.storage(
 				StorageOptions.builder()
-					.storageDirectory(getEvitaTestDirectory())
+					.storageDirectory(getTestDirectory().resolve(DIR_EVITA_INDEXING_TEST))
+					.exportDirectory(getTestDirectory().resolve(DIR_EVITA_INDEXING_TEST_EXPORT))
 					.build()
 			)
 			.build();
-	}
-
-	@Nonnull
-	private Path getEvitaTestDirectory() {
-		return getTestDirectory().resolve(DIR_EVITA_INDEXING_TEST);
 	}
 
 }

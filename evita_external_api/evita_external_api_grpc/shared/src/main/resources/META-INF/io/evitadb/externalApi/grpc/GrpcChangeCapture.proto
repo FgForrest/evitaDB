@@ -11,38 +11,38 @@ import "GrpcEntitySchemaMutation.proto";
 
 // Record for the criteria of the capture request allowing to limit mutations to specific area of interest an its
 // properties.
-message GrpcCaptureCriteria {
+message GrpcChangeCaptureCriteria {
   // The area of capture - either schema or data (correlates with the site)
-  GrpcCaptureArea area = 1;
+  GrpcChangeCaptureArea area = 1;
   // The specific requirements for the designated area
   oneof site {
     // Criteria for schema capture
-    GrpcCaptureSchemaSite schemaSite = 2;
+    GrpcChangeCaptureSchemaSite schemaSite = 2;
     // Criteria for data capture
-    GrpcCaptureDataSite dataSite = 3;
+    GrpcChangeCaptureDataSite dataSite = 3;
   }
 }
 
 // Record describing the location and form of the CDC schema event in the evitaDB that should be captured.
-message GrpcCaptureSchemaSite {
+message GrpcChangeCaptureSchemaSite {
   // The name of intercepted entity
   google.protobuf.StringValue entityType = 1;
   // The intercepted type of operation
-  repeated GrpcCaptureOperation operation = 2;
+  repeated GrpcChangeCaptureOperation operation = 2;
   // the name of the intercepted container type
-  repeated GrpcCaptureContainerType containerType = 3;
+  repeated GrpcChangeCaptureContainerType containerType = 3;
 }
 
 // Record describing the location and form of the CDC data event in the evitaDB that should be captured.
-message GrpcCaptureDataSite {
+message GrpcChangeCaptureDataSite {
   // the name of the intercepted entity type
   google.protobuf.StringValue entityType = 1;
   // the primary key of the intercepted entity
   google.protobuf.Int32Value entityPrimaryKey = 2;
   // the intercepted type of operation
-  repeated GrpcCaptureOperation operation = 3;
+  repeated GrpcChangeCaptureOperation operation = 3;
   // the name of the intercepted container type
-  repeated GrpcCaptureContainerType containerType = 4;
+  repeated GrpcChangeCaptureContainerType containerType = 4;
   // the name of the container (e.g. attribute name, associated data name, reference name)
   repeated string containerName = 5;
 }
@@ -54,12 +54,12 @@ message GrpcChangeCatalogCapture {
   // the index of the event within the enclosed transaction, index 0 is the transaction lead event
   int32 index = 2;
   // the area of the operation
-  GrpcCaptureArea area = 3;
+  GrpcChangeCaptureArea area = 3;
   // the name of the entity type or its schema that was affected by the operation
   // (if the operation is executed on catalog schema this field is null)
   google.protobuf.StringValue entityType = 4;
   // the operation that was performed
-  GrpcCaptureOperation operation = 5;
+  GrpcChangeCaptureOperation operation = 5;
   // optional body of the operation when it is requested by the GrpcContent
   oneof body {
     GrpcEntitySchemaMutation schemaMutation = 6;
@@ -69,7 +69,7 @@ message GrpcChangeCatalogCapture {
 }
 
 // The enum defines what catalog area is covered by the capture.
-enum GrpcCaptureArea {
+enum GrpcChangeCaptureArea {
   // Changes in the schema are captured.
   SCHEMA = 0;
   // Changes in the data are captured.
@@ -79,7 +79,7 @@ enum GrpcCaptureArea {
 }
 
 // Enumeration of possible mutation types handled by evitaDB.
-enum GrpcCaptureOperation {
+enum GrpcChangeCaptureOperation {
   // Create or update operation - i.e. there was data with such identity before, and it was updated.
   UPSERT = 0;
   // Remove operation - i.e. there was data with such identity before, and it was removed.
@@ -89,7 +89,7 @@ enum GrpcCaptureOperation {
 }
 
 // The container type describes internal evitaDB data structures.
-enum GrpcCaptureContainerType {
+enum GrpcChangeCaptureContainerType {
   // Catalog - similar to relational database schema.
   CONTAINER_CATALOG = 0;
   // Entity - similar to relational database table (or better - set of inter-related tables).
@@ -105,11 +105,11 @@ enum GrpcCaptureContainerType {
 }
 
 // Enum to specify the depth of details sent in the CDC event.
-enum GrpcCaptureContent {
+enum GrpcChangeCaptureContent {
   // Only the header of the event is sent.
-  HEADER = 0;
+  CHANGE_HEADER = 0;
   // Entire mutation triggering the event is sent. In case of mutations with the large content (associated data
   // update), the size of the event can be significant. Consider whether you need the entire mutation or just the
   // header.
-  BODY = 1;
+  CHANGE_BODY = 1;
 }

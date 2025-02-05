@@ -233,7 +233,7 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 				if (examinedFormula instanceof OrFormula) {
 					// simply add new facet group formula to the OR formula
 					return examinedFormula.getCloneWithInnerFormulas(
-						ArrayUtils.insertRecordIntoArray(
+						ArrayUtils.insertRecordIntoArrayOnIndex(
 							newFormula, examinedFormula.getInnerFormulas(), examinedFormula.getInnerFormulas().length
 						)
 					);
@@ -337,7 +337,7 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 					if (examinedFormula instanceof AndFormula && cloner.allParentsMatch(formula -> FilterByVisitor.isConjunctiveFormula(formula.getClass()))) {
 						// simply add new facet group formula to the AND formula
 						return examinedFormula.getCloneWithInnerFormulas(
-							ArrayUtils.insertRecordIntoArray(
+							ArrayUtils.insertRecordIntoArrayOnIndex(
 								newFormula, examinedFormula.getInnerFormulas(), examinedFormula.getInnerFormulas().length
 							)
 						);
@@ -369,7 +369,7 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 		} else {
 			// neither AND or combined formula found in children - we know that parent is UserFilterFormula that
 			// represents AND wrapping formula, so we can just combine existing children with new facet formula
-			return ArrayUtils.insertRecordIntoArray(newFormula, children, children.length);
+			return ArrayUtils.insertRecordIntoArrayOnIndex(newFormula, children, children.length);
 		}
 	}
 

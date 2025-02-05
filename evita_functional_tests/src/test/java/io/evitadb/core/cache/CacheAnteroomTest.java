@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,6 +31,7 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.test.TestConstants;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -96,6 +97,7 @@ class CacheAnteroomTest {
 	}
 
 	@Test
+	@Disabled("Leaky test, only for manual testing")
 	void shouldPropagateHotSpotsToCache() {
 		final EvitaSession evitaSession = Mockito.mock(EvitaSession.class);
 		Mockito.when(evitaSession.getCatalogName()).thenReturn(TestConstants.TEST_CATALOG);

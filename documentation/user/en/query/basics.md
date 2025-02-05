@@ -46,7 +46,7 @@ opposed to the SQL language, which is strictly string typed).
 Query has these four <LS to="g">_logical_</LS> parts:
 
 - **[header](#header):** defines the queried entity collection (it's mandatory unless the filter contains
-  constraints targeting globally unique attributes)
+  constraints targeting globally unique attributes) and allows to tag the query with custom labels
 - **[filter](#filter-by):** defines constraints that limit the entities returned (optional, if missing, all entities in
   the collection are returned)
 - **[order](#order-by):** defines the order in which entities are returned (optional, if missing entities are sorted by
@@ -140,7 +140,7 @@ I.e. the following query is still a valid query and represents the simplest quer
 </SourceCodeTabs>
 
 ... or even this one (although it is recommended to keep the order for better readability:
-<LS to="e,j,c">`collection`</LS>, `filterBy`, `orderBy`, `require`):
+`head`, `filterBy`, `orderBy`, `require`):
 
 <SourceCodeTabs langSpecificTabOnly>
 
@@ -352,14 +352,19 @@ because there is a single date/time range in the array that satisfies this const
 
 ## Header
 
-<LS to="e,j,c">Only a `collection` constraint is allowed in this part of the query.</LS>
-<LS to="g,r">Only a collection definition is allowed and is defined as part of <LS to="g">a GraphQL query name</LS><LS to="r">an endpoint URL</LS>.</LS>
-It defines the entity type that the query will
-target. It can be omitted
-<LS to="g,r">when using generic <LS to="g">GraphQL query</LS><LS to="r">endpoint</LS></LS>
+<LS to="e,j,c">Header part allows you to specify a `collection` constraint that defines entity collection targeted by this query.</LS>
+<LS to="g,r">Target entity collection definition is defined as part of <LS to="g">a GraphQL query name</LS><LS to="r">an endpoint URL</LS>.</LS>
+It can be omitted <LS to="g,r">when using generic <LS to="g">GraphQL query</LS><LS to="r">endpoint</LS></LS>
 if the [filterBy](#filter-by) contains a constraint that targets a globally unique attribute.
 This is useful for one of the most important e-commerce scenarios, where the requested URI needs to match one of the
 existing entities (see the [routing](../solve/routing.md) chapter for a detailed guide).
+
+Optionally, you can specify one or more [labels](header/header#label) associated with this query, which will be 
+appended to the [traces](../operate/observe.md#tracing) generated for this query. Labels are also recorded with 
+the query on traffic traces, which can be used for further analysis or playback.
+
+- [collection](header/header.md#collection)
+- [label](header/header.md#label)
 
 ## Filter by
 

@@ -43,9 +43,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 class WriteOnlyOffHeapWithFileBackupHandleTest implements EvitaTestSupport {
 	private final Path targetDirectory = getPathInTargetDirectory("WriteOnlyOffHeapWithFileBackupHandle");
+	private final Path targetExportDirectory = getPathInTargetDirectory("WriteOnlyOffHeapWithFileBackupHandle_export");
 	private final ObservableOutputKeeper outputKeeper = new ObservableOutputKeeper(
 		TEST_CATALOG,
-		StorageOptions.builder().storageDirectory(targetDirectory).computeCRC32(true).build(),
+		StorageOptions.builder()
+			.storageDirectory(targetDirectory)
+			.exportDirectory(targetExportDirectory)
+			.computeCRC32(true)
+			.build(),
 		Mockito.mock(Scheduler.class)
 	);
 

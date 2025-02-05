@@ -5,7 +5,6 @@ module evita.store.key.value {
 
 	exports io.evitadb.store.kryo;
 	exports io.evitadb.store.offsetIndex;
-	exports io.evitadb.store.offsetIndex.stream;
 	exports io.evitadb.store.offsetIndex.exception;
 	exports io.evitadb.store.offsetIndex.model;
 	exports io.evitadb.store.offsetIndex.io;

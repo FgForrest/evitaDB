@@ -23,7 +23,6 @@
 
 package io.evitadb.index.invertedIndex;
 
-import io.evitadb.ConsistencySensitiveDataStructure;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
@@ -31,6 +30,7 @@ import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
+import io.evitadb.dataType.ConsistencySensitiveDataStructure;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.index.IndexDataStructure;

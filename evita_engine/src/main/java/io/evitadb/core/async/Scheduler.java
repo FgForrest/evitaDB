@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -243,13 +243,21 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 
 	@Override
 	public void shutdown() {
-		executorService.shutdown();
+		// cancel all tasks in the queue
+		for (ServerTask<?, ?> serverTask : this.queue) {
+			serverTask.cancel();
+		}
+		this.executorService.shutdown();
 	}
 
 	@Nonnull
 	@Override
 	public List<Runnable> shutdownNow() {
-		return executorService.shutdownNow();
+		// cancel all tasks in the queue
+		for (ServerTask<?, ?> serverTask : this.queue) {
+			serverTask.cancel();
+		}
+		return this.executorService.shutdownNow();
 	}
 
 	@Override
@@ -563,7 +571,7 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 						} else if (taskState == TaskSimplifiedState.FINISHED || taskState == TaskSimplifiedState.FAILED) {
 							it.remove();
 							// if its defense period hasn't perished add it to list, that might end up in the queue again
-							if (status.finished().isAfter(threshold)) {
+							if (status.finished() != null && status.finished().isAfter(threshold)) {
 								if (finishedTaskInDefensePeriod == null) {
 									finishedTaskInDefensePeriod = new CompositeObjectArray<>(Task.class);
 								}

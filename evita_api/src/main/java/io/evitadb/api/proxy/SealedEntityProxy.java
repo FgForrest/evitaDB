@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -55,6 +55,14 @@ public interface SealedEntityProxy extends
 	 */
 	@Nullable
 	Integer getPrimaryKey();
+
+	/**
+	 * Returns the primary key of the underlying sealed entity. Method throws exception when the entity hasn't been
+	 * yet upserted to the database.
+	 *
+	 * @return the primary key of the underlying sealed entity
+	 */
+	int getPrimaryKeyOrThrowException();
 
 	/**
 	 * Retrieves an {@link Optional} that contains an {@link EntityBuilderWithCallback} instance.
