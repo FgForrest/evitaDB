@@ -86,7 +86,8 @@ public class TrafficRecordingIndex implements
 	private final TransactionalObjectBPlusTree<Integer, Long> sessionDurationIndex;
 	private final TransactionalObjectBPlusTree<Integer, Long> sessionFetchCountIndex;
 	private final TransactionalObjectBPlusTree<Integer, Long> sessionBytesFetchedIndex;
-	private final TransactionalObjectBPlusTree<LabelWithOptimizedComparator, TransactionalObjectBPlusTree<Long, Long>> labelIndex;
+	private final TransactionalObjectBPlusTree<Label, TransactionalObjectBPlusTree<Long, Long>> labelIndex;
+	private final TransactionalObjectBPlusTree<Label, TransactionalObjectBPlusTree<Long, Long>> stringLabelIndex;
 	private final TransactionalMap<TrafficRecordingType, TransactionalObjectBPlusTree<Long, Long>> sessionRecordingTypeIndex;
 	private final AtomicLong sessionBeingIndexed;
 	private final Deque<Long> sessionsToRemove;
@@ -107,6 +108,29 @@ public class TrafficRecordingIndex implements
 		return bitmap;
 	}
 
+	/**
+	 * Inserts a session sequence order value into a transactional B+ tree. If the provided tree is null,
+	 * a new tree instance will be created and the value will be inserted into it.
+	 *
+	 * @param values               The transactional B+ tree where the session sequence order will be inserted.
+	 *                             If null, a new tree instance will be created.
+	 * @param sessionSequenceOrder The session sequence order value to be inserted into the tree.
+	 *                             Must not be null.
+	 * @return The transactional B+ tree with the session sequence order inserted.
+	 */
+	@Nonnull
+	private static TransactionalObjectBPlusTree<Long, Long> insertSessionSequenceOrderToTree(
+		@Nullable TransactionalObjectBPlusTree<Long, Long> values,
+		@Nonnull Long sessionSequenceOrder
+	) {
+		if (values == null) {
+			values = new TransactionalObjectBPlusTree<>(Long.class, Long.class);
+		}
+		final Long seqOrder = Objects.requireNonNull(sessionSequenceOrder);
+		values.insert(seqOrder, seqOrder);
+		return values;
+	}
+
 	public TrafficRecordingIndex() {
 		this.sessionLocationIndex = new TransactionalMap<>(CollectionUtils.createHashMap(1_024));
 		this.sessionIdIndex = new TransactionalMap<>(CollectionUtils.createHashMap(1_024));
@@ -118,7 +142,13 @@ public class TrafficRecordingIndex implements
 		this.sessionBytesFetchedIndex = new TransactionalObjectBPlusTree<>(Integer.class, Long.class);
 		//noinspection unchecked,rawtypes
 		this.labelIndex = new TransactionalObjectBPlusTree<>(
-			LabelWithOptimizedComparator.class,
+			Label.class,
+			TransactionalObjectBPlusTree.genericClass(),
+			TransactionalObjectBPlusTree.class::cast
+		);
+		//noinspection unchecked,rawtypes
+		this.stringLabelIndex = new TransactionalObjectBPlusTree<>(
+			Label.class,
 			TransactionalObjectBPlusTree.genericClass(),
 			TransactionalObjectBPlusTree.class::cast
 		);
@@ -140,7 +170,8 @@ public class TrafficRecordingIndex implements
 		@Nonnull TransactionalObjectBPlusTree<Integer, Long> sessionDurationIndex,
 		@Nonnull TransactionalObjectBPlusTree<Integer, Long> sessionFetchCountIndex,
 		@Nonnull TransactionalObjectBPlusTree<Integer, Long> sessionBytesFetchedIndex,
-		@Nonnull TransactionalObjectBPlusTree<LabelWithOptimizedComparator, TransactionalObjectBPlusTree<Long, Long>> labelIndex,
+		@Nonnull TransactionalObjectBPlusTree<Label, TransactionalObjectBPlusTree<Long, Long>> labelIndex,
+		@Nonnull TransactionalObjectBPlusTree<Label, TransactionalObjectBPlusTree<Long, Long>> stringLabelIndex,
 		@Nonnull Map<TrafficRecordingType, TransactionalObjectBPlusTree<Long, Long>> sessionRecordingTypeIndex,
 		@Nonnull AtomicLong sessionBeingIndexed,
 		@Nonnull Deque<Long> sessionsToRemove
@@ -154,6 +185,7 @@ public class TrafficRecordingIndex implements
 		this.sessionFetchCountIndex = sessionFetchCountIndex;
 		this.sessionBytesFetchedIndex = sessionBytesFetchedIndex;
 		this.labelIndex = labelIndex;
+		this.stringLabelIndex = stringLabelIndex;
 		//noinspection unchecked,rawtypes
 		this.sessionRecordingTypeIndex = new TransactionalMap<>(
 			sessionRecordingTypeIndex,
@@ -226,15 +258,12 @@ public class TrafficRecordingIndex implements
 			}
 			for (Label label : labels) {
 				this.labelIndex.upsert(
-					new LabelWithOptimizedComparator(label.name(), label.value(), EvitaDataTypes.formatValue(label.value())),
-					values -> {
-						if (values == null) {
-							values = new TransactionalObjectBPlusTree<>(Long.class, Long.class);
-						}
-						final Long seqOrder = Objects.requireNonNull(sessionSequenceOrder);
-						values.insert(seqOrder, seqOrder);
-						return values;
-					}
+					label,
+					values -> insertSessionSequenceOrderToTree(values, sessionSequenceOrder)
+				);
+				this.stringLabelIndex.upsert(
+					new Label(label.name(), EvitaDataTypes.formatValue(label.value())),
+					values -> insertSessionSequenceOrderToTree(values, sessionSequenceOrder)
 				);
 			}
 		}
@@ -413,6 +442,7 @@ public class TrafficRecordingIndex implements
 			transactionalLayer.getStateCopyWithCommittedChanges(this.sessionFetchCountIndex),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.sessionBytesFetchedIndex),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.labelIndex),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.stringLabelIndex),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.sessionRecordingTypeIndex),
 			this.sessionBeingIndexed,
 			this.sessionsToRemove
@@ -427,13 +457,13 @@ public class TrafficRecordingIndex implements
 	 */
 	@Nonnull
 	public Collection<String> getLabelsNamesOrderedByCardinality(@Nullable String nameStartingWith, int limit) {
-		final Iterator<Entry<LabelWithOptimizedComparator, TransactionalObjectBPlusTree<Long, Long>>> it = nameStartingWith == null ?
-			this.labelIndex.entryIterator() :
-			this.labelIndex.greaterOrEqualEntryIterator(new LabelWithOptimizedComparator(nameStartingWith, null, null));
+		final Iterator<Entry<Label, TransactionalObjectBPlusTree<Long, Long>>> it = nameStartingWith == null ?
+			this.stringLabelIndex.entryIterator() :
+			this.stringLabelIndex.greaterOrEqualEntryIterator(new Label(nameStartingWith, null));
 		final ObjectIntMap<String> cardinalities = new ObjectIntHashMap<>(256);
 		while (it.hasNext()) {
-			final Entry<LabelWithOptimizedComparator, TransactionalObjectBPlusTree<Long, Long>> entry = it.next();
-			final LabelWithOptimizedComparator nextLabel = entry.key();
+			final Entry<Label, TransactionalObjectBPlusTree<Long, Long>> entry = it.next();
+			final Label nextLabel = entry.key();
 			if (nameStartingWith == null || nextLabel.name().startsWith(nameStartingWith)) {
 				final int labelCardinality = entry.value().size();
 				cardinalities.putOrAdd(nextLabel.name(), labelCardinality, labelCardinality);
@@ -463,11 +493,11 @@ public class TrafficRecordingIndex implements
 	 */
 	@Nonnull
 	public Collection<String> getLabelValuesOrderedByCardinality(@Nonnull String nameEquals, @Nullable String valueStartingWith, int limit) {
-		final Iterator<Entry<LabelWithOptimizedComparator, TransactionalObjectBPlusTree<Long, Long>>> it = this.labelIndex.greaterOrEqualEntryIterator(new LabelWithOptimizedComparator(nameEquals, null, valueStartingWith));
+		final Iterator<Entry<Label, TransactionalObjectBPlusTree<Long, Long>>> it = this.stringLabelIndex.greaterOrEqualEntryIterator(new Label(nameEquals, valueStartingWith));
 		final ObjectIntMap<String> cardinalities = new ObjectIntHashMap<>(256);
 		while (it.hasNext()) {
-			final Entry<LabelWithOptimizedComparator, TransactionalObjectBPlusTree<Long, Long>> entry = it.next();
-			final LabelWithOptimizedComparator nextLabel = entry.key();
+			final Entry<Label, TransactionalObjectBPlusTree<Long, Long>> entry = it.next();
+			final Label nextLabel = entry.key();
 			final String valueAsString = ofNullable(nextLabel.value()).map(EvitaDataTypes::formatValue).orElse("");
 			if (nextLabel.name().equals(nameEquals) && (valueStartingWith == null || valueAsString.startsWith(valueStartingWith))) {
 				final int labelCardinality = entry.value().size();
@@ -502,9 +532,15 @@ public class TrafficRecordingIndex implements
 	private Stream<Roaring64Bitmap> getLabelsMatchingStream(@Nonnull Map<String, List<Serializable>> labels) {
 		return labels.entrySet()
 			.stream()
-			.map(entry -> entry.getValue().stream()
-				.map(value -> new LabelWithOptimizedComparator(entry.getKey(), value, value instanceof String str ? str : null))
-				.map(this.labelIndex::search)
+			.map(
+				entry -> Stream.concat(
+						entry.getValue().stream()
+							.map(value -> new Label(entry.getKey(), value))
+							.map(this.labelIndex::search),
+						entry.getValue().stream()
+							.map(value -> new Label(entry.getKey(), value))
+							.map(this.stringLabelIndex::search)
+				)
 				.filter(Optional::isPresent)
 				.map(Optional::get)
 				.map(TransactionalObjectBPlusTree::valueIterator)
@@ -576,16 +612,14 @@ public class TrafficRecordingIndex implements
 
 		if (trafficRecording instanceof QueryContainer queryContainer) {
 			for (Label label : queryContainer.labels()) {
+				final Long sessionSequenceOrder = Objects.requireNonNull(queryContainer.sessionSequenceOrder());
 				this.labelIndex.upsert(
-					new LabelWithOptimizedComparator(label.name(), label.value(), EvitaDataTypes.formatValue(label.value())),
-					values -> {
-						if (values == null) {
-							values = new TransactionalObjectBPlusTree<>(Long.class, Long.class);
-						}
-						final Long seqOrder = Objects.requireNonNull(queryContainer.sessionSequenceOrder());
-						values.insert(seqOrder, seqOrder);
-						return values;
-					}
+					label,
+					values -> insertSessionSequenceOrderToTree(values, sessionSequenceOrder)
+				);
+				this.stringLabelIndex.upsert(
+					new Label(label.name(), EvitaDataTypes.formatValue(label.value())),
+					values -> insertSessionSequenceOrderToTree(values, sessionSequenceOrder)
 				);
 			}
 		}
@@ -724,74 +758,6 @@ public class TrafficRecordingIndex implements
 		@Nonnull String label,
 		int cardinality
 	) {
-	}
-
-	/**
-	 * The LabelWithOptimizedComparator class is a record used for representing a label
-	 * that contains a name, a value, and an optional formatted value. It provides optimized
-	 * methods for equality checks, hash code computation, and comparison logic, which can
-	 * be useful in indexing and searching operations where such labels are involved.
-	 *
-	 * This record implements {@link Comparable}, allowing it to be sorted based on
-	 * the name, value, and formattedValue fields with specific optimization logic.
-	 */
-	public record LabelWithOptimizedComparator(
-		@Nonnull String name,
-		@Nullable Serializable value,
-		@Nullable String formattedValue
-	) implements Comparable<LabelWithOptimizedComparator> {
-
-		@Override
-		public boolean equals(Object o) {
-			if (!(o instanceof LabelWithOptimizedComparator label)) return false;
-
-			return name.equals(label.name) &&
-				(Objects.equals(value, label.value) || Objects.equals(formattedValue, label.formattedValue));
-		}
-
-		@Override
-		public int hashCode() {
-			int result = name.hashCode();
-			result = 31 * result + Objects.hashCode(value);
-			return result;
-		}
-
-		@SuppressWarnings({"rawtypes", "unchecked"})
-		@Override
-		public int compareTo(@Nonnull LabelWithOptimizedComparator that) {
-			final int first = this.name.compareTo(that.name);
-			if (first != 0) {
-				return first;
-			} else if (this.value instanceof String comparable && this.value.getClass().isInstance(that.value)) {
-				if (this.formattedValue != null && that.formattedValue != null) {
-					return this.formattedValue.compareTo(that.formattedValue);
-				} else {
-					return comparable.compareTo((String) that.value);
-				}
-			} else if (this.value instanceof Comparable comparable && this.value.getClass().isInstance(that.value)) {
-				return comparable.compareTo(that.value);
-			} else if (this.value == null && this.formattedValue != null && that.formattedValue != null) {
-				return this.formattedValue.compareTo(that.formattedValue);
-			} else if (that.value == null && this.formattedValue != null && that.formattedValue != null) {
-				return this.formattedValue.compareTo(that.formattedValue);
-			} else if (this.value != null && that.value != null) {
-				final String thisFormattedValue = this.formattedValue() == null ? EvitaDataTypes.formatValue(this.value) : this.formattedValue();
-				final String thatFormattedValue = that.formattedValue() == null ? EvitaDataTypes.formatValue(that.value) : that.formattedValue();
-				final int baseResult = thisFormattedValue.compareTo(thatFormattedValue);
-				if (baseResult != 0 && that.value instanceof String thatString) {
-					if (thisFormattedValue.compareTo(thatString) == 0) {
-						return 0;
-					}
-				}
-				return baseResult;
-			} else if (this.value != null) {
-				return 1;
-			} else if (that.value != null) {
-				return -1;
-			} else {
-				return 0;
-			}
-		}
 	}
 
 }
