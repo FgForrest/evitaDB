@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -108,16 +108,16 @@ public class PredecessorAttributeComparator implements EntityComparator {
 				break;
 			}
 		}
-		if (!(o1Found || o2Found) && nonSortedEntities == null) {
+		if (!(o1Found && o2Found) && this.nonSortedEntities == null) {
 			// if any of the entities is not found, and we don't have the container to store them, create it
-			nonSortedEntities = new CompositeObjectArray<>(EntityContract.class);
+			this.nonSortedEntities = new CompositeObjectArray<>(EntityContract.class);
 		}
 		// if any of the entities is not found, store it in the container
 		if (!o1Found) {
-			nonSortedEntities.add(o1);
+			this.nonSortedEntities.add(o1);
 		}
 		if (!o2Found) {
-			nonSortedEntities.add(o2);
+			this.nonSortedEntities.add(o2);
 		}
 		// return the result
 		return result;

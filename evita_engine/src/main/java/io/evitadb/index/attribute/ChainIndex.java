@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -303,7 +303,7 @@ public class ChainIndex implements
 			int previousElementId = headElementId;
 			for (int i = 0; i < unorderedList.length; i++) {
 				int elementId = unorderedList[i];
-				final ChainElementState state = elementStates.get(elementId);
+				final ChainElementState state = this.elementStates.get(elementId);
 				if (state == null) {
 					errors.append("\nThe element `")
 						.append(elementId)
@@ -594,7 +594,7 @@ public class ChainIndex implements
 				reclassifyChain(subChainWithoutRemovedElement[0], subChainWithoutRemovedElement);
 
 				// verify whether the head of chain was not in circular conflict and if so
-				verifyIfCircularDependencyExistsAndIsBroken(existingStateHeadState);
+				verifyIfCircularDependencyExistsAndIsBroken(chainHeadPk, existingStateHeadState);
 			} else {
 				// just remove it from the chain
 				chain.removeRange(index, chain.getLength());
@@ -677,7 +677,8 @@ public class ChainIndex implements
 	 */
 	private void updatePredecessor(int primaryKey, @Nonnull ChainableType predecessor, @Nonnull ChainElementState existingState) {
 		// the primary key was already present in the index - we need to relocate it
-		final TransactionalUnorderedIntArray existingChain = this.chains.get(existingState.inChainOfHeadWithPrimaryKey());
+		final int primaryKeyOfExistingHeadState = existingState.inChainOfHeadWithPrimaryKey();
+		final TransactionalUnorderedIntArray existingChain = this.chains.get(primaryKeyOfExistingHeadState);
 		final int index = existingChain.indexOf(primaryKey);
 		// sanity check - the primary key must be present in the chain according to the state information
 		Assert.isPremiseValid(
@@ -685,12 +686,12 @@ public class ChainIndex implements
 			"Index damaged! The primary key `" + primaryKey + "` must be present in the chain according to the state information!"
 		);
 		// we need to remember original state of the chain head before changes in order to resolve possible circular dependency
-		final ChainElementState existingStateHeadState = this.elementStates.get(existingState.inChainOfHeadWithPrimaryKey());
+		final ChainElementState existingStateHeadState = this.elementStates.get(primaryKeyOfExistingHeadState);
 		// if newly created element is a head of its chain
 		if (predecessor.isHead()) {
-			updateElementToBecomeHeadOfTheChain(primaryKey, index, predecessor, existingChain, existingStateHeadState);
+			updateElementToBecomeHeadOfTheChain(primaryKey, index, predecessor, existingChain, primaryKeyOfExistingHeadState, existingStateHeadState);
 		} else {
-			updateElementWithinExistingChain(primaryKey, index, predecessor, existingChain, existingStateHeadState, existingState);
+			updateElementWithinExistingChain(primaryKey, index, predecessor, existingChain, primaryKeyOfExistingHeadState, existingStateHeadState, existingState);
 		}
 	}
 
@@ -701,13 +702,15 @@ public class ChainIndex implements
 	 * @param index                  index of the element in the chain
 	 * @param predecessor            pointer record to a predecessor element of the `primaryKey` element
 	 * @param existingChain          existing chain where the element is present
-	 * @param existingStateHeadState state of the head element of the existing chain where element is present
+	 * @param primaryKeyOfExistingHeadState primary key the `existingHeadState` is registered in `this.elementStates`
+	 * @param existingHeadState state of the head element of the existing chain where element is present
 	 */
 	private void updateElementToBecomeHeadOfTheChain(
 		int primaryKey,
 		int index, @Nonnull ChainableType predecessor,
 		@Nonnull TransactionalUnorderedIntArray existingChain,
-		@Nonnull ChainElementState existingStateHeadState
+		int primaryKeyOfExistingHeadState,
+		@Nonnull ChainElementState existingHeadState
 	) {
 		// if the primary key is not located at the head of the chain
 		if (index > 0) {
@@ -717,7 +720,7 @@ public class ChainIndex implements
 			this.chains.put(primaryKey, new TransactionalUnorderedIntArray(subChain));
 			reclassifyChain(primaryKey, subChain);
 			// we need to re-check whether the original chain has still circular dependency when this chain was split
-			verifyIfCircularDependencyExistsAndIsBroken(existingStateHeadState);
+			verifyIfCircularDependencyExistsAndIsBroken(primaryKeyOfExistingHeadState, existingHeadState);
 		} else {
 			// we just need to change the state, since the chain is already present
 		}
@@ -736,6 +739,7 @@ public class ChainIndex implements
 	 * @param index                  index of the element in the chain
 	 * @param predecessor            pointer record to a predecessor element of the `primaryKey` element
 	 * @param existingChain          existing chain where the element is present
+	 * @param primaryKeyOfExistingHeadState primary key the `existingHeadState` is registered in `this.elementStates`
 	 * @param existingStateHeadState state of the head element of the existing chain where element is present
 	 * @param existingState          existing state of the primary key element
 	 */
@@ -744,6 +748,7 @@ public class ChainIndex implements
 		int index,
 		@Nonnull ChainableType predecessor,
 		@Nonnull TransactionalUnorderedIntArray existingChain,
+		int primaryKeyOfExistingHeadState,
 		@Nonnull ChainElementState existingStateHeadState,
 		@Nonnull ChainElementState existingState
 	) {
@@ -752,7 +757,7 @@ public class ChainIndex implements
 		// if there is circular conflict - set up a separate chain and update state
 		if (circularConflict) {
 			updateElementWithCircularConflict(
-				primaryKey, index, predecessor, existingChain, existingStateHeadState, existingState
+				primaryKey, index, predecessor, existingChain, primaryKeyOfExistingHeadState, existingStateHeadState, existingState
 			);
 		} else {
 			final int[] movedChain;
@@ -837,7 +842,7 @@ public class ChainIndex implements
 			}
 
 			// verify whether the head of chain was not in circular conflict and if so
-			verifyIfCircularDependencyExistsAndIsBroken(existingStateHeadState);
+			verifyIfCircularDependencyExistsAndIsBroken(primaryKeyOfExistingHeadState, existingStateHeadState);
 		}
 	}
 
@@ -867,6 +872,7 @@ public class ChainIndex implements
 	 * @param index                  index of the element in the chain
 	 * @param predecessor            pointer record to a predecessor element of the `primaryKey` element
 	 * @param existingChain          existing chain where the element is present
+	 * @param primaryKeyOfExistingHeadState primary key the `existingHeadState` is registered in `this.elementStates`
 	 * @param existingStateHeadState state of the head element of the existing chain where element is present
 	 * @param existingState          existing state of the primary key element
 	 */
@@ -875,6 +881,7 @@ public class ChainIndex implements
 		int index,
 		@Nonnull ChainableType predecessor,
 		@Nonnull TransactionalUnorderedIntArray existingChain,
+		int primaryKeyOfExistingHeadState,
 		@Nonnull ChainElementState existingStateHeadState,
 		@Nonnull ChainElementState existingState
 	) {
@@ -888,7 +895,7 @@ public class ChainIndex implements
 			this.chains.put(primaryKey, new TransactionalUnorderedIntArray(subChain));
 			reclassifyChain(primaryKey, subChain);
 			// we need to re-check whether the original chain has still circular dependency when this chain was split
-			verifyIfCircularDependencyExistsAndIsBroken(existingStateHeadState);
+			verifyIfCircularDependencyExistsAndIsBroken(primaryKeyOfExistingHeadState, existingStateHeadState);
 		}
 	}
 
@@ -897,28 +904,35 @@ public class ChainIndex implements
 	 * If so, the method checks whether the circular dependency still exists for the current state of the chain and
 	 * if not, it is resolved.
 	 *
+	 * @param primaryKeyOfHeadState primary key that was used to get the state from `this.elementStates` for verification
 	 * @param originalChainHeadState the state of the original chain head before the change
 	 */
 	private void verifyIfCircularDependencyExistsAndIsBroken(
+		int primaryKeyOfHeadState,
 		@Nonnull ChainElementState originalChainHeadState
 	) {
 		// if original chain head is in circular dependency
 		if (originalChainHeadState.state() == ElementState.CIRCULAR) {
+			Assert.isPremiseValid(
+				primaryKeyOfHeadState == originalChainHeadState.inChainOfHeadWithPrimaryKey(),
+				"Primary key of the state must match the primary key of the state chain head!"
+			);
+
 			final TransactionalUnorderedIntArray originalHeadChain = this.chains.get(originalChainHeadState.inChainOfHeadWithPrimaryKey());
 			if (originalHeadChain != null) {
 				// verify it is still in circular dependency
 				if (originalHeadChain.indexOf(originalChainHeadState.predecessorPrimaryKey()) < 0) {
 					// the circular dependency was broken
 					this.elementStates.put(
-						originalChainHeadState.inChainOfHeadWithPrimaryKey(),
+						primaryKeyOfHeadState,
 						new ChainElementState(originalChainHeadState, ElementState.SUCCESSOR)
 					);
 				}
 			} else {
 				// the circular dependency was broken - the chain is now part of another chain
 				this.elementStates.compute(
-					originalChainHeadState.inChainOfHeadWithPrimaryKey(),
-					(k, newState) -> new ChainElementState(newState, ElementState.SUCCESSOR)
+					primaryKeyOfHeadState,
+					(k, existingState) -> new ChainElementState(existingState, ElementState.SUCCESSOR)
 				);
 			}
 		}
@@ -966,7 +980,7 @@ public class ChainIndex implements
 		if (chainHeadState.state() == ElementState.SUCCESSOR) {
 			return mergeSuccessorChainToElementChainIfPossible(chainHeadState);
 		} else if (chainHeadState.state == ElementState.HEAD) {
-			return findFirstSuccessorChainAndMergeToElementChain(chainHeadState);
+			return findFirstSuccessorChainAndMergeToElementChain(chainHeadState.inChainOfHeadWithPrimaryKey());
 		} else {
 			return null;
 		}
@@ -977,14 +991,16 @@ public class ChainIndex implements
 	 * the predecessor. In such case, the chain can be merged with this chain. The chain is then merged with it and
 	 * the method returns the primary key of the new head of the chain.
 	 *
-	 * If this primary lookup fails, the {@link #findFirstSuccessorChainAndMergeToElementChain(ChainElementState)}
+	 * If this primary lookup fails, the {@link #findFirstSuccessorChainAndMergeToElementChain(int)}
 	 * method is called to verify whether we can't collapse another chain with tail element of the chain.
 	 *
 	 * @param chainHeadState state of the element pointing to chain which head element we check for predecessor chain
 	 * @return primary key of the new head of the chain or NULL if the chain can't be collapsed
 	 */
 	@Nullable
-	private Integer mergeSuccessorChainToElementChainIfPossible(@Nonnull ChainElementState chainHeadState) {
+	private Integer mergeSuccessorChainToElementChainIfPossible(
+		@Nonnull ChainElementState chainHeadState
+	) {
 		final ChainElementState predecessorState = this.elementStates.get(chainHeadState.predecessorPrimaryKey());
 		// predecessor may not yet be present in the index
 		if (predecessorState != null) {
@@ -1002,7 +1018,7 @@ public class ChainIndex implements
 				return predecessorState.inChainOfHeadWithPrimaryKey();
 			}
 		}
-		return findFirstSuccessorChainAndMergeToElementChain(chainHeadState);
+		return findFirstSuccessorChainAndMergeToElementChain(chainHeadState.inChainOfHeadWithPrimaryKey());
 	}
 
 	/**
@@ -1010,12 +1026,11 @@ public class ChainIndex implements
 	 * to `chainHeadState`. If so, the SUCCESSOR chain is fully merged with the chain of `chainHeadState` and the
 	 * method returns the primary key of the new head of the chain.
 	 *
-	 * @param chainHeadState state of the element pointing to chain for which we are looking for SUCCESSOR chain
+	 * @param chainHeadElement the primary key of head of the chain to which we check for successor chain
 	 * @return primary key of the new head of the chain or NULL if the chain can't be collapsed
 	 */
 	@Nullable
-	private Integer findFirstSuccessorChainAndMergeToElementChain(@Nonnull ChainElementState chainHeadState) {
-		final int chainHeadElement = chainHeadState.inChainOfHeadWithPrimaryKey();
+	private Integer findFirstSuccessorChainAndMergeToElementChain(int chainHeadElement) {
 		final TransactionalUnorderedIntArray chain = this.chains.get(chainHeadElement);
 		final int lastRecordId = chain.getLastRecordId();
 		final Optional<Integer> collapsableChain = this.chains.keySet()
@@ -1048,7 +1063,7 @@ public class ChainIndex implements
 						chainHeadElement,
 						new ChainElementState(
 							chainHeadElement,
-							chainHeadState.predecessorPrimaryKey(),
+							chainHeadElementState.predecessorPrimaryKey(),
 							ElementState.CIRCULAR
 						)
 					);
