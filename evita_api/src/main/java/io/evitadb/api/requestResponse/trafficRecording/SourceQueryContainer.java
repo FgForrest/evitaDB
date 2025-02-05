@@ -56,7 +56,7 @@ public record SourceQueryContainer(
 	@Nonnull String sourceQuery,
 	@Nonnull Label[] labels,
 	@Nullable String finishedWithError
-) implements TrafficRecording, ContainerWithLabels {
+) implements TransientTrafficRecording, TrafficRecordingWithLabels {
 
 	public SourceQueryContainer(
 		@Nonnull UUID sessionId,

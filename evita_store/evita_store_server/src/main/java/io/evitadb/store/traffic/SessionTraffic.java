@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.trafficRecording.QueryContainer;
 import io.evitadb.api.requestResponse.trafficRecording.SourceQueryStatisticsContainer;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest.TrafficRecordingType;
+import io.evitadb.api.requestResponse.trafficRecording.TransientTrafficRecording;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
@@ -360,6 +361,7 @@ public class SessionTraffic implements Closeable {
 			sourceQueryCounter.map(SourceQueryCounter::getIoFetchedSizeBytes).orElse(0),
 			sourceQueryCounter.map(SourceQueryCounter::getRecordsReturned).orElse(0),
 			sourceQueryCounter.map(SourceQueryCounter::getTotalRecordCount).orElse(0),
+			new Label[] { new Label(io.evitadb.api.query.head.Label.LABEL_SOURCE_QUERY, sourceQueryId) },
 			finishedWithError
 		);
 	}
@@ -452,8 +454,10 @@ public class SessionTraffic implements Closeable {
 	 */
 	private <T extends TrafficRecording> void registerRecording(T container) {
 		this.recordingTypes.add(container.type());
-		this.fetchCount += container.ioFetchCount();
-		this.bytesFetchedTotal += container.ioFetchedSizeBytes();
+		if (!(container instanceof TransientTrafficRecording)) {
+			this.fetchCount += container.ioFetchCount();
+			this.bytesFetchedTotal += container.ioFetchedSizeBytes();
+		}
 		if (container instanceof QueryContainer queryContainer) {
 			this.queryCounter.incrementAndGet();
 			final UUID sourceQueryId = this.sourceQueryCounterIndex == null ?

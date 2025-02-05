@@ -63,7 +63,7 @@ public record SessionCloseContainer(
 	int entityFetchCount,
 	int mutationCount,
 	@Nullable String finishedWithError
-) implements TrafficRecording {
+) implements TransientTrafficRecording {
 
 	public SessionCloseContainer(
 		@Nonnull UUID sessionId,

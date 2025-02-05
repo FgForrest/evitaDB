@@ -30,6 +30,7 @@ import io.evitadb.api.observability.trace.TracingContextReference;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.SpanContext;
 import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.context.Context;
@@ -114,7 +115,8 @@ public class ObservabilityTracingContext implements TracingContext {
 
 	@Nonnull
 	public Optional<String> getTraceId() {
-		return Optional.ofNullable(Span.current().getSpanContext().getTraceId());
+		final SpanContext spanContext = Span.current().getSpanContext();
+		return spanContext != null && spanContext.isValid() ? Optional.of(spanContext.getTraceId()) : Optional.empty();
 	}
 
 	@Nonnull

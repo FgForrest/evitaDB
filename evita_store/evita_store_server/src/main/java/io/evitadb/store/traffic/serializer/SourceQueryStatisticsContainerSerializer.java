@@ -28,8 +28,13 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.api.requestResponse.trafficRecording.Label;
 import io.evitadb.api.requestResponse.trafficRecording.SourceQueryContainer;
 import io.evitadb.api.requestResponse.trafficRecording.SourceQueryStatisticsContainer;
+
+import java.io.Serializable;
+import java.time.OffsetDateTime;
+import java.util.UUID;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link SourceQueryContainer} type.
@@ -49,25 +54,49 @@ public class SourceQueryStatisticsContainerSerializer extends Serializer<SourceQ
 		output.writeVarInt(object.ioFetchedSizeBytes(), true);
 		output.writeVarInt(object.returnedRecordCount(), true);
 		output.writeVarInt(object.totalRecordCount(), true);
+		output.writeVarInt(object.labels().length, true);
+		for (int i = 0; i < object.labels().length; i++) {
+			output.writeString(object.labels()[i].name());
+			kryo.writeClassAndObject(output, object.labels()[i].value());
+		}
 		output.writeString(object.finishedWithError());
 	}
 
 	@Override
 	public SourceQueryStatisticsContainer read(Kryo kryo, Input input, Class<? extends SourceQueryStatisticsContainer> type) {
 		final CurrentSessionRecordContext.SessionRecordContext sessionRecordContext = CurrentSessionRecordContext.get();
+		final UUID recordId = kryo.readObject(input, UUID.class);
+		final int recordSessionOffset = input.readVarInt(true);
+		final UUID sourceQueryId = kryo.readObject(input, UUID.class);
+		final OffsetDateTime created = kryo.readObject(input, OffsetDateTime.class);
+		final int durationInMilliseconds = input.readVarInt(true);
+		final int ioFetchCount = input.readVarInt(true);
+		final int ioFetchedSizeBytes = input.readVarInt(true);
+		final int returnedRecordCount = input.readVarInt(true);
+		final int totalRecordCount = input.readVarInt(true);
+		final int labelCount = input.readVarInt(true);
+		final Label[] labels = labelCount == 0 ? Label.EMPTY_LABELS : new Label[labelCount];
+		for (int i = 0; i < labelCount; i++) {
+			labels[i] = new Label(
+				input.readString(),
+				(Serializable) kryo.readClassAndObject(input)
+			);
+		}
+		final String finishedWithError = input.readString();
 		return new SourceQueryStatisticsContainer(
 			sessionRecordContext == null ? null : sessionRecordContext.sessionSequenceOrder(),
-			kryo.readObject(input, java.util.UUID.class),
-			input.readVarInt(true),
+			recordId,
+			recordSessionOffset,
 			sessionRecordContext == null ? null : sessionRecordContext.sessionRecordsCount(),
-			kryo.readObject(input, java.util.UUID.class),
-			kryo.readObject(input, java.time.OffsetDateTime.class),
-			input.readVarInt(true),
-			input.readVarInt(true),
-			input.readVarInt(true),
-			input.readVarInt(true),
-			input.readVarInt(true),
-			input.readString()
+			sourceQueryId,
+			created,
+			durationInMilliseconds,
+			ioFetchCount,
+			ioFetchedSizeBytes,
+			returnedRecordCount,
+			totalRecordCount,
+			labels,
+			finishedWithError
 		);
 	}
 

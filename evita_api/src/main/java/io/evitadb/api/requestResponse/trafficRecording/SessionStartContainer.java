@@ -49,7 +49,7 @@ public record SessionStartContainer(
 	@Nullable Integer sessionRecordsCount,
 	long catalogVersion,
 	@Nonnull OffsetDateTime created
-) implements TrafficRecording {
+) implements TransientTrafficRecording {
 
 	public SessionStartContainer(
 		@Nonnull UUID sessionId,

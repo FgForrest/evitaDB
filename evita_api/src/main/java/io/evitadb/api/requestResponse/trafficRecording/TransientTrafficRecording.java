@@ -23,17 +23,12 @@
 
 package io.evitadb.api.requestResponse.trafficRecording;
 
-import javax.annotation.Nonnull;
 
 /**
- * Mark {@link TrafficRecording} to have client labels
+ * Implementations of this interface shouldn't add up to the session statistics - because they mere aggregate real
+ * statistics of inner traffic recordings. If we'd count them, we'd get a wrong (doubled) statistics.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-public interface ContainerWithLabels {
-
-	/**
-	 * The client labels associated with the query
-	 */
-	@Nonnull Label[] labels();
+public interface TransientTrafficRecording extends TrafficRecording {
 }

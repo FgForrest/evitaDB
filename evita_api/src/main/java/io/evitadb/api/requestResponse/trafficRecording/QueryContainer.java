@@ -66,7 +66,7 @@ public record QueryContainer(
 	int ioFetchedSizeBytes,
 	@Nonnull int[] primaryKeys,
 	@Nullable String finishedWithError
-) implements TrafficRecording, ContainerWithLabels {
+) implements TrafficRecording, TrafficRecordingWithLabels {
 
 	public QueryContainer(
 		@Nonnull UUID sessionId,

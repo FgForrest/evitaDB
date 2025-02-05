@@ -23,6 +23,7 @@
 
 package io.evitadb.store.traffic.serializer;
 
+import io.evitadb.api.requestResponse.trafficRecording.Label;
 import io.evitadb.api.requestResponse.trafficRecording.SourceQueryStatisticsContainer;
 import org.junit.jupiter.api.Test;
 
@@ -49,6 +50,7 @@ class SourceQueryStatisticsContainerSerializerTest extends AbstractContainerSeri
 				9,
 				11,
 				47,
+				new Label[] { new Label("a", "b"), new Label("c", "d") },
 				"error"
 			)
 		);

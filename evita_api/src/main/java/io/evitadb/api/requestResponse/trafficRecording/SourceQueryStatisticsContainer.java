@@ -60,8 +60,9 @@ public record SourceQueryStatisticsContainer(
 	int ioFetchedSizeBytes,
 	int returnedRecordCount,
 	int totalRecordCount,
+	@Nonnull Label[] labels,
 	@Nullable String finishedWithError
-) implements TrafficRecording { // todo jno support ContainerWithLabels interfacesd
+) implements TransientTrafficRecording, TrafficRecordingWithLabels {
 
 	public SourceQueryStatisticsContainer(
 		@Nonnull UUID sessionId,
@@ -73,6 +74,7 @@ public record SourceQueryStatisticsContainer(
 		int ioFetchedSizeBytes,
 		int returnedRecordCount,
 		int totalRecordCount,
+		@Nonnull Label[] labels,
 		@Nullable String finishedWithError
 	) {
 		this(
@@ -87,6 +89,7 @@ public record SourceQueryStatisticsContainer(
 			ioFetchedSizeBytes,
 			returnedRecordCount,
 			totalRecordCount,
+			labels,
 			finishedWithError
 		);
 	}
