@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -1045,6 +1045,49 @@ class EvitaQLFilterConstraintVisitorTest {
         assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("facetHaving('a')"));
         assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("facetHaving('a',5)"));
         assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("facetHaving('a','b',entityPrimaryKeyInSet(5))"));
+    }
+
+    @Test
+    void shouldParseFacetIncludingChildrenConstraint() {
+        final FilterConstraint constraint1 = parseFilterConstraintUnsafe("facetHaving('a',includingChildrenHaving(attributeEquals('a',1)))");
+        assertEquals(facetHaving("a", includingChildren(attributeEquals("a", 1L))), constraint1);
+
+        final FilterConstraint constraint2 = parseFilterConstraintUnsafe("facetHaving ( 'a', includingChildrenHaving( attributeEquals('a',1)   ) )");
+        assertEquals(facetHaving("a", includingChildren(attributeEquals("a", 1L))), constraint2);
+
+        final FilterConstraint constraint3 = parseFilterConstraintUnsafe("facetHaving('a',includingChildren())");
+        assertEquals(facetHaving("a", includingChildren()), constraint3);
+
+        final FilterConstraint constraint4 = parseFilterConstraintUnsafe("facetHaving ( 'a', includingChildren()   ) )");
+        assertEquals(facetHaving("a", includingChildren()), constraint4);
+    }
+
+    @Test
+    void shouldNotParseFacetIncludingChildrenConstraint() {
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("facetHaving(includingChildren)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("facetHaving(includingChildrenHaving)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("facetHaving('a',includingChildren(attributeEquals('a',1)))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("facetHaving('a',includingChildrenHaving())"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("facetHaving(includingChildren('a'))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("facetHaving(includingChildrenHaving('a'))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("facetHaving(includingChildrenHaving(attributeEquals('a',1),attributeEquals('b','c')))"));
+    }
+
+    @Test
+    void shouldParseFacetIncludingChildrenExceptConstraint() {
+        final FilterConstraint constraint1 = parseFilterConstraintUnsafe("facetHaving('a',includingChildrenExcept(attributeEquals('a',1)))");
+        assertEquals(facetHaving("a", includingChildrenExcept(attributeEquals("a", 1L))), constraint1);
+
+        final FilterConstraint constraint2 = parseFilterConstraintUnsafe("facetHaving ( 'a', includingChildrenExcept( attributeEquals('a',1)   ) )");
+        assertEquals(facetHaving("a", includingChildrenExcept(attributeEquals("a", 1L))), constraint2);
+    }
+
+    @Test
+    void shouldNotParseFacetIncludingChildrenExceptConstraint() {
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("facetHaving(includingChildrenExcept)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("facetHaving('a',includingChildrenExcept())"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("facetHaving(includingChildrenExcept('a'))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("facetHaving(includingChildrenExcept(attributeEquals('a',1),attributeEquals('b','c')))"));
     }
 
     @Test

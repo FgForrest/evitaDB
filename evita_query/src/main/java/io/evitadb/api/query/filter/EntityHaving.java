@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,6 +29,8 @@ import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -88,13 +90,21 @@ public class EntityHaving extends AbstractFilterConstraintContainer implements E
 	@Nonnull
 	@Override
 	public FilterConstraint getCopyWithNewChildren(@Nonnull FilterConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+		Assert.isPremiseValid(
+			ArrayUtils.isEmpty(additionalChildren),
+			"EntityHaving cannot have additional children."
+		);
+		Assert.isPremiseValid(
+			children.length <= 1,
+			"EntityHaving can have only one child."
+		);
 		return children.length == 0 ? new EntityHaving() : new EntityHaving(children[0]);
 	}
 
 	@Nonnull
 	@Override
 	public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
-		throw new UnsupportedOperationException("Not filtering query has no arguments!");
+		throw new UnsupportedOperationException("EntityHaving filtering constraint has no arguments!");
 	}
 
 }
