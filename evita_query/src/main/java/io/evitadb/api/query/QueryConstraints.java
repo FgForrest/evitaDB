@@ -26,6 +26,8 @@ package io.evitadb.api.query;
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.query.filter.*;
 import io.evitadb.api.query.head.Collection;
+import io.evitadb.api.query.head.Head;
+import io.evitadb.api.query.head.Label;
 import io.evitadb.api.query.order.*;
 import io.evitadb.api.query.require.*;
 import io.evitadb.dataType.PaginatedList;
@@ -64,6 +66,30 @@ public interface QueryConstraints {
 	 */
 
 	/**
+	 * This `head` is container for introducing multiple head constraints in query header. It's usually not necessary to use,
+	 * because the query header can contain directly {@link Collection} constraint. But if you want to tag the query for
+	 * further investigation with some custom labels, you'd need this container, since {@link Label} constraint is allowed
+	 * only in the header part of the query.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     head(
+	 *        collection("product"),
+	 *        label("query-name", "List all products")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/header/header#head">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static Head head(@Nullable HeadConstraint... headConstraint) {
+		return ArrayUtils.isEmptyOrItsValuesNull(headConstraint) ? null : new Head(headConstraint);
+	}
+
+	/**
 	 * Each query must specify collection. This mandatory {@link String} entity type controls what collection
 	 * the query will be applied on.
 	 *
@@ -73,11 +99,37 @@ public interface QueryConstraints {
 	 * collection('category')
 	 * </pre>
 	 *
-	 * <p><a href="https://evitadb.io/documentation/query/basics#header">Visit detailed user documentation</a></p>
-	 */
+	 * <p><a href="https://evitadb.io/documentation/query/header/header#collection">Visit detailed user documentation</a></p>
+	*/
 	@Nonnull
 	static Collection collection(@Nonnull String entityType) {
 		return new Collection(entityType);
+	}
+
+	/**
+	 * This `label` constraint allows a single label name with associated value to be specified in the query header and
+	 * propagated to the trace generated for the query. A query can be tagged with multiple labels.
+	 *
+	 * Labels are also recorded with the query in the traffic record and can be used to look up the query in the traffic
+	 * inspection or traffic replay.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *    head(
+	 *       collection("product"),
+	 *       label("query-name", "List all products"),
+	 *       label("page-url", "/products")
+	 *    )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/header/header#label">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static <T extends Comparable<T> & Serializable> Label label(@Nullable String name, @Nullable T value) {
+		return name == null || name.isBlank() || value == null ? null : new Label(name, value);
 	}
 
 	/*
@@ -24485,7 +24537,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(@Nullable EntityFetchRequire... requirements) {
 		return new FacetSummary(FacetStatisticsDepth.COUNTS, requirements);
@@ -24572,7 +24624,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FilterBy facetFilterBy,
@@ -24663,7 +24715,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FilterBy filterBy,
@@ -24755,7 +24807,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FilterGroupBy facetGroupFilterBy,
@@ -24847,7 +24899,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FilterBy filterBy,
@@ -24939,7 +24991,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FilterBy filterBy,
@@ -25031,7 +25083,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FilterBy filterBy,
@@ -25122,7 +25174,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable OrderBy orderBy,
@@ -25213,7 +25265,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FilterBy filterBy,
@@ -25303,7 +25355,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable OrderBy orderBy,
@@ -25393,7 +25445,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FilterGroupBy facetGroupFilterBy,
@@ -25483,7 +25535,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable OrderGroupBy facetGroupOrderBy,
@@ -25573,7 +25625,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FilterGroupBy facetGroupFilterBy,
@@ -25664,7 +25716,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FilterBy filterBy,
@@ -25755,7 +25807,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FilterGroupBy facetGroupFilterBy,
@@ -25846,7 +25898,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FilterBy facetFilterBy,
@@ -27416,7 +27468,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -27501,7 +27553,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -27587,7 +27639,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -27673,7 +27725,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -27759,7 +27811,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -27845,7 +27897,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -27930,7 +27982,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -28015,7 +28067,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -28099,7 +28151,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -28183,7 +28235,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -28267,7 +28319,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -28351,7 +28403,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -28436,7 +28488,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -28521,7 +28573,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -28606,7 +28658,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,

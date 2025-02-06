@@ -27,6 +27,8 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.filter.*;
 import io.evitadb.api.query.head.Collection;
+import io.evitadb.api.query.head.Head;
+import io.evitadb.api.query.head.Label;
 import io.evitadb.api.query.order.*;
 import io.evitadb.api.query.require.*;
 import lombok.AccessLevel;
@@ -57,7 +59,9 @@ class ConstraintRegistry {
 	 */
 	static final Set<Class<? extends Constraint<?>>> REGISTERED_CONSTRAINTS = Set.of(
 		// --- head constraints ---
+		Head.class,
 		Collection.class,
+		Label.class,
 
 		// --- filter constraints ---
 		// generic

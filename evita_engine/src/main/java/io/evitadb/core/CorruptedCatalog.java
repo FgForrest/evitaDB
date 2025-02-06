@@ -84,7 +84,7 @@ public final class CorruptedCatalog implements CatalogContract {
 	}
 
 	@Override
-	public @Nonnull CatalogSchemaContract updateSchema(@Nonnull LocalCatalogSchemaMutation... schemaMutation) throws SchemaAlteringException {
+	public @Nonnull CatalogSchemaContract updateSchema(@Nonnull EvitaSessionContract session, @Nonnull LocalCatalogSchemaMutation... schemaMutation) throws SchemaAlteringException {
 		throw new CatalogCorruptedException(this);
 	}
 
@@ -148,17 +148,17 @@ public final class CorruptedCatalog implements CatalogContract {
 
 	@Nonnull
 	@Override
-	public EntityCollection getOrCreateCollectionForEntity(@Nonnull String entityType, @Nonnull EvitaSessionContract session) {
+	public EntityCollection getOrCreateCollectionForEntity(@Nonnull EvitaSessionContract session, @Nonnull String entityType) {
 		throw new CatalogCorruptedException(this);
 	}
 
 	@Override
-	public boolean replaceCollectionOfEntity(@Nonnull String entityTypeToBeReplaced, @Nonnull String entityTypeToBeReplacedWith, @Nonnull EvitaSessionContract session) {
+	public boolean replaceCollectionOfEntity(@Nonnull EvitaSessionContract session, @Nonnull String entityTypeToBeReplaced, @Nonnull String entityTypeToBeReplacedWith) {
 		throw new CatalogCorruptedException(this);
 	}
 
 	@Override
-	public boolean deleteCollectionOfEntity(@Nonnull String entityType, @Nonnull EvitaSessionContract session) {
+	public boolean deleteCollectionOfEntity(@Nonnull EvitaSessionContract session, @Nonnull String entityType) {
 		throw new CatalogCorruptedException(this);
 	}
 
@@ -191,7 +191,7 @@ public final class CorruptedCatalog implements CatalogContract {
 	}
 
 	@Override
-	public void applyMutation(@Nonnull Mutation mutation) throws InvalidMutationException {
+	public void applyMutation(@Nonnull EvitaSessionContract session, @Nonnull Mutation mutation) throws InvalidMutationException {
 		throw new CatalogCorruptedException(this);
 	}
 

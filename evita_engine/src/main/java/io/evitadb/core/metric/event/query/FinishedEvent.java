@@ -36,6 +36,8 @@ import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Arrays;
+import java.util.stream.Collectors;
 
 /**
  * Event that is fired when an evitaDB query is finished.
@@ -54,6 +56,11 @@ public class FinishedEvent extends AbstractQueryEvent {
 	@Description("The name of the related entity type (collection).")
 	@ExportMetricLabel
 	private final String entityType;
+
+	@Label("Labels")
+	@Description("Zero or more client labels associated with the query. Labels are delimited by comma, label consists of name and value separated by equals sign.")
+	@ExportMetricLabel
+	private final String labels;
 
 	@Label("Query planning duration in milliseconds")
 	@Description("The time it took to build all the query execution plan variants.")
@@ -122,12 +129,18 @@ public class FinishedEvent extends AbstractQueryEvent {
 
 	public FinishedEvent(
 		@Nonnull String catalogName,
-		@Nullable String entityType
+		@Nullable String entityType,
+		@Nullable io.evitadb.api.query.head.Label[] labels
 	) {
 		super(catalogName);
 		this.entityType = entityType;
 		this.begin();
 		this.created = System.currentTimeMillis();
+		this.labels = labels == null ?
+			"" :
+			Arrays.stream(labels)
+				.map(label -> label.getLabelName() + "=" + label.getLabelValue())
+				.collect(Collectors.joining(","));
 	}
 
 	/**

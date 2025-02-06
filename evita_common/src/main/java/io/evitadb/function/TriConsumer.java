@@ -23,8 +23,6 @@
 
 package io.evitadb.function;
 
-import javax.annotation.Nullable;
-
 /**
  * Interface similar to {@link java.util.function.BiConsumer} but for three arguments.
  *
@@ -41,7 +39,7 @@ public interface TriConsumer <T, U, V> {
 	 * @param u the second input argument
 	 * @param v the third input argument
 	 */
-	void accept(@Nullable T t, @Nullable U u, @Nullable V v);
+	void accept(T t, U u, V v);
 
 }
 

@@ -38,7 +38,7 @@ import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.cdc.CaptureArea;
-import io.evitadb.api.requestResponse.cdc.CaptureContent;
+import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
@@ -53,6 +53,8 @@ import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest.TrafficRecordingType;
+import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingContent;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.api.task.TaskStatus.TaskTrait;
 import io.evitadb.dataType.ClassifierType;
@@ -70,6 +72,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import static io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState.*;
+import static io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingContent.TRAFFIC_RECORDING_BODY;
+import static io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingContent.TRAFFIC_RECORDING_HEADER;
 
 /**
  * Class contains static methods for converting enums from and to gRPC representation.
@@ -848,13 +852,13 @@ public class EvitaEnumConverter {
 	}
 
 	/**
-	 * Converts a {@link GrpcCaptureArea} to a {@link CaptureArea}.
+	 * Converts a {@link GrpcChangeCaptureArea} to a {@link CaptureArea}.
 	 *
-	 * @param area The GrpcCaptureArea to convert.
+	 * @param area The GrpcChangeCaptureArea to convert.
 	 * @return The converted CaptureArea.
 	 */
 	@Nonnull
-	public static CaptureArea toCaptureArea(@Nonnull GrpcCaptureArea area) {
+	public static CaptureArea toCaptureArea(@Nonnull GrpcChangeCaptureArea area) {
 		return switch (area) {
 			case DATA -> CaptureArea.DATA;
 			case SCHEMA -> CaptureArea.SCHEMA;
@@ -864,28 +868,28 @@ public class EvitaEnumConverter {
 	}
 
 	/**
-	 * Converts a {@link CaptureArea} to a {@link GrpcCaptureArea}.
+	 * Converts a {@link CaptureArea} to a {@link GrpcChangeCaptureArea}.
 	 *
 	 * @param area The CaptureArea to convert.
-	 * @return The converted GrpcCaptureArea.
+	 * @return The converted GrpcChangeCaptureArea.
 	 */
 	@Nonnull
-	public static GrpcCaptureArea toGrpcCaptureArea(@Nonnull CaptureArea area) {
+	public static GrpcChangeCaptureArea toGrpcChangeCaptureArea(@Nonnull CaptureArea area) {
 		return switch (area) {
-			case DATA -> GrpcCaptureArea.DATA;
-			case SCHEMA -> GrpcCaptureArea.SCHEMA;
-			case INFRASTRUCTURE -> GrpcCaptureArea.INFRASTRUCTURE;
+			case DATA -> GrpcChangeCaptureArea.DATA;
+			case SCHEMA -> GrpcChangeCaptureArea.SCHEMA;
+			case INFRASTRUCTURE -> GrpcChangeCaptureArea.INFRASTRUCTURE;
 		};
 	}
 
 	/**
-	 * Converts a {@link GrpcCaptureOperation} to an {@link Operation}.
+	 * Converts a {@link GrpcChangeCaptureOperation} to an {@link Operation}.
 	 *
-	 * @param grpcOperation The {@link GrpcCaptureOperation} to convert.
+	 * @param grpcOperation The {@link GrpcChangeCaptureOperation} to convert.
 	 * @return The converted {@link Operation}.
 	 */
 	@Nonnull
-	public static Operation toOperation(@Nonnull GrpcCaptureOperation grpcOperation) {
+	public static Operation toOperation(@Nonnull GrpcChangeCaptureOperation grpcOperation) {
 		return switch (grpcOperation) {
 			case UPSERT -> Operation.UPSERT;
 			case REMOVE -> Operation.REMOVE;
@@ -895,83 +899,112 @@ public class EvitaEnumConverter {
 	}
 
 	/**
-	 * Converts an {@link Operation} to a {@link GrpcCaptureOperation}.
+	 * Converts an {@link Operation} to a {@link GrpcChangeCaptureOperation}.
 	 *
 	 * @param operation The Operation to convert.
 	 * @return The converted GrpcOperation.
 	 */
 	@Nonnull
-	public static GrpcCaptureOperation toGrpcOperation(@Nonnull Operation operation) {
+	public static GrpcChangeCaptureOperation toGrpcOperation(@Nonnull Operation operation) {
 		return switch (operation) {
-			case UPSERT -> GrpcCaptureOperation.UPSERT;
-			case REMOVE -> GrpcCaptureOperation.REMOVE;
-			case TRANSACTION -> GrpcCaptureOperation.TRANSACTION;
+			case UPSERT -> GrpcChangeCaptureOperation.UPSERT;
+			case REMOVE -> GrpcChangeCaptureOperation.REMOVE;
+			case TRANSACTION -> GrpcChangeCaptureOperation.TRANSACTION;
 		};
 	}
 
 	/**
-	 * Converts a {@link GrpcCaptureContainerType} to a {@link ContainerType}.
+	 * Converts a {@link GrpcChangeCaptureContainerType} to a {@link ContainerType}.
 	 *
-	 * @param GrpcCaptureContainerType The {@link GrpcCaptureContainerType} to convert.
+	 * @param GrpcChangeCaptureContainerType The {@link GrpcChangeCaptureContainerType} to convert.
 	 * @return The converted {@link ContainerType}.
 	 */
 	@Nonnull
-	public static ContainerType toContainerType(@Nonnull GrpcCaptureContainerType GrpcCaptureContainerType) {
-		return switch (GrpcCaptureContainerType) {
+	public static ContainerType toContainerType(@Nonnull GrpcChangeCaptureContainerType GrpcChangeCaptureContainerType) {
+		return switch (GrpcChangeCaptureContainerType) {
 			case CONTAINER_CATALOG -> ContainerType.CATALOG;
 			case CONTAINER_ENTITY -> ContainerType.ENTITY;
 			case CONTAINER_ATTRIBUTE -> ContainerType.ATTRIBUTE;
 			case CONTAINER_ASSOCIATED_DATA -> ContainerType.ASSOCIATED_DATA;
 			case CONTAINER_REFERENCE -> ContainerType.REFERENCE;
 			case CONTAINER_PRICE -> ContainerType.PRICE;
-			default -> throw new GenericEvitaInternalError("Unrecognized container type: " + GrpcCaptureContainerType);
+			default -> throw new GenericEvitaInternalError("Unrecognized container type: " + GrpcChangeCaptureContainerType);
 		};
 	}
 
 	/**
-	 * Converts a {@link ContainerType} to a {@link GrpcCaptureContainerType}.
+	 * Converts a {@link ContainerType} to a {@link GrpcChangeCaptureContainerType}.
 	 *
 	 * @param containerType The ContainerType to convert.
-	 * @return The converted GrpcCaptureContainerType.
+	 * @return The converted GrpcChangeCaptureContainerType.
 	 */
 	@Nonnull
-	public static GrpcCaptureContainerType toGrpcCaptureContainerType(@Nonnull ContainerType containerType) {
+	public static GrpcChangeCaptureContainerType toGrpcChangeCaptureContainerType(@Nonnull ContainerType containerType) {
 		return switch (containerType) {
-			case CATALOG -> GrpcCaptureContainerType.CONTAINER_CATALOG;
-			case ENTITY -> GrpcCaptureContainerType.CONTAINER_ENTITY;
-			case ATTRIBUTE -> GrpcCaptureContainerType.CONTAINER_ATTRIBUTE;
-			case ASSOCIATED_DATA -> GrpcCaptureContainerType.CONTAINER_ASSOCIATED_DATA;
-			case REFERENCE -> GrpcCaptureContainerType.CONTAINER_REFERENCE;
-			case PRICE -> GrpcCaptureContainerType.CONTAINER_PRICE;
+			case CATALOG -> GrpcChangeCaptureContainerType.CONTAINER_CATALOG;
+			case ENTITY -> GrpcChangeCaptureContainerType.CONTAINER_ENTITY;
+			case ATTRIBUTE -> GrpcChangeCaptureContainerType.CONTAINER_ATTRIBUTE;
+			case ASSOCIATED_DATA -> GrpcChangeCaptureContainerType.CONTAINER_ASSOCIATED_DATA;
+			case REFERENCE -> GrpcChangeCaptureContainerType.CONTAINER_REFERENCE;
+			case PRICE -> GrpcChangeCaptureContainerType.CONTAINER_PRICE;
 		};
 	}
 
 	/**
-	 * Converts a {@link GrpcCaptureContent} to a {@link CaptureContent}.
+	 * Converts a {@link GrpcChangeCaptureContent} to a {@link ChangeCaptureContent}.
 	 *
-	 * @param content The {@link GrpcCaptureContent} to convert.
-	 * @return The converted {@link CaptureContent}.
+	 * @param content The {@link GrpcChangeCaptureContent} to convert.
+	 * @return The converted {@link ChangeCaptureContent}.
 	 */
 	@Nonnull
-	public static CaptureContent toCaptureContent(@Nonnull GrpcCaptureContent content) {
+	public static ChangeCaptureContent toCaptureContent(@Nonnull GrpcChangeCaptureContent content) {
 		return switch (content) {
-			case HEADER -> CaptureContent.HEADER;
-			case BODY -> CaptureContent.BODY;
+			case CHANGE_HEADER -> ChangeCaptureContent.HEADER;
+			case CHANGE_BODY -> ChangeCaptureContent.BODY;
 			default -> throw new GenericEvitaInternalError("Unrecognized capture content: " + content);
 		};
 	}
 
 	/**
-	 * Converts a {@link CaptureContent} to a {@link GrpcCaptureContent}.
+	 * Converts a {@link TrafficRecordingContent} to a {@link GrpcTrafficRecordingContent}.
 	 *
-	 * @param content The CaptureContent to convert.
-	 * @return The converted GrpcCaptureContent.
+	 * @param content The {@link TrafficRecordingContent} to convert.
+	 * @return The converted {@link GrpcTrafficRecordingContent}.
 	 */
 	@Nonnull
-	public static GrpcCaptureContent toGrpcCaptureContent(@Nonnull CaptureContent content) {
+	public static GrpcTrafficRecordingContent toGrpcChangeCaptureContent(@Nonnull TrafficRecordingContent content) {
 		return switch (content) {
-			case HEADER -> GrpcCaptureContent.HEADER;
-			case BODY -> GrpcCaptureContent.BODY;
+			case HEADER -> TRAFFIC_RECORDING_HEADER;
+			case BODY -> TRAFFIC_RECORDING_BODY;
+		};
+	}
+
+	/**
+	 * Converts a {@link GrpcTrafficRecordingContent} to a {@link TrafficRecordingContent}.
+	 *
+	 * @param content The {@link GrpcTrafficRecordingContent} to convert.
+	 * @return The converted {@link TrafficRecordingContent}.
+	 */
+	@Nonnull
+	public static TrafficRecordingContent toCaptureContent(@Nonnull GrpcTrafficRecordingContent content) {
+		return switch (content) {
+			case TRAFFIC_RECORDING_HEADER -> TrafficRecordingContent.HEADER;
+			case TRAFFIC_RECORDING_BODY -> TrafficRecordingContent.BODY;
+			default -> throw new GenericEvitaInternalError("Unrecognized capture content: " + content);
+		};
+	}
+
+	/**
+	 * Converts a {@link ChangeCaptureContent} to a {@link GrpcChangeCaptureContent}.
+	 *
+	 * @param content The ChangeCaptureContent to convert.
+	 * @return The converted GrpcChangeCaptureContent.
+	 */
+	@Nonnull
+	public static GrpcChangeCaptureContent toGrpcChangeCaptureContent(@Nonnull ChangeCaptureContent content) {
+		return switch (content) {
+			case HEADER -> GrpcChangeCaptureContent.CHANGE_HEADER;
+			case BODY -> GrpcChangeCaptureContent.CHANGE_BODY;
 		};
 	}
 
@@ -1156,6 +1189,46 @@ public class EvitaEnumConverter {
 			case SCOPE_LIVE -> Scope.LIVE;
 			case SCOPE_ARCHIVED -> Scope.ARCHIVED;
 			case UNRECOGNIZED -> throw new GenericEvitaInternalError("Unrecognized gRPC scope: " + grpcScope);
+		};
+	}
+
+	/**
+	 * Converts a {@link GrpcTrafficRecordingType} to a {@link TrafficRecordingType}.
+	 * @param recordingType the recording type to convert
+	 * @return the corresponding traffic recording type
+	 */
+	@Nonnull
+	public static TrafficRecordingType toTrafficRecordingType(@Nonnull GrpcTrafficRecordingType recordingType) {
+		return switch (recordingType) {
+			case TRAFFIC_RECORDING_SESSION_START -> TrafficRecordingType.SESSION_START;
+			case TRAFFIC_RECORDING_SESSION_FINISH -> TrafficRecordingType.SESSION_CLOSE;
+			case TRAFFIC_RECORDING_SOURCE_QUERY -> TrafficRecordingType.SOURCE_QUERY;
+			case TRAFFIC_RECORDING_SOURCE_QUERY_STATISTICS -> TrafficRecordingType.SOURCE_QUERY_STATISTICS;
+			case TRAFFIC_RECORDING_QUERY -> TrafficRecordingType.QUERY;
+			case TRAFFIC_RECORDING_ENRICHMENT -> TrafficRecordingType.ENRICHMENT;
+			case TRAFFIC_RECORDING_FETCH -> TrafficRecordingType.FETCH;
+			case TRAFFIC_RECORDING_MUTATION -> TrafficRecordingType.MUTATION;
+			case UNRECOGNIZED -> throw new GenericEvitaInternalError("Unrecognized traffic recording type: " + recordingType);
+		};
+	}
+
+	/**
+	 * Converts a {@link TrafficRecordingType} to a {@link GrpcTrafficRecordingType}.
+	 *
+	 * @param recordingType the traffic recording type to convert
+	 * @return the corresponding gRPC traffic recording type
+	 */
+	@Nonnull
+	public static GrpcTrafficRecordingType toGrpcTrafficRecordingType(@Nonnull TrafficRecordingType recordingType) {
+		return switch (recordingType) {
+			case SESSION_START -> GrpcTrafficRecordingType.TRAFFIC_RECORDING_SESSION_START;
+			case SESSION_CLOSE -> GrpcTrafficRecordingType.TRAFFIC_RECORDING_SESSION_FINISH;
+			case SOURCE_QUERY -> GrpcTrafficRecordingType.TRAFFIC_RECORDING_SOURCE_QUERY;
+			case SOURCE_QUERY_STATISTICS -> GrpcTrafficRecordingType.TRAFFIC_RECORDING_SOURCE_QUERY_STATISTICS;
+			case QUERY -> GrpcTrafficRecordingType.TRAFFIC_RECORDING_QUERY;
+			case ENRICHMENT -> GrpcTrafficRecordingType.TRAFFIC_RECORDING_ENRICHMENT;
+			case FETCH -> GrpcTrafficRecordingType.TRAFFIC_RECORDING_FETCH;
+			case MUTATION -> GrpcTrafficRecordingType.TRAFFIC_RECORDING_MUTATION;
 		};
 	}
 

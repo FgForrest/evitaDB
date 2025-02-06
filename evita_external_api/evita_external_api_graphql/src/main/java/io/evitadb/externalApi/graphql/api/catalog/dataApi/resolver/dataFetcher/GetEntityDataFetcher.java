@@ -23,14 +23,18 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher;
 
+import graphql.GraphQLContext;
 import graphql.execution.DataFetcherResult;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.HeadConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.head.Head;
+import io.evitadb.api.query.head.Label;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.query.require.Require;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
@@ -41,7 +45,9 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.dto.QueryLabelDto;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GetEntityHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.QueryLabelDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.EntityFetchRequireResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
@@ -51,6 +57,7 @@ import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
 import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
 import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
+import io.evitadb.externalApi.graphql.traffic.GraphQLQueryLabels;
 import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 
@@ -66,6 +73,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.api.query.Query.query;
@@ -113,15 +121,16 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
 
 	@Nonnull
 	@Override
-	public DataFetcherResult<EntityClassifier> get(@Nonnull DataFetchingEnvironment environment) {
+	public DataFetcherResult<EntityClassifier> get(DataFetchingEnvironment environment) {
 		final Arguments arguments = Arguments.from(environment, entitySchema);
 		final ExecutedEvent requestExecutedEvent = environment.getGraphQlContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
 
 		final Query query = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> {
+			final Head head = buildHead(environment, arguments);
 			final FilterBy filterBy = buildFilterBy(arguments);
 			final Require require = buildRequire(environment, arguments);
 			return query(
-				collection(entitySchema.getName()),
+				head,
 				filterBy,
 				require
 			);
@@ -138,6 +147,29 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
 			.data(entity)
 			.localContext(buildResultContext(arguments)));
 		return resultBuilder.build();
+	}
+
+	@Nullable
+	private <LV extends Serializable & Comparable<LV>> Head buildHead(@Nonnull DataFetchingEnvironment environment, @Nonnull Arguments arguments) {
+		final List<HeadConstraint> headConstraints = new LinkedList<>();
+		headConstraints.add(collection(entitySchema.getName()));
+		headConstraints.add(label(Label.LABEL_SOURCE_TYPE, GraphQLQueryLabels.GRAPHQL_SOURCE_TYPE_VALUE));
+		headConstraints.add(label(GraphQLQueryLabels.OPERATION_NAME, environment.getOperationDefinition().getName()));
+
+		final GraphQLContext graphQlContext = environment.getGraphQlContext();
+		final UUID sourceRecordingId = graphQlContext.get(GraphQLContextKey.TRAFFIC_SOURCE_QUERY_RECORDING_ID);
+		if (sourceRecordingId != null) {
+			headConstraints.add(label(Label.LABEL_SOURCE_QUERY, sourceRecordingId));
+		}
+
+		if (arguments.labels() != null) {
+			for (final QueryLabelDto label : arguments.labels()) {
+				//noinspection unchecked
+				headConstraints.add(label(label.name(), (LV) label.value()));
+			}
+		}
+
+		return head(headConstraints.toArray(HeadConstraint[]::new));
 	}
 
 	@Nonnull
@@ -208,6 +240,7 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
                              boolean priceValidInNow,
 							 @Nonnull QueryPriceMode priceType,
 							 @Nonnull Scope[] scopes,
+							 @Nullable List<QueryLabelDto> labels,
                              @Nonnull Map<AttributeSchemaContract, Object> uniqueAttributes) {
 
 		private static Arguments from(@Nonnull DataFetchingEnvironment environment, @Nonnull EntitySchemaContract entitySchema) {
@@ -232,6 +265,17 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
 				.map(it -> it.toArray(Scope[]::new))
 				.orElse(Scope.DEFAULT_SCOPES);
 
+			//noinspection unchecked
+			final List<QueryLabelDto> labels = Optional.ofNullable((List<Map<String, Object>>) arguments.remove(GetEntityHeaderDescriptor.LABELS.name()))
+				.map(rawLabels -> rawLabels
+					.stream()
+					.map(rawLabel -> new QueryLabelDto(
+						(String) rawLabel.get(QueryLabelDescriptor.NAME.name()),
+						rawLabel.get(QueryLabelDescriptor.VALUE.name())
+					))
+					.toList())
+				.orElse(null);
+
 			// left over arguments are unique attribute filters as defined by schema
 			final Map<AttributeSchemaContract, Object> uniqueAttributes = extractUniqueAttributesFromArguments(scopes, arguments, entitySchema);
 
@@ -251,6 +295,7 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
                 priceValidInNow,
 				priceType,
 	            scopes,
+				labels,
                 uniqueAttributes
             );
         }

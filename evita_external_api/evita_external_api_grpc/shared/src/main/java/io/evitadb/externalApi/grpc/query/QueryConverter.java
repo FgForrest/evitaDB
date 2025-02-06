@@ -87,11 +87,11 @@ public final class QueryConverter {
 	 */
 	@Nonnull
 	public static List<Object> convertQueryParamsList(@Nonnull List<GrpcQueryParam> GrpcQueryParams) {
-		final List<Object> GrpcQueryParamObject = new ArrayList<>(GrpcQueryParams.size());
+		final List<Object> parameterList = new ArrayList<>(GrpcQueryParams.size());
 		for (GrpcQueryParam GrpcQueryParam : GrpcQueryParams) {
-			GrpcQueryParamObject.add(convertQueryParam(GrpcQueryParam));
+			parameterList.add(convertQueryParam(GrpcQueryParam));
 		}
-		return GrpcQueryParamObject;
+		return parameterList;
 	}
 
 	/**
@@ -103,11 +103,11 @@ public final class QueryConverter {
 	 */
 	@Nonnull
 	public static Map<String, Object> convertQueryParamsMap(@Nonnull Map<String, GrpcQueryParam> GrpcQueryParams) {
-		final Map<String, Object> GrpcQueryParamObject = CollectionUtils.createHashMap(GrpcQueryParams.size());
+		final Map<String, Object> parameterIndex = CollectionUtils.createHashMap(GrpcQueryParams.size());
 		for (Entry<String, GrpcQueryParam> queryEntry : GrpcQueryParams.entrySet()) {
-			GrpcQueryParamObject.put(queryEntry.getKey(), convertQueryParam(queryEntry.getValue()));
+			parameterIndex.put(queryEntry.getKey(), convertQueryParam(queryEntry.getValue()));
 		}
-		return GrpcQueryParamObject;
+		return parameterIndex;
 	}
 
 	/**

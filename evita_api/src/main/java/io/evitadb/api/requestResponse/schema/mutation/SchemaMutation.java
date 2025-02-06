@@ -23,7 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema.mutation;
 
-import io.evitadb.api.requestResponse.cdc.CaptureContent;
+import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
@@ -54,7 +54,7 @@ public non-sealed interface SchemaMutation extends Mutation {
 	@Nonnull
 	default Stream<ChangeCatalogCapture> toChangeCatalogCapture(
 		@Nonnull MutationPredicate predicate,
-		@Nonnull CaptureContent content
+		@Nonnull ChangeCaptureContent content
 	) {
 		final MutationPredicateContext context = predicate.getContext();
 		if (predicate.test(this)) {
@@ -62,7 +62,7 @@ public non-sealed interface SchemaMutation extends Mutation {
 				ChangeCatalogCapture.schemaCapture(
 					context,
 					operation(),
-					content == CaptureContent.BODY ? this : null
+					content == ChangeCaptureContent.BODY ? this : null
 				)
 			);
 		} else {

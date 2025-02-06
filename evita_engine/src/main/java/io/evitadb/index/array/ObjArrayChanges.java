@@ -201,7 +201,7 @@ public class ObjArrayChanges<T extends Comparable<T>> {
 				final int startIndex = -1 * (index) - 1;
 				this.insertions = ArrayUtils.insertIntIntoArrayOnIndex(position.position(), this.insertions, startIndex);
 				final Class<?> componentType = this.delegate.getClass().getComponentType();
-				this.insertedValues = ArrayUtils.insertRecordIntoArray(new InsertionBucket<>(recordId, componentType), this.insertedValues, startIndex);
+				this.insertedValues = ArrayUtils.insertRecordIntoArrayOnIndex(new InsertionBucket<>(recordId, componentType), this.insertedValues, startIndex);
 			}
 		}
 		// nullify memoized result that becomes obsolete by this operation

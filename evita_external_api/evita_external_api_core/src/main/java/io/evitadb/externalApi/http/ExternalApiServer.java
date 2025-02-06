@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,10 +23,12 @@
 
 package io.evitadb.externalApi.http;
 
+import com.linecorp.armeria.common.HttpHeaderNames;
 import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.common.MediaType;
 import com.linecorp.armeria.common.SessionProtocol;
 import com.linecorp.armeria.common.util.EventLoopGroups;
+import com.linecorp.armeria.server.ClientAddressSource;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.Server;
 import com.linecorp.armeria.server.ServerBuilder;
@@ -56,6 +58,7 @@ import io.evitadb.externalApi.configuration.HostDefinition;
 import io.evitadb.externalApi.configuration.TlsMode;
 import io.evitadb.externalApi.http.ExternalApiProvider.HttpServiceDefinition;
 import io.evitadb.externalApi.http.ExternalApiProvider.PathHandlingMode;
+import io.evitadb.externalApi.trace.TracingDecorator;
 import io.evitadb.externalApi.utils.path.PathHandlingService;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -501,6 +504,12 @@ public class ExternalApiServer implements AutoCloseable {
 		final EventLoopGroup workerGroup = EventLoopGroups.newEventLoopGroup(apiOptions.workerGroupThreadsAsInt());
 		serverBuilder
 			.blockingTaskExecutor(evita.getServiceExecutor(), gracefulShutdown)
+			.clientAddressSources(
+				ClientAddressSource.ofHeader(HttpHeaderNames.FORWARDED),
+				ClientAddressSource.ofHeader(HttpHeaderNames.X_FORWARDED_FOR),
+				ClientAddressSource.ofHeader("X-Real-IP"),
+				ClientAddressSource.ofProxyProtocol()
+			)
 			.decorator(DecodingService.newDecorator())
 			.decorator(EncodingService.builder()
 				.encodableContentTypes(
@@ -513,6 +522,7 @@ public class ExternalApiServer implements AutoCloseable {
 				)
 				.newDecorator()
 			)
+			.decorator(TracingDecorator.newDecorator())
 			.errorHandler(LoggingServerErrorHandler.INSTANCE)
 			.gracefulShutdownTimeout(gracefulShutdown ? Duration.ofSeconds(1) : Duration.ZERO, gracefulShutdown ? Duration.ofSeconds(1) : Duration.ZERO)
 			.idleTimeoutMillis(apiOptions.idleTimeoutInMillis())

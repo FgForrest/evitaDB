@@ -36,6 +36,7 @@ import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
 import io.evitadb.externalApi.grpc.services.EvitaManagementService;
 import io.evitadb.externalApi.grpc.services.EvitaService;
 import io.evitadb.externalApi.grpc.services.EvitaSessionService;
+import io.evitadb.externalApi.grpc.services.EvitaTrafficRecordingService;
 import io.evitadb.externalApi.grpc.services.interceptors.GlobalExceptionHandlerInterceptor;
 import io.evitadb.externalApi.grpc.services.interceptors.ObservabilityInterceptor;
 import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionInterceptor;
@@ -77,6 +78,7 @@ public class GrpcProviderRegistrar implements ExternalApiProviderRegistrar<GrpcC
 			.addService(new EvitaService(evita))
 			.addService(new EvitaManagementService(evita, externalApiServer))
 			.addService(new EvitaSessionService(evita))
+			.addService(new EvitaTrafficRecordingService(evita))
 			.addService(ProtoReflectionService.newInstance())
 			.intercept(new ServerSessionInterceptor(evita))
 			.intercept(new GlobalExceptionHandlerInterceptor())

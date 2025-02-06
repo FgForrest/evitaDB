@@ -24,7 +24,7 @@
 package io.evitadb.api.requestResponse.schema.mutation.catalog;
 
 import io.evitadb.api.exception.InvalidSchemaMutationException;
-import io.evitadb.api.requestResponse.cdc.CaptureContent;
+import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
@@ -98,7 +98,7 @@ public class ModifyCatalogSchemaNameMutation implements TopLevelCatalogSchemaMut
 	@Override
 	public Stream<ChangeCatalogCapture> toChangeCatalogCapture(
 		@Nonnull MutationPredicate predicate,
-		@Nonnull CaptureContent content
+		@Nonnull ChangeCaptureContent content
 	) {
 		final MutationPredicateContext context = predicate.getContext();
 		context.advance();
@@ -108,7 +108,7 @@ public class ModifyCatalogSchemaNameMutation implements TopLevelCatalogSchemaMut
 				ChangeCatalogCapture.schemaCapture(
 					context,
 					operation(),
-					content == CaptureContent.BODY ? this : null
+					content == ChangeCaptureContent.BODY ? this : null
 				)
 			);
 		} else {

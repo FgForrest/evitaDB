@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,15 +23,21 @@
 
 package io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.linecorp.armeria.common.HttpMethod;
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.HeadConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.head.Head;
+import io.evitadb.api.query.head.Label;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.Require;
+import io.evitadb.core.EvitaInternalSessionContract;
 import io.evitadb.externalApi.http.MimeTypes;
+import io.evitadb.externalApi.rest.RestProvider;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.QueryEntityRequestDto;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.FetchEntityRequestDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.FetchEntityEndpointHeaderDescriptor;
@@ -45,6 +51,7 @@ import io.evitadb.externalApi.rest.exception.RestRequiredParameterMissingExcepti
 import io.evitadb.externalApi.rest.io.JsonRestHandler;
 import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
 import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
+import io.evitadb.externalApi.rest.traffic.RestQueryLabels;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.swagger.v3.oas.models.media.Schema;
@@ -53,18 +60,19 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.LinkedHashSet;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static io.evitadb.api.query.Query.query;
-import static io.evitadb.api.query.QueryConstraints.collection;
-import static io.evitadb.api.query.QueryConstraints.entityLocaleEquals;
-import static io.evitadb.api.query.QueryConstraints.filterBy;
-import static io.evitadb.api.query.QueryConstraints.require;
+import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.QueryUtils.findFilter;
 import static java.util.Optional.ofNullable;
 
@@ -75,7 +83,6 @@ import static java.util.Optional.ofNullable;
  */
 @Slf4j
 public abstract class QueryOrientedEntitiesHandler extends JsonRestHandler<CollectionRestHandlingContext> {
-
 	@Nonnull private final FilterConstraintResolver filterConstraintResolver;
 	@Nonnull private final OrderConstraintResolver orderConstraintResolver;
 	@Nonnull private final RequireConstraintResolver requireConstraintResolver;
@@ -116,8 +123,20 @@ public abstract class QueryOrientedEntitiesHandler extends JsonRestHandler<Colle
 	@Nonnull
 	protected CompletableFuture<Query> resolveQuery(@Nonnull RestEndpointExecutionContext executionContext) {
 		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
-		return parseRequestBody(executionContext, QueryEntityRequestDto.class)
+		return readRawRequestBody(executionContext)
+			.thenApply(rawRequestBody -> {
+				try {
+					final QueryEntityRequestDto body = parseRequestBody(rawRequestBody, QueryEntityRequestDto.class);
+					trackSourceQuery(executionContext, rawRequestBody, null);
+					return body;
+				} catch (Exception e) {
+					trackSourceQuery(executionContext, rawRequestBody, e);
+					throw e;
+				}
+			})
 			.thenApply(requestData -> {
+				final Head head = buildHead(executionContext);
+
 				final Optional<Object> rawFilterBy = requestData.getFilterBy().map(it -> deserializeConstraintContainer(FetchEntityRequestDescriptor.FILTER_BY.name(), it));
 				final Optional<Object> rawOrderBy = requestData.getOrderBy().map(it -> deserializeConstraintContainer(FetchEntityRequestDescriptor.ORDER_BY.name(), it));
 				final Optional<Object> rawRequire = requestData.getRequire().map(it -> deserializeConstraintContainer(FetchEntityRequestDescriptor.REQUIRE.name(), it));
@@ -126,6 +145,7 @@ public abstract class QueryOrientedEntitiesHandler extends JsonRestHandler<Colle
 				return requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> {
 					final FilterBy filterBy = rawFilterBy
 						.map(container -> (FilterBy) filterConstraintResolver.resolve(restHandlingContext.getEntityType(), FetchEntityRequestDescriptor.FILTER_BY.name(), container))
+						.map(it -> addLocaleIntoFilterByWhenUrlPathLocalized(executionContext, it))
 						.orElse(null);
 					final OrderBy orderBy = rawOrderBy
 						.map(container -> (OrderBy) orderConstraintResolver.resolve(restHandlingContext.getEntityType(), FetchEntityRequestDescriptor.ORDER_BY.name(), container))
@@ -135,13 +155,50 @@ public abstract class QueryOrientedEntitiesHandler extends JsonRestHandler<Colle
 						.orElse(null);
 
 					return query(
-						collection(restHandlingContext.getEntityType()),
-						addLocaleIntoFilterByWhenUrlPathLocalized(executionContext, filterBy),
+						head,
+						filterBy,
 						orderBy,
 						require
 					);
 				});
 			});
+	}
+
+	private void trackSourceQuery(@Nonnull RestEndpointExecutionContext executionContext, @Nonnull String rawQuery, @Nullable Exception parsingError) {
+		if (restHandlingContext.getEvita().getConfiguration().server().trafficRecording().sourceQueryTrackingEnabled()) {
+			if (executionContext.session() instanceof EvitaInternalSessionContract evitaInternalSession) {
+				try {
+					final String serializedSourceQuery = restHandlingContext.getObjectMapper().writeValueAsString(rawQuery);
+					final UUID recordingId = evitaInternalSession.recordSourceQuery(
+						serializedSourceQuery, RestQueryLabels.REST_SOURCE_TYPE_VALUE, parsingError != null ? parsingError.getMessage() : null
+					);
+
+					executionContext.provideTrafficSourceQueryRecordingId(recordingId);
+					executionContext.addCloseCallback(ctx -> {
+						final String combinedErrorMessage = ctx.exceptions().stream().map(Throwable::getMessage).collect(Collectors.joining("; "));
+						evitaInternalSession.finalizeSourceQuery(recordingId, !combinedErrorMessage.isBlank() ? combinedErrorMessage : null);
+					});
+				} catch (JsonProcessingException e) {
+					log.error("Cannot serialize source rawQuery for traffic recording. Aborting.", e);
+				}
+			} else {
+				log.error("Source rawQuery tracking is enabled but Evita session is not of internal type. Cannot record source rawQuery. Aborting.");
+			}
+		}
+	}
+
+	@Nullable
+	protected Head buildHead(@Nonnull RestEndpointExecutionContext executionContext) {
+		final List<HeadConstraint> headConstraints = new LinkedList<>();
+		headConstraints.add(collection(restHandlingContext.getEntityType()));
+		headConstraints.add(label(Label.LABEL_SOURCE_TYPE, RestQueryLabels.REST_SOURCE_TYPE_VALUE));
+
+		executionContext.trafficSourceQueryRecordingId()
+			.ifPresent(uuid -> headConstraints.add(label(Label.LABEL_SOURCE_QUERY, uuid)));
+
+		headConstraints.addAll(parseQueryLabelsFromHeaders(executionContext));
+
+		return head(headConstraints.toArray(HeadConstraint[]::new));
 	}
 
 	@Nullable

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -82,7 +82,7 @@ public class TransactionalMemory {
 	 */
 	@Nonnull
 	public TransactionalLayerMaintainerFinalizer getFinalizer() {
-		return transactionalLayerMaintainer.getFinalizer();
+		return this.transactionalLayerMaintainer.getFinalizer();
 	}
 
 	/**
@@ -92,7 +92,7 @@ public class TransactionalMemory {
 	public void commit() {
 		// execute commit - all transactional object can still access their transactional memories during
 		// entire commit phase
-		transactionalLayerMaintainer.commit();
+		this.transactionalLayerMaintainer.commit();
 	}
 
 	/**
@@ -100,13 +100,13 @@ public class TransactionalMemory {
 	 */
 	public void rollback(@Nullable Throwable cause) {
 		// execute rollback - some transactional objects may want to react and clean-up resources
-		transactionalLayerMaintainer.rollback(cause);
+		this.transactionalLayerMaintainer.rollback(cause);
 	}
 
 	/**
 	 * Returns transactional layer for states, that is isolated for this thread.
 	 */
-	@Nullable
+	@Nonnull
 	public TransactionalLayerMaintainer getTransactionalLayerMaintainer() {
 		return this.transactionalLayerMaintainer;
 	}
@@ -114,6 +114,7 @@ public class TransactionalMemory {
 	/**
 	 * Returns transactional states for passed layer creator object, that is isolated for this thread.
 	 */
+	@Nullable
 	public <T> T getOrCreateTransactionalMemoryLayer(TransactionalLayerCreator<T> layerCreator) {
 		final Deque<ObjectIdentityHashSet<TransactionalLayerCreator<?>>> suppressedObjects = this.suppressedCreatorStack;
 		if (suppressedObjects.isEmpty() || !suppressedObjects.peek().contains(layerCreator)) {
@@ -126,6 +127,7 @@ public class TransactionalMemory {
 	/**
 	 * Returns transactional states for passed layer creator object, that is isolated for this thread.
 	 */
+	@Nullable
 	public <T> T getTransactionalMemoryLayerIfExists(TransactionalLayerCreator<T> layerCreator) {
 		final Deque<ObjectIdentityHashSet<TransactionalLayerCreator<?>>> suppressedObjects = this.suppressedCreatorStack;
 		if (suppressedObjects.isEmpty() || !suppressedObjects.peek().contains(layerCreator)) {
@@ -140,7 +142,7 @@ public class TransactionalMemory {
 	 */
 	@Nonnull
 	public TransactionalLayerMaintainerFinalizer getTransactionalLayerMaintainerFinalizer() {
-		return transactionalLayerMaintainer.getFinalizer();
+		return this.transactionalLayerMaintainer.getFinalizer();
 	}
 
 	/**

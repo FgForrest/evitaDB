@@ -174,7 +174,7 @@ public class SortIndexChanges implements Serializable {
 		assertNotPresent(!insertionPosition.alreadyPresent(), value);
 		// nod place the value in the value index with start position as previous block start + previous value cardinality
 		final ValueStartIndex newValue = new ValueStartIndex(value, getStartPositionFor(valueIndex, insertionPosition.position()));
-		this.valueLocationIndex = ArrayUtils.insertRecordIntoArray(newValue, valueIndex, insertionPosition.position());
+		this.valueLocationIndex = ArrayUtils.insertRecordIntoArrayOnIndex(newValue, valueIndex, insertionPosition.position());
 		// update all values after the inserted one - their index should be greater by exactly one inserted record
 		for (int i = insertionPosition.position() + 1; i < this.valueLocationIndex.length; i++) {
 			this.valueLocationIndex[i].increment();

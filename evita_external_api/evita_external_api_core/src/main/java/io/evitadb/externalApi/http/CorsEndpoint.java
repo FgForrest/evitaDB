@@ -48,6 +48,8 @@ public class CorsEndpoint {
 		// default headers for tracing that are allowed on every endpoint by default
 		this.allowedHeaders.add(AdditionalHttpHeaderNames.OPENTELEMETRY_TRACEPARENT_STRING);
 		this.allowedHeaders.add(AdditionalHttpHeaderNames.EVITADB_CLIENTID_HEADER_STRING);
+
+		this.allowedHeaders.add(AdditionalHttpHeaderNames.EVITADB_QUERY_LABEL_HEADER_STRING);
 	}
 
 	/**

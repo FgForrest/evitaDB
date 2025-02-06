@@ -26,7 +26,7 @@ package io.evitadb.api.requestResponse.cdc.predicate;
 import com.github.javafaker.Faker;
 import io.evitadb.api.AbstractHundredProductsFunctionalTest;
 import io.evitadb.api.requestResponse.cdc.CaptureArea;
-import io.evitadb.api.requestResponse.cdc.CaptureContent;
+import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureCriteria;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
@@ -184,11 +184,11 @@ class ChangeDataCapturePredicateTest extends AbstractHundredProductsFunctionalTe
 						.area(CaptureArea.INFRASTRUCTURE)
 						.build()
 				)
-				.content(CaptureContent.BODY)
+				.content(ChangeCaptureContent.BODY)
 				.build()
 		);
 		final List<ChangeCatalogCapture> cdc = this.mutations.stream()
-			.flatMap(it -> it.toChangeCatalogCapture(forwardCatchAllPredicate, CaptureContent.BODY))
+			.flatMap(it -> it.toChangeCatalogCapture(forwardCatchAllPredicate, ChangeCaptureContent.BODY))
 			.toList();
 
 		int expectedVersion = 0;
@@ -230,7 +230,7 @@ class ChangeDataCapturePredicateTest extends AbstractHundredProductsFunctionalTe
 						.area(CaptureArea.INFRASTRUCTURE)
 						.build()
 				)
-				.content(CaptureContent.BODY)
+				.content(ChangeCaptureContent.BODY)
 				.build()
 		);
 
@@ -248,7 +248,7 @@ class ChangeDataCapturePredicateTest extends AbstractHundredProductsFunctionalTe
 			i += transactionMutation.getMutationCount();
 		}
 		final List<ChangeCatalogCapture> reversedCdc = Arrays.stream(reversedMutations)
-			.flatMap(it -> it.toChangeCatalogCapture(reverseCatchAllPredicate, CaptureContent.BODY))
+			.flatMap(it -> it.toChangeCatalogCapture(reverseCatchAllPredicate, ChangeCaptureContent.BODY))
 			.toList();
 
 		assertEquals(cdc.size(), reversedCdc.size());

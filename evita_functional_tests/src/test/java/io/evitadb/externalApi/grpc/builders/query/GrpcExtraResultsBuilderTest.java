@@ -45,6 +45,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.grpc.builders.query.extraResults.GrpcExtraResultsBuilder;
 import io.evitadb.externalApi.grpc.generated.GrpcExtraResults;
 import io.evitadb.externalApi.grpc.generated.GrpcLevelInfos;
+import io.evitadb.utils.ArrayUtils;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -104,6 +105,7 @@ class GrpcExtraResultsBuilderTest {
 		final EvitaEntityResponse response = new EvitaEntityResponse(
 			query,
 			new PaginatedList<>(0, 0, 0),
+			ArrayUtils.EMPTY_INT_ARRAY,
 			new QueryTelemetry(
 				QueryPhase.OVERALL
 			).finish(),

@@ -311,7 +311,9 @@ public class EntityDecorator implements SealedEntity {
 			entity.hierarchyPredicate,
 			entity.attributePredicate,
 			entity.associatedDataPredicate,
-			entity.referencePredicate.createRicherCopyWith(referenceFetcher.getEnvelopingEntityRequest()),
+			referenceFetcher == ReferenceFetcher.NO_IMPLEMENTATION ?
+				entity.referencePredicate :
+				entity.referencePredicate.createRicherCopyWith(referenceFetcher.getEnvelopingEntityRequest()),
 			entity.pricePredicate,
 			entity.alignedNow,
 			referenceFetcher

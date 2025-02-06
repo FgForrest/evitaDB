@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -72,6 +72,8 @@ import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.FileUtils;
+import io.evitadb.utils.FolderLock;
+import io.evitadb.utils.IOUtils;
 import io.evitadb.utils.NamingConvention;
 import io.evitadb.utils.ReflectionLookup;
 import io.evitadb.utils.StringUtils;
@@ -195,6 +197,10 @@ public final class Evita implements EvitaContract {
 	 */
 	@Getter private boolean active;
 	/**
+	 * The folder lock instance that is used for safeguarding exclusive access to the catalog storage directory.
+	 */
+	private final FolderLock folderLock;
+	/**
 	 * Flag that is initially set to {@link ServerOptions#readOnly()} from {@link EvitaConfiguration}.
 	 * The flag might be changed from false to TRUE one time using internal Evita API. This is used in test support.
 	 */
@@ -222,6 +228,10 @@ public final class Evita implements EvitaContract {
 
 	public Evita(@Nonnull EvitaConfiguration configuration) {
 		this.configuration = configuration;
+
+		// try to acquire lock over storage directory
+		this.folderLock = new FolderLock(configuration.storage().storageDirectory());
+
 		this.serviceExecutor = new Scheduler(
 			configuration.server().serviceThreadPool()
 		);
@@ -475,7 +485,7 @@ public final class Evita implements EvitaContract {
 			commitBehaviour,
 			flags == null ?
 				new SessionFlags[]{SessionFlags.READ_WRITE} :
-				ArrayUtils.insertRecordIntoArray(SessionFlags.READ_WRITE, flags, flags.length)
+				ArrayUtils.insertRecordIntoArrayOnIndex(SessionFlags.READ_WRITE, flags, flags.length)
 		);
 		final CreatedSession createdSession = this.createSessionInternal(traits);
 		try {
@@ -515,7 +525,7 @@ public final class Evita implements EvitaContract {
 			commitBehaviour,
 			flags == null ?
 				new SessionFlags[]{SessionFlags.READ_WRITE} :
-				ArrayUtils.insertRecordIntoArray(SessionFlags.READ_WRITE, flags, flags.length)
+				ArrayUtils.insertRecordIntoArrayOnIndex(SessionFlags.READ_WRITE, flags, flags.length)
 		);
 
 		final CreatedSession createdSession = this.createSessionInternal(traits);
@@ -565,9 +575,9 @@ public final class Evita implements EvitaContract {
 	 * @throws IllegalArgumentException when no catalog of such name is found
 	 */
 	@Nonnull
-	public Optional<CatalogContract> getCatalogInstance(@Nonnull String catalog) throws IllegalArgumentException {
-		return ofNullable(catalogs.get(catalog))
-			.or(() -> Optional.ofNullable(removedCatalog.get()));
+	public Optional<CatalogContract> getCatalogInstance(@Nonnull String catalog) {
+		return ofNullable(this.catalogs.get(catalog))
+			.or(() -> Optional.ofNullable(this.removedCatalog.get()));
 	}
 
 	/**
@@ -576,7 +586,7 @@ public final class Evita implements EvitaContract {
 	 * @throws IllegalArgumentException when no catalog of such name is found
 	 */
 	@Nonnull
-	public CatalogContract getCatalogInstanceOrThrowException(@Nonnull String catalog) throws IllegalArgumentException {
+	public CatalogContract getCatalogInstanceOrThrowException(@Nonnull String catalog) throws CatalogNotFoundException {
 		return getCatalogInstance(catalog)
 			.orElseThrow(() -> new CatalogNotFoundException(catalog));
 	}
@@ -1010,6 +1020,7 @@ public final class Evita implements EvitaContract {
 	private void closeInternal() {
 		CompletableFuture.allOf(
 			CompletableFuture.runAsync(this::closeAllSessions),
+			CompletableFuture.runAsync(this.management::close),
 			CompletableFuture.runAsync(() -> shutdownScheduler("request", this.requestExecutor, 60)),
 			CompletableFuture.runAsync(() -> shutdownScheduler("transaction", this.transactionExecutor, 60)),
 			CompletableFuture.runAsync(() -> shutdownScheduler("service", this.serviceExecutor, 60))
@@ -1025,6 +1036,8 @@ public final class Evita implements EvitaContract {
 
 		// clear map
 		this.catalogs.clear();
+		// release lock
+		IOUtils.closeQuietly(this.folderLock::close);
 	}
 
 	/**

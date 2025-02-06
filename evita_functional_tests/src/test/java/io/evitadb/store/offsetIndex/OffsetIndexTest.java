@@ -43,6 +43,7 @@ import io.evitadb.store.offsetIndex.model.RecordKey;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.schema.SchemaKryoConfigurer;
 import io.evitadb.store.spi.model.EntityCollectionHeader;
+import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
@@ -72,8 +73,6 @@ import java.util.function.IntFunction;
 import java.util.function.Supplier;
 
 import static io.evitadb.store.offsetIndex.OffsetIndexSerializationService.computeExpectedRecordCount;
-import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
-import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -83,11 +82,13 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @Slf4j
-class OffsetIndexTest implements TimeBoundedTestSupport {
+class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 	public static final String ENTITY_TYPE = "whatever";
 	private static final Locale[] AVAILABLE_LOCALES = new Locale[]{
 		Locale.ENGLISH, Locale.FRENCH, Locale.GERMAN, new Locale("cs", "CZ")
 	};
+	private static final String TEST_FOLDER = "offsetIndexTest";
+	private static final String TEST_FOLDER_EXPORT = "offsetIndexTest_export";
 	private final Path targetFile = Path.of(System.getProperty("java.io.tmpdir") + File.separator + "fileOffsetIndex.kryo");
 	private final OffsetIndexRecordTypeRegistry offsetIndexRecordTypeRegistry = new OffsetIndexRecordTypeRegistry();
 	private final StorageOptions options = StorageOptions.temporary();
@@ -152,9 +153,10 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 	}
 
 	@Nonnull
-	private static StorageOptions buildOptionsWithLimitedBuffer() {
+	private StorageOptions buildOptionsWithLimitedBuffer() {
 		return StorageOptions.builder()
-			.storageDirectory(Path.of(System.getProperty("java.io.tmpdir"), "evita/data"))
+			.storageDirectory(getTestDirectory().resolve(TEST_FOLDER))
+			.exportDirectory(getTestDirectory().resolve(TEST_FOLDER_EXPORT))
 			.waitOnCloseSeconds(5)
 			.lockTimeoutSeconds(5)
 			.outputBufferSize(4096)
@@ -164,14 +166,18 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 	}
 
 	@BeforeEach
-	void setUp() {
+	void setUp() throws IOException {
 		targetFile.toFile().delete();
+		cleanTestSubDirectory(TEST_FOLDER);
+		cleanTestSubDirectory(TEST_FOLDER_EXPORT);
 	}
 
 	@AfterEach
-	void tearDown() {
+	void tearDown() throws IOException {
 		targetFile.toFile().delete();
 		observableOutputKeeper.close();
+		cleanTestSubDirectory(TEST_FOLDER);
+		cleanTestSubDirectory(TEST_FOLDER_EXPORT);
 	}
 
 	@DisplayName("Hundreds entities should be stored in OffsetIndex and retrieved intact.")

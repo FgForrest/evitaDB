@@ -39,7 +39,9 @@ public enum GraphQLContextKey {
 
     EVITA_SESSION("evitaSession"),
     OPERATION_TRACING_BLOCK("operationTracingBlock"),
-    METRIC_EXECUTED_EVENT("metricExecutedEvent");
+    METRIC_EXECUTED_EVENT("metricExecutedEvent"),
+    TRAFFIC_SOURCE_QUERY_RECORDING_ID("trafficSourceQueryRecordingId"),
+    TRAFFIC_SOURCE_QUERY_RECORDING_EXCEPTIONS("trafficSourceQueryRecordingExceptions");
 
     @Nonnull
     private final String key;

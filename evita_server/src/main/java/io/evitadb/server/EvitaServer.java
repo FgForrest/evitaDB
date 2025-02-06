@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -211,7 +211,7 @@ public class EvitaServer {
 	/**
 	 * Initializes the file from the specified location.
 	 */
-	@Nonnull
+	@Nullable
 	private static String initLog() {
 		String logMsg;
 		if (System.getProperty(ClassicConstants.CONFIG_FILE_PROPERTY) == null) {
@@ -281,7 +281,7 @@ public class EvitaServer {
 	 * @param variableName original variable name with dots
 	 * @return transformed variable name
 	 */
-	@Nullable
+	@Nonnull
 	private static String transformEnvironmentVariable(@Nonnull String variableName) {
 		return "EVITADB_" + variableName.toUpperCase().replace('.', '_');
 	}
@@ -580,7 +580,8 @@ public class EvitaServer {
 			this.stopFuture = this.externalApiServer.closeAsynchronously()
 				.thenAccept(unused -> ConsoleWriter.write("Server stopped, bye.\n\n"));
 		}
-		return this.stopFuture;
+		return this.stopFuture == null ?
+			CompletableFuture.completedFuture(null) : this.stopFuture;
 	}
 
 	/**
@@ -710,12 +711,15 @@ public class EvitaServer {
 
 		@Override
 		public void run() {
+			final Evita evita = this.evitaServer.getEvita();
 			try {
-				evitaServer.stop()
+				this.evitaServer.stop()
 					.thenAccept(unused -> stop())
 					.get(30, TimeUnit.SECONDS);
 			} catch (ExecutionException | InterruptedException | TimeoutException e) {
 				ConsoleWriter.write("Failed to stop evita server in dedicated time (30 secs.).\n");
+			} finally {
+				evita.close();
 			}
 		}
 

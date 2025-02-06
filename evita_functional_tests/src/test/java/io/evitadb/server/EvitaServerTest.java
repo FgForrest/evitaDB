@@ -233,12 +233,22 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 		} catch (Exception ex) {
 			fail(ex);
 		} finally {
-			try {
-				evitaServer.getEvita().deleteCatalogIfExists(TEST_CATALOG);
-				getPortManager().releasePortsOnCompletion(DIR_EVITA_SERVER_TEST, evitaServer.stop());
-			} catch (Exception ex) {
-				fail(ex.getMessage(), ex);
+			closeServerAndEvita(evitaServer);
+		}
+	}
+
+	private void closeServerAndEvita(@Nonnull EvitaServer evitaServer) {
+		try {
+			final Evita evita = evitaServer.getEvita();
+			if (evita != null) {
+				evita.deleteCatalogIfExists(TEST_CATALOG);
 			}
+			getPortManager().releasePortsOnCompletion(DIR_EVITA_SERVER_TEST, evitaServer.stop());
+			if (evita != null) {
+				evita.close();
+			}
+		} catch (Exception ex) {
+			fail(ex.getMessage(), ex);
 		}
 	}
 
@@ -408,11 +418,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 
 			assertEquals(0, labPortEvitaClientDifferentScheme.getCatalogNames().size());
 		} finally {
-			try {
-				getPortManager().releasePortsOnCompletion(DIR_EVITA_SERVER_TEST, evitaServer.stop());
-			} catch (Exception ex) {
-				fail(ex.getMessage(), ex);
-			}
+			closeServerAndEvita(evitaServer);
 		}
 	}
 
@@ -556,11 +562,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 			assertEquals(0, correctEvitaClient.getCatalogNames().size());
 
 		} finally {
-			try {
-				getPortManager().releasePortsOnCompletion(DIR_EVITA_SERVER_TEST, evitaServer.stop());
-			} catch (Exception ex) {
-				fail(ex.getMessage(), ex);
-			}
+			closeServerAndEvita(evitaServer);
 		}
 	}
 
@@ -611,11 +613,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 		} catch (Exception e) {
 			throw new RuntimeException(e);
 		} finally {
-			try {
-				getPortManager().releasePortsOnCompletion(DIR_EVITA_SERVER_TEST, evitaServer.stop());
-			} catch (Exception ex) {
-				fail(ex.getMessage(), ex);
-			}
+			closeServerAndEvita(evitaServer);
 		}
 	}
 
@@ -643,12 +641,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 		} catch (Exception ex) {
 			fail(ex);
 		} finally {
-			try {
-				evitaServer.getEvita().deleteCatalogIfExists(TEST_CATALOG);
-				getPortManager().releasePortsOnCompletion(DIR_EVITA_SERVER_TEST, evitaServer.stop());
-			} catch (Exception ex) {
-				fail(ex.getMessage(), ex);
-			}
+			closeServerAndEvita(evitaServer);
 		}
 	}
 
@@ -683,12 +676,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 		} catch (Exception ex) {
 			fail(ex);
 		} finally {
-			try {
-				evitaServer.getEvita().deleteCatalogIfExists(TEST_CATALOG);
-				getPortManager().releasePortsOnCompletion(DIR_EVITA_SERVER_TEST, evitaServer.stop());
-			} catch (Exception ex) {
-				fail(ex.getMessage(), ex);
-			}
+			closeServerAndEvita(evitaServer);
 		}
 	}
 
@@ -827,11 +815,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 		} catch (Exception ex) {
 			fail(ex);
 		} finally {
-			try {
-				getPortManager().releasePortsOnCompletion(DIR_EVITA_SERVER_TEST, evitaServer.stop());
-			} catch (Exception ex) {
-				fail(ex.getMessage(), ex);
-			}
+			closeServerAndEvita(evitaServer);
 		}
 	}
 
@@ -869,12 +853,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 		} catch (Exception ex) {
 			fail(ex);
 		} finally {
-			try {
-				evitaServer.getEvita().deleteCatalogIfExists(TEST_CATALOG);
-				getPortManager().releasePortsOnCompletion(DIR_EVITA_SERVER_TEST, evitaServer.stop());
-			} catch (Exception ex) {
-				fail(ex.getMessage(), ex);
-			}
+			closeServerAndEvita(evitaServer);
 		}
 	}
 
@@ -914,12 +893,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 		} catch (Exception ex) {
 			fail(ex);
 		} finally {
-			try {
-				evitaServer.getEvita().deleteCatalogIfExists(TEST_CATALOG);
-				getPortManager().releasePortsOnCompletion(DIR_EVITA_SERVER_TEST, evitaServer.stop());
-			} catch (Exception ex) {
-				fail(ex.getMessage(), ex);
-			}
+			closeServerAndEvita(evitaServer);
 		}
 	}
 

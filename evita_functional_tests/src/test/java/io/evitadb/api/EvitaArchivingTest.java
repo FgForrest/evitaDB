@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -66,7 +66,6 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.math.BigDecimal;
-import java.nio.file.Path;
 import java.util.Currency;
 import java.util.List;
 import java.util.Locale;
@@ -84,6 +83,7 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 public class EvitaArchivingTest implements EvitaTestSupport {
 	private static final String DIR_EVITA_ARCHIVING_TEST = "evitaArchivingTest";
+	private static final String DIR_EVITA_ARCHIVING_TEST_EXPORT = "evitaArchivingTest_export";
 	private static final String ATTRIBUTE_CODE = "code";
 	private static final String ATTRIBUTE_URL = "url";
 	private static final String ATTRIBUTE_NAME = "name";
@@ -2534,15 +2534,11 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 			)
 			.storage(
 				StorageOptions.builder()
-					.storageDirectory(getEvitaTestDirectory())
+					.storageDirectory(getTestDirectory().resolve(DIR_EVITA_ARCHIVING_TEST))
+					.exportDirectory(getTestDirectory().resolve(DIR_EVITA_ARCHIVING_TEST_EXPORT))
 					.build()
 			)
 			.build();
-	}
-
-	@Nonnull
-	private Path getEvitaTestDirectory() {
-		return getTestDirectory().resolve(DIR_EVITA_ARCHIVING_TEST);
 	}
 
 }
