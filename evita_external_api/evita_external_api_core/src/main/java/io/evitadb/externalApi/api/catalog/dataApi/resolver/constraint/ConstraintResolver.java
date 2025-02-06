@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -379,7 +379,7 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 	/**
 	 * Should extract raw argument from wrapper object `value`.
 	 */
-	@Nonnull
+	@Nullable
 	private Object extractValueArgumentFromWrapperObject(@Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
 	                                                     @Nonnull Object value,
 	                                                     @Nonnull ValueParameterDescriptor parameterDescriptor) {
@@ -402,17 +402,22 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 		return extractRangeFromWrapperRange(parsedConstraintDescriptor, value).get(1);
 	}
 
-	@Nonnull
+	@Nullable
 	private Object extractArgumentFromWrapperObject(@Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
 	                                                @Nonnull Object value,
 	                                                @Nonnull String parameterName) {
+		if (value instanceof Boolean) {
+			// wrapper object is empty (no parameters)
+			return null;
+		}
+
 		final Map<String, Object> wrapperObject;
 		try {
 			//noinspection unchecked
 			wrapperObject = (Map<String, Object>) value;
 		} catch (ClassCastException e) {
 			throw createQueryResolvingInternalError(
-				"Constraint `" + parsedConstraintDescriptor + "` expected to be wrapper object but found `" + value + "`."
+				"Constraint `" + parsedConstraintDescriptor.originalKey() + "` expected to be wrapper object but found `" + value + "`."
 			);
 		}
 		return wrapperObject.get(parameterName);

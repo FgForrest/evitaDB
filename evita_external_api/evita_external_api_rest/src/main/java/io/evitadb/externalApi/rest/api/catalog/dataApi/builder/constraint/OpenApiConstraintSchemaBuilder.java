@@ -257,7 +257,7 @@ public abstract class OpenApiConstraintSchemaBuilder
 
 	}
 
-	@Nullable
+	@Nonnull
 	@Override
 	protected OpenApiSimpleType buildWrapperObjectConstraintValue(@Nonnull ConstraintBuildContext buildContext,
 	                                                              @Nonnull WrapperObjectKey wrapperObjectKey,
@@ -335,8 +335,11 @@ public abstract class OpenApiConstraintSchemaBuilder
 		});
 
 		if (wrapperObjectFields.isEmpty()) {
-			// no fields, parent constraint should be omitted
-			return null;
+			// no fields (no usable parameters), there is nothing specific to specify, but we still want to be able to use
+			// the constraint without parameters
+			final OpenApiSimpleType emptyWrapperObject = buildNoneConstraintValue();
+			sharedContext.cacheWrapperObject(wrapperObjectKey, emptyWrapperObject);
+			return emptyWrapperObject;
 		}
 
 		final String wrapperObjectName = constructWrapperObjectName(wrapperObjectKey);
