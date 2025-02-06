@@ -30,6 +30,7 @@ import io.evitadb.api.CatalogState;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.SessionNotFoundException;
 import io.evitadb.api.file.FileForFetch;
+import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.HeadConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.head.Head;
@@ -1519,23 +1520,26 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	 * the first time the apply method is called. Subsequent calls with the same instance will return
 	 * the original HeadConstraint without modification.
 	 */
+	@SuppressWarnings("rawtypes")
 	@RequiredArgsConstructor
-	private static class LabelAppender implements UnaryOperator<HeadConstraint> {
+	private static class LabelAppender implements UnaryOperator<Constraint> {
 		private final Label[] labels;
 		private boolean appended = false;
 
 		@Override
-		public HeadConstraint apply(HeadConstraint constraint) {
+		public Constraint apply(Constraint constraint) {
 			if (this.appended) {
 				return constraint;
-			} else {
+			} else if (constraint instanceof HeadConstraint headConstraint) {
 				this.appended = true;
 				final List<HeadConstraint> constraints = new ArrayList<>(labels.length + 1);
-				constraints.add(constraint);
+				constraints.add(headConstraint);
 				Arrays.stream(this.labels).filter(Objects::nonNull).forEach(constraints::add);
 
 				//noinspection DataFlowIssue
 				return head(constraints.toArray(HeadConstraint[]::new));
+			} else {
+				throw new UnsupportedOperationException("Cannot append labels to a non-head constraint.");
 			}
 		}
 
