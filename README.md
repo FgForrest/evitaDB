@@ -211,6 +211,7 @@ In short, you need `~/.m2/toolchains.xml` in your home directory next to `~/.m2/
   - **evita_external_api_graphql**: implementation of GraphQL API
   - **evita_external_api_grpc**: implementation of gRPC API
     - **client**: Java driver for client/server usage scenario  
+    - **client_all_in_one**: Java driver for client/server usage scenario that includes repackaged all necessary dependencies so that it will not conflict with other dependencies in your project (unfortunately it's quite big due to gRPC and Armeria dependencies)  
     - **server**: gRPC server  
     - **shared**: shared classes between client & server (generated gRPC stubs)
   - **evita_external_api_rest**: implementation of REST API
