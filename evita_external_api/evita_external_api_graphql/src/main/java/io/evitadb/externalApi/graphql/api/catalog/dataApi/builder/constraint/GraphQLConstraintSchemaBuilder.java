@@ -254,7 +254,7 @@ public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBui
 		return childTypes;
 	}
 
-	@Nullable
+	@Nonnull
 	@Override
 	protected GraphQLInputType buildWrapperObjectConstraintValue(@Nonnull ConstraintBuildContext buildContext,
 																 @Nonnull WrapperObjectKey wrapperObjectKey,
@@ -332,8 +332,11 @@ public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBui
 		});
 
 		if (wrapperObjectFields.isEmpty()) {
-			// no fields, parent constraint should be omitted
-			return null;
+			// no fields (no usable parameters), there is nothing specific to specify, but we still want to be able to use
+			// the constraint without parameters
+			final GraphQLInputType emptyWrapperObject = buildNoneConstraintValue();
+			sharedContext.cacheWrapperObject(wrapperObjectKey, emptyWrapperObject);
+			return emptyWrapperObject;
 		}
 
 		final String wrapperObjectName = constructWrapperObjectName(wrapperObjectKey);

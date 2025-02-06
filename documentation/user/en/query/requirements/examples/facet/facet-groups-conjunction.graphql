@@ -16,7 +16,7 @@
       ]
     },
     require: {
-      facetGroupsGroupsConjunction: { }
+      facetGroupsGroupsConjunction: true
     }
   ) {
     extraResults {
