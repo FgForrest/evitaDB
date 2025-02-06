@@ -666,6 +666,10 @@ public class DiskRingBuffer {
 	 *                          used to adjust the position of the ring buffer tail.
 	 */
 	private void updateSessionLocations(int totalBytesToWrite) throws IOException {
+		if (totalBytesToWrite == 0) {
+			// no bytes to write, nothing to update
+			return;
+		}
 		final long newTail = this.ringBufferTail + totalBytesToWrite;
 		SessionLocation head = this.sessionLocations.peekFirst();
 		while (head != null) {
