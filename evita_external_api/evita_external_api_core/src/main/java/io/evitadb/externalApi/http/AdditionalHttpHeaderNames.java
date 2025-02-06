@@ -37,6 +37,7 @@ public class AdditionalHttpHeaderNames {
 
 	public static final AsciiString OPENTELEMETRY_TRACEPARENT_STRING = new AsciiString("traceparent");
 	public static final AsciiString EVITADB_CLIENTID_HEADER_STRING = new AsciiString("X-EvitaDB-ClientID");
+	public static final AsciiString EVITADB_QUERY_LABEL_HEADER_STRING = new AsciiString("X-EvitaDB-Query-Label");
 
 	public static final AsciiString INTERNAL_HEADER_PREFIX = new AsciiString("internal_");
 }

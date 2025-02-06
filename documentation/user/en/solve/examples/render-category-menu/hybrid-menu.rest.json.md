@@ -1,251 +1,251 @@
 ```json
 {
-  "siblings": [
+  "siblings" : [
     {
-      "entity": {
-        "primaryKey": 66494,
-        "type": "Category",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+      "entity" : {
+        "primaryKey" : 66494,
+        "type" : "Category",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "true-wireless"
+        "attributes" : {
+          "global" : {
+            "code" : "true-wireless"
           }
         }
       },
-      "requested": false
+      "requested" : false
     },
     {
-      "entity": {
-        "primaryKey": 66495,
-        "type": "Category",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+      "entity" : {
+        "primaryKey" : 66495,
+        "type" : "Category",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "over-ear"
+        "attributes" : {
+          "global" : {
+            "code" : "over-ear"
           }
         }
       },
-      "requested": true
+      "requested" : true
     },
     {
-      "entity": {
-        "primaryKey": 66496,
-        "type": "Category",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+      "entity" : {
+        "primaryKey" : 66496,
+        "type" : "Category",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "on-ear"
+        "attributes" : {
+          "global" : {
+            "code" : "on-ear"
           }
         }
       },
-      "requested": false
+      "requested" : false
     },
     {
-      "entity": {
-        "primaryKey": 66497,
-        "type": "Category",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+      "entity" : {
+        "primaryKey" : 66497,
+        "type" : "Category",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "earbuds"
+        "attributes" : {
+          "global" : {
+            "code" : "earbuds"
           }
         }
       },
-      "requested": false
+      "requested" : false
     }
   ],
-  "topLevel": [
+  "topLevel" : [
     {
-      "entity": {
-        "primaryKey": 66466,
-        "type": "Category",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+      "entity" : {
+        "primaryKey" : 66466,
+        "type" : "Category",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "portables"
+        "attributes" : {
+          "global" : {
+            "code" : "portables"
           }
         }
       },
-      "requested": false
+      "requested" : false
     },
     {
-      "entity": {
-        "primaryKey": 66467,
-        "type": "Category",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+      "entity" : {
+        "primaryKey" : 66467,
+        "type" : "Category",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "laptops"
+        "attributes" : {
+          "global" : {
+            "code" : "laptops"
           }
         }
       },
-      "requested": false
+      "requested" : false
     },
     {
-      "entity": {
-        "primaryKey": 66468,
-        "type": "Category",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+      "entity" : {
+        "primaryKey" : 66468,
+        "type" : "Category",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "cs",
           "de",
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "accessories"
+        "attributes" : {
+          "global" : {
+            "code" : "accessories"
           }
         }
       },
-      "requested": false
+      "requested" : false
     },
     {
-      "entity": {
-        "primaryKey": 66469,
-        "type": "Category",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+      "entity" : {
+        "primaryKey" : 66469,
+        "type" : "Category",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "vouchers"
+        "attributes" : {
+          "global" : {
+            "code" : "vouchers"
           }
         }
       },
-      "requested": false
+      "requested" : false
     },
     {
-      "entity": {
-        "primaryKey": 66470,
-        "type": "Category",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+      "entity" : {
+        "primaryKey" : 66470,
+        "type" : "Category",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "prepared-products"
+        "attributes" : {
+          "global" : {
+            "code" : "prepared-products"
           }
         }
       },
-      "requested": false
+      "requested" : false
     },
     {
-      "entity": {
-        "primaryKey": 347154,
-        "type": "Category",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+      "entity" : {
+        "primaryKey" : 347154,
+        "type" : "Category",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "bargain-bundles"
+        "attributes" : {
+          "global" : {
+            "code" : "bargain-bundles"
           }
         }
       },
-      "requested": false
+      "requested" : false
     }
   ],
-  "parents": [
+  "parents" : [
     {
-      "entity": {
-        "primaryKey": 66468,
-        "type": "Category",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+      "entity" : {
+        "primaryKey" : 66468,
+        "type" : "Category",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "cs",
           "de",
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "accessories"
+        "attributes" : {
+          "global" : {
+            "code" : "accessories"
           }
         }
       },
-      "requested": false,
-      "children": [
+      "requested" : false,
+      "children" : [
         {
-          "entity": {
-            "primaryKey": 66482,
-            "type": "Category",
-            "version": 1,
-            "scope": "LIVE",
-            "allLocales": [
+          "entity" : {
+            "primaryKey" : 66482,
+            "type" : "Category",
+            "version" : 1,
+            "scope" : "LIVE",
+            "allLocales" : [
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "audio"
+            "attributes" : {
+              "global" : {
+                "code" : "audio"
               }
             }
           },
-          "requested": false,
-          "children": [
+          "requested" : false,
+          "children" : [
             {
-              "entity": {
-                "primaryKey": 66488,
-                "type": "Category",
-                "version": 1,
-                "scope": "LIVE",
-                "allLocales": [
+              "entity" : {
+                "primaryKey" : 66488,
+                "type" : "Category",
+                "version" : 1,
+                "scope" : "LIVE",
+                "allLocales" : [
                   "en"
                 ],
-                "attributes": {
-                  "global": {
-                    "code": "wireless-headphones"
+                "attributes" : {
+                  "global" : {
+                    "code" : "wireless-headphones"
                   }
                 }
               },
-              "requested": false,
-              "children": [
+              "requested" : false,
+              "children" : [
                 {
-                  "entity": {
-                    "primaryKey": 66495,
-                    "type": "Category",
-                    "version": 1,
-                    "scope": "LIVE",
-                    "allLocales": [
+                  "entity" : {
+                    "primaryKey" : 66495,
+                    "type" : "Category",
+                    "version" : 1,
+                    "scope" : "LIVE",
+                    "allLocales" : [
                       "en"
                     ],
-                    "attributes": {
-                      "global": {
-                        "code": "over-ear"
+                    "attributes" : {
+                      "global" : {
+                        "code" : "over-ear"
                       }
                     }
                   },
-                  "requested": true
+                  "requested" : true
                 }
               ]
             }

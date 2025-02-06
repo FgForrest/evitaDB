@@ -190,7 +190,7 @@ public class PricesStoragePart implements EntityStoragePart {
 			}
 		} else {
 			final PriceContract newPrice = mutator.apply(null);
-			this.prices = ArrayUtils.insertRecordIntoArray(
+			this.prices = ArrayUtils.insertRecordIntoArrayOnIndex(
 				new PriceWithInternalIds(newPrice, internalPriceIdResolver.applyAsInt(priceKey)),
 				this.prices,
 				position

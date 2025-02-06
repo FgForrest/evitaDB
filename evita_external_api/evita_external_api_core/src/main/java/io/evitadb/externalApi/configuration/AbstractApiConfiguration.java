@@ -31,6 +31,7 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -39,6 +40,8 @@ import static java.util.Optional.ofNullable;
 
 /**
  * This DTO contains basic configuration settings for different API endpoints.
+ * By configuring {@link AbstractApiConfiguration#mtlsConfiguration}, additional security can be added to the API in
+ * question by enabling mTLS and allowing only specific and verified client to connect.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -76,6 +79,11 @@ public abstract class AbstractApiConfiguration {
 	@Getter private final TlsMode tlsMode;
 
 	/**
+	 * Wrapper that contains a part of configuration file that is related to mTLS settings.
+	 */
+	@Getter private final MtlsConfiguration mtlsConfiguration;
+
+	/**
 	 * Parses host definition into {@link HostDefinition} object.
 	 *
 	 * @param host host definition in format `hostname:port`
@@ -106,6 +114,7 @@ public abstract class AbstractApiConfiguration {
 			new HostDefinition(NetworkUtils.getByName("0.0.0.0"), true, DEFAULT_PORT)
 		};
 		this.keepAlive = true;
+		this.mtlsConfiguration = new MtlsConfiguration(false, List.of());
 	}
 
 	/**
@@ -114,7 +123,7 @@ public abstract class AbstractApiConfiguration {
 	 *                (IPv4) host. Multiple values can be delimited by comma. Example: `localhost:5555,168.12.45.44:5555`
 	 */
 	protected AbstractApiConfiguration(@Nullable Boolean enabled, @Nonnull String host) {
-		this(enabled, host, null, null, null);
+		this(enabled, host, null, null, null, null);
 	}
 
 	/**
@@ -128,7 +137,8 @@ public abstract class AbstractApiConfiguration {
 		@Nonnull String host,
 		@Nullable String exposeOn,
 		@Nullable String tlsMode,
-		@Nullable Boolean keepAlive
+		@Nullable Boolean keepAlive,
+		@Nullable MtlsConfiguration mtlsConfiguration
 	) {
 		this.enabled = ofNullable(enabled).orElse(true);
 		this.tlsMode = TlsMode.getByName(tlsMode);
@@ -138,6 +148,7 @@ public abstract class AbstractApiConfiguration {
 			.toArray(HostDefinition[]::new);
 		this.exposeOn = exposeOn;
 		this.keepAlive = ofNullable(keepAlive).orElse(true);
+		this.mtlsConfiguration = ofNullable(mtlsConfiguration).orElse(new MtlsConfiguration(false, List.of()));
 	}
 
 	/**
@@ -189,6 +200,6 @@ public abstract class AbstractApiConfiguration {
 	 * @return true if mutual TLS is enabled
 	 */
 	public boolean isMtlsEnabled() {
-		return false;
+		return this.mtlsConfiguration != null && Boolean.TRUE.equals(this.mtlsConfiguration.enabled());
 	}
 }

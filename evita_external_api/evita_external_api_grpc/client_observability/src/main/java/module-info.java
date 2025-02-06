@@ -21,21 +21,17 @@
  *   limitations under the License.
  */
 
-import io.evitadb.api.observability.trace.TracingContext;
-
 /**
  * Module contains gRPC Java driver (gRPC client) observability extension realized via OpenTelemetry.
  */
 module evita.java.driver.observability {
 	uses io.evitadb.driver.trace.ClientTracingContext;
-	uses TracingContext;
+	uses io.evitadb.api.observability.trace.TracingContext;
 
 	provides io.evitadb.driver.trace.ClientTracingContext with io.evitadb.driver.observability.trace.DriverTracingContext;
 
 	requires static jsr305;
 	requires static lombok;
-
-	requires io.grpc;
 
 	requires evita.api;
 	requires evita.java.driver;

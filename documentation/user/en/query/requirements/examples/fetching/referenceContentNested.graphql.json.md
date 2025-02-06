@@ -1,30 +1,30 @@
 ```json
 {
-  "data": [
+  "data" : [
     {
-      "primaryKey": 108528,
-      "attributes": {
-        "code": "samsung-galaxy-watch-4"
+      "primaryKey" : 108528,
+      "attributes" : {
+        "code" : "samsung-galaxy-watch-4"
       },
-      "groups": [
+      "groups" : [
         {
-          "referencedPrimaryKey": 112769,
-          "referencedEntity": {
-            "primaryKey": 112769,
-            "attributes": {
-              "code": "special-offer-group"
+          "referencedPrimaryKey" : 112769,
+          "referencedEntity" : {
+            "primaryKey" : 112769,
+            "attributes" : {
+              "code" : "special-offer-group"
             },
-            "tags": [
+            "tags" : [
               {
-                "referencedPrimaryKey": 11,
-                "referencedEntity": {
-                  "primaryKey": 11,
-                  "attributes": {
-                    "code": "special-offer"
+                "referencedPrimaryKey" : 11,
+                "referencedEntity" : {
+                  "primaryKey" : 11,
+                  "attributes" : {
+                    "code" : "special-offer"
                   },
-                  "categories": [
+                  "categories" : [
                     {
-                      "referencedPrimaryKey": 8
+                      "referencedPrimaryKey" : 8
                     }
                   ]
                 }

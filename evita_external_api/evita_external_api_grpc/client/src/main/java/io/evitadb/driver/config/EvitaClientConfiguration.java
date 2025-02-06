@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -50,9 +50,9 @@ import java.util.concurrent.TimeUnit;
  *                                  set on the server side.
  * @param mtlsEnabled               Whether to use mutual TLS encryption. Corresponding setting must be set on the
  *                                  server side.
- * @param rootCaCertificatePath     A relative path to the root CA certificate. Has to be provided when
+ * @param serverCertificatePath     A relative path to the server certificate. Has to be provided when
  *                                  `useGeneratedCertificate` and `trustCertificate` flag is disabled and server
- *                                  is using non-trusted CA certificate.
+ *                                  is using non-trusted certificate (for example self-signed one).
  * @param certificateFolderPath     A relative path to the folder where the client certificate and private key will be located,
  *                                  or if already not present there, downloaded. In the latter, the default path in the
  *                                  `temp` folder will be used.
@@ -75,7 +75,7 @@ public record EvitaClientConfiguration(
 	boolean trustCertificate,
 	boolean tlsEnabled,
 	boolean mtlsEnabled,
-	@Nullable Path rootCaCertificatePath,
+	@Nullable Path serverCertificatePath,
 	@Nullable Path certificateFileName,
 	@Nullable Path certificateKeyFileName,
 	@Nullable String certificateKeyPassword,
@@ -97,6 +97,17 @@ public record EvitaClientConfiguration(
 	}
 
 	/**
+	 * Returns the path to the server certificate.
+	 * @return The path to the server certificate.
+	 * @deprecated Use {@link #serverCertificatePath()} instead.
+	 */
+	@Deprecated
+	@Nullable
+	public Path rootCaCertificatePath() {
+		return serverCertificatePath;
+	}
+
+	/**
 	 * Standard builder pattern implementation.
 	 */
 	@ToString
@@ -109,7 +120,7 @@ public record EvitaClientConfiguration(
 		private boolean trustCertificate = false;
 		private boolean tlsEnabled = true;
 		private boolean mtlsEnabled = false;
-		private Path rootCaCertificatePath = null;
+		private Path serverCertificatePath = null;
 		private Path certificatePath = null;
 		private Path certificateKeyPath = null;
 		private String certificateKeyPassword = null;
@@ -166,9 +177,23 @@ public record EvitaClientConfiguration(
 			return this;
 		}
 
+		/**
+		 * This setting was renamed to {@link #serverCertificatePath(Path)}.
+		 *
+		 * @deprecated Use {@link #serverCertificatePath(Path)} instead.
+		 * @param rootCaCertificatePath
+		 * @return
+		 */
+		@Deprecated
 		@Nonnull
 		public EvitaClientConfiguration.Builder rootCaCertificatePath(@Nonnull Path rootCaCertificatePath) {
-			this.rootCaCertificatePath = rootCaCertificatePath;
+			this.serverCertificatePath = rootCaCertificatePath;
+			return this;
+		}
+
+		@Nonnull
+		public EvitaClientConfiguration.Builder serverCertificatePath(@Nonnull Path rootCaCertificatePath) {
+			this.serverCertificatePath = rootCaCertificatePath;
 			return this;
 		}
 
@@ -259,7 +284,7 @@ public record EvitaClientConfiguration(
 				trustCertificate,
 				tlsEnabled,
 				mtlsEnabled,
-				rootCaCertificatePath,
+				serverCertificatePath,
 				certificatePath,
 				certificateKeyPath,
 				certificateKeyPassword,

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@
 
 package io.evitadb.core;
 
-import com.esotericsoftware.kryo.util.Null;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.ConcurrentInitializationException;
@@ -70,6 +69,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Optional.ofNullable;
@@ -104,11 +104,6 @@ final class SessionRegistry {
 	 */
 	private final ConcurrentLinkedQueue<EvitaSessionTuple> sessionsFifoQueue = new ConcurrentLinkedQueue<>();
 	/**
-	 * Keeps information about count of currently active sessions. Counter is used to safely control single session
-	 * limits in parallel execution.
-	 */
-	private final AtomicInteger activeSessionsCounter = new AtomicInteger();
-	/**
 	 * The catalogConsumedVersions variable is used to keep track of consumed versions along with number of sessions
 	 * tied to them indexed by catalog names.
 	 */
@@ -129,7 +124,7 @@ final class SessionRegistry {
 	 */
 	public void closeAllActiveSessions() {
 		final List<CompletableFuture<Long>> futures = new LinkedList<>();
-		for (EvitaSessionTuple sessionTuple : activeSessions.values()) {
+		for (EvitaSessionTuple sessionTuple : this.activeSessions.values()) {
 			final EvitaSession activeSession = sessionTuple.plainSession();
 			if (activeSession.isActive()) {
 				if (activeSession.isTransactionOpen()) {
@@ -143,14 +138,22 @@ final class SessionRegistry {
 		CompletableFuture
 			.allOf(futures.toArray(new CompletableFuture[0]))
 			.join();
+
 		// check that all sessions were closed, and wait for concurrent operations to finish 20ms
-		final long start = System.nanoTime();
-		while (this.activeSessionsCounter.get() > 0 && System.nanoTime() - start < 20_000_000) {
+		final long start = System.currentTimeMillis();
+		while (!this.activeSessions.isEmpty() && System.currentTimeMillis() - start < 20) {
 			Thread.onSpinWait();
 		}
+
 		Assert.isPremiseValid(
-			this.activeSessionsCounter.get() == 0,
-			"Some of the sessions didn't decrement the session counter!"
+			this.activeSessions.isEmpty(),
+			"Some of the sessions didn't clean themselves (" +
+				this.activeSessions.values()
+					.stream()
+					.map(EvitaSessionTuple::plainSession)
+					.map(it -> it.getId() + ((it.isActive()) ? ": active" : ": closed"))
+					.collect(Collectors.joining(", "))
+				+ ")!"
 		);
 	}
 
@@ -159,10 +162,8 @@ final class SessionRegistry {
 	 * Method checks that there is only a single active session when catalog is in warm-up mode.
 	 */
 	@Nonnull
-	public EvitaInternalSessionContract addSession(boolean warmUp, @Nonnull Supplier<EvitaSession> sessionSupplier) {
-		if (warmUp) {
-			this.activeSessionsCounter.incrementAndGet();
-		} else if (!this.activeSessionsCounter.compareAndSet(0, 1)) {
+	public EvitaInternalSessionContract addSession(boolean transactional, @Nonnull Supplier<EvitaSession> sessionSupplier) {
+		if (!transactional && !this.activeSessions.isEmpty()) {
 			throw new ConcurrentInitializationException(this.activeSessions.keySet().iterator().next());
 		}
 
@@ -195,7 +196,6 @@ final class SessionRegistry {
 				this.activeSessions.remove(session.getId()) == activeSession,
 				"Session instance doesn't match the information found in the registry."
 			);
-			this.activeSessionsCounter.decrementAndGet();
 			Assert.isPremiseValid(this.sessionsFifoQueue.remove(activeSession), "Session not found in the queue.");
 
 			session.getTransaction().ifPresent(transaction -> {
@@ -211,7 +211,7 @@ final class SessionRegistry {
 						transaction.isRollbackOnly() ? TransactionResolution.ROLLBACK : TransactionResolution.COMMIT
 					).commit();
 			});
-			final SessionFinalizationResult finalizationResult = catalogConsumedVersions.get(session.getCatalogName())
+			final SessionFinalizationResult finalizationResult = this.catalogConsumedVersions.get(session.getCatalogName())
 				.unregisterSessionConsumingCatalogInVersion(session.getCatalogVersion());
 			if (finalizationResult.lastReader()) {
 				// notify listeners that the catalog version is no longer used
@@ -235,7 +235,7 @@ final class SessionRegistry {
 					ofNullable(this.sessionsFifoQueue.peek())
 						.map(it -> it.plainSession().getCreated())
 						.orElse(null),
-					this.activeSessionsCounter.get()
+					this.activeSessions.size()
 				);
 		}
 	}
@@ -251,7 +251,7 @@ final class SessionRegistry {
 		 * @param oldestSessionTimestamp the oldest active session timestamp
 		 * @param activeSessions         the number of still active sessions
 		 */
-		void finish(@Null OffsetDateTime oldestSessionTimestamp, int activeSessions);
+		void finish(@Nullable OffsetDateTime oldestSessionTimestamp, int activeSessions);
 
 	}
 
@@ -471,7 +471,7 @@ final class SessionRegistry {
 		 * @param version the version of the catalog
 		 */
 		void registerSessionConsumingCatalogInVersion(@Nonnull Long version) {
-			versionConsumingSessions.compute(
+			this.versionConsumingSessions.compute(
 				version,
 				(k, v) -> v == null ? 1 : v + 1
 			);
@@ -485,9 +485,9 @@ final class SessionRegistry {
 		 */
 		@Nonnull
 		SessionFinalizationResult unregisterSessionConsumingCatalogInVersion(long version) {
-			final Integer readerCount = versionConsumingSessions.compute(
+			final Integer readerCount = this.versionConsumingSessions.compute(
 				version,
-				(k, v) -> v == 1 ? null : v - 1
+				(k, v) -> v== null || v == 1 ? null : v - 1
 			);
 			if (readerCount == null) {
 				final OptionalLong minimalVersion = this.versionConsumingSessions.keySet().stream().mapToLong(Long::longValue).min();

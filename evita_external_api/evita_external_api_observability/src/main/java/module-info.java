@@ -46,6 +46,7 @@ module evita.external.api.observability {
 	requires evita.external.api.core;
 	requires evita.query;
 	requires evita.engine;
+	requires evita.store.server;
 	requires com.fasterxml.jackson.annotation;
 	requires com.fasterxml.jackson.databind;
 	requires java.management;

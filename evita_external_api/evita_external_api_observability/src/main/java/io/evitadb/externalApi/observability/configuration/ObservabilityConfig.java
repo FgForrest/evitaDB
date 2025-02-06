@@ -27,6 +27,7 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.configuration.ApiWithSpecificPrefix;
+import io.evitadb.externalApi.configuration.MtlsConfiguration;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -56,14 +57,14 @@ public class ObservabilityConfig extends AbstractApiConfiguration implements Api
 	@Getter @Nullable private final List<String> allowedEvents;
 
 	public ObservabilityConfig() {
-		super(true, "0.0.0.0:" + DEFAULT_OBSERVABILITY_PORT, null, null, null);
+		super(true, "0.0.0.0:" + DEFAULT_OBSERVABILITY_PORT, null, null, null, null);
 		this.prefix = BASE_OBSERVABILITY_PATH;
 		this.tracing = new TracingConfig();
 		this.allowedEvents = null;
 	}
 
 	public ObservabilityConfig(@Nonnull String host) {
-		super(true, host, null, null, null);
+		super(true, host, null, null, null, null);
 		this.prefix = BASE_OBSERVABILITY_PATH;
 		this.tracing = new TracingConfig();
 		this.allowedEvents = null;
@@ -77,9 +78,10 @@ public class ObservabilityConfig extends AbstractApiConfiguration implements Api
 	                           @Nullable @JsonProperty("keepAlive") Boolean keepAlive,
 	                           @Nullable @JsonProperty("prefix") String prefix,
 							   @Nullable @JsonProperty("tracing") TracingConfig tracing,
-	                           @Nullable @JsonProperty("allowedEvents") List<String> allowedEvents
+	                           @Nullable @JsonProperty("allowedEvents") List<String> allowedEvents,
+	                           @Nullable @JsonProperty("mTLS") MtlsConfiguration mtlsConfiguration
 	) {
-		super(enabled, host, exposeOn, tlsMode, keepAlive);
+		super(enabled, host, exposeOn, tlsMode, keepAlive, mtlsConfiguration);
 		this.prefix = Optional.ofNullable(prefix).orElse(BASE_OBSERVABILITY_PATH);
 		this.tracing = Optional.ofNullable(tracing).orElse(new TracingConfig());
 		this.allowedEvents = allowedEvents;

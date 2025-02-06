@@ -161,7 +161,7 @@ public class TransactionalComplexObjArray<T extends TransactionalObject<T, ?> & 
 					producer.accept(original, recordId);
 				}
 			} else {
-				this.delegate = ArrayUtils.insertRecordIntoArray(recordId, this.delegate, position.position());
+				this.delegate = ArrayUtils.insertRecordIntoArrayOnIndex(recordId, this.delegate, position.position());
 			}
 		} else {
 			layer.addRecordOnPosition(recordId, position.position());
@@ -187,7 +187,7 @@ public class TransactionalComplexObjArray<T extends TransactionalObject<T, ?> & 
 					producer.accept(original, recordId);
 				}
 			} else {
-				this.delegate = ArrayUtils.insertRecordIntoArray(recordId, this.delegate, position.position());
+				this.delegate = ArrayUtils.insertRecordIntoArrayOnIndex(recordId, this.delegate, position.position());
 			}
 			return position.position();
 		} else {

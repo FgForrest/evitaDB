@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -46,7 +46,7 @@ public class AttributeInSetSerializer<T extends Serializable> extends Serializer
 	public void write(Kryo kryo, Output output, AttributeInSet object) {
 		output.writeString(object.getAttributeName());
 		final Object[] set = object.getAttributeValues();
-		kryo.writeClass(output, set[0].getClass());
+		kryo.writeClass(output, set.getClass().getComponentType());
 		output.writeVarInt(set.length, true);
 		for (Object comparableValue : set) {
 			kryo.writeClassAndObject(output, comparableValue);

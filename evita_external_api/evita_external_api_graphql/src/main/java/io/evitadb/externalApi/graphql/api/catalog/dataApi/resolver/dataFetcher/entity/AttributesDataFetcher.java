@@ -34,7 +34,6 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.E
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
-import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;

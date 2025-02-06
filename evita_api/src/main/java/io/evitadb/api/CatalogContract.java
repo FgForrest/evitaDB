@@ -91,7 +91,10 @@ public interface CatalogContract {
 	 * Alters existing schema applying passed schema mutation.
 	 */
 	@Nonnull
-	CatalogSchemaContract updateSchema(@Nonnull LocalCatalogSchemaMutation... schemaMutation) throws SchemaAlteringException;
+	CatalogSchemaContract updateSchema(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull LocalCatalogSchemaMutation... schemaMutation
+	) throws SchemaAlteringException;
 
 	/**
 	 * Returns state of this catalog instance.
@@ -136,8 +139,12 @@ public interface CatalogContract {
 	/**
 	 * Applies mutation to the catalog. This is a generic method that accepts any mutation and tries to apply it to
 	 * the catalog. If the mutation is not applicable to the catalog, exception is thrown.
+	 *
+	 * @param session  session that is applying the mutation
+	 * @param mutation mutation to be applied
+	 * @throws InvalidMutationException when mutation is not applicable to the catalog
 	 */
-	void applyMutation(@Nonnull Mutation mutation) throws InvalidMutationException;
+	void applyMutation(@Nonnull EvitaSessionContract session, @Nonnull Mutation mutation) throws InvalidMutationException;
 
 	/**
 	 * Returns collection maintaining all entities of same type.
@@ -171,7 +178,7 @@ public interface CatalogContract {
 	 *                                 doesn't allow {@link CatalogEvolutionMode#ADDING_ENTITY_TYPES}
 	 */
 	@Nonnull
-	EntityCollectionContract getOrCreateCollectionForEntity(@Nonnull String entityType, @Nonnull EvitaSessionContract session)
+	EntityCollectionContract getOrCreateCollectionForEntity(@Nonnull EvitaSessionContract session, @Nonnull String entityType)
 		throws SchemaAlteringException;
 
 	/**
@@ -181,13 +188,13 @@ public interface CatalogContract {
 	 * @param entityType type of the entity which collection should be deleted
 	 * @return TRUE if collection was successfully deleted
 	 */
-	boolean deleteCollectionOfEntity(@Nonnull String entityType, @Nonnull EvitaSessionContract session);
+	boolean deleteCollectionOfEntity(@Nonnull EvitaSessionContract session, @Nonnull String entityType);
 
 	/**
 	 * Renames entire collection of entities along with its schema. After this operation there will be nothing left
 	 * of the data that belong to the specified entity type, and entity collection under the new name becomes available.
 	 * If you need to rename entity collection to a name of existing collection use
-	 * the {@link #replaceCollectionOfEntity(String, String, EvitaSessionContract)} method instead.
+	 * the {@link #replaceCollectionOfEntity(EvitaSessionContract, String, String)} method instead.
 	 *
 	 * In case exception occurs the original collection (`entityType`) is guaranteed to be untouched,
 	 * and the `newName` will not be present.
@@ -213,7 +220,7 @@ public interface CatalogContract {
 	 * @param entityTypeToBeReplacedWith name of the collection that will become the successor of the original catalog
 	 * @return TRUE if collection was successfully replaced
 	 */
-	boolean replaceCollectionOfEntity(@Nonnull String entityTypeToBeReplaced, @Nonnull String entityTypeToBeReplacedWith, @Nonnull EvitaSessionContract session);
+	boolean replaceCollectionOfEntity(@Nonnull EvitaSessionContract session, @Nonnull String entityTypeToBeReplaced, @Nonnull String entityTypeToBeReplacedWith);
 
 	/**
 	 * Removes entire catalog storage from persistent storage.

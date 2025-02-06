@@ -94,5 +94,34 @@ public interface GrpcDeleteEntityAndItsHierarchyResponseOrBuilder extends
    */
   io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getDeletedRootEntityOrBuilder();
 
+  /**
+   * <pre>
+   * Deleted entity primary keys.
+   * </pre>
+   *
+   * <code>repeated int32 deletedEntityPrimaryKeys = 4;</code>
+   * @return A list containing the deletedEntityPrimaryKeys.
+   */
+  java.util.List<java.lang.Integer> getDeletedEntityPrimaryKeysList();
+  /**
+   * <pre>
+   * Deleted entity primary keys.
+   * </pre>
+   *
+   * <code>repeated int32 deletedEntityPrimaryKeys = 4;</code>
+   * @return The count of deletedEntityPrimaryKeys.
+   */
+  int getDeletedEntityPrimaryKeysCount();
+  /**
+   * <pre>
+   * Deleted entity primary keys.
+   * </pre>
+   *
+   * <code>repeated int32 deletedEntityPrimaryKeys = 4;</code>
+   * @param index The index of the element to return.
+   * @return The deletedEntityPrimaryKeys at the given index.
+   */
+  int getDeletedEntityPrimaryKeys(int index);
+
   public io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityAndItsHierarchyResponse.ResponseCase getResponseCase();
 }

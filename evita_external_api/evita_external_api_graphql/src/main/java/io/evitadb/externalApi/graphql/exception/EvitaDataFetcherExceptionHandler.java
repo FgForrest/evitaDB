@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.graphql.exception;
 
+import graphql.GraphQLContext;
 import graphql.execution.DataFetcherExceptionHandler;
 import graphql.execution.DataFetcherExceptionHandlerParameters;
 import graphql.execution.DataFetcherExceptionHandlerResult;
@@ -34,7 +35,10 @@ import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent.Respons
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 
@@ -73,11 +77,20 @@ public class EvitaDataFetcherExceptionHandler implements DataFetcherExceptionHan
 			);
 		}
 
-		final TracingBlockReference operationBlockReference = handlerParameters
-			.getDataFetchingEnvironment()
-			.getGraphQlContext()
-			.get(GraphQLContextKey.OPERATION_TRACING_BLOCK);
+		final GraphQLContext graphQlContext = handlerParameters.getDataFetchingEnvironment().getGraphQlContext();
+
+		final TracingBlockReference operationBlockReference = graphQlContext.get(GraphQLContextKey.OPERATION_TRACING_BLOCK);
 		operationBlockReference.setError((Throwable) evitaError);
+
+		final UUID sourceQueryRecordingId = graphQlContext.get(GraphQLContextKey.TRAFFIC_SOURCE_QUERY_RECORDING_ID);
+		if (sourceQueryRecordingId != null) {
+			List<EvitaError> exceptions = graphQlContext.get(GraphQLContextKey.TRAFFIC_SOURCE_QUERY_RECORDING_EXCEPTIONS);
+			if (exceptions == null) {
+				exceptions = new LinkedList<>();
+				graphQlContext.put(GraphQLContextKey.TRAFFIC_SOURCE_QUERY_RECORDING_EXCEPTIONS, exceptions);
+			}
+			exceptions.add(evitaError);
+		}
 
 		final EvitaGraphQLError error = new EvitaGraphQLError(
 			evitaError.getPublicMessage(),
@@ -88,7 +101,7 @@ public class EvitaDataFetcherExceptionHandler implements DataFetcherExceptionHan
 			)
 		);
 
-		final ExecutedEvent requestExecutedEvent = handlerParameters.getDataFetchingEnvironment().getGraphQlContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
+		final ExecutedEvent requestExecutedEvent = graphQlContext.get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
 		if (requestExecutedEvent != null) {
 			requestExecutedEvent.provideResponseStatus(ResponseStatus.ERROR);
 		}

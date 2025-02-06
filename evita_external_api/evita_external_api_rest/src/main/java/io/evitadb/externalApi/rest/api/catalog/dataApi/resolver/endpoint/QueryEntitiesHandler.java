@@ -79,8 +79,14 @@ public class QueryEntitiesHandler extends QueryOrientedEntitiesHandler {
 			.thenApply(query -> {
 				log.debug("Generated evitaDB query for entity query of type `{}` is `{}`.", restHandlingContext.getEntitySchema(), query);
 
-				final EvitaResponse<EntityClassifier> response = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
-					executionContext.session().query(query, EntityClassifier.class));
+				final EvitaResponse<EntityClassifier> response = requestExecutedEvent.measureInternalEvitaDBExecution(() -> {
+					try {
+						return executionContext.session().query(query, EntityClassifier.class);
+					} catch (Exception e) {
+						executionContext.addException(e);
+						throw e;
+					}
+				});
 				requestExecutedEvent.finishOperationExecution();
 
 				final Object result = convertResultIntoSerializableObject(executionContext, response);

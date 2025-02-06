@@ -1,272 +1,272 @@
 ```json
 {
-  "data": [
+  "data" : [
     {
-      "primaryKey": 105703,
-      "attributes": {
-        "code": "apple-ipad-10-2-10th-generation-2022-6"
+      "primaryKey" : 105703,
+      "attributes" : {
+        "code" : "apple-ipad-10-2-10th-generation-2022-6"
       },
-      "references": {
-        "brand": [
+      "references" : {
+        "brand" : [
           {
-            "referencedKey": 66465
+            "referencedKey" : 66465
           }
         ],
-        "categories": [
+        "categories" : [
           {
-            "referencedKey": 66472,
-            "attributes": {
-              "categoryPriority": 0,
-              "orderInCategory": "Predecessor[predecessorPk=-1]"
-            }
-          }
-        ],
-        "master": [
-          {
-            "referencedKey": 103911
-          }
-        ],
-        "parameterValues": [
-          {
-            "group": 67912,
-            "referencedKey": 103867,
-            "attributes": {
-              "variant": true
-            }
-          },
-          {
-            "group": 66547,
-            "referencedKey": 103872,
-            "attributes": {
-              "variant": false
-            }
-          },
-          {
-            "group": 66533,
-            "referencedKey": 103884,
-            "attributes": {
-              "variant": false
-            }
-          },
-          {
-            "group": 66460,
-            "referencedKey": 103888,
-            "attributes": {
-              "variant": true
-            }
-          },
-          {
-            "group": 66518,
-            "referencedKey": 103889,
-            "attributes": {
-              "variant": false
-            }
-          },
-          {
-            "group": 66520,
-            "referencedKey": 103890,
-            "attributes": {
-              "variant": false
-            }
-          },
-          {
-            "group": 66515,
-            "referencedKey": 103891,
-            "attributes": {
-              "variant": false
-            }
-          },
-          {
-            "group": 66547,
-            "referencedKey": 103892,
-            "attributes": {
-              "variant": false
-            }
-          },
-          {
-            "group": 66547,
-            "referencedKey": 103894,
-            "attributes": {
-              "variant": false
-            }
-          },
-          {
-            "group": 66547,
-            "referencedKey": 103895,
-            "attributes": {
-              "variant": false
-            }
-          },
-          {
-            "group": 66547,
-            "referencedKey": 103896,
-            "attributes": {
-              "variant": false
-            }
-          },
-          {
-            "group": 66547,
-            "referencedKey": 103897,
-            "attributes": {
-              "variant": false
-            }
-          },
-          {
-            "group": 66547,
-            "referencedKey": 103898,
-            "attributes": {
-              "variant": false
-            }
-          },
-          {
-            "group": 66547,
-            "referencedKey": 103899,
-            "attributes": {
-              "variant": false
-            }
-          },
-          {
-            "group": 66547,
-            "referencedKey": 103900,
-            "attributes": {
-              "variant": false
-            }
-          },
-          {
-            "group": 66516,
-            "referencedKey": 103901,
-            "attributes": {
-              "variant": false
-            }
-          },
-          {
-            "group": 67913,
-            "referencedKey": 103902,
-            "attributes": {
-              "variant": false
-            }
-          },
-          {
-            "group": 67914,
-            "referencedKey": 103903,
-            "attributes": {
-              "variant": false
-            }
-          },
-          {
-            "group": 67915,
-            "referencedKey": 103904,
-            "attributes": {
-              "variant": false
-            }
-          },
-          {
-            "group": 114009,
-            "referencedKey": 103905,
-            "attributes": {
-              "variant": false
-            }
-          },
-          {
-            "group": 67917,
-            "referencedKey": 103906,
-            "attributes": {
-              "variant": false
-            }
-          },
-          {
-            "group": 66514,
-            "referencedKey": 103907,
-            "attributes": {
-              "variant": false
-            }
-          },
-          {
-            "group": 66462,
-            "referencedKey": 103908,
-            "attributes": {
-              "variant": false
-            }
-          },
-          {
-            "group": 66521,
-            "referencedKey": 103909,
-            "attributes": {
-              "variant": false
-            }
-          },
-          {
-            "group": 66522,
-            "referencedKey": 103910,
-            "attributes": {
-              "variant": false
-            }
-          },
-          {
-            "group": 66463,
-            "referencedKey": 104449,
-            "attributes": {
-              "variant": true
-            }
-          },
-          {
-            "group": 66464,
-            "referencedKey": 104709,
-            "attributes": {
-              "variant": true
-            }
-          },
-          {
-            "group": 66461,
-            "referencedKey": 105701,
-            "attributes": {
-              "variant": true
-            }
-          },
-          {
-            "group": 114010,
-            "referencedKey": 114011,
-            "attributes": {
-              "variant": false
-            }
-          },
-          {
-            "group": 66547,
-            "referencedKey": 114104,
-            "attributes": {
-              "variant": false
+            "referencedKey" : 66472,
+            "attributes" : {
+              "categoryPriority" : 0,
+              "orderInCategory" : "Predecessor[predecessorPk=-1]"
             }
           }
         ],
-        "stockVisibilities": [
+        "master" : [
           {
-            "referencedKey": 119334
+            "referencedKey" : 103911
           }
         ],
-        "stocks": [
+        "parameterValues" : [
           {
-            "referencedKey": 119334,
-            "attributes": {
-              "quantityOnStock": 4.00000
+            "group" : 67912,
+            "referencedKey" : 103867,
+            "attributes" : {
+              "variant" : true
+            }
+          },
+          {
+            "group" : 66547,
+            "referencedKey" : 103872,
+            "attributes" : {
+              "variant" : false
+            }
+          },
+          {
+            "group" : 66533,
+            "referencedKey" : 103884,
+            "attributes" : {
+              "variant" : false
+            }
+          },
+          {
+            "group" : 66460,
+            "referencedKey" : 103888,
+            "attributes" : {
+              "variant" : true
+            }
+          },
+          {
+            "group" : 66518,
+            "referencedKey" : 103889,
+            "attributes" : {
+              "variant" : false
+            }
+          },
+          {
+            "group" : 66520,
+            "referencedKey" : 103890,
+            "attributes" : {
+              "variant" : false
+            }
+          },
+          {
+            "group" : 66515,
+            "referencedKey" : 103891,
+            "attributes" : {
+              "variant" : false
+            }
+          },
+          {
+            "group" : 66547,
+            "referencedKey" : 103892,
+            "attributes" : {
+              "variant" : false
+            }
+          },
+          {
+            "group" : 66547,
+            "referencedKey" : 103894,
+            "attributes" : {
+              "variant" : false
+            }
+          },
+          {
+            "group" : 66547,
+            "referencedKey" : 103895,
+            "attributes" : {
+              "variant" : false
+            }
+          },
+          {
+            "group" : 66547,
+            "referencedKey" : 103896,
+            "attributes" : {
+              "variant" : false
+            }
+          },
+          {
+            "group" : 66547,
+            "referencedKey" : 103897,
+            "attributes" : {
+              "variant" : false
+            }
+          },
+          {
+            "group" : 66547,
+            "referencedKey" : 103898,
+            "attributes" : {
+              "variant" : false
+            }
+          },
+          {
+            "group" : 66547,
+            "referencedKey" : 103899,
+            "attributes" : {
+              "variant" : false
+            }
+          },
+          {
+            "group" : 66547,
+            "referencedKey" : 103900,
+            "attributes" : {
+              "variant" : false
+            }
+          },
+          {
+            "group" : 66516,
+            "referencedKey" : 103901,
+            "attributes" : {
+              "variant" : false
+            }
+          },
+          {
+            "group" : 67913,
+            "referencedKey" : 103902,
+            "attributes" : {
+              "variant" : false
+            }
+          },
+          {
+            "group" : 67914,
+            "referencedKey" : 103903,
+            "attributes" : {
+              "variant" : false
+            }
+          },
+          {
+            "group" : 67915,
+            "referencedKey" : 103904,
+            "attributes" : {
+              "variant" : false
+            }
+          },
+          {
+            "group" : 114009,
+            "referencedKey" : 103905,
+            "attributes" : {
+              "variant" : false
+            }
+          },
+          {
+            "group" : 67917,
+            "referencedKey" : 103906,
+            "attributes" : {
+              "variant" : false
+            }
+          },
+          {
+            "group" : 66514,
+            "referencedKey" : 103907,
+            "attributes" : {
+              "variant" : false
+            }
+          },
+          {
+            "group" : 66462,
+            "referencedKey" : 103908,
+            "attributes" : {
+              "variant" : false
+            }
+          },
+          {
+            "group" : 66521,
+            "referencedKey" : 103909,
+            "attributes" : {
+              "variant" : false
+            }
+          },
+          {
+            "group" : 66522,
+            "referencedKey" : 103910,
+            "attributes" : {
+              "variant" : false
+            }
+          },
+          {
+            "group" : 66463,
+            "referencedKey" : 104449,
+            "attributes" : {
+              "variant" : true
+            }
+          },
+          {
+            "group" : 66464,
+            "referencedKey" : 104709,
+            "attributes" : {
+              "variant" : true
+            }
+          },
+          {
+            "group" : 66461,
+            "referencedKey" : 105701,
+            "attributes" : {
+              "variant" : true
+            }
+          },
+          {
+            "group" : 114010,
+            "referencedKey" : 114011,
+            "attributes" : {
+              "variant" : false
+            }
+          },
+          {
+            "group" : 66547,
+            "referencedKey" : 114104,
+            "attributes" : {
+              "variant" : false
             }
           }
         ],
-        "tags": [
+        "stockVisibilities" : [
           {
-            "group": 9,
-            "referencedKey": 10
+            "referencedKey" : 119334
+          }
+        ],
+        "stocks" : [
+          {
+            "referencedKey" : 119334,
+            "attributes" : {
+              "quantityOnStock" : 4.00000
+            }
+          }
+        ],
+        "tags" : [
+          {
+            "group" : 9,
+            "referencedKey" : 10
           }
         ]
       }
     }
   ],
-  "first": true,
-  "last": true,
-  "lastPageItemNumber": 1,
-  "lastPageNumber": 1,
-  "pageNumber": 1,
-  "pageSize": 20,
-  "singlePage": true,
-  "totalRecordCount": 1
+  "first" : true,
+  "last" : true,
+  "lastPageItemNumber" : 1,
+  "lastPageNumber" : 1,
+  "pageNumber" : 1,
+  "pageSize" : 20,
+  "singlePage" : true,
+  "totalRecordCount" : 1
 }
 ```

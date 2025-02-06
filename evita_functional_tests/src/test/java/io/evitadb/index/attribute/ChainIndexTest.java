@@ -23,8 +23,8 @@
 
 package io.evitadb.index.attribute;
 
-import io.evitadb.ConsistencySensitiveDataStructure.ConsistencyState;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
+import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyState;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;

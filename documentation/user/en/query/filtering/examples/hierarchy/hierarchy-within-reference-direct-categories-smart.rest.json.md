@@ -1,301 +1,301 @@
 ```json
 {
-  "recordPage": {
-    "data": [
+  "recordPage" : {
+    "data" : [
       {
-        "primaryKey": 107891,
-        "type": "Product",
-        "version": 2,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 107891,
+        "type" : "Product",
+        "version" : 2,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "amazfit-bip-3"
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-3"
           }
         }
       },
       {
-        "primaryKey": 107893,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 107893,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "amazfit-bip-3-1"
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-3-1"
           }
         }
       },
       {
-        "primaryKey": 107894,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 107894,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "amazfit-bip-3-2"
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-3-2"
           }
         }
       },
       {
-        "primaryKey": 107895,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 107895,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "amazfit-bip-3-3"
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-3-3"
           }
         }
       },
       {
-        "primaryKey": 107899,
-        "type": "Product",
-        "version": 2,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 107899,
+        "type" : "Product",
+        "version" : 2,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "amazfit-bip-3-pro"
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-3-pro"
           }
         }
       },
       {
-        "primaryKey": 107900,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 107900,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "amazfit-bip-3-pro-1"
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-3-pro-1"
           }
         }
       },
       {
-        "primaryKey": 107901,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 107901,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "amazfit-bip-3-pro-2"
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-3-pro-2"
           }
         }
       },
       {
-        "primaryKey": 107902,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 107902,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "amazfit-bip-3-pro-3"
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-3-pro-3"
           }
         }
       },
       {
-        "primaryKey": 107911,
-        "type": "Product",
-        "version": 2,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 107911,
+        "type" : "Product",
+        "version" : 2,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "amazfit-bip-s"
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-s"
           }
         }
       },
       {
-        "primaryKey": 107913,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 107913,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "amazfit-bip-s-1"
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-s-1"
           }
         }
       },
       {
-        "primaryKey": 107915,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 107915,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "amazfit-bip-s-2"
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-s-2"
           }
         }
       },
       {
-        "primaryKey": 107917,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 107917,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "amazfit-bip-s-3"
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-s-3"
           }
         }
       },
       {
-        "primaryKey": 107919,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 107919,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "amazfit-bip-s-4"
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-s-4"
           }
         }
       },
       {
-        "primaryKey": 107923,
-        "type": "Product",
-        "version": 2,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 107923,
+        "type" : "Product",
+        "version" : 2,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "amazfit-bip-s-lite"
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-s-lite"
           }
         }
       },
       {
-        "primaryKey": 107924,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 107924,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "amazfit-bip-s-lite-1"
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-s-lite-1"
           }
         }
       },
       {
-        "primaryKey": 107925,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 107925,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "amazfit-bip-s-lite-2"
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-s-lite-2"
           }
         }
       },
       {
-        "primaryKey": 107926,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 107926,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "amazfit-bip-s-lite-3"
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-s-lite-3"
           }
         }
       },
       {
-        "primaryKey": 107933,
-        "type": "Product",
-        "version": 2,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 107933,
+        "type" : "Product",
+        "version" : 2,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "amazfit-bip-u"
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-u"
           }
         }
       },
       {
-        "primaryKey": 107934,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 107934,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "amazfit-bip-u-1"
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-u-1"
           }
         }
       },
       {
-        "primaryKey": 107935,
-        "type": "Product",
-        "version": 1,
-        "scope": "LIVE",
-        "allLocales": [
+        "primaryKey" : 107935,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "amazfit-bip-u-2"
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-u-2"
           }
         }
       }
     ],
-    "empty": false,
-    "first": true,
-    "firstPageItemNumber": 0,
-    "hasNext": true,
-    "hasPrevious": false,
-    "last": false,
-    "lastPageItemNumber": 19,
-    "lastPageNumber": 14,
-    "pageNumber": 1,
-    "pageSize": 20,
-    "singlePage": false,
-    "totalRecordCount": 269,
-    "type": "PAGE"
+    "empty" : false,
+    "first" : true,
+    "firstPageItemNumber" : 0,
+    "hasNext" : true,
+    "hasPrevious" : false,
+    "last" : false,
+    "lastPageItemNumber" : 19,
+    "lastPageNumber" : 14,
+    "pageNumber" : 1,
+    "pageSize" : 20,
+    "singlePage" : false,
+    "totalRecordCount" : 269,
+    "type" : "PAGE"
   }
 }
 ```

@@ -830,7 +830,7 @@ public class EntityPojoProxyingFunctionalTest extends AbstractEntityProxyingFunc
 		Map<Integer, SealedEntity> originalCategories
 	) {
 		final int[] fetchedProducts = productsWithCzkSellingPrice.stream()
-			.mapToInt(EntityContract::getPrimaryKey)
+			.mapToInt(EntityContract::getPrimaryKeyOrThrowException)
 			.toArray();
 		final Query query = query(
 			collection(Entities.PRODUCT),

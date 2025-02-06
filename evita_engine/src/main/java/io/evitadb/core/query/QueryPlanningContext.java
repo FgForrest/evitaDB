@@ -234,7 +234,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 			telemetry, indexes, cacheSupervisor,
 			new FinishedEvent(
 				catalog.getName(),
-				entityCollection == null ? null : entityCollection.getEntityType()
+				entityCollection == null ? null : entityCollection.getEntityType(),
+				evitaRequest.getLabels()
 			)
 		);
 	}

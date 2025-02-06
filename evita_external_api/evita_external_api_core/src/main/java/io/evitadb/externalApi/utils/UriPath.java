@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -86,6 +86,7 @@ public class UriPath implements Comparable<UriPath> {
 		private static final String PATH_SEPARATOR = "/";
 		private static final Pattern PATH_PARAM_PATTERN = Pattern.compile("\\{(.*)}");
 		private static final Pattern WILDCARD_PATTERN = Pattern.compile("\\*");
+		// this is potential ReDOS, but it used only for URL paths that are not user-controlled, so it's safe
 		private static final Pattern SUB_PATH_PATTERN = Pattern.compile("^(/)?(.+(?:/.+)+)$");
 
 		@Nonnull private final List<String> parts;

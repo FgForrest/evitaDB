@@ -25,7 +25,11 @@ package io.evitadb.api.query.parser.visitor;
 
 import io.evitadb.api.query.HeadConstraint;
 import io.evitadb.api.query.head.Collection;
+import io.evitadb.api.query.head.Head;
+import io.evitadb.api.query.head.Label;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser;
+import io.evitadb.api.query.parser.grammar.EvitaQLParser.HeadContainerConstraintContext;
+import io.evitadb.api.query.parser.grammar.EvitaQLParser.LabelConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
 
 import javax.annotation.Nonnull;
@@ -40,6 +44,7 @@ import javax.annotation.Nonnull;
  */
 public class EvitaQLHeadConstraintVisitor extends EvitaQLBaseConstraintVisitor<HeadConstraint> {
 
+    protected final EvitaQLValueTokenVisitor comparableValueTokenVisitor = EvitaQLValueTokenVisitor.withComparableTypesAllowed();
     protected final EvitaQLValueTokenVisitor stringValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(String.class);
 
     @Override
@@ -48,6 +53,37 @@ public class EvitaQLHeadConstraintVisitor extends EvitaQLBaseConstraintVisitor<H
             ctx,
             () -> new Collection(
                 ctx.args.classifier.accept(stringValueTokenVisitor).asString()
+            )
+        );
+    }
+
+    @Override
+    public HeadConstraint visitHeadContainerConstraint(@Nonnull HeadContainerConstraintContext ctx) {
+        return parse(
+            ctx,
+            () -> {
+                if (ctx.args == null) {
+                    return new Head();
+                }
+                return new Head(
+                    ctx.args.headConstraint()
+                        .stream()
+                        .map(hc -> visitChildConstraint(hc, HeadConstraint.class))
+                        .toArray(HeadConstraint[]::new)
+                );
+            }
+        );
+    }
+
+    @Override
+    public HeadConstraint visitLabelConstraint(@Nonnull LabelConstraintContext ctx) {
+        return parse(
+            ctx,
+            () -> new Label(
+                ctx.args.classifier.accept(stringValueTokenVisitor).asString(),
+                ctx.args.value
+                    .accept(comparableValueTokenVisitor)
+                    .asSerializable()
             )
         );
     }

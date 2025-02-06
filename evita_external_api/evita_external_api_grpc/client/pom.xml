@@ -31,7 +31,7 @@
 	<parent>
 		<groupId>io.evitadb</groupId>
 		<artifactId>evita_root</artifactId>
-		<version>2024.12-SNAPSHOT</version>
+		<version>2025.1-SNAPSHOT</version>
 		<relativePath>../../../pom.xml</relativePath>
 	</parent>
 	<dependencies>
@@ -44,6 +44,16 @@
 			<groupId>${project.parent.groupId}</groupId>
 			<artifactId>evita_external_api_grpc_shared</artifactId>
 			<version>${project.parent.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>io.grpc</groupId>
+			<artifactId>grpc-protobuf</artifactId>
+			<version>${grpc.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>io.grpc</groupId>
+			<artifactId>grpc-stub</artifactId>
+			<version>${grpc.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>com.linecorp.armeria</groupId>
@@ -63,7 +73,7 @@
 						</manifest>
 						<manifestEntries>
 							<Implementation-Title>${project.name}</Implementation-Title>
-							<Implementation-Version>${project.version}</Implementation-Version>
+							<Implementation-Version>${project.parent.version}</Implementation-Version>
 							<Implementation-Vendor>${project.organization.name}</Implementation-Vendor>
 						</manifestEntries>
 					</archive>

@@ -28,10 +28,7 @@
       priceValidInNow: true
     }
   ) {
-    recordPage(
-      number: 1
-      size: 16
-    ) {
+    recordPage(size: 16) {
       data {
         primaryKey
         attributes {

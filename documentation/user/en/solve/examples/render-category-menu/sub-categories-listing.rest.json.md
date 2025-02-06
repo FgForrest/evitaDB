@@ -1,146 +1,146 @@
 ```json
 [
   {
-    "entity": {
-      "primaryKey": 66468,
-      "type": "Category",
-      "version": 1,
-      "scope": "LIVE",
-      "locales": [
+    "entity" : {
+      "primaryKey" : 66468,
+      "type" : "Category",
+      "version" : 1,
+      "scope" : "LIVE",
+      "locales" : [
         "en"
       ],
-      "allLocales": [
+      "allLocales" : [
         "cs",
         "de",
         "en"
       ],
-      "attributes": {
-        "global": {
-          "code": "accessories"
+      "attributes" : {
+        "global" : {
+          "code" : "accessories"
         }
       }
     },
-    "requested": true,
-    "children": [
+    "requested" : true,
+    "children" : [
       {
-        "entity": {
-          "primaryKey": 66480,
-          "type": "Category",
-          "version": 1,
-          "scope": "LIVE",
-          "locales": [
+        "entity" : {
+          "primaryKey" : 66480,
+          "type" : "Category",
+          "version" : 1,
+          "scope" : "LIVE",
+          "locales" : [
             "en"
           ],
-          "allLocales": [
+          "allLocales" : [
             "en"
           ],
-          "attributes": {
-            "global": {
-              "code": "christmas-electronics"
+          "attributes" : {
+            "global" : {
+              "code" : "christmas-electronics"
             }
           }
         },
-        "requested": false
+        "requested" : false
       },
       {
-        "entity": {
-          "primaryKey": 66481,
-          "type": "Category",
-          "version": 1,
-          "scope": "LIVE",
-          "locales": [
+        "entity" : {
+          "primaryKey" : 66481,
+          "type" : "Category",
+          "version" : 1,
+          "scope" : "LIVE",
+          "locales" : [
             "en"
           ],
-          "allLocales": [
+          "allLocales" : [
             "en"
           ],
-          "attributes": {
-            "global": {
-              "code": "smart-wearable"
+          "attributes" : {
+            "global" : {
+              "code" : "smart-wearable"
             }
           }
         },
-        "requested": false
+        "requested" : false
       },
       {
-        "entity": {
-          "primaryKey": 66482,
-          "type": "Category",
-          "version": 1,
-          "scope": "LIVE",
-          "locales": [
+        "entity" : {
+          "primaryKey" : 66482,
+          "type" : "Category",
+          "version" : 1,
+          "scope" : "LIVE",
+          "locales" : [
             "en"
           ],
-          "allLocales": [
+          "allLocales" : [
             "en"
           ],
-          "attributes": {
-            "global": {
-              "code": "audio"
+          "attributes" : {
+            "global" : {
+              "code" : "audio"
             }
           }
         },
-        "requested": false
+        "requested" : false
       },
       {
-        "entity": {
-          "primaryKey": 66483,
-          "type": "Category",
-          "version": 1,
-          "scope": "LIVE",
-          "locales": [
+        "entity" : {
+          "primaryKey" : 66483,
+          "type" : "Category",
+          "version" : 1,
+          "scope" : "LIVE",
+          "locales" : [
             "en"
           ],
-          "allLocales": [
+          "allLocales" : [
             "en"
           ],
-          "attributes": {
-            "global": {
-              "code": "monitors"
+          "attributes" : {
+            "global" : {
+              "code" : "monitors"
             }
           }
         },
-        "requested": false
+        "requested" : false
       },
       {
-        "entity": {
-          "primaryKey": 66484,
-          "type": "Category",
-          "version": 1,
-          "scope": "LIVE",
-          "locales": [
+        "entity" : {
+          "primaryKey" : 66484,
+          "type" : "Category",
+          "version" : 1,
+          "scope" : "LIVE",
+          "locales" : [
             "en"
           ],
-          "allLocales": [
+          "allLocales" : [
             "en"
           ],
-          "attributes": {
-            "global": {
-              "code": "keyboards"
+          "attributes" : {
+            "global" : {
+              "code" : "keyboards"
             }
           }
         },
-        "requested": false
+        "requested" : false
       },
       {
-        "entity": {
-          "primaryKey": 66537,
-          "type": "Category",
-          "version": 1,
-          "scope": "LIVE",
-          "locales": [
+        "entity" : {
+          "primaryKey" : 66537,
+          "type" : "Category",
+          "version" : 1,
+          "scope" : "LIVE",
+          "locales" : [
             "en"
           ],
-          "allLocales": [
+          "allLocales" : [
             "en"
           ],
-          "attributes": {
-            "global": {
-              "code": "mouses"
+          "attributes" : {
+            "global" : {
+              "code" : "mouses"
             }
           }
         },
-        "requested": false
+        "requested" : false
       }
     ]
   }

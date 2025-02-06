@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -418,6 +418,7 @@ public class MetricHandler {
 	 * Task that listens for JFR events and transforms them into Prometheus metrics.
 	 */
 	private static class MetricTask extends ClientRunnableTask<Void> implements Task<Void, Void> {
+		private final AtomicReference<RecordingStream> recordingStream = new AtomicReference<>();
 		@Getter private final CompletableFuture<Boolean> initialized = new CompletableFuture<>();
 
 		public MetricTask(
@@ -429,7 +430,8 @@ public class MetricHandler {
 				null,
 				theTask -> {
 					final ReflectionLookup lookup = ReflectionLookup.NO_CACHE_INSTANCE;
-					try (var recordingStream = new RecordingStream()) {
+					try (final RecordingStream recordingStream = new RecordingStream()) {
+						((MetricTask) theTask).recordingStream.set(recordingStream);
 						for (Class<? extends CustomMetricsExecutionEvent> eventClass : allowedMetrics) {
 							FlightRecorder.register(eventClass);
 							recordingStream.enable(eventClass);
@@ -568,6 +570,13 @@ public class MetricHandler {
 				}
 			);
 		}
+
+		@Override
+		public boolean cancel() {
+			this.recordingStream.get().close();
+			return super.cancel();
+		}
+
 	}
 
 	/**

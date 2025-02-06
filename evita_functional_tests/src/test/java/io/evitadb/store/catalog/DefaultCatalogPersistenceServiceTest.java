@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.ThreadPoolOptions;
+import io.evitadb.api.configuration.TrafficRecordingOptions;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.exception.EntityTypeAlreadyPresentInCatalogSchemaException;
 import io.evitadb.api.mock.EmptyEntitySchemaAccessor;
@@ -59,6 +60,7 @@ import io.evitadb.core.cache.NoCacheSupervisor;
 import io.evitadb.core.file.ExportFileService;
 import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.core.sequence.SequenceService;
+import io.evitadb.core.traffic.TrafficRecordingEngine;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.InvalidClassifierFormatException;
 import io.evitadb.index.EntityIndexKey;
@@ -159,6 +161,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	);
 	private final WriteOnlyOffHeapWithFileBackupHandle writeHandle = new WriteOnlyOffHeapWithFileBackupHandle(
 		getTestDirectory().resolve(transactionId.toString()),
+		false,
 		observableOutputKeeper,
 		new OffHeapMemoryManager(TEST_CATALOG, 512, 1)
 	);
@@ -193,9 +196,21 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 
 		final PaginatedList<CatalogVersion> catalogVersions = ioService.getCatalogVersions(TimeFlow.FROM_OLDEST_TO_NEWEST, 1, 20);
 		final CatalogVersion firstRecord = catalogVersions.getData().get(0);
-		assertTrue(sinceCatalogVersion == firstRecord.version());
+		assertEquals(sinceCatalogVersion, firstRecord.version());
 		assertEquals(expectedVersion, firstRecord.version());
 		assertEquals(expectedCount, catalogVersions.getTotalRecordCount());
+	}
+
+	@Nonnull
+	private static TrafficRecordingEngine createTrafficRecordingEngine(@Nonnull SealedCatalogSchema catalogSchema) {
+		return new TrafficRecordingEngine(
+			catalogSchema.getName(),
+			StorageOptions.builder().build(),
+			TrafficRecordingOptions.builder().build(),
+			Mockito.mock(ExportFileService.class),
+			Mockito.mock(Scheduler.class),
+			DefaultTracingContext.INSTANCE
+		);
 	}
 
 	@BeforeEach
@@ -248,6 +263,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 						catalogName,
 						FileType.CATALOG,
 						catalogName,
+						false,
 						catalogFilePath,
 						observableOutputKeeper
 					),
@@ -347,6 +363,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		assertEntityCollectionsHaveIdenticalContent(ioService, SEALED_CATALOG_SCHEMA, brandCollection, ioService.getEntityCollectionHeader(0L, entityTypesIndex.get(Entities.BRAND).entityTypePrimaryKey()));
 		assertEntityCollectionsHaveIdenticalContent(ioService, SEALED_CATALOG_SCHEMA, storeCollection, ioService.getEntityCollectionHeader(0L, entityTypesIndex.get(Entities.STORE).entityTypePrimaryKey()));
 		assertEntityCollectionsHaveIdenticalContent(ioService, SEALED_CATALOG_SCHEMA, productCollection, ioService.getEntityCollectionHeader(0L, entityTypesIndex.get(Entities.PRODUCT).entityTypePrimaryKey()));
+
+		ioService.close();
 	}
 
 	@Test
@@ -696,6 +714,10 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		}
 	}
 
+	/*
+		PRIVATE METHODS
+	 */
+
 	@Test
 	void shouldTrimBootstrapRecords() {
 		final String catalogName = SEALED_CATALOG_SCHEMA.getName();
@@ -724,10 +746,6 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		trimAndCheck(ioService, 7, 7, 6);
 		trimAndCheck(ioService, 8, 8, 5);
 	}
-
-	/*
-		PRIVATE METHODS
-	 */
 
 	@Nonnull
 	private Path prepareInvalidCatalogContents() {
@@ -786,6 +804,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		// finally rename folder
 		assertTrue(catalogPath.toFile().renameTo(renamedCatalogPath.toFile()));
 
+		ioService.close();
+
 		return renamedCatalogPath;
 	}
 
@@ -796,7 +816,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			getTestDirectory().resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST),
 			60, 60,
 			StorageOptions.DEFAULT_OUTPUT_BUFFER_SIZE, 1,
-			true, 1.0, 0L, false,
+			false, true, 1.0, 0L, false,
 			Long.MAX_VALUE, Long.MAX_VALUE
 		);
 	}
@@ -824,8 +844,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			entitySchema.getName(),
 			ioService,
 			NoCacheSupervisor.INSTANCE,
-			sequenceService,
-			DefaultTracingContext.INSTANCE
+			this.sequenceService,
+			createTrafficRecordingEngine(catalogSchema)
 		);
 		entityCollection.attachToCatalog(null, mockCatalog);
 
@@ -872,8 +892,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			schema.getName(),
 			ioService,
 			NoCacheSupervisor.INSTANCE,
-			sequenceService,
-			DefaultTracingContext.INSTANCE
+			this.sequenceService,
+			createTrafficRecordingEngine(catalogSchema)
 		);
 		collection.attachToCatalog(null, getMockCatalog(catalogSchema, schema));
 

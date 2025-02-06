@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -54,6 +54,8 @@ import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
+
+import static io.evitadb.utils.Assert.isTrue;
 
 /**
  * CShell is a wrapper around the C# query validator executable. It downloads the executable if it is not present in the
@@ -186,7 +188,10 @@ public class CShell {
             ZipEntry ze = zis.getNextEntry();
             while (ze != null) {
                 final String fileName = ze.getName();
-                final File newFile = new File(destDir + File.separator + fileName);
+                final Path targetPath = Path.of(destDir, fileName).normalize();
+                isTrue(targetPath.startsWith(destDir), "Zip file contains files outside the target directory.");
+
+                final File newFile = targetPath.toFile();
                 //create directories for subdirectories in zip
                 //noinspection ResultOfMethodCallIgnored
                 new File(newFile.getParent()).mkdirs();

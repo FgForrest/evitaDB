@@ -89,7 +89,7 @@ public class DeleteEntityHandler extends EntityHandler<CollectionRestHandlingCon
 				requestExecutedEvent.finishResultSerialization();
 
 				return result
-					.map(it -> (EndpointResponse) new SuccessEndpointResponse(result))
+					.map(it -> (EndpointResponse) new SuccessEndpointResponse(result.orElse(null)))
 					.orElse(new NotFoundEndpointResponse());
 			}
 		);

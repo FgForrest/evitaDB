@@ -23,7 +23,7 @@
 
 package io.evitadb.api.requestResponse.transaction;
 
-import io.evitadb.api.requestResponse.cdc.CaptureContent;
+import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
@@ -92,14 +92,14 @@ public non-sealed class TransactionMutation implements Mutation {
 	@Override
 	public Stream<ChangeCatalogCapture> toChangeCatalogCapture(
 		@Nonnull MutationPredicate predicate,
-		@Nonnull CaptureContent content
+		@Nonnull ChangeCaptureContent content
 	) {
 		if (predicate.test(this)) {
 			final MutationPredicateContext context = predicate.getContext();
 			context.setVersion(this.catalogVersion, this.mutationCount);
 
 			return Stream.of(
-				ChangeCatalogCapture.infrastructureCapture(context, operation(), content == CaptureContent.BODY ? this : null)
+				ChangeCatalogCapture.infrastructureCapture(context, operation(), content == ChangeCaptureContent.BODY ? this : null)
 			);
 		} else {
 			return Stream.empty();

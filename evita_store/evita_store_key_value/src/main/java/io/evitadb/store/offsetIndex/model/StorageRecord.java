@@ -99,6 +99,7 @@ public record StorageRecord<T>(
 	 * This constructor excepts that it is possible to resolve any file location to record type. If type cannot be resolved
 	 * it is assumed record is "dead" and reading it's contents is skipped entirely.
 	 */
+	@Nonnull
 	public static <T> StorageRecord<T> read(
 		@Nonnull Kryo kryo,
 		@Nonnull ObservableInput<?> input,

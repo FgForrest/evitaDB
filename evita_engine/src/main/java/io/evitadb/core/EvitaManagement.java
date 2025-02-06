@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -47,6 +47,7 @@ import lombok.Setter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -68,7 +69,7 @@ import java.util.function.Supplier;
  * @see EvitaManagementContract
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public class EvitaManagement implements EvitaManagementContract {
+public class EvitaManagement implements EvitaManagementContract, Closeable {
 	/**
 	 * Contains reference to the main evita service.
 	 */
@@ -330,4 +331,10 @@ public class EvitaManagement implements EvitaManagementContract {
 		this.evita.assertActiveAndWritable();
 		return this.configurationSupplier.get();
 	}
+
+	@Override
+	public void close() {
+		this.exportFileService.close();
+	}
+
 }

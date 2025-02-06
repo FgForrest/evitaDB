@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -161,7 +161,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 	};
 	private static final Pattern DATE_TIME_PATTERN_1 = Pattern.compile("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d+\\+\\d{2}:\\d{2}");
 	private static final Pattern DATE_TIME_PATTERN_2 = Pattern.compile("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d+Z");
-	private static final Pattern LAG_PATTERN = Pattern.compile("lag \\d*m?s");
+	private static final Pattern LAG_PATTERN = Pattern.compile("lag -?\\d*m?s");
 	private static final Supplier<DataGenerator> GENERATOR_FACTORY = () -> new DataGenerator.Builder()
 		.withCurrencies(CURRENCY_CZK)
 		.withPriceLists(PRICE_LIST_BASIC)
@@ -1386,12 +1386,15 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void shouldCorrectlyRotateAllFiles(GenerationalTestInput input) throws Exception {
 		final Path testDirectory = getTestDirectory().resolve("shouldCorrectlyRotateAllFiles");
+		final Path testDirectoryExport = getTestDirectory().resolve("shouldCorrectlyRotateAllFiles_export");
 		cleanTestSubDirectory("shouldCorrectlyRotateAllFiles");
+		cleanTestSubDirectory("shouldCorrectlyRotateAllFiles_export");
 		final Evita evita = new Evita(
 			EvitaConfiguration.builder()
 				.storage(
 					StorageOptions.builder()
 						.storageDirectory(testDirectory)
+						.exportDirectory(testDirectoryExport)
 						.minimalActiveRecordShare(0.9)
 						.fileSizeCompactionThresholdBytes(16_384)
 						.build()
@@ -1610,7 +1613,10 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			UUID.randomUUID(),
 			KryoFactory.createKryo(WalKryoConfigurer.INSTANCE),
 			new WriteOnlyOffHeapWithFileBackupHandle(
-				isolatedWalFilePath, this.observableOutputKeeper, offHeapMemoryManager
+				isolatedWalFilePath,
+				false,
+				this.observableOutputKeeper,
+				offHeapMemoryManager
 			)
 		);
 

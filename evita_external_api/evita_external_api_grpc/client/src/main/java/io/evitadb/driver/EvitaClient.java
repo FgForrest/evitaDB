@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -221,7 +221,7 @@ public class EvitaClient implements EvitaContract {
 		if (statusCode == Code.UNAUTHENTICATED) {
 			onUnauthenticated.run();
 			return new InstanceTerminatedException("session");
-		} else if (statusCode == Code.INVALID_ARGUMENT) {
+		} else if (statusCode == Code.INVALID_ARGUMENT || statusCode == Code.PERMISSION_DENIED) {
 			final Matcher expectedFormat = ERROR_MESSAGE_PATTERN.matcher(description);
 			if (expectedFormat.matches()) {
 				return EvitaInvalidUsageException.createExceptionWithErrorCode(
@@ -261,36 +261,34 @@ public class EvitaClient implements EvitaContract {
 
 			final ClientCertificateManager clientCertificateManager = new ClientCertificateManager.Builder()
 				.useGeneratedCertificate(configuration.useGeneratedCertificate(), configuration.host(), configuration.systemApiPort())
-				.usingTrustedRootCaCertificate(configuration.trustCertificate())
+				.usingTrustedServerCertificate(configuration.trustCertificate())
 				.trustStorePassword(configuration.trustStorePassword())
 				.mtls(configuration.mtlsEnabled())
 				.certificateClientFolderPath(configuration.certificateFolderPath())
-				.rootCaCertificateFilePath(configuration.rootCaCertificatePath())
+				.serverCertificateFilePath(configuration.serverCertificatePath())
 				.clientCertificateFilePath(configuration.certificateFileName())
 				.clientPrivateKeyFilePath(configuration.certificateKeyFileName())
 				.clientPrivateKeyPassword(configuration.certificateKeyPassword())
 				.build();
 
-			clientFactoryBuilder.tlsCustomizer(
-				tlsCustomizer -> clientCertificateManager.buildClientSslContext(
-					(certificateType, certificate) -> {
-						try {
-							switch (certificateType) {
-								case SERVER ->
-									log.info("Server's CA certificate fingerprint: {}", CertificateUtils.getCertificateFingerprint(certificate));
-								case CLIENT ->
-									log.info("Client's certificate fingerprint: {}", CertificateUtils.getCertificateFingerprint(certificate));
-							}
-						} catch (NoSuchAlgorithmException | CertificateEncodingException e) {
-							throw new GenericEvitaInternalError(
-								"Failed to get certificate fingerprint.",
-								"Failed to get certificate fingerprint: " + e.getMessage(),
-								e
-							);
+			clientFactoryBuilder = clientCertificateManager.buildClientSslContext((certificateType, certificate) -> {
+					try {
+						switch (certificateType) {
+							case SERVER ->
+								log.info("Server's certificate fingerprint: {}", CertificateUtils.getCertificateFingerprint(certificate));
+							case CLIENT ->
+								log.info("Client's certificate fingerprint: {}", CertificateUtils.getCertificateFingerprint(certificate));
 						}
-					},
-					tlsCustomizer
-				));
+					} catch (NoSuchAlgorithmException | CertificateEncodingException e) {
+						throw new GenericEvitaInternalError(
+							"Failed to get certificate fingerprint.",
+							"Failed to get certificate fingerprint: " + e.getMessage(),
+							e
+						);
+					}
+				},
+				clientFactoryBuilder
+			);
 		} else {
 			uriScheme = "http";
 		}
@@ -613,7 +611,7 @@ public class EvitaClient implements EvitaContract {
 			commitBehaviour,
 			flags == null ?
 				new SessionFlags[]{SessionFlags.READ_WRITE} :
-				ArrayUtils.insertRecordIntoArray(SessionFlags.READ_WRITE, flags, flags.length)
+				ArrayUtils.insertRecordIntoArrayOnIndex(SessionFlags.READ_WRITE, flags, flags.length)
 		);
 		try (final EvitaSessionContract session = this.createSession(traits)) {
 			return updater.apply(session);
@@ -634,7 +632,7 @@ public class EvitaClient implements EvitaContract {
 			commitBehaviour,
 			flags == null ?
 				new SessionFlags[]{SessionFlags.READ_WRITE} :
-				ArrayUtils.insertRecordIntoArray(SessionFlags.READ_WRITE, flags, flags.length)
+				ArrayUtils.insertRecordIntoArrayOnIndex(SessionFlags.READ_WRITE, flags, flags.length)
 		);
 		final EvitaSessionContract session = this.createSession(traits);
 		final CompletableFuture<Long> closeFuture;
@@ -665,7 +663,7 @@ public class EvitaClient implements EvitaContract {
 			commitBehaviour,
 			flags == null ?
 				new SessionFlags[]{SessionFlags.READ_WRITE} :
-				ArrayUtils.insertRecordIntoArray(SessionFlags.READ_WRITE, flags, flags.length)
+				ArrayUtils.insertRecordIntoArrayOnIndex(SessionFlags.READ_WRITE, flags, flags.length)
 		);
 		try (final EvitaSessionContract session = this.createSession(traits)) {
 			updater.accept(session);
@@ -686,7 +684,7 @@ public class EvitaClient implements EvitaContract {
 			commitBehaviour,
 			flags == null ?
 				new SessionFlags[]{SessionFlags.READ_WRITE} :
-				ArrayUtils.insertRecordIntoArray(SessionFlags.READ_WRITE, flags, flags.length)
+				ArrayUtils.insertRecordIntoArrayOnIndex(SessionFlags.READ_WRITE, flags, flags.length)
 		);
 		final EvitaSessionContract session = this.createSession(traits);
 		final CompletableFuture<Long> closeFuture;

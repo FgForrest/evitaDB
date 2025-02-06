@@ -33,6 +33,14 @@ server:                                           # [see Server configuration](#
   closeSessionsAfterSecondsOfInactivity: 60
   readOnly: false
   quiet: false
+  trafficRecording:
+    enabled: false
+    sourceQueryTracking: false
+    trafficMemoryBufferSizeInBytes: 4MB
+    trafficDiskBufferSizeInBytes: 32MB
+    exportFileChunkSizeInBytes: 16MB
+    trafficSamplingPercentage: 100
+    trafficFlushIntervalInMilliseconds: 1m
 
 storage:                                          # [see Storage configuration](#storage-configuration)
   storageDirectory: "./data"
@@ -41,6 +49,7 @@ storage:                                          # [see Storage configuration](
   waitOnCloseSeconds: 60
   outputBufferSize: 4MB
   maxOpenedReadHandles: 12
+  syncWrites: true
   computeCRC32C: true
   minimalActiveRecordShare: 0.5
   fileSizeCompactionThresholdBytes: 100MB
@@ -84,6 +93,9 @@ api:                                              # [see API configuration](#api
     exposeOn: "localhost:5555"
     tlsMode: FORCE_TLS
     keepAlive: true
+    mTLS:
+      enabled: false
+      allowedClientCertificatePaths: []
   endpoints:
     system:                                       # [see System API configuration](#system-api-configuration)
       enabled: null
@@ -91,6 +103,9 @@ api:                                              # [see API configuration](#api
       exposeOn: null
       tlsMode: FORCE_NO_TLS
       keepAlive: null
+      mTLS:
+        enabled: null
+        allowedClientCertificatePaths: null
     graphQL:                                      # [see GraphQL API configuration](#graphql-api-configuration)
       enabled: null
       host: null
@@ -98,12 +113,18 @@ api:                                              # [see API configuration](#api
       tlsMode: null
       keepAlive: null
       parallelize: true
+      mTLS:
+        enabled: null
+        allowedClientCertificatePaths: null
     rest:                                         # [see REST API configuration](#rest-api-configuration)
       enabled: null
       host: null
       exposeOn: null
       tlsMode: null
       keepAlive: null
+      mTLS:
+        enabled: null
+        allowedClientCertificatePaths: null
     gRPC:                                         # [see gRPC API configuration](#grpc-api-configuration)
       enabled: null
       host: null
@@ -112,8 +133,8 @@ api:                                              # [see API configuration](#api
       keepAlive: null
       exposeDocsService: false
       mTLS:
-        enabled: false
-        allowedClientCertificatePaths: []
+        enabled: null
+        allowedClientCertificatePaths: null
     lab:                                          # [see evitaLab configuration](#evitalab-configuration)
       enabled: null
       host: null
@@ -123,7 +144,10 @@ api:                                              # [see API configuration](#api
       gui:
         enabled: true
         readOnly: false
-        preconfiguredConnections: null
+      preconfiguredConnections: null
+      mTLS:
+        enabled: null
+        allowedClientCertificatePaths: null
     observability:                                # [see Observability configuration](#observability-configuration)
       enabled: null
       host: null
@@ -134,6 +158,9 @@ api:                                              # [see API configuration](#api
         endpoint: null
         protocol: grpc
       allowedEvents: null
+      mTLS:
+        enabled: null
+        allowedClientCertificatePaths: null
 ```
 
 <Note type="info">
@@ -425,6 +452,61 @@ This section contains general settings for the evitaDB server. It allows configu
     </dd>
 </dl>
 
+### Traffic recording configuration
+
+<dl>
+    <dt>enabled</dt>
+    <dd>
+        <p>**Default:** `false`</p>
+        <p>When set to `true`, the server records all traffic to the database (all catalogues) in a single shared memory
+        and disk buffer, which can optionally be persisted to file. If traffic recording is disabled, it can still be 
+        enabled on demand via the API (but won't be automatically enabled and recorded). Recording is optimised for low 
+        performance overhead, but should not be enabled on production systems (hence the default is `false`).</p>
+    </dd>
+    <dt>sourceQueryTracking</dt>
+    <dd>
+        <p>**Default:** `false`</p>
+        <p>When set to `true`, the server will record the query in its original form (GraphQL / REST / gRPC) and track 
+        sub-queries related to the original query. This is useful for debugging and performance analysis, but isn't
+        necessary for traffic replay.</p>
+    </dd>
+    <dt>trafficMemoryBufferSizeInBytes</dt>
+    <dd>
+        <p>**Default:** `4MB`</p>
+        <p>Sets the size in bytes of the memory buffer used for traffic recording. Even if `enabled` is set to `false`,
+        this property is used when on-demand traffic recording is requested. This property affects the number of 
+        parallel sessions that are recorded. All requests made in the same session must first be collected in this 
+        memory buffer before they're persisted sequentially to the disk buffer.</p> 
+    </dd>
+    <dt>trafficDiskBufferSizeInBytes</dt>
+    <dd>
+        <p>**Default:** `32MB`</p>
+        <p>Sets the size in bytes of the disk buffer used for traffic recording. Even if `enabled` is set to `false`,
+        this property will be used when on-demand traffic recording is requested. The disk buffer represents a ring
+        buffer that is indexed and available for viewing in the evitaLab interface. The larger the buffer, the more 
+        historical data it can hold.</p>
+    </dd>
+    <dt>exportFileChunkSizeInBytes</dt>
+    <dd>
+        <p>**Default:** `16MB`</p>
+        <p>Sets the size in bytes of the exported file chunk. The file is split into chunks of this size when exporting 
+        the traffic recording contents. The chunks are then compressed and stored in the export directory.</p>
+    </dd>
+    <dt>trafficSamplingPercentage</dt>
+    <dd>
+        <p>**Default:** `100`</p>
+        <p>Specifies the percentage of traffic to be captured. The value is between 0 and 100 - zero means that no 
+           traffic is captured (equivalent to `enabled: false`) and 100 means that all traffic is attempted to be captured.</p>
+    </dd>
+    <dt>trafficFlushIntervalInMilliseconds</dt>
+    <dd>
+        <p>**Default:** `1m`</p>
+        <p>Sets the interval in milliseconds at which the traffic buffer is flushed to disk. For development 
+        (i.e. low traffic, immediate debugging) it can be set to 0. For production it should be set to a reasonable 
+        value (e.g. 60000 = minute).</p>
+    </dd>
+</dl>
+
 ## Storage configuration
 
 This section contains configuration options for the storage layer of the database.
@@ -471,6 +553,14 @@ This section contains configuration options for the storage layer of the databas
             Read these articles for [Linux](https://www.baeldung.com/linux/limit-file-descriptors) or 
             [MacOS](https://gist.github.com/tombigel/d503800a282fcadbee14b537735d202c)            
         </Note>
+    </dd>
+    <dt>syncWrites</dt>
+    <dd>
+        <p>**Default:** `true`</p>
+        <p>Determines whether the storage layer forces the operating system to flush the internal buffers to disk at
+        regular "safe points" or not. The default is true, so that data is not lost in the event of a power failure. 
+        There are situations where disabling this feature can improve performance and the client can accept the risk
+        of data loss (e.g. when running automated tests, etc.).</p>
     </dd>
     <dt>computeCRC32C</dt>
     <dd>
@@ -778,6 +868,16 @@ This allows you to set common settings for all endpoints in one place.
         <p>**Default:** `true`</p>
         <p>If this is set to false server closes connection via HTTP `connection: close` after each request.</p>
     </dd>
+    <dt>mTls.enabled</dt>
+    <dd>
+        <p>**Default:** `false`</p>
+        <p>It enables / disables [mutual authentication](tls.md#mutual-tls-for-http) for a particular API.</p>
+    </dd>
+    <dt>mTls.allowedClientCertificatePaths</dt>
+    <dd>
+        <p>**Default:** `[]`</p>
+        <p>It allows you to define zero or more file paths pointing to public <Term location="/documentation/user/en/operate/tls.md" name="certificate">client certificates</Term> that can only communicate with the API.</p>
+    </dd>
 </dl>
 
 ### GraphQL API configuration
@@ -808,6 +908,16 @@ This allows you to set common settings for all endpoints in one place.
         <p>**Default:** `true`</p>
         <p>Controls whether queries that fetch data from evitaDB engine will be executed in parallel.</p>
     </dd>
+    <dt>mTls.enabled</dt>
+    <dd>
+        <p>**Default:** `false`</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
+    </dd>
+    <dt>mTls.allowedClientCertificatePaths</dt>
+    <dd>
+        <p>**Default:** `[]`</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
+    </dd>
 </dl>
 
 ### REST API configuration
@@ -831,6 +941,16 @@ This allows you to set common settings for all endpoints in one place.
     <dt>tlsMode</dt>
     <dd>
         <p>**Default:** `FORCE_TLS`</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
+    </dd>
+    <dt>mTls.enabled</dt>
+    <dd>
+        <p>**Default:** `false`</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
+    </dd>
+    <dt>mTls.allowedClientCertificatePaths</dt>
+    <dd>
+        <p>**Default:** `[]`</p>
         <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
 </dl>
@@ -864,21 +984,15 @@ This allows you to set common settings for all endpoints in one place.
         <p>It enables / disables the gRPC service, which provides documentation for the gRPC API and allows to
         experimentally call any of the services from the web UI and examine its output.</p>
     </dd>
-</dl>
-
-#### Mutual TLS configuration
-
-<dl>
-    <dt>enabled</dt>
+    <dt>mTls.enabled</dt>
     <dd>
-        <p>**Default:** `true`</p>
-        <p>It enables / disables [mutual authentication](tls.md#mutual-tls-for-grpc).</p>
+        <p>**Default:** `false`</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
-    <dt>allowedClientCertificatePaths</dt>
+    <dt>mTls.allowedClientCertificatePaths</dt>
     <dd>
-        <p>**Default:** `null`</p>
-        <p>It allows you to define zero or more file paths pointing to public <Term location="/documentation/user/en/operate/tls.md" name="certificate">client certificates</Term>.
-        Only clients that present the correct certificate will be allowed to communicate with the gRPC web API.</p>
+        <p>**Default:** `[]`</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
 </dl>
 
@@ -889,7 +1003,7 @@ only exposed endpoint on the unsecured http protocol, it must run on a separate 
 download the public part of the server certificate.
 
 It also allows downloading the default client private/public key pair if `api.certificate.generateAndUseSelfSigned` and
-`api.gRPC.mTLS` are both set to `true`. See [default unsecure mTLS behaviour](tls.md#default-mtls-behaviour-not-secure) for
+any of `api.*.mTLS` are both set to `true`. See [default unsecure mTLS behaviour](tls.md#default-mtls-behaviour-not-secure) for
 more information.
 
 <dl>
@@ -911,6 +1025,16 @@ more information.
     <dt>tlsMode</dt>
     <dd>
         <p>**Default:** `FORCE_NO_TLS`</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
+    </dd>
+    <dt>mTls.enabled</dt>
+    <dd>
+        <p>**Default:** `false`</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
+    </dd>
+    <dt>mTls.allowedClientCertificatePaths</dt>
+    <dd>
+        <p>**Default:** `[]`</p>
         <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
 </dl>
@@ -946,6 +1070,16 @@ of other APIs.
     <dt>gui</dt>
     <dd>
         <p>[See config](#gui-configuration)</p>
+    </dd>
+    <dt>mTls.enabled</dt>
+    <dd>
+        <p>**Default:** `false`</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
+    </dd>
+    <dt>mTls.allowedClientCertificatePaths</dt>
+    <dd>
+        <p>**Default:** `[]`</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
 </dl>
 
@@ -1033,5 +1167,15 @@ pro scraping Prometheus metrics, OTEL trace exporter and Java Flight Recorder ev
         <p>**Default:** `grpc`</p>
         <p>Specifies the protocol used between the application and the OTEL collector to pass the traces. Possible 
         values are `grpc` and `http`. gRPC is much more performant and is the preferred option.</p>
+    </dd>
+    <dt>mTls.enabled</dt>
+    <dd>
+        <p>**Default:** `false`</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
+    </dd>
+    <dt>mTls.allowedClientCertificatePaths</dt>
+    <dd>
+        <p>**Default:** `[]`</p>
+        <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
 </dl>

@@ -62,6 +62,8 @@
   <dd>Event fired when an entity is directly fetched.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/query/FinishedEvent.java</SourceClass> Query finished</dt>
   <dd>Event that is fired when a query is finished.</dd>
+  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/store/traffic/event/TrafficRecorderStatisticsEvent.java</SourceClass> Traffic recorder statistics</dt>
+  <dd>Event that regularly monitors traffic recorder statistics.</dd>
 </dl>
 
 #### Session

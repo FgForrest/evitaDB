@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -117,6 +117,8 @@ import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassifierUtils;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.FileUtils;
+import io.evitadb.utils.IOUtils;
+import io.evitadb.utils.IOUtils.IOExceptionThrowingRunnable;
 import io.evitadb.utils.NamingConvention;
 import io.evitadb.utils.StringUtils;
 import lombok.Getter;
@@ -338,6 +340,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		}
 		Assert.isTrue(storageDirectoryFile.exists(), () -> new InvalidStoragePathException("Storage path doesn't exist: " + storageDirectory));
 		Assert.isTrue(storageDirectoryFile.isDirectory(), () -> new InvalidStoragePathException("Storage path doesn't represent a directory: " + storageDirectory));
+
 		if (requireEmpty) {
 			Assert.isTrue(
 				ofNullable(storageDirectoryFile.listFiles()).map(it -> it.length).orElse(0) == 0,
@@ -858,6 +861,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				this.catalogName,
 				FileType.CATALOG,
 				this.catalogName,
+				storageOptions.syncWrites(),
 				this.catalogStoragePath.resolve(getCatalogBootstrapFileName(catalogName)),
 				this.observableOutputKeeper
 			)
@@ -940,6 +944,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				this.catalogName,
 				FileType.CATALOG,
 				this.catalogName,
+				storageOptions.syncWrites(),
 				this.catalogStoragePath.resolve(getCatalogBootstrapFileName(catalogName)),
 				this.observableOutputKeeper
 			)
@@ -1442,6 +1447,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				this.transactionOptions.transactionWorkDirectory()
 					.resolve(transactionId.toString())
 					.resolve(transactionId + ".wal"),
+				this.storageOptions.syncWrites(),
 				this.observableOutputKeeper,
 				this.offHeapMemoryManager
 			)
@@ -1505,7 +1511,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		@Nonnull CatalogSchema catalogSchema,
 		@Nonnull DataStoreMemoryBuffer dataStoreMemoryBuffer
 	) {
-		final Path newPath = pathForCatalog(catalogNameToBeReplaced, storageOptions.storageDirectory());
+		final Path newPath = pathForCatalog(catalogNameToBeReplaced, this.storageOptions.storageDirectory());
 		final boolean targetPathExists = newPath.toFile().exists();
 		if (targetPathExists) {
 			Assert.isPremiseValid(newPath.toFile().isDirectory(), () -> "Path `" + newPath.toAbsolutePath() + "` is not a directory!");
@@ -1614,6 +1620,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 					catalogNameToBeReplaced,
 					FileType.CATALOG,
 					catalogNameToBeReplaced,
+					this.storageOptions.syncWrites(),
 					newPath.resolve(getCatalogBootstrapFileName(catalogNameToBeReplaced)),
 					this.observableOutputKeeper
 				),
@@ -1935,29 +1942,35 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 
 	@Override
 	public void close() {
-		try {
-			// close WAL
-			if (this.catalogWal != null) {
-				this.catalogWal.close();
-			}
-			// close off heap manager
-			this.offHeapMemoryManager.close();
-			// purge obsolete files
-			this.obsoleteFileMaintainer.close();
-			// close all services
-			this.entityCollectionPersistenceServices.values()
-				.forEach(DefaultEntityCollectionPersistenceService::close);
-			this.entityCollectionPersistenceServices.clear();
-			// close current file offset index
-			this.catalogStoragePartPersistenceService.values()
-				.forEach(OffsetIndexStoragePartPersistenceService::close);
-			this.catalogStoragePartPersistenceService.clear();
-			// close observable output keeper
-			this.observableOutputKeeper.close();
-		} catch (IOException e) {
-			// ignore / log - we tried to close everything
-			log.error("Failed to close catalog persistence service `" + this.catalogName + "`!", e);
+		// close WAL
+		if (this.catalogWal != null) {
+			IOUtils.closeQuietly(this.catalogWal::close);
 		}
+		// close all services
+		IOUtils.closeQuietly(
+			this.entityCollectionPersistenceServices.values()
+				.stream()
+				.map(service -> (IOExceptionThrowingRunnable) service::close)
+				.toArray(IOExceptionThrowingRunnable[]::new)
+		);
+		this.entityCollectionPersistenceServices.clear();
+		// close current file offset index
+		IOUtils.closeQuietly(
+			this.catalogStoragePartPersistenceService.values()
+				.stream()
+				.map(service -> (IOExceptionThrowingRunnable) service::close)
+				.toArray(IOExceptionThrowingRunnable[]::new)
+		);
+		this.catalogStoragePartPersistenceService.clear();
+		// close off heap manager, maintainer and observable output keeper
+		IOUtils.closeQuietly(
+			// close off heap manager
+			this.offHeapMemoryManager::close,
+			// purge obsolete files
+			this.obsoleteFileMaintainer::close,
+			// close observable output keeper
+			this.observableOutputKeeper::close
+		);
 	}
 
 	@Override
@@ -2221,6 +2234,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 						originalBootstrapHandle,
 						new WriteOnlyFileHandle(
 							originalBootstrapHandle.getTargetFile(),
+							storageOptions.syncWrites(),
 							this.observableOutputKeeper
 						)
 					),
@@ -2275,6 +2289,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 					originalBootstrapHandle,
 					new WriteOnlyFileHandle(
 						originalBootstrapHandle.getTargetFile(),
+						storageOptions.syncWrites(),
 						this.observableOutputKeeper
 					)
 				),
@@ -2498,6 +2513,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			// create new file and replace the former one with it
 			return new WriteOnlyFileHandle(
 				Files.createTempFile(CatalogPersistenceService.getCatalogBootstrapFileName(newCatalogName), ".tmp"),
+				storageOptions.syncWrites(),
 				this.observableOutputKeeper
 			);
 		} catch (IOException e) {

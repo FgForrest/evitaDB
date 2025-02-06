@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -46,8 +46,8 @@ import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.offsetIndex.model.RecordKey;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.offsetIndex.model.VersionedValue;
-import io.evitadb.store.offsetIndex.stream.RandomAccessFileInputStream;
 import io.evitadb.store.service.KeyCompressor;
+import io.evitadb.stream.RandomAccessFileInputStream;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -230,7 +230,7 @@ public class OffsetIndex {
 	 * @param <T>               The type of the storage part.
 	 * @return deserialized storage part or null if the record was not found
 	 */
-	@Nullable
+	@Nonnull
 	public static <T extends StoragePart> T readSingleRecord(
 		@Nonnull Path filePath,
 		@Nonnull FileLocation fileLocation,
@@ -251,7 +251,9 @@ public class OffsetIndex {
 				fileLocation,
 				filteringOffsetIndexBuilder
 			);
-			return storagePartReader.apply(filteringOffsetIndexBuilder, input);
+			return Objects.requireNonNull(
+				storagePartReader.apply(filteringOffsetIndexBuilder, input)
+			);
 		} catch (FileNotFoundException e) {
 			throw new UnexpectedIOException(
 				"Cannot create read offset file index from file `" + filePath + "`!",
@@ -491,7 +493,7 @@ public class OffsetIndex {
 			} else {
 				try {
 					// if the record was not yet flushed to the disk we need to enforce sync so that we can read it
-					if (lastSyncedPosition < nonFlushedValue.fileLocation().getEndPosition()) {
+					if (lastSyncedPosition < nonFlushedValue.fileLocation().endPosition()) {
 						doSoftFlush();
 					}
 					//noinspection unchecked
@@ -555,7 +557,7 @@ public class OffsetIndex {
 			} else {
 				try {
 					// if the record was not yet flushed to the disk we need to enforce sync so that we can read it
-					if (lastSyncedPosition < nonFlushedValue.fileLocation().getEndPosition()) {
+					if (lastSyncedPosition < nonFlushedValue.fileLocation().endPosition()) {
 						doSoftFlush();
 					}
 					return getBinary(nonFlushedValue.fileLocation(), recordTypeRegistry.typeFor(nonFlushedValue.recordType()));
@@ -1649,7 +1651,7 @@ public class OffsetIndex {
 			// scan non-flushed values
 			final ConcurrentHashMap<Long, NonFlushedValueSet> nvValues = this.nonFlushedValues;
 			final long[] nv = this.nonFlushedVersions;
-			if (nv != null) {
+			if (nv != null && nvValues != null) {
 				int index = Arrays.binarySearch(nv, catalogVersion);
 				if (index != -1) {
 					final int startIndex = index >= 0 ? index : -index - 1;
@@ -1673,7 +1675,7 @@ public class OffsetIndex {
 				}
 				if (hv != null) {
 					int index = Arrays.binarySearch(hv, catalogVersion);
-					if (index != -1) {
+					if (index != -1 && hvValues != null) {
 						final int startIndex = index >= 0 ? index : -index - 1;
 						for (int ix = hv.length - 1; ix > startIndex && ix >= 0; ix--) {
 							final PastMemory differenceSet = hvValues.get(hv[ix]);
@@ -1701,7 +1703,7 @@ public class OffsetIndex {
 			final long[] nv = this.nonFlushedVersions;
 			if (nv != null) {
 				int index = Arrays.binarySearch(nv, catalogVersion);
-				if (index != -1) {
+				if (index != -1 && nvValues != null) {
 					final int startIndex = index >= 0 ? index : -index - 1;
 					for (int ix = nv.length - 1; ix >= startIndex && ix >= 0; ix--) {
 						final NonFlushedValueSet nonFlushedValueSet = nvValues.get(nv[ix]);
@@ -1721,7 +1723,7 @@ public class OffsetIndex {
 				} finally {
 					this.lock.unlock();
 				}
-				if (hv != null) {
+				if (hv != null && hvValues != null) {
 					int index = Arrays.binarySearch(hv, catalogVersion);
 					if (index != -1) {
 						final int startIndex = index >= 0 ? index : -index - 1;
@@ -1747,7 +1749,7 @@ public class OffsetIndex {
 		public Optional<VersionedValue> getNonFlushedValueIfVersionMatches(long catalogVersion, @Nonnull RecordKey key) {
 			final ConcurrentHashMap<Long, NonFlushedValueSet> nvSet = this.nonFlushedValues;
 			final long[] nv = this.nonFlushedVersions;
-			if (nv != null) {
+			if (nv != null && nvSet != null) {
 				int index = Arrays.binarySearch(nv, catalogVersion);
 				final int startIndex = index >= 0 ? index : -index - 2;
 				if (startIndex >= 0) {
@@ -1784,7 +1786,8 @@ public class OffsetIndex {
 		 * @return true if there are non-flushed values, false otherwise
 		 */
 		public boolean hasValuesToFlush() {
-			return !(nonFlushedValues == null || nonFlushedValues.isEmpty());
+			final ConcurrentHashMap<Long, NonFlushedValueSet> nvSet = this.nonFlushedValues;
+			return nvSet != null && !nvSet.isEmpty();
 		}
 
 		/**
@@ -1815,6 +1818,7 @@ public class OffsetIndex {
 					final long examinedVersion = hv[ix];
 					final PastMemory pastMemory = hvValues.get(examinedVersion);
 					if (pastMemory.getRemovedKeys().contains(key)) {
+						//noinspection DataFlowIssue
 						addedInFuture = false;
 					}
 					if (pastMemory.getAddedKeys().contains(key) && examinedVersion != catalogVersion) {
@@ -1871,7 +1875,7 @@ public class OffsetIndex {
 		public Collection<NonFlushedValueSet> getNonFlushedEntriesToPromote(long catalogVersion) {
 			final ConcurrentHashMap<Long, NonFlushedValueSet> nvSet = this.nonFlushedValues;
 			final long[] nv = this.nonFlushedVersions;
-			if (nv != null) {
+			if (nv != null && nvSet != null) {
 				Assert.isPremiseValid(
 					catalogVersion >= nv[nv.length - 1],
 					"Catalog version is expected to be at least " + nv[nv.length - 1] + "!"
@@ -1912,13 +1916,14 @@ public class OffsetIndex {
 			if (versionToPurge > -1) {
 				try {
 					this.lock.lock();
-					if (this.historicalVersions != null) {
-						final long[] versionsToPurge = this.historicalVersions;
+					final long[] versionsToPurge = this.historicalVersions;
+					final ConcurrentHashMap<Long, PastMemory> theVolatileValues = this.volatileValues;
+					if (versionsToPurge != null && theVolatileValues != null) {
 						int index = Arrays.binarySearch(versionsToPurge, versionToPurge);
 						final int startIndex = index >= 0 ? index : -index - 2;
 						if (index != -1) {
 							for (int ix = startIndex; ix >= 0; ix--) {
-								this.volatileValues.remove(versionsToPurge[ix]);
+								theVolatileValues.remove(versionsToPurge[ix]);
 							}
 						}
 						this.historicalVersions = Arrays.copyOfRange(versionsToPurge, startIndex + 1, versionsToPurge.length);
@@ -1933,16 +1938,18 @@ public class OffsetIndex {
 				final long catalogVersion = valuesToPromote.getCatalogVersion();
 				try {
 					this.lock.lock();
-					if (this.historicalVersions == null) {
+					final long[] hv = this.historicalVersions;
+					final ConcurrentHashMap<Long, PastMemory> theVolatileValues = this.volatileValues;
+					if (hv == null || theVolatileValues == null) {
+						final ConcurrentHashMap<Long, PastMemory> newVolatileValues = CollectionUtils.createConcurrentHashMap(16);
+						newVolatileValues.put(catalogVersion, valuesToPromote.createFrom(keyToLocations));
 						this.historicalVersions = new long[]{catalogVersion};
-						this.volatileValues = CollectionUtils.createConcurrentHashMap(16);
-						this.volatileValues.put(catalogVersion, valuesToPromote.createFrom(keyToLocations));
+						this.volatileValues = newVolatileValues;
 					} else {
-						this.volatileValues.compute(
+						theVolatileValues.compute(
 							catalogVersion,
 							(key, value) -> {
 								if (value == null) {
-									final long[] hv = this.historicalVersions;
 									this.historicalVersions = ArrayUtils.insertLongIntoOrderedArray(catalogVersion, hv);
 									return valuesToPromote.createFrom(keyToLocations);
 								} else {
@@ -2041,14 +2048,17 @@ public class OffsetIndex {
 		 */
 		public boolean contains(@Nonnull RecordKey key) {
 			final long[] nv = this.nonFlushedVersions;
-			for (int i = nv.length - 1; i >= 0; i--) {
-				long nonFlushedVersion = nv[i];
-				final NonFlushedValueSet nfSet = this.nonFlushedValues.get(nonFlushedVersion);
-				if (nfSet != null) {
-					if (nfSet.removedKeys.contains(key)) {
-						return false;
-					} else if (nfSet.addedKeys.contains(key)) {
-						return true;
+			final ConcurrentHashMap<Long, NonFlushedValueSet> theNonVlushedValues = this.nonFlushedValues;
+			if (nv != null && theNonVlushedValues != null) {
+				for (int i = nv.length - 1; i >= 0; i--) {
+					long nonFlushedVersion = nv[i];
+					final NonFlushedValueSet nfSet = theNonVlushedValues.get(nonFlushedVersion);
+					if (nfSet != null) {
+						if (nfSet.removedKeys.contains(key)) {
+							return false;
+						} else if (nfSet.addedKeys.contains(key)) {
+							return true;
+						}
 					}
 				}
 			}
@@ -2063,17 +2073,19 @@ public class OffsetIndex {
 		 */
 		@Nonnull
 		private NonFlushedValueSet getNonFlushedValues(long catalogVersion) {
-			if (this.nonFlushedVersions == null) {
-				this.nonFlushedValues = CollectionUtils.createConcurrentHashMap(16);
+			final long[] nv = this.nonFlushedVersions;
+			final ConcurrentHashMap<Long, NonFlushedValueSet> theNonFlushedValues = this.nonFlushedValues;
+			if (nv == null || theNonFlushedValues == null) {
+				final ConcurrentHashMap<Long, NonFlushedValueSet> newNonFlushedValues = CollectionUtils.createConcurrentHashMap(16);
+				final NonFlushedValueSet nvSet = new NonFlushedValueSet(catalogVersion, this::notifySizeIncrease);
+				newNonFlushedValues.put(catalogVersion, nvSet);
+				this.nonFlushedValues = newNonFlushedValues;
 				this.nonFlushedVersions = new long[]{catalogVersion};
-				final NonFlushedValueSet nv = new NonFlushedValueSet(catalogVersion, this::notifySizeIncrease);
-				this.nonFlushedValues.put(catalogVersion, nv);
-				return nv;
+				return nvSet;
 			} else {
-				return this.nonFlushedValues.computeIfAbsent(
+				return theNonFlushedValues.computeIfAbsent(
 					catalogVersion,
 					cv -> {
-						final long[] nv = this.nonFlushedVersions;
 						final long lastCatalogVersion = nv[nv.length - 1];
 						Assert.isPremiseValid(
 							lastCatalogVersion == -1 || lastCatalogVersion <= catalogVersion,
@@ -2253,7 +2265,7 @@ public class OffsetIndex {
 	 * @param addedInFuture  true if the value was added in future versions
 	 */
 	protected record VolatileValueInformation(
-		@Nonnull VersionedValue versionedValue,
+		@Nullable VersionedValue versionedValue,
 		boolean removed,
 		boolean addedInFuture
 	) {

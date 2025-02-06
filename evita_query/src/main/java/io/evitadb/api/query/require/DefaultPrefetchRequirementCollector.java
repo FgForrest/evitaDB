@@ -120,7 +120,7 @@ public class DefaultPrefetchRequirementCollector implements FetchRequirementColl
 							return existing;
 						}
 					}
-					return ArrayUtils.insertRecordIntoArray(theRequirement, existing, existing.length);
+					return ArrayUtils.insertRecordIntoArrayOnIndex(theRequirement, existing, existing.length);
 				}
 			);
 		}

@@ -31,6 +31,7 @@ import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.filter.*;
 import io.evitadb.api.query.head.Collection;
+import io.evitadb.api.query.head.Label;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.*;
 import io.evitadb.api.query.visitor.ConstraintCloneVisitor;
@@ -75,6 +76,7 @@ public class EvitaRequest {
 	@Getter private final Query query;
 	@Getter private final OffsetDateTime alignedNow;
 	private final String entityType;
+	@Nullable private Label[] labels;
 	private final Locale implicitLocale;
 	@Getter private final Class<?> expectedType;
 	@Nullable private int[] primaryKeys;
@@ -153,6 +155,7 @@ public class EvitaRequest {
 	public EvitaRequest(@Nonnull EvitaRequest evitaRequest, @Nonnull Locale implicitLocale) {
 		this.entityType = evitaRequest.entityType;
 		this.query = evitaRequest.query;
+		this.labels = evitaRequest.labels;
 		this.alignedNow = evitaRequest.alignedNow;
 		this.implicitLocale = implicitLocale;
 		this.primaryKeys = evitaRequest.primaryKeys;
@@ -207,16 +210,28 @@ public class EvitaRequest {
 		this.entityType = entityType;
 		this.query = entityType == null ?
 			Query.query(
+				evitaRequest.query.getHead() == null ?
+					null :
+					ConstraintCloneVisitor.clone(
+						evitaRequest.query.getHead(),
+						(constraintCloneVisitor, constraint) -> constraint instanceof Collection ? null : constraint
+					),
 				evitaRequest.query.getFilterBy(),
 				evitaRequest.query.getOrderBy(),
 				require(this.entityRequirement)
 			) :
 			Query.query(
-				collection(entityType),
+				evitaRequest.query.getHead() == null ?
+					null :
+					ConstraintCloneVisitor.clone(
+						evitaRequest.query.getHead(),
+						(constraintCloneVisitor, constraint) -> constraint instanceof Collection ? collection(entityType) : constraint
+					),
 				evitaRequest.query.getFilterBy(),
 				evitaRequest.query.getOrderBy(),
 				require(this.entityRequirement)
 			);
+		this.labels = evitaRequest.labels;
 		this.alignedNow = evitaRequest.alignedNow;
 		this.implicitLocale = evitaRequest.implicitLocale;
 		this.primaryKeys = evitaRequest.primaryKeys;
@@ -276,7 +291,12 @@ public class EvitaRequest {
 		this.entityRequirement = evitaRequest.entityRequirement;
 		this.entityType = entityType;
 		this.query = Query.query(
-			collection(entityType),
+			evitaRequest.query.getHead() == null ?
+				null :
+				ConstraintCloneVisitor.clone(
+					evitaRequest.query.getHead(),
+					(constraintCloneVisitor, constraint) -> constraint instanceof Collection ? collection(entityType) : constraint
+				),
 			filterBy,
 			orderBy,
 			require(this.entityRequirement)
@@ -284,6 +304,7 @@ public class EvitaRequest {
 		this.alignedNow = evitaRequest.getAlignedNow();
 		this.implicitLocale = evitaRequest.getImplicitLocale();
 		this.primaryKeys = null;
+		this.labels = null;
 		this.queryPriceMode = evitaRequest.getQueryPriceMode();
 		this.priceValidInTimeSet = true;
 		this.priceValidInTime = evitaRequest.getRequiresPriceValidIn();
@@ -326,7 +347,7 @@ public class EvitaRequest {
 	 * Returns true if query targets specific entity type.
 	 */
 	public boolean isEntityTypeRequested() {
-		return entityType != null;
+		return this.entityType != null;
 	}
 
 	/**
@@ -334,7 +355,20 @@ public class EvitaRequest {
 	 */
 	@Nullable
 	public String getEntityType() {
-		return entityType;
+		return this.entityType;
+	}
+
+	/**
+	 * Returns array of labels associated with the query.
+	 */
+	@Nonnull
+	public Label[] getLabels() {
+		if (this.labels == null) {
+			this.labels = ofNullable(this.query.getHead())
+				.map(it -> QueryUtils.findConstraints(it, Label.class).toArray(Label[]::new))
+				.orElse(Label.EMPTY_ARRAY);
+		}
+		return this.labels;
 	}
 
 	/**
@@ -355,7 +389,7 @@ public class EvitaRequest {
 	public Locale getLocale() {
 		if (!this.localeExamined) {
 			this.localeExamined = true;
-			this.locale = ofNullable(QueryUtils.findFilter(query, EntityLocaleEquals.class))
+			this.locale = ofNullable(QueryUtils.findFilter(this.query, EntityLocaleEquals.class))
 				.map(EntityLocaleEquals::getLocale)
 				.orElse(null);
 		}
@@ -388,7 +422,7 @@ public class EvitaRequest {
 	@Nullable
 	public Set<Locale> getRequiredLocales() {
 		if (this.requiredLocales == null) {
-			final EntityFetch entityFetch = QueryUtils.findRequire(query, EntityFetch.class, SeparateEntityContentRequireContainer.class);
+			final EntityFetch entityFetch = QueryUtils.findRequire(this.query, EntityFetch.class, SeparateEntityContentRequireContainer.class);
 			if (entityFetch == null) {
 				this.requiredLocales = true;
 				final Locale theLocale = getLocale();
@@ -421,7 +455,7 @@ public class EvitaRequest {
 	@Nonnull
 	public QueryPriceMode getQueryPriceMode() {
 		if (this.queryPriceMode == null) {
-			this.queryPriceMode = ofNullable(QueryUtils.findRequire(query, PriceType.class))
+			this.queryPriceMode = ofNullable(QueryUtils.findRequire(this.query, PriceType.class))
 				.map(PriceType::getQueryPriceMode)
 				.orElse(QueryPriceMode.WITH_TAX);
 		}
@@ -435,12 +469,12 @@ public class EvitaRequest {
 	 */
 	@Nonnull
 	public int[] getPrimaryKeys() {
-		if (primaryKeys == null) {
-			primaryKeys = ofNullable(QueryUtils.findFilter(query, EntityPrimaryKeyInSet.class, SeparateEntityContentRequireContainer.class))
+		if (this.primaryKeys == null) {
+			this.primaryKeys = ofNullable(QueryUtils.findFilter(this.query, EntityPrimaryKeyInSet.class, SeparateEntityContentRequireContainer.class))
 				.map(EntityPrimaryKeyInSet::getPrimaryKeys)
 				.orElse(ArrayUtils.EMPTY_INT_ARRAY);
 		}
-		return primaryKeys;
+		return this.primaryKeys;
 	}
 
 	/**
@@ -448,7 +482,7 @@ public class EvitaRequest {
 	 */
 	public boolean isRequiresEntity() {
 		if (this.requiresEntity == null) {
-			final EntityFetch entityFetch = QueryUtils.findRequire(query, EntityFetch.class, SeparateEntityContentRequireContainer.class);
+			final EntityFetch entityFetch = QueryUtils.findRequire(this.query, EntityFetch.class, SeparateEntityContentRequireContainer.class);
 			this.requiresEntity = entityFetch != null;
 			this.entityRequirement = entityFetch;
 		}
@@ -581,7 +615,7 @@ public class EvitaRequest {
 	@Nonnull
 	public PriceContentMode getRequiresEntityPrices() {
 		if (this.entityPrices == null) {
-			final EntityFetch entityFetch = QueryUtils.findRequire(query, EntityFetch.class, SeparateEntityContentRequireContainer.class);
+			final EntityFetch entityFetch = QueryUtils.findRequire(this.query, EntityFetch.class, SeparateEntityContentRequireContainer.class);
 			if (entityFetch == null) {
 				this.entityPrices = PriceContentMode.NONE;
 				this.additionalPriceLists = EMPTY_PRICE_LISTS;
@@ -616,7 +650,7 @@ public class EvitaRequest {
 	 */
 	public boolean isRequiresPriceLists() {
 		if (this.requiresPriceLists == null) {
-			final List<PriceInPriceLists> priceInPriceLists = QueryUtils.findFilters(query, PriceInPriceLists.class);
+			final List<PriceInPriceLists> priceInPriceLists = QueryUtils.findFilters(this.query, PriceInPriceLists.class);
 			Assert.isTrue(
 				priceInPriceLists.size() <= 1,
 				"Query can not contain more than one price in price lists filter constraints!"
@@ -650,7 +684,7 @@ public class EvitaRequest {
 	@Nullable
 	public Currency getRequiresCurrency() {
 		if (this.currencySet == null) {
-			final List<Currency> currenciesFound = QueryUtils.findFilters(query, PriceInCurrency.class)
+			final List<Currency> currenciesFound = QueryUtils.findFilters(this.query, PriceInCurrency.class)
 				.stream()
 				.map(PriceInCurrency::getCurrency)
 				.distinct()
@@ -672,7 +706,7 @@ public class EvitaRequest {
 	@Nullable
 	public OffsetDateTime getRequiresPriceValidIn() {
 		if (this.priceValidInTimeSet == null) {
-			final List<OffsetDateTime> validitySpan = QueryUtils.findFilters(query, PriceValidIn.class)
+			final List<OffsetDateTime> validitySpan = QueryUtils.findFilters(this.query, PriceValidIn.class)
 				.stream()
 				.map(it -> it.getTheMoment(this::getAlignedNow))
 				.distinct()
@@ -695,7 +729,7 @@ public class EvitaRequest {
 	public Optional<FacetFilterBy> getFacetGroupConjunction(@Nonnull String referenceName) {
 		if (this.facetGroupConjunction == null) {
 			this.facetGroupConjunction = new HashMap<>();
-			QueryUtils.findRequires(query, FacetGroupsConjunction.class)
+			QueryUtils.findRequires(this.query, FacetGroupsConjunction.class)
 				.forEach(it -> {
 					final String reqReferenceName = it.getReferenceName();
 					this.facetGroupConjunction.put(reqReferenceName, new FacetFilterBy(it.getFacetGroups().orElse(null)));
@@ -712,7 +746,7 @@ public class EvitaRequest {
 	public Optional<FacetFilterBy> getFacetGroupDisjunction(@Nonnull String referenceName) {
 		if (this.facetGroupDisjunction == null) {
 			this.facetGroupDisjunction = new HashMap<>();
-			QueryUtils.findRequires(query, FacetGroupsDisjunction.class)
+			QueryUtils.findRequires(this.query, FacetGroupsDisjunction.class)
 				.forEach(it -> {
 					final String reqReferenceName = it.getReferenceName();
 					this.facetGroupDisjunction.put(reqReferenceName, new FacetFilterBy(it.getFacetGroups().orElse(null)));
@@ -729,7 +763,7 @@ public class EvitaRequest {
 	public Optional<FacetFilterBy> getFacetGroupNegation(@Nonnull String referenceName) {
 		if (this.facetGroupNegation == null) {
 			this.facetGroupNegation = new HashMap<>();
-			QueryUtils.findRequires(query, FacetGroupsNegation.class)
+			QueryUtils.findRequires(this.query, FacetGroupsNegation.class)
 				.forEach(it -> {
 					final String reqReferenceName = it.getReferenceName();
 					this.facetGroupNegation.put(reqReferenceName, new FacetFilterBy(it.getFacetGroups().orElse(null)));
@@ -744,7 +778,7 @@ public class EvitaRequest {
 	 */
 	public boolean isQueryTelemetryRequested() {
 		if (queryTelemetryRequested == null) {
-			this.queryTelemetryRequested = QueryUtils.findRequire(query, QueryTelemetry.class) != null;
+			this.queryTelemetryRequested = QueryUtils.findRequire(this.query, QueryTelemetry.class) != null;
 		}
 		return queryTelemetryRequested;
 	}
@@ -755,7 +789,7 @@ public class EvitaRequest {
 	 */
 	public boolean isDebugModeEnabled(@Nonnull DebugMode debugMode) {
 		if (debugModes == null) {
-			this.debugModes = ofNullable(QueryUtils.findRequire(query, Debug.class))
+			this.debugModes = ofNullable(QueryUtils.findRequire(this.query, Debug.class))
 				.map(Debug::getDebugMode)
 				.orElseGet(() -> EnumSet.noneOf(DebugMode.class));
 		}

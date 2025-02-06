@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,15 +25,24 @@ package io.evitadb.server;
 
 import com.google.protobuf.Empty;
 import com.linecorp.armeria.client.ClientFactory;
+import com.linecorp.armeria.client.WebClient;
 import com.linecorp.armeria.client.grpc.GrpcClients;
+import com.linecorp.armeria.common.AggregatedHttpResponse;
+import com.linecorp.armeria.common.TlsKeyPair;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.core.Evita;
 import io.evitadb.driver.EvitaClient;
 import io.evitadb.driver.config.EvitaClientConfiguration;
+import io.evitadb.externalApi.certificate.LoadedCertificates;
+import io.evitadb.externalApi.certificate.ServerCertificateManager;
+import io.evitadb.externalApi.certificate.ServerCertificateManager.CertificateType;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
+import io.evitadb.externalApi.configuration.CertificatePath;
+import io.evitadb.externalApi.configuration.CertificateSettings;
 import io.evitadb.externalApi.configuration.TlsMode;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.externalApi.grpc.GrpcProvider;
+import io.evitadb.externalApi.grpc.certificate.ClientCertificateManager;
 import io.evitadb.externalApi.grpc.generated.EvitaManagementServiceGrpc.EvitaManagementServiceBlockingStub;
 import io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
@@ -45,8 +54,10 @@ import io.evitadb.externalApi.system.SystemProvider;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.TestConstants;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.CertificateUtils;
 import io.evitadb.utils.CollectionUtils.Property;
 import io.evitadb.utils.NetworkUtils;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -55,11 +66,13 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -220,12 +233,22 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 		} catch (Exception ex) {
 			fail(ex);
 		} finally {
-			try {
-				evitaServer.getEvita().deleteCatalogIfExists(TEST_CATALOG);
-				getPortManager().releasePortsOnCompletion(DIR_EVITA_SERVER_TEST, evitaServer.stop());
-			} catch (Exception ex) {
-				fail(ex.getMessage(), ex);
+			closeServerAndEvita(evitaServer);
+		}
+	}
+
+	private void closeServerAndEvita(@Nonnull EvitaServer evitaServer) {
+		try {
+			final Evita evita = evitaServer.getEvita();
+			if (evita != null) {
+				evita.deleteCatalogIfExists(TEST_CATALOG);
 			}
+			getPortManager().releasePortsOnCompletion(DIR_EVITA_SERVER_TEST, evitaServer.stop());
+			if (evita != null) {
+				evita.close();
+			}
+		} catch (Exception ex) {
+			fail(ex.getMessage(), ex);
 		}
 	}
 
@@ -271,7 +294,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				"text/plain",
 				null,
 				TIMEOUT_IN_MILLIS,
-				error -> assertEquals("Error fetching content from URL: https://localhost:" + servicePorts.get(SystemProvider.CODE) + "/system/server-name HTTP status 403: This endpoint requires TLS.", error),
+				error -> assertEquals("Error fetching content from URL: https://localhost:" + servicePorts.get(SystemProvider.CODE) + "/system/server-name HTTP status 403: This endpoint does not support TLS.", error),
 				timeout -> assertEquals("Error fetching content from URL: http://localhost:" + servicePorts.get(ObservabilityProvider.CODE) + "/system/server-name HTTP status 404 - Not Found: Service not available.", timeout)
 			).ifPresent(
 				content -> fail("The system API is accessible via invalid scheme: " + content)
@@ -395,11 +418,202 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 
 			assertEquals(0, labPortEvitaClientDifferentScheme.getCatalogNames().size());
 		} finally {
+			closeServerAndEvita(evitaServer);
+		}
+	}
+
+	@Test
+	@SneakyThrows
+	void shouldRestrictAccessWhenMtlsConfiguredOnlyOnTlsServicesOfRpcType() {
+		final Map<String, Integer> servicePorts = new HashMap<>();
+		final EvitaServer evitaServer = new EvitaServer(
+			getPathInTargetDirectory(DIR_EVITA_SERVER_TEST),
+			constructTestArguments(
+				servicePorts,
+				List.of(
+					property("api.endpoints.rest.tlsMode", "RELAXED"),
+					property("api.endpoints.rest.mTLS.enabled", "true"),
+					property("api.endpoints.rest.mTLS.allowedClientCertificatesPaths", "[\""+getGeneratedOtherCertificateFileName()+"\"]"),
+					property("api.endpoints.graphQL.tlsMode", "RELAXED"),
+					property("api.endpoints.gRPC.tlsMode", "RELAXED"),
+					property("api.endpoints.gRPC.mTLS.enabled", "true"),
+					property("api.endpoints.gRPC.mTLS.allowedClientCertificatesPaths", "[\""+CertificateUtils.getGeneratedClientCertificateFileName()+"\"]"),
+					property("api.endpoints.lab.tlsMode", "RELAXED"),
+					property("api.endpoints.observability.enabled", "false")
+				),
+				Set.of(
+					RestProvider.CODE, GraphQLProvider.CODE, SystemProvider.CODE
+				)
+			)
+		);
+
+		try {
+			generateTestCertificate("evita-server-certificates");
+
+			evitaServer.run();
+
+			NetworkUtils.fetchContent(
+				"http://localhost:" + servicePorts.get(SystemProvider.CODE) + "/system/server-name",
+				"GET",
+				"text/plain",
+				null,
+				TIMEOUT_IN_MILLIS,
+				error -> fail("The system API should be accessible via Lab scheme and port: " + error),
+				timeout -> assertEquals("Error fetching content from URL: http://localhost:" + servicePorts.get(ObservabilityProvider.CODE) + "/system/server-name HTTP status 404 - Not Found: Service not available.", timeout)
+			).ifPresent(
+				content -> assertTrue(content.contains("evitaDB-"), "The system API should be accessible via Lab scheme and port: " + content)
+			);
+
+			NetworkUtils.fetchContent(
+				"https://localhost:" + servicePorts.get(GraphQLProvider.CODE) + "/gql/system",
+				"POST",
+				"application/json",
+				"{\"query\":\"{catalogs{__typename}}\"}",
+				TIMEOUT_IN_MILLIS,
+				error -> fail("The system API should be accessible via Lab scheme and port: " + error),
+				timeout -> assertEquals("Error fetching content from URL: http://localhost:" + servicePorts.get(ObservabilityProvider.CODE) + "/system/server-name HTTP status 404 - Not Found: Service not available.", timeout)
+			).ifPresent(
+				content -> assertTrue(content.contains("{\"data\":{\"catalogs\":[]}}"), "The system API should be accessible via Lab scheme and port: " + content)
+			);
+
+			final ClientCertificateManager invalidClientCertificateWithClientCertificateManager = new ClientCertificateManager.Builder()
+				.useGeneratedCertificate(false, "localhost", servicePorts.get(RestProvider.CODE))
+				.usingTrustedServerCertificate(false)
+				.mtls(true)
+				.certificateClientFolderPath(Path.of("evita-server-certificates"))
+				.serverCertificateFilePath(Path.of(CertificateUtils.getGeneratedServerCertificateFileName()))
+				.clientCertificateFilePath(Path.of(getGeneratedOtherCertificateFileName()))
+				.clientPrivateKeyFilePath(Path.of(getGeneratedOtherCertificateKeyFileName()))
+				.build();
+
+			final ClientFactory clientFactory = invalidClientCertificateWithClientCertificateManager.buildClientSslContext(
+				null,
+				ClientFactory.builder()
+					.workerGroup(Runtime.getRuntime().availableProcessors() / 4)
+					.idleTimeoutMillis(TimeUnit.MILLISECONDS.convert(5, TimeUnit.SECONDS))
+				).build();
+
+			final WebClient httpWebClient = WebClient.builder("http://localhost:" + servicePorts.get(RestProvider.CODE))
+				.factory(clientFactory)
+				.build();
+
+			final AggregatedHttpResponse httpResponse = httpWebClient.blocking().get("/rest/system");
+			assertTrue(httpResponse.contentUtf8().contains("\"openapi\" :"), "The system API should be accessible via Lab scheme and port: " + httpResponse.contentUtf8());
+
+			final WebClient httpsWebClient = WebClient.builder("https://localhost:" + servicePorts.get(RestProvider.CODE))
+				.factory(clientFactory)
+				.build();
+
+			final AggregatedHttpResponse httpsResponse = httpsWebClient.blocking().get("/rest/system");
+			assertTrue(httpsResponse.contentUtf8().contains("\"openapi\" :"), "The system API should be accessible via Lab scheme and port: " + httpResponse.contentUtf8());
+
+			NetworkUtils.fetchContent(
+				"https://localhost:" + servicePorts.get(RestProvider.CODE) + "/rest/system",
+				"GET",
+				"application/json",
+				null,
+				TIMEOUT_IN_MILLIS,
+				error -> assertTrue(error.contains("HTTP status 401: Client certificate not provided.")),
+				timeout -> assertEquals("Error fetching content from URL: http://localhost:" + servicePorts.get(ObservabilityProvider.CODE) + "/system/server-name HTTP status 404 - Not Found: Service not available.", timeout)
+			).ifPresent(
+				content -> assertTrue(content.contains("\"openapi\" :" ), "The system API should be accessible via Lab scheme and port: " + content)
+			);
+
+			final EvitaClient notAllowedCertificate = new EvitaClient(
+				EvitaClientConfiguration.builder()
+					.host("localhost")
+					.port(servicePorts.get(GrpcProvider.CODE))
+					.systemApiPort(servicePorts.get(SystemProvider.CODE))
+					.tlsEnabled(true)
+					.mtlsEnabled(true)
+					.certificateFolderPath(Path.of("evita-server-certificates"))
+					.serverCertificatePath(Path.of(CertificateUtils.getGeneratedServerCertificateFileName()))
+					.certificateFileName(Path.of(getGeneratedOtherCertificateFileName()))
+					.certificateKeyFileName(Path.of(getGeneratedOtherCertificateKeyFileName()))
+					.useGeneratedCertificate(false)
+					.trustCertificate(false)
+					.build()
+			);
+
 			try {
-				getPortManager().releasePortsOnCompletion(DIR_EVITA_SERVER_TEST, evitaServer.stop());
+				notAllowedCertificate.getCatalogNames();
+				fail("gRPC call should should be made with allowed client certificate!");
 			} catch (Exception ex) {
-				fail(ex.getMessage(), ex);
+				assertEquals("PERMISSION_DENIED: HTTP status code 403", ex.getMessage());
 			}
+
+			// we should be able to access gRCP via correct scheme and port
+			final EvitaClient correctEvitaClient = new EvitaClient(
+				EvitaClientConfiguration.builder()
+					.host("localhost")
+					.port(servicePorts.get(GrpcProvider.CODE))
+					.systemApiPort(servicePorts.get(SystemProvider.CODE))
+					.tlsEnabled(true)
+					.mtlsEnabled(true)
+					.certificateFolderPath(Path.of("evita-server-certificates"))
+					.serverCertificatePath(Path.of(CertificateUtils.getGeneratedServerCertificateFileName()))
+					.certificateFileName(Path.of(CertificateUtils.getGeneratedClientCertificateFileName()))
+					.certificateKeyFileName(Path.of(CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()))
+					.useGeneratedCertificate(false)
+					.trustCertificate(false)
+					.build()
+			);
+
+			assertEquals(0, correctEvitaClient.getCatalogNames().size());
+
+		} finally {
+			closeServerAndEvita(evitaServer);
+		}
+	}
+
+	@Test
+	void shouldReloadUsedCertificateAfterCertificateFileChanged() {
+		final Map<String, Integer> servicePorts = new HashMap<>();
+		final EvitaServer evitaServer = new EvitaServer(
+			getPathInTargetDirectory(DIR_EVITA_SERVER_TEST),
+			constructTestArguments(
+				servicePorts,
+				List.of(
+					property("api.endpoints.rest.tlsMode", "RELAXED"),
+					property("api.endpoints.rest.mTLS.enabled", "true"),
+					property("api.endpoints.graphQL.tlsMode", "RELAXED"),
+					property("api.endpoints.gRPC.tlsMode", "RELAXED"),
+					property("api.endpoints.gRPC.mTLS.enabled", "true"),
+					property("api.endpoints.gRPC.mTLS.allowedClientCertificatesPaths", "[\""+CertificateUtils.getGeneratedClientCertificateFileName()+"\"]"),
+					property("api.endpoints.lab.tlsMode", "RELAXED"),
+					property("api.endpoints.observability.enabled", "false")
+				),
+				Set.of(
+					RestProvider.CODE, GraphQLProvider.CODE, SystemProvider.CODE
+				)
+			)
+		);
+
+		try {
+			evitaServer.run();
+
+			final ExternalApiServer externalApiServer = evitaServer.getExternalApiServer();
+			final LoadedCertificates loadedCertificates = externalApiServer.getLoadedCertificates();
+			assertNotNull(loadedCertificates);
+			final TlsKeyPair tlsKeyPair = loadedCertificates.tlsKeyPair();
+
+			assertFalse(externalApiServer.reloadCertificatesIfAnyModified());
+
+			final ServerCertificateManager serverCertificateManager = new ServerCertificateManager(
+				new CertificateSettings(true, "./evita-server-certificates/", new CertificatePath(null, null, null))
+			);
+			serverCertificateManager.generateSelfSignedCertificate(CertificateType.CLIENT, CertificateType.SERVER);
+
+			assertTrue(externalApiServer.reloadCertificatesIfAnyModified());
+
+			final LoadedCertificates newLoadedCertificates = externalApiServer.getLoadedCertificates();
+			assertNotNull(newLoadedCertificates);
+			final TlsKeyPair newTlsKeyPair = newLoadedCertificates.tlsKeyPair();
+			assertNotEquals(tlsKeyPair, newTlsKeyPair);
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		} finally {
+			closeServerAndEvita(evitaServer);
 		}
 	}
 
@@ -427,12 +641,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 		} catch (Exception ex) {
 			fail(ex);
 		} finally {
-			try {
-				evitaServer.getEvita().deleteCatalogIfExists(TEST_CATALOG);
-				getPortManager().releasePortsOnCompletion(DIR_EVITA_SERVER_TEST, evitaServer.stop());
-			} catch (Exception ex) {
-				fail(ex.getMessage(), ex);
-			}
+			closeServerAndEvita(evitaServer);
 		}
 	}
 
@@ -467,12 +676,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 		} catch (Exception ex) {
 			fail(ex);
 		} finally {
-			try {
-				evitaServer.getEvita().deleteCatalogIfExists(TEST_CATALOG);
-				getPortManager().releasePortsOnCompletion(DIR_EVITA_SERVER_TEST, evitaServer.stop());
-			} catch (Exception ex) {
-				fail(ex.getMessage(), ex);
-			}
+			closeServerAndEvita(evitaServer);
 		}
 	}
 
@@ -611,11 +815,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 		} catch (Exception ex) {
 			fail(ex);
 		} finally {
-			try {
-				getPortManager().releasePortsOnCompletion(DIR_EVITA_SERVER_TEST, evitaServer.stop());
-			} catch (Exception ex) {
-				fail(ex.getMessage(), ex);
-			}
+			closeServerAndEvita(evitaServer);
 		}
 	}
 
@@ -653,12 +853,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 		} catch (Exception ex) {
 			fail(ex);
 		} finally {
-			try {
-				evitaServer.getEvita().deleteCatalogIfExists(TEST_CATALOG);
-				getPortManager().releasePortsOnCompletion(DIR_EVITA_SERVER_TEST, evitaServer.stop());
-			} catch (Exception ex) {
-				fail(ex.getMessage(), ex);
-			}
+			closeServerAndEvita(evitaServer);
 		}
 	}
 
@@ -698,12 +893,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 		} catch (Exception ex) {
 			fail(ex);
 		} finally {
-			try {
-				evitaServer.getEvita().deleteCatalogIfExists(TEST_CATALOG);
-				getPortManager().releasePortsOnCompletion(DIR_EVITA_SERVER_TEST, evitaServer.stop());
-			} catch (Exception ex) {
-				fail(ex.getMessage(), ex);
-			}
+			closeServerAndEvita(evitaServer);
 		}
 	}
 
@@ -752,7 +942,8 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 			Stream.of(
 					Stream.of(
 						property("storage.storageDirectory", getTestDirectory().resolve(DIR_EVITA_SERVER_TEST).toString()),
-						property("cache.enabled", "false")
+						property("cache.enabled", "false"),
+						property("api.requestTimeoutInMillis", "10K")
 					),
 					allApis.stream()
 						.filter(apis::contains)

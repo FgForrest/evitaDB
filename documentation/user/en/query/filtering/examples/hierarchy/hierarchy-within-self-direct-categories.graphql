@@ -14,7 +14,6 @@
     recordPage {
       data {
         primaryKey
-        parentPrimaryKey
         attributes {
           code
         }

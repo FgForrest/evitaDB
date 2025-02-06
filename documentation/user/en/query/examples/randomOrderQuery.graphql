@@ -1,8 +1,10 @@
 {
   queryProduct(
-    orderBy: [{
-      attributeCodeNatural: ASC
-    }]
+    orderBy: [
+      {
+        attributeCodeNatural: ASC
+      }
+    ]
   ) {
     recordPage {
       data {

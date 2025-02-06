@@ -430,6 +430,24 @@ public class ArrayUtils {
 	}
 
 	/**
+	 * Inserts new integer to the array on target position. No new array is allocated, the original one is modified.
+	 * If there was a meaningful data on the last position of the array, it is overwritten to make space for the new
+	 * record.
+	 */
+	public static void insertIntIntoSameArrayOnIndex(int recId, @Nonnull int[] recordIds, int position) {
+		System.arraycopy(recordIds, position, recordIds, position + 1, recordIds.length - position - 1);
+		recordIds[position] = recId;
+	}
+
+	/**
+	 * Removes integer from array on specified index. The array size is not changed and the last element value becomes
+	 * "undefined". The caller is responsible for shrinking the array if needed or maintain a peek on the array size.
+	 */
+	public static void removeIntFromSameArrayOnIndex(@Nonnull int[] recordIds, int position) {
+		System.arraycopy(recordIds, position + 1, recordIds, position, recordIds.length - position - 1);
+	}
+
+	/**
 	 * Removes integer from ordered array and shrinks it.
 	 */
 	@Nonnull
@@ -540,7 +558,7 @@ public class ArrayUtils {
 		if (index >= 0) {
 			return recordIds;
 		} else {
-			return insertRecordIntoArray(recId, recordIds, -1 * (index) - 1);
+			return insertRecordIntoArrayOnIndex(recId, recordIds, -1 * (index) - 1);
 		}
 	}
 
@@ -552,7 +570,7 @@ public class ArrayUtils {
 	public static <T> T[] insertRecordIntoOrderedArray(@Nonnull T b, @Nonnull T[] a, @Nonnull Comparator<T> comparator) {
 		final int index = binarySearch(a, b, comparator::compare);
 		if (index < 0) {
-			return insertRecordIntoArray(b, a, -1 * (index) - 1);
+			return insertRecordIntoArrayOnIndex(b, a, -1 * (index) - 1);
 		} else {
 			return a;
 		}
@@ -575,7 +593,7 @@ public class ArrayUtils {
 			return records;
 		} else {
 			// create new item using mutator and return array with new item inserted to appropriate position
-			return insertRecordIntoArray(mutator.apply(null), records, posIndex);
+			return insertRecordIntoArrayOnIndex(mutator.apply(null), records, posIndex);
 		}
 	}
 
@@ -583,7 +601,7 @@ public class ArrayUtils {
 	 * Inserts any arbitrary record into the array on specific position.
 	 */
 	@Nonnull
-	public static <T> T[] insertRecordIntoArray(@Nonnull T recId, @Nonnull T[] recordIds, int position) {
+	public static <T> T[] insertRecordIntoArrayOnIndex(@Nonnull T recId, @Nonnull T[] recordIds, int position) {
 		int len = recordIds.length;
 		final int targetSize = len + 1;
 		@SuppressWarnings("unchecked")
@@ -592,6 +610,25 @@ public class ArrayUtils {
 		System.arraycopy(recordIds, position, newElements, position + 1, recordIds.length - position);
 		newElements[position] = recId;
 		return newElements;
+	}
+
+	/**
+	 * Inserts any arbitrary record into the array on specific position. No new array is allocated, the original one is
+	 * modified. If there was a meaningful data on the last position of the array, it is overwritten to make space for
+	 * the new record.
+	 */
+	public static <T> void insertRecordIntoSameArrayOnIndex(@Nonnull T recId, @Nonnull T[] recordIds, int position) {
+		System.arraycopy(recordIds, position, recordIds, position + 1, recordIds.length - position - 1);
+		recordIds[position] = recId;
+	}
+
+	/**
+	 * Removes arbitrary record from the array on specified index. The array size is not changed and the last element
+	 * value becomes "undefined". The caller is responsible for shrinking the array if needed or maintain a peek on
+	 * the array size.
+	 */
+	public static <T> void removeRecordFromSameArrayOnIndex(@Nonnull T[] recordIds, int position) {
+		System.arraycopy(recordIds, position + 1, recordIds, position, recordIds.length - position - 1);
 	}
 
 	/**
@@ -685,6 +722,25 @@ public class ArrayUtils {
 	/**
 	 * Method computes insertion point of an integer into the ordered array.
 	 * Result object contains information about the position and whether the integer is already in the array.
+	 * If the to index is less or equal to from index, the method returns object with position set to 0
+	 * and no presence of the integer in the array.
+	 */
+	@Nonnull
+	public static InsertionPosition computeInsertPositionOfIntInOrderedArray(int recId, @Nonnull int[] recordIds, int fromIndex, int toIndex) {
+		if (toIndex <= fromIndex) {
+			return new InsertionPosition(0, false);
+		}
+		final int index = Arrays.binarySearch(recordIds, fromIndex, toIndex, recId);
+		if (index >= 0) {
+			return new InsertionPosition(index, true);
+		} else {
+			return new InsertionPosition(-1 * (index) - 1, false);
+		}
+	}
+
+	/**
+	 * Method computes insertion point of an integer into the ordered array.
+	 * Result object contains information about the position and whether the integer is already in the array.
 	 * Method uses comparator to locate the proper position in the array so that other than natural int ordering can
 	 * be used for the binary search algorithm.
 	 */
@@ -719,6 +775,20 @@ public class ArrayUtils {
 	@Nonnull
 	public static <T extends Comparable<T>> InsertionPosition computeInsertPositionOfObjInOrderedArray(@Nonnull T recId, @Nonnull T[] recordIds) {
 		final int index = Arrays.binarySearch(recordIds, recId);
+		if (index >= 0) {
+			return new InsertionPosition(index, true);
+		} else {
+			return new InsertionPosition(-1 * (index) - 1, false);
+		}
+	}
+
+	/**
+	 * Method computes insertion point of an arbitrary record into the ordered array.
+	 * Result object contains information about the position and whether the record is already in the array.
+	 */
+	@Nonnull
+	public static <T extends Comparable<T>> InsertionPosition computeInsertPositionOfObjInOrderedArray(@Nonnull T recId, @Nonnull T[] recordIds, int fromIndex, int toIndex) {
+		final int index = Arrays.binarySearch(recordIds, fromIndex, toIndex, recId);
 		if (index >= 0) {
 			return new InsertionPosition(index, true);
 		} else {

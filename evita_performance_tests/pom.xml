@@ -30,7 +30,7 @@
 	<parent>
 		<groupId>io.evitadb</groupId>
 		<artifactId>evita_root</artifactId>
-		<version>2024.12-SNAPSHOT</version>
+		<version>2025.1-SNAPSHOT</version>
 	</parent>
 
 	<properties>
@@ -55,62 +55,62 @@
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>evita_api</artifactId>
-			<version>${project.version}</version>
+			<version>${project.parent.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>evita_test_support</artifactId>
-			<version>${project.version}</version>
+			<version>${project.parent.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>evita_engine</artifactId>
-			<version>${project.version}</version>
+			<version>${project.parent.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>evita_store_key_value</artifactId>
-			<version>${project.version}</version>
+			<version>${project.parent.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>evita_store_server</artifactId>
-			<version>${project.version}</version>
+			<version>${project.parent.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>evita_external_api_core</artifactId>
-			<version>${project.version}</version>
+			<version>${project.parent.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>evita_external_api_graphql</artifactId>
-			<version>${project.version}</version>
+			<version>${project.parent.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>evita_external_api_rest</artifactId>
-			<version>${project.version}</version>
+			<version>${project.parent.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>evita_external_api_system</artifactId>
-			<version>${project.version}</version>
+			<version>${project.parent.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>evita_external_api_grpc</artifactId>
-			<version>${project.version}</version>
+			<version>${project.parent.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>evita_java_driver</artifactId>
-			<version>${project.version}</version>
+			<version>${project.parent.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>evita_external_api_grpc_shared</artifactId>
-			<version>${project.version}</version>
+			<version>${project.parent.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.mockito</groupId>

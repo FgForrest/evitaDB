@@ -159,11 +159,20 @@ abstract class AbstractEntityProxyState implements
 	}
 
 	/**
-	 * Returns the primary key of the sealed entity that is being proxied.
+	 * Returns the primary key of the sealed entity that is being proxied or null.
 	 */
+	@Override
 	@Nullable
 	public Integer getPrimaryKey() {
 		return entity.getPrimaryKey();
+	}
+
+	/**
+	 * Returns the primary key of the sealed entity that is being proxied or throws exception.
+	 */
+	@Override
+	public int getPrimaryKeyOrThrowException() {
+		return EntityClassifier.super.getPrimaryKeyOrThrowException();
 	}
 
 	/**

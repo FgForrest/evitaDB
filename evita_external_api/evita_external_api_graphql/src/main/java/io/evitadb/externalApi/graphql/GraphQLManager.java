@@ -68,6 +68,11 @@ import static io.evitadb.utils.CollectionUtils.createHashSet;
 public class GraphQLManager {
 
 	/**
+	 * Common object mapper for endpoints
+	 */
+	@Nonnull private ObjectMapper objectMapper = new ObjectMapper();
+
+	/**
 	 * Provides access to Evita private API
 	 */
 	@Nonnull private final Evita evita;
@@ -89,10 +94,7 @@ public class GraphQLManager {
 	public GraphQLManager(@Nonnull Evita evita, @Nonnull GraphQLConfig graphQLConfig) {
 		this.evita = evita;
 		this.graphQLConfig = graphQLConfig;
-		/**
-		 * Common object mapper for endpoints
-		 */
-		ObjectMapper objectMapper = new ObjectMapper();
+
 		this.graphQLRouter = new GraphQLRouter(objectMapper, evita);
 
 		final long buildingStartTime = System.currentTimeMillis();
@@ -154,7 +156,8 @@ public class GraphQLManager {
 			final GraphQL dataApi = new CatalogGraphQLBuilder(
 				evita,
 				catalog,
-				dataApiSchema
+				dataApiSchema,
+				objectMapper
 			).build(graphQLConfig);
 
 			graphQLRouter.registerCatalogApi(catalogName, GraphQLInstanceType.DATA, dataApi);
@@ -169,7 +172,8 @@ public class GraphQLManager {
 			final GraphQL schemaApi = new CatalogGraphQLBuilder(
 				evita,
 				catalog,
-				schemaApiSchema
+				schemaApiSchema,
+				objectMapper
 			).build(graphQLConfig);
 
 			graphQLRouter.registerCatalogApi(catalogName, GraphQLInstanceType.SCHEMA, schemaApi);
@@ -225,7 +229,8 @@ public class GraphQLManager {
 		final GraphQL newDataApi = new CatalogGraphQLBuilder(
 			evita,
 			catalog,
-			dataApiSchema
+			dataApiSchema,
+			objectMapper
 		).build(graphQLConfig);
 
 		graphQLRouter.refreshCatalogApi(catalogName, GraphQLInstanceType.DATA, newDataApi);
@@ -240,7 +245,8 @@ public class GraphQLManager {
 		final GraphQL newSchemaApi = new CatalogGraphQLBuilder(
 			evita,
 			catalog,
-			schemaApiSchema
+			schemaApiSchema,
+			objectMapper
 		).build(graphQLConfig);
 
 		graphQLRouter.refreshCatalogApi(catalogName, GraphQLInstanceType.SCHEMA, newSchemaApi);

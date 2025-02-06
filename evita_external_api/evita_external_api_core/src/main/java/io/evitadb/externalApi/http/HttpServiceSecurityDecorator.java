@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,44 +25,76 @@ package io.evitadb.externalApi.http;
 
 import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.common.HttpResponse;
+import com.linecorp.armeria.common.HttpResponseBuilder;
 import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.common.MediaType;
-import com.linecorp.armeria.common.RpcRequest;
-import com.linecorp.armeria.common.RpcResponse;
 import com.linecorp.armeria.server.DecoratingHttpServiceFunction;
-import com.linecorp.armeria.server.DecoratingRpcServiceFunction;
 import com.linecorp.armeria.server.HttpService;
-import com.linecorp.armeria.server.RpcService;
 import com.linecorp.armeria.server.ServiceRequestContext;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
+import io.evitadb.externalApi.configuration.ApiOptions;
+import io.evitadb.externalApi.configuration.CertificateSettings;
 import io.evitadb.externalApi.configuration.HostDefinition;
+import io.evitadb.externalApi.configuration.MtlsConfiguration;
 import io.evitadb.externalApi.configuration.TlsMode;
-import io.evitadb.externalApi.exception.InvalidPortException;
-import io.evitadb.externalApi.exception.InvalidSchemeException;
+import io.evitadb.utils.CertificateUtils;
+import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.net.ssl.SSLPeerUnverifiedException;
+import javax.net.ssl.SSLSession;
+import java.io.FileInputStream;
 import java.net.InetSocketAddress;
 import java.net.URI;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Objects;
+import java.util.Set;
+import java.util.function.Function;
 
 /**
  * This HTTP service verifies input scheme against allowed {@link TlsMode} in configuration and returns appropriate
  * error response if the scheme is not allowed. It also checks if the port is allowed for the service.
  * Otherwise, it delegates the request to the decorated service.
  *
+ * Another part of the introduced functionality covers authentication via client certificate for all existing APIs that
+ * has mTLS enabled. This will be particularly useful in the future when implementing full-scale API authentication and
+ * authorisation mechanisms.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public class HttpServiceSecurityDecorator implements DecoratingHttpServiceFunction, DecoratingRpcServiceFunction {
+public class HttpServiceSecurityDecorator implements DecoratingHttpServiceFunction {
 	public static final String SCHEME_HTTPS = "https";
 	public static final String SCHEME_HTTP = "http";
+	/**
+	 * The following fields are used to store the host, scheme, and port configurations for the API endpoints in
+	 * the performance-optimized way. Arrays are big enough to store all configuration combinations from all provided
+	 * APIs, but only the first `peak` elements are actually used. We rely on the fact, that the configurations are
+	 * mostly the same or overlap in some way, so we can save some memory by reusing the same values. We expect there
+	 * will be only a very few elements in the arrays, so the performance impact should be less than using hash maps.
+	 *
+	 * NULL values in arrays represent wildcard values, which means that the configuration is valid for all hosts or
+	 * schemes - only port is mandatory and must match.
+	 */
 	private final String[] hosts;
 	private final String[] schemes;
 	private final int[] ports;
 	private final int peak;
+	private final Function<ServiceRequestContext, HttpResponse> mtlsChecker;
 
-	public HttpServiceSecurityDecorator(@Nonnull AbstractApiConfiguration... configurations) {
+	private static final HttpResponseBuilder CERTIFICATE_NOT_PROVIDED_RESPONSE = HttpResponse.builder()
+		.status(HttpStatus.UNAUTHORIZED)
+		.content(MediaType.PLAIN_TEXT, "Client certificate not provided.");
+	private static final HttpResponseBuilder CERTIFICATE_NOT_ALLOWED_RESPONSE = HttpResponse.builder()
+		.status(HttpStatus.FORBIDDEN)
+		.content(MediaType.PLAIN_TEXT, "Client certificate not allowed.");
+
+	public HttpServiceSecurityDecorator(@Nonnull ApiOptions apiOptions, @Nonnull AbstractApiConfiguration... configurations) {
 		final int hostsConfigs = Arrays.stream(configurations)
 			.mapToInt(config -> config.getHost().length)
 			.sum();
@@ -70,6 +102,33 @@ public class HttpServiceSecurityDecorator implements DecoratingHttpServiceFuncti
 		this.schemes = new String[hostsConfigs];
 		this.ports = new int[hostsConfigs];
 		this.peak = prepareConfigurations(configurations);
+		// only first configuration is the main configuration that carries the mTLS configuration
+		final MtlsConfiguration mtlsConfiguration = configurations[0].getMtlsConfiguration();
+		if (Boolean.TRUE.equals(mtlsConfiguration.enabled())) {
+			final CertificateSettings certificate = apiOptions.certificate();
+			final Set<Certificate> allowedCertificates = getAllowedClientCertificatesFromPaths(mtlsConfiguration, certificate);
+			this.mtlsChecker = ctx -> {
+				try {
+					final SSLSession sslSession = ctx.sslSession();
+					if (sslSession == null) {
+						return createAuthenticationErrorResponseAndCloseChannel(ctx, CERTIFICATE_NOT_PROVIDED_RESPONSE);
+					}
+					final Certificate[] clientCerts = sslSession.getPeerCertificates();
+					if (clientCerts.length == 0) {
+						return createAuthenticationErrorResponseAndCloseChannel(ctx, CERTIFICATE_NOT_PROVIDED_RESPONSE);
+					}
+					final Certificate clientCert = clientCerts[0];
+					if (!allowedCertificates.contains(clientCert)) {
+						return createAuthenticationErrorResponseAndCloseChannel(ctx, CERTIFICATE_NOT_ALLOWED_RESPONSE);
+					}
+				} catch (SSLPeerUnverifiedException e) {
+					return createAuthenticationErrorResponseAndCloseChannel(ctx, CERTIFICATE_NOT_PROVIDED_RESPONSE);
+				}
+				return null;
+			};
+		} else {
+			this.mtlsChecker = ctx -> null;
+		}
 	}
 
 	@Nonnull
@@ -80,9 +139,15 @@ public class HttpServiceSecurityDecorator implements DecoratingHttpServiceFuncti
 		final InetSocketAddress address = ctx.localAddress();
 		final int port = address.getPort();
 		boolean hostAndPortMatching = false;
-		for (int i = 0; i < peak; i++) {
-			if (port == ports[i] && (hosts[i] == null || address.getAddress().getHostAddress().equals(hosts[i]))) {
-				if (schemes[i] == null || scheme.equals(schemes[i])) {
+		for (int i = 0; i < this.peak; i++) {
+			if (port == this.ports[i] && (this.hosts[i] == null || address.getAddress().getHostAddress().equals(this.hosts[i]))) {
+				if (this.schemes[i] == null || scheme.equals(this.schemes[i])) {
+					if (SCHEME_HTTPS.equals(scheme)) {
+						final HttpResponse response = this.mtlsChecker.apply(ctx);
+						if (response != null) {
+							return response;
+						}
+					}
 					return delegate.serve(ctx, req);
 				} else {
 					hostAndPortMatching = true;
@@ -96,28 +161,67 @@ public class HttpServiceSecurityDecorator implements DecoratingHttpServiceFuncti
 		}
 	}
 
+	/**
+	 * Creates an HTTP response indicating an authentication error and initiates a connection shutdown.
+	 * This method sets the "Connection" header to "close" and triggers the shutdown process
+	 * in the provided service request context.
+	 *
+	 * @param ctx the {@link ServiceRequestContext} used to manage the service request,
+	 *            including initiating the connection shutdown.
+	 * @param responseBuilder the {@link HttpResponseBuilder} used to construct the HTTP response,
+	 *                        which will include a header to close the connection.
+	 * @return an {@link HttpResponse} representing the authentication error response
+	 *         with the connection set to close.
+	 */
 	@Nonnull
-	@Override
-	public RpcResponse serve(@Nonnull RpcService delegate, @Nonnull ServiceRequestContext ctx, @Nonnull RpcRequest req) throws Exception {
-		final URI uri = ctx.uri();
-		final String scheme = uri.getScheme();
-		final InetSocketAddress address = ctx.localAddress();
-		final int port = address.getPort();
-		boolean portMatching = false;
-		for (int i = 0; i < peak; i++) {
-			if (port == ports[i] && (hosts[i] == null || address.getAddress().getHostAddress().equals(hosts[i]))) {
-				if (schemes[i] == null || scheme.equals(schemes[i])) {
-					return delegate.serve(ctx, req);
-				} else {
-					portMatching = true;
-				}
-			}
+	private static HttpResponse createAuthenticationErrorResponseAndCloseChannel(
+		@Nonnull ServiceRequestContext ctx,
+		@Nonnull HttpResponseBuilder responseBuilder
+	) {
+		ctx.initiateConnectionShutdown();
+		return responseBuilder.header("Connection", "close").build();
+	}
+
+	/**
+	 * Retrieves a set of allowed client X509 certificates from the specified paths defined in the mTLS configuration.
+	 * This method processes each path, verifies its validity, and loads the certificate if it is in the correct format.
+	 *
+	 * @param mtlsConfig The mTLS configuration containing the list of paths to client certificates that should be allowed.
+	 * @param certificateSettings The certificate settings that provide the folder path where the certificates are stored.
+	 * @return A set of X509 certificates corresponding to the valid paths specified in the mTLS configuration.
+	 *         These certificates represent the clients that are allowed to connect to the server.
+	 * @throws GenericEvitaInternalError if there is an error loading any of the certificates from the specified paths.
+	 */
+	@Nonnull
+	private static Set<Certificate> getAllowedClientCertificatesFromPaths(
+		@Nonnull MtlsConfiguration mtlsConfig,
+		@Nonnull CertificateSettings certificateSettings
+	) {
+		final Set<Certificate> certificates = CollectionUtils.createHashSet(mtlsConfig.allowedClientCertificatePaths().size());
+
+		try {
+			mtlsConfig.allowedClientCertificatePaths().stream()
+				.filter(Objects::nonNull)
+				.filter(path -> path.endsWith(CertificateUtils.CERTIFICATE_EXTENSION))
+				.forEach(certPath -> {
+					final String certificatePath = certificateSettings.folderPath() + certPath;
+					try (FileInputStream fis = new FileInputStream(certificatePath)) {
+						final CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
+						final X509Certificate cert = (X509Certificate) certFactory.generateCertificate(fis);
+						certificates.add(cert);
+					} catch (Exception e) {
+						throw new GenericEvitaInternalError(
+							"Failed to load certificate.",
+							"Failed to load certificate from " + certificatePath + ": " + e.getMessage(),
+							e
+						);
+					}
+				});
+		} catch (Exception e) {
+			throw new GenericEvitaInternalError("Error loading certificates: " + e.getMessage(), e);
 		}
-		if (portMatching) {
-			return RpcResponse.ofFailure(new InvalidSchemeException(getSchemeErrorMessage(scheme)));
-		} else {
-			return RpcResponse.ofFailure(new InvalidPortException("Service not available."));
-		}
+
+		return certificates;
 	}
 
 	/**
@@ -180,7 +284,7 @@ public class HttpServiceSecurityDecorator implements DecoratingHttpServiceFuncti
 	 */
 	@Nonnull
 	private static String getSchemeErrorMessage(@Nullable String scheme) {
-        if (SCHEME_HTTPS.equals(scheme)) {
+        if (!SCHEME_HTTPS.equals(scheme)) {
 			return "This endpoint requires TLS.";
 		}
 		return "This endpoint does not support TLS.";
@@ -207,12 +311,9 @@ public class HttpServiceSecurityDecorator implements DecoratingHttpServiceFuncti
 		 * @return true if the current host triple is superior or equal to the other host triple, false otherwise
 		 */
 		public boolean isSuperiorOrEqual(@Nonnull HostTriple another) {
-			if (port == another.port) {
-				if (host == null || host.equals(another.host)) {
-					if (scheme == null || scheme.equals(another.scheme)) {
-						return true;
-					}
-					return false;
+			if (this.port == another.port) {
+				if (this.host == null || this.host.equals(another.host)) {
+					return this.scheme == null || this.scheme.equals(another.scheme);
 				} else {
 					return false;
 				}
