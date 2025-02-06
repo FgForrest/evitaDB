@@ -558,6 +558,8 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 			previousCatalogVersion.getInternalSchema(),
 			this.entitySchemaAccessor
 		);
+
+		this.trafficRecordingEngine.updateCatalogName(catalogSchema.getName());
 		this.schema = new TransactionalReference<>(new CatalogSchemaDecorator(catalogSchema));
 		this.dataStoreBuffer = catalogState == CatalogState.WARMING_UP ?
 			new WarmUpDataStoreMemoryBuffer(storagePartPersistenceService) :
