@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -67,7 +67,18 @@ public class RecoverableOutputStream extends OutputStream {
 		if (this.buffer == null) {
 			// acquire new buffer
 			this.buffer = this.ofBufferFull.get();
-			this.buffer.put(bytes, offset, length);
+			int toWrite = length;
+			int lengthToWrite = Math.min(this.buffer.remaining(), toWrite);
+			// write data gradually acquiring new buffers when the content is larger than the buffer
+			do {
+				this.buffer.put(bytes, offset, lengthToWrite);
+				toWrite -= lengthToWrite;
+				if (toWrite > 0) {
+					// acquire new buffer
+					this.buffer = this.ofBufferFull.get();
+					lengthToWrite = Math.min(this.buffer.remaining(), toWrite);
+				}
+			} while (toWrite > 0);
 		} else if (this.buffer.remaining() < length) {
 			final int bytesInExistingBlock = this.buffer.remaining();
 			this.buffer.put(bytes, offset, bytesInExistingBlock);
