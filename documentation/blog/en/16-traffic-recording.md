@@ -6,6 +6,7 @@ date: '24.01.2025'
 author: 'Ing. Jan Novotný'
 motive: assets/images/16-traffic-recording.png
 proofreading: 'done'
+draft: true
 ---
 In the latest version `2025.1` of evitaDB we have introduced a new feature called `Traffic Recording`. It's disabled by default, but you can easily enable it by setting `server.trafficRecording.enabled` to `true`. Even if you don't do this, you can always start it manually in the evitaLab console. This feature allows you to record all traffic that passes through the database - sessions, queries, mutations, entity fetches - everything.
 
