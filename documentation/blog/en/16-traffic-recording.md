@@ -6,11 +6,18 @@ date: '24.01.2025'
 author: 'Ing. Jan Novotný'
 motive: assets/images/16-traffic-recording.png
 proofreading: 'done'
-draft: true
 ---
+
 In the latest version `2025.1` of evitaDB we have introduced a new feature called `Traffic Recording`. It's disabled by default, but you can easily enable it by setting `server.trafficRecording.enabled` to `true`. Even if you don't do this, you can always start it manually in the evitaLab console. This feature allows you to record all traffic that passes through the database - sessions, queries, mutations, entity fetches - everything.
 
-The capture engine is designed to be as lightweight as possible, so you can run it in production without noticing any performance degradation. If the traffic is heavy, you can also configure the recording engine to sample the traffic, reducing the amount of data stored, but still enough to analyse traffic patterns. Traffic data is serialised in a limited buffer in memory, which is very fast, and then flushed asynchronously to the disk buffer file. If the flushing process can't keep up with the traffic, the recording engine will automatically discard any traffic that doesn't fit into the memory buffer. So the worst-case scenario is that you'll lose some data for analysis, but the database will still work fine and your customers won't notice a thing.
+The capture engine is designed to be as lightweight as possible, so that you can run the tool in the production. If the traffic is heavy, you can also configure the recording engine to sample the traffic, reducing the amount of data stored and limit the performance impact, but still enough to analyse traffic patterns. Traffic data is serialised in a limited buffer in memory, which is quite fast, and then flushed asynchronously to the disk buffer file. If the flushing process can't keep up with the traffic, the recording engine will automatically discard any traffic that doesn't fit into the memory buffer. So the worst-case scenario is that you'll lose some data for analysis, but the database will still work fine and your customers won't notice a thing.
+
+<p>
+    <video width="850" height="478" controls="controls">
+      <source src="https://evitadb.io/download/blog-16-traffic-recording-1.mp4" type="video/mp4"/>
+        Your browser does not support the video tag.
+    </video>
+</p>
 
 The disk buffer is designed to behave like a ring buffer and is allocated at the start of the database, so you can't run out of disk space. When the end of the buffer is reached, the recording engine starts to overwrite the oldest data from the beginning. You can start another asynchronous task that will capture all the data from the disk buffer file before it's overwritten into another compressed file for later analysis. This task can be set to stop automatically when it reaches a certain data size or after a certain period of time.
 
@@ -24,6 +31,13 @@ With Traffic Recording, evitaDB can be set up to automatically capture all traff
 
 Traffic Recorder captures queries in their original format (GraphQL, REST, gRPC) as well as in the internal evitaQL format. Often a single GraphQL query can represent several evitaQL queries that are combined into a single result and actually executed in parallel by the query engine. All these relationships are captured and visualised in the evitaLab interface. All input queries are available in the exact form in which they arrived in the database, so you can access variables, fragments, etc. as they were sent by the client.
 
+<p>
+    <video width="850" height="478" controls="controls">
+      <source src="https://evitadb.io/download/blog-16-traffic-recording-2.mp4" type="video/mp4"/>
+        Your browser does not support the video tag.
+    </video>
+</p>
+
 The traffic recorder also records all invalid requests, so you can see requests that couldn't be parsed or were rejected by the database for some reason. This can be very useful for debugging and improving the client application.
 
 The filter allows you to filter queries by various criteria - for example, you can filter only queries that took more than a certain amount of time to execute, or only queries that fetched excessive amounts of data from disk. This can help you identify performance bottlenecks in your application early in the development process.
@@ -31,6 +45,13 @@ The filter allows you to filter queries by various criteria - for example, you c
 ## Performance analysis
 
 Because you can capture a representative sample of traffic, you can use it to analyse the performance of your application. You can see which queries are the most frequent, which are the slowest, which are fetching the most data, etc. You can restore backups of your production data and replay the captured traffic on different machines to test different hardware configurations, or stress test the database by increasing the replay speed or multiplying it by parallelizing clients replaying the traffic.
+
+<p>
+    <video width="850" height="478" controls="controls">
+      <source src="https://evitadb.io/download/blog-16-traffic-recording-3.mp4" type="video/mp4"/>
+        Your browser does not support the video tag.
+    </video>
+</p>
 
 This is a very cost effective way of discovering the limits of your application in real-world scenarios on an accurate dataset and making correct assumptions about the performance of your application and the necessary hardware requirements. You can also use traffic recording to compare the performance of different versions of your application or database engine.
 
