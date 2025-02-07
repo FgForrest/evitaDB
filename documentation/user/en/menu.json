@@ -96,7 +96,16 @@
 	  },
 	  {
 		"title": "Header",
-		"path": "/query/filtering/behavioral.md"
+		"children": [
+		  {
+			"title": "Collection",
+			"path": "/query/header/collection.md"
+		  },
+		  {
+			"title": "Label",
+			"path": "/query/header/label.md"
+		  }
+		]
 	  },
 	  {
 		"title": "Filtering",
