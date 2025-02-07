@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -1154,6 +1154,100 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 					);
 				}
 				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return products matching random facet within hierarchy tree")
+	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
+	@Test
+	void shouldReturnProductsWithHierarchicalFacetSubTree(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Hierarchy categoryHierarchy, Map<Integer, Integer> parameterGroupMapping) {
+		/* TODO JNO - test include and exclude */
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				for (HierarchyItem rootItem : categoryHierarchy.getRootItems()) {
+					final int hierarchyRoot = Integer.parseInt(rootItem.getCode());
+					final Integer[] facetIds = new Integer[] {hierarchyRoot};
+
+					final Query query = query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								userFilter(
+									facetHaving(
+										Entities.CATEGORY,
+										entityPrimaryKeyInSet(facetIds),
+										includingChildren()
+									)
+								)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							facetSummary(FacetStatisticsDepth.IMPACT)
+						)
+					);
+
+					final EvitaResponse<EntityReference> result = session.query(
+						query,
+						EntityReference.class
+					);
+
+					assertResultIs(
+						"Querying products with selected root category " + rootItem.getCode() + ": " + Arrays.toString(facetIds),
+						originalProductEntities,
+						sealedEntity -> {
+							// is within requested hierarchy
+							return sealedEntity.getReferences(Entities.CATEGORY)
+								.stream()
+								.anyMatch(it -> it.getReferencedPrimaryKey() == hierarchyRoot ||
+									categoryHierarchy.getParentItems(String.valueOf(it.getReferencedPrimaryKey()))
+										.stream()
+										.anyMatch(catId -> hierarchyRoot == Integer.parseInt(catId.getCode()))
+								);
+						},
+						result.getRecordData()
+					);
+
+					final int[] selectedIdsAsSet = Stream.concat(
+							Arrays.stream(facetIds),
+							categoryHierarchy.getAllChildItems(rootItem.getCode())
+								.stream()
+								.map(it -> Integer.valueOf(it.getCode()))
+						)
+						.sorted()
+						.mapToInt(Integer::intValue)
+						.toArray();
+
+					final FacetSummary actualFacetSummary = result.getExtraResult(FacetSummary.class);
+
+					final FacetSummaryWithResultCount expectedSummary = computeFacetSummary(
+						session,
+						productSchema,
+						originalProductEntities,
+						null,
+						null,
+						null,
+						null,
+						query,
+						null,
+						__ -> FacetStatisticsDepth.IMPACT,
+						null,
+						null,
+						parameterGroupMapping,
+						referenceName -> {
+							if (Entities.CATEGORY.equals(referenceName)) {
+								return selectedIdsAsSet;
+							} else {
+								return ArrayUtils.EMPTY_INT_ARRAY;
+							}
+						}
+					);
+
+					assertFacetSummary(expectedSummary, actualFacetSummary);
+				}
 			}
 		);
 	}
