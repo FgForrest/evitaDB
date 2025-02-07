@@ -104,6 +104,11 @@ public class FacetIncludingChildrenExcept extends AbstractFilterConstraintContai
 		return true;
 	}
 
+	@Override
+	public boolean isNecessary() {
+		return true;
+	}
+
 	@Nonnull
 	@Override
 	public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {

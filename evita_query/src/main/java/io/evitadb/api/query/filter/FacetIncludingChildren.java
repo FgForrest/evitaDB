@@ -133,6 +133,11 @@ public class FacetIncludingChildren extends AbstractFilterConstraintContainer im
 		return true;
 	}
 
+	@Override
+	public boolean isNecessary() {
+		return true;
+	}
+
 	@Nonnull
 	@Override
 	public Optional<String> getSuffixIfApplied() {
