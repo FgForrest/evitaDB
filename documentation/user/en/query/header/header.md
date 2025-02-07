@@ -55,5 +55,14 @@ label(
 This `label` constraint allows a single label name with associated value to be specified in the query header and
 propagated to the trace generated for the query. A query can be tagged with multiple labels.
 
-Labels are also recorded with the query in the traffic record and can be used to look up the query in the traffic
-inspection or traffic replay. Labels are also attached to JFR events related to the query.
+Labels are also recorded with the query in the [traffic record](../../operate/observe.md#traffic-recording) and can be
+used to look up the query in the traffic inspection or traffic replay. Labels are also attached to JFR events related 
+to the query.
+
+Each label is a key-value pair appended to the query header, as shown in the following example:
+
+<SourceCodeTabs requires="/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
+[Attaching labels to query](/documentation/user/en/query/header/examples/labels.evitaql)
+
+</SourceCodeTabs>
