@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,11 +26,14 @@ package io.evitadb.test.client.query.graphql;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.ConstraintContainer;
+import io.evitadb.api.query.HeadConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
-import io.evitadb.api.query.filter.EntityScope;
+import io.evitadb.api.query.head.Collection;
 import io.evitadb.api.query.require.*;
+import io.evitadb.api.query.visitor.ConstraintCloneVisitor;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.GenericDataLocator;
@@ -38,6 +41,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePo
 import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
 import io.evitadb.test.client.query.FilterConstraintToJsonConverter;
+import io.evitadb.test.client.query.HeadConstraintToJsonConverter;
 import io.evitadb.test.client.query.JsonConstraint;
 import io.evitadb.test.client.query.OrderConstraintToJsonConverter;
 import io.evitadb.test.client.query.RequireConstraintToJsonConverter;
@@ -104,6 +108,7 @@ public class GraphQLQueryConverter {
 
 	@Nonnull
 	private String convertHeader(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull Query query, @Nonnull String entityType) {
+		final HeadConstraintToJsonConverter headConstraintToJsonConverter = new HeadConstraintToJsonConverter(catalogSchema);
 		final FilterConstraintToJsonConverter filterConstraintToJsonConverter = new FilterConstraintToJsonConverter(catalogSchema);
 		final OrderConstraintToJsonConverter orderConstraintToJsonConverter = new OrderConstraintToJsonConverter(catalogSchema);
 		final RequireConstraintToJsonConverter requireConstraintToJsonConverter = new RequireConstraintToJsonConverter(
@@ -113,7 +118,16 @@ public class GraphQLQueryConverter {
 			new AtomicReference<>(orderConstraintToJsonConverter)
 		);
 
-		final List<JsonConstraint> rootConstraints = new ArrayList<>(3);
+		final List<JsonConstraint> rootConstraints = new ArrayList<>(4);
+		if (query.getHead() != null) {
+			final HeadConstraint head = ConstraintCloneVisitor.clone(query.getHead(), (visitor, theConstraint) -> theConstraint instanceof Collection ? null : theConstraint);
+			if (head != null && (!(head instanceof ConstraintContainer<?> cc) || cc.getChildrenCount() > 0)) {
+				rootConstraints.add(
+					headConstraintToJsonConverter.convert(new GenericDataLocator(new ManagedEntityTypePointer(entityType)), head)
+						.orElseThrow(() -> new IllegalStateException("Root JSON head constraint cannot be null if original query has head constraint."))
+				);
+			}
+		}
 		if (query.getFilterBy() != null) {
 			rootConstraints.add(
 				filterConstraintToJsonConverter.convert(new EntityDataLocator(new ManagedEntityTypePointer(entityType)), query.getFilterBy())

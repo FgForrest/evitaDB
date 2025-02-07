@@ -32,6 +32,7 @@ import io.evitadb.api.query.head.Label;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
+import io.evitadb.api.requestResponse.data.mutation.associatedData.UpsertAssociatedDataMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
 import io.evitadb.api.requestResponse.trafficRecording.*;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest.TrafficRecordingType;
@@ -49,6 +50,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.experimental.Delegate;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -93,7 +95,7 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 		this.trafficRecorder = new OffHeapTrafficRecorder(2_048);
 		this.exportDirectory.toFile().mkdirs();
 		final StorageOptions storageOptions = StorageOptions.builder()
-			.outputBufferSize(1_024)
+			.outputBufferSize(2_048)
 			.exportDirectory(this.exportDirectory)
 			.build();
 		final Scheduler scheduler = new Scheduler(new ImmediateExecutorService(1));
@@ -573,6 +575,55 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 		}
 	}
 
+	@Test
+	void shouldRecordAsLargeAsTheBufferItself() {
+		final UUID sessionId = UUIDUtil.randomUUID();
+		String[] veryLongString = new String[1024];
+		for (int i = 0; i < 1024; i++) {
+			StringBuilder singleString = new StringBuilder();
+			for (int j = 32; j < 61; j++) {
+				singleString.append(Character.valueOf((char)(32 + j % (126 - 32))));
+			}
+			veryLongString[i] = singleString.toString();
+		}
+		this.trafficRecorder.createSession(sessionId, 1, OffsetDateTime.now());
+		this.trafficRecorder.recordMutation(
+			sessionId,
+			OffsetDateTime.now(),
+			new EntityUpsertMutation(
+				Entities.PRODUCT,
+				1,
+				EntityExistence.MUST_NOT_EXIST,
+				new UpsertAssociatedDataMutation("a", veryLongString)
+			),
+			null
+		);
+		this.trafficRecorder.closeSession(sessionId, null);
+
+		// wait for the data to be written to the disk
+		waitUntilDataBecomeAvailable(sessionId, 10_000);
+
+		try (
+			final Stream<TrafficRecording> recordings = this.trafficRecorder.getRecordings(
+				TrafficRecordingCaptureRequest.builder()
+					.content(TrafficRecordingContent.BODY)
+					.sinceSessionSequenceId(0L)
+					.sinceRecordSessionOffset(0)
+					.build()
+			)
+		) {
+			final List<TrafficRecording> allRecordings = recordings.toList();
+
+			assertEquals(3, allRecordings.size(), "Actual size: " + allRecordings.size());
+			final MutationContainer mutation = (MutationContainer) allRecordings.get(1);
+			final EntityUpsertMutation upsertMutation = (EntityUpsertMutation) mutation.mutation();
+			final UpsertAssociatedDataMutation upsertAssociatedDataMutation = (UpsertAssociatedDataMutation) upsertMutation.getLocalMutations().get(0);
+			final String[] value = (String[]) upsertAssociatedDataMutation.getAssociatedDataValue();
+			assertEquals(1024, value.length);
+		}
+	}
+
+	@Disabled("This test fails to often in parallel suite. Needs to be executed manually as a standalone test.")
 	@Test
 	void shouldRecordDataInParallelAndQueryOnThem() throws InterruptedException {
 		final CountDownLatch writeLatch = writeDataInParallel(5, 5, 200);

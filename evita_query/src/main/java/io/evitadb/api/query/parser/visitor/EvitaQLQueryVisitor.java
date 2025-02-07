@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -65,13 +65,13 @@ public class EvitaQLQueryVisitor extends EvitaQLBaseVisitor<Query> {
                     .map(con -> con.accept(constraintVisitor))
                     .collect(Collectors.toList());
 
-                final Collection collectionConstraint = findCollectionConstraint(ctx, constraints);
+                final HeadConstraint headConstraint = findHeadConstraint(ctx, constraints);
                 final FilterBy filterByConstraint = findFilterByConstraint(ctx, constraints);
                 final OrderBy orderByConstraint = findOrderByConstraint(ctx, constraints);
                 final Require requireConstraint = findRequireConstraint(ctx, constraints);
 
                 return Query.query(
-                    collectionConstraint,
+                    headConstraint,
                     filterByConstraint,
                     orderByConstraint,
                     requireConstraint
@@ -88,7 +88,7 @@ public class EvitaQLQueryVisitor extends EvitaQLBaseVisitor<Query> {
      * @throws EvitaSyntaxException if no appropriated constraint found
      */
     @Nullable
-    protected Collection findCollectionConstraint(@Nonnull ParserRuleContext ctx, @Nonnull List<Constraint<?>> topLevelConstraints) {
+    protected HeadConstraint findHeadConstraint(@Nonnull ParserRuleContext ctx, @Nonnull List<Constraint<?>> topLevelConstraints) {
         final List<Constraint<?>> headConstraints = topLevelConstraints.stream()
                 .filter(HeadConstraint.class::isInstance)
                 .toList();
@@ -96,13 +96,13 @@ public class EvitaQLQueryVisitor extends EvitaQLBaseVisitor<Query> {
         if (headConstraints.isEmpty()) {
             return null;
         }
-        if ((headConstraints.size() > 1) || !(headConstraints.get(0) instanceof Collection)) {
+        if ((headConstraints.size() > 1) || !(headConstraints.get(0) instanceof HeadConstraint || headConstraints.get(0) instanceof Collection)) {
             throw new EvitaSyntaxException(
                 ctx,
-                "Query can have only one top level head constraint -> `collection`."
+                "Query can have only one top level head constraint."
             );
         }
-        return (Collection) headConstraints.get(0);
+        return (HeadConstraint) headConstraints.get(0);
     }
 
     /**

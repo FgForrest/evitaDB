@@ -361,6 +361,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		);
 		this.trafficRecordingEngine = new TrafficRecordingEngine(
 			internalCatalogSchema.getName(),
+			this.state,
 			tracingContext,
 			evitaConfiguration,
 			exportFileService,
@@ -426,6 +427,7 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 		this.cacheSupervisor = cacheSupervisor;
 		this.trafficRecordingEngine = new TrafficRecordingEngine(
 			catalogSchema.getName(),
+			this.state,
 			tracingContext,
 			evitaConfiguration,
 			exportFileService,
@@ -558,6 +560,8 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 			previousCatalogVersion.getInternalSchema(),
 			this.entitySchemaAccessor
 		);
+
+		this.trafficRecordingEngine.updateCatalogName(catalogSchema.getName(), this.state);
 		this.schema = new TransactionalReference<>(new CatalogSchemaDecorator(catalogSchema));
 		this.dataStoreBuffer = catalogState == CatalogState.WARMING_UP ?
 			new WarmUpDataStoreMemoryBuffer(storagePartPersistenceService) :

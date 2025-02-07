@@ -1,0 +1,25 @@
+POST /rest/evita/Product/query
+
+{
+  "head" : [
+    {
+      "label" : {
+        "name" : "query-name",
+        "value" : "my-query"
+      }
+    },
+    {
+      "label" : {
+        "name" : "url",
+        "value" : "/test-url"
+      }
+    }
+  ],
+  "filterBy" : {
+    "entityPrimaryKeyInSet" : [
+      1,
+      2,
+      3
+    ]
+  }
+}

@@ -27,6 +27,8 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.util.Pool;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
+import io.evitadb.api.configuration.EvitaConfiguration;
+import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.api.configuration.TrafficRecordingOptions;
@@ -205,11 +207,20 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	private static TrafficRecordingEngine createTrafficRecordingEngine(@Nonnull SealedCatalogSchema catalogSchema) {
 		return new TrafficRecordingEngine(
 			catalogSchema.getName(),
-			StorageOptions.builder().build(),
-			TrafficRecordingOptions.builder().build(),
+			CatalogState.WARMING_UP,
+			DefaultTracingContext.INSTANCE,
+			EvitaConfiguration.builder()
+				.storage(StorageOptions.builder().build())
+				.server(
+					ServerOptions.builder()
+						.trafficRecording(
+							TrafficRecordingOptions.builder()
+								.build()
+						).build()
+				)
+				.build(),
 			Mockito.mock(ExportFileService.class),
-			Mockito.mock(Scheduler.class),
-			DefaultTracingContext.INSTANCE
+			Mockito.mock(Scheduler.class)
 		);
 	}
 

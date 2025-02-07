@@ -669,13 +669,18 @@ public class TrafficRecordingIndex implements
 	 */
 	private void removeSessionFromIndexes(long sessionSequenceOrder) {
 		final SessionDescriptor sessionDescriptor = this.sessionUuidIndex.remove(sessionSequenceOrder);
-		this.sessionIdIndex.remove(sessionDescriptor.getSessionId());
-		this.sessionCreationIndex.delete(sessionDescriptor.getCreated());
-		this.sessionDurationIndex.delete(sessionDescriptor.getMaxDurationInMillis());
-		this.sessionFetchCountIndex.delete(sessionDescriptor.getMaxFetchCount());
-		this.sessionBytesFetchedIndex.delete(sessionDescriptor.getMaxBytesFetchedTotal());
-		for (TrafficRecordingType recordingType : sessionDescriptor.getRecordingTypes()) {
-			this.sessionRecordingTypeIndex.get(recordingType).delete(sessionSequenceOrder);
+		if (sessionDescriptor != null) {
+			this.sessionIdIndex.remove(sessionDescriptor.getSessionId());
+			this.sessionCreationIndex.delete(sessionDescriptor.getCreated());
+			this.sessionDurationIndex.delete(sessionDescriptor.getMaxDurationInMillis());
+			this.sessionFetchCountIndex.delete(sessionDescriptor.getMaxFetchCount());
+			this.sessionBytesFetchedIndex.delete(sessionDescriptor.getMaxBytesFetchedTotal());
+			for (TrafficRecordingType recordingType : sessionDescriptor.getRecordingTypes()) {
+				final TransactionalObjectBPlusTree<Long, Long> typeIndex = this.sessionRecordingTypeIndex.get(recordingType);
+				if (typeIndex != null) {
+					typeIndex.delete(sessionSequenceOrder);
+				}
+			}
 		}
 	}
 

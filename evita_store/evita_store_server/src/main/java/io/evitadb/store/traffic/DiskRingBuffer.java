@@ -113,7 +113,7 @@ public class DiskRingBuffer {
 	 * Contains set of postponed index updates, that were captured during initial session index creation.
 	 * The reference is empty when no indexing is being done (i.e. almost always).
 	 */
-	private final AtomicReference<Deque<Runnable>> postponedIndexUpdates = new AtomicReference<>();
+	private final AtomicReference<Deque<Consumer<TrafficRecordingIndex>>> postponedIndexUpdates = new AtomicReference<>();
 	/**
 	 * Transaction used for writing to the session index.
 	 */
@@ -410,19 +410,16 @@ public class DiskRingBuffer {
 			ofNullable(this.postponedIndexUpdates.get())
 				.ifPresent(
 					postponedUpdates -> postponedUpdates.add(
-						() -> {
-							final TrafficRecordingIndex newIndex = this.sessionIndex.get();
-							newIndex.setupSession(
-								sessionLocation,
-								sessionId,
-								created,
-								durationInMillis,
-								fetchCount,
-								bytesFetchedTotal,
-								recordingTypes,
-								labels
-							);
-						}
+						theIndex -> theIndex.setupSession(
+							sessionLocation,
+							sessionId,
+							created,
+							durationInMillis,
+							fetchCount,
+							bytesFetchedTotal,
+							recordingTypes,
+							labels
+						)
 					)
 				);
 		}
@@ -547,7 +544,10 @@ public class DiskRingBuffer {
 							diskBufferFileReadInputStream,
 							reader,
 							e -> {
-								throw new IndexNotReady(0);
+								// session would be invalid, remove it from the index
+								index.removeSession(sessionLocation.sequenceOrder());
+								log.error("Error while reading session records: {}", e.getMessage());
+								return null;
 							}
 						)
 						.forEach(tr -> index.indexRecording(sessionLocation.sequenceOrder(), tr));
@@ -555,10 +555,10 @@ public class DiskRingBuffer {
 				}
 
 				// index is ready, process postponed updates
-				final Deque<Runnable> theLambdasToExecute = this.postponedIndexUpdates.getAndSet(null);
+				final Deque<Consumer<TrafficRecordingIndex>> theLambdasToExecute = this.postponedIndexUpdates.getAndSet(null);
 				notNull(theLambdasToExecute, "Postponed index updates are null. This is not expected!");
 				theLambdasToExecute.forEach(lambda -> {
-					lambda.run();
+					lambda.accept(index);
 					this.indexedSessions.incrementAndGet();
 				});
 
@@ -666,6 +666,10 @@ public class DiskRingBuffer {
 	 *                          used to adjust the position of the ring buffer tail.
 	 */
 	private void updateSessionLocations(int totalBytesToWrite) throws IOException {
+		if (totalBytesToWrite == 0) {
+			// no bytes to write, nothing to update
+			return;
+		}
 		final long newTail = this.ringBufferTail + totalBytesToWrite;
 		SessionLocation head = this.sessionLocations.peekFirst();
 		while (head != null) {
