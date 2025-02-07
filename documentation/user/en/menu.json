@@ -95,6 +95,10 @@
 		"path": "/query/basics.md"
 	  },
 	  {
+		"title": "Header",
+		"path": "/query/filtering/behavioral.md"
+	  },
+	  {
 		"title": "Filtering",
 		"children": [
 		  {
