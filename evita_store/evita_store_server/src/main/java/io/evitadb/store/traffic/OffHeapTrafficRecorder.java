@@ -717,8 +717,8 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 	private long index() {
 		try {
 			this.diskBuffer.indexData(this::readTrafficRecord);
-		} catch (IndexNotReady ex) {
-			this.indexTask.scheduleImmediately();
+		} catch (Exception ex) {
+			log.error("Failed to index disk buffer.", ex);
 		}
 		return -1L;
 	}

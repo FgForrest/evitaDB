@@ -675,7 +675,10 @@ public class TrafficRecordingIndex implements
 		this.sessionFetchCountIndex.delete(sessionDescriptor.getMaxFetchCount());
 		this.sessionBytesFetchedIndex.delete(sessionDescriptor.getMaxBytesFetchedTotal());
 		for (TrafficRecordingType recordingType : sessionDescriptor.getRecordingTypes()) {
-			this.sessionRecordingTypeIndex.get(recordingType).delete(sessionSequenceOrder);
+			final TransactionalObjectBPlusTree<Long, Long> typeIndex = this.sessionRecordingTypeIndex.get(recordingType);
+			if (typeIndex != null) {
+				typeIndex.delete(sessionSequenceOrder);
+			}
 		}
 	}
 

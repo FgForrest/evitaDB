@@ -207,6 +207,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	private static TrafficRecordingEngine createTrafficRecordingEngine(@Nonnull SealedCatalogSchema catalogSchema) {
 		return new TrafficRecordingEngine(
 			catalogSchema.getName(),
+			CatalogState.WARMING_UP,
 			DefaultTracingContext.INSTANCE,
 			EvitaConfiguration.builder()
 				.storage(StorageOptions.builder().build())
