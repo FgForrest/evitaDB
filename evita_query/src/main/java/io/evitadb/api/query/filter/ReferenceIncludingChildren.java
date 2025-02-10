@@ -105,6 +105,8 @@ import java.util.Optional;
  *
  * <p><a href="https://evitadb.io/documentation/query/filtering/references#including-children-having">Visit detailed user documentation</a></p>
  *
+ * TODO JNO - rename back to FacetIncludingChildren
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @ConstraintDefinition(

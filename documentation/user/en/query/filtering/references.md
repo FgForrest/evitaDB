@@ -1,6 +1,6 @@
 ---
 title: Reference filtering
-date: '7.11.2023'
+date: '10.2.2025'
 perex: |
   Reference filtering is used to filter entities based on their references to other entities in the catalog or
   attributes specified in those relations.
@@ -296,3 +296,86 @@ changed accordingly:
 </LS>
 
 </Note>
+
+### Including children
+
+```evitaql-syntax
+includingChildren()
+```
+
+The <LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/ReferenceIncludingChildren.java</SourceClass></LS> 
+filtering constraint can only be placed within a `facetHaving` parent constraint and only if the parent constraint refers 
+to the hierarchical entity. This constraint will automatically propagate all child entities of any entity that matches
+the `facetHaving` constraint to that parent constraint, as if the `facetHaving` contained the children directly.
+
+Let's illustrate this situation with some real data. Imagine you have a category `Laptops` with subcategories `Netbooks`,
+`Ultrabooks` and so on:
+
+![Laptops category listing](assets/laptops-category-listing.png "Laptops category listing")
+
+Products can be related to any of these sub-categories, or directly to the `Laptops` category (if they don't match any
+of the sub-categories). If you generated a facet summary for the `category` reference, you'd get all the categories with
+matching products on the same level. But you may want to visualise the category part of the facet summary as a tree
+using the [`hierarchy](../requirements/hierarchy.md#hierarchy-of-reference) requirement. When the user selects one of 
+the category options, it should automatically select all subcategories as well, and also change the predicted
+[facet statistics](../requirements/facet.md#facet-summary-of-reference) accordingly.
+
+To achieve this, you can use the `includingChildren` constraint within the `facetHaving` constraint:
+
+TODO JNO - add example 
+
+### Including children having
+
+```evitaql-syntax
+includingChildrenHaving(
+    filterConstraint:any+
+)
+```
+
+<dl>
+    <dt>filterConstraint:any+</dt>
+    <dd>
+        one or more filter constraints that further narrow down the child entities that will be included in 
+        the `facetHaving` parent constraint
+    </dd>
+</dl>
+
+The <LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/ReferenceIncludingChildren.java</SourceClass></LS>
+filtering constraint is a specialisation of [`includingChildren`](#including-children) that allows you to restrict
+the child entities that are included in the `facetHaving` parent constraint. This can be useful if you are using 
+filters in the [`facetSummary`](../requirements/facet.md#facet-summary-of-reference) and your selection logic needs 
+to match it.
+
+To better understand how the `includingChildrenHaving' constraint works, let's look at an example:
+
+TODO JNO - add example
+
+### Including children except
+
+```evitaql-syntax
+includingChildrenExcept(
+    filterConstraint:any+
+)
+```
+
+<dl>
+    <dt>filterConstraint:any+</dt>
+    <dd>
+        one or more filter constraints that excludes specific child entities from being included in 
+        the `facetHaving` parent constraint
+    </dd>
+</dl>
+
+The <LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/ReferenceIncludingChildren.java</SourceClass></LS>
+filtering constraint is a specialisation of [`includingChildren`](#including-children) and exact opposite to [`includingChildrenHaving`]
+that allows you to exclude the matched child entities from being included in the `facetHaving` parent constraint.
+This can be useful if you are using filters in the [`facetSummary`](../requirements/facet.md#facet-summary-of-reference) 
+and your selection logic needs to match it.
+
+You can also combine the `includingChildrenExcept` constraint with the `includingChildrenHaving` constraint. 
+In this case, the `includingChildrenHaving` constraint is evaluated first and the `includingChildrenExcept` constraint 
+is applied to the result of the `includingChildrenHaving` constraint.
+
+To better understand how the `includingChildrenExcept' constraint works, let's look at an example:
+
+TODO JNO - add example
