@@ -1158,11 +1158,10 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 		);
 	}
 
-	@DisplayName("Should return products matching random facet within hierarchy tree")
+	@DisplayName("Should return products matching hierarchical facet including all its children")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
 	void shouldReturnProductsWithHierarchicalFacetSubTree(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Hierarchy categoryHierarchy, Map<Integer, Integer> parameterGroupMapping) {
-		/* TODO JNO - test include and exclude */
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1211,7 +1210,7 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 						result.getRecordData()
 					);
 
-					final int[] selectedIdsAsSet = Stream.concat(
+					final int[] selectedIds = Stream.concat(
 							Arrays.stream(facetIds),
 							categoryHierarchy.getAllChildItems(rootItem.getCode())
 								.stream()
@@ -1239,7 +1238,7 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 						parameterGroupMapping,
 						referenceName -> {
 							if (Entities.CATEGORY.equals(referenceName)) {
-								return selectedIdsAsSet;
+								return selectedIds;
 							} else {
 								return ArrayUtils.EMPTY_INT_ARRAY;
 							}
@@ -1248,6 +1247,192 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 
 					assertFacetSummary(expectedSummary, actualFacetSummary);
 				}
+			}
+		);
+	}
+
+	@DisplayName("Should return products matching hierarchical facet including some of its children")
+	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
+	@Test
+	void shouldReturnProductsWithPartialHierarchicalFacetSubTree(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Hierarchy categoryHierarchy, Map<Integer, Integer> parameterGroupMapping) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final HierarchyItem rootItem = categoryHierarchy.getItem("3");
+				final int hierarchyRoot = Integer.parseInt(rootItem.getCode());
+				final Integer[] facetIds = new Integer[] {hierarchyRoot};
+
+				final List<HierarchyItem> childItems = categoryHierarchy.getChildItems(rootItem.getCode());
+				assertEquals(2, childItems.size());
+				assertArrayEquals(new int[] {7, 9}, childItems.stream().mapToInt(it -> Integer.parseInt(it.getCode())).toArray());
+
+				final Query query = query(
+					collection(Entities.PRODUCT),
+					filterBy(
+						and(
+							userFilter(
+								facetHaving(
+									Entities.CATEGORY,
+									entityPrimaryKeyInSet(facetIds),
+									includingChildren(
+										entityPrimaryKeyInSet(7)
+									)
+								)
+							)
+						)
+					),
+					require(
+						page(1, Integer.MAX_VALUE),
+						debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+						facetSummary(FacetStatisticsDepth.IMPACT)
+					)
+				);
+
+				final EvitaResponse<EntityReference> result = session.query(
+					query,
+					EntityReference.class
+				);
+
+				assertResultIs(
+					"Querying products with selected root category " + rootItem.getCode() + ": " + Arrays.toString(facetIds),
+					originalProductEntities,
+					sealedEntity -> {
+						// is within requested hierarchy
+						return sealedEntity.getReferences(Entities.CATEGORY)
+							.stream()
+							.anyMatch(it -> {
+									final Set<Integer> parentItems = categoryHierarchy.getParentItems(String.valueOf(it.getReferencedPrimaryKey()))
+										.stream()
+										.map(theParent -> Integer.parseInt(theParent.getCode()))
+										.collect(Collectors.toSet());
+									return (it.getReferencedPrimaryKey() == hierarchyRoot || parentItems.contains(hierarchyRoot)) &&
+											!(it.getReferencedPrimaryKey() == 9 || parentItems.contains(9));
+								}
+							);
+					},
+					result.getRecordData()
+				);
+
+				final int[] selectedIds = new int[] {3, 7};
+				final FacetSummary actualFacetSummary = result.getExtraResult(FacetSummary.class);
+
+				final FacetSummaryWithResultCount expectedSummary = computeFacetSummary(
+					session,
+					productSchema,
+					originalProductEntities,
+					null,
+					null,
+					null,
+					null,
+					query,
+					null,
+					__ -> FacetStatisticsDepth.IMPACT,
+					null,
+					null,
+					parameterGroupMapping,
+					referenceName -> {
+						if (Entities.CATEGORY.equals(referenceName)) {
+							return selectedIds;
+						} else {
+							return ArrayUtils.EMPTY_INT_ARRAY;
+						}
+					}
+				);
+
+				assertFacetSummary(expectedSummary, actualFacetSummary);
+			}
+		);
+	}
+
+	@DisplayName("Should return products matching hierarchical facet excluding some of its children")
+	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
+	@Test
+	void shouldReturnProductsWithHierarchicalFacetSubTreeExcludingSome(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Hierarchy categoryHierarchy, Map<Integer, Integer> parameterGroupMapping) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final HierarchyItem rootItem = categoryHierarchy.getItem("3");
+				final int hierarchyRoot = Integer.parseInt(rootItem.getCode());
+				final Integer[] facetIds = new Integer[] {hierarchyRoot};
+
+				final List<HierarchyItem> childItems = categoryHierarchy.getChildItems(rootItem.getCode());
+				assertEquals(2, childItems.size());
+				assertArrayEquals(new int[] {7, 9}, childItems.stream().mapToInt(it -> Integer.parseInt(it.getCode())).toArray());
+
+				final Query query = query(
+					collection(Entities.PRODUCT),
+					filterBy(
+						and(
+							userFilter(
+								facetHaving(
+									Entities.CATEGORY,
+									entityPrimaryKeyInSet(facetIds),
+									includingChildrenExcept(
+										entityPrimaryKeyInSet(9)
+									)
+								)
+							)
+						)
+					),
+					require(
+						page(1, Integer.MAX_VALUE),
+						debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+						facetSummary(FacetStatisticsDepth.IMPACT)
+					)
+				);
+
+				final EvitaResponse<EntityReference> result = session.query(
+					query,
+					EntityReference.class
+				);
+
+				assertResultIs(
+					"Querying products with selected root category " + rootItem.getCode() + ": " + Arrays.toString(facetIds),
+					originalProductEntities,
+					sealedEntity -> {
+						// is within requested hierarchy
+						return sealedEntity.getReferences(Entities.CATEGORY)
+							.stream()
+							.anyMatch(it -> {
+									final Set<Integer> parentItems = categoryHierarchy.getParentItems(String.valueOf(it.getReferencedPrimaryKey()))
+										.stream()
+										.map(theParent -> Integer.parseInt(theParent.getCode()))
+										.collect(Collectors.toSet());
+									return (it.getReferencedPrimaryKey() == hierarchyRoot || parentItems.contains(hierarchyRoot)) &&
+										!(it.getReferencedPrimaryKey() == 9 || parentItems.contains(9));
+								}
+							);
+					},
+					result.getRecordData()
+				);
+
+				final int[] selectedIds = new int[] {3, 7};
+				final FacetSummary actualFacetSummary = result.getExtraResult(FacetSummary.class);
+
+				final FacetSummaryWithResultCount expectedSummary = computeFacetSummary(
+					session,
+					productSchema,
+					originalProductEntities,
+					null,
+					null,
+					null,
+					null,
+					query,
+					null,
+					__ -> FacetStatisticsDepth.IMPACT,
+					null,
+					null,
+					parameterGroupMapping,
+					referenceName -> {
+						if (Entities.CATEGORY.equals(referenceName)) {
+							return selectedIds;
+						} else {
+							return ArrayUtils.EMPTY_INT_ARRAY;
+						}
+					}
+				);
+
+				assertFacetSummary(expectedSummary, actualFacetSummary);
 			}
 		);
 	}
