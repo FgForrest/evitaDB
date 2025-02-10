@@ -27,6 +27,7 @@ package io.evitadb.api.query.filter;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
+import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.require.FacetSummary;
@@ -82,20 +83,20 @@ import java.io.Serializable;
 	name = "includingChildrenExcept",
 	shortDescription = "The constraint automatically selects all children except those matching specified sub-constraints of the hierarchical entities matched by `facetHaving` container.",
 	userDocsLink = "/documentation/query/filtering/references#including-children-except",
-	supportedIn = ConstraintDomain.FACET
+	supportedIn = ConstraintDomain.REFERENCE
 )
-public class FacetIncludingChildrenExcept extends AbstractFilterConstraintContainer implements FacetSpecificationFilterConstraint {
+public class ReferenceIncludingChildrenExcept extends AbstractFilterConstraintContainer implements ReferenceSpecificationFilterConstraint {
 	@Serial private static final long serialVersionUID = 3828147822588237136L;
 	private static final String CONSTRAINT_NAME = "includingChildrenExcept";
 
-	public FacetIncludingChildrenExcept() {
+	public ReferenceIncludingChildrenExcept() {
 		// because this query can be used only within some other facet query, it would be
 		// unnecessary to duplicate the facet prefix
 		super(CONSTRAINT_NAME);
 	}
 
 	@Creator
-	public FacetIncludingChildrenExcept(@Nonnull FilterConstraint child) {
+	public ReferenceIncludingChildrenExcept(@Nonnull @Child(domain = ConstraintDomain.ENTITY) FilterConstraint child) {
 		super(CONSTRAINT_NAME, child);
 	}
 
@@ -112,7 +113,7 @@ public class FacetIncludingChildrenExcept extends AbstractFilterConstraintContai
 	@Nonnull
 	@Override
 	public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
-		throw new UnsupportedOperationException("FacetIncludingChildrenExcept filtering constraint has no arguments!");
+		throw new UnsupportedOperationException("ReferenceIncludingChildrenExcept filtering constraint has no arguments!");
 	}
 
 	@Nonnull
@@ -120,13 +121,13 @@ public class FacetIncludingChildrenExcept extends AbstractFilterConstraintContai
 	public FilterConstraint getCopyWithNewChildren(@Nonnull FilterConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
 		Assert.isPremiseValid(
 			ArrayUtils.isEmpty(additionalChildren),
-			"FacetIncludingChildrenExcept cannot have additional children."
+			"ReferenceIncludingChildrenExcept cannot have additional children."
 		);
 		Assert.isPremiseValid(
 			children.length <= 1,
-			"FacetIncludingChildrenExcept can have only one child."
+			"ReferenceIncludingChildrenExcept can have only one child."
 		);
-		return children.length == 0 ? new FacetIncludingChildrenExcept() : new FacetIncludingChildrenExcept(children[0]);
+		return children.length == 0 ? new ReferenceIncludingChildrenExcept() : new ReferenceIncludingChildrenExcept(children[0]);
 	}
 
 }

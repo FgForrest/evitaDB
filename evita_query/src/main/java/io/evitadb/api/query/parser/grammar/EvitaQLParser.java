@@ -166,8 +166,8 @@ public class EvitaQLParser extends Parser {
 			"'attributeIs'", "'attributeIsNull'", "'attributeIsNotNull'", "'attributeInRange'",
 			"'attributeInRangeNow'", "'entityPrimaryKeyInSet'", "'entityLocaleEquals'",
 			"'priceInCurrency'", "'priceInPriceLists'", "'priceValidInNow'", "'priceValidIn'",
-			"'priceBetween'", "'facetHaving'", "'includingChildren'", "'includingChildrenHaving'",
-			"'includingChildrenExcept'", "'referenceHaving'", "'hierarchyWithin'",
+			"'priceBetween'", "'facetHaving'", "'referenceHaving'", "'includingChildren'",
+			"'includingChildrenHaving'", "'includingChildrenExcept'", "'hierarchyWithin'",
 			"'hierarchyWithinSelf'", "'hierarchyWithinRoot'", "'hierarchyWithinRootSelf'",
 			"'directRelation'", "'having'", "'excludingRoot'", "'excluding'", "'entityHaving'",
 			"'inScope'", "'scope'", "'orderBy'", "'orderGroupBy'", "'attributeNatural'",
@@ -987,6 +987,26 @@ public class EvitaQLParser extends Parser {
 			else return visitor.visitChildren(this);
 		}
 	}
+	public static class ReferenceIncludingChildrenHavingConstraintContext extends FilterConstraintContext {
+		public FilterConstraintArgsContext args;
+		public FilterConstraintArgsContext filterConstraintArgs() {
+			return getRuleContext(FilterConstraintArgsContext.class,0);
+		}
+		public ReferenceIncludingChildrenHavingConstraintContext(FilterConstraintContext ctx) { copyFrom(ctx); }
+		@Override
+		public void enterRule(ParseTreeListener listener) {
+			if ( listener instanceof EvitaQLListener ) ((EvitaQLListener)listener).enterReferenceIncludingChildrenHavingConstraint(this);
+		}
+		@Override
+		public void exitRule(ParseTreeListener listener) {
+			if ( listener instanceof EvitaQLListener ) ((EvitaQLListener)listener).exitReferenceIncludingChildrenHavingConstraint(this);
+		}
+		@Override
+		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+			if ( visitor instanceof EvitaQLVisitor ) return ((EvitaQLVisitor<? extends T>)visitor).visitReferenceIncludingChildrenHavingConstraint(this);
+			else return visitor.visitChildren(this);
+		}
+	}
 	public static class HierarchyExcludingRootConstraintContext extends FilterConstraintContext {
 		public EmptyArgsContext emptyArgs() {
 			return getRuleContext(EmptyArgsContext.class,0);
@@ -1169,6 +1189,26 @@ public class EvitaQLParser extends Parser {
 		@Override
 		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
 			if ( visitor instanceof EvitaQLVisitor ) return ((EvitaQLVisitor<? extends T>)visitor).visitAttributeEqualsTrueConstraint(this);
+			else return visitor.visitChildren(this);
+		}
+	}
+	public static class ReferenceIncludingChildrenExceptConstraintContext extends FilterConstraintContext {
+		public FilterConstraintArgsContext args;
+		public FilterConstraintArgsContext filterConstraintArgs() {
+			return getRuleContext(FilterConstraintArgsContext.class,0);
+		}
+		public ReferenceIncludingChildrenExceptConstraintContext(FilterConstraintContext ctx) { copyFrom(ctx); }
+		@Override
+		public void enterRule(ParseTreeListener listener) {
+			if ( listener instanceof EvitaQLListener ) ((EvitaQLListener)listener).enterReferenceIncludingChildrenExceptConstraint(this);
+		}
+		@Override
+		public void exitRule(ParseTreeListener listener) {
+			if ( listener instanceof EvitaQLListener ) ((EvitaQLListener)listener).exitReferenceIncludingChildrenExceptConstraint(this);
+		}
+		@Override
+		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+			if ( visitor instanceof EvitaQLVisitor ) return ((EvitaQLVisitor<? extends T>)visitor).visitReferenceIncludingChildrenExceptConstraint(this);
 			else return visitor.visitChildren(this);
 		}
 	}
@@ -1355,25 +1395,6 @@ public class EvitaQLParser extends Parser {
 			else return visitor.visitChildren(this);
 		}
 	}
-	public static class FacetIncludingChildrenConstraintContext extends FilterConstraintContext {
-		public EmptyArgsContext emptyArgs() {
-			return getRuleContext(EmptyArgsContext.class,0);
-		}
-		public FacetIncludingChildrenConstraintContext(FilterConstraintContext ctx) { copyFrom(ctx); }
-		@Override
-		public void enterRule(ParseTreeListener listener) {
-			if ( listener instanceof EvitaQLListener ) ((EvitaQLListener)listener).enterFacetIncludingChildrenConstraint(this);
-		}
-		@Override
-		public void exitRule(ParseTreeListener listener) {
-			if ( listener instanceof EvitaQLListener ) ((EvitaQLListener)listener).exitFacetIncludingChildrenConstraint(this);
-		}
-		@Override
-		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
-			if ( visitor instanceof EvitaQLVisitor ) return ((EvitaQLVisitor<? extends T>)visitor).visitFacetIncludingChildrenConstraint(this);
-			else return visitor.visitChildren(this);
-		}
-	}
 	public static class AttributeLessThanConstraintContext extends FilterConstraintContext {
 		public ClassifierWithValueArgsContext args;
 		public ClassifierWithValueArgsContext classifierWithValueArgs() {
@@ -1534,26 +1555,6 @@ public class EvitaQLParser extends Parser {
 			else return visitor.visitChildren(this);
 		}
 	}
-	public static class FacetIncludingChildrenHavingConstraintContext extends FilterConstraintContext {
-		public FilterConstraintArgsContext args;
-		public FilterConstraintArgsContext filterConstraintArgs() {
-			return getRuleContext(FilterConstraintArgsContext.class,0);
-		}
-		public FacetIncludingChildrenHavingConstraintContext(FilterConstraintContext ctx) { copyFrom(ctx); }
-		@Override
-		public void enterRule(ParseTreeListener listener) {
-			if ( listener instanceof EvitaQLListener ) ((EvitaQLListener)listener).enterFacetIncludingChildrenHavingConstraint(this);
-		}
-		@Override
-		public void exitRule(ParseTreeListener listener) {
-			if ( listener instanceof EvitaQLListener ) ((EvitaQLListener)listener).exitFacetIncludingChildrenHavingConstraint(this);
-		}
-		@Override
-		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
-			if ( visitor instanceof EvitaQLVisitor ) return ((EvitaQLVisitor<? extends T>)visitor).visitFacetIncludingChildrenHavingConstraint(this);
-			else return visitor.visitChildren(this);
-		}
-	}
 	public static class AttributeGreaterThanConstraintContext extends FilterConstraintContext {
 		public ClassifierWithValueArgsContext args;
 		public ClassifierWithValueArgsContext classifierWithValueArgs() {
@@ -1614,26 +1615,6 @@ public class EvitaQLParser extends Parser {
 		@Override
 		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
 			if ( visitor instanceof EvitaQLVisitor ) return ((EvitaQLVisitor<? extends T>)visitor).visitOrConstraint(this);
-			else return visitor.visitChildren(this);
-		}
-	}
-	public static class FacetIncludingChildrenExceptConstraintContext extends FilterConstraintContext {
-		public FilterConstraintArgsContext args;
-		public FilterConstraintArgsContext filterConstraintArgs() {
-			return getRuleContext(FilterConstraintArgsContext.class,0);
-		}
-		public FacetIncludingChildrenExceptConstraintContext(FilterConstraintContext ctx) { copyFrom(ctx); }
-		@Override
-		public void enterRule(ParseTreeListener listener) {
-			if ( listener instanceof EvitaQLListener ) ((EvitaQLListener)listener).enterFacetIncludingChildrenExceptConstraint(this);
-		}
-		@Override
-		public void exitRule(ParseTreeListener listener) {
-			if ( listener instanceof EvitaQLListener ) ((EvitaQLListener)listener).exitFacetIncludingChildrenExceptConstraint(this);
-		}
-		@Override
-		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
-			if ( visitor instanceof EvitaQLVisitor ) return ((EvitaQLVisitor<? extends T>)visitor).visitFacetIncludingChildrenExceptConstraint(this);
 			else return visitor.visitChildren(this);
 		}
 	}
@@ -1737,6 +1718,25 @@ public class EvitaQLParser extends Parser {
 		@Override
 		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
 			if ( visitor instanceof EvitaQLVisitor ) return ((EvitaQLVisitor<? extends T>)visitor).visitAttributeInRangeNowConstraint(this);
+			else return visitor.visitChildren(this);
+		}
+	}
+	public static class ReferenceIncludingChildrenConstraintContext extends FilterConstraintContext {
+		public EmptyArgsContext emptyArgs() {
+			return getRuleContext(EmptyArgsContext.class,0);
+		}
+		public ReferenceIncludingChildrenConstraintContext(FilterConstraintContext ctx) { copyFrom(ctx); }
+		@Override
+		public void enterRule(ParseTreeListener listener) {
+			if ( listener instanceof EvitaQLListener ) ((EvitaQLListener)listener).enterReferenceIncludingChildrenConstraint(this);
+		}
+		@Override
+		public void exitRule(ParseTreeListener listener) {
+			if ( listener instanceof EvitaQLListener ) ((EvitaQLListener)listener).exitReferenceIncludingChildrenConstraint(this);
+		}
+		@Override
+		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+			if ( visitor instanceof EvitaQLVisitor ) return ((EvitaQLVisitor<? extends T>)visitor).visitReferenceIncludingChildrenConstraint(this);
 			else return visitor.visitChildren(this);
 		}
 	}
@@ -2129,57 +2129,57 @@ public class EvitaQLParser extends Parser {
 				}
 				break;
 			case T__35:
-				_localctx = new FacetIncludingChildrenConstraintContext(_localctx);
+				_localctx = new ReferenceHavingConstraintContext(_localctx);
 				enterOuterAlt(_localctx, 32);
 				{
 				setState(316);
 				match(T__35);
-				setState(317);
-				emptyArgs();
-				}
-				break;
-			case T__36:
-				_localctx = new FacetIncludingChildrenHavingConstraintContext(_localctx);
-				enterOuterAlt(_localctx, 33);
-				{
-				setState(318);
-				match(T__36);
 				setState(319);
-				((FacetIncludingChildrenHavingConstraintContext)_localctx).args = filterConstraintArgs();
-				}
-				break;
-			case T__37:
-				_localctx = new FacetIncludingChildrenExceptConstraintContext(_localctx);
-				enterOuterAlt(_localctx, 34);
-				{
-				setState(320);
-				match(T__37);
-				setState(321);
-				((FacetIncludingChildrenExceptConstraintContext)_localctx).args = filterConstraintArgs();
-				}
-				break;
-			case T__38:
-				_localctx = new ReferenceHavingConstraintContext(_localctx);
-				enterOuterAlt(_localctx, 35);
-				{
-				setState(322);
-				match(T__38);
-				setState(325);
 				_errHandler.sync(this);
 				switch ( getInterpreter().adaptivePredict(_input,7,_ctx) ) {
 				case 1:
 					{
-					setState(323);
+					setState(317);
 					((ReferenceHavingConstraintContext)_localctx).args = classifierArgs();
 					}
 					break;
 				case 2:
 					{
-					setState(324);
+					setState(318);
 					classifierWithFilterConstraintArgs();
 					}
 					break;
 				}
+				}
+				break;
+			case T__36:
+				_localctx = new ReferenceIncludingChildrenConstraintContext(_localctx);
+				enterOuterAlt(_localctx, 33);
+				{
+				setState(321);
+				match(T__36);
+				setState(322);
+				emptyArgs();
+				}
+				break;
+			case T__37:
+				_localctx = new ReferenceIncludingChildrenHavingConstraintContext(_localctx);
+				enterOuterAlt(_localctx, 34);
+				{
+				setState(323);
+				match(T__37);
+				setState(324);
+				((ReferenceIncludingChildrenHavingConstraintContext)_localctx).args = filterConstraintArgs();
+				}
+				break;
+			case T__38:
+				_localctx = new ReferenceIncludingChildrenExceptConstraintContext(_localctx);
+				enterOuterAlt(_localctx, 35);
+				{
+				setState(325);
+				match(T__38);
+				setState(326);
+				((ReferenceIncludingChildrenExceptConstraintContext)_localctx).args = filterConstraintArgs();
 				}
 				break;
 			case T__39:
@@ -13159,8 +13159,8 @@ public class EvitaQLParser extends Parser {
 		"\3\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13"+
 		"\3\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13"+
 		"\3\13\3\13\3\13\5\13\u012c\n\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13\5\13"+
-		"\u0135\n\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13"+
-		"\3\13\3\13\3\13\3\13\3\13\5\13\u0148\n\13\3\13\3\13\3\13\3\13\3\13\3\13"+
+		"\u0135\n\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13\5\13"+
+		"\u0142\n\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13"+
 		"\3\13\3\13\3\13\5\13\u0153\n\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13\3\13"+
 		"\3\13\3\13\3\13\3\13\3\13\3\13\5\13\u0163\n\13\3\f\3\f\3\f\5\f\u0168\n"+
 		"\f\3\f\3\f\3\f\5\f\u016d\n\f\3\f\3\f\3\f\3\f\3\f\3\f\3\f\3\f\3\f\5\f\u0178"+
@@ -13298,14 +13298,14 @@ public class EvitaQLParser extends Parser {
 		"\2\u0133\u0135\5H%\2\u0134\u0132\3\2\2\2\u0134\u0133\3\2\2\2\u0135\u0163"+
 		"\3\2\2\2\u0136\u0137\7\"\2\2\u0137\u0163\5(\25\2\u0138\u0139\7#\2\2\u0139"+
 		"\u0163\5B\"\2\u013a\u013b\7$\2\2\u013b\u0163\5F$\2\u013c\u013d\7%\2\2"+
-		"\u013d\u0163\5J&\2\u013e\u013f\7&\2\2\u013f\u0163\5(\25\2\u0140\u0141"+
-		"\7\'\2\2\u0141\u0163\5.\30\2\u0142\u0143\7(\2\2\u0143\u0163\5.\30\2\u0144"+
-		"\u0147\7)\2\2\u0145\u0148\5\66\34\2\u0146\u0148\5J&\2\u0147\u0145\3\2"+
-		"\2\2\u0147\u0146\3\2\2\2\u0148\u0163\3\2\2\2\u0149\u014a\7*\2\2\u014a"+
-		"\u0163\5R*\2\u014b\u014c\7+\2\2\u014c\u0163\5T+\2\u014d\u014e\7,\2\2\u014e"+
-		"\u0163\5V,\2\u014f\u0152\7-\2\2\u0150\u0153\5(\25\2\u0151\u0153\5X-\2"+
-		"\u0152\u0150\3\2\2\2\u0152\u0151\3\2\2\2\u0153\u0163\3\2\2\2\u0154\u0155"+
-		"\7.\2\2\u0155\u0163\5(\25\2\u0156\u0157\7/\2\2\u0157\u0163\5,\27\2\u0158"+
+		"\u013d\u0163\5J&\2\u013e\u0141\7&\2\2\u013f\u0142\5\66\34\2\u0140\u0142"+
+		"\5J&\2\u0141\u013f\3\2\2\2\u0141\u0140\3\2\2\2\u0142\u0163\3\2\2\2\u0143"+
+		"\u0144\7\'\2\2\u0144\u0163\5(\25\2\u0145\u0146\7(\2\2\u0146\u0163\5.\30"+
+		"\2\u0147\u0148\7)\2\2\u0148\u0163\5.\30\2\u0149\u014a\7*\2\2\u014a\u0163"+
+		"\5R*\2\u014b\u014c\7+\2\2\u014c\u0163\5T+\2\u014d\u014e\7,\2\2\u014e\u0163"+
+		"\5V,\2\u014f\u0152\7-\2\2\u0150\u0153\5(\25\2\u0151\u0153\5X-\2\u0152"+
+		"\u0150\3\2\2\2\u0152\u0151\3\2\2\2\u0153\u0163\3\2\2\2\u0154\u0155\7."+
+		"\2\2\u0155\u0163\5(\25\2\u0156\u0157\7/\2\2\u0157\u0163\5,\27\2\u0158"+
 		"\u0159\7\60\2\2\u0159\u0163\5(\25\2\u015a\u015b\7\61\2\2\u015b\u0163\5"+
 		",\27\2\u015c\u015d\7\62\2\2\u015d\u0163\5.\30\2\u015e\u015f\7\63\2\2\u015f"+
 		"\u0163\5\u00c0a\2\u0160\u0161\7\64\2\2\u0161\u0163\5D#\2\u0162\u00f1\3"+
@@ -13318,7 +13318,7 @@ public class EvitaQLParser extends Parser {
 		"\2\2\u0162\u0126\3\2\2\2\u0162\u0128\3\2\2\2\u0162\u012d\3\2\2\2\u0162"+
 		"\u012f\3\2\2\2\u0162\u0131\3\2\2\2\u0162\u0136\3\2\2\2\u0162\u0138\3\2"+
 		"\2\2\u0162\u013a\3\2\2\2\u0162\u013c\3\2\2\2\u0162\u013e\3\2\2\2\u0162"+
-		"\u0140\3\2\2\2\u0162\u0142\3\2\2\2\u0162\u0144\3\2\2\2\u0162\u0149\3\2"+
+		"\u0143\3\2\2\2\u0162\u0145\3\2\2\2\u0162\u0147\3\2\2\2\u0162\u0149\3\2"+
 		"\2\2\u0162\u014b\3\2\2\2\u0162\u014d\3\2\2\2\u0162\u014f\3\2\2\2\u0162"+
 		"\u0154\3\2\2\2\u0162\u0156\3\2\2\2\u0162\u0158\3\2\2\2\u0162\u015a\3\2"+
 		"\2\2\u0162\u015c\3\2\2\2\u0162\u015e\3\2\2\2\u0162\u0160\3\2\2\2\u0163"+
@@ -13718,7 +13718,7 @@ public class EvitaQLParser extends Parser {
 		"\3\2\2\2\u05df\u05d6\3\2\2\2\u05df\u05d7\3\2\2\2\u05df\u05d8\3\2\2\2\u05df"+
 		"\u05d9\3\2\2\2\u05df\u05da\3\2\2\2\u05df\u05db\3\2\2\2\u05df\u05dc\3\2"+
 		"\2\2\u05df\u05dd\3\2\2\2\u05df\u05de\3\2\2\2\u05e0\u00cd\3\2\2\2m\u00e7"+
-		"\u00ef\u00f8\u00fd\u0104\u012b\u0134\u0147\u0152\u0162\u0167\u016c\u0177"+
+		"\u00ef\u00f8\u00fd\u0104\u012b\u0134\u0141\u0152\u0162\u0167\u016c\u0177"+
 		"\u0184\u0196\u019b\u01a4\u01a9\u01b6\u01bf\u01d6\u0203\u022a\u024e\u0255"+
 		"\u025d\u0265\u026d\u0273\u027d\u028b\u0296\u02a5\u02b4\u02c7\u02d5\u02fd"+
 		"\u0307\u0311\u031e\u0329\u0335\u0338\u0342\u0353\u0361\u0369\u036e\u0376"+

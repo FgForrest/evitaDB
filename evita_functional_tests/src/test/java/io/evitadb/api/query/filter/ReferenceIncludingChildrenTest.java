@@ -33,22 +33,22 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * This tests verifies basic properties of {@link FacetIncludingChildren} query.
+ * This tests verifies basic properties of {@link ReferenceIncludingChildren} query.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-class FacetIncludingChildrenTest {
+class ReferenceIncludingChildrenTest {
 
 	@Test
 	void shouldCreateViaFactoryClassWorkAsExpected() {
-		final FacetIncludingChildren facetIncludingChildren = includingChildren(entityPrimaryKeyInSet(1, 5, 7));
-		assertEquals(1, facetIncludingChildren.getChildren().length);
-		assertEquals(entityPrimaryKeyInSet(1, 5, 7), facetIncludingChildren.getChildren()[0]);
+		final ReferenceIncludingChildren referenceIncludingChildren = includingChildren(entityPrimaryKeyInSet(1, 5, 7));
+		assertEquals(1, referenceIncludingChildren.getChildren().length);
+		assertEquals(entityPrimaryKeyInSet(1, 5, 7), referenceIncludingChildren.getChildren()[0]);
 	}
 
 	@Test
 	void shouldRecognizeApplicability() {
-		assertTrue(new FacetIncludingChildren().isApplicable());
+		assertTrue(new ReferenceIncludingChildren().isApplicable());
 		assertTrue(includingChildren(entityPrimaryKeyInSet(1)).isApplicable());
 		assertTrue(includingChildren(entityPrimaryKeyInSet(1, 5, 7)).isApplicable());
 	}

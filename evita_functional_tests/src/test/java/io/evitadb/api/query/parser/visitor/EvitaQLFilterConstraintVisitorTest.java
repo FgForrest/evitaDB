@@ -1048,7 +1048,7 @@ class EvitaQLFilterConstraintVisitorTest {
     }
 
     @Test
-    void shouldParseFacetIncludingChildrenConstraint() {
+    void shouldParseReferenceIncludingChildrenConstraint() {
         final FilterConstraint constraint1 = parseFilterConstraintUnsafe("facetHaving('a',includingChildrenHaving(attributeEquals('a',1)))");
         assertEquals(facetHaving("a", includingChildren(attributeEquals("a", 1L))), constraint1);
 
@@ -1063,7 +1063,7 @@ class EvitaQLFilterConstraintVisitorTest {
     }
 
     @Test
-    void shouldNotParseFacetIncludingChildrenConstraint() {
+    void shouldNotParseReferenceIncludingChildrenConstraint() {
         assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("facetHaving(includingChildren)"));
         assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("facetHaving(includingChildrenHaving)"));
         assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("facetHaving('a',includingChildren(attributeEquals('a',1)))"));
@@ -1074,7 +1074,7 @@ class EvitaQLFilterConstraintVisitorTest {
     }
 
     @Test
-    void shouldParseFacetIncludingChildrenExceptConstraint() {
+    void shouldParseReferenceIncludingChildrenExceptConstraint() {
         final FilterConstraint constraint1 = parseFilterConstraintUnsafe("facetHaving('a',includingChildrenExcept(attributeEquals('a',1)))");
         assertEquals(facetHaving("a", includingChildrenExcept(attributeEquals("a", 1L))), constraint1);
 
@@ -1083,7 +1083,7 @@ class EvitaQLFilterConstraintVisitorTest {
     }
 
     @Test
-    void shouldNotParseFacetIncludingChildrenExceptConstraint() {
+    void shouldNotParseReferenceIncludingChildrenExceptConstraint() {
         assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("facetHaving(includingChildrenExcept)"));
         assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("facetHaving('a',includingChildrenExcept())"));
         assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("facetHaving(includingChildrenExcept('a'))"));

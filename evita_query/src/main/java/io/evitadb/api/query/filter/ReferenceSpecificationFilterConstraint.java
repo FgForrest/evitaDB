@@ -23,14 +23,14 @@
 
 package io.evitadb.api.query.filter;
 
-import io.evitadb.api.query.FacetConstraint;
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.ReferenceConstraint;
 
 /**
  * This interface marks all filtering constraints that can be used to further specify facet queries and that can
- * be used within {@link FacetHaving} container.
+ * be used within {@link FacetHaving} or {@link ReferenceHaving} container.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public interface FacetSpecificationFilterConstraint extends FacetConstraint<FilterConstraint>, FilterConstraint {
+public interface ReferenceSpecificationFilterConstraint extends ReferenceConstraint<FilterConstraint>, FilterConstraint {
 }

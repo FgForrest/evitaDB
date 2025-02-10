@@ -28,6 +28,7 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.ConstraintWithSuffix;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
+import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.require.FacetSummary;
@@ -110,21 +111,22 @@ import java.util.Optional;
 	name = "includingChildren",
 	shortDescription = "The constraint automatically selects all children (or their subset satisfying additional constraints) of the hierarchical entities matched by `facetHaving` container.",
 	userDocsLink = "/documentation/query/filtering/references#including-children-having",
-	supportedIn = ConstraintDomain.FACET
+	supportedIn = ConstraintDomain.REFERENCE
 )
-public class FacetIncludingChildren extends AbstractFilterConstraintContainer implements ConstraintWithSuffix, FacetSpecificationFilterConstraint {
+public class ReferenceIncludingChildren extends AbstractFilterConstraintContainer implements ConstraintWithSuffix, ReferenceSpecificationFilterConstraint {
 	@Serial private static final long serialVersionUID = -7258410742839628308L;
 	private static final String SUFFIX_HAVING = "having";
 	private static final String CONSTRAINT_NAME = "includingChildren";
 
-	public FacetIncludingChildren() {
+	@Creator
+	public ReferenceIncludingChildren() {
 		// because this query can be used only within some other facet query, it would be
 		// unnecessary to duplicate the facet prefix
 		super(CONSTRAINT_NAME);
 	}
 
-	@Creator
-	public FacetIncludingChildren(@Nonnull FilterConstraint child) {
+	@Creator(suffix = SUFFIX_HAVING)
+	public ReferenceIncludingChildren(@Nonnull @Child(domain = ConstraintDomain.ENTITY) FilterConstraint child) {
 		super(CONSTRAINT_NAME, child);
 	}
 
@@ -148,7 +150,7 @@ public class FacetIncludingChildren extends AbstractFilterConstraintContainer im
 	@Nonnull
 	@Override
 	public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
-		throw new UnsupportedOperationException("FacetIncludingChildren filtering constraint has no arguments!");
+		throw new UnsupportedOperationException("ReferenceIncludingChildren filtering constraint has no arguments!");
 	}
 
 	@Nonnull
@@ -156,13 +158,13 @@ public class FacetIncludingChildren extends AbstractFilterConstraintContainer im
 	public FilterConstraint getCopyWithNewChildren(@Nonnull FilterConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
 		Assert.isPremiseValid(
 			ArrayUtils.isEmpty(additionalChildren),
-			"FacetIncludingChildren cannot have additional children."
+			"ReferenceIncludingChildren cannot have additional children."
 		);
 		Assert.isPremiseValid(
 			children.length <= 1,
-			"FacetIncludingChildren can have only one child."
+			"ReferenceIncludingChildren can have only one child."
 		);
-		return children.length == 0 ? new FacetIncludingChildren() : new FacetIncludingChildren(children[0]);
+		return children.length == 0 ? new ReferenceIncludingChildren() : new ReferenceIncludingChildren(children[0]);
 	}
 
 }

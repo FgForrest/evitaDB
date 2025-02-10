@@ -106,8 +106,8 @@ class ConstraintRegistry {
 		HierarchyWithinRoot.class,
 		// facet
 		FacetHaving.class,
-		FacetIncludingChildren.class,
-		FacetIncludingChildrenExcept.class,
+		ReferenceIncludingChildren.class,
+		ReferenceIncludingChildrenExcept.class,
 
 		// --- order constraints ---
 		// generic

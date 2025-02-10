@@ -29,17 +29,17 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.query.FilterConstraint;
-import io.evitadb.api.query.filter.FacetIncludingChildren;
+import io.evitadb.api.query.filter.ReferenceIncludingChildrenExcept;
 
 /**
- * This {@link Serializer} implementation reads/writes {@link FacetIncludingChildren} from/to binary format.
+ * This {@link Serializer} implementation reads/writes {@link ReferenceIncludingChildrenExcept} from/to binary format.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-public class FacetIncludingChildrenSerializer extends Serializer<FacetIncludingChildren> {
+public class ReferenceIncludingChildrenExceptSerializer extends Serializer<ReferenceIncludingChildrenExcept> {
 
 	@Override
-	public void write(Kryo kryo, Output output, FacetIncludingChildren object) {
+	public void write(Kryo kryo, Output output, ReferenceIncludingChildrenExcept object) {
 		if (object.getChildrenCount() > 0) {
 			output.writeBoolean(true);
 			kryo.writeClassAndObject(output, object.getChildren()[0]);
@@ -49,11 +49,11 @@ public class FacetIncludingChildrenSerializer extends Serializer<FacetIncludingC
 	}
 
 	@Override
-	public FacetIncludingChildren read(Kryo kryo, Input input, Class<? extends FacetIncludingChildren> type) {
+	public ReferenceIncludingChildrenExcept read(Kryo kryo, Input input, Class<? extends ReferenceIncludingChildrenExcept> type) {
 		if (input.readBoolean()) {
-			return new FacetIncludingChildren((FilterConstraint) kryo.readClassAndObject(input));
+			return new ReferenceIncludingChildrenExcept((FilterConstraint) kryo.readClassAndObject(input));
 		} else {
-			return new FacetIncludingChildren();
+			return new ReferenceIncludingChildrenExcept();
 		}
 	}
 
