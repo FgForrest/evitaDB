@@ -23,6 +23,7 @@
 
 package io.evitadb.api.query.filter;
 
+import io.evitadb.api.query.FacetConstraint;
 import io.evitadb.api.query.FilterConstraint;
 
 /**
@@ -31,5 +32,5 @@ import io.evitadb.api.query.FilterConstraint;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public interface FacetSpecificationFilterConstraint extends FilterConstraint {
+public interface FacetSpecificationFilterConstraint extends FacetConstraint<FilterConstraint>, FilterConstraint {
 }
