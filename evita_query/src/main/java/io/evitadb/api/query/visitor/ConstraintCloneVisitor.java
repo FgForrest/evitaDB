@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.ConstraintContainer;
 import io.evitadb.api.query.ConstraintLeaf;
 import io.evitadb.api.query.ConstraintVisitor;
+import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.exception.GenericEvitaInternalError;
 
 import javax.annotation.Nonnull;
@@ -46,8 +47,21 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class ConstraintCloneVisitor implements ConstraintVisitor {
+	/**
+	 * Stack of parent constraints.
+	 */
+	private final Deque<Constraint<?>> parents = new ArrayDeque<>(16);
+	/**
+	 * Stack of constraints on the current level.
+	 */
 	private final Deque<List<Constraint<?>>> levelConstraints = new ArrayDeque<>(16);
+	/**
+	 * Function to apply during the cloning process.
+	 */
 	private final BiFunction<ConstraintCloneVisitor, Constraint<?>, Constraint<?>> constraintTranslator;
+	/**
+	 * Result of the cloning process.
+	 */
 	private Constraint<?> result = null;
 
 	/**
@@ -118,28 +132,33 @@ public class ConstraintCloneVisitor implements ConstraintVisitor {
 	@Override
 	public void visit(@Nonnull Constraint<?> constraint) {
 		if (constraint instanceof final ConstraintContainer<?> container) {
-			final Constraint<?> translatedConstraint = constraintTranslator.apply(this, constraint);
-			if (translatedConstraint == constraint) {
-				this.levelConstraints.push(new ArrayList<>(container.getChildrenCount()));
-				for (Constraint<?> child : container) {
-					child.accept(this);
-				}
-				final List<Constraint<?>> children = levelConstraints.pop();
+			this.parents.push(container);
+			try {
+				final Constraint<?> translatedConstraint = constraintTranslator.apply(this, constraint);
+				if (translatedConstraint == constraint) {
+					this.levelConstraints.push(new ArrayList<>(container.getChildrenCount()));
+					for (Constraint<?> child : container) {
+						child.accept(this);
+					}
+					final List<Constraint<?>> children = levelConstraints.pop();
 
-				this.levelConstraints.push(new ArrayList<>(container.getAdditionalChildrenCount()));
-				for (Constraint<?> additionalChild : container.getAdditionalChildren()) {
-					additionalChild.accept(this);
-				}
-				final List<Constraint<?>> additionalChildren = this.levelConstraints.pop();
+					this.levelConstraints.push(new ArrayList<>(container.getAdditionalChildrenCount()));
+					for (Constraint<?> additionalChild : container.getAdditionalChildren()) {
+						additionalChild.accept(this);
+					}
+					final List<Constraint<?>> additionalChildren = this.levelConstraints.pop();
 
-				if (isEqual(container.getChildren(), children) &&
-					isEqual(container.getAdditionalChildren(), additionalChildren)) {
-					addOnCurrentLevel(constraint);
+					if (isEqual(container.getChildren(), children) &&
+						isEqual(container.getAdditionalChildren(), additionalChildren)) {
+						addOnCurrentLevel(constraint);
+					} else {
+						createNewContainerWithModifiedChildren(container, children, additionalChildren);
+					}
 				} else {
-					createNewContainerWithModifiedChildren(container, children, additionalChildren);
+					addOnCurrentLevel(translatedConstraint);
 				}
-			} else {
-				addOnCurrentLevel(translatedConstraint);
+			} finally {
+				this.parents.pop();
 			}
 		} else if (constraint instanceof ConstraintLeaf) {
 			addOnCurrentLevel(this.constraintTranslator.apply(this, constraint));
@@ -175,6 +194,17 @@ public class ConstraintCloneVisitor implements ConstraintVisitor {
 				this.levelConstraints.peek().add(getFlattenedResult(constraint));
 			}
 		}
+	}
+
+	/**
+	 * Determines if the current constraint is within the specified filter class type.
+	 *
+	 * @param filterClass The class of type `FilterConstraint` against which the check will be performed.
+	 *                    This parameter must not be null.
+	 * @return true if any parent constraint in the chain is an instance of the specified filter class, false otherwise.
+	 */
+	public boolean isWithin(@Nonnull Class<? extends FilterConstraint> filterClass) {
+		return this.parents.stream().anyMatch(filterClass::isInstance);
 	}
 
 	/**
