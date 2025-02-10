@@ -73,9 +73,6 @@ filterConstraint
     | 'priceValidIn'                        args = valueArgs                                                # priceValidInConstraint
     | 'priceBetween'                        args = betweenValuesArgs                                        # priceBetweenConstraint
     | 'facetHaving'                         args = classifierWithFilterConstraintArgs                       # facetHavingConstraint
-    | 'includingChildren'                   emptyArgs                                                       # facetIncludingChildrenConstraint
-    | 'includingChildrenHaving'             args = filterConstraintArgs                                     # facetIncludingChildrenHavingConstraint
-    | 'includingChildrenExcept'             args = filterConstraintArgs                                     # facetIncludingChildrenExceptConstraint
     | 'referenceHaving'                     (args = classifierArgs | classifierWithFilterConstraintArgs)    # referenceHavingConstraint
     | 'includingChildren'                   emptyArgs                                                       # referenceIncludingChildrenConstraint
     | 'includingChildrenHaving'             args = filterConstraintArgs                                     # referenceIncludingChildrenHavingConstraint
