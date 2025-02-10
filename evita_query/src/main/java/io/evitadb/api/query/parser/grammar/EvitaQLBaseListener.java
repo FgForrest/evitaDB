@@ -545,6 +545,42 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override public void enterFacetIncludingChildrenConstraint(EvitaQLParser.FacetIncludingChildrenConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitFacetIncludingChildrenConstraint(EvitaQLParser.FacetIncludingChildrenConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterFacetIncludingChildrenHavingConstraint(EvitaQLParser.FacetIncludingChildrenHavingConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitFacetIncludingChildrenHavingConstraint(EvitaQLParser.FacetIncludingChildrenHavingConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterFacetIncludingChildrenExceptConstraint(EvitaQLParser.FacetIncludingChildrenExceptConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitFacetIncludingChildrenExceptConstraint(EvitaQLParser.FacetIncludingChildrenExceptConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterReferenceHavingConstraint(EvitaQLParser.ReferenceHavingConstraintContext ctx) { }
 	/**
 	 * {@inheritDoc}
