@@ -60,8 +60,6 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
-import static java.util.Optional.ofNullable;
-
 /**
  * This class contains live, updated in-memory index of the content of the disk ring buffer file. It is used to quickly
  * locate the position of the session in the file and handle {@link #getSessionStream(TrafficRecordingCaptureRequest)}
@@ -493,12 +491,12 @@ public class TrafficRecordingIndex implements
 	 */
 	@Nonnull
 	public Collection<String> getLabelValuesOrderedByCardinality(@Nonnull String nameEquals, @Nullable String valueStartingWith, int limit) {
-		final Iterator<Entry<Label, TransactionalObjectBPlusTree<Long, Long>>> it = this.labelIndex.greaterOrEqualEntryIterator(new Label(nameEquals, valueStartingWith));
+		final Iterator<Entry<Label, TransactionalObjectBPlusTree<Long, Long>>> it = this.stringLabelIndex.greaterOrEqualEntryIterator(new Label(nameEquals, valueStartingWith));
 		final ObjectIntMap<String> cardinalities = new ObjectIntHashMap<>(256);
 		while (it.hasNext()) {
 			final Entry<Label, TransactionalObjectBPlusTree<Long, Long>> entry = it.next();
 			final Label nextLabel = entry.key();
-			final String valueAsString = ofNullable(nextLabel.value()).map(EvitaDataTypes::formatValue).orElse("");
+			final String valueAsString = (String) Objects.requireNonNull(nextLabel.value());
 			if (nextLabel.name().equals(nameEquals) && (valueStartingWith == null || valueAsString.startsWith(valueStartingWith))) {
 				final int labelCardinality = entry.value().size();
 				cardinalities.putOrAdd(valueAsString, labelCardinality, labelCardinality);
