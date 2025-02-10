@@ -1050,10 +1050,10 @@ class EvitaQLFilterConstraintVisitorTest {
     @Test
     void shouldParseReferenceIncludingChildrenConstraint() {
         final FilterConstraint constraint1 = parseFilterConstraintUnsafe("facetHaving('a',includingChildrenHaving(attributeEquals('a',1)))");
-        assertEquals(facetHaving("a", includingChildren(attributeEquals("a", 1L))), constraint1);
+        assertEquals(facetHaving("a", includingChildrenHaving(attributeEquals("a", 1L))), constraint1);
 
         final FilterConstraint constraint2 = parseFilterConstraintUnsafe("facetHaving ( 'a', includingChildrenHaving( attributeEquals('a',1)   ) )");
-        assertEquals(facetHaving("a", includingChildren(attributeEquals("a", 1L))), constraint2);
+        assertEquals(facetHaving("a", includingChildrenHaving(attributeEquals("a", 1L))), constraint2);
 
         final FilterConstraint constraint3 = parseFilterConstraintUnsafe("facetHaving('a',includingChildren())");
         assertEquals(facetHaving("a", includingChildren()), constraint3);

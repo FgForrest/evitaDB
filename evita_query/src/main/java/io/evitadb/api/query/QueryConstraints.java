@@ -1998,7 +1998,7 @@ public interface QueryConstraints {
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/references#including-children-having">Visit detailed user documentation</a></p>
 	 */
 	@Nonnull
-	static ReferenceIncludingChildren includingChildren(@Nullable FilterConstraint filterConstraint) {
+	static ReferenceIncludingChildren includingChildrenHaving(@Nullable FilterConstraint filterConstraint) {
 		return filterConstraint == null ? new ReferenceIncludingChildren() : new ReferenceIncludingChildren(filterConstraint);
 	}
 

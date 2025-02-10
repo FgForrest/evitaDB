@@ -542,17 +542,17 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	public void visit(@Nonnull Constraint<?> constraint) {
 		final FilterConstraint filterConstraint = (FilterConstraint) constraint;
 
+		final ProcessingScope<?> theScope = getProcessingScope();
+		if (theScope.isSuppressed(filterConstraint.getClass())) {
+			return;
+		}
+
 		final FilteringConstraintTranslator<FilterConstraint> translator =
 			(FilteringConstraintTranslator<FilterConstraint>) TRANSLATORS.get(filterConstraint.getClass());
 		isPremiseValid(
 			translator != null,
 			"No translator found for constraint `" + filterConstraint.getClass() + "`!"
 		);
-
-		final ProcessingScope<?> theScope = getProcessingScope();
-		if (theScope.isSuppressed(filterConstraint.getClass())) {
-			return;
-		}
 
 		try {
 			theScope.pushConstraint(filterConstraint);
@@ -843,7 +843,10 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 						referenceSchema,
 						null, null,
 						getProcessingScope().withReferenceSchemaAccessor(referenceSchema.getName()),
-						(theEntity, attributeName, locale) -> theEntity.getReferences(referenceName).stream().map(it -> it.getAttributeValue(attributeName, locale)),
+						(theEntity, attributeName, locale) ->
+							theEntity.getReferences(referenceName)
+								.stream()
+								.map(it -> it.getAttributeValue(attributeName, locale)),
 						() -> {
 							filterBy.accept(this);
 							final Formula formula = getFormulaAndClear();
@@ -873,7 +876,9 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 							} else {
 								return formula;
 							}
-						}
+						},
+						ReferenceIncludingChildren.class,
+						ReferenceIncludingChildrenExcept.class
 					);
 				})
 				.filter(it -> it != EmptyFormula.INSTANCE)

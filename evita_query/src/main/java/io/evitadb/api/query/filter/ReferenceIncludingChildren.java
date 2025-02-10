@@ -113,7 +113,7 @@ import java.util.Optional;
 	userDocsLink = "/documentation/query/filtering/references#including-children-having",
 	supportedIn = ConstraintDomain.REFERENCE
 )
-public class ReferenceIncludingChildren extends AbstractFilterConstraintContainer implements ConstraintWithSuffix, ReferenceSpecificationFilterConstraint {
+public class ReferenceIncludingChildren extends AbstractFilterConstraintContainer implements ConstraintWithSuffix, HierarchyReferenceSpecificationFilterConstraint {
 	@Serial private static final long serialVersionUID = -7258410742839628308L;
 	private static final String SUFFIX_HAVING = "having";
 	private static final String CONSTRAINT_NAME = "includingChildren";

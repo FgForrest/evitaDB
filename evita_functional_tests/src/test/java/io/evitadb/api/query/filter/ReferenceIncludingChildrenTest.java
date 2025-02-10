@@ -27,6 +27,7 @@ import org.junit.jupiter.api.Test;
 
 import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
 import static io.evitadb.api.query.QueryConstraints.includingChildren;
+import static io.evitadb.api.query.QueryConstraints.includingChildrenHaving;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
@@ -41,7 +42,7 @@ class ReferenceIncludingChildrenTest {
 
 	@Test
 	void shouldCreateViaFactoryClassWorkAsExpected() {
-		final ReferenceIncludingChildren referenceIncludingChildren = includingChildren(entityPrimaryKeyInSet(1, 5, 7));
+		final ReferenceIncludingChildren referenceIncludingChildren = includingChildrenHaving(entityPrimaryKeyInSet(1, 5, 7));
 		assertEquals(1, referenceIncludingChildren.getChildren().length);
 		assertEquals(entityPrimaryKeyInSet(1, 5, 7), referenceIncludingChildren.getChildren()[0]);
 	}
@@ -49,30 +50,30 @@ class ReferenceIncludingChildrenTest {
 	@Test
 	void shouldRecognizeApplicability() {
 		assertTrue(new ReferenceIncludingChildren().isApplicable());
-		assertTrue(includingChildren(entityPrimaryKeyInSet(1)).isApplicable());
-		assertTrue(includingChildren(entityPrimaryKeyInSet(1, 5, 7)).isApplicable());
+		assertTrue(includingChildrenHaving(entityPrimaryKeyInSet(1)).isApplicable());
+		assertTrue(includingChildrenHaving(entityPrimaryKeyInSet(1, 5, 7)).isApplicable());
 	}
 
 	@Test
 	void shouldToStringReturnExpectedFormat() {
 		assertEquals("includingChildren()", includingChildren().toString());
-		assertEquals("includingChildrenHaving(entityPrimaryKeyInSet(1,5,7))", includingChildren(entityPrimaryKeyInSet(1, 5, 7)).toString());
+		assertEquals("includingChildrenHaving(entityPrimaryKeyInSet(1,5,7))", includingChildrenHaving(entityPrimaryKeyInSet(1, 5, 7)).toString());
 	}
 
 	@Test
 	void shouldConformToEqualsAndHashContract() {
-		assertNotSame(includingChildren(), includingChildren(entityPrimaryKeyInSet(1, 1, 5)));
-		assertNotEquals(includingChildren(), includingChildren(entityPrimaryKeyInSet(1, 1, 5)));
-		assertNotSame(includingChildren(entityPrimaryKeyInSet(1, 1, 5)), includingChildren(entityPrimaryKeyInSet(1, 1, 5)));
-		assertEquals(includingChildren(entityPrimaryKeyInSet(1, 1, 5)), includingChildren(entityPrimaryKeyInSet(1, 1, 5)));
-		assertNotEquals(includingChildren(entityPrimaryKeyInSet(1, 1, 5)), includingChildren(entityPrimaryKeyInSet(1, 1, 6)));
-		assertNotEquals(includingChildren(entityPrimaryKeyInSet(1, 1, 5)), includingChildren(entityPrimaryKeyInSet(1, 1)));
-		assertNotEquals(includingChildren(entityPrimaryKeyInSet(1, 1, 5)), includingChildren(entityPrimaryKeyInSet(2, 1, 5)));
-		assertNotEquals(includingChildren(entityPrimaryKeyInSet(1, 1, 5)), includingChildren(entityPrimaryKeyInSet(1, 1, 6)));
-		assertNotEquals(includingChildren(entityPrimaryKeyInSet(1, 1, 5)), includingChildren(entityPrimaryKeyInSet(1, 1)));
-		assertEquals(includingChildren(entityPrimaryKeyInSet(1, 1, 5)).hashCode(), includingChildren(entityPrimaryKeyInSet(1, 1, 5)).hashCode());
-		assertNotEquals(includingChildren(entityPrimaryKeyInSet(1, 1, 5)).hashCode(), includingChildren(entityPrimaryKeyInSet(1, 1, 6)).hashCode());
-		assertNotEquals(includingChildren(entityPrimaryKeyInSet(1, 1, 5)).hashCode(), includingChildren(entityPrimaryKeyInSet(1, 1)).hashCode());
+		assertNotSame(includingChildren(), includingChildrenHaving(entityPrimaryKeyInSet(1, 1, 5)));
+		assertNotEquals(includingChildren(), includingChildrenHaving(entityPrimaryKeyInSet(1, 1, 5)));
+		assertNotSame(includingChildrenHaving(entityPrimaryKeyInSet(1, 1, 5)), includingChildrenHaving(entityPrimaryKeyInSet(1, 1, 5)));
+		assertEquals(includingChildrenHaving(entityPrimaryKeyInSet(1, 1, 5)), includingChildrenHaving(entityPrimaryKeyInSet(1, 1, 5)));
+		assertNotEquals(includingChildrenHaving(entityPrimaryKeyInSet(1, 1, 5)), includingChildrenHaving(entityPrimaryKeyInSet(1, 1, 6)));
+		assertNotEquals(includingChildrenHaving(entityPrimaryKeyInSet(1, 1, 5)), includingChildrenHaving(entityPrimaryKeyInSet(1, 1)));
+		assertNotEquals(includingChildrenHaving(entityPrimaryKeyInSet(1, 1, 5)), includingChildrenHaving(entityPrimaryKeyInSet(2, 1, 5)));
+		assertNotEquals(includingChildrenHaving(entityPrimaryKeyInSet(1, 1, 5)), includingChildrenHaving(entityPrimaryKeyInSet(1, 1, 6)));
+		assertNotEquals(includingChildrenHaving(entityPrimaryKeyInSet(1, 1, 5)), includingChildrenHaving(entityPrimaryKeyInSet(1, 1)));
+		assertEquals(includingChildrenHaving(entityPrimaryKeyInSet(1, 1, 5)).hashCode(), includingChildrenHaving(entityPrimaryKeyInSet(1, 1, 5)).hashCode());
+		assertNotEquals(includingChildrenHaving(entityPrimaryKeyInSet(1, 1, 5)).hashCode(), includingChildrenHaving(entityPrimaryKeyInSet(1, 1, 6)).hashCode());
+		assertNotEquals(includingChildrenHaving(entityPrimaryKeyInSet(1, 1, 5)).hashCode(), includingChildrenHaving(entityPrimaryKeyInSet(1, 1)).hashCode());
 	}
 
 }

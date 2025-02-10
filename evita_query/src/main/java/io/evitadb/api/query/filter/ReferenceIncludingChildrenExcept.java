@@ -85,7 +85,7 @@ import java.io.Serializable;
 	userDocsLink = "/documentation/query/filtering/references#including-children-except",
 	supportedIn = ConstraintDomain.REFERENCE
 )
-public class ReferenceIncludingChildrenExcept extends AbstractFilterConstraintContainer implements ReferenceSpecificationFilterConstraint {
+public class ReferenceIncludingChildrenExcept extends AbstractFilterConstraintContainer implements HierarchyReferenceSpecificationFilterConstraint {
 	@Serial private static final long serialVersionUID = 3828147822588237136L;
 	private static final String CONSTRAINT_NAME = "includingChildrenExcept";
 

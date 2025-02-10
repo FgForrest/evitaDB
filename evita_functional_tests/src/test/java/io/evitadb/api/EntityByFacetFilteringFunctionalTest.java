@@ -1274,7 +1274,7 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 								facetHaving(
 									Entities.CATEGORY,
 									entityPrimaryKeyInSet(facetIds),
-									includingChildren(
+									includingChildrenHaving(
 										entityPrimaryKeyInSet(7)
 									)
 								)
