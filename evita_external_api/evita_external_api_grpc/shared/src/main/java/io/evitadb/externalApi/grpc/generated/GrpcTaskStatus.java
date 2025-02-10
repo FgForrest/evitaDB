@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -355,7 +355,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs =
+      com.google.protobuf.ByteString bs = 
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       taskType_ = s;
@@ -380,7 +380,7 @@ private static final long serialVersionUID = 0L;
       getTaskTypeBytes() {
     java.lang.Object ref = taskType_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b =
+      com.google.protobuf.ByteString b = 
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       taskType_ = b;
@@ -406,7 +406,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs =
+      com.google.protobuf.ByteString bs = 
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       taskName_ = s;
@@ -426,7 +426,7 @@ private static final long serialVersionUID = 0L;
       getTaskNameBytes() {
     java.lang.Object ref = taskName_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b =
+      com.google.protobuf.ByteString b = 
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       taskName_ = b;
@@ -1713,7 +1713,7 @@ private static final long serialVersionUID = 0L;
         getTaskTypeBytes() {
       java.lang.Object ref = taskType_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b =
+        com.google.protobuf.ByteString b = 
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         taskType_ = b;
@@ -1741,7 +1741,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-
+  
       taskType_ = value;
       onChanged();
       return this;
@@ -1760,7 +1760,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearTaskType() {
-
+      
       taskType_ = getDefaultInstance().getTaskType();
       onChanged();
       return this;
@@ -1785,7 +1785,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-
+      
       taskType_ = value;
       onChanged();
       return this;
@@ -1824,7 +1824,7 @@ private static final long serialVersionUID = 0L;
         getTaskNameBytes() {
       java.lang.Object ref = taskName_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b =
+        com.google.protobuf.ByteString b = 
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         taskName_ = b;
@@ -1847,7 +1847,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-
+  
       taskName_ = value;
       onChanged();
       return this;
@@ -1861,7 +1861,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearTaskName() {
-
+      
       taskName_ = getDefaultInstance().getTaskName();
       onChanged();
       return this;
@@ -1881,7 +1881,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-
+      
       taskName_ = value;
       onChanged();
       return this;
@@ -2002,7 +2002,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid taskId = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder getTaskIdBuilder() {
-
+      
       onChanged();
       return getTaskIdFieldBuilder().getBuilder();
     }
@@ -2029,7 +2029,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid taskId = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder> 
         getTaskIdFieldBuilder() {
       if (taskIdBuilder_ == null) {
         taskIdBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -2157,7 +2157,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue catalogName = 4;</code>
      */
     public com.google.protobuf.StringValue.Builder getCatalogNameBuilder() {
-
+      
       onChanged();
       return getCatalogNameFieldBuilder().getBuilder();
     }
@@ -2184,7 +2184,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue catalogName = 4;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
         getCatalogNameFieldBuilder() {
       if (catalogNameBuilder_ == null) {
         catalogNameBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -2312,7 +2312,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime issued = 5;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder getIssuedBuilder() {
-
+      
       onChanged();
       return getIssuedFieldBuilder().getBuilder();
     }
@@ -2339,7 +2339,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime issued = 5;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> 
         getIssuedFieldBuilder() {
       if (issuedBuilder_ == null) {
         issuedBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -2467,7 +2467,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime started = 6;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder getStartedBuilder() {
-
+      
       onChanged();
       return getStartedFieldBuilder().getBuilder();
     }
@@ -2494,7 +2494,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime started = 6;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> 
         getStartedFieldBuilder() {
       if (startedBuilder_ == null) {
         startedBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -2622,7 +2622,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime finished = 7;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder getFinishedBuilder() {
-
+      
       onChanged();
       return getFinishedFieldBuilder().getBuilder();
     }
@@ -2649,7 +2649,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime finished = 7;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> 
         getFinishedFieldBuilder() {
       if (finishedBuilder_ == null) {
         finishedBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -2684,7 +2684,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setSimplifiedStateValue(int value) {
-
+      
       simplifiedState_ = value;
       onChanged();
       return this;
@@ -2716,7 +2716,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-
+      
       simplifiedState_ = value.getNumber();
       onChanged();
       return this;
@@ -2730,7 +2730,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearSimplifiedState() {
-
+      
       simplifiedState_ = 0;
       onChanged();
       return this;
@@ -2759,7 +2759,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setProgress(int value) {
-
+      
       progress_ = value;
       onChanged();
       return this;
@@ -2773,7 +2773,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearProgress() {
-
+      
       progress_ = 0;
       onChanged();
       return this;
@@ -2894,7 +2894,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue settings = 10;</code>
      */
     public com.google.protobuf.StringValue.Builder getSettingsBuilder() {
-
+      
       onChanged();
       return getSettingsFieldBuilder().getBuilder();
     }
@@ -2921,7 +2921,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue settings = 10;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
         getSettingsFieldBuilder() {
       if (settingsBuilder_ == null) {
         settingsBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -3093,7 +3093,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue text = 11;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
         getTextFieldBuilder() {
       if (textBuilder_ == null) {
         if (!(resultCase_ == 11)) {
@@ -3270,7 +3270,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile file = 12;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcFile, io.evitadb.externalApi.grpc.generated.GrpcFile.Builder, io.evitadb.externalApi.grpc.generated.GrpcFileOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcFile, io.evitadb.externalApi.grpc.generated.GrpcFile.Builder, io.evitadb.externalApi.grpc.generated.GrpcFileOrBuilder> 
         getFileFieldBuilder() {
       if (fileBuilder_ == null) {
         if (!(resultCase_ == 12)) {
@@ -3403,7 +3403,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue exception = 13;</code>
      */
     public com.google.protobuf.StringValue.Builder getExceptionBuilder() {
-
+      
       onChanged();
       return getExceptionFieldBuilder().getBuilder();
     }
@@ -3430,7 +3430,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue exception = 13;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
         getExceptionFieldBuilder() {
       if (exceptionBuilder_ == null) {
         exceptionBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -3746,7 +3746,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 15;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder getCreatedBuilder() {
-
+      
       onChanged();
       return getCreatedFieldBuilder().getBuilder();
     }
@@ -3773,7 +3773,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 15;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> 
         getCreatedFieldBuilder() {
       if (createdBuilder_ == null) {
         createdBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
