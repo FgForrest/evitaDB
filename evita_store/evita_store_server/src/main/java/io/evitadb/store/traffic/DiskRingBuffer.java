@@ -544,7 +544,10 @@ public class DiskRingBuffer {
 							diskBufferFileReadInputStream,
 							reader,
 							e -> {
-								throw new IndexNotReady(0);
+								// session would be invalid, remove it from the index
+								index.removeSession(sessionLocation.sequenceOrder());
+								log.error("Error while reading session records: {}", e.getMessage());
+								return null;
 							}
 						)
 						.forEach(tr -> index.indexRecording(sessionLocation.sequenceOrder(), tr));

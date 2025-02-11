@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -451,9 +451,9 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	Stream<DynamicTest> testSingleFileDocumentation() {
 		return this.createTests(
 			Environment.DEMO_SERVER,
-			getRootDirectory().resolve("documentation/user/en/get-started/create-first-database.md"),
+			getRootDirectory().resolve("documentation/user/en/get-started/run-evitadb.md"),
 			new ExampleFilter[]{
-				ExampleFilter.CSHARP,
+				/*ExampleFilter.CSHARP,*/
 				ExampleFilter.JAVA,
 				ExampleFilter.REST,
 				ExampleFilter.GRAPHQL,
@@ -473,8 +473,8 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	@Disabled
 	Stream<DynamicTest> testSingleFileDocumentationAndCreateOtherLanguageSnippets() {
 		return this.createTests(
-			Environment.LOCALHOST,
-			getRootDirectory().resolve("documentation/user/en/query/requirements/facet.md"),
+			Environment.DEMO_SERVER,
+			getRootDirectory().resolve("documentation/user/en/query/header/header.md"),
 			ExampleFilter.values(),
 			CreateSnippets.MARKDOWN, CreateSnippets.JAVA, CreateSnippets.GRAPHQL, CreateSnippets.REST
 		).stream();

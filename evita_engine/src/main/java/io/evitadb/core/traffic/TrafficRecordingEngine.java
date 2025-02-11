@@ -24,6 +24,7 @@
 package io.evitadb.core.traffic;
 
 
+import io.evitadb.api.CatalogState;
 import io.evitadb.api.LabelIntrospector;
 import io.evitadb.api.TrafficRecordingReader;
 import io.evitadb.api.configuration.EvitaConfiguration;
@@ -85,12 +86,11 @@ import java.util.stream.Stream;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Slf4j
-@RequiredArgsConstructor
 public class TrafficRecordingEngine implements TrafficRecordingReader {
 	public static final String LABEL_TRACE_ID = "trace-id";
 	public static final String LABEL_CLIENT_ID = "client-id";
 	public static final String LABEL_IP_ADDRESS = "ip-address";
-	private final String catalogName;
+	private final AtomicReference<CatalogInfo> catalogInfo;
 	private final StorageOptions storageOptions;
 	@Getter private final TrafficRecordingOptions trafficOptions;
 	private final ExportFileService exportFileService;
@@ -146,25 +146,60 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 
 	public TrafficRecordingEngine(
 		@Nonnull String catalogName,
+		@Nonnull CatalogState catalogState,
 		@Nonnull TracingContext tracingContext,
 		@Nonnull EvitaConfiguration configuration,
 		@Nonnull ExportFileService exportFileService,
 		@Nonnull Scheduler scheduler
 	) {
-		this.catalogName = catalogName;
+		final CatalogInfo catalogInfo = new CatalogInfo(catalogName, catalogState);
+		this.catalogInfo = new AtomicReference<>(catalogInfo);
 		this.storageOptions = configuration.storage();
 		this.trafficOptions = configuration.server().trafficRecording();
 		this.exportFileService = exportFileService;
 		this.scheduler = scheduler;
-		if (configuration.server().trafficRecording().enabled()) {
+		this.tracingContext = tracingContext;
+		initializeTrafficRecorder(catalogInfo);
+	}
+
+	/**
+	 * Initializes the traffic recorder for the specified catalog. The traffic recorder can be enabled or disabled
+	 * based on the configuration provided. When enabled, a specific traffic recorder instance is initialized;
+	 * otherwise, a no-operation (NoOp) traffic recorder is set.
+	 *
+	 * @param catalogInfo The name and state of the catalog for which the traffic recorder should be initialized.
+	 *                    This parameter must not be null.
+	 */
+	private void initializeTrafficRecorder(@Nonnull CatalogInfo catalogInfo) {
+		final TrafficRecorder existingTrafficRecorder = this.trafficRecorder.get();
+		if (existingTrafficRecorder != null) {
+			IOUtils.closeQuietly(existingTrafficRecorder::close);
+		}
+		if (this.trafficOptions.enabled() && catalogInfo.state() == CatalogState.ALIVE) {
 			final TrafficRecorder trafficRecorderInstance = getRichTrafficRecorderIfPossible(
-				this.catalogName, this.exportFileService, this.scheduler, this.storageOptions, this.trafficOptions
+				catalogInfo.catalogName(),
+				this.exportFileService, this.scheduler, this.storageOptions, this.trafficOptions
 			);
 			this.trafficRecorder.set(trafficRecorderInstance);
 		} else {
 			this.trafficRecorder.set(NoOpTrafficRecorder.INSTANCE);
 		}
-		this.tracingContext = tracingContext;
+	}
+
+	/**
+	 * Updates the catalog name and initializes the traffic recorder with the new catalog name
+	 * if the provided name differs from the current one.
+	 *
+	 * @param catalogName the new name of the catalog. This value must not be null.
+	 */
+	public void updateCatalogName(@Nonnull String catalogName, @Nonnull CatalogState state) {
+		this.catalogInfo.getAndUpdate(previous -> {
+			final CatalogInfo newCatalogInfo = new CatalogInfo(catalogName, state);
+			if (!Objects.equals(previous, newCatalogInfo)) {
+				initializeTrafficRecorder(newCatalogInfo);
+			}
+			return newCatalogInfo;
+		});
 	}
 
 	/**
@@ -181,7 +216,8 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 			final TrafficRecorder defaultTrafficRecorder = this.trafficRecorder.get();
 			if (defaultTrafficRecorder instanceof NoOpTrafficRecorder) {
 				final TrafficRecorder richTrafficRecorderInstance = getRichTrafficRecorderIfPossible(
-					this.catalogName, this.exportFileService, this.scheduler, this.storageOptions, this.trafficOptions
+					this.catalogInfo.get().catalogName(),
+					this.exportFileService, this.scheduler, this.storageOptions, this.trafficOptions
 				);
 				this.suppressedTrafficRecorder.set(defaultTrafficRecorder);
 				this.trafficRecorder.set(richTrafficRecorderInstance);
@@ -658,5 +694,15 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 		}
 
 	}
+
+	/**
+	 * Represents a catalog name and its state.
+	 * @param catalogName the name of the catalog
+	 * @param state the state of the catalog
+	 */
+	private record CatalogInfo(
+		@Nonnull String catalogName,
+		@Nonnull CatalogState state
+	) {}
 
 }

@@ -26,6 +26,7 @@ package io.evitadb.api.query.head;
 
 import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.HeadConstraint;
+import io.evitadb.api.query.descriptor.annotation.AliasForParameter;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.dataType.EvitaDataTypes;
@@ -92,6 +93,7 @@ public class Label extends AbstractHeadConstraintLeaf implements GenericConstrai
 	/**
 	 * Returns the name of the label.
 	 */
+	@AliasForParameter("name")
 	@Nonnull
 	public String getLabelName() {
 		final Serializable[] args = getArguments();
@@ -102,6 +104,7 @@ public class Label extends AbstractHeadConstraintLeaf implements GenericConstrai
 	/**
 	 * Returns the value of the label.
 	 */
+	@AliasForParameter("value")
 	@Nonnull
 	public Serializable getLabelValue() {
 		final Serializable[] args = getArguments();

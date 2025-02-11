@@ -6,7 +6,7 @@
 examples and guides.</p>
 
 <p align="center">
-  <a href="https://github.com/FgForrest/evitaDB" title="Build"><img src="https://img.shields.io/github/v/release/FgForrest/evitadb?color=%23ff00a0&include_prereleases&label=version&sort=semver"/></a>
+  <a href="https://github.com/FgForrest/evitaDB/releases" title="Build"><img src="https://img.shields.io/github/v/release/FgForrest/evitadb?color=%23ff00a0&include_prereleases&label=version&sort=semver"/></a>
   &nbsp;
   <a href="https://codecov.io/gh/FgForrest/evitaDB"><img src="https://codecov.io/gh/FgForrest/evitaDB/branch/dev/graph/badge.svg?token=9VDOBPOBFL"/></a>
   &nbsp;
@@ -14,7 +14,7 @@ examples and guides.</p>
   &nbsp;
   <a href="https://discord.gg/VsNBWxgmSw" title="Discord"><img src="https://img.shields.io/discord/999338870996992223?color=5865f2"/></a>
   &nbsp;
-  <a href="https://github.com/FgForrest/evitaDB" title="GitHub Workflow Status"><img src="https://img.shields.io/github/actions/workflow/status/FgForrest/evitaDB/ci-dev.yml"/></a>
+  <a href="https://github.com/FgForrest/evitaDB/actions/workflows/ci-dev.yml" title="GitHub Workflow Status"><img src="https://img.shields.io/github/actions/workflow/status/FgForrest/evitaDB/ci-dev.yml"/></a>
   &nbsp;
   <a href="https://github.com/FgForrest/evitaDB/blob/master/LICENSE" title="License"><img src="https://img.shields.io/badge/license-BSL_1.1-blue.svg"/></a>
 </p>
@@ -211,6 +211,7 @@ In short, you need `~/.m2/toolchains.xml` in your home directory next to `~/.m2/
   - **evita_external_api_graphql**: implementation of GraphQL API
   - **evita_external_api_grpc**: implementation of gRPC API
     - **client**: Java driver for client/server usage scenario  
+    - **client_all_in_one**: Java driver for client/server usage scenario that includes repackaged all necessary dependencies so that it will not conflict with other dependencies in your project (unfortunately it's quite big due to gRPC and Armeria dependencies)  
     - **server**: gRPC server  
     - **shared**: shared classes between client & server (generated gRPC stubs)
   - **evita_external_api_rest**: implementation of REST API

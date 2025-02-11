@@ -136,7 +136,7 @@ Open your Java IDE and add the following dependency to your project:
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_java_driver</artifactId>
-    <version>2024.10.0</version>
+    <version>2025.1.0</version>
 </dependency>
 ```
 </CodeTabsBlock>
