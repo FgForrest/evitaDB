@@ -44,15 +44,18 @@ import java.util.Arrays;
 import java.util.Optional;
 
 /**
- * This `facetGroupsNegation` require constraint allows specifying facet relation on particular level (within group
+ * This `facetGroupsExclusivity` require constraint allows specifying facet relation on particular level (within group
  * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
- * group, secondary optional argument allows defining the level for which the negation is defined, third optional
- * argument defines one more facet group ids which facets should be considered negative with other facets either
+ * group, secondary optional argument allows defining the level for which the exclusivity is defined, third optional
+ * argument defines one more facet group ids which facets should be considered exclusive with other facets either
  * in same group or different groups (depending on level argument).
  *
- * The `facetGroupsNegation` changes the behavior of the facet option in all facet groups specified in the filterBy
- * constraint (or all). Instead of returning only those items that have a reference to that particular faceted entity,
- * the query result will return only those items that don't have a reference to it.
+ * The `facetGroupsExclusivity` changes the behavior of the facet option in all facet groups specified in the filterBy
+ * constraint (or all). Query will allow selecting only single facet from either the group or facets in single group
+ * among other groups depending on the level argument:
+ *
+ * - WITH_DIFFERENT_GROUPS: when facets are selected, they must always be from single group (within the relation only)
+ * - WITH_DIFFERENT_FACETS_IN_GROUP: only single facet can be selected from each group (within the relation only)
  *
  * Example:
  *
@@ -68,9 +71,9 @@ import java.util.Optional;
  *             entityFetch(attributeContent("code")),
  *             entityGroupFetch(attributeContent("code"))
  *         ),
- *         facetGroupsNegation(
+ *         facetGroupsExclusivity(
  *             "parameterValues",
- *             WITH_DIFFERENT_GROUPS,
+ *             WITH_DIFFERENT_FACETS_IN_GROUP,
  *             filterBy(
  *               attributeInSet("code", "ram-memory")
  *             )
@@ -79,32 +82,30 @@ import java.util.Optional;
  * )
  * </pre>
  *
- * The predicted results in the negated groups are far greater than the numbers produced by the default behavior.
- * Selecting any option in the RAM facet group predicts returning thousands of results, while the ROM facet group with
- * default behavior predicts only a dozen of them.
+ * In group `ram-memory` only single facet can be selected, so it should be probably rendered as radio buttons in the UI
+ * instead of checkboxes.
  *
- * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-negation">Visit detailed user documentation</a></p>
+ * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-exclusivity">Visit detailed user documentation</a></p>
  *
  * @see FacetGroupRelationLevel
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @ConstraintDefinition(
-	name = "groupsNegation",
-	shortDescription = "[Negates](https://en.wikipedia.org/wiki/Negation) the meaning of selected facets in specified " +
-		"facet groups in the sense that their selection would return entities that don't have any of those facets.",
-	userDocsLink = "/documentation/query/requirements/facet#facet-groups-negation"
+	name = "groupsExclusivity",
+	shortDescription = "Sets facet relation on particular level (within group or with different group facets) to exclusive - only one facet can be selected.",
+	userDocsLink = "/documentation/query/requirements/facet#facet-groups-exclusivity"
 )
-public class FacetGroupsNegation extends AbstractRequireConstraintContainer implements FacetConstraint<RequireConstraint> {
-	@Serial private static final long serialVersionUID = 3993873252481237893L;
+public class FacetGroupsExclusivity extends AbstractRequireConstraintContainer implements FacetConstraint<RequireConstraint> {
+	@Serial private static final long serialVersionUID = 849094126558825930L;
 
-	private FacetGroupsNegation(@Nonnull Serializable[] arguments, @Nonnull Constraint<?>... additionalChildren) {
+	private FacetGroupsExclusivity(@Nonnull Serializable[] arguments, @Nonnull Constraint<?>... additionalChildren) {
 		super(arguments, NO_CHILDREN, additionalChildren);
 		for (Constraint<?> child : additionalChildren) {
 			Assert.isPremiseValid(child instanceof FilterBy, "Only FilterBy constraints are allowed in FacetGroupsConjunction.");
 		}
 	}
 
-	public FacetGroupsNegation(
+	public FacetGroupsExclusivity(
 		@Nonnull String referenceName,
 		@Nullable FilterBy filterBy
 	) {
@@ -112,7 +113,7 @@ public class FacetGroupsNegation extends AbstractRequireConstraintContainer impl
 	}
 
 	@Creator
-	public FacetGroupsNegation(
+	public FacetGroupsExclusivity(
 		@Nonnull @Classifier String referenceName,
 		@Nullable FacetGroupRelationLevel facetGroupRelationLevel,
 		@Nullable @AdditionalChild(domain = ConstraintDomain.GROUP_ENTITY) FilterBy filterBy
@@ -178,13 +179,13 @@ public class FacetGroupsNegation extends AbstractRequireConstraintContainer impl
 	@Override
 	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
 		Assert.isPremiseValid(ArrayUtils.isEmpty(children), "Children must be empty");
-		return new FacetGroupsNegation(getArguments(), additionalChildren);
+		return new FacetGroupsExclusivity(getArguments(), additionalChildren);
 	}
 
 	@Nonnull
 	@Override
 	public RequireConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
-		return new FacetGroupsNegation(newArguments, getAdditionalChildren());
+		return new FacetGroupsExclusivity(newArguments, getAdditionalChildren());
 	}
 
 }

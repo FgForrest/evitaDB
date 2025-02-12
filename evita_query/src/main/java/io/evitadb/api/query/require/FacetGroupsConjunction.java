@@ -44,12 +44,14 @@ import java.util.Arrays;
 import java.util.Optional;
 
 /**
- * This `facetGroupsConjunction` require allows specifying inter-facet relation inside facet groups of certain primary ids.
- * First mandatory argument specifies entity type of the facet group, secondary argument allows to define one more facet
- * group ids which inner facets should be considered conjunctive.
+ * This `facetGroupsConjunction` require constraint allows specifying facet relation on particular level (within group
+ * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+ * group, secondary optional argument allows defining the level for which the conjunction is defined, third optional
+ * argument defines one more facet group ids which facets should be considered conjunctive with other facets either
+ * in same group or different groups (depending on level argument).
  *
- * This require constraint changes default behaviour stating that all facets inside same facet group are combined by OR
- * relation (eg. disjunction). Constraint has sense only when [facet](#facet) constraint is part of the query.
+ * This require constraint changes default behavior of the facet calculation rules.
+ * Constraint has sense only when [facet](#facet) constraint is part of the query.
  *
  * Example:
  *
@@ -66,7 +68,7 @@ import java.util.Optional;
  *       )
  *    ),
  *    require(
- *       facetGroupsConjunction("parameterType", 1, 8, 15)
+ *       facetGroupsConjunction("parameterType", WITH_DIFFERENT_FACETS_IN_GROUP, 1, 8, 15)
  *    )
  * )
  * </pre>
@@ -97,11 +99,12 @@ import java.util.Optional;
  *
  * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-conjunction">Visit detailed user documentation</a></p>
  *
+ * @see FacetGroupRelationLevel
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "groupsConjunction",
-	shortDescription = "Sets inter-facets relation within the specified groups to [logical AND](https://en.wikipedia.org/wiki/Logical_conjunction).",
+	shortDescription = "Sets facet relation on particular level (within group or with different group facets) to [logical AND](https://en.wikipedia.org/wiki/Logical_conjunction).",
 	userDocsLink = "/documentation/query/requirements/facet#facet-groups-conjunction"
 )
 public class FacetGroupsConjunction extends AbstractRequireConstraintContainer implements FacetConstraint<RequireConstraint> {
@@ -114,10 +117,26 @@ public class FacetGroupsConjunction extends AbstractRequireConstraintContainer i
 		}
 	}
 
+	public FacetGroupsConjunction(
+		@Nonnull String referenceName,
+		@Nullable FilterBy filterBy
+	) {
+		this(referenceName, null, filterBy);
+	}
+
 	@Creator
-	public FacetGroupsConjunction(@Nonnull @Classifier String referenceName,
-	                              @Nullable @AdditionalChild(domain = ConstraintDomain.GROUP_ENTITY) FilterBy filterBy) {
-		super(new Serializable[]{referenceName}, NO_CHILDREN, filterBy);
+	public FacetGroupsConjunction(
+		@Nonnull @Classifier String referenceName,
+		@Nullable FacetGroupRelationLevel facetGroupRelationLevel,
+        @Nullable @AdditionalChild(domain = ConstraintDomain.GROUP_ENTITY) FilterBy filterBy
+	) {
+		super(
+			facetGroupRelationLevel == null ?
+				new Serializable[]{referenceName, FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP} :
+				new Serializable[]{referenceName, facetGroupRelationLevel},
+			NO_CHILDREN,
+			filterBy
+		);
 	}
 
 	/**
@@ -126,6 +145,19 @@ public class FacetGroupsConjunction extends AbstractRequireConstraintContainer i
 	@Nonnull
 	public String getReferenceName() {
 		return (String) getArguments()[0];
+	}
+
+	/**
+	 * Returns level on which this relation type is applied to.
+	 */
+	@AliasForParameter("relation")
+	@Nonnull
+	public FacetGroupRelationLevel getFacetGroupRelationLevel() {
+		return Arrays.stream(getArguments())
+			.filter(FacetGroupRelationLevel.class::isInstance)
+			.map(FacetGroupRelationLevel.class::cast)
+			.findFirst()
+			.orElse(FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP);
 	}
 
 	/**
@@ -143,6 +175,16 @@ public class FacetGroupsConjunction extends AbstractRequireConstraintContainer i
 	@Override
 	public boolean isApplicable() {
 		return isArgumentsNonNull() && getArguments().length > 0;
+	}
+
+	@Nonnull
+	@Override
+	public Serializable[] getArgumentsExcludingDefaults() {
+		if (getFacetGroupRelationLevel() == FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP) {
+			return new Serializable[]{ getReferenceName() };
+		} else {
+			return super.getArguments();
+		}
 	}
 
 	@Nonnull

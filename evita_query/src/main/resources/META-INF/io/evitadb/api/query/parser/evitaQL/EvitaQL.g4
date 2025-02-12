@@ -165,9 +165,11 @@ requireConstraint
     | 'facetSummary'                        args = facetSummary7Args                                        # facetSummary7Constraint
     | 'facetSummaryOfReference'             args = classifierArgs                                           # facetSummaryOfReference1Constraint
     | 'facetSummaryOfReference'             args = facetSummaryOfReference2Args                             # facetSummaryOfReference2Constraint
-    | 'facetGroupsConjunction'              args = classifierWithOptionalFilterConstraintArgs               # facetGroupsConjunctionConstraint
-    | 'facetGroupsDisjunction'              args = classifierWithOptionalFilterConstraintArgs               # facetGroupsDisjunctionConstraint
-    | 'facetGroupsNegation'                 args = classifierWithOptionalFilterConstraintArgs               # facetGroupsNegationConstraint
+    | 'facetGroupsConjunction'              args = facetGroupRelationArgs                                   # facetGroupsConjunctionConstraint
+    | 'facetGroupsDisjunction'              args = facetGroupRelationArgs                                   # facetGroupsDisjunctionConstraint
+    | 'facetGroupsNegation'                 args = facetGroupRelationArgs                                   # facetGroupsNegationConstraint
+    | 'facetGroupsExclusivity'              args = facetGroupRelationArgs                                   # facetGroupsExclusivityConstraint
+    | 'facetCalculationRules'               args = facetCalculationRulesArgs                                # facetCalculationRulesConstraint
     | 'attributeHistogram'                  args = attributeHistogramArgs                                   # attributeHistogramConstraint
     | 'priceHistogram'                      args = priceHistogramArgs                                       # priceHistogramConstraint
     | 'distance'                            args = valueArgs                                                # hierarchyDistanceConstraint
@@ -247,11 +249,11 @@ classifierListArgs :                                argsOpening classifiers = va
 
 classifierWithFilterConstraintArgs :                argsOpening classifier = valueToken ARGS_DELIMITER filter = filterConstraint argsClosing ;
 
-classifierWithOptionalFilterConstraintArgs :        argsOpening classifier = valueToken (ARGS_DELIMITER filter = filterConstraint)? argsClosing ;
+facetGroupRelationArgs :                            argsOpening classifier = valueToken (ARGS_DELIMITER facetGroupRelationLevel = valueToken)? (ARGS_DELIMITER filter = filterConstraint)? argsClosing ;
+
+facetCalculationRulesArgs :                         argsOpening facetsWithSameGroup = valueToken ARGS_DELIMITER facetsWithDifferentGroups = valueToken argsClosing ;
 
 classifierWithOrderConstraintListArgs :             argsOpening classifier = valueToken (ARGS_DELIMITER constrains += orderConstraint)+ argsClosing ;
-
-valueWithRequireConstraintListArgs:                 argsOpening value = valueToken (ARGS_DELIMITER requirements += requireConstraint)* argsClosing ;
 
 hierarchyWithinConstraintArgs :                     argsOpening classifier = valueToken ARGS_DELIMITER ofParent = filterConstraint (ARGS_DELIMITER constrains += filterConstraint)* argsClosing ;
 

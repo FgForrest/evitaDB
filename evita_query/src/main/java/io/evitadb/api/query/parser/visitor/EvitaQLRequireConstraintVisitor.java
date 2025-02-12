@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -101,6 +101,8 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	);
 	protected final EvitaQLOrderConstraintVisitor orderConstraintVisitor = new EvitaQLOrderConstraintVisitor();
 	protected final EvitaQLValueTokenVisitor priceContentModeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(PriceContentMode.class);
+	protected final EvitaQLValueTokenVisitor facetGroupRelationLevelValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(FacetGroupRelationLevel.class);
+	protected final EvitaQLValueTokenVisitor facetRelationTypeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(FacetRelationType.class);
 	protected final EvitaQLValueTokenVisitor queryPriceModeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(QueryPriceMode.class);
 	protected final EvitaQLValueTokenVisitor statisticsArgValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(StatisticsBase.class, StatisticsType.class);
 	protected final EvitaQLValueTokenVisitor stringValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(String.class);
@@ -124,7 +126,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitRequireContainerConstraint(@Nonnull RequireContainerConstraintContext ctx) {
+	public RequireConstraint visitRequireContainerConstraint(RequireContainerConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -142,7 +144,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitPageConstraint(@Nonnull PageConstraintContext ctx) {
+	public RequireConstraint visitPageConstraint(PageConstraintContext ctx) {
 		final int pageNumber = ctx.args.pageNumber.accept(intValueTokenVisitor).asInt();
 		final int pageSize = ctx.args.pageSize.accept(intValueTokenVisitor).asInt();
 		final Spacing spacing = ctx.args.requireConstraint() == null ?
@@ -197,7 +199,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitStripConstraint(@Nonnull StripConstraintContext ctx) {
+	public RequireConstraint visitStripConstraint(StripConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new Strip(
@@ -208,7 +210,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitEntityFetchConstraint(@Nonnull EntityFetchConstraintContext ctx) {
+	public RequireConstraint visitEntityFetchConstraint(EntityFetchConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -226,7 +228,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitEntityGroupFetchConstraint(@Nonnull EntityGroupFetchConstraintContext ctx) {
+	public RequireConstraint visitEntityGroupFetchConstraint(EntityGroupFetchConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -244,7 +246,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitAttributeContentConstraint(@Nonnull AttributeContentConstraintContext ctx) {
+	public RequireConstraint visitAttributeContentConstraint(AttributeContentConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -259,7 +261,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitPriceContentConstraint(@Nonnull PriceContentConstraintContext ctx) {
+	public RequireConstraint visitPriceContentConstraint(PriceContentConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new PriceContent(
@@ -273,12 +275,12 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 
 	@Nullable
 	@Override
-	public RequireConstraint visitPriceContentAllConstraint(@Nonnull PriceContentAllConstraintContext ctx) {
+	public RequireConstraint visitPriceContentAllConstraint(PriceContentAllConstraintContext ctx) {
 		return parse(ctx, () -> new PriceContent(PriceContentMode.ALL));
 	}
 
 	@Override
-	public RequireConstraint visitPriceContentRespectingFilterConstraint(@Nonnull PriceContentRespectingFilterConstraintContext ctx) {
+	public RequireConstraint visitPriceContentRespectingFilterConstraint(PriceContentRespectingFilterConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -296,7 +298,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitAssociatedDataContentConstraint(@Nonnull AssociatedDataContentConstraintContext ctx) {
+	public RequireConstraint visitAssociatedDataContentConstraint(AssociatedDataContentConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -311,7 +313,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitAllRefsReferenceContentConstraint(@Nonnull AllRefsReferenceContentConstraintContext ctx) {
+	public RequireConstraint visitAllRefsReferenceContentConstraint(AllRefsReferenceContentConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -346,7 +348,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitMultipleRefsReferenceContentConstraint(@Nonnull MultipleRefsReferenceContentConstraintContext ctx) {
+	public RequireConstraint visitMultipleRefsReferenceContentConstraint(MultipleRefsReferenceContentConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -1240,12 +1242,12 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitEmptyHierarchyContentConstraint(@Nonnull EmptyHierarchyContentConstraintContext ctx) {
+	public RequireConstraint visitEmptyHierarchyContentConstraint(EmptyHierarchyContentConstraintContext ctx) {
 		return parse(ctx, HierarchyContent::new);
 	}
 
 	@Override
-	public RequireConstraint visitSingleRequireHierarchyContentConstraint(@Nonnull SingleRequireHierarchyContentConstraintContext ctx) {
+	public RequireConstraint visitSingleRequireHierarchyContentConstraint(SingleRequireHierarchyContentConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -1262,7 +1264,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitAllRequiresHierarchyContentConstraint(@Nonnull AllRequiresHierarchyContentConstraintContext ctx) {
+	public RequireConstraint visitAllRequiresHierarchyContentConstraint(AllRequiresHierarchyContentConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -1274,7 +1276,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitPriceTypeConstraint(@Nonnull PriceTypeConstraintContext ctx) {
+	public RequireConstraint visitPriceTypeConstraint(PriceTypeConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new PriceType(
@@ -1291,7 +1293,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitDataInLocalesConstraint(@Nonnull DataInLocalesConstraintContext ctx) {
+	public RequireConstraint visitDataInLocalesConstraint(DataInLocalesConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new DataInLocales(
@@ -1413,7 +1415,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitFacetSummaryOfReference1Constraint(@Nonnull FacetSummaryOfReference1ConstraintContext ctx) {
+	public RequireConstraint visitFacetSummaryOfReference1Constraint(FacetSummaryOfReference1ConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new FacetSummaryOfReference(
@@ -1423,7 +1425,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitFacetSummaryOfReference2Constraint(@Nonnull FacetSummaryOfReference2ConstraintContext ctx) {
+	public RequireConstraint visitFacetSummaryOfReference2Constraint(FacetSummaryOfReference2ConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -1476,11 +1478,13 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitFacetGroupsConjunctionConstraint(@Nonnull FacetGroupsConjunctionConstraintContext ctx) {
+	public RequireConstraint visitFacetGroupsConjunctionConstraint(FacetGroupsConjunctionConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new FacetGroupsConjunction(
 				ctx.args.classifier.accept(stringValueTokenVisitor).asString(),
+				ctx.args.facetGroupRelationLevel == null ?
+					null : ctx.args.facetGroupRelationLevel.accept(facetGroupRelationLevelValueTokenVisitor).asEnum(FacetGroupRelationLevel.class),
 				ctx.args.filterConstraint() == null ?
 					null : (FilterBy) ctx.args.filterConstraint().accept(filterConstraintVisitor)
 			)
@@ -1488,11 +1492,13 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitFacetGroupsDisjunctionConstraint(@Nonnull FacetGroupsDisjunctionConstraintContext ctx) {
+	public RequireConstraint visitFacetGroupsDisjunctionConstraint(FacetGroupsDisjunctionConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new FacetGroupsDisjunction(
 				ctx.args.classifier.accept(stringValueTokenVisitor).asString(),
+				ctx.args.facetGroupRelationLevel == null ?
+					null : ctx.args.facetGroupRelationLevel.accept(facetGroupRelationLevelValueTokenVisitor).asEnum(FacetGroupRelationLevel.class),
 				ctx.args.filterConstraint() == null ?
 					null : (FilterBy) ctx.args.filterConstraint().accept(filterConstraintVisitor)
 			)
@@ -1500,11 +1506,13 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitFacetGroupsNegationConstraint(@Nonnull FacetGroupsNegationConstraintContext ctx) {
+	public RequireConstraint visitFacetGroupsNegationConstraint(FacetGroupsNegationConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new FacetGroupsNegation(
 				ctx.args.classifier.accept(stringValueTokenVisitor).asString(),
+				ctx.args.facetGroupRelationLevel == null ?
+					null : ctx.args.facetGroupRelationLevel.accept(facetGroupRelationLevelValueTokenVisitor).asEnum(FacetGroupRelationLevel.class),
 				ctx.args.filterConstraint() == null ?
 					null : (FilterBy) ctx.args.filterConstraint().accept(filterConstraintVisitor)
 			)
@@ -1512,7 +1520,32 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitAttributeHistogramConstraint(@Nonnull AttributeHistogramConstraintContext ctx) {
+	public RequireConstraint visitFacetGroupsExclusivityConstraint(FacetGroupsExclusivityConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new FacetGroupsExclusivity(
+				ctx.args.classifier.accept(stringValueTokenVisitor).asString(),
+				ctx.args.facetGroupRelationLevel == null ?
+					null : ctx.args.facetGroupRelationLevel.accept(facetGroupRelationLevelValueTokenVisitor).asEnum(FacetGroupRelationLevel.class),
+				ctx.args.filterConstraint() == null ?
+					null : (FilterBy) ctx.args.filterConstraint().accept(filterConstraintVisitor)
+			)
+		);
+	}
+
+	@Override
+	public RequireConstraint visitFacetCalculationRulesConstraint(FacetCalculationRulesConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new FacetCalculationRules(
+				ctx.args.facetsWithSameGroup.accept(facetRelationTypeValueTokenVisitor).asEnum(FacetRelationType.class),
+				ctx.args.facetsWithDifferentGroups.accept(facetRelationTypeValueTokenVisitor).asEnum(FacetRelationType.class)
+			)
+		);
+	}
+
+	@Override
+	public RequireConstraint visitAttributeHistogramConstraint(AttributeHistogramConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -1561,7 +1594,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitPriceHistogramConstraint(@Nonnull PriceHistogramConstraintContext ctx) {
+	public RequireConstraint visitPriceHistogramConstraint(PriceHistogramConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new PriceHistogram(
@@ -1572,7 +1605,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitHierarchyDistanceConstraint(@Nonnull HierarchyDistanceConstraintContext ctx) {
+	public RequireConstraint visitHierarchyDistanceConstraint(HierarchyDistanceConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new HierarchyDistance(ctx.args.value.accept(intValueTokenVisitor).asInt())
@@ -1580,7 +1613,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitHierarchyLevelConstraint(@Nonnull HierarchyLevelConstraintContext ctx) {
+	public RequireConstraint visitHierarchyLevelConstraint(HierarchyLevelConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new HierarchyLevel(ctx.args.value.accept(intValueTokenVisitor).asInt())
@@ -1588,7 +1621,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitHierarchyNodeConstraint(@Nonnull HierarchyNodeConstraintContext ctx) {
+	public RequireConstraint visitHierarchyNodeConstraint(HierarchyNodeConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new HierarchyNode(visitChildConstraint(filterConstraintVisitor, ctx.args.filter, FilterBy.class))
@@ -1596,7 +1629,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitHierarchyStopAtConstraint(@Nonnull HierarchyStopAtConstraintContext ctx) {
+	public RequireConstraint visitHierarchyStopAtConstraint(HierarchyStopAtConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new HierarchyStopAt(visitChildConstraint(ctx.args.requirement, HierarchyStopAtRequireConstraint.class))
@@ -1604,7 +1637,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitHierarchyStatisticsConstraint(@Nonnull HierarchyStatisticsConstraintContext ctx) {
+	public RequireConstraint visitHierarchyStatisticsConstraint(HierarchyStatisticsConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -1662,7 +1695,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitHierarchyFromRootConstraint(@Nonnull HierarchyFromRootConstraintContext ctx) {
+	public RequireConstraint visitHierarchyFromRootConstraint(HierarchyFromRootConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -1695,7 +1728,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitHierarchyFromNodeConstraint(@Nonnull HierarchyFromNodeConstraintContext ctx) {
+	public RequireConstraint visitHierarchyFromNodeConstraint(HierarchyFromNodeConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -1734,7 +1767,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitHierarchyChildrenConstraint(@Nonnull HierarchyChildrenConstraintContext ctx) {
+	public RequireConstraint visitHierarchyChildrenConstraint(HierarchyChildrenConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -1772,7 +1805,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitBasicHierarchySiblingsConstraint(@Nonnull BasicHierarchySiblingsConstraintContext ctx) {
+	public RequireConstraint visitBasicHierarchySiblingsConstraint(BasicHierarchySiblingsConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -1804,7 +1837,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitFullHierarchySiblingsConstraint(@Nonnull FullHierarchySiblingsConstraintContext ctx) {
+	public RequireConstraint visitFullHierarchySiblingsConstraint(FullHierarchySiblingsConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -1837,7 +1870,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitHierarchyParentsConstraint(@Nonnull HierarchyParentsConstraintContext ctx) {
+	public RequireConstraint visitHierarchyParentsConstraint(HierarchyParentsConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -1897,7 +1930,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitBasicHierarchyOfSelfConstraint(@Nonnull BasicHierarchyOfSelfConstraintContext ctx) {
+	public RequireConstraint visitBasicHierarchyOfSelfConstraint(BasicHierarchyOfSelfConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new HierarchyOfSelf(
@@ -1910,7 +1943,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitFullHierarchyOfSelfConstraint(@Nonnull FullHierarchyOfSelfConstraintContext ctx) {
+	public RequireConstraint visitFullHierarchyOfSelfConstraint(FullHierarchyOfSelfConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new HierarchyOfSelf(
@@ -1924,7 +1957,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitBasicHierarchyOfReferenceConstraint(@Nonnull BasicHierarchyOfReferenceConstraintContext ctx) {
+	public RequireConstraint visitBasicHierarchyOfReferenceConstraint(BasicHierarchyOfReferenceConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new HierarchyOfReference(
@@ -1940,7 +1973,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitBasicHierarchyOfReferenceWithBehaviourConstraint(@Nonnull BasicHierarchyOfReferenceWithBehaviourConstraintContext ctx) {
+	public RequireConstraint visitBasicHierarchyOfReferenceWithBehaviourConstraint(BasicHierarchyOfReferenceWithBehaviourConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new HierarchyOfReference(
@@ -1958,7 +1991,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitFullHierarchyOfReferenceConstraint(@Nonnull FullHierarchyOfReferenceConstraintContext ctx) {
+	public RequireConstraint visitFullHierarchyOfReferenceConstraint(FullHierarchyOfReferenceConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new HierarchyOfReference(
@@ -1975,7 +2008,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitFullHierarchyOfReferenceWithBehaviourConstraint(@Nonnull FullHierarchyOfReferenceWithBehaviourConstraintContext ctx) {
+	public RequireConstraint visitFullHierarchyOfReferenceWithBehaviourConstraint(FullHierarchyOfReferenceWithBehaviourConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new HierarchyOfReference(
@@ -1994,7 +2027,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitQueryTelemetryConstraint(@Nonnull QueryTelemetryConstraintContext ctx) {
+	public RequireConstraint visitQueryTelemetryConstraint(QueryTelemetryConstraintContext ctx) {
 		return parse(ctx, QueryTelemetry::new);
 	}
 

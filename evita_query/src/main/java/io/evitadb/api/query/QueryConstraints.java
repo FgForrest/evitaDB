@@ -61,7 +61,7 @@ import static java.util.Optional.ofNullable;
 @SuppressWarnings({"DataFlowIssue", "ConstantValue"})
 public interface QueryConstraints {
 
-	/*+
+	/*
 		HEADING
 	 */
 
@@ -83,7 +83,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/header/header#head">Visit detailed user documentation</a></p>
-	*/
+	 */
 	@Nullable
 	static Head head(@Nullable HeadConstraint... headConstraint) {
 		return ArrayUtils.isEmptyOrItsValuesNull(headConstraint) ? null : new Head(headConstraint);
@@ -100,7 +100,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/header/header#collection">Visit detailed user documentation</a></p>
-	*/
+	 */
 	@Nonnull
 	static Collection collection(@Nonnull String entityType) {
 		return new Collection(entityType);
@@ -126,7 +126,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/header/header#label">Visit detailed user documentation</a></p>
-	*/
+	 */
 	@Nullable
 	static <T extends Comparable<T> & Serializable> Label label(@Nullable String name, @Nullable T value) {
 		return name == null || name.isBlank() || value == null ? null : new Label(name, value);
@@ -1926,6 +1926,10 @@ public interface QueryConstraints {
 	 * the current date or the attribute is not set at all.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/references#including-children-having">Visit detailed user documentation</a></p>
+	 *
+	 * TODO JNO - rename back to FacetIncludingChildren
+	 *
+	 * <a href="https://evitadb.io/documentation/query/filtering/references#including-children-having">Visit detailed user documentation</a>
 	 */
 	@Nonnull
 	static ReferenceIncludingChildren includingChildren() {
@@ -1996,6 +2000,10 @@ public interface QueryConstraints {
 	 * the current date or the attribute is not set at all.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/references#including-children-having">Visit detailed user documentation</a></p>
+	 *
+	 * TODO JNO - rename back to FacetIncludingChildren
+	 *
+	 * <a href="https://evitadb.io/documentation/query/filtering/references#including-children-having">Visit detailed user documentation</a>
 	 */
 	@Nonnull
 	static ReferenceIncludingChildren includingChildrenHaving(@Nullable FilterConstraint filterConstraint) {
@@ -3431,12 +3439,14 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * This `facetGroupsConjunction` require allows specifying inter-facet relation inside facet groups of certain primary ids.
-	 * First mandatory argument specifies entity type of the facet group, secondary argument allows to define one more facet
-	 * group ids which inner facets should be considered conjunctive.
+	 * This `facetGroupsConjunction` require constraint allows specifying facet relation on particular level (within group
+	 * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+	 * group, secondary optional argument allows defining the level for which the conjunction is defined, third optional
+	 * argument defines one more facet group ids which facets should be considered conjunctive with other facets either
+	 * in same group or different groups (depending on level argument).
 	 *
-	 * This require constraint changes default behaviour stating that all facets inside same facet group are combined by OR
-	 * relation (eg. disjunction). Constraint has sense only when [facet](#facet) constraint is part of the query.
+	 * This require constraint changes default behavior of the facet calculation rules.
+	 * Constraint has sense only when [facet](#facet) constraint is part of the query.
 	 *
 	 * Example:
 	 *
@@ -3453,7 +3463,7 @@ public interface QueryConstraints {
 	 *       )
 	 *    ),
 	 *    require(
-	 *       facetGroupsConjunction("parameterType", 1, 8, 15)
+	 *       facetGroupsConjunction("parameterType", WITH_DIFFERENT_FACETS_IN_GROUP, 1, 8, 15)
 	 *    )
 	 * )
 	 * </pre>
@@ -3490,12 +3500,14 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * This `facetGroupsConjunction` require allows specifying inter-facet relation inside facet groups of certain primary ids.
-	 * First mandatory argument specifies entity type of the facet group, secondary argument allows to define one more facet
-	 * group ids which inner facets should be considered conjunctive.
+	 * This `facetGroupsConjunction` require constraint allows specifying facet relation on particular level (within group
+	 * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+	 * group, secondary optional argument allows defining the level for which the conjunction is defined, third optional
+	 * argument defines one more facet group ids which facets should be considered conjunctive with other facets either
+	 * in same group or different groups (depending on level argument).
 	 *
-	 * This require constraint changes default behaviour stating that all facets inside same facet group are combined by OR
-	 * relation (eg. disjunction). Constraint has sense only when [facet](#facet) constraint is part of the query.
+	 * This require constraint changes default behavior of the facet calculation rules.
+	 * Constraint has sense only when [facet](#facet) constraint is part of the query.
 	 *
 	 * Example:
 	 *
@@ -3512,7 +3524,129 @@ public interface QueryConstraints {
 	 *       )
 	 *    ),
 	 *    require(
-	 *       facetGroupsConjunction("parameterType", 1, 8, 15)
+	 *       facetGroupsConjunction("parameterType", WITH_DIFFERENT_FACETS_IN_GROUP, 1, 8, 15)
+	 *    )
+	 * )
+	 * </pre>
+	 *
+	 * This statement means, that facets in `parameterType` groups `1`, `8`, `15` will be joined with boolean AND relation when
+	 * selected.
+	 *
+	 * Let's have this facet/group situation:
+	 *
+	 * Color `parameterType` (group id: 1):
+	 *
+	 * - blue (facet id: 11)
+	 * - red (facet id: 12)
+	 *
+	 * Size `parameterType` (group id: 2):
+	 *
+	 * - small (facet id: 21)
+	 * - large (facet id: 22)
+	 *
+	 * Flags `tag` (group id: 3):
+	 *
+	 * - action products (facet id: 31)
+	 * - new products (facet id: 32)
+	 *
+	 * When user selects facets: blue (11), red (12) by default relation would be: get all entities that have facet blue(11) OR
+	 * facet red(12). If require `facetGroupsConjunction('parameterType', 1)` is passed in the query filtering condition will
+	 * be composed as: blue(11) AND red(12)
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-conjunction">Visit detailed user documentation</a></p>
+	 */
+	@Nullable
+	static FacetGroupsConjunction facetGroupsConjunction(@Nullable String referenceName, @Nullable FacetGroupRelationLevel facetGroupRelationLevel) {
+		return referenceName == null ? null : new FacetGroupsConjunction(referenceName, facetGroupRelationLevel, null);
+	}
+
+	/**
+	 * This `facetGroupsConjunction` require constraint allows specifying facet relation on particular level (within group
+	 * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+	 * group, secondary optional argument allows defining the level for which the conjunction is defined, third optional
+	 * argument defines one more facet group ids which facets should be considered conjunctive with other facets either
+	 * in same group or different groups (depending on level argument).
+	 *
+	 * This require constraint changes default behavior of the facet calculation rules.
+	 * Constraint has sense only when [facet](#facet) constraint is part of the query.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *    entities("product"),
+	 *    filterBy(
+	 *       userFilter(
+	 *          facet("group", 1, 2),
+	 *          facet(
+	 *             "parameterType",
+	 *             entityPrimaryKeyInSet(11, 12, 22)
+	 *          )
+	 *       )
+	 *    ),
+	 *    require(
+	 *       facetGroupsConjunction("parameterType", WITH_DIFFERENT_FACETS_IN_GROUP, 1, 8, 15)
+	 *    )
+	 * )
+	 * </pre>
+	 *
+	 * This statement means, that facets in `parameterType` groups `1`, `8`, `15` will be joined with boolean AND relation when
+	 * selected.
+	 *
+	 * Let's have this facet/group situation:
+	 *
+	 * Color `parameterType` (group id: 1):
+	 *
+	 * - blue (facet id: 11)
+	 * - red (facet id: 12)
+	 *
+	 * Size `parameterType` (group id: 2):
+	 *
+	 * - small (facet id: 21)
+	 * - large (facet id: 22)
+	 *
+	 * Flags `tag` (group id: 3):
+	 *
+	 * - action products (facet id: 31)
+	 * - new products (facet id: 32)
+	 *
+	 * When user selects facets: blue (11), red (12) by default relation would be: get all entities that have facet blue(11) OR
+	 * facet red(12). If require `facetGroupsConjunction('parameterType', 1)` is passed in the query filtering condition will
+	 * be composed as: blue(11) AND red(12)
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-conjunction">Visit detailed user documentation</a></p>
+	 */
+	@Nullable
+	static FacetGroupsConjunction facetGroupsConjunction(@Nullable String referenceName, @Nullable FacetGroupRelationLevel facetGroupRelationLevel, @Nullable FilterBy filterBy) {
+		return referenceName == null ? null : new FacetGroupsConjunction(referenceName, facetGroupRelationLevel, filterBy);
+	}
+
+	/**
+	 * This `facetGroupsConjunction` require constraint allows specifying facet relation on particular level (within group
+	 * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+	 * group, secondary optional argument allows defining the level for which the conjunction is defined, third optional
+	 * argument defines one more facet group ids which facets should be considered conjunctive with other facets either
+	 * in same group or different groups (depending on level argument).
+	 *
+	 * This require constraint changes default behavior of the facet calculation rules.
+	 * Constraint has sense only when [facet](#facet) constraint is part of the query.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *    entities("product"),
+	 *    filterBy(
+	 *       userFilter(
+	 *          facet("group", 1, 2),
+	 *          facet(
+	 *             "parameterType",
+	 *             entityPrimaryKeyInSet(11, 12, 22)
+	 *          )
+	 *       )
+	 *    ),
+	 *    require(
+	 *       facetGroupsConjunction("parameterType", WITH_DIFFERENT_FACETS_IN_GROUP, 1, 8, 15)
 	 *    )
 	 * )
 	 * </pre>
@@ -3549,12 +3683,14 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * This `facetGroupsDisjunction` require constraint allows specifying facet relation among different facet groups of certain
-	 * primary ids. First mandatory argument specifies entity type of the facet group, secondary argument allows to define one
-	 * more facet group ids that should be considered disjunctive.
+	 * This `facetGroupsDisjunction` require constraint allows specifying facet relation on particular level (within group
+	 * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+	 * group, secondary optional argument allows defining the level for which the disjunction is defined, third optional
+	 * argument defines one more facet group ids which facets should be considered disjunctive with other facets either
+	 * in same group or different groups (depending on level argument).
 	 *
-	 * This require constraint changes default behaviour stating that facets between two different facet groups are combined by
-	 * AND relation and changes it to the disjunction relation instead.
+	 * This require constraint changes default behavior of the facet calculation rules.
+	 * Constraint has sense only when [facet](#facet) constraint is part of the query.
 	 *
 	 * Example:
 	 *
@@ -3571,7 +3707,7 @@ public interface QueryConstraints {
 	 *       )
 	 *    ),
 	 *    require(
-	 *       facetGroupsDisjunction("parameterType", 1, 2)
+	 *       facetGroupsDisjunction("parameterType", WITH_DIFFERENT_GROUPS, 1, 2)
 	 *    )
 	 * )
 	 * </pre>
@@ -3608,12 +3744,14 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * This `facetGroupsDisjunction` require constraint allows specifying facet relation among different facet groups of certain
-	 * primary ids. First mandatory argument specifies entity type of the facet group, secondary argument allows to define one
-	 * more facet group ids that should be considered disjunctive.
+	 * This `facetGroupsDisjunction` require constraint allows specifying facet relation on particular level (within group
+	 * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+	 * group, secondary optional argument allows defining the level for which the disjunction is defined, third optional
+	 * argument defines one more facet group ids which facets should be considered disjunctive with other facets either
+	 * in same group or different groups (depending on level argument).
 	 *
-	 * This require constraint changes default behaviour stating that facets between two different facet groups are combined by
-	 * AND relation and changes it to the disjunction relation instead.
+	 * This require constraint changes default behavior of the facet calculation rules.
+	 * Constraint has sense only when [facet](#facet) constraint is part of the query.
 	 *
 	 * Example:
 	 *
@@ -3630,7 +3768,129 @@ public interface QueryConstraints {
 	 *       )
 	 *    ),
 	 *    require(
-	 *       facetGroupsDisjunction("parameterType", 1, 2)
+	 *       facetGroupsDisjunction("parameterType", WITH_DIFFERENT_GROUPS, 1, 2)
+	 *    )
+	 * )
+	 * </pre>
+	 *
+	 * This statement means, that facets in `parameterType` facet groups `1`, `2` will be joined with the rest of the query by
+	 * boolean OR relation when selected.
+	 *
+	 * Let's have this facet/group situation:
+	 *
+	 * Color `parameterType` (group id: 1):
+	 *
+	 * - blue (facet id: 11)
+	 * - red (facet id: 12)
+	 *
+	 * Size `parameterType` (group id: 2):
+	 *
+	 * - small (facet id: 21)
+	 * - large (facet id: 22)
+	 *
+	 * Flags `tag` (group id: 3):
+	 *
+	 * - action products (facet id: 31)
+	 * - new products (facet id: 32)
+	 *
+	 * When user selects facets: blue (11), large (22), new products (31) - the default meaning would be: get all entities that
+	 * have facet blue as well as facet large and action products tag (AND). If require `facetGroupsDisjunction('tag', 3)`
+	 * is passed in the query, filtering condition will be composed as: (`blue(11)` AND `large(22)`) OR `new products(31)`
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-disjunction">Visit detailed user documentation</a></p>
+	 */
+	@Nullable
+	static FacetGroupsDisjunction facetGroupsDisjunction(@Nullable String referenceName, @Nullable FacetGroupRelationLevel facetGroupRelationLevel) {
+		return referenceName == null ? null : new FacetGroupsDisjunction(referenceName, facetGroupRelationLevel, null);
+	}
+
+	/**
+	 * This `facetGroupsDisjunction` require constraint allows specifying facet relation on particular level (within group
+	 * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+	 * group, secondary optional argument allows defining the level for which the disjunction is defined, third optional
+	 * argument defines one more facet group ids which facets should be considered disjunctive with other facets either
+	 * in same group or different groups (depending on level argument).
+	 *
+	 * This require constraint changes default behavior of the facet calculation rules.
+	 * Constraint has sense only when [facet](#facet) constraint is part of the query.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *    entities("product"),
+	 *    filterBy(
+	 *       userFilter(
+	 *          facet("group", 1, 2),
+	 *          facet(
+	 *             "parameterType",
+	 *             entityPrimaryKeyInSet(11, 12, 22)
+	 *          )
+	 *       )
+	 *    ),
+	 *    require(
+	 *       facetGroupsDisjunction("parameterType", WITH_DIFFERENT_GROUPS, 1, 2)
+	 *    )
+	 * )
+	 * </pre>
+	 *
+	 * This statement means, that facets in `parameterType` facet groups `1`, `2` will be joined with the rest of the query by
+	 * boolean OR relation when selected.
+	 *
+	 * Let's have this facet/group situation:
+	 *
+	 * Color `parameterType` (group id: 1):
+	 *
+	 * - blue (facet id: 11)
+	 * - red (facet id: 12)
+	 *
+	 * Size `parameterType` (group id: 2):
+	 *
+	 * - small (facet id: 21)
+	 * - large (facet id: 22)
+	 *
+	 * Flags `tag` (group id: 3):
+	 *
+	 * - action products (facet id: 31)
+	 * - new products (facet id: 32)
+	 *
+	 * When user selects facets: blue (11), large (22), new products (31) - the default meaning would be: get all entities that
+	 * have facet blue as well as facet large and action products tag (AND). If require `facetGroupsDisjunction('tag', 3)`
+	 * is passed in the query, filtering condition will be composed as: (`blue(11)` AND `large(22)`) OR `new products(31)`
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-disjunction">Visit detailed user documentation</a></p>
+	 */
+	@Nullable
+	static FacetGroupsDisjunction facetGroupsDisjunction(@Nullable String referenceName, @Nullable FacetGroupRelationLevel facetGroupRelationLevel, @Nullable FilterBy filterBy) {
+		return referenceName == null ? null : new FacetGroupsDisjunction(referenceName, facetGroupRelationLevel, filterBy);
+	}
+
+	/**
+	 * This `facetGroupsDisjunction` require constraint allows specifying facet relation on particular level (within group
+	 * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+	 * group, secondary optional argument allows defining the level for which the disjunction is defined, third optional
+	 * argument defines one more facet group ids which facets should be considered disjunctive with other facets either
+	 * in same group or different groups (depending on level argument).
+	 *
+	 * This require constraint changes default behavior of the facet calculation rules.
+	 * Constraint has sense only when [facet](#facet) constraint is part of the query.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *    entities("product"),
+	 *    filterBy(
+	 *       userFilter(
+	 *          facet("group", 1, 2),
+	 *          facet(
+	 *             "parameterType",
+	 *             entityPrimaryKeyInSet(11, 12, 22)
+	 *          )
+	 *       )
+	 *    ),
+	 *    require(
+	 *       facetGroupsDisjunction("parameterType", WITH_DIFFERENT_GROUPS, 1, 2)
 	 *    )
 	 * )
 	 * </pre>
@@ -3667,9 +3927,15 @@ public interface QueryConstraints {
 	}
 
 	/**
+	 * This `facetGroupsNegation` require constraint allows specifying facet relation on particular level (within group
+	 * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+	 * group, secondary optional argument allows defining the level for which the negation is defined, third optional
+	 * argument defines one more facet group ids which facets should be considered negative with other facets either
+	 * in same group or different groups (depending on level argument).
+	 *
 	 * The `facetGroupsNegation` changes the behavior of the facet option in all facet groups specified in the filterBy
-	 * constraint. Instead of returning only those items that have a reference to that particular faceted entity, the query
-	 * result will return only those items that don't have a reference to it.
+	 * constraint (or all). Instead of returning only those items that have a reference to that particular faceted entity,
+	 * the query result will return only those items that don't have a reference to it.
 	 *
 	 * Example:
 	 *
@@ -3687,6 +3953,7 @@ public interface QueryConstraints {
 	 *         ),
 	 *         facetGroupsNegation(
 	 *             "parameterValues",
+	 *             WITH_DIFFERENT_GROUPS,
 	 *             filterBy(
 	 *               attributeInSet("code", "ram-memory")
 	 *             )
@@ -3707,9 +3974,15 @@ public interface QueryConstraints {
 	}
 
 	/**
+	 * This `facetGroupsNegation` require constraint allows specifying facet relation on particular level (within group
+	 * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+	 * group, secondary optional argument allows defining the level for which the negation is defined, third optional
+	 * argument defines one more facet group ids which facets should be considered negative with other facets either
+	 * in same group or different groups (depending on level argument).
+	 *
 	 * The `facetGroupsNegation` changes the behavior of the facet option in all facet groups specified in the filterBy
-	 * constraint. Instead of returning only those items that have a reference to that particular faceted entity, the query
-	 * result will return only those items that don't have a reference to it.
+	 * constraint (or all). Instead of returning only those items that have a reference to that particular faceted entity,
+	 * the query result will return only those items that don't have a reference to it.
 	 *
 	 * Example:
 	 *
@@ -3727,6 +4000,101 @@ public interface QueryConstraints {
 	 *         ),
 	 *         facetGroupsNegation(
 	 *             "parameterValues",
+	 *             WITH_DIFFERENT_GROUPS,
+	 *             filterBy(
+	 *               attributeInSet("code", "ram-memory")
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * The predicted results in the negated groups are far greater than the numbers produced by the default behavior.
+	 * Selecting any option in the RAM facet group predicts returning thousands of results, while the ROM facet group with
+	 * default behavior predicts only a dozen of them.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-negation">Visit detailed user documentation</a></p>
+	 */
+	@Nullable
+	static FacetGroupsNegation facetGroupsNegation(@Nullable String referenceName, @Nullable FacetGroupRelationLevel facetGroupRelationLevel, @Nullable FilterBy filterBy) {
+		return referenceName == null ? null : new FacetGroupsNegation(referenceName, facetGroupRelationLevel, filterBy);
+	}
+
+	/**
+	 * This `facetGroupsNegation` require constraint allows specifying facet relation on particular level (within group
+	 * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+	 * group, secondary optional argument allows defining the level for which the negation is defined, third optional
+	 * argument defines one more facet group ids which facets should be considered negative with other facets either
+	 * in same group or different groups (depending on level argument).
+	 *
+	 * The `facetGroupsNegation` changes the behavior of the facet option in all facet groups specified in the filterBy
+	 * constraint (or all). Instead of returning only those items that have a reference to that particular faceted entity,
+	 * the query result will return only those items that don't have a reference to it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     require(
+	 *         facetSummaryOfReference(
+	 *             "parameterValues",
+	 *             IMPACT,
+	 *             filterBy(attributeContains("code", "4")),
+	 *             filterGroupBy(attributeInSet("code", "ram-memory", "rom-memory")),
+	 *             entityFetch(attributeContent("code")),
+	 *             entityGroupFetch(attributeContent("code"))
+	 *         ),
+	 *         facetGroupsNegation(
+	 *             "parameterValues",
+	 *             WITH_DIFFERENT_GROUPS,
+	 *             filterBy(
+	 *               attributeInSet("code", "ram-memory")
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * The predicted results in the negated groups are far greater than the numbers produced by the default behavior.
+	 * Selecting any option in the RAM facet group predicts returning thousands of results, while the ROM facet group with
+	 * default behavior predicts only a dozen of them.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-negation">Visit detailed user documentation</a></p>
+	 */
+	@Nullable
+	static FacetGroupsNegation facetGroupsNegation(@Nullable String referenceName, @Nullable FacetGroupRelationLevel facetGroupRelationLevel) {
+		return referenceName == null ? null : new FacetGroupsNegation(referenceName, facetGroupRelationLevel, null);
+	}
+
+	/**
+	 * This `facetGroupsNegation` require constraint allows specifying facet relation on particular level (within group
+	 * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+	 * group, secondary optional argument allows defining the level for which the negation is defined, third optional
+	 * argument defines one more facet group ids which facets should be considered negative with other facets either
+	 * in same group or different groups (depending on level argument).
+	 *
+	 * The `facetGroupsNegation` changes the behavior of the facet option in all facet groups specified in the filterBy
+	 * constraint (or all). Instead of returning only those items that have a reference to that particular faceted entity,
+	 * the query result will return only those items that don't have a reference to it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     require(
+	 *         facetSummaryOfReference(
+	 *             "parameterValues",
+	 *             IMPACT,
+	 *             filterBy(attributeContains("code", "4")),
+	 *             filterGroupBy(attributeInSet("code", "ram-memory", "rom-memory")),
+	 *             entityFetch(attributeContent("code")),
+	 *             entityGroupFetch(attributeContent("code"))
+	 *         ),
+	 *         facetGroupsNegation(
+	 *             "parameterValues",
+	 *             WITH_DIFFERENT_GROUPS,
 	 *             filterBy(
 	 *               attributeInSet("code", "ram-memory")
 	 *             )
@@ -3744,6 +4112,236 @@ public interface QueryConstraints {
 	@Nullable
 	static FacetGroupsNegation facetGroupsNegation(@Nullable String referenceName) {
 		return referenceName == null ? null : new FacetGroupsNegation(referenceName, null);
+	}
+
+	/**
+	 * This `facetGroupsExclusivity` require constraint allows specifying facet relation on particular level (within group
+	 * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+	 * group, secondary optional argument allows defining the level for which the exclusivity is defined, third optional
+	 * argument defines one more facet group ids which facets should be considered exclusive with other facets either
+	 * in same group or different groups (depending on level argument).
+	 *
+	 * The `facetGroupsExclusivity` changes the behavior of the facet option in all facet groups specified in the filterBy
+	 * constraint (or all). Query will allow selecting only single facet from either the group or facets in single group
+	 * among other groups depending on the level argument:
+	 *
+	 * - WITH_DIFFERENT_GROUPS: when facets are selected, they must always be from single group (within the relation only)
+	 * - WITH_DIFFERENT_FACETS_IN_GROUP: only single facet can be selected from each group (within the relation only)
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     require(
+	 *         facetSummaryOfReference(
+	 *             "parameterValues",
+	 *             IMPACT,
+	 *             filterBy(attributeContains("code", "4")),
+	 *             filterGroupBy(attributeInSet("code", "ram-memory", "rom-memory")),
+	 *             entityFetch(attributeContent("code")),
+	 *             entityGroupFetch(attributeContent("code"))
+	 *         ),
+	 *         facetGroupsExclusivity(
+	 *             "parameterValues",
+	 *             WITH_DIFFERENT_FACETS_IN_GROUP,
+	 *             filterBy(
+	 *               attributeInSet("code", "ram-memory")
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * In group `ram-memory` only single facet can be selected, so it should be probably rendered as radio buttons in the UI
+	 * instead of checkboxes.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-exclusivity">Visit detailed user documentation</a></p>
+	 */
+	@Nullable
+	static FacetGroupsExclusivity facetGroupsExclusivity(@Nullable String referenceName, @Nullable FilterBy filterBy) {
+		return referenceName == null ? null : new FacetGroupsExclusivity(referenceName, filterBy);
+	}
+
+	/**
+	 * This `facetGroupsExclusivity` require constraint allows specifying facet relation on particular level (within group
+	 * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+	 * group, secondary optional argument allows defining the level for which the exclusivity is defined, third optional
+	 * argument defines one more facet group ids which facets should be considered exclusive with other facets either
+	 * in same group or different groups (depending on level argument).
+	 *
+	 * The `facetGroupsExclusivity` changes the behavior of the facet option in all facet groups specified in the filterBy
+	 * constraint (or all). Query will allow selecting only single facet from either the group or facets in single group
+	 * among other groups depending on the level argument:
+	 *
+	 * - WITH_DIFFERENT_GROUPS: when facets are selected, they must always be from single group (within the relation only)
+	 * - WITH_DIFFERENT_FACETS_IN_GROUP: only single facet can be selected from each group (within the relation only)
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     require(
+	 *         facetSummaryOfReference(
+	 *             "parameterValues",
+	 *             IMPACT,
+	 *             filterBy(attributeContains("code", "4")),
+	 *             filterGroupBy(attributeInSet("code", "ram-memory", "rom-memory")),
+	 *             entityFetch(attributeContent("code")),
+	 *             entityGroupFetch(attributeContent("code"))
+	 *         ),
+	 *         facetGroupsExclusivity(
+	 *             "parameterValues",
+	 *             WITH_DIFFERENT_FACETS_IN_GROUP,
+	 *             filterBy(
+	 *               attributeInSet("code", "ram-memory")
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * In group `ram-memory` only single facet can be selected, so it should be probably rendered as radio buttons in the UI
+	 * instead of checkboxes.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-exclusivity">Visit detailed user documentation</a></p>
+	 */
+	@Nullable
+	static FacetGroupsExclusivity facetGroupsExclusivity(@Nullable String referenceName, @Nullable FacetGroupRelationLevel facetGroupRelationLevel, @Nullable FilterBy filterBy) {
+		return referenceName == null ? null : new FacetGroupsExclusivity(referenceName, facetGroupRelationLevel, filterBy);
+	}
+
+	/**
+	 * This `facetGroupsExclusivity` require constraint allows specifying facet relation on particular level (within group
+	 * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+	 * group, secondary optional argument allows defining the level for which the exclusivity is defined, third optional
+	 * argument defines one more facet group ids which facets should be considered exclusive with other facets either
+	 * in same group or different groups (depending on level argument).
+	 *
+	 * The `facetGroupsExclusivity` changes the behavior of the facet option in all facet groups specified in the filterBy
+	 * constraint (or all). Query will allow selecting only single facet from either the group or facets in single group
+	 * among other groups depending on the level argument:
+	 *
+	 * - WITH_DIFFERENT_GROUPS: when facets are selected, they must always be from single group (within the relation only)
+	 * - WITH_DIFFERENT_FACETS_IN_GROUP: only single facet can be selected from each group (within the relation only)
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     require(
+	 *         facetSummaryOfReference(
+	 *             "parameterValues",
+	 *             IMPACT,
+	 *             filterBy(attributeContains("code", "4")),
+	 *             filterGroupBy(attributeInSet("code", "ram-memory", "rom-memory")),
+	 *             entityFetch(attributeContent("code")),
+	 *             entityGroupFetch(attributeContent("code"))
+	 *         ),
+	 *         facetGroupsExclusivity(
+	 *             "parameterValues",
+	 *             WITH_DIFFERENT_FACETS_IN_GROUP,
+	 *             filterBy(
+	 *               attributeInSet("code", "ram-memory")
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * In group `ram-memory` only single facet can be selected, so it should be probably rendered as radio buttons in the UI
+	 * instead of checkboxes.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-exclusivity">Visit detailed user documentation</a></p>
+	 */
+	@Nullable
+	static FacetGroupsExclusivity facetGroupsExclusivity(@Nullable String referenceName, @Nullable FacetGroupRelationLevel facetGroupRelationLevel) {
+		return referenceName == null ? null : new FacetGroupsExclusivity(referenceName, facetGroupRelationLevel, null);
+	}
+
+	/**
+	 * This `facetGroupsExclusivity` require constraint allows specifying facet relation on particular level (within group
+	 * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+	 * group, secondary optional argument allows defining the level for which the exclusivity is defined, third optional
+	 * argument defines one more facet group ids which facets should be considered exclusive with other facets either
+	 * in same group or different groups (depending on level argument).
+	 *
+	 * The `facetGroupsExclusivity` changes the behavior of the facet option in all facet groups specified in the filterBy
+	 * constraint (or all). Query will allow selecting only single facet from either the group or facets in single group
+	 * among other groups depending on the level argument:
+	 *
+	 * - WITH_DIFFERENT_GROUPS: when facets are selected, they must always be from single group (within the relation only)
+	 * - WITH_DIFFERENT_FACETS_IN_GROUP: only single facet can be selected from each group (within the relation only)
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     require(
+	 *         facetSummaryOfReference(
+	 *             "parameterValues",
+	 *             IMPACT,
+	 *             filterBy(attributeContains("code", "4")),
+	 *             filterGroupBy(attributeInSet("code", "ram-memory", "rom-memory")),
+	 *             entityFetch(attributeContent("code")),
+	 *             entityGroupFetch(attributeContent("code"))
+	 *         ),
+	 *         facetGroupsExclusivity(
+	 *             "parameterValues",
+	 *             WITH_DIFFERENT_FACETS_IN_GROUP,
+	 *             filterBy(
+	 *               attributeInSet("code", "ram-memory")
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * In group `ram-memory` only single facet can be selected, so it should be probably rendered as radio buttons in the UI
+	 * instead of checkboxes.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-exclusivity">Visit detailed user documentation</a></p>
+	 */
+	@Nullable
+	static FacetGroupsExclusivity facetGroupsExclusivity(@Nullable String referenceName) {
+		return referenceName == null ? null : new FacetGroupsExclusivity(referenceName, null);
+	}
+
+	/**
+	 * This `facetCalculationRules` require constraint allows specifying default facet relation for each recognized level.
+	 * If this constraint is not present, the default behavior is to use the disjunction relation (logical OR) for facets
+	 * within the same group and conjunction relation (logical AND) for facets among different groups or relations.
+	 *
+	 * By using this constraint, you can change the default behavior of the facet calculation rules. The constraint accepts
+	 * two arguments:
+	 *
+	 * - `facetsWithSameGroup`: type of relation that should be applied on facets within the same group by default.
+	 * - `facetsWithDifferentGroups`: type of relation that should be applied on facets among different groups or relations by default.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     require(
+	 *         facetCalculationRules(CONJUNCTION, EXCLUSIVITY)
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * This query will change the default behavior of the facet calculation rules (only for this particular query) to use
+	 * the conjunction relation for facets within the same group and exclusivity relation for facets among different groups.
+	 * It is the equivalent for using the `facetGroupsConjunction` and `facetGroupsExclusivity` require constraints together
+	 * without specifying filter for the particular facet groups.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-calculation-rules">Visit detailed user documentation</a></p>
+	 */
+	@Nonnull
+	static FacetCalculationRules facetCalculationRules(@Nullable FacetRelationType facetsWithSameGroup, @Nullable FacetRelationType facetsWithDifferentGroups) {
+		return new FacetCalculationRules(facetsWithSameGroup, facetsWithDifferentGroups);
 	}
 
 	/**
@@ -24537,7 +25135,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	*/
+	 */
 	@Nonnull
 	static FacetSummary facetSummary(@Nullable EntityFetchRequire... requirements) {
 		return new FacetSummary(FacetStatisticsDepth.COUNTS, requirements);
@@ -24624,7 +25222,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	*/
+	 */
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FilterBy facetFilterBy,
@@ -24715,7 +25313,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	*/
+	 */
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FilterBy filterBy,
@@ -24807,7 +25405,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	*/
+	 */
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FilterGroupBy facetGroupFilterBy,
@@ -24899,7 +25497,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	*/
+	 */
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FilterBy filterBy,
@@ -24991,7 +25589,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	*/
+	 */
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FilterBy filterBy,
@@ -25083,7 +25681,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	*/
+	 */
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FilterBy filterBy,
@@ -25174,7 +25772,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	*/
+	 */
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable OrderBy orderBy,
@@ -25265,7 +25863,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	*/
+	 */
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FilterBy filterBy,
@@ -25355,7 +25953,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	*/
+	 */
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable OrderBy orderBy,
@@ -25445,7 +26043,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	*/
+	 */
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FilterGroupBy facetGroupFilterBy,
@@ -25535,7 +26133,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	*/
+	 */
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable OrderGroupBy facetGroupOrderBy,
@@ -25625,7 +26223,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	*/
+	 */
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FilterGroupBy facetGroupFilterBy,
@@ -25716,7 +26314,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	*/
+	 */
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FilterBy filterBy,
@@ -25807,7 +26405,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	*/
+	 */
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FilterGroupBy facetGroupFilterBy,
@@ -25898,7 +26496,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	*/
+	 */
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FilterBy facetFilterBy,
@@ -27468,7 +28066,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	*/
+	 */
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -27553,7 +28151,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	*/
+	 */
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -27639,7 +28237,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	*/
+	 */
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -27725,7 +28323,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	*/
+	 */
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -27811,7 +28409,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	*/
+	 */
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -27897,7 +28495,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	*/
+	 */
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -27982,7 +28580,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	*/
+	 */
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -28067,7 +28665,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	*/
+	 */
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -28151,7 +28749,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	*/
+	 */
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -28235,7 +28833,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	*/
+	 */
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -28319,7 +28917,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	*/
+	 */
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -28403,7 +29001,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	*/
+	 */
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -28488,7 +29086,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	*/
+	 */
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -28573,7 +29171,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	*/
+	 */
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -28658,7 +29256,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	*/
+	 */
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
