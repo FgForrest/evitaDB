@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaDecorator;
@@ -50,7 +51,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static io.evitadb.index.bitmap.RoaringBitmapBackedBitmap.buildWriter;
@@ -64,19 +64,24 @@ import static java.util.Optional.of;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-class ReferenceBlock {
+class ReferenceBlock<T> {
 	/**
 	 * The bitmap of all referenced entity primary keys.
 	 */
 	@Getter private final RoaringBitmap referencedPrimaryKeys;
 	/**
+	 * The provider for fetching reference attribute values.
+	 */
+	@Nonnull
+	private final ReflectedReferenceAttributeValueProvider<T> attributeValueProvider;
+	/**
 	 * The supplier of all attribute mutations that needs to be applied when the counterpart references are created.
 	 */
-	@Getter private final Supplier<ReferenceAttributeMutation[]> attributeSupplier;
+	@Getter private final Function<ReferenceKey, ReferenceAttributeMutation[]> attributeSupplier;
 	/**
 	 * The set of missing mandated attributes.
 	 */
-	private Set<Object> missingMandatedAttributes;
+	private Set<AttributeKey> missingMandatedAttributes;
 
 	/**
 	 * Converts the provided Serializable value to a specific subtype if necessary.
@@ -108,13 +113,14 @@ class ReferenceBlock {
 	 * @param localReferenceSchema   The reference schema defining the reference attributes.
 	 * @param attributeValueProvider The provider for fetching reference attribute values.
 	 */
-	public <T> ReferenceBlock(
+	public ReferenceBlock(
 		@Nonnull CatalogSchema catalogSchema,
 		@Nonnull Set<Locale> locales,
 		@Nonnull EntitySchemaContract localEntitySchema,
 		@Nonnull ReferenceSchema localReferenceSchema,
 		@Nonnull ReflectedReferenceAttributeValueProvider<T> attributeValueProvider
 	) {
+		this.attributeValueProvider = attributeValueProvider;
 		// first build the RoaringBitmap with all referenced primary keys
 		final RoaringBitmapWriter<RoaringBitmap> writer = buildWriter();
 		attributeValueProvider.getReferenceCarriers()
@@ -143,24 +149,20 @@ class ReferenceBlock {
 		this.attributeSupplier = theOtherReferenceSchema
 			.map(
 				referencedEntitySchema ->
-					(Supplier<ReferenceAttributeMutation[]>) () ->
-						attributeValueProvider.getReferenceCarriers()
+					(Function<ReferenceKey, ReferenceAttributeMutation[]>) (referenceKey) ->
+						// for each reference attribute schema
+						attributeValueProvider.getAttributeSchemas(
+								localReferenceSchema, referencedEntitySchema, inheritedAttributes.get()
+							)
 							.flatMap(
-								reference ->
-									// for each reference attribute schema
-									attributeValueProvider.getAttributeSchemas(
-											localReferenceSchema, referencedEntitySchema, inheritedAttributes.get()
-										)
-										.flatMap(
-											attributeSchema -> getReferenceAttributeMutationStream(
-												locales, attributeValueProvider, referencedEntitySchema,
-												reference, attributeSchema, inheritedAttributes.get()
-											)
-										)
+								attributeSchema -> getReferenceAttributeMutationStream(
+									locales, attributeValueProvider, referencedEntitySchema,
+									referenceKey, attributeSchema, inheritedAttributes.get()
+								)
 							).toArray(ReferenceAttributeMutation[]::new)
 			)
 			// if the other reference schema does not (yet) exist, return an empty array
-			.orElse(() -> new ReferenceAttributeMutation[0]);
+			.orElse(refKey -> new ReferenceAttributeMutation[0]);
 	}
 
 	/**
@@ -169,8 +171,8 @@ class ReferenceBlock {
 	 * @return a set of missing mandated attributes. If no attributes are missing, an empty set is returned.
 	 */
 	@Nonnull
-	public Set<Object> getMissingMandatedAttributes() {
-		return missingMandatedAttributes == null ? Collections.emptySet() : missingMandatedAttributes;
+	public Set<AttributeKey> getMissingMandatedAttributes() {
+		return this.missingMandatedAttributes == null ? Collections.emptySet() : this.missingMandatedAttributes;
 	}
 
 	/**
@@ -180,117 +182,123 @@ class ReferenceBlock {
 	 * @param locales                the set of all locales known to be used by created entity
 	 * @param attributeValueProvider the provider for fetching reference attribute values
 	 * @param referencedEntitySchema the schema defining the particular reference of the referenced entity
-	 * @param reference              the reference object for which attributes should be resolved
+	 * @param referenceKey           the reference key for which attributes should be resolved
 	 * @param attributeSchema        the schema defining the attribute to be mutated
 	 * @param inheritedAttributes    the set of attribute names that are inherited
 	 * @return a stream of reference attribute mutations
 	 */
 	@Nonnull
-	private <T> Stream<ReferenceAttributeMutation> getReferenceAttributeMutationStream(
+	private Stream<ReferenceAttributeMutation> getReferenceAttributeMutationStream(
 		@Nonnull Set<Locale> locales,
 		@Nonnull ReflectedReferenceAttributeValueProvider<T> attributeValueProvider,
 		@Nonnull ReferenceSchema referencedEntitySchema,
-		@Nonnull T reference,
+		@Nonnull ReferenceKey referenceKey,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<String> inheritedAttributes
 	) {
-		// is the attribute inherited?
-		final boolean inherited = inheritedAttributes.contains(attributeSchema.getName());
-		// if so, retrieve the attribute values from the provider
-		final Collection<AttributeValue> attributeValues;
-		if (inherited) {
-			attributeValues = attributeValueProvider.getAttributeValues(
-				referencedEntitySchema, reference, attributeSchema.getName()
-			);
+		final Optional<T> sourceReference = this.attributeValueProvider.getReferenceCarrier(referenceKey);
+		if (sourceReference.isEmpty()) {
+			return Stream.empty();
 		} else {
-			attributeValues = Collections.emptyList();
-		}
+			final T reference = sourceReference.get();
+			// is the attribute inherited?
+			final boolean inherited = inheritedAttributes.contains(attributeSchema.getName());
+			// if so, retrieve the attribute values from the provider
+			final Collection<AttributeValue> attributeValues;
+			if (inherited) {
+				attributeValues = attributeValueProvider.getAttributeValues(
+					referencedEntitySchema, reference, attributeSchema.getName()
+				);
+			} else {
+				attributeValues = Collections.emptyList();
+			}
 
-		// if the attribute has a default value
-		final Serializable defaultValue = attributeSchema.getDefaultValue();
-		if (defaultValue != null) {
-			// function that primarily returns inherited value, if not present, returns default value
-			final Function<AttributeKey, Serializable> valueLookup = attributeKey ->
-				attributeValues.stream()
-					.filter(attVal -> attributeKey.equals(attVal.key()))
-					.map(AttributeValue::valueOrThrowException)
-					.findFirst()
-					.orElse(defaultValue);
-			// if the attribute is localized
-			if (attributeSchema.isLocalized()) {
-				// set-up a stream of reference attribute mutations for each locale
-				return locales.stream()
-					.map(locale -> {
-						final AttributeKey attributeKey = new AttributeKey(attributeSchema.getName(), locale);
-						return new ReferenceAttributeMutation(
+			// if the attribute has a default value
+			final Serializable defaultValue = attributeSchema.getDefaultValue();
+			if (defaultValue != null) {
+				// function that primarily returns inherited value, if not present, returns default value
+				final Function<AttributeKey, Serializable> valueLookup = attributeKey ->
+					attributeValues.stream()
+						.filter(attVal -> attributeKey.equals(attVal.key()))
+						.map(AttributeValue::valueOrThrowException)
+						.findFirst()
+						.orElse(defaultValue);
+				// if the attribute is localized
+				if (attributeSchema.isLocalized()) {
+					// set-up a stream of reference attribute mutations for each locale
+					return locales.stream()
+						.map(locale -> {
+							final AttributeKey attributeKey = new AttributeKey(attributeSchema.getName(), locale);
+							return new ReferenceAttributeMutation(
+								attributeValueProvider.getReferenceKey(referencedEntitySchema, reference),
+								new UpsertAttributeMutation(
+									attributeKey,
+									convertIfNecessary(valueLookup.apply(attributeKey))
+								)
+							);
+						});
+				} else {
+					// set-up a stream with single reference attribute mutation
+					final AttributeKey attributeKey = new AttributeKey(attributeSchema.getName());
+					return Stream.of(
+						new ReferenceAttributeMutation(
 							attributeValueProvider.getReferenceKey(referencedEntitySchema, reference),
 							new UpsertAttributeMutation(
 								attributeKey,
 								convertIfNecessary(valueLookup.apply(attributeKey))
 							)
-						);
-					});
-			} else {
-				// set-up a stream with single reference attribute mutation
-				final AttributeKey attributeKey = new AttributeKey(attributeSchema.getName());
-				return Stream.of(
-					new ReferenceAttributeMutation(
-						attributeValueProvider.getReferenceKey(referencedEntitySchema, reference),
-						new UpsertAttributeMutation(
-							attributeKey,
-							convertIfNecessary(valueLookup.apply(attributeKey))
-						)
-					)
-				);
-			}
-		} else {
-			// function that primarily returns inherited value, or null if not present
-			final Function<AttributeKey, Serializable> valueLookup = attributeKey ->
-				attributeValues.stream()
-					.filter(attVal -> attributeKey.equals(attVal.key()))
-					.map(AttributeValue::valueOrThrowException)
-					.findFirst()
-					.orElse(null);
-			if (attributeSchema.isLocalized()) {
-				// set-up a stream of reference attribute mutations for each locale
-				return locales
-					.stream()
-					.map(locale -> {
-						final AttributeKey attributeKey = new AttributeKey(attributeSchema.getName(), locale);
-						final Serializable value = valueLookup.apply(attributeKey);
-						if (value == null && !attributeSchema.isNullable()) {
-							// if the value is missing and the attribute is not nullable, add it to the missing set
-							getMissingMandatedAttributesForAdding().add(attributeKey);
-							return null;
-						} else if (value != null) {
-							// otherwise, return a single reference attribute mutation
-							return new ReferenceAttributeMutation(
-								attributeValueProvider.getReferenceKey(referencedEntitySchema, reference),
-								new UpsertAttributeMutation(attributeKey, convertIfNecessary(value))
-							);
-						} else {
-							return null;
-						}
-					})
-					.filter(Objects::nonNull);
-			} else {
-				// set-up a stream with single reference attribute mutation
-				final AttributeKey attributeKey = new AttributeKey(attributeSchema.getName());
-				final Serializable value = valueLookup.apply(attributeKey);
-				if (value == null && !attributeSchema.isNullable()) {
-					// if the value is missing and the attribute is not nullable, add it to the missing set
-					getMissingMandatedAttributesForAdding().add(attributeKey);
-					return Stream.empty();
-				} else if (value != null) {
-					// otherwise, return a single reference attribute mutation
-					return Stream.of(
-						new ReferenceAttributeMutation(
-							attributeValueProvider.getReferenceKey(referencedEntitySchema, reference),
-							new UpsertAttributeMutation(attributeKey, convertIfNecessary(value))
 						)
 					);
+				}
+			} else {
+				// function that primarily returns inherited value, or null if not present
+				final Function<AttributeKey, Serializable> valueLookup = attributeKey ->
+					attributeValues.stream()
+						.filter(attVal -> attributeKey.equals(attVal.key()))
+						.map(AttributeValue::valueOrThrowException)
+						.findFirst()
+						.orElse(null);
+				if (attributeSchema.isLocalized()) {
+					// set-up a stream of reference attribute mutations for each locale
+					return locales
+						.stream()
+						.map(locale -> {
+							final AttributeKey attributeKey = new AttributeKey(attributeSchema.getName(), locale);
+							final Serializable value = valueLookup.apply(attributeKey);
+							if (value == null && !attributeSchema.isNullable()) {
+								// if the value is missing and the attribute is not nullable, add it to the missing set
+								getMissingMandatedAttributesForAdding().add(attributeKey);
+								return null;
+							} else if (value != null) {
+								// otherwise, return a single reference attribute mutation
+								return new ReferenceAttributeMutation(
+									attributeValueProvider.getReferenceKey(referencedEntitySchema, reference),
+									new UpsertAttributeMutation(attributeKey, convertIfNecessary(value))
+								);
+							} else {
+								return null;
+							}
+						})
+						.filter(Objects::nonNull);
 				} else {
-					return Stream.empty();
+					// set-up a stream with single reference attribute mutation
+					final AttributeKey attributeKey = new AttributeKey(attributeSchema.getName());
+					final Serializable value = valueLookup.apply(attributeKey);
+					if (value == null && !attributeSchema.isNullable()) {
+						// if the value is missing and the attribute is not nullable, add it to the missing set
+						getMissingMandatedAttributesForAdding().add(attributeKey);
+						return Stream.empty();
+					} else if (value != null) {
+						// otherwise, return a single reference attribute mutation
+						return Stream.of(
+							new ReferenceAttributeMutation(
+								attributeValueProvider.getReferenceKey(referencedEntitySchema, reference),
+								new UpsertAttributeMutation(attributeKey, convertIfNecessary(value))
+							)
+						);
+					} else {
+						return Stream.empty();
+					}
 				}
 			}
 		}
@@ -302,7 +310,7 @@ class ReferenceBlock {
 	 * @return a set of missing mandated attributes. If the set is uninitialized, it creates and returns a new set.
 	 */
 	@Nonnull
-	private Set<Object> getMissingMandatedAttributesForAdding() {
+	private Set<AttributeKey> getMissingMandatedAttributesForAdding() {
 		if (this.missingMandatedAttributes == null) {
 			this.missingMandatedAttributes = CollectionUtils.createHashSet(16);
 		}

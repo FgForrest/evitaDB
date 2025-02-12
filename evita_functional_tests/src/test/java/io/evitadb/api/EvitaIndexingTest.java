@@ -115,6 +115,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	private static final String ATTRIBUTE_PRODUCT_CATEGORY_NOT_INHERITED = "notInherited";
 	private static final String ATTRIBUTE_PRODUCT_CATEGORY_INHERITED = "inherited";
 	private static final String ATTRIBUTE_CATEGORY_MARKET = "market";
+	private static final String ATTRIBUTE_PRODUCT_CATEGORY_VARIANT = "variant";
 	private Evita evita;
 
 	private static void assertDataWasPropagated(EntityIndex categoryIndex, int recordId) {
@@ -3055,6 +3056,61 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				);
 
 				assertReferencesAreEntangled(session);
+			}
+		);
+	}
+
+	@Test
+	void shouldAutomaticallySetupOneToManyReflectedReferencesIncludingAttributesOnEntityCreation() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(Entities.CATEGORY)
+					.withReflectedReferenceToEntity(
+						REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY,
+						whichIs -> whichIs.withAttributesInherited().withCardinality(Cardinality.ZERO_OR_MORE)
+					)
+					.updateVia(session);
+				session
+					.defineEntitySchema(Entities.PRODUCT)
+					.withReferenceToEntity(
+						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ONE_OR_MORE,
+						whichIs -> whichIs.indexed()
+							.withAttribute(ATTRIBUTE_PRODUCT_CATEGORY_VARIANT, Boolean.class, thatIs -> thatIs.filterable())
+					)
+					.updateVia(session);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, 1)
+				);
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, 2)
+				);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+						.setReference(REFERENCE_PRODUCT_CATEGORY, 1, whichIs -> whichIs.setAttribute(ATTRIBUTE_PRODUCT_CATEGORY_VARIANT, true))
+						.setReference(REFERENCE_PRODUCT_CATEGORY, 2, whichIs -> whichIs.setAttribute(ATTRIBUTE_PRODUCT_CATEGORY_VARIANT, false))
+				);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 11)
+						.setReference(REFERENCE_PRODUCT_CATEGORY, 1, whichIs -> whichIs.setAttribute(ATTRIBUTE_PRODUCT_CATEGORY_VARIANT, false))
+						.setReference(REFERENCE_PRODUCT_CATEGORY, 2, whichIs -> whichIs.setAttribute(ATTRIBUTE_PRODUCT_CATEGORY_VARIANT, true))
+				);
+			}
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final SealedEntity category1 = session.getEntity(Entities.CATEGORY, 1, entityFetchAllContent()).orElseThrow();
+				assertTrue(category1.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10).orElseThrow().getAttribute(ATTRIBUTE_PRODUCT_CATEGORY_VARIANT, Boolean.class).booleanValue());
+				assertFalse(category1.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 11).orElseThrow().getAttribute(ATTRIBUTE_PRODUCT_CATEGORY_VARIANT, Boolean.class).booleanValue());
+
+				final SealedEntity category2 = session.getEntity(Entities.CATEGORY, 2, entityFetchAllContent()).orElseThrow();
+				assertFalse(category2.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10).orElseThrow().getAttribute(ATTRIBUTE_PRODUCT_CATEGORY_VARIANT, Boolean.class).booleanValue());
+				assertTrue(category2.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 11).orElseThrow().getAttribute(ATTRIBUTE_PRODUCT_CATEGORY_VARIANT, Boolean.class).booleanValue());
 			}
 		);
 	}

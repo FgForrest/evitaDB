@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -36,7 +36,10 @@ import javax.annotation.Nonnull;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -55,7 +58,7 @@ class ReferenceAttributeValueProvider implements ReflectedReferenceAttributeValu
 	/**
 	 * The array of references present in the initial version of the entity.
 	 */
-	private final ReferenceContract[] referenceContracts;
+	private final Map<ReferenceKey, ReferenceContract> referenceContracts;
 
 	/**
 	 * Constructs a ReferenceAttributeValueProvider instance with the provided primary key and reference contracts.
@@ -68,7 +71,8 @@ class ReferenceAttributeValueProvider implements ReflectedReferenceAttributeValu
 		@Nonnull ReferenceContract... referenceContracts
 	) {
 		this.entityPrimaryKey = entityPrimaryKey;
-		this.referenceContracts = referenceContracts;
+		this.referenceContracts = Arrays.stream(referenceContracts)
+			.collect(Collectors.toMap(ReferenceContract::getReferenceKey, Function.identity()));
 	}
 
 	@Nonnull
@@ -94,7 +98,7 @@ class ReferenceAttributeValueProvider implements ReflectedReferenceAttributeValu
 	@Nonnull
 	@Override
 	public Stream<ReferenceContract> getReferenceCarriers() {
-		return Arrays.stream(referenceContracts);
+		return this.referenceContracts.values().stream();
 	}
 
 	@Override
@@ -106,6 +110,12 @@ class ReferenceAttributeValueProvider implements ReflectedReferenceAttributeValu
 	@Override
 	public ReferenceKey getReferenceKey(@Nonnull ReferenceSchema referenceSchema, @Nonnull ReferenceContract referenceCarrier) {
 		return new ReferenceKey(referenceSchema.getName(), this.entityPrimaryKey);
+	}
+
+	@Nonnull
+	@Override
+	public Optional<ReferenceContract> getReferenceCarrier(@Nonnull ReferenceKey referenceKey) {
+		return Optional.ofNullable(this.referenceContracts.get(referenceKey));
 	}
 
 	@Nonnull

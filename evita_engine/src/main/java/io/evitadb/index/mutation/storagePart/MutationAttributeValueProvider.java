@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,10 +29,12 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
+import io.evitadb.api.requestResponse.data.mutation.reference.InsertReferenceMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceMutation;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.dataType.array.CompositeObjectArray;
@@ -43,6 +45,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -74,6 +77,7 @@ class MutationAttributeValueProvider implements ReflectedReferenceAttributeValue
 	 * Constructor for initializing a MutationAttributeValueProvider.
 	 *
 	 * @param entityPrimaryKey The primary key of the entity.
+	 * @param entitySchema The schema of the entity.
 	 * @param firstMutation The first mutation to process.
 	 * @param startIndex The starting index index in the mutation list.
 	 * @param processedMutations Optimization hash set allowing to skip already processed mutations.
@@ -81,6 +85,7 @@ class MutationAttributeValueProvider implements ReflectedReferenceAttributeValue
 	 */
 	public MutationAttributeValueProvider(
 		int entityPrimaryKey,
+		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceMutation<?> firstMutation,
 		int startIndex,
 		@Nonnull IntSet processedMutations,
@@ -112,7 +117,7 @@ class MutationAttributeValueProvider implements ReflectedReferenceAttributeValue
 							)
 							.put(
 								ram.getAttributeKey(),
-								uam.mutateLocal(null, null)
+								uam.mutateLocal(entitySchema, null)
 							);
 					}
 					// this allows enveloping process to quickly skip already processed mutations
@@ -146,6 +151,13 @@ class MutationAttributeValueProvider implements ReflectedReferenceAttributeValue
 	@Override
 	public Stream<ReferenceMutation> getReferenceCarriers() {
 		return StreamSupport.stream(this.matchingMutations.spliterator(), false);
+	}
+
+	@Nonnull
+	@Override
+	public Optional<ReferenceMutation> getReferenceCarrier(@Nonnull ReferenceKey referenceKey) {
+		// we can use any mutation here, since this provider will always work with the reference key inside it
+		return Optional.ofNullable(this.referenceAttributesIndex.containsKey(referenceKey) ? new InsertReferenceMutation(referenceKey) : null);
 	}
 
 	@Override
