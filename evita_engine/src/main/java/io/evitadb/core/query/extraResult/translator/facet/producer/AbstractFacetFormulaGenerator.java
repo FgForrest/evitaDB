@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ package io.evitadb.core.query.extraResult.translator.facet.producer;
 
 import io.evitadb.api.query.require.FacetGroupsConjunction;
 import io.evitadb.api.query.require.FacetGroupsDisjunction;
+import io.evitadb.api.query.require.FacetGroupsExclusivity;
 import io.evitadb.api.query.require.FacetGroupsNegation;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -53,6 +54,7 @@ import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.roaringbitmap.RoaringBitmap;
@@ -93,6 +95,12 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	 */
 	@Nonnull
 	protected final BiPredicate<ReferenceSchemaContract, Integer> isFacetGroupNegation;
+	/**
+	 * Predicate returns TRUE when facet covered by {@link FacetGroupsExclusivity} require query in
+	 * input {@link EvitaRequest}.
+	 */
+	@Nonnull
+	protected final BiPredicate<ReferenceSchemaContract, Integer> isFacetGroupExclusivity;
 	/**
 	 * Stack serves internally to collect the cloned tree of formulas.
 	 */
@@ -137,7 +145,7 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	/**
 	 * Result optimized form of formula.
 	 */
-	@Getter protected Formula result;
+	@Nullable @Getter protected Formula result;
 
 	/**
 	 * Method contains the logic that adds brand new {@link Formula} to the examined formula tree. It has
@@ -145,7 +153,13 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	 * an account.
 	 */
 	@Nonnull
-	protected static Formula[] alterFormula(@Nonnull Formula newFormula, @Nonnull Formula superSetFormula, boolean disjunction, boolean negation, @Nonnull Formula... children) {
+	protected static Formula[] alterFormula(
+		@Nonnull Formula newFormula,
+		@Nonnull Formula superSetFormula,
+		boolean disjunction,
+		boolean negation,
+		@Nonnull Formula... children
+	) {
 		// if newly added formula should represent OR join
 		if (disjunction) {
 			return addNewFormulaAsDisjunction(newFormula, children);
@@ -426,16 +440,32 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 			return getResult(baseFormula);
 		} finally {
 			// finally, clear all internal global variables in a safe manner
-			this.referenceSchema = null;
-			this.baseFormulaWithoutUserFilter = null;
-			this.facetId = -1;
-			this.facetGroupId = null;
-			this.facetEntityIds = null;
-			this.result = null;
-			this.deferredMutator = null;
-			this.insideNotContainer.clear();
-			this.insideUserFilter.clear();
+			clearInternalStateAndMakeUnusable();
 		}
+	}
+
+	/**
+	 * Clears the internal state of the object and makes it unusable for further operations.
+	 *
+	 * This method sets several internal fields to null or reset values, effectively clearing
+	 * any previously stored state or data within the object. It also clears the internal
+	 * collections for tracking specific contexts (such as `insideNotContainer` and `insideUserFilter`),
+	 * and resets identifiers like `facetId` and `facetGroupId`.
+	 *
+	 * This operation is intended to ensure that the object cannot be used in its current form
+	 * after invoking this method, preventing unintended behavior due to lingering state.
+	 */
+	@SuppressWarnings("DataFlowIssue")
+	private void clearInternalStateAndMakeUnusable() {
+		this.referenceSchema = null;
+		this.baseFormulaWithoutUserFilter = null;
+		this.facetId = -1;
+		this.facetGroupId = null;
+		this.facetEntityIds = null;
+		this.result = null;
+		this.deferredMutator = null;
+		this.insideNotContainer.clear();
+		this.insideUserFilter.clear();
 	}
 
 	@Override
@@ -443,16 +473,16 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 		// evaluate and set flag that signalizes visitor is within UserFilterFormula scope
 		boolean isUserFilter = formula instanceof UserFilterFormula;
 		if (isUserFilter) {
-			insideUserFilter.push(true);
+			this.insideUserFilter.push(true);
 		}
 		// evaluate and set flag that signalizes visitor is within NotFormula scope
 		boolean isNotContainer = formula instanceof NotFormula;
 		if (isNotContainer) {
-			insideNotContainer.push(true);
+			this.insideNotContainer.push(true);
 		}
 		// now iterate and copy children
 		final Formula[] updatedChildren;
-		levelStack.push(new CompositeObjectArray<>(Formula.class));
+		this.levelStack.push(new CompositeObjectArray<>(Formula.class));
 		try {
 			// but only if implementation says so - FacetCalculator omits UserFilter contents
 			if (shouldIncludeChildren(isUserFilter)) {
@@ -461,12 +491,12 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 				}
 			}
 		} finally {
-			updatedChildren = levelStack.pop().toArray();
+			updatedChildren = this.levelStack.pop().toArray();
 		}
 		// if we're leaving UserFilterFormula scope
 		if (isUserFilter) {
 			// reset inside user filter flag
-			insideUserFilter.pop();
+			this.insideUserFilter.pop();
 			// apply respective modifications
 			if (handleUserFilter(formula, updatedChildren)) {
 				// if the user filter has been handled skip early - we don't need another storeFormula call
@@ -476,11 +506,11 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 		// if we're leaving NotFormula scope
 		if (isInsideNotContainer() && isNotContainer) {
 			// reset not container flag
-			insideNotContainer.pop();
+			this.insideNotContainer.pop();
 			// if the logic instantiated deferred mutator - now it's time to apply it
-			if (deferredMutator != null) {
+			if (this.deferredMutator != null) {
 				storeFormula(
-					deferredMutator.apply(formula, updatedChildren)
+					this.deferredMutator.apply(formula, updatedChildren)
 				);
 				// if the user filter has been handled skip early - we don't need another storeFormula call
 				return;
@@ -532,14 +562,14 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	 * Returns true if currently examined constraint is placed within NOT container (may not be placed directly in it).
 	 */
 	protected boolean isInsideNotContainer() {
-		return !insideNotContainer.isEmpty() && insideNotContainer.peek();
+		return !this.insideNotContainer.isEmpty() && this.insideNotContainer.peek();
 	}
 
 	/**
 	 * Returns true if currently examined constraint is placed within user filter container (may not be placed directly in it).
 	 */
 	protected boolean isInsideUserFilter() {
-		return !insideUserFilter.isEmpty() && insideUserFilter.peek();
+		return !this.insideUserFilter.isEmpty() && this.insideUserFilter.peek();
 	}
 
 	/**
@@ -554,9 +584,11 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	 */
 	protected boolean handleUserFilter(@Nonnull Formula formula, @Nonnull Formula[] updatedChildren) {
 		// should we treat passed facet as negated one?
-		final boolean isNewFacetNegation = isFacetGroupNegation.test(referenceSchema, facetGroupId);
+		final boolean isNewFacetNegation = this.isFacetGroupNegation.test(this.referenceSchema, this.facetGroupId);
+		// should we treat passed facet as exclusive one?
+		final boolean isNewFacetExclusivity = this.isFacetGroupExclusivity.test(this.referenceSchema, this.facetGroupId);
 		// should we treat passed facet as a part of disjuncted group formula?
-		final boolean isNewFacetDisjunction = isFacetGroupDisjunction.test(referenceSchema, facetGroupId);
+		final boolean isNewFacetDisjunction = this.isFacetGroupDisjunction.test(this.referenceSchema, this.facetGroupId);
 		// create facet group formula
 		final Formula newFormula = createNewFacetGroupFormula();
 		// if we're inside NotFormula
@@ -564,11 +596,11 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 			// and the facet is also negated
 			if (isNewFacetNegation) {
 				// we need to defer the mutation to the moment when we leave not container and subtract
-				deferredMutator = (laterEncounteredFormula, laterEncounteredChildren) -> {
+				this.deferredMutator = (laterEncounteredFormula, laterEncounteredChildren) -> {
 					// and we need to create facet conjunction with base formula without user filter
 					final Formula facetConjunction = FormulaFactory.and(
 						newFormula,
-						baseFormulaWithoutUserFilter
+						this.baseFormulaWithoutUserFilter
 					);
 					if (facetConjunction.compute().isEmpty()) {
 						// and if product is empty - return empty formula (no entity matches negation of this facet)
@@ -579,7 +611,7 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 							laterEncounteredChildren[0], // subtracted part is untouched
 							FormulaFactory.not(
 								facetConjunction,
-								baseFormulaWithoutUserFilter
+								this.baseFormulaWithoutUserFilter
 							) // but we subtract the conjunction of new formula and base formula instead of superset
 						);
 					}
@@ -588,7 +620,7 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 			} else {
 				// we need to defer the mutation to the moment when we leave not container and add the facet formula
 				// to the "positive" (superset) part of the not container
-				deferredMutator = (laterEncounteredFormula, laterEncounteredChildren) -> {
+				this.deferredMutator = (laterEncounteredFormula, laterEncounteredChildren) -> {
 					final Formula replacedNotContainer = laterEncounteredFormula.getCloneWithInnerFormulas(
 						laterEncounteredChildren[0], // subtracted part is untouched
 						newFormula // but we add new facet formula as its superset
@@ -607,7 +639,7 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 				formula.getCloneWithInnerFormulas(
 					alterFormula(
 						newFormula,
-						baseFormulaWithoutUserFilter,
+						this.baseFormulaWithoutUserFilter,
 						isNewFacetDisjunction,
 						isNewFacetNegation,
 						updatedChildren
@@ -630,9 +662,11 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	/**
 	 * Method allows altering the result before it is returned to the caller.
 	 */
+	@Nonnull
 	protected Formula getResult(@Nonnull Formula baseFormula) {
+		Assert.isPremiseValid(this.result != null, "Result formula must be set!");
 		// simply return the result
-		return result;
+		return this.result;
 	}
 
 	/**
@@ -642,9 +676,9 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	@Nonnull
 	protected MutableFormula createNewFacetGroupFormula() {
 		return new MutableFormula(
-			isFacetGroupConjunction.test(referenceSchema, facetGroupId) ?
-				new FacetGroupAndFormula(referenceSchema.getName(), facetGroupId, new BaseBitmap(facetId), facetEntityIds) :
-				new FacetGroupOrFormula(referenceSchema.getName(), facetGroupId, new BaseBitmap(facetId), facetEntityIds)
+			this.isFacetGroupConjunction.test(this.referenceSchema, this.facetGroupId) ?
+				new FacetGroupAndFormula(this.referenceSchema.getName(), this.facetGroupId, new BaseBitmap(this.facetId), this.facetEntityIds) :
+				new FacetGroupOrFormula(this.referenceSchema.getName(), this.facetGroupId, new BaseBitmap(this.facetId), this.facetEntityIds)
 		);
 	}
 
@@ -656,7 +690,7 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 		if (levelStack.isEmpty()) {
 			this.result = formula;
 		} else {
-			levelStack.peek().add(formula);
+			this.levelStack.peek().add(formula);
 		}
 	}
 
@@ -687,28 +721,28 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 		 * @return True if the target {@link MutableFormula} has been found.
 		 */
 		public boolean isTargetFound() {
-			return target != null;
+			return this.target != null;
 		}
 
 		@Override
 		public void visit(@Nonnull Formula formula) {
-			if (target == null) {
+			if (this.target == null) {
 				if (formula instanceof MutableFormula mutableFormula) {
-					if (target != null) {
+					if (this.target != null) {
 						throw new GenericEvitaInternalError("Expected single MutableFormula in the formula tree!");
 					} else {
-						target = mutableFormula;
-						mutableFormula.setDelegate(formulaToReplaceSupplier.get());
-						for (Formula parentFormula : formulaStack) {
+						this.target = mutableFormula;
+						mutableFormula.setDelegate(this.formulaToReplaceSupplier.get());
+						for (Formula parentFormula : this.formulaStack) {
 							parentFormula.clearMemory();
 						}
 					}
 				} else {
-					formulaStack.push(formula);
+					this.formulaStack.push(formula);
 					for (Formula innerFormula : formula.getInnerFormulas()) {
 						innerFormula.accept(this);
 					}
-					formulaStack.pop();
+					this.formulaStack.pop();
 				}
 			}
 		}

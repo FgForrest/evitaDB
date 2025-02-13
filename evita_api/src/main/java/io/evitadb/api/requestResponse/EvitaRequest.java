@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -113,6 +113,7 @@ public class EvitaRequest {
 	@Nullable private Map<String, FacetFilterBy> facetGroupConjunction;
 	@Nullable private Map<String, FacetFilterBy> facetGroupDisjunction;
 	@Nullable private Map<String, FacetFilterBy> facetGroupNegation;
+	@Nullable private Map<String, FacetFilterBy> facetGroupExclusivity;
 	private Boolean queryTelemetryRequested;
 	@Nullable private EnumSet<DebugMode> debugModes;
 	private Scope[] scopesAsArray;
@@ -770,6 +771,23 @@ public class EvitaRequest {
 				});
 		}
 		return ofNullable(this.facetGroupNegation.get(referenceName));
+	}
+
+	/**
+	 * Returns filter by representing group entity primary keys of `referenceName` facets, that are requested to be
+	 * calculated in exclusive fashion (no other facet from same group is selected).
+	 */
+	@Nonnull
+	public Optional<FacetFilterBy> getFacetGroupExclusivity(@Nonnull String referenceName) {
+		if (this.facetGroupExclusivity == null) {
+			this.facetGroupExclusivity = new HashMap<>();
+			QueryUtils.findRequires(this.query, FacetGroupsExclusivity.class)
+				.forEach(it -> {
+					final String reqReferenceName = it.getReferenceName();
+					this.facetGroupExclusivity.put(reqReferenceName, new FacetFilterBy(it.getFacetGroups().orElse(null)));
+				});
+		}
+		return ofNullable(this.facetGroupExclusivity.get(referenceName));
 	}
 
 	/**

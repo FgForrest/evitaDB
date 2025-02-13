@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,15 +32,7 @@ import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.FilterBy;
-import io.evitadb.api.query.require.DebugMode;
-import io.evitadb.api.query.require.DefaultPrefetchRequirementCollector;
-import io.evitadb.api.query.require.EntityContentRequire;
-import io.evitadb.api.query.require.EntityFetchRequire;
-import io.evitadb.api.query.require.FacetGroupsConjunction;
-import io.evitadb.api.query.require.FacetGroupsDisjunction;
-import io.evitadb.api.query.require.FacetGroupsNegation;
-import io.evitadb.api.query.require.FetchRequirementCollector;
-import io.evitadb.api.query.require.QueryPriceMode;
+import io.evitadb.api.query.require.*;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.FacetFilterBy;
 import io.evitadb.api.requestResponse.data.EntityContract;
@@ -982,6 +974,55 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
+	 * Returns filter by representing group entity primary keys of `referenceName` facets, that are requested to be
+	 * calculated in exclusive fashion (no other facet from same group is selected).
+	 */
+	public boolean isFacetGroupExclusivity(@Nonnull ReferenceSchemaContract referenceSchema, @Nullable Integer groupId) {
+		final String referenceName = referenceSchema.getName();
+		final Optional<FacetFilterBy> facetGroupExclusive = getEvitaRequest().getFacetGroupExclusivity(referenceName);
+		if (facetGroupExclusive.isEmpty()) {
+			return false;
+		} else {
+			final FacetFilterBy facetFilterBy = facetGroupExclusive.get();
+			final FilterBy filterBy = facetFilterBy.filterBy();
+			if (filterBy != null) {
+				if (groupId == null) {
+					return false;
+				} else {
+					return getFacetRelationTuples().computeIfAbsent(
+						new FacetRelationTuple(referenceName, FacetRelation.EXCLUSIVE),
+						refName -> {
+							final String referencedGroupType = referenceSchema.getReferencedGroupType();
+							Assert.isTrue(
+								referencedGroupType != null,
+								() -> "Referenced group type must be defined for facet group exclusivity of `" + referenceName + "`!"
+							);
+							if (referenceSchema.isReferencedGroupTypeManaged()) {
+								return new FilteringFormulaPredicate(
+									this,
+									getScopes(),
+									filterBy,
+									referencedGroupType,
+									() -> "Facet group exclusivity of `" + referenceSchema.getName() + "` filter: " + facetFilterBy
+								);
+							} else {
+								return new FilteringFormulaPredicate(
+									this,
+									getThrowingGlobalIndexesForNonManagedEntityTypeGroup(referenceName, referencedGroupType),
+									filterBy,
+									() -> "Facet group exclusivity of `" + referenceSchema.getName() + "` filter: " + facetFilterBy
+								);
+							}
+						}
+					).test(groupId);
+				}
+			} else {
+				return true;
+			}
+		}
+	}
+
+	/**
 	 * Returns primary key of all root hierarchy nodes that cover the requested hierarchy.
 	 *
 	 * @return bitmap of root hierarchy nodes
@@ -1069,9 +1110,10 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * - {@link FacetGroupsConjunction}
 	 * - {@link FacetGroupsDisjunction}
 	 * - {@link FacetGroupsNegation}
+	 * - {@link FacetGroupsExclusivity}
 	 */
 	private enum FacetRelation {
-		CONJUNCTION, DISJUNCTION, NEGATION
+		CONJUNCTION, DISJUNCTION, NEGATION, EXCLUSIVE
 	}
 
 	/**

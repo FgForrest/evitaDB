@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -61,9 +61,10 @@ public class FacetFormulaGenerator extends AbstractFacetFormulaGenerator {
 	public FacetFormulaGenerator(
 		@Nonnull BiPredicate<ReferenceSchemaContract, Integer> isFacetGroupConjunction,
 		@Nonnull BiPredicate<ReferenceSchemaContract, Integer> isFacetGroupDisjunction,
-		@Nonnull BiPredicate<ReferenceSchemaContract, Integer> isFacetGroupNegation
+		@Nonnull BiPredicate<ReferenceSchemaContract, Integer> isFacetGroupNegation,
+		@Nonnull BiPredicate<ReferenceSchemaContract, Integer> isFacetGroupExclusive
 	) {
-		super(isFacetGroupConjunction, isFacetGroupDisjunction, isFacetGroupNegation);
+		super(isFacetGroupConjunction, isFacetGroupDisjunction, isFacetGroupNegation, isFacetGroupExclusive);
 	}
 
 	@Nonnull
@@ -77,11 +78,12 @@ public class FacetFormulaGenerator extends AbstractFacetFormulaGenerator {
 		@Nonnull Bitmap[] facetEntityIds
 	) {
 		final boolean negation = this.isFacetGroupNegation.test(referenceSchema, facetGroupId);
+		final boolean exclusive = this.isFacetGroupExclusivity.test(referenceSchema, facetGroupId);
 		final boolean disjunction = this.isFacetGroupDisjunction.test(referenceSchema, facetGroupId);
 		final boolean conjunction = this.isFacetGroupConjunction.test(referenceSchema, facetGroupId);
-		final CacheKey key = new CacheKey(negation, disjunction, conjunction);
+		final CacheKey key = new CacheKey(negation, disjunction, conjunction, exclusive);
 
-		return cache.compute(
+		return this.cache.compute(
 			key,
 			(cacheKey, formula) -> {
 				if (formula == null) {
@@ -108,12 +110,14 @@ public class FacetFormulaGenerator extends AbstractFacetFormulaGenerator {
 		return !isUserFilter;
 	}
 
+	@Nonnull
 	@Override
 	protected Formula getResult(@Nonnull Formula baseFormula) {
+		Assert.isPremiseValid(this.result != null, "Result formula must be set!");
 		// if the output is same as input, it means the input didn't contain UserFilterFormula
-		if (result == baseFormula) {
+		if (this.result == baseFormula) {
 			// so we need to change it here adding new facet group formula
-			if (isFacetGroupNegation.test(referenceSchema, facetGroupId)) {
+			if (this.isFacetGroupNegation.test(this.referenceSchema, this.facetGroupId)) {
 				return FormulaFactory.not(
 					createNewFacetGroupFormula(),
 					baseFormula
@@ -126,7 +130,7 @@ public class FacetFormulaGenerator extends AbstractFacetFormulaGenerator {
 			}
 		} else {
 			// output changed - just propagate it
-			return result;
+			return this.result;
 		}
 	}
 
@@ -138,19 +142,22 @@ public class FacetFormulaGenerator extends AbstractFacetFormulaGenerator {
 	 * @param isConjunction true if the facet group is conjunction
 	 * @param isDisjunction true if the facet group is disjunction
 	 * @param isNegation    true if the facet group is negation
+	 * @param isExclusivity true if the facet group is exclusive
 	 */
 	private record CacheKey(
 		boolean isNegation,
 		boolean isDisjunction,
-		boolean isConjunction
+		boolean isConjunction,
+		boolean isExclusivity
 	) {
 
 		@Override
 		public String toString() {
 			return "CacheKey{" +
-				"isNegation=" + isNegation +
-				", isDisjunction=" + isDisjunction +
-				", isConjunction=" + isConjunction +
+				"isNegation=" + this.isNegation +
+				", isDisjunction=" + this.isDisjunction +
+				", isConjunction=" + this.isConjunction +
+				", isExclusivity=" + this.isExclusivity +
 				'}';
 		}
 

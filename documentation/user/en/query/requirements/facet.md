@@ -242,8 +242,8 @@ Facet contains the statistics for that facet option:
 <dl>
   <dt>count</dt>
   <dd>
-    It represents the number of all entities in the current query result that match this facet (have reference to entity
-    with this primary key).
+    It represents the number of all entities in the current query result (including user filter constraints) that 
+    have this facet (have reference to entity with this primary key).
   </dd>
   <dt>requested</dt>
   <dd>
