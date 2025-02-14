@@ -897,6 +897,47 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 		}
 	}
 
+	@Test
+	void shouldLoadConfigurationWithUnknownProperties() {
+		EvitaTestSupport.bootstrapEvitaServerConfigurationFileFrom(
+			DIR_EVITA_SERVER_TEST,
+			"/testData/evita-configuration-unknown-props.yaml",
+			"evita-configuration-unknown-props.yaml"
+		);
+
+		final EvitaServer evitaServer = new EvitaServer(
+			getPathInTargetDirectory(DIR_EVITA_SERVER_TEST),
+			constructTestArguments()
+		);
+		try {
+			evitaServer.run();
+		} catch (Exception ex) {
+			fail(ex);
+		} finally {
+			closeServerAndEvita(evitaServer);
+		}
+	}
+
+	@Test
+	void shouldFailToLoadConfigurationWithUnknownPropertiesOnStrictSettings() {
+		EvitaTestSupport.bootstrapEvitaServerConfigurationFileFrom(
+			DIR_EVITA_SERVER_TEST,
+			"/testData/evita-configuration-unknown-props.yaml",
+			"evita-configuration-unknown-props.yaml"
+		);
+
+		try {
+			new EvitaServer(
+				getPathInTargetDirectory(DIR_EVITA_SERVER_TEST),
+				true, null,
+				constructTestArguments()
+			);
+			fail("The server should have failed to start due to unknown properties in the configuration file.");
+		} catch (Exception ex) {
+			// this is okey
+		}
+	}
+
 	@Nonnull
 	private Map<String, String> constructTestArguments(
 		@Nonnull String... enabledApis
