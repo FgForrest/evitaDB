@@ -1,0 +1,15 @@
+api:
+  keepAlive: false
+  unknownProperty1: "hello"
+  endpoints:
+    graphQL:
+      tlsEnabled: false
+    rest:
+      tlsEnabled: false
+      anotherUnknownProperty: "world"
+    gRPC:
+      tlsEnabled: false
+    lab:
+      tlsEnabled: false
+    observability:
+      tlsEnabled: true
