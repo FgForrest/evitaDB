@@ -28,26 +28,36 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 			query(
 				collection("Product"),
 				filterBy(
-					hierarchyWithin(
-						"categories",
-						attributeEquals("code", "e-readers")
-					),
-					attributeEquals("status", "ACTIVE"),
-					entityLocaleEquals(Locale.forLanguageTag("en"))
+					userFilter(
+						facetHaving(
+							"parameterValues",
+							entityHaving(
+								attributeInSet("code", "ram-memory-24")
+							)
+						)
+					)
 				),
 				require(
-					facetSummary(
-						orderBy(
-							attributeNatural("name", ASC)
+					facetSummaryOfReference(
+						"parameterValues",
+						IMPACT,
+						filterBy(
+							attributeContains("code", "4")
 						),
-						orderGroupBy(
-							attributeNatural("name", ASC)
+						filterGroupBy(
+							attributeInSet("code", "ram-memory", "rom-memory")
 						),
 						entityFetch(
-							attributeContent("name")
+							attributeContent("code")
 						),
 						entityGroupFetch(
-							attributeContent("name")
+							attributeContent("code")
+						)
+					),
+					facetGroupsExclusivity(
+						"parameterValues",
+						filterBy(
+							attributeInSet("code", "ram-memory")
 						)
 					)
 				)

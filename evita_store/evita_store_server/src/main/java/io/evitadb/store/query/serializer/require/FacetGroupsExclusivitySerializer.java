@@ -29,21 +29,21 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.require.FacetGroupRelationLevel;
-import io.evitadb.api.query.require.FacetGroupsConjunction;
+import io.evitadb.api.query.require.FacetGroupsExclusivity;
 import lombok.RequiredArgsConstructor;
 
 import java.util.Optional;
 
 /**
- * This {@link Serializer} implementation reads/writes {@link FacetGroupsConjunction} from/to binary format.
+ * This {@link Serializer} implementation reads/writes {@link FacetGroupsExclusivity} from/to binary format.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @RequiredArgsConstructor
-public class FacetGroupsConjunctionSerializer extends Serializer<FacetGroupsConjunction> {
+public class FacetGroupsExclusivitySerializer extends Serializer<FacetGroupsExclusivity> {
 
 	@Override
-	public void write(Kryo kryo, Output output, FacetGroupsConjunction object) {
+	public void write(Kryo kryo, Output output, FacetGroupsExclusivity object) {
 		output.writeString(object.getReferenceName());
 		kryo.writeObject(output, object.getFacetGroupRelationLevel());
 		final Optional<FilterBy> facetGroups = object.getFacetGroups();
@@ -51,11 +51,11 @@ public class FacetGroupsConjunctionSerializer extends Serializer<FacetGroupsConj
 	}
 
 	@Override
-	public FacetGroupsConjunction read(Kryo kryo, Input input, Class<? extends FacetGroupsConjunction> type) {
+	public FacetGroupsExclusivity read(Kryo kryo, Input input, Class<? extends FacetGroupsExclusivity> type) {
 		final String entityType = input.readString();
 		final FacetGroupRelationLevel level = kryo.readObject(input, FacetGroupRelationLevel.class);
 		final FilterBy facetGroupFilter = kryo.readObjectOrNull(input, FilterBy.class);
-		return new FacetGroupsConjunction(entityType, level, facetGroupFilter);
+		return new FacetGroupsExclusivity(entityType, level, facetGroupFilter);
 	}
 
 }

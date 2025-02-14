@@ -69,6 +69,8 @@ public class QuerySerializationKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(StatisticsBase.class, new EnumSerializer(StatisticsBase.class), index++);
 		kryo.register(StatisticsType.class, new EnumSerializer(StatisticsType.class), index++);
 		kryo.register(Scope.class, new EnumSerializer(Scope.class), index++);
+		kryo.register(FacetRelationType.class, new EnumSerializer(Scope.class), index++);
+		kryo.register(FacetGroupRelationLevel.class, new EnumSerializer(Scope.class), index++);
 
 		index = QUERY_BASE + 100;
 		kryo.register(Head.class, new HeadSerializer(), index++);
@@ -141,6 +143,8 @@ public class QuerySerializationKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(FacetGroupsConjunction.class, new FacetGroupsConjunctionSerializer(), index++);
 		kryo.register(FacetGroupsDisjunction.class, new FacetGroupsDisjunctionSerializer(), index++);
 		kryo.register(FacetGroupsNegation.class, new FacetGroupsNegationSerializer(), index++);
+		kryo.register(FacetGroupsExclusivity.class, new FacetGroupsExclusivitySerializer(), index++);
+		kryo.register(FacetCalculationRules.class, new FacetCalculationRulesSerializer(), index++);
 		kryo.register(FacetSummary.class, new FacetSummarySerializer(), index++);
 		kryo.register(FacetSummaryOfReference.class, new FacetSummaryOfReferenceSerializer(), index++);
 		kryo.register(HierarchyOfSelf.class, new HierarchyOfSelfSerializer(), index++);

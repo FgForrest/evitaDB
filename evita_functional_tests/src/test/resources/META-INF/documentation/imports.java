@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -158,4 +158,6 @@ import static io.evitadb.api.query.require.QueryPriceMode.*;
 import static io.evitadb.api.query.require.StatisticsBase.*;
 import static io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour.*;
 import static io.evitadb.api.query.require.HistogramBehavior.*;
+import static io.evitadb.api.query.require.FacetRelationType.*;
+import static io.evitadb.api.query.require.FacetGroupRelationLevel.*;
 import static io.evitadb.dataType.Scope.*;

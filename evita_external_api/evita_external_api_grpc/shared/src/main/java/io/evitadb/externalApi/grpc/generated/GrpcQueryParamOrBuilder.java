@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -668,6 +668,62 @@ public interface GrpcQueryParamOrBuilder extends
    * @return The scope.
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntityScope getScope();
+
+  /**
+   * <pre>
+   * The facetRelationType enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType facetRelationType = 25;</code>
+   * @return Whether the facetRelationType field is set.
+   */
+  boolean hasFacetRelationType();
+  /**
+   * <pre>
+   * The facetRelationType enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType facetRelationType = 25;</code>
+   * @return The enum numeric value on the wire for facetRelationType.
+   */
+  int getFacetRelationTypeValue();
+  /**
+   * <pre>
+   * The facetRelationType enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType facetRelationType = 25;</code>
+   * @return The facetRelationType.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType getFacetRelationType();
+
+  /**
+   * <pre>
+   * The facetGroupRelationLevel enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel facetGroupRelationLevel = 26;</code>
+   * @return Whether the facetGroupRelationLevel field is set.
+   */
+  boolean hasFacetGroupRelationLevel();
+  /**
+   * <pre>
+   * The facetGroupRelationLevel enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel facetGroupRelationLevel = 26;</code>
+   * @return The enum numeric value on the wire for facetGroupRelationLevel.
+   */
+  int getFacetGroupRelationLevelValue();
+  /**
+   * <pre>
+   * The facetGroupRelationLevel enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel facetGroupRelationLevel = 26;</code>
+   * @return The facetGroupRelationLevel.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel getFacetGroupRelationLevel();
 
   /**
    * <pre>

@@ -27,29 +27,15 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 		return session.querySealedEntity(
 			query(
 				collection("Product"),
-				filterBy(
-					hierarchyWithin(
-						"categories",
-						attributeEquals("code", "e-readers")
-					),
-					attributeEquals("status", "ACTIVE"),
-					entityLocaleEquals(Locale.forLanguageTag("en"))
-				),
 				require(
-					facetSummary(
-						orderBy(
-							attributeNatural("name", ASC)
-						),
-						orderGroupBy(
-							attributeNatural("name", ASC)
-						),
+					facetSummaryOfReference(
+						"parameterValues",
+						IMPACT,
 						entityFetch(
-							attributeContent("name")
-						),
-						entityGroupFetch(
-							attributeContent("name")
+							attributeContent("code")
 						)
-					)
+					),
+					facetCalculationRules(CONJUNCTION, EXCLUSIVITY)
 				)
 			)
 		);

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -277,6 +277,18 @@ private static final long serialVersionUID = 0L;
           case 192: {
             int rawValue = input.readEnum();
             queryParamCase_ = 24;
+            queryParam_ = rawValue;
+            break;
+          }
+          case 200: {
+            int rawValue = input.readEnum();
+            queryParamCase_ = 25;
+            queryParam_ = rawValue;
+            break;
+          }
+          case 208: {
+            int rawValue = input.readEnum();
+            queryParamCase_ = 26;
             queryParam_ = rawValue;
             break;
           }
@@ -649,6 +661,8 @@ private static final long serialVersionUID = 0L;
     MANAGEDREFERENCESBEHAVIOUR(22),
     EXPRESSIONVALUE(23),
     SCOPE(24),
+    FACETRELATIONTYPE(25),
+    FACETGROUPRELATIONLEVEL(26),
     STRINGARRAYVALUE(101),
     INTEGERARRAYVALUE(102),
     LONGARRAYVALUE(103),
@@ -712,6 +726,8 @@ private static final long serialVersionUID = 0L;
         case 22: return MANAGEDREFERENCESBEHAVIOUR;
         case 23: return EXPRESSIONVALUE;
         case 24: return SCOPE;
+        case 25: return FACETRELATIONTYPE;
+        case 26: return FACETGROUPRELATIONLEVEL;
         case 101: return STRINGARRAYVALUE;
         case 102: return INTEGERARRAYVALUE;
         case 103: return LONGARRAYVALUE;
@@ -777,7 +793,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       if (queryParamCase_ == 1) {
@@ -801,7 +817,7 @@ private static final long serialVersionUID = 0L;
       ref = queryParam_;
     }
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       if (queryParamCase_ == 1) {
@@ -1712,7 +1728,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       if (queryParamCase_ == 23) {
@@ -1736,7 +1752,7 @@ private static final long serialVersionUID = 0L;
       ref = queryParam_;
     }
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       if (queryParamCase_ == 23) {
@@ -1790,6 +1806,94 @@ private static final long serialVersionUID = 0L;
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityScope.UNRECOGNIZED : result;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcEntityScope.SCOPE_LIVE;
+  }
+
+  public static final int FACETRELATIONTYPE_FIELD_NUMBER = 25;
+  /**
+   * <pre>
+   * The facetRelationType enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType facetRelationType = 25;</code>
+   * @return Whether the facetRelationType field is set.
+   */
+  public boolean hasFacetRelationType() {
+    return queryParamCase_ == 25;
+  }
+  /**
+   * <pre>
+   * The facetRelationType enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType facetRelationType = 25;</code>
+   * @return The enum numeric value on the wire for facetRelationType.
+   */
+  public int getFacetRelationTypeValue() {
+    if (queryParamCase_ == 25) {
+      return (java.lang.Integer) queryParam_;
+    }
+    return 0;
+  }
+  /**
+   * <pre>
+   * The facetRelationType enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType facetRelationType = 25;</code>
+   * @return The facetRelationType.
+   */
+  public io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType getFacetRelationType() {
+    if (queryParamCase_ == 25) {
+      @SuppressWarnings("deprecation")
+      io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType result = io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType.valueOf(
+          (java.lang.Integer) queryParam_);
+      return result == null ? io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType.UNRECOGNIZED : result;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType.DISJUNCTION;
+  }
+
+  public static final int FACETGROUPRELATIONLEVEL_FIELD_NUMBER = 26;
+  /**
+   * <pre>
+   * The facetGroupRelationLevel enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel facetGroupRelationLevel = 26;</code>
+   * @return Whether the facetGroupRelationLevel field is set.
+   */
+  public boolean hasFacetGroupRelationLevel() {
+    return queryParamCase_ == 26;
+  }
+  /**
+   * <pre>
+   * The facetGroupRelationLevel enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel facetGroupRelationLevel = 26;</code>
+   * @return The enum numeric value on the wire for facetGroupRelationLevel.
+   */
+  public int getFacetGroupRelationLevelValue() {
+    if (queryParamCase_ == 26) {
+      return (java.lang.Integer) queryParam_;
+    }
+    return 0;
+  }
+  /**
+   * <pre>
+   * The facetGroupRelationLevel enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel facetGroupRelationLevel = 26;</code>
+   * @return The facetGroupRelationLevel.
+   */
+  public io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel getFacetGroupRelationLevel() {
+    if (queryParamCase_ == 26) {
+      @SuppressWarnings("deprecation")
+      io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel result = io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel.valueOf(
+          (java.lang.Integer) queryParam_);
+      return result == null ? io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel.UNRECOGNIZED : result;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP;
   }
 
   public static final int STRINGARRAYVALUE_FIELD_NUMBER = 101;
@@ -2815,6 +2919,12 @@ private static final long serialVersionUID = 0L;
     if (queryParamCase_ == 24) {
       output.writeEnum(24, ((java.lang.Integer) queryParam_));
     }
+    if (queryParamCase_ == 25) {
+      output.writeEnum(25, ((java.lang.Integer) queryParam_));
+    }
+    if (queryParamCase_ == 26) {
+      output.writeEnum(26, ((java.lang.Integer) queryParam_));
+    }
     if (queryParamCase_ == 101) {
       output.writeMessage(101, (io.evitadb.externalApi.grpc.generated.GrpcStringArray) queryParam_);
     }
@@ -2986,6 +3096,14 @@ private static final long serialVersionUID = 0L;
     if (queryParamCase_ == 24) {
       size += com.google.protobuf.CodedOutputStream
         .computeEnumSize(24, ((java.lang.Integer) queryParam_));
+    }
+    if (queryParamCase_ == 25) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeEnumSize(25, ((java.lang.Integer) queryParam_));
+    }
+    if (queryParamCase_ == 26) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeEnumSize(26, ((java.lang.Integer) queryParam_));
     }
     if (queryParamCase_ == 101) {
       size += com.google.protobuf.CodedOutputStream
@@ -3188,6 +3306,14 @@ private static final long serialVersionUID = 0L;
         if (getScopeValue()
             != other.getScopeValue()) return false;
         break;
+      case 25:
+        if (getFacetRelationTypeValue()
+            != other.getFacetRelationTypeValue()) return false;
+        break;
+      case 26:
+        if (getFacetGroupRelationLevelValue()
+            != other.getFacetGroupRelationLevelValue()) return false;
+        break;
       case 101:
         if (!getStringArrayValue()
             .equals(other.getStringArrayValue())) return false;
@@ -3388,6 +3514,14 @@ private static final long serialVersionUID = 0L;
       case 24:
         hash = (37 * hash) + SCOPE_FIELD_NUMBER;
         hash = (53 * hash) + getScopeValue();
+        break;
+      case 25:
+        hash = (37 * hash) + FACETRELATIONTYPE_FIELD_NUMBER;
+        hash = (53 * hash) + getFacetRelationTypeValue();
+        break;
+      case 26:
+        hash = (37 * hash) + FACETGROUPRELATIONLEVEL_FIELD_NUMBER;
+        hash = (53 * hash) + getFacetGroupRelationLevelValue();
         break;
       case 101:
         hash = (37 * hash) + STRINGARRAYVALUE_FIELD_NUMBER;
@@ -3749,6 +3883,12 @@ private static final long serialVersionUID = 0L;
       if (queryParamCase_ == 24) {
         result.queryParam_ = queryParam_;
       }
+      if (queryParamCase_ == 25) {
+        result.queryParam_ = queryParam_;
+      }
+      if (queryParamCase_ == 26) {
+        result.queryParam_ = queryParam_;
+      }
       if (queryParamCase_ == 101) {
         if (stringArrayValueBuilder_ == null) {
           result.queryParam_ = queryParam_;
@@ -4053,6 +4193,14 @@ private static final long serialVersionUID = 0L;
           setScopeValue(other.getScopeValue());
           break;
         }
+        case FACETRELATIONTYPE: {
+          setFacetRelationTypeValue(other.getFacetRelationTypeValue());
+          break;
+        }
+        case FACETGROUPRELATIONLEVEL: {
+          setFacetGroupRelationLevelValue(other.getFacetGroupRelationLevelValue());
+          break;
+        }
         case STRINGARRAYVALUE: {
           mergeStringArrayValue(other.getStringArrayValue());
           break;
@@ -4243,7 +4391,7 @@ private static final long serialVersionUID = 0L;
         ref = queryParam_;
       }
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         if (queryParamCase_ == 1) {
@@ -4640,7 +4788,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalValue = 5;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder>
         getBigDecimalValueFieldBuilder() {
       if (bigDecimalValueBuilder_ == null) {
         if (!(queryParamCase_ == 5)) {
@@ -4817,7 +4965,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange dateTimeRangeValue = 6;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeOrBuilder>
         getDateTimeRangeValueFieldBuilder() {
       if (dateTimeRangeValueBuilder_ == null) {
         if (!(queryParamCase_ == 6)) {
@@ -4994,7 +5142,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerNumberRangeValue = 7;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeOrBuilder>
         getIntegerNumberRangeValueFieldBuilder() {
       if (integerNumberRangeValueBuilder_ == null) {
         if (!(queryParamCase_ == 7)) {
@@ -5171,7 +5319,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longNumberRangeValue = 8;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange, io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange, io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeOrBuilder>
         getLongNumberRangeValueFieldBuilder() {
       if (longNumberRangeValueBuilder_ == null) {
         if (!(queryParamCase_ == 8)) {
@@ -5348,7 +5496,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalNumberRangeValue = 9;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeOrBuilder>
         getBigDecimalNumberRangeValueFieldBuilder() {
       if (bigDecimalNumberRangeValueBuilder_ == null) {
         if (!(queryParamCase_ == 9)) {
@@ -5525,7 +5673,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime offsetDateTimeValue = 10;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder>
         getOffsetDateTimeValueFieldBuilder() {
       if (offsetDateTimeValueBuilder_ == null) {
         if (!(queryParamCase_ == 10)) {
@@ -5702,7 +5850,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale localeValue = 11;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcLocale, io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcLocale, io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder>
         getLocaleValueFieldBuilder() {
       if (localeValueBuilder_ == null) {
         if (!(queryParamCase_ == 11)) {
@@ -5879,7 +6027,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currencyValue = 12;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcCurrency, io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder, io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcCurrency, io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder, io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder>
         getCurrencyValueFieldBuilder() {
       if (currencyValueBuilder_ == null) {
         if (!(queryParamCase_ == 12)) {
@@ -6901,7 +7049,7 @@ private static final long serialVersionUID = 0L;
         ref = queryParam_;
       }
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         if (queryParamCase_ == 23) {
@@ -7056,6 +7204,196 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearScope() {
       if (queryParamCase_ == 24) {
+        queryParamCase_ = 0;
+        queryParam_ = null;
+        onChanged();
+      }
+      return this;
+    }
+
+    /**
+     * <pre>
+     * The facetRelationType enum value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType facetRelationType = 25;</code>
+     * @return Whether the facetRelationType field is set.
+     */
+    @java.lang.Override
+    public boolean hasFacetRelationType() {
+      return queryParamCase_ == 25;
+    }
+    /**
+     * <pre>
+     * The facetRelationType enum value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType facetRelationType = 25;</code>
+     * @return The enum numeric value on the wire for facetRelationType.
+     */
+    @java.lang.Override
+    public int getFacetRelationTypeValue() {
+      if (queryParamCase_ == 25) {
+        return ((java.lang.Integer) queryParam_).intValue();
+      }
+      return 0;
+    }
+    /**
+     * <pre>
+     * The facetRelationType enum value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType facetRelationType = 25;</code>
+     * @param value The enum numeric value on the wire for facetRelationType to set.
+     * @return This builder for chaining.
+     */
+    public Builder setFacetRelationTypeValue(int value) {
+      queryParamCase_ = 25;
+      queryParam_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The facetRelationType enum value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType facetRelationType = 25;</code>
+     * @return The facetRelationType.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType getFacetRelationType() {
+      if (queryParamCase_ == 25) {
+        @SuppressWarnings("deprecation")
+        io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType result = io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType.valueOf(
+            (java.lang.Integer) queryParam_);
+        return result == null ? io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType.UNRECOGNIZED : result;
+      }
+      return io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType.DISJUNCTION;
+    }
+    /**
+     * <pre>
+     * The facetRelationType enum value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType facetRelationType = 25;</code>
+     * @param value The facetRelationType to set.
+     * @return This builder for chaining.
+     */
+    public Builder setFacetRelationType(io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      queryParamCase_ = 25;
+      queryParam_ = value.getNumber();
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The facetRelationType enum value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType facetRelationType = 25;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearFacetRelationType() {
+      if (queryParamCase_ == 25) {
+        queryParamCase_ = 0;
+        queryParam_ = null;
+        onChanged();
+      }
+      return this;
+    }
+
+    /**
+     * <pre>
+     * The facetGroupRelationLevel enum value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel facetGroupRelationLevel = 26;</code>
+     * @return Whether the facetGroupRelationLevel field is set.
+     */
+    @java.lang.Override
+    public boolean hasFacetGroupRelationLevel() {
+      return queryParamCase_ == 26;
+    }
+    /**
+     * <pre>
+     * The facetGroupRelationLevel enum value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel facetGroupRelationLevel = 26;</code>
+     * @return The enum numeric value on the wire for facetGroupRelationLevel.
+     */
+    @java.lang.Override
+    public int getFacetGroupRelationLevelValue() {
+      if (queryParamCase_ == 26) {
+        return ((java.lang.Integer) queryParam_).intValue();
+      }
+      return 0;
+    }
+    /**
+     * <pre>
+     * The facetGroupRelationLevel enum value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel facetGroupRelationLevel = 26;</code>
+     * @param value The enum numeric value on the wire for facetGroupRelationLevel to set.
+     * @return This builder for chaining.
+     */
+    public Builder setFacetGroupRelationLevelValue(int value) {
+      queryParamCase_ = 26;
+      queryParam_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The facetGroupRelationLevel enum value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel facetGroupRelationLevel = 26;</code>
+     * @return The facetGroupRelationLevel.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel getFacetGroupRelationLevel() {
+      if (queryParamCase_ == 26) {
+        @SuppressWarnings("deprecation")
+        io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel result = io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel.valueOf(
+            (java.lang.Integer) queryParam_);
+        return result == null ? io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel.UNRECOGNIZED : result;
+      }
+      return io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP;
+    }
+    /**
+     * <pre>
+     * The facetGroupRelationLevel enum value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel facetGroupRelationLevel = 26;</code>
+     * @param value The facetGroupRelationLevel to set.
+     * @return This builder for chaining.
+     */
+    public Builder setFacetGroupRelationLevel(io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      queryParamCase_ = 26;
+      queryParam_ = value.getNumber();
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The facetGroupRelationLevel enum value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel facetGroupRelationLevel = 26;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearFacetGroupRelationLevel() {
+      if (queryParamCase_ == 26) {
         queryParamCase_ = 0;
         queryParam_ = null;
         onChanged();
@@ -7222,7 +7560,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 101;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcStringArray, io.evitadb.externalApi.grpc.generated.GrpcStringArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcStringArrayOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcStringArray, io.evitadb.externalApi.grpc.generated.GrpcStringArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcStringArrayOrBuilder>
         getStringArrayValueFieldBuilder() {
       if (stringArrayValueBuilder_ == null) {
         if (!(queryParamCase_ == 101)) {
@@ -7399,7 +7737,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 102;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcIntegerArray, io.evitadb.externalApi.grpc.generated.GrpcIntegerArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcIntegerArrayOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcIntegerArray, io.evitadb.externalApi.grpc.generated.GrpcIntegerArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcIntegerArrayOrBuilder>
         getIntegerArrayValueFieldBuilder() {
       if (integerArrayValueBuilder_ == null) {
         if (!(queryParamCase_ == 102)) {
@@ -7576,7 +7914,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 103;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcLongArray, io.evitadb.externalApi.grpc.generated.GrpcLongArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcLongArrayOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcLongArray, io.evitadb.externalApi.grpc.generated.GrpcLongArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcLongArrayOrBuilder>
         getLongArrayValueFieldBuilder() {
       if (longArrayValueBuilder_ == null) {
         if (!(queryParamCase_ == 103)) {
@@ -7753,7 +8091,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 104;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcBooleanArray, io.evitadb.externalApi.grpc.generated.GrpcBooleanArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcBooleanArrayOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcBooleanArray, io.evitadb.externalApi.grpc.generated.GrpcBooleanArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcBooleanArrayOrBuilder>
         getBooleanArrayValueFieldBuilder() {
       if (booleanArrayValueBuilder_ == null) {
         if (!(queryParamCase_ == 104)) {
@@ -7930,7 +8268,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 105;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArrayOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArrayOrBuilder>
         getBigDecimalArrayValueFieldBuilder() {
       if (bigDecimalArrayValueBuilder_ == null) {
         if (!(queryParamCase_ == 105)) {
@@ -8107,7 +8445,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 106;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArrayOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArrayOrBuilder>
         getDateTimeRangeArrayValueFieldBuilder() {
       if (dateTimeRangeArrayValueBuilder_ == null) {
         if (!(queryParamCase_ == 106)) {
@@ -8284,7 +8622,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 107;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArrayOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArrayOrBuilder>
         getIntegerNumberRangeArrayValueFieldBuilder() {
       if (integerNumberRangeArrayValueBuilder_ == null) {
         if (!(queryParamCase_ == 107)) {
@@ -8461,7 +8799,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 108;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray, io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArrayOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray, io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArrayOrBuilder>
         getLongNumberRangeArrayValueFieldBuilder() {
       if (longNumberRangeArrayValueBuilder_ == null) {
         if (!(queryParamCase_ == 108)) {
@@ -8638,7 +8976,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 109;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArrayOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArrayOrBuilder>
         getBigDecimalNumberRangeArrayValueFieldBuilder() {
       if (bigDecimalNumberRangeArrayValueBuilder_ == null) {
         if (!(queryParamCase_ == 109)) {
@@ -8815,7 +9153,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 110;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArrayOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArrayOrBuilder>
         getOffsetDateTimeArrayValueFieldBuilder() {
       if (offsetDateTimeArrayValueBuilder_ == null) {
         if (!(queryParamCase_ == 110)) {
@@ -8992,7 +9330,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 111;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcLocaleArray, io.evitadb.externalApi.grpc.generated.GrpcLocaleArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocaleArrayOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcLocaleArray, io.evitadb.externalApi.grpc.generated.GrpcLocaleArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocaleArrayOrBuilder>
         getLocaleArrayValueFieldBuilder() {
       if (localeArrayValueBuilder_ == null) {
         if (!(queryParamCase_ == 111)) {
@@ -9169,7 +9507,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 112;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray, io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcCurrencyArrayOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray, io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcCurrencyArrayOrBuilder>
         getCurrencyArrayValueFieldBuilder() {
       if (currencyArrayValueBuilder_ == null) {
         if (!(queryParamCase_ == 112)) {
@@ -9346,7 +9684,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray facetStatisticsDepthArrayValue = 113;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray, io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArrayOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray, io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArrayOrBuilder>
         getFacetStatisticsDepthArrayValueFieldBuilder() {
       if (facetStatisticsDepthArrayValueBuilder_ == null) {
         if (!(queryParamCase_ == 113)) {
@@ -9523,7 +9861,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray queryPriceModelArrayValue = 114;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray, io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArrayOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray, io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArrayOrBuilder>
         getQueryPriceModelArrayValueFieldBuilder() {
       if (queryPriceModelArrayValueBuilder_ == null) {
         if (!(queryParamCase_ == 114)) {
@@ -9700,7 +10038,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray priceContentModeArrayValue = 115;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray, io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArrayOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray, io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArrayOrBuilder>
         getPriceContentModeArrayValueFieldBuilder() {
       if (priceContentModeArrayValueBuilder_ == null) {
         if (!(queryParamCase_ == 115)) {
@@ -9877,7 +10215,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray attributeSpecialArrayValue = 116;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray, io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArrayOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray, io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArrayOrBuilder>
         getAttributeSpecialArrayValueFieldBuilder() {
       if (attributeSpecialArrayValueBuilder_ == null) {
         if (!(queryParamCase_ == 116)) {
@@ -10054,7 +10392,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray orderDirectionArrayValue = 117;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray, io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArrayOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray, io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArrayOrBuilder>
         getOrderDirectionArrayValueFieldBuilder() {
       if (orderDirectionArrayValueBuilder_ == null) {
         if (!(queryParamCase_ == 117)) {
@@ -10231,7 +10569,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray emptyHierarchicalEntityBehaviourArrayValue = 118;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray, io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArrayOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray, io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArrayOrBuilder>
         getEmptyHierarchicalEntityBehaviourArrayValueFieldBuilder() {
       if (emptyHierarchicalEntityBehaviourArrayValueBuilder_ == null) {
         if (!(queryParamCase_ == 118)) {
@@ -10372,7 +10710,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray statisticsBaseArrayValue = 119;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray, io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArrayOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray, io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArrayOrBuilder>
         getStatisticsBaseArrayValueFieldBuilder() {
       if (statisticsBaseArrayValueBuilder_ == null) {
         if (!(queryParamCase_ == 119)) {
@@ -10549,7 +10887,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray statisticsTypeArrayValue = 120;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray, io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArrayOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray, io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArrayOrBuilder>
         getStatisticsTypeArrayValueFieldBuilder() {
       if (statisticsTypeArrayValueBuilder_ == null) {
         if (!(queryParamCase_ == 120)) {
@@ -10726,7 +11064,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray histogramBehaviorTypeArrayValue = 121;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray, io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArrayOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray, io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArrayOrBuilder>
         getHistogramBehaviorTypeArrayValueFieldBuilder() {
       if (histogramBehaviorTypeArrayValueBuilder_ == null) {
         if (!(queryParamCase_ == 121)) {
@@ -10903,7 +11241,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray scopeArrayValue = 122;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray, io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArrayOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray, io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArrayOrBuilder>
         getScopeArrayValueFieldBuilder() {
       if (scopeArrayValueBuilder_ == null) {
         if (!(queryParamCase_ == 122)) {

@@ -59,6 +59,10 @@ message GrpcQueryParam {
     string expressionValue = 23;
     // The scope enum value.
     GrpcEntityScope scope = 24;
+    // The facetRelationType enum value.
+    GrpcFacetRelationType facetRelationType = 25;
+    // The facetGroupRelationLevel enum value.
+    GrpcFacetGroupRelationLevel facetGroupRelationLevel = 26;
 
     // The string array value.
     GrpcStringArray stringArrayValue = 101;

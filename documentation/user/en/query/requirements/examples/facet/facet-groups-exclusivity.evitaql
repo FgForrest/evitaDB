@@ -1,14 +1,14 @@
 query(
     collection("Product"),
     filterBy(
-        userFilter(
-          facetHaving(
-            "parameterValues",
-            entityHaving(
-              attributeInSet("code", "ram-memory-64")
-            )
+      userFilter(
+        facetHaving(
+          "parameterValues",
+          entityHaving(
+            attributeInSet("code", "ram-memory-24")
           )
         )
+      )
     ),
     require(
         facetSummaryOfReference(
@@ -19,11 +19,10 @@ query(
             entityFetch(attributeContent("code")),
             entityGroupFetch(attributeContent("code"))
         ),
-        facetGroupsDisjunction(
+        facetGroupsExclusivity(
             "parameterValues",
-            WITH_DIFFERENT_GROUPS,
             filterBy(
-              attributeInSet("code", "ram-memory", "rom-memory")
+              attributeInSet("code", "ram-memory")
             )
         )
     )
