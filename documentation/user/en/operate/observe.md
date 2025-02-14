@@ -555,7 +555,7 @@ a ZIP file and make it available for download. This file can be used for further
 different evitaDB instances.
 
 The recorded traffic can be browsed and filtered in evitaLab and any query can be easily executed in the corresponding 
-query console on the current dataset. Records can also be filtered by custom [labels](../query/header/header.md#label), 
+query console on the current dataset. Records can also be filtered by custom [labels](../query/header/label.md#label), 
 traceIds or protocol types. You can easily isolate sets of traffic records that relate to a single business case, such 
 as a single page rendering or a single API call.
 
