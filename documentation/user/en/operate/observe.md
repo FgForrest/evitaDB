@@ -436,6 +436,7 @@ Observability:
   exposeOn: ${api.endpoints.observability.exposeOn:"localhost:5555"}
   tlsMode: ${api.endpoints.observability.tlsMode:FORCE_NO_TLS}
   tracing:
+    serviceName: ${api.endpoints.observability.tracing.serviceName:evitaDB}
     endpoint: ${api.endpoints.observability.tracing.endpoint:null}
     protocol: ${api.endpoints.observability.tracing.protocol:grpc}
 ```
