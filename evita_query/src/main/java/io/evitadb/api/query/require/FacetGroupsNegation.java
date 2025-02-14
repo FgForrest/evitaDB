@@ -24,7 +24,6 @@
 package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.Constraint;
-import io.evitadb.api.query.FacetConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.AdditionalChild;
@@ -94,7 +93,7 @@ import java.util.Optional;
 		"facet groups in the sense that their selection would return entities that don't have any of those facets.",
 	userDocsLink = "/documentation/query/requirements/facet#facet-groups-negation"
 )
-public class FacetGroupsNegation extends AbstractRequireConstraintContainer implements FacetConstraint<RequireConstraint> {
+public class FacetGroupsNegation extends AbstractRequireConstraintContainer implements FacetGroupsConstraint {
 	@Serial private static final long serialVersionUID = 3993873252481237893L;
 
 	private FacetGroupsNegation(@Nonnull Serializable[] arguments, @Nonnull Constraint<?>... additionalChildren) {
@@ -126,19 +125,15 @@ public class FacetGroupsNegation extends AbstractRequireConstraintContainer impl
 		);
 	}
 
-	/**
-	 * Returns name of the reference name this constraint relates to.
-	 */
 	@Nonnull
+	@Override
 	public String getReferenceName() {
 		return (String) getArguments()[0];
 	}
 
-	/**
-	 * Returns level on which this relation type is applied to.
-	 */
 	@AliasForParameter("relation")
 	@Nonnull
+	@Override
 	public FacetGroupRelationLevel getFacetGroupRelationLevel() {
 		return Arrays.stream(getArguments())
 			.filter(FacetGroupRelationLevel.class::isInstance)
@@ -147,11 +142,9 @@ public class FacetGroupsNegation extends AbstractRequireConstraintContainer impl
 			.orElse(FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP);
 	}
 
-	/**
-	 * Returns filter constraint that can be resolved to array of facet groups primary keys.
-	 */
 	@AliasForParameter("filterBy")
 	@Nonnull
+	@Override
 	public Optional<FilterBy> getFacetGroups() {
 		return Arrays.stream(getAdditionalChildren())
 			.filter(child -> child instanceof FilterBy)

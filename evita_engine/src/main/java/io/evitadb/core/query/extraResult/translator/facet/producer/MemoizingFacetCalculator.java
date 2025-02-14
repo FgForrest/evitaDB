@@ -110,8 +110,8 @@ public class MemoizingFacetCalculator implements FacetCalculator, ImpactCalculat
 	@Override
 	public RequestImpact calculateImpact(@Nonnull ReferenceSchemaContract referenceSchema, int facetId, @Nullable Integer facetGroupId, boolean required, @Nonnull Bitmap[] facetEntityIds) {
 		// create formula that would capture the requested facet selected
-		final Formula hypotheticalFormula = impactFormulaGenerator.generateFormula(
-			baseFormula, baseFormulaWithoutUserFilter, referenceSchema, facetGroupId, facetId, facetEntityIds
+		final Formula hypotheticalFormula = this.impactFormulaGenerator.generateFormula(
+			this.baseFormula, this.baseFormulaWithoutUserFilter, referenceSchema, facetGroupId, facetId, facetEntityIds
 		);
 		// initialize the formula
 		hypotheticalFormula.initialize(this.executionContext);
@@ -123,7 +123,7 @@ public class MemoizingFacetCalculator implements FacetCalculator, ImpactCalculat
 			difference,
 			hypotheticalCount,
 			hypotheticalCount > 0 &&
-				(difference != 0 || impactFormulaGenerator.hasSenseAlone(hypotheticalFormula, referenceSchema, facetGroupId, facetId, facetEntityIds))
+				(difference != 0 || this.impactFormulaGenerator.hasSenseAlone(hypotheticalFormula, referenceSchema, facetGroupId, facetId, facetEntityIds))
 		);
 	}
 

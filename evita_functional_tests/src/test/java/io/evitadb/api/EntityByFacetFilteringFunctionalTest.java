@@ -32,15 +32,7 @@ import io.evitadb.api.query.filter.EntityPrimaryKeyInSet;
 import io.evitadb.api.query.filter.FacetHaving;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.order.OrderDirection;
-import io.evitadb.api.query.require.DebugMode;
-import io.evitadb.api.query.require.EntityFetch;
-import io.evitadb.api.query.require.EntityGroupFetch;
-import io.evitadb.api.query.require.FacetGroupsConjunction;
-import io.evitadb.api.query.require.FacetGroupsDisjunction;
-import io.evitadb.api.query.require.FacetGroupsExclusivity;
-import io.evitadb.api.query.require.FacetGroupsNegation;
-import io.evitadb.api.query.require.FacetStatisticsDepth;
-import io.evitadb.api.query.require.QueryPriceMode;
+import io.evitadb.api.query.require.*;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
@@ -98,7 +90,10 @@ import java.util.stream.Stream;
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.QueryUtils.findConstraints;
+import static io.evitadb.api.query.QueryUtils.findRequire;
 import static io.evitadb.api.query.QueryUtils.findRequires;
+import static io.evitadb.api.query.require.FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP;
+import static io.evitadb.api.query.require.FacetGroupRelationLevel.WITH_DIFFERENT_GROUPS;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.extension.DataCarrier.tuple;
 import static io.evitadb.test.generator.DataGenerator.*;
@@ -320,10 +315,10 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 			.collect(Collectors.toSet());
 
 		// if there facet group negation - invert the facet counts
-		if (fcc.isAnyFacetGroupNegated()) {
+		if (fcc.isAnyFacetGroupNegated(WITH_DIFFERENT_FACETS_IN_GROUP)) {
 			groupedFacets.entrySet()
 				.stream()
-				.filter(it -> fcc.isFacetGroupNegated(it.getKey()))
+				.filter(it -> fcc.isFacetGroupNegated(it.getKey(), WITH_DIFFERENT_FACETS_IN_GROUP))
 				.forEach(it ->
 					// invert the results
 					it.getValue()
@@ -504,6 +499,99 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 			}
 		}
 		return new int[0];
+	}
+
+	private static boolean isWithinHierarchy(Hierarchy categoryHierarchy, ReferenceContract category, int requestedCategoryId) {
+		final int categoryId = category.getReferencedPrimaryKey();
+		final String categoryIdAsString = String.valueOf(categoryId);
+		final List<HierarchyItem> parentItems = categoryHierarchy.getParentItems(categoryIdAsString);
+		// has parent node or requested category id
+		return Objects.equals(requestedCategoryId, categoryId) ||
+			parentItems
+				.stream()
+				.anyMatch(it -> Objects.equals(String.valueOf(requestedCategoryId), it.getCode()));
+	}
+
+	@Nonnull
+	private static Integer[] getParametersWithDifferentGroups(List<SealedEntity> originalProductEntities, Set<Integer> groups) {
+		final SealedEntity exampleProduct = originalProductEntities
+			.stream()
+			.filter(it -> it.getReferences(Entities.PARAMETER)
+				.stream()
+				.filter(x -> x.getGroup().isPresent())
+				.map(x -> x.getGroup().get().getPrimaryKey())
+				.distinct()
+				.count() >= 2
+			)
+			.findFirst()
+			.orElseThrow(() -> new IllegalStateException("There is no product with two references to parameters in different groups!"));
+		return exampleProduct.getReferences(Entities.PARAMETER)
+			.stream()
+			.filter(it -> it.getGroup().isPresent())
+			.filter(it -> groups.add(it.getGroup().get().getPrimaryKey()))
+			.map(ReferenceContract::getReferencedPrimaryKey)
+			.toArray(Integer[]::new);
+	}
+
+	@Nonnull
+	private static Integer[] getParametersWithSameGroup(List<SealedEntity> originalProductEntities, Set<Integer> groups) {
+		return originalProductEntities
+			.stream()
+			.map(it -> {
+				final Integer groupWithMultipleItems = it.getReferences(Entities.PARAMETER)
+					.stream()
+					.filter(x -> x.getGroup().isPresent())
+					.collect(groupingBy(x -> x.getGroup().orElseThrow().getPrimaryKey(), Collectors.counting()))
+					.entrySet()
+					.stream()
+					.filter(x -> x.getValue() > 2L)
+					.map(Entry::getKey)
+					.findFirst()
+					.orElse(null);
+				if (groupWithMultipleItems == null) {
+					return null;
+				} else {
+					groups.add(groupWithMultipleItems);
+					return it.getReferences(Entities.PARAMETER)
+						.stream()
+						.filter(x -> x.getGroup().map(GroupEntityReference::getPrimaryKey).orElse(-1).equals(groupWithMultipleItems))
+						.map(ReferenceContract::getReferencedPrimaryKey)
+						.toArray(Integer[]::new);
+				}
+			})
+			.filter(Objects::nonNull)
+			.findFirst()
+			.orElseThrow(() -> new IllegalStateException("There is no product with two references to parameters in same group!"));
+	}
+
+	private static Set<Integer> getGroupsWithGaps(List<SealedEntity> originalProductEntities) {
+		final Set<Integer> allGroupsPresent = originalProductEntities.stream()
+			.flatMap(it -> it.getReferences(Entities.PARAMETER).stream())
+			.filter(it -> it.getGroup().isPresent())
+			.map(it -> it.getGroup().get().getPrimaryKey())
+			.collect(Collectors.toSet());
+		final Set<Integer> groupsWithGaps = new HashSet<>();
+		for (SealedEntity product : originalProductEntities) {
+			final Set<Integer> groupsPresentOnProduct = product.getReferences(Entities.PARAMETER).stream()
+				.filter(it -> it.getGroup().isPresent())
+				.map(it -> it.getGroup().get().getPrimaryKey())
+				.collect(Collectors.toSet());
+			allGroupsPresent
+				.stream()
+				.filter(it -> !groupsWithGaps.contains(it) && !groupsPresentOnProduct.contains(it))
+				.forEach(groupsWithGaps::add);
+		}
+		return groupsWithGaps;
+	}
+
+	private static Integer[] getParametersInGroups(List<SealedEntity> originalProductEntities, Set<Integer> groups) {
+		return originalProductEntities.stream()
+			.flatMap(it -> it.getReferences(Entities.PARAMETER).stream())
+			.filter(it -> it.getGroup().isPresent())
+			.filter(it -> groups.contains(it.getGroup().get().getPrimaryKey()))
+			.map(ReferenceContract::getReferencedPrimaryKey)
+			.distinct()
+			.toArray(Integer[]::new);
 	}
 
 	@Nullable
@@ -1168,7 +1256,7 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 			session -> {
 				for (HierarchyItem rootItem : categoryHierarchy.getRootItems()) {
 					final int hierarchyRoot = Integer.parseInt(rootItem.getCode());
-					final Integer[] facetIds = new Integer[] {hierarchyRoot};
+					final Integer[] facetIds = new Integer[]{hierarchyRoot};
 
 					final Query query = query(
 						collection(Entities.PRODUCT),
@@ -1261,11 +1349,11 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 			session -> {
 				final HierarchyItem rootItem = categoryHierarchy.getItem("3");
 				final int hierarchyRoot = Integer.parseInt(rootItem.getCode());
-				final Integer[] facetIds = new Integer[] {hierarchyRoot};
+				final Integer[] facetIds = new Integer[]{hierarchyRoot};
 
 				final List<HierarchyItem> childItems = categoryHierarchy.getChildItems(rootItem.getCode());
 				assertEquals(2, childItems.size());
-				assertArrayEquals(new int[] {7, 9}, childItems.stream().mapToInt(it -> Integer.parseInt(it.getCode())).toArray());
+				assertArrayEquals(new int[]{7, 9}, childItems.stream().mapToInt(it -> Integer.parseInt(it.getCode())).toArray());
 
 				final Query query = query(
 					collection(Entities.PRODUCT),
@@ -1307,14 +1395,14 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 										.map(theParent -> Integer.parseInt(theParent.getCode()))
 										.collect(Collectors.toSet());
 									return (it.getReferencedPrimaryKey() == hierarchyRoot || parentItems.contains(hierarchyRoot)) &&
-											!(it.getReferencedPrimaryKey() == 9 || parentItems.contains(9));
+										!(it.getReferencedPrimaryKey() == 9 || parentItems.contains(9));
 								}
 							);
 					},
 					result.getRecordData()
 				);
 
-				final int[] selectedIds = new int[] {3, 7};
+				final int[] selectedIds = new int[]{3, 7};
 				final FacetSummary actualFacetSummary = result.getExtraResult(FacetSummary.class);
 
 				final FacetSummaryWithResultCount expectedSummary = computeFacetSummary(
@@ -1354,11 +1442,11 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 			session -> {
 				final HierarchyItem rootItem = categoryHierarchy.getItem("3");
 				final int hierarchyRoot = Integer.parseInt(rootItem.getCode());
-				final Integer[] facetIds = new Integer[] {hierarchyRoot};
+				final Integer[] facetIds = new Integer[]{hierarchyRoot};
 
 				final List<HierarchyItem> childItems = categoryHierarchy.getChildItems(rootItem.getCode());
 				assertEquals(2, childItems.size());
-				assertArrayEquals(new int[] {7, 9}, childItems.stream().mapToInt(it -> Integer.parseInt(it.getCode())).toArray());
+				assertArrayEquals(new int[]{7, 9}, childItems.stream().mapToInt(it -> Integer.parseInt(it.getCode())).toArray());
 
 				final Query query = query(
 					collection(Entities.PRODUCT),
@@ -1407,7 +1495,7 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 					result.getRecordData()
 				);
 
-				final int[] selectedIds = new int[] {3, 7};
+				final int[] selectedIds = new int[]{3, 7};
 				final FacetSummary actualFacetSummary = result.getExtraResult(FacetSummary.class);
 
 				final FacetSummaryWithResultCount expectedSummary = computeFacetSummary(
@@ -2022,10 +2110,10 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 					"When selecting multiple facets from their groups should decrease the result"
 				);
 				final int singleParameterSelectedResultWithOr = queryParameterFacets(
-					productSchema, originalProductEntities, parameterGroupMapping, session, facetGroupsDisjunction(Entities.PARAMETER, filterBy(entityPrimaryKeyInSet(groups[1]))), facets[0]
+					productSchema, originalProductEntities, parameterGroupMapping, session, facetGroupsDisjunction(Entities.PARAMETER, WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(groups[1]))), facets[0]
 				);
 				final int twoParametersFromDifferentGroupResultWithOr = queryParameterFacets(
-					productSchema, originalProductEntities, parameterGroupMapping, session, facetGroupsDisjunction(Entities.PARAMETER, filterBy(entityPrimaryKeyInSet(groups[1]))), facets
+					productSchema, originalProductEntities, parameterGroupMapping, session, facetGroupsDisjunction(Entities.PARAMETER, WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(groups[1]))), facets
 				);
 				assertTrue(
 					twoParametersFromDifferentGroupResultWithOr > singleParameterSelectedResultWithOr,
@@ -2669,6 +2757,68 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 		);
 	}
 
+	@DisplayName("Should return products using different default facet rules")
+	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
+	@Test
+	void shouldReturnProductsUsingDifferentDefaultFacetRules(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final AtomicInteger eachOther = new AtomicInteger(0);
+				final Integer[] parameters = Arrays.stream(getParametersInGroups(originalProductEntities, Set.of(1, 2)))
+					.filter(it -> eachOther.getAndIncrement() % 2 == 0)
+					.toArray(Integer[]::new);
+				final Set<Integer> parameterIndex = Set.of(parameters);
+
+				final Query query = query(
+					collection(Entities.PRODUCT),
+					filterBy(
+						userFilter(
+							facetHaving(Entities.PARAMETER, entityPrimaryKeyInSet(parameters))
+						)
+					),
+					require(
+						page(1, Integer.MAX_VALUE),
+						debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+						facetCalculationRules(
+							FacetRelationType.CONJUNCTION,
+							FacetRelationType.EXCLUSIVITY
+						),
+						facetSummaryOfReference(
+							Entities.PARAMETER,
+							FacetStatisticsDepth.IMPACT,
+							entityFetch(attributeContent(ATTRIBUTE_CODE)),
+							entityGroupFetch(attributeContent(ATTRIBUTE_CODE))
+						)
+					)
+				);
+
+				final EvitaResponse<EntityReference> result = session.query(query, EntityReference.class);
+				final FacetSummary actualFacetSummary = result.getExtraResult(FacetSummary.class);
+
+				final FacetSummaryWithResultCount expectedSummary = computeFacetSummary(
+					session,
+					productSchema,
+					originalProductEntities,
+					null,
+					query,
+					() -> Set.of(Entities.PARAMETER),
+					referenceName -> FacetStatisticsDepth.IMPACT,
+					referenceName -> entityFetch(attributeContent(ATTRIBUTE_CODE)),
+					referenceName -> entityGroupFetch(attributeContent(ATTRIBUTE_CODE)),
+					parameterGroupMapping
+				);
+
+				assertFacetSummary(
+					expectedSummary,
+					actualFacetSummary
+				);
+
+				return null;
+			}
+		);
+	}
+
 	/**
 	 * Asserts facet summary against expected without assert full entity data.
 	 */
@@ -2791,99 +2941,6 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 		assertFacetSummary(expectedSummary, actualFacetSummary);
 
 		return result.getTotalRecordCount();
-	}
-
-	private static boolean isWithinHierarchy(Hierarchy categoryHierarchy, ReferenceContract category, int requestedCategoryId) {
-		final int categoryId = category.getReferencedPrimaryKey();
-		final String categoryIdAsString = String.valueOf(categoryId);
-		final List<HierarchyItem> parentItems = categoryHierarchy.getParentItems(categoryIdAsString);
-		// has parent node or requested category id
-		return Objects.equals(requestedCategoryId, categoryId) ||
-			parentItems
-				.stream()
-				.anyMatch(it -> Objects.equals(String.valueOf(requestedCategoryId), it.getCode()));
-	}
-
-	@Nonnull
-	private static Integer[] getParametersWithDifferentGroups(List<SealedEntity> originalProductEntities, Set<Integer> groups) {
-		final SealedEntity exampleProduct = originalProductEntities
-			.stream()
-			.filter(it -> it.getReferences(Entities.PARAMETER)
-				.stream()
-				.filter(x -> x.getGroup().isPresent())
-				.map(x -> x.getGroup().get().getPrimaryKey())
-				.distinct()
-				.count() >= 2
-			)
-			.findFirst()
-			.orElseThrow(() -> new IllegalStateException("There is no product with two references to parameters in different groups!"));
-		return exampleProduct.getReferences(Entities.PARAMETER)
-			.stream()
-			.filter(it -> it.getGroup().isPresent())
-			.filter(it -> groups.add(it.getGroup().get().getPrimaryKey()))
-			.map(ReferenceContract::getReferencedPrimaryKey)
-			.toArray(Integer[]::new);
-	}
-
-	@Nonnull
-	private static Integer[] getParametersWithSameGroup(List<SealedEntity> originalProductEntities, Set<Integer> groups) {
-		return originalProductEntities
-			.stream()
-			.map(it -> {
-				final Integer groupWithMultipleItems = it.getReferences(Entities.PARAMETER)
-					.stream()
-					.filter(x -> x.getGroup().isPresent())
-					.collect(groupingBy(x -> x.getGroup().orElseThrow().getPrimaryKey(), Collectors.counting()))
-					.entrySet()
-					.stream()
-					.filter(x -> x.getValue() > 2L)
-					.map(Entry::getKey)
-					.findFirst()
-					.orElse(null);
-				if (groupWithMultipleItems == null) {
-					return null;
-				} else {
-					groups.add(groupWithMultipleItems);
-					return it.getReferences(Entities.PARAMETER)
-						.stream()
-						.filter(x -> x.getGroup().map(GroupEntityReference::getPrimaryKey).orElse(-1).equals(groupWithMultipleItems))
-						.map(ReferenceContract::getReferencedPrimaryKey)
-						.toArray(Integer[]::new);
-				}
-			})
-			.filter(Objects::nonNull)
-			.findFirst()
-			.orElseThrow(() -> new IllegalStateException("There is no product with two references to parameters in same group!"));
-	}
-
-	private static Set<Integer> getGroupsWithGaps(List<SealedEntity> originalProductEntities) {
-		final Set<Integer> allGroupsPresent = originalProductEntities.stream()
-			.flatMap(it -> it.getReferences(Entities.PARAMETER).stream())
-			.filter(it -> it.getGroup().isPresent())
-			.map(it -> it.getGroup().get().getPrimaryKey())
-			.collect(Collectors.toSet());
-		final Set<Integer> groupsWithGaps = new HashSet<>();
-		for (SealedEntity product : originalProductEntities) {
-			final Set<Integer> groupsPresentOnProduct = product.getReferences(Entities.PARAMETER).stream()
-				.filter(it -> it.getGroup().isPresent())
-				.map(it -> it.getGroup().get().getPrimaryKey())
-				.collect(Collectors.toSet());
-			allGroupsPresent
-				.stream()
-				.filter(it -> !groupsWithGaps.contains(it) && !groupsPresentOnProduct.contains(it))
-				.forEach(groupsWithGaps::add);
-		}
-		return groupsWithGaps;
-	}
-
-	private static Integer[] getParametersInGroups(List<SealedEntity> originalProductEntities, Set<Integer> groups) {
-		return originalProductEntities.stream()
-			.flatMap(it -> it.getReferences(Entities.PARAMETER).stream())
-			.filter(it -> it.getGroup().isPresent())
-			.filter(it -> groups.contains(it.getGroup().get().getPrimaryKey()))
-			.map(ReferenceContract::getReferencedPrimaryKey)
-			.distinct()
-			.toArray(Integer[]::new);
 	}
 
 	private interface FacetPredicate extends Predicate<SealedEntity> {
@@ -3037,13 +3094,33 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 	/**
 	 * Internal data structure for referencing nullable groups.
 	 */
+	private record GroupReference(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nullable Integer groupId
+	) implements Comparable<GroupReference> {
 
-	private record GroupReference(@Nonnull ReferenceSchemaContract referenceSchema,
-	                              @Nullable Integer groupId) implements Comparable<GroupReference> {
+		private GroupReference {
+			Assert.notNull(referenceSchema, "Reference schema must not be null!");
+		}
+
 		@Override
 		public int compareTo(GroupReference o) {
 			final int first = referenceSchema.getName().compareTo(o.referenceSchema.getName());
 			return first == 0 ? ofNullable(groupId).map(it -> ofNullable(o.groupId).map(it::compareTo).orElse(-1)).orElseGet(() -> o.groupId != null ? 1 : 0) : first;
+		}
+
+		@Override
+		public boolean equals(Object o) {
+			if (!(o instanceof GroupReference that)) return false;
+
+			return compareTo(that) == 0;
+		}
+
+		@Override
+		public int hashCode() {
+			int result = referenceSchema.hashCode();
+			result = 31 * result + Objects.hashCode(groupId);
+			return result;
 		}
 	}
 
@@ -3076,10 +3153,12 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 		private final BiFunction<String, Integer, Boolean> facetSelectionPredicate;
 		private final Map<Integer, Integer> parameterGroupMapping;
 		private final List<FacetPredicate> existingFacetPredicates;
-		private final Set<GroupReference> conjugatedGroups;
-		private final Set<GroupReference> disjugatedGroups;
-		private final Set<GroupReference> negatedGroups;
-		private final Set<GroupReference> exclusiveGroups;
+		private final Map<FacetGroupRelationLevel, Set<GroupReference>> conjugatedGroups;
+		private final Map<FacetGroupRelationLevel, Set<GroupReference>> disjugatedGroups;
+		private final Map<FacetGroupRelationLevel, Set<GroupReference>> negatedGroups;
+		private final Map<FacetGroupRelationLevel, Set<GroupReference>> exclusiveGroups;
+		private final FacetRelationType defaultFacetRelationType;
+		private final FacetRelationType defaultGroupRelationType;
 
 		@Nonnull
 		private static BiFunction<String, Integer, Boolean> createDefaultFacetExtractPredicate(@Nonnull Query query) {
@@ -3097,6 +3176,32 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 				});
 		}
 
+		@Nonnull
+		private static <T extends FacetGroupsConstraint> Map<FacetGroupRelationLevel, Set<GroupReference>> extractSettingsFor(
+			@Nonnull EntitySchemaContract entitySchema,
+			@Nonnull Query query,
+			@Nonnull Class<T> constraintType
+		) {
+			return findRequires(query, constraintType)
+				.stream()
+				.collect(
+					Collectors.groupingBy(
+						FacetGroupsConstraint::getFacetGroupRelationLevel,
+						Collectors.flatMapping(
+							it -> {
+								if (ArrayUtils.isEmpty(extractFacetIds(it.getFacetGroups().orElseThrow()))) {
+									return Stream.of(new GroupReference(entitySchema.getReferenceOrThrowException(it.getReferenceName()), null));
+								} else {
+									return Arrays.stream(extractFacetIds(it.getFacetGroups().orElseThrow()))
+										.mapToObj(x -> new GroupReference(entitySchema.getReferenceOrThrowException(it.getReferenceName()), x));
+								}
+							},
+							Collectors.toSet()
+						)
+					)
+				);
+		}
+
 		public FacetComputationalContext(
 			@Nonnull EntitySchemaContract entitySchema,
 			@Nonnull Query query,
@@ -3106,50 +3211,13 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 			this.entitySchema = entitySchema;
 			this.query = query;
 			this.parameterGroupMapping = parameterGroupMapping;
-			this.conjugatedGroups = findRequires(query, FacetGroupsConjunction.class)
-				.stream()
-				.flatMap(it -> {
-					if (ArrayUtils.isEmpty(extractFacetIds(it.getFacetGroups().orElseThrow()))) {
-						return Stream.of(new GroupReference(entitySchema.getReferenceOrThrowException(it.getReferenceName()), null));
-					} else {
-						return Arrays.stream(extractFacetIds(it.getFacetGroups().orElseThrow()))
-							.mapToObj(x -> new GroupReference(entitySchema.getReferenceOrThrowException(it.getReferenceName()), x));
-					}
-				})
-				.collect(Collectors.toSet());
-			this.disjugatedGroups = findRequires(query, FacetGroupsDisjunction.class)
-				.stream()
-				.flatMap(it -> {
-					if (ArrayUtils.isEmpty(extractFacetIds(it.getFacetGroups().orElseThrow()))) {
-						return Stream.of(new GroupReference(entitySchema.getReferenceOrThrowException(it.getReferenceName()), null));
-					} else {
-						return Arrays.stream(extractFacetIds(it.getFacetGroups().orElseThrow()))
-							.mapToObj(x -> new GroupReference(entitySchema.getReferenceOrThrowException(it.getReferenceName()), x));
-					}
-				})
-				.collect(Collectors.toSet());
-			this.negatedGroups = findRequires(query, FacetGroupsNegation.class)
-				.stream()
-				.flatMap(it -> {
-					if (ArrayUtils.isEmpty(extractFacetIds(it.getFacetGroups().orElseThrow()))) {
-						return Stream.of(new GroupReference(entitySchema.getReferenceOrThrowException(it.getReferenceName()), null));
-					} else {
-						return Arrays.stream(extractFacetIds(it.getFacetGroups().orElseThrow()))
-							.mapToObj(x -> new GroupReference(entitySchema.getReferenceOrThrowException(it.getReferenceName()), x));
-					}
-				})
-				.collect(Collectors.toSet());
-			this.exclusiveGroups = findRequires(query, FacetGroupsExclusivity.class)
-				.stream()
-				.flatMap(it -> {
-					if (ArrayUtils.isEmpty(extractFacetIds(it.getFacetGroups().orElseThrow()))) {
-						return Stream.of(new GroupReference(entitySchema.getReferenceOrThrowException(it.getReferenceName()), null));
-					} else {
-						return Arrays.stream(extractFacetIds(it.getFacetGroups().orElseThrow()))
-							.mapToObj(x -> new GroupReference(entitySchema.getReferenceOrThrowException(it.getReferenceName()), x));
-					}
-				})
-				.collect(Collectors.toSet());
+			final Optional<FacetCalculationRules> calculationRules = ofNullable(findRequire(query, FacetCalculationRules.class));
+			this.defaultFacetRelationType = calculationRules.map(FacetCalculationRules::getFacetsWithSameGroupRelationType).orElse(FacetRelationType.DISJUNCTION);
+			this.defaultGroupRelationType = calculationRules.map(FacetCalculationRules::getFacetsWithDifferentGroupsRelationType).orElse(FacetRelationType.CONJUNCTION);
+			this.conjugatedGroups = extractSettingsFor(entitySchema, query, FacetGroupsConjunction.class);
+			this.disjugatedGroups = extractSettingsFor(entitySchema, query, FacetGroupsDisjunction.class);
+			this.negatedGroups = extractSettingsFor(entitySchema, query, FacetGroupsNegation.class);
+			this.exclusiveGroups = extractSettingsFor(entitySchema, query, FacetGroupsExclusivity.class);
 			// create function that allows to create predicate that returns true if specified facet was part of input query filter
 			this.facetSelectionPredicate = selectedFacetProvider == null ?
 				createDefaultFacetExtractPredicate(query) :
@@ -3161,7 +3229,7 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 
 		@Nonnull
 		public Predicate<? super SealedEntity> createBaseFacetPredicate() {
-			return combineFacetsIntoPredicate(existingFacetPredicates);
+			return combineFacetsIntoPredicate(this.existingFacetPredicates);
 		}
 
 		public Predicate<? super SealedEntity> createBaseFacetPredicateWithoutGroupOfFacet(ReferenceKey facet) {
@@ -3191,29 +3259,36 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 			final Predicate<FacetPredicate> matchTypeAndGroup = it -> Objects.equals(facet.referenceName(), it.referenceSchema().getName()) &&
 				Objects.equals(getGroup(facet), it.facetGroupId());
 
-			final List<FacetPredicate> combinedPredicates = Stream.concat(
-				// use all previous facet predicates that don't match this facet type and group
-				this.existingFacetPredicates
-					.stream()
-					.filter(matchTypeAndGroup.negate()),
-				// alter existing facet predicate by adding new OR facet id or create new facet predicate for current facet
-				Stream.of(
-					this.existingFacetPredicates
-						.stream()
-						.filter(matchTypeAndGroup)
-						.findFirst()
-						.map(it -> it.combine(this.entitySchema.getReferenceOrThrowException(facet.referenceName()), getGroup(facet), facet.primaryKey()))
-						.orElseGet(() ->
-							createFacetGroupPredicate(
-								this.entitySchema.getReferenceOrThrowException(facet.referenceName()),
-								getGroup(facet),
-								facet.primaryKey()
-							)
-						)
-				)
-			).collect(toList());
-			// now create and predicate upon it
-			return combineFacetsIntoPredicate(combinedPredicates);
+			// alter existing facet predicate by adding new OR facet id or create new facet predicate for current facet
+			final FacetPredicate currentFacetGroupPredicate = this.existingFacetPredicates
+				.stream()
+				.filter(matchTypeAndGroup)
+				.findFirst()
+				.map(it -> it.combine(this.entitySchema.getReferenceOrThrowException(facet.referenceName()), getGroup(facet), facet.primaryKey()))
+				.orElseGet(() ->
+					createFacetGroupPredicate(
+						this.entitySchema.getReferenceOrThrowException(facet.referenceName()),
+						getGroup(facet),
+						facet.primaryKey()
+					)
+				);
+			// use all previous facet predicates that don't match this facet type and group
+			final Stream<FacetPredicate> otherFacetGroupPredicates = this.existingFacetPredicates
+				.stream()
+				.filter(matchTypeAndGroup.negate());
+
+			if (isExclusiveAmongOtherGroups(currentFacetGroupPredicate)) {
+				// use only this facet group predicate - the group is exclusive on group level
+				return currentFacetGroupPredicate;
+			} else {
+				// now create combined predicate upon it
+				return combineFacetsIntoPredicate(
+					Stream.concat(
+						otherFacetGroupPredicates,
+						Stream.of(currentFacetGroupPredicate)
+					).collect(toList())
+				);
+			}
 		}
 
 		public boolean wasFacetRequested(@Nonnull ReferenceKey facet) {
@@ -3222,17 +3297,66 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 				.orElse(false);
 		}
 
-		public boolean isAnyFacetGroupNegated() {
-			return !this.negatedGroups.isEmpty();
+		public boolean isAnyFacetGroupNegated(FacetGroupRelationLevel level) {
+			return !this.negatedGroups
+				.getOrDefault(level, Collections.emptySet())
+				.isEmpty();
 		}
 
-		public boolean isFacetGroupNegated(GroupReference groupReference) {
-			return this.negatedGroups.contains(groupReference);
+		public boolean isFacetGroupNegated(GroupReference groupReference, FacetGroupRelationLevel level) {
+			return this.negatedGroups
+				.getOrDefault(level, Collections.emptySet())
+				.contains(groupReference);
+		}
+
+		public boolean isFacetGroupExclusive(GroupReference groupReference, FacetGroupRelationLevel level) {
+			return this.exclusiveGroups
+				.getOrDefault(level, Collections.emptySet())
+				.contains(groupReference);
+		}
+
+		public boolean isFacetGroupConjugated(GroupReference groupReference, FacetGroupRelationLevel level) {
+			return this.conjugatedGroups
+				.getOrDefault(level, Collections.emptySet())
+				.contains(groupReference);
+		}
+
+		public boolean isFacetGroupDisjugated(GroupReference groupReference, FacetGroupRelationLevel level) {
+			return this.disjugatedGroups
+				.getOrDefault(level, Collections.emptySet())
+				.contains(groupReference);
+		}
+
+		private boolean isExclusiveAmongOtherGroups(FacetPredicate currentFacetGroupPredicate) {
+			final GroupReference groupReference = new GroupReference(
+				currentFacetGroupPredicate.referenceSchema(),
+				currentFacetGroupPredicate.facetGroupId()
+			);
+			if (this.exclusiveGroups.getOrDefault(WITH_DIFFERENT_GROUPS, Collections.emptySet())
+				.contains(groupReference)) {
+				return true;
+			} else if (
+				// check defaults if there is no specific mapping
+				Stream.of(
+					this.conjugatedGroups,
+					this.disjugatedGroups,
+					this.negatedGroups
+				).noneMatch(
+					it -> it
+						.getOrDefault(WITH_DIFFERENT_GROUPS, Collections.emptySet())
+						.contains(groupReference)
+				)
+			) {
+				return this.defaultGroupRelationType == FacetRelationType.EXCLUSIVITY;
+			} else {
+				return false;
+			}
 		}
 
 		@Nullable
 		private Integer getGroup(ReferenceKey facet) {
-			return Entities.PARAMETER.equals(facet.referenceName()) ? this.parameterGroupMapping.get(facet.primaryKey()) : null;
+			return Entities.PARAMETER.equals(facet.referenceName()) ?
+				this.parameterGroupMapping.get(facet.primaryKey()) : null;
 		}
 
 		@Nonnull
@@ -3280,38 +3404,74 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 		}
 
 		@Nonnull
-		private FacetPredicate createFacetGroupPredicate(@Nonnull ReferenceSchemaContract referenceSchema, @Nullable Integer facetGroupId, int... facetIds) {
+		private FacetPredicate createFacetGroupPredicate(
+			@Nonnull ReferenceSchemaContract referenceSchema,
+			@Nullable Integer facetGroupId,
+			int... facetIds
+		) {
 			final GroupReference groupReference = new GroupReference(referenceSchema, facetGroupId);
-			if (this.conjugatedGroups.contains(groupReference)) {
+			if (isFacetGroupConjugated(groupReference, WITH_DIFFERENT_FACETS_IN_GROUP)) {
 				return new AndFacetPredicate(referenceSchema, facetGroupId, facetIds);
-			} else if (this.negatedGroups.contains(groupReference)) {
+			} else if (isFacetGroupNegated(groupReference, WITH_DIFFERENT_FACETS_IN_GROUP)) {
 				return new NotFacetPredicate(referenceSchema, facetGroupId, facetIds);
-			} else if (this.exclusiveGroups.contains(groupReference)) {
+			} else if (isFacetGroupExclusive(groupReference, WITH_DIFFERENT_FACETS_IN_GROUP)) {
 				return new ExclusiveFacetPredicate(referenceSchema, facetGroupId, facetIds);
-			} else {
+			} else if (isFacetGroupDisjugated(groupReference, WITH_DIFFERENT_FACETS_IN_GROUP)) {
 				return new OrFacetPredicate(referenceSchema, facetGroupId, facetIds);
+			} else {
+				return switch (this.defaultFacetRelationType) {
+					case CONJUNCTION -> new AndFacetPredicate(referenceSchema, facetGroupId, facetIds);
+					case DISJUNCTION -> new OrFacetPredicate(referenceSchema, facetGroupId, facetIds);
+					case NEGATION -> new NotFacetPredicate(referenceSchema, facetGroupId, facetIds);
+					case EXCLUSIVITY -> new ExclusiveFacetPredicate(referenceSchema, facetGroupId, facetIds);
+				};
 			}
 		}
 
 		@Nonnull
 		private Predicate<SealedEntity> combineFacetsIntoPredicate(@Nonnull List<FacetPredicate> predicates) {
-			Predicate<SealedEntity> resultPredicate = entity -> true;
-			final Optional<Predicate<SealedEntity>> disjugatedPredicates = predicates
-				.stream()
-				.filter(it -> this.disjugatedGroups.contains(new GroupReference(it.referenceSchema(), it.facetGroupId())))
-				.map(it -> (Predicate<SealedEntity>) it)
-				.reduce(Predicate::or);
-			final Optional<Predicate<SealedEntity>> conjugatedPredicates = predicates
-				.stream()
-				.filter(it -> !disjugatedGroups.contains(new GroupReference(it.referenceSchema(), it.facetGroupId())))
-				.map(it -> (Predicate<SealedEntity>) it)
-				.reduce(Predicate::and);
-
-			if (conjugatedPredicates.isPresent()) {
-				resultPredicate = resultPredicate.and(conjugatedPredicates.get());
+			final List<Predicate<SealedEntity>> disjugatedPredicates = new ArrayList<>();
+			final List<Predicate<SealedEntity>> conjugatedPredicates = new ArrayList<>();
+			final List<Predicate<SealedEntity>> negatedPredicates = new ArrayList<>();
+			final List<Predicate<SealedEntity>> exclusivePredicates = new ArrayList<>();
+			for (FacetPredicate predicate : predicates) {
+				final GroupReference groupReference = new GroupReference(predicate.referenceSchema(), predicate.facetGroupId());
+				if (isFacetGroupConjugated(groupReference, WITH_DIFFERENT_GROUPS)) {
+					conjugatedPredicates.add(predicate);
+				} else if (isFacetGroupNegated(groupReference, WITH_DIFFERENT_GROUPS)) {
+					negatedPredicates.add(predicate);
+				} else if (isFacetGroupExclusive(groupReference, WITH_DIFFERENT_GROUPS)) {
+					exclusivePredicates.add(predicate);
+				} else if (isFacetGroupDisjugated(groupReference, WITH_DIFFERENT_GROUPS)) {
+					disjugatedPredicates.add(predicate);
+				} else {
+					switch (this.defaultGroupRelationType) {
+						case CONJUNCTION -> conjugatedPredicates.add(predicate);
+						case DISJUNCTION -> disjugatedPredicates.add(predicate);
+						case NEGATION -> negatedPredicates.add(predicate);
+						case EXCLUSIVITY -> exclusivePredicates.add(predicate);
+					};
+				}
 			}
-			if (disjugatedPredicates.isPresent()) {
-				resultPredicate = resultPredicate.or(disjugatedPredicates.get());
+
+			final Optional<Predicate<SealedEntity>> disjugatedPredicate = disjugatedPredicates.stream().reduce(Predicate::or);
+			final Optional<Predicate<SealedEntity>> conjugatedPredicate = conjugatedPredicates.stream().reduce(Predicate::and);
+			final Optional<Predicate<SealedEntity>> negatedPredicate = negatedPredicates.stream().reduce(Predicate::and);
+			final Optional<Predicate<SealedEntity>> exclusivePredicate = exclusivePredicates.stream().reduce(Predicate::or);
+
+			Predicate<SealedEntity> resultPredicate = entity -> true;
+			if (conjugatedPredicate.isPresent()) {
+				resultPredicate = resultPredicate.and(conjugatedPredicate.get());
+			}
+			if (negatedPredicate.isPresent()) {
+				resultPredicate = resultPredicate.and(negatedPredicate.get());
+			}
+			if (exclusivePredicate.isPresent()) {
+				// exclusivity must be enforced on client level - it's too late here, so we fall back to system default - and
+				resultPredicate = resultPredicate.and(exclusivePredicate.get());
+			}
+			if (disjugatedPredicate.isPresent()) {
+				resultPredicate = resultPredicate.or(disjugatedPredicate.get());
 			}
 
 			return resultPredicate;

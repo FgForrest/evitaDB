@@ -24,7 +24,6 @@
 package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.Constraint;
-import io.evitadb.api.query.FacetConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.AdditionalChild;
@@ -95,7 +94,7 @@ import java.util.Optional;
 	shortDescription = "Sets facet relation on particular level (within group or with different group facets) to exclusive - only one facet can be selected.",
 	userDocsLink = "/documentation/query/requirements/facet#facet-groups-exclusivity"
 )
-public class FacetGroupsExclusivity extends AbstractRequireConstraintContainer implements FacetConstraint<RequireConstraint> {
+public class FacetGroupsExclusivity extends AbstractRequireConstraintContainer implements FacetGroupsConstraint {
 	@Serial private static final long serialVersionUID = 849094126558825930L;
 
 	private FacetGroupsExclusivity(@Nonnull Serializable[] arguments, @Nonnull Constraint<?>... additionalChildren) {
@@ -127,17 +126,13 @@ public class FacetGroupsExclusivity extends AbstractRequireConstraintContainer i
 		);
 	}
 
-	/**
-	 * Returns name of the reference name this constraint relates to.
-	 */
+	@Override
 	@Nonnull
 	public String getReferenceName() {
 		return (String) getArguments()[0];
 	}
 
-	/**
-	 * Returns level on which this relation type is applied to.
-	 */
+	@Override
 	@AliasForParameter("relation")
 	@Nonnull
 	public FacetGroupRelationLevel getFacetGroupRelationLevel() {
@@ -148,9 +143,7 @@ public class FacetGroupsExclusivity extends AbstractRequireConstraintContainer i
 			.orElse(FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP);
 	}
 
-	/**
-	 * Returns filter constraint that can be resolved to array of facet groups primary keys.
-	 */
+	@Override
 	@AliasForParameter("filterBy")
 	@Nonnull
 	public Optional<FilterBy> getFacetGroups() {

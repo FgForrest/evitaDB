@@ -25,6 +25,7 @@ package io.evitadb.core.query.extraResult.translator.facet.producer;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
+import io.evitadb.api.query.require.FacetRelationType;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.RequestImpact;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -42,8 +43,9 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BiPredicate;
 
+import static io.evitadb.api.query.require.FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP;
+import static io.evitadb.api.query.require.FacetGroupRelationLevel.WITH_DIFFERENT_GROUPS;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -69,10 +71,10 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 	private final Map<String, IntSet> facetGroupsInUserFilter = CollectionUtils.createHashMap(16);
 
 	public ImpactFormulaGenerator(
-		@Nonnull BiPredicate<ReferenceSchemaContract, Integer> isFacetGroupConjunction,
-		@Nonnull BiPredicate<ReferenceSchemaContract, Integer> isFacetGroupDisjunction,
-		@Nonnull BiPredicate<ReferenceSchemaContract, Integer> isFacetGroupNegation,
-		@Nonnull BiPredicate<ReferenceSchemaContract, Integer> isFacetGroupExclusive
+		@Nonnull FacetGroupRelationTypeResolver isFacetGroupConjunction,
+		@Nonnull FacetGroupRelationTypeResolver isFacetGroupDisjunction,
+		@Nonnull FacetGroupRelationTypeResolver isFacetGroupNegation,
+		@Nonnull FacetGroupRelationTypeResolver isFacetGroupExclusive
 	) {
 		super(isFacetGroupConjunction, isFacetGroupDisjunction, isFacetGroupNegation, isFacetGroupExclusive);
 	}
@@ -87,11 +89,9 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 		int facetId,
 		@Nonnull Bitmap[] facetEntityIds
 	) {
-		final boolean negation = this.isFacetGroupNegation.test(referenceSchema, facetGroupId);
-		final boolean disjunction = this.isFacetGroupDisjunction.test(referenceSchema, facetGroupId);
-		final boolean conjunction = this.isFacetGroupConjunction.test(referenceSchema, facetGroupId);
-		final boolean exclusivity = this.isFacetGroupExclusivity.test(referenceSchema, facetGroupId);
-
+		final FacetRelationType relationType = getFacetRelationType(
+			referenceSchema, WITH_DIFFERENT_GROUPS, FacetRelationType.CONJUNCTION, facetGroupId
+		);
 		final String referenceName = referenceSchema.getName();
 		// when facetGroupId is null, we use Integer.MIN_VALUE as a placeholder because IntSet can't work with nulls
 		// we're risking that someone will have facet group with such id, but it's very unlikely
@@ -102,14 +102,14 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 
 		// if we didn't find the facet group in the user filter, we can use the generic formula
 		final CacheKey key = found ?
-			new CacheKey(referenceName, negation, disjunction, conjunction, exclusivity, normalizedFacetGroupId) :
-			new CacheKey(null, negation, disjunction, conjunction, exclusivity, null);
+			new CacheKey(referenceName, relationType, normalizedFacetGroupId) :
+			new CacheKey(null, relationType, null);
 
-		final Formula formula = cache.get(key);
+		final Formula formula = this.cache.get(key);
 		if (formula != null) {
 			final Bitmap facetEntityIdsBitmap = getBaseEntityIds(facetEntityIds);
 			final MutableFormulaFinderAndReplacer mutableFormulaFinderAndReplacer = new MutableFormulaFinderAndReplacer(
-				() -> conjunction ?
+				() -> relationType == FacetRelationType.CONJUNCTION ?
 					new FacetGroupAndFormula(referenceName, facetGroupId, new BaseBitmap(facetId), facetEntityIdsBitmap) :
 					new FacetGroupOrFormula(referenceName, facetGroupId, new BaseBitmap(facetId), facetEntityIdsBitmap)
 			);
@@ -125,8 +125,8 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 				.map(it -> it.contains(normalizedFacetGroupId))
 				.orElse(false);
 			final CacheKey cacheKey = foundAtLast ?
-				new CacheKey(referenceName, negation, disjunction, conjunction, exclusivity, normalizedFacetGroupId) :
-				new CacheKey(null, negation, disjunction, conjunction, exclusivity, null);
+				new CacheKey(referenceName, relationType, normalizedFacetGroupId) :
+				new CacheKey(null, relationType, null);
 			this.cache.put(cacheKey, result);
 			return result;
 		}
@@ -148,7 +148,7 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 			) {
 				final MutableFormula newFacetGroupFormula = createNewFacetGroupFormula();
 				// we found the facet group formula - we need to enrich it with new facet
-				if (!this.isFacetGroupExclusivity.test(this.referenceSchema, this.facetGroupId)) {
+				if (!this.isFacetGroupExclusivity.test(this.referenceSchema, this.facetGroupId, WITH_DIFFERENT_FACETS_IN_GROUP)) {
 					// if the facet group is not exclusive, we just combine the new facet formula with the existing formula
 					newFacetGroupFormula.setPivot(oldFacetGroupFormula);
 				}
@@ -194,7 +194,7 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 		int facetId,
 		@Nonnull Bitmap[] facetEntityIds
 	) {
-		if (this.isFacetGroupConjunction.test(referenceSchema, facetGroupId)) {
+		if (this.isFacetGroupConjunction.test(referenceSchema, facetGroupId, WITH_DIFFERENT_FACETS_IN_GROUP)) {
 			return !hypotheticalFormula.compute().isEmpty();
 		} else {
 			final Bitmap facetEntityIdsBitmap = getBaseEntityIds(facetEntityIds);
@@ -220,19 +220,13 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 	 * negation / disjunction / conjunction combination.
 	 *
 	 * @param referenceName the reference name of the facet group
-	 * @param isConjunction true if the facet group is conjunction
-	 * @param isDisjunction true if the facet group is disjunction
-	 * @param isNegation    true if the facet group is negation
-	 * @param isExclusive   true if the facet group is exclusive
+	 * @param relationType  the relation type of the facet group with other groups
 	 * @param facetGroupId  the facet group id - non-null only if the formula for particular facet group is found in
 	 *                      the main formula
 	 */
 	private record CacheKey(
 		@Nullable String referenceName,
-		boolean isNegation,
-		boolean isDisjunction,
-		boolean isConjunction,
-		boolean isExclusive,
+		@Nonnull FacetRelationType relationType,
 		@Nullable Integer facetGroupId
 	) {
 
@@ -240,10 +234,7 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 		public String toString() {
 			return "CacheKey{" +
 				"referenceName='" + referenceName + '\'' +
-				", isNegation=" + isNegation +
-				", isDisjunction=" + isDisjunction +
-				", isConjunction=" + isConjunction +
-				", isExclusive=" + isExclusive +
+				", relationType=" + relationType +
 				", facetGroupId=" + facetGroupId +
 				'}';
 		}

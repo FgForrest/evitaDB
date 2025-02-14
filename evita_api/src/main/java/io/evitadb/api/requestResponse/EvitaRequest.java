@@ -110,6 +110,8 @@ public class EvitaRequest {
 	@Nullable private Boolean requiresHierarchyParents;
 	@Nullable private Integer limit;
 	@Nullable private EvitaRequest.ResultForm resultForm;
+	@Nullable private FacetRelationType defaultFacetRelationType;
+	@Nullable private FacetRelationType defaultGroupRelationType;
 	@Nullable private Map<String, FacetFilterBy> facetGroupConjunction;
 	@Nullable private Map<String, FacetFilterBy> facetGroupDisjunction;
 	@Nullable private Map<String, FacetFilterBy> facetGroupNegation;
@@ -720,6 +722,50 @@ public class EvitaRequest {
 			this.priceValidInTimeSet = true;
 		}
 		return this.priceValidInTime;
+	}
+
+	/**
+	 * Retrieves the default facet relation type for the current configuration.
+	 * If the default facet relation type is not already defined, it initializes the value
+	 * based on the facet calculation rules found in the query. If no custom rules are provided,
+	 * the default facet relation type will be set to {@link FacetRelationType#DISJUNCTION}.
+	 *
+	 * @return The default {@link FacetRelationType} used for facets within the same group.
+	 */
+	@Nonnull
+	public FacetRelationType getDefaultFacetRelationType() {
+		if (this.defaultFacetRelationType == null) {
+			final Optional<FacetCalculationRules> customRules = ofNullable(QueryUtils.findRequire(this.query, FacetCalculationRules.class));
+			this.defaultFacetRelationType = customRules
+				.map(FacetCalculationRules::getFacetsWithSameGroupRelationType)
+				.orElse(FacetRelationType.DISJUNCTION);
+			this.defaultGroupRelationType = customRules
+				.map(FacetCalculationRules::getFacetsWithDifferentGroupsRelationType)
+				.orElse(FacetRelationType.CONJUNCTION);
+		}
+		return this.defaultFacetRelationType;
+	}
+
+	/**
+	 * Retrieves the default group relation type for facets. This method determines the relation type
+	 * applied to facets belonging to different groups. If not previously set, it evaluates custom
+	 * rules from the query context.
+	 * If custom rules are not provided, the default is set to {@link FacetRelationType#CONJUNCTION}.
+	 *
+	 * @return The default relation type for facets in different groups.
+	 */
+	@Nonnull
+	public FacetRelationType getDefaultGroupRelationType() {
+		if (this.defaultGroupRelationType == null) {
+			final Optional<FacetCalculationRules> customRules = ofNullable(QueryUtils.findRequire(this.query, FacetCalculationRules.class));
+			this.defaultFacetRelationType = customRules
+				.map(FacetCalculationRules::getFacetsWithSameGroupRelationType)
+				.orElse(FacetRelationType.DISJUNCTION);
+			this.defaultGroupRelationType = customRules
+				.map(FacetCalculationRules::getFacetsWithDifferentGroupsRelationType)
+				.orElse(FacetRelationType.CONJUNCTION);
+		}
+		return this.defaultGroupRelationType;
 	}
 
 	/**

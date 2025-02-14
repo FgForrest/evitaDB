@@ -23,10 +23,12 @@
 
 package io.evitadb.core.query.extraResult.translator.facet.producer;
 
+import io.evitadb.api.query.require.FacetGroupRelationLevel;
 import io.evitadb.api.query.require.FacetGroupsConjunction;
 import io.evitadb.api.query.require.FacetGroupsDisjunction;
 import io.evitadb.api.query.require.FacetGroupsExclusivity;
 import io.evitadb.api.query.require.FacetGroupsNegation;
+import io.evitadb.api.query.require.FacetRelationType;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
@@ -66,8 +68,10 @@ import java.util.Arrays;
 import java.util.Deque;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
-import java.util.function.BiPredicate;
 import java.util.function.Supplier;
+
+import static io.evitadb.api.query.require.FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP;
+import static io.evitadb.api.query.require.FacetGroupRelationLevel.WITH_DIFFERENT_GROUPS;
 
 /**
  * Abstract ancestor for {@link FacetCalculator} and {@link ImpactFormulaGenerator} that captures the shared logic
@@ -82,25 +86,25 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	 * input {@link EvitaRequest}.
 	 */
 	@Nonnull
-	protected final BiPredicate<ReferenceSchemaContract, Integer> isFacetGroupConjunction;
+	protected final FacetGroupRelationTypeResolver isFacetGroupConjunction;
 	/**
 	 * Predicate returns TRUE when facet covered by {@link FacetGroupsDisjunction} require query in
 	 * input {@link EvitaRequest}.
 	 */
 	@Nonnull
-	protected final BiPredicate<ReferenceSchemaContract, Integer> isFacetGroupDisjunction;
+	protected final FacetGroupRelationTypeResolver isFacetGroupDisjunction;
 	/**
 	 * Predicate returns TRUE when facet covered by {@link FacetGroupsNegation} require query in
 	 * input {@link EvitaRequest}.
 	 */
 	@Nonnull
-	protected final BiPredicate<ReferenceSchemaContract, Integer> isFacetGroupNegation;
+	protected final FacetGroupRelationTypeResolver isFacetGroupNegation;
 	/**
 	 * Predicate returns TRUE when facet covered by {@link FacetGroupsExclusivity} require query in
 	 * input {@link EvitaRequest}.
 	 */
 	@Nonnull
-	protected final BiPredicate<ReferenceSchemaContract, Integer> isFacetGroupExclusivity;
+	protected final FacetGroupRelationTypeResolver isFacetGroupExclusivity;
 	/**
 	 * Stack serves internally to collect the cloned tree of formulas.
 	 */
@@ -156,18 +160,16 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	protected static Formula[] alterFormula(
 		@Nonnull Formula newFormula,
 		@Nonnull Formula superSetFormula,
-		boolean disjunction,
-		boolean negation,
+		@Nonnull FacetRelationType relationType,
 		@Nonnull Formula... children
 	) {
 		// if newly added formula should represent OR join
-		if (disjunction) {
-			return addNewFormulaAsDisjunction(newFormula, children);
-		} else if (negation) {
-			return addNewFormulaAsNegation(newFormula, children, superSetFormula);
-		} else {
-			return addNewFormulaAsConjunction(newFormula, children);
-		}
+		return switch (relationType) {
+			case DISJUNCTION -> addNewFormulaAsDisjunction(newFormula, children);
+			case NEGATION -> addNewFormulaAsNegation(newFormula, children, superSetFormula);
+			case EXCLUSIVITY -> new Formula[]{newFormula};
+			case CONJUNCTION -> addNewFormulaAsConjunction(newFormula, children);
+		};
 	}
 
 	/**
@@ -184,6 +186,29 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 			}
 		}
 		return false;
+	}
+
+	/**
+	 * This method combines bitmaps of passed facet entity IDs into a single bitmap.
+	 *
+	 * @param facetEntityIds The array of facet entity IDs.
+	 * @return The base entity IDs as a Bitmap.
+	 */
+	@Nonnull
+	protected static Bitmap getBaseEntityIds(@Nonnull Bitmap[] facetEntityIds) {
+		if (facetEntityIds.length == 0) {
+			return EmptyBitmap.INSTANCE;
+		} else if (facetEntityIds.length == 1) {
+			return facetEntityIds[0];
+		} else {
+			return new BaseBitmap(
+				RoaringBitmap.or(
+					Arrays.stream(facetEntityIds)
+						.map(RoaringBitmapBackedBitmap::getRoaringBitmap)
+						.toArray(RoaringBitmap[]::new)
+				)
+			);
+		}
 	}
 
 	/**
@@ -444,30 +469,6 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 		}
 	}
 
-	/**
-	 * Clears the internal state of the object and makes it unusable for further operations.
-	 *
-	 * This method sets several internal fields to null or reset values, effectively clearing
-	 * any previously stored state or data within the object. It also clears the internal
-	 * collections for tracking specific contexts (such as `insideNotContainer` and `insideUserFilter`),
-	 * and resets identifiers like `facetId` and `facetGroupId`.
-	 *
-	 * This operation is intended to ensure that the object cannot be used in its current form
-	 * after invoking this method, preventing unintended behavior due to lingering state.
-	 */
-	@SuppressWarnings("DataFlowIssue")
-	private void clearInternalStateAndMakeUnusable() {
-		this.referenceSchema = null;
-		this.baseFormulaWithoutUserFilter = null;
-		this.facetId = -1;
-		this.facetGroupId = null;
-		this.facetEntityIds = null;
-		this.result = null;
-		this.deferredMutator = null;
-		this.insideNotContainer.clear();
-		this.insideUserFilter.clear();
-	}
-
 	@Override
 	public void visit(@Nonnull Formula formula) {
 		// evaluate and set flag that signalizes visitor is within UserFilterFormula scope
@@ -536,29 +537,6 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	}
 
 	/**
-	 * This method combines bitmaps of passed facet entity IDs into a single bitmap.
-	 *
-	 * @param facetEntityIds The array of facet entity IDs.
-	 * @return The base entity IDs as a Bitmap.
-	 */
-	@Nonnull
-	protected static Bitmap getBaseEntityIds(@Nonnull Bitmap[] facetEntityIds) {
-		if (facetEntityIds.length == 0) {
-			return EmptyBitmap.INSTANCE;
-		} else if (facetEntityIds.length == 1) {
-			return facetEntityIds[0];
-		} else {
-			return new BaseBitmap(
-				RoaringBitmap.or(
-					Arrays.stream(facetEntityIds)
-						.map(RoaringBitmapBackedBitmap::getRoaringBitmap)
-						.toArray(RoaringBitmap[]::new)
-				)
-			);
-		}
-	}
-
-	/**
 	 * Returns true if currently examined constraint is placed within NOT container (may not be placed directly in it).
 	 */
 	protected boolean isInsideNotContainer() {
@@ -583,18 +561,16 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	 * Method allows to respond to leaving {@link UserFilterFormula} scope.
 	 */
 	protected boolean handleUserFilter(@Nonnull Formula formula, @Nonnull Formula[] updatedChildren) {
-		// should we treat passed facet as negated one?
-		final boolean isNewFacetNegation = this.isFacetGroupNegation.test(this.referenceSchema, this.facetGroupId);
-		// should we treat passed facet as exclusive one?
-		final boolean isNewFacetExclusivity = this.isFacetGroupExclusivity.test(this.referenceSchema, this.facetGroupId);
-		// should we treat passed facet as a part of disjuncted group formula?
-		final boolean isNewFacetDisjunction = this.isFacetGroupDisjunction.test(this.referenceSchema, this.facetGroupId);
+		// determine the facet group relation to other groups
+		final FacetRelationType relationType = getFacetRelationType(
+			this.referenceSchema, WITH_DIFFERENT_GROUPS, FacetRelationType.CONJUNCTION, this.facetGroupId
+		);
 		// create facet group formula
 		final Formula newFormula = createNewFacetGroupFormula();
 		// if we're inside NotFormula
 		if (isInsideNotContainer()) {
 			// and the facet is also negated
-			if (isNewFacetNegation) {
+			if (relationType == FacetRelationType.NEGATION) {
 				// we need to defer the mutation to the moment when we leave not container and subtract
 				this.deferredMutator = (laterEncounteredFormula, laterEncounteredChildren) -> {
 					// and we need to create facet conjunction with base formula without user filter
@@ -640,14 +616,45 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 					alterFormula(
 						newFormula,
 						this.baseFormulaWithoutUserFilter,
-						isNewFacetDisjunction,
-						isNewFacetNegation,
+						relationType,
 						updatedChildren
 					)
 				)
 			);
 			// we've stored the formula - instruct super method to skip it's handling
 			return true;
+		}
+	}
+
+	/**
+	 * Determines the facet relation type based on the specified facet group relation level,
+	 * using configured conditions. The method evaluates various facet group relation types
+	 * such as negation, disjunction, exclusivity, and conjunction. If none of the conditions are met,
+	 * the provided default relation type is returned.
+	 *
+	 * @param referenceSchema     the reference schema to evaluate
+	 * @param level               the level of the facet group relation to evaluate
+	 * @param defaultRelationType the default relation type to return if no specific relation condition is met
+	 * @param theFacetGroup       the facet group to evaluate
+	 * @return the determined facet relation type based on the evaluation of the provided level and conditions
+	 */
+	@Nonnull
+	protected FacetRelationType getFacetRelationType(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull FacetGroupRelationLevel level,
+		@Nonnull FacetRelationType defaultRelationType,
+		@Nullable Integer theFacetGroup
+	) {
+		if (this.isFacetGroupNegation.test(referenceSchema, theFacetGroup, level)) {
+			return FacetRelationType.NEGATION;
+		} else if (this.isFacetGroupDisjunction.test(referenceSchema, theFacetGroup, level)) {
+			return FacetRelationType.DISJUNCTION;
+		} else if (this.isFacetGroupExclusivity.test(referenceSchema, theFacetGroup, level)) {
+			return FacetRelationType.EXCLUSIVITY;
+		} else if (this.isFacetGroupConjunction.test(referenceSchema, theFacetGroup, level)) {
+			return FacetRelationType.CONJUNCTION;
+		} else {
+			return defaultRelationType;
 		}
 	}
 
@@ -676,7 +683,7 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	@Nonnull
 	protected MutableFormula createNewFacetGroupFormula() {
 		return new MutableFormula(
-			this.isFacetGroupConjunction.test(this.referenceSchema, this.facetGroupId) ?
+			this.isFacetGroupConjunction.test(this.referenceSchema, this.facetGroupId, WITH_DIFFERENT_FACETS_IN_GROUP) ?
 				new FacetGroupAndFormula(this.referenceSchema.getName(), this.facetGroupId, new BaseBitmap(this.facetId), this.facetEntityIds) :
 				new FacetGroupOrFormula(this.referenceSchema.getName(), this.facetGroupId, new BaseBitmap(this.facetId), this.facetEntityIds)
 		);
@@ -692,6 +699,44 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 		} else {
 			this.levelStack.peek().add(formula);
 		}
+	}
+
+	/**
+	 * Clears the internal state of the object and makes it unusable for further operations.
+	 *
+	 * This method sets several internal fields to null or reset values, effectively clearing
+	 * any previously stored state or data within the object. It also clears the internal
+	 * collections for tracking specific contexts (such as `insideNotContainer` and `insideUserFilter`),
+	 * and resets identifiers like `facetId` and `facetGroupId`.
+	 *
+	 * This operation is intended to ensure that the object cannot be used in its current form
+	 * after invoking this method, preventing unintended behavior due to lingering state.
+	 */
+	@SuppressWarnings("DataFlowIssue")
+	private void clearInternalStateAndMakeUnusable() {
+		this.referenceSchema = null;
+		this.baseFormulaWithoutUserFilter = null;
+		this.facetId = -1;
+		this.facetGroupId = null;
+		this.facetEntityIds = null;
+		this.result = null;
+		this.deferredMutator = null;
+		this.insideNotContainer.clear();
+		this.insideUserFilter.clear();
+	}
+
+	/**
+	 * TODO JNO - document me
+	 */
+	@FunctionalInterface
+	public interface FacetGroupRelationTypeResolver {
+
+		boolean test(
+			@Nonnull ReferenceSchemaContract referenceSchemaContract,
+			@Nullable Integer facetGroupId,
+			@Nonnull FacetGroupRelationLevel level
+		);
+
 	}
 
 	/**
@@ -718,6 +763,7 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 
 		/**
 		 * Returns true if the target {@link MutableFormula} has been found.
+		 *
 		 * @return True if the target {@link MutableFormula} has been found.
 		 */
 		public boolean isTargetFound() {

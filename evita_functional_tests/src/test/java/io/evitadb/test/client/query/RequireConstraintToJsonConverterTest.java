@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -86,6 +86,9 @@ class RequireConstraintToJsonConverterTest extends ConstraintToJsonConverterTest
 		final ObjectNode facetBrandGroupsConjunction = jsonNodeFactory.objectNode();
 
 		final ObjectNode filterBy = jsonNodeFactory.objectNode();
+
+		/* TOBEDONE LHO - remove with https://github.com/FgForrest/evitaDB/issues/808 */
+		facetBrandGroupsConjunction.putIfAbsent("facetGroupRelationLevel", jsonNodeFactory.textNode("WITH_DIFFERENT_FACETS_IN_GROUP"));
 
 		final ArrayNode entityPrimaryKeyInSet = jsonNodeFactory.arrayNode();
 		entityPrimaryKeyInSet.add(1);

@@ -62,10 +62,10 @@ class ImpactFormulaGeneratorTest {
 	@BeforeEach
 	void setUp() {
 		this.impactFormulaGenerator = new ImpactFormulaGenerator(
-			(referenceSchema, facetGroupId) -> ofNullable(this.facetGroupConjunction.contains(new EntityReference(referenceSchema.getReferencedEntityType(), facetGroupId))).orElse(false),
-			(referenceSchema, facetGroupId) -> ofNullable(this.facetGroupDisjunction.contains(new EntityReference(referenceSchema.getReferencedEntityType(), facetGroupId))).orElse(false),
-			(referenceSchema, facetGroupId) -> ofNullable(this.facetGroupNegation.contains(new EntityReference(referenceSchema.getReferencedEntityType(), facetGroupId))).orElse(false),
-			(referenceSchema, facetGroupId) -> ofNullable(this.facetGroupExclusivity.contains(new EntityReference(referenceSchema.getReferencedEntityType(), facetGroupId))).orElse(false)
+			(referenceSchema, facetGroupId, level) -> ofNullable(this.facetGroupConjunction.contains(new EntityReference(referenceSchema.getReferencedEntityType(), facetGroupId))).orElse(false),
+			(referenceSchema, facetGroupId, level) -> ofNullable(this.facetGroupDisjunction.contains(new EntityReference(referenceSchema.getReferencedEntityType(), facetGroupId))).orElse(false),
+			(referenceSchema, facetGroupId, level) -> ofNullable(this.facetGroupNegation.contains(new EntityReference(referenceSchema.getReferencedEntityType(), facetGroupId))).orElse(false),
+			(referenceSchema, facetGroupId, level) -> ofNullable(this.facetGroupExclusivity.contains(new EntityReference(referenceSchema.getReferencedEntityType(), facetGroupId))).orElse(false)
 		);
 	}
 
