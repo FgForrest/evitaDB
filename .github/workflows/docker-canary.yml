@@ -66,3 +66,11 @@ jobs:
           platforms: linux/amd64,linux/arm64/v8
           build-args: |
             EVITA_JAR_NAME=${{ env.EVITA_JAR_NAME }}
+
+      - name: Send message to Mattermost
+        uses: mattermost/action-mattermost-notify@b7d118e440bf2749cd18a4a8c88e7092e696257a # v2.0.0
+        with:
+          MATTERMOST_WEBHOOK_URL: ${{ secrets.MM_WEBHOOK_URL }}
+          TEXT: |
+            This is a message from ${{ github.repository }}.
+            [Pipeline](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) was completed :white_check_mark:
