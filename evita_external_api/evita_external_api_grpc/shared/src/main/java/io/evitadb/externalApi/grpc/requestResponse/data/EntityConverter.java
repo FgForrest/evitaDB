@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -54,6 +54,7 @@ import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSeri
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
+import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.grpc.dataType.ComplexDataObjectConverter;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
@@ -66,16 +67,8 @@ import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
@@ -195,7 +188,8 @@ public class EntityConverter {
 						.stream()
 						.map(EvitaDataTypesConverter::toLocale)
 						.collect(Collectors.toSet()),
-					toScope(grpcEntity.getScope())
+					toScope(grpcEntity.getScope()),
+					referenceName -> evitaRequest.getReferenceChunkTransformer(referenceName)
 				),
 				entitySchema,
 				parentEntity,
@@ -291,7 +285,7 @@ public class EntityConverter {
 
 		if (entity.parentAvailable()) {
 			entity.getParentEntity()
-				.ifPresent(parent -> entityBuilder.setParent(Int32Value.of(parent.getPrimaryKey())));
+				.ifPresent(parent -> entityBuilder.setParent(Int32Value.of(parent.getPrimaryKeyOrThrowException())));
 
 			entity.getParentEntity()
 				.ifPresent(parent -> {
@@ -478,12 +472,14 @@ public class EntityConverter {
 			.setSellable(price.indexed())
 			.setIndexed(price.indexed())
 			.setVersion(price.version());
-		if (price.innerRecordId() != null) {
-			priceBuilder.setInnerRecordId(Int32Value.newBuilder().setValue(price.innerRecordId()).build());
+		final Integer innerRecordId = price.innerRecordId();
+		if (innerRecordId != null) {
+			priceBuilder.setInnerRecordId(Int32Value.newBuilder().setValue(innerRecordId).build());
 		}
 
-		if (price.validity() != null) {
-			priceBuilder.setValidity(EvitaDataTypesConverter.toGrpcDateTimeRange(price.validity()));
+		final DateTimeRange validity = price.validity();
+		if (validity != null) {
+			priceBuilder.setValidity(EvitaDataTypesConverter.toGrpcDateTimeRange(validity));
 		}
 
 		return priceBuilder.build();
@@ -796,13 +792,17 @@ public class EntityConverter {
 				.map(it -> {
 					final RequirementContext fetchCtx = Optional.ofNullable(evitaRequest.getReferenceEntityFetch().get(it.getReferenceName()))
 						.orElse(evitaRequest.getDefaultReferenceRequirement());
+					Assert.isPremiseValid(
+						fetchCtx != null && fetchCtx.entityFetch() != null,
+						"Server returned referenced entity, but it's not requested in the request?!"
+					);
 					final GrpcSealedEntity referencedEntity = it.getReferencedEntity();
 					final EvitaRequest referenceRequest = evitaRequest.deriveCopyWith(referencedEntity.getEntityType(), fetchCtx.entityFetch());
 					return toEntity(entitySchemaFetcher, referenceRequest, referencedEntity, SealedEntity.class, SEALED_ENTITY_TYPE_CONVERTER);
 				})
 				.collect(
 					Collectors.toMap(
-						it -> new EntityReference(it.getType(), it.getPrimaryKey()),
+						it -> new EntityReference(it.getType(), it.getPrimaryKeyOrThrowException()),
 						Function.identity()
 					)
 				);
@@ -811,13 +811,17 @@ public class EntityConverter {
 				.map(it -> {
 					final RequirementContext fetchCtx = Optional.ofNullable(evitaRequest.getReferenceEntityFetch().get(it.getReferenceName()))
 						.orElse(evitaRequest.getDefaultReferenceRequirement());
+					Assert.isPremiseValid(
+						fetchCtx != null && fetchCtx.entityGroupFetch() != null,
+						"Server returned referenced entity, but it's not requested in the request?!"
+					);
 					final GrpcSealedEntity referencedEntity = it.getGroupReferencedEntity();
 					final EvitaRequest referenceRequest = evitaRequest.deriveCopyWith(referencedEntity.getEntityType(), fetchCtx.entityGroupFetch());
 					return toEntity(entitySchemaFetcher, referenceRequest, referencedEntity, SealedEntity.class, SEALED_ENTITY_TYPE_CONVERTER);
 				})
 				.collect(
 					Collectors.toMap(
-						it -> new EntityReference(it.getType(), it.getPrimaryKey()),
+						it -> new EntityReference(it.getType(), it.getPrimaryKeyOrThrowException()),
 						Function.identity(),
 						(sealedEntity, sealedEntity2) -> sealedEntity
 					)
@@ -858,7 +862,7 @@ public class EntityConverter {
 		@Nullable
 		@Override
 		public Function<Integer, SealedEntity> getEntityGroupFetcher(@Nonnull ReferenceSchemaContract referenceSchema) {
-			return primaryKey -> groupIndex.get(new EntityReference(referenceSchema.getReferencedGroupType(), primaryKey));
+			return primaryKey -> groupIndex.get(new EntityReference(Objects.requireNonNull(referenceSchema.getReferencedGroupType()), primaryKey));
 		}
 
 		@Nullable

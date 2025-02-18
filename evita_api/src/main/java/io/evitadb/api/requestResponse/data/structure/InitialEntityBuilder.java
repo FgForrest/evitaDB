@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.data.structure;
 
+import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.exception.ReferenceNotKnownException;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract;
 import io.evitadb.api.requestResponse.data.AttributesContract;
@@ -54,7 +55,9 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.dataType.PlainChunk;
 import io.evitadb.dataType.Scope;
 import lombok.experimental.Delegate;
 
@@ -292,6 +295,12 @@ public class InitialEntityBuilder implements EntityBuilder {
 			.stream()
 			.filter(it -> Objects.equals(referenceName, it.getReferenceName()))
 			.collect(Collectors.toList());
+	}
+
+	@Nonnull
+	@Override
+	public DataChunk<ReferenceContract> getReferenceChunk(@Nonnull String referenceName) throws ContextMissingException {
+		return new PlainChunk<>(this.getReferences(referenceName));
 	}
 
 	@Nonnull
@@ -592,7 +601,9 @@ public class InitialEntityBuilder implements EntityBuilder {
 					.map(ReferenceKey::referenceName)
 			).collect(Collectors.toSet()),
 			this.schema.isWithHierarchy() || this.parent != null,
-			false
+			false,
+			/* TODO JNO - ověřit, zda to není jediné volání této metody */
+			Entity.DEFAULT_CHUNK_TRANSFORMER
 		);
 	}
 

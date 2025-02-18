@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -61,7 +61,9 @@ import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContract
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.dataType.PlainChunk;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
@@ -321,6 +323,12 @@ public class ExistingEntityBuilder implements EntityBuilder {
 			.stream()
 			.filter(it -> Objects.equals(referenceName, it.getReferenceName()))
 			.collect(Collectors.toList());
+	}
+
+	@Nonnull
+	@Override
+	public DataChunk<ReferenceContract> getReferenceChunk(@Nonnull String referenceName) throws ContextMissingException {
+		return new PlainChunk<>(this.getReferences(referenceName));
 	}
 
 	@Nonnull

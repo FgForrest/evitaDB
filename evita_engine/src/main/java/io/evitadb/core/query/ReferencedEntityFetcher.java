@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -436,7 +436,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 *                                    certain primary key (we need this to distinguish retrieving data for entities and groups)
 	 * @return filtered array of referenced entity ids
 	 */
-	@Nullable
+	@Nonnull
 	private static int[] getFilteredReferencedEntityIds(
 		@Nonnull Map<Scope, int[]> entityPrimaryKeys,
 		@Nonnull QueryExecutionContext executionContext,
@@ -1311,8 +1311,10 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 										entityPk -> groupToReferencedEntityIdTranslator.apply(referenceName, entityPk)
 									)
 								);
-
-							if (requirements.entityFetch() != null && !ArrayUtils.isEmpty(filteredReferencedEntityIds)) {
+							// apply chunking if necessary
+							final int[] filteredReferencedEntityIdsChunk = requirements.referenceChunkTransformer()
+								.slice(filteredReferencedEntityIds);
+							if (requirements.entityFetch() != null && !ArrayUtils.isEmpty(filteredReferencedEntityIdsChunk)) {
 								// if so, fetch them
 								entityIndex = fetchReferencedEntities(
 									executionContext,
@@ -1320,7 +1322,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 									referenceSchema.getReferencedEntityType(),
 									pk -> existingEntityRetriever.getExistingEntity(referenceName, pk),
 									requirements.entityFetch(),
-									filteredReferencedEntityIds
+									filteredReferencedEntityIdsChunk
 								);
 							} else {
 								entityIndex = Collections.emptyMap();

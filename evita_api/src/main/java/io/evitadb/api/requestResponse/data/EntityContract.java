@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Reference;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.Scope;
 import io.evitadb.utils.MemoryMeasuringConstants;
 
@@ -65,6 +66,8 @@ public interface EntityContract extends EntityClassifierWithParent,
 	/**
 	 * Returns schema of the entity, that fully describes its structure and capabilities. Schema is up-to-date to the
 	 * moment entity was fetched from evitaDB.
+	 *
+	 * @return schema of the entity type
 	 */
 	@Nonnull
 	EntitySchemaContract getSchema();
@@ -75,6 +78,8 @@ public interface EntityContract extends EntityClassifierWithParent,
 	 * new primary key. Once entity is stored into evitaDB it MUST have non-null primary key. So the NULL can be
 	 * returned only in the rare case when new entity is created in the client code and hasn't yet been stored to
 	 * evitaDB.
+	 *
+	 * @return primary key of the entity or null if the entity is not yet stored in evitaDB
 	 */
 	@Nullable
 	Integer getPrimaryKey();
@@ -85,6 +90,8 @@ public interface EntityContract extends EntityClassifierWithParent,
 	 *
 	 * Method also returns false if the entity is not allowed to be hierarchical by the schema. Checking this method
 	 * also allows you to avoid {@link EntityIsNotHierarchicalException} in such case.
+	 *
+	 * @return true if hierarchy was fetched along with the entity
 	 */
 	boolean parentAvailable();
 
@@ -92,6 +99,7 @@ public interface EntityContract extends EntityClassifierWithParent,
 	 * Returns parent entity body. The entity fetch needs to be triggered using {@link HierarchyContent} requirement.
 	 * The property allows to fetch entire parent axis of the entity to the root if requested.
 	 *
+	 * @return identification of the parent entity or empty if the entity is root
 	 * @throws EntityIsNotHierarchicalException when {@link EntitySchemaContract#isWithHierarchy()} is false
 	 * @throws ContextMissingException          when {@link HierarchyContent} is not part of the query requirements
 	 */
@@ -109,6 +117,8 @@ public interface EntityContract extends EntityClassifierWithParent,
 	 * Returns true if references of particular name was fetched along with the entity. Calling this method
 	 * before calling any other method that requires references to be fetched will allow you to avoid
 	 * {@link ContextMissingException}.
+	 *
+	 * @return true if at least one reference of particular name were fetched along with the entity
 	 */
 	boolean referencesAvailable(@Nonnull String referenceName);
 
@@ -116,6 +126,7 @@ public interface EntityContract extends EntityClassifierWithParent,
 	 * Returns collection of {@link Reference} of this entity. The references represent relations to other evitaDB
 	 * entities or external entities in different systems.
 	 *
+	 * @return collection of all the fetched references of the entity
 	 * @throws ContextMissingException when {@link ReferenceContent} is not part of the query requirements
 	 */
 	@Nonnull
@@ -125,6 +136,9 @@ public interface EntityContract extends EntityClassifierWithParent,
 	/**
 	 * Returns collection of {@link Reference} to certain type of other entities. References represent relations to
 	 * other evitaDB entities or external entities in different systems.
+	 *
+	 * @param referenceName name of the reference
+	 * @return collection of references from reference of given name
 	 *
 	 * @throws ReferenceNotFoundException when reference with given name is not defined in the schema
 	 * @throws ContextMissingException    when {@link ReferenceContent} is not part of the query requirements
@@ -137,6 +151,10 @@ public interface EntityContract extends EntityClassifierWithParent,
 	 * Returns single {@link Reference} instance that is referencing passed entity type with certain primary key.
 	 * The references represent relations to other evitaDB entities or external entities in different systems.
 	 *
+	 * @param referenceName name of the reference
+	 * @param referencedEntityId primary key of the entity that is referenced
+	 *
+	 * @return reference to the entity or empty if the entity is not referenced
 	 * @throws ReferenceNotFoundException when reference with given name is not defined in the schema
 	 * @throws ContextMissingException    when {@link ReferenceContent} is not part of the query requirements
 	 */
@@ -144,12 +162,26 @@ public interface EntityContract extends EntityClassifierWithParent,
 	Optional<ReferenceContract> getReference(@Nonnull String referenceName, int referencedEntityId)
 		throws ContextMissingException, ReferenceNotFoundException;
 
-	;
+	/**
+	 * Returns collection of {@link Reference} to certain type of other entities. References represent relations to
+	 * other evitaDB entities or external entities in different systems.
+	 *
+	 * @param referenceName name of the reference
+	 *
+	 * @return page or strip of references with additional information about total number of references and other
+	 *         information about the possibly incomplete chunk of data
+	 * @throws ContextMissingException    when {@link ReferenceContent} is not part of the query requirements
+	 */
+	@Nonnull
+	<T extends DataChunk<ReferenceContract>> T getReferenceChunk(@Nonnull String referenceName)
+		throws ContextMissingException;
 
 	/**
 	 * Returns set of locales this entity has any of localized data in. Although {@link EntitySchemaContract#getLocales()} may
 	 * support wider range of the locales, this method returns only those that are used by data of this very entity
 	 * instance.
+	 *
+	 * @return set of locales used by the entity
 	 */
 	@Nonnull
 	Set<Locale> getAllLocales();
@@ -158,6 +190,8 @@ public interface EntityContract extends EntityClassifierWithParent,
 	 * Returns set of locales this entity has any of localized data in. The method further limits the output of
 	 * {@link #getAllLocales()} by returning only those locales that were requested by the query. The locales here
 	 * reflect the {@link EvitaRequest#getLocale()} and {@link EvitaRequest#getRequiredLocales()}.
+	 *
+	 * @return locales this entity has any of localized data in
 	 */
 	@Nonnull
 	Set<Locale> getLocales();

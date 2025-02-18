@@ -1194,7 +1194,8 @@ public final class EntityCollection implements
 					partiallyLoadedEntity.getAssociatedDataPredicate(),
 					new ReferenceContractSerializablePredicate(true),
 					partiallyLoadedEntity.getPricePredicate(),
-					this.dataStoreReader
+					this.dataStoreReader,
+					partiallyLoadedEntity.getDelegate().getReferenceChunkTransformer()
 				);
 				//noinspection unchecked
 				return (T) ServerEntityDecorator.decorate(
@@ -1858,7 +1859,8 @@ public final class EntityCollection implements
 			newAssociatedDataPredicate,
 			newReferenceContractPredicate,
 			newPriceContractPredicate,
-			this.dataStoreReader
+			this.dataStoreReader,
+			evitaRequest::getReferenceChunkTransformer
 		);
 		return ServerEntityDecorator.decorate(
 			// load all missing data according to current evita request
