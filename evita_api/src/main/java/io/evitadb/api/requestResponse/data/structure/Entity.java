@@ -312,8 +312,7 @@ public class Entity implements SealedEntity {
 		@Nonnull Set<Locale> locales,
 		@Nonnull Set<String> referencesDefined,
 		boolean withHierarchy,
-		boolean dropped,
-		@Nonnull ChunkTransformerAccessor referenceChunkTransformer
+		boolean dropped
 	) {
 		return new Entity(
 			ofNullable(version).orElse(1),
@@ -329,7 +328,7 @@ public class Entity implements SealedEntity {
 			withHierarchy,
 			Scope.DEFAULT_SCOPE,
 			dropped,
-			referenceChunkTransformer
+			Entity.DEFAULT_CHUNK_TRANSFORMER
 		);
 	}
 

@@ -601,9 +601,7 @@ public class InitialEntityBuilder implements EntityBuilder {
 					.map(ReferenceKey::referenceName)
 			).collect(Collectors.toSet()),
 			this.schema.isWithHierarchy() || this.parent != null,
-			false,
-			/* TODO JNO - ověřit, zda to není jediné volání této metody */
-			Entity.DEFAULT_CHUNK_TRANSFORMER
+			false
 		);
 	}
 
