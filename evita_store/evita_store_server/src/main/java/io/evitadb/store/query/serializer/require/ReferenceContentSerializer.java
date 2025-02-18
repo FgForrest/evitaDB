@@ -59,7 +59,7 @@ public class ReferenceContentSerializer extends Serializer<ReferenceContent> {
 		kryo.writeObjectOrNull(output, object.getFilterBy().orElse(null), FilterBy.class);
 		kryo.writeObjectOrNull(output, object.getOrderBy().orElse(null), OrderBy.class);
 
-		kryo.writeObjectOrNull(output, object.getChunking().orElse(null), ChunkingRequireConstraint.class);
+		kryo.writeClassAndObject(output, object.getChunking().orElse(null));
 	}
 
 	@Override
@@ -77,7 +77,7 @@ public class ReferenceContentSerializer extends Serializer<ReferenceContent> {
 		final FilterBy filter = kryo.readObjectOrNull(input, FilterBy.class);
 		final OrderBy orderBy = kryo.readObjectOrNull(input, OrderBy.class);
 
-		final ChunkingRequireConstraint chunk = kryo.readObjectOrNull(input, ChunkingRequireConstraint.class);
+		final ChunkingRequireConstraint chunk = (ChunkingRequireConstraint) kryo.readClassAndObject(input);
 
 		if (referencedEntityTypeCount == 0) {
 			return attributeContent == null ?
