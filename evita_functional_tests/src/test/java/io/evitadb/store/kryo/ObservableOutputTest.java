@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,14 +25,10 @@ package io.evitadb.store.kryo;
 
 import com.esotericsoftware.kryo.KryoException;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.store.offsetIndex.model.StorageRecord;
-import io.evitadb.utils.BitUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayOutputStream;
-import java.util.Random;
-import java.util.zip.CRC32C;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -43,15 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-class ObservableOutputTest {
-	/**
-	 * Overhead is 13B: control (byte), crc (long), size (int).
-	 */
-	public static final int OVERHEAD_SIZE = 1 + 8 + 4;
-	public static final int PAYLOAD_SIZE = 12;
-	public static final int RECORD_SIZE = PAYLOAD_SIZE + OVERHEAD_SIZE;
-	private final Random random = new Random();
-	private final CRC32C crc32C = new CRC32C();
+class ObservableOutputTest extends AbstractObservableInputOutputTest {
 
 	@DisplayName("Exception should be thrown when single record is larger than the buffer size.")
 	@Test
@@ -168,34 +156,6 @@ class ObservableOutputTest {
 		assertArrayEquals(controlBaos.toByteArray(), baos.toByteArray());
 		assertEquals(bufferSize, output.total());
 		assertEquals(0, output.position());
-	}
-
-	private void writeRandomRecord(ObservableOutput<?> output, Output controlOutput, int length) {
-		final byte[] bytes = generateBytes(length);
-
-		final byte controlByte = BitUtils.setBit((byte) 0, StorageRecord.CRC32_BIT, true);
-		crc32C.reset();
-		crc32C.update(bytes);
-		crc32C.update(controlByte);
-		controlOutput.writeInt(length + OVERHEAD_SIZE);
-		controlOutput.writeByte(controlByte);
-		controlOutput.writeBytes(bytes);
-		controlOutput.writeLong(crc32C.getValue());
-		controlOutput.flush();
-
-		output.markStart();
-		output.markRecordLengthPosition();
-		output.writeInt(0);
-		output.writeByte(0);
-		output.markPayloadStart();
-		output.writeBytes(bytes);
-		output.markEnd((byte) 0);
-	}
-
-	private byte[] generateBytes(int count) {
-		final byte[] result = new byte[count];
-		random.nextBytes(result);
-		return result;
 	}
 
 }
