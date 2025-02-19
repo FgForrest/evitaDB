@@ -68,6 +68,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
@@ -389,8 +390,8 @@ public class EntityFetchRequireResolver {
 				resolveReferenceContentFilter(currentEntitySchema, fieldsForReferenceHolder).orElse(null),
 				resolveReferenceContentOrder(currentEntitySchema, fieldsForReferenceHolder).orElse(null),
 				resolveReferenceAttributeContent(fieldsForReferenceHolder).orElse(null),
-				resolveReferenceEntityRequirement(desiredLocale, fieldsForReferenceHolder).orElse(null),
-				resolveReferenceGroupRequirement(desiredLocale, fieldsForReferenceHolder).orElse(null),
+				resolveReferenceEntityRequirement(desiredLocale, fieldsForReferenceHolder, baseReferenceFieldName, referencePageFieldName, referenceStripFieldName).orElse(null),
+				resolveReferenceGroupRequirement(desiredLocale, fieldsForReferenceHolder, baseReferenceFieldName, referencePageFieldName, referenceStripFieldName).orElse(null),
 				resolveReferenceChunkingRequirement(fieldsForReferenceHolder, baseReferenceFieldName, referencePageFieldName, referenceStripFieldName).orElse(null)
 			);
 
@@ -491,12 +492,25 @@ public class EntityFetchRequireResolver {
 
 	@Nonnull
 	private Optional<EntityFetch> resolveReferenceEntityRequirement(@Nullable Locale desiredLocale,
-	                                                                @Nonnull FieldsForReferenceHolder fieldsForReference) {
+	                                                                @Nonnull FieldsForReferenceHolder fieldsForReference,
+	                                                                // todo lho refactor
+	                                                                @Nonnull String baseReferenceFieldName,
+	                                                                @Nonnull String referencePageFieldName,
+	                                                                @Nonnull String referenceStripFieldName) {
 		final SelectionSetAggregator referencedEntitySelectionSet = SelectionSetAggregator.from(
-			fieldsForReference.fields()
-				.stream()
-				.flatMap(it2 -> SelectionSetAggregator.getImmediateFields(ReferenceDescriptor.REFERENCED_ENTITY.name(), it2.getSelectionSet()).stream())
-				.map(SelectedField::getSelectionSet)
+			Stream.concat(
+				fieldsForReference.fields()
+					.stream()
+					.filter(it -> it.getName().equals(baseReferenceFieldName))
+					.flatMap(it -> SelectionSetAggregator.getImmediateFields(ReferenceDescriptor.REFERENCED_ENTITY.name(), it.getSelectionSet()).stream())
+					.map(SelectedField::getSelectionSet),
+				fieldsForReference.fields()
+					.stream()
+					.filter(it -> it.getName().equals(referencePageFieldName) || it.getName().equals(referenceStripFieldName))
+					.flatMap(it -> SelectionSetAggregator.getImmediateFields(DataChunkDescriptor.DATA.name(), it.getSelectionSet()).stream())
+					.flatMap(it -> SelectionSetAggregator.getImmediateFields(ReferenceDescriptor.REFERENCED_ENTITY.name(), it.getSelectionSet()).stream())
+					.map(SelectedField::getSelectionSet)
+			)
 				.toList()
 		);
 
@@ -514,12 +528,25 @@ public class EntityFetchRequireResolver {
 
 	@Nonnull
 	private Optional<EntityGroupFetch> resolveReferenceGroupRequirement(@Nullable Locale desiredLocale,
-	                                                          @Nonnull FieldsForReferenceHolder fieldsForReference) {
+	                                                                    @Nonnull FieldsForReferenceHolder fieldsForReference,
+																		// todo lho refactor
+	                                                                    @Nonnull String baseReferenceFieldName,
+	                                                                    @Nonnull String referencePageFieldName,
+	                                                                    @Nonnull String referenceStripFieldName) {
 		final SelectionSetAggregator referencedGroupSelectionSet = SelectionSetAggregator.from(
-			fieldsForReference.fields()
-				.stream()
-				.flatMap(it2 -> SelectionSetAggregator.getImmediateFields(ReferenceDescriptor.GROUP_ENTITY.name(), it2.getSelectionSet()).stream())
-				.map(SelectedField::getSelectionSet)
+			Stream.concat(
+				fieldsForReference.fields()
+					.stream()
+					.filter(it -> it.getName().equals(baseReferenceFieldName))
+					.flatMap(it -> SelectionSetAggregator.getImmediateFields(ReferenceDescriptor.GROUP_ENTITY.name(), it.getSelectionSet()).stream())
+					.map(SelectedField::getSelectionSet),
+				fieldsForReference.fields()
+					.stream()
+					.filter(it -> it.getName().equals(referencePageFieldName) || it.getName().equals(referenceStripFieldName))
+					.flatMap(it -> SelectionSetAggregator.getImmediateFields(DataChunkDescriptor.DATA.name(), it.getSelectionSet()).stream())
+					.flatMap(it -> SelectionSetAggregator.getImmediateFields(ReferenceDescriptor.GROUP_ENTITY.name(), it.getSelectionSet()).stream())
+					.map(SelectedField::getSelectionSet)
+			)
 				.toList()
 		);
 
