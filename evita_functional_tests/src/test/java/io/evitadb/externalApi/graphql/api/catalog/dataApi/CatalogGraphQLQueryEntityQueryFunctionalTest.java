@@ -3289,7 +3289,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					.map(reference ->
 						map()
 							.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
-								.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getReferencedEntity().orElseThrow().getPrimaryKey()))
+								.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getReferencedPrimaryKey()))
 							.build())
 					.toList())
 				.build()
