@@ -297,6 +297,7 @@ public class InitialEntityBuilder implements EntityBuilder {
 			.collect(Collectors.toList());
 	}
 
+	@SuppressWarnings("unchecked")
 	@Nonnull
 	@Override
 	public DataChunk<ReferenceContract> getReferenceChunk(@Nonnull String referenceName) throws ContextMissingException {

@@ -473,9 +473,7 @@ public class EntityDecorator implements SealedEntity {
 				.collect(
 					Collectors.toMap(
 						Map.Entry::getKey,
-						entry -> entity.getReferenceChunkTransformer()
-							.apply(entry.getKey())
-							.createChunk(entry.getValue()),
+						entry -> referenceFetcher.createChunk(entity, entry.getKey(), entry.getValue()),
 						(referenceContracts, referenceContracts2) -> {
 							throw new GenericEvitaInternalError("Duplicate reference name found in the filtered references.");
 						},
@@ -657,13 +655,14 @@ public class EntityDecorator implements SealedEntity {
 
 	@Nonnull
 	@Override
-	public DataChunk<ReferenceContract> getReferenceChunk(@Nonnull String referenceName) throws ContextMissingException {
+	public <T extends DataChunk<ReferenceContract>> T getReferenceChunk(@Nonnull String referenceName) throws ContextMissingException {
 		this.referencePredicate.checkFetched(referenceName);
 		this.delegate.checkReferenceName(referenceName);
 		final DataChunk<ReferenceContract> chunk = this.filteredReferencesByName.get(referenceName);
-		return chunk == null ?
-			this.delegate.getReferenceChunkTransformer().apply(referenceName).createChunk(Collections.emptyList()) :
-			chunk;
+		//noinspection unchecked
+		return (T) (chunk == null ?
+					this.delegate.getReferenceChunkTransformer().apply(referenceName).createChunk(Collections.emptyList()) :
+					chunk);
 	}
 
 	@Nonnull

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -57,6 +57,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.system.CatalogVersion;
 import io.evitadb.api.requestResponse.system.SystemStatus;
+import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.driver.config.EvitaClientConfiguration;
@@ -100,6 +101,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
@@ -122,6 +124,7 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 	public static final String ATTRIBUTE_ORDER = "order";
 	public static final String ATTRIBUTE_CATEGORY_ORDER = "orderInCategory";
 	public static final String ATTRIBUTE_UUID = "uuid";
+	public static final String REFERENCE_PRODUCTS_IN_CATEGORY = "productsInCategory";
 	private final static int SEED = 42;
 	private static final String EVITA_CLIENT_DATA_SET = "EvitaReadOnlyClientDataSet";
 	private static final Map<Serializable, Integer> GENERATED_ENTITIES = new HashMap<>(2000);
@@ -131,7 +134,6 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		return primaryKey == 0 ? null : primaryKey;
 	};
 	private static final int PRODUCT_COUNT = 10;
-	public static final String REFERENCE_PRODUCTS_IN_CATEGORY = "productsInCategory";
 
 	@DataSet(value = EVITA_CLIENT_DATA_SET, openWebApi = {GrpcProvider.CODE, SystemProvider.CODE}, destroyAfterClass = true)
 	static DataCarrier initDataSet(EvitaServer evitaServer) {
@@ -139,10 +141,10 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 			.registerValueGenerator(
 				Entities.PRICE_LIST, ATTRIBUTE_ORDER,
 				faker -> Predecessor.HEAD
-		).registerValueGenerator(
-			Entities.PRODUCT, ATTRIBUTE_CATEGORY_ORDER,
-			faker -> Predecessor.HEAD
-		).build();
+			).registerValueGenerator(
+				Entities.PRODUCT, ATTRIBUTE_CATEGORY_ORDER,
+				faker -> Predecessor.HEAD
+			).build();
 		GENERATED_ENTITIES.clear();
 
 		final ApiOptions apiOptions = evitaServer.getExternalApiServer()
@@ -166,7 +168,7 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 			.certificateFolderPath(clientCertificates)
 			.certificateFileName(Path.of(CertificateUtils.getGeneratedClientCertificateFileName()))
 			.certificateKeyFileName(Path.of(CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()))
-			.timeoutUnit(5, TimeUnit.MINUTES)
+			.timeout(5, TimeUnit.MINUTES)
 			.build();
 
 		final AtomicReference<EntitySchemaContract> productSchema = new AtomicReference<>();
@@ -559,6 +561,7 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 
 	/**
 	 * Creates new entity and inserts it into the index.
+	 * This method is called only in set-up method.
 	 */
 	private static void createEntity(@Nonnull EvitaSessionContract session, @Nonnull Map<Serializable, Integer> generatedEntities, @Nonnull EntityBuilder it) {
 		final EntityReferenceContract<?> insertedEntity = session.upsertEntity(it);
@@ -1416,19 +1419,87 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 	@DisplayName("Should return entity schema directly or via model class")
 	@Test
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldReturnEntitySchema(EvitaSessionContract evitaSession) {
-		assertNotNull(evitaSession.getEntitySchema(Entities.PRODUCT));
-		assertNotNull(evitaSession.getEntitySchema(ProductInterface.class));
-		assertEquals(
-			evitaSession.getEntitySchema(Entities.PRODUCT),
-			evitaSession.getEntitySchema(ProductInterface.class)
-		);
+	void shouldReturnEntitySchema(EvitaClient evitaClient) {
+		evitaClient.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertNotNull(session.getEntitySchema(Entities.PRODUCT).orElse(null));
+				assertNotNull(session.getEntitySchema(ProductInterface.class).orElse(null));
+				assertFalse(
+					session.getEntitySchema(Entities.PRODUCT).orElseThrow()
+						.differsFrom(session.getEntitySchema(ProductInterface.class).orElseThrow())
+				);
 
-		assertNotNull(evitaSession.getEntitySchemaOrThrow(Entities.PRODUCT));
-		assertNotNull(evitaSession.getEntitySchemaOrThrow(ProductInterface.class));
+			}
+		);
+	}
+
+	@DisplayName("Should provide paginated access to references")
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	@Test
+	void shouldReturnPaginatedReferences(EvitaClient evitaClient, Map<Integer, SealedEntity> products) {
+		final SealedEntity productWithMaxReferences = products.values()
+			.stream()
+			.max(Comparator.comparingInt(o -> o.getReferences(Entities.BRAND).size() + o.getReferences(Entities.PARAMETER).size()))
+			.orElseThrow();
+		final Set<Integer> originParameters = productWithMaxReferences.getReferences(Entities.PARAMETER)
+			.stream()
+			.map(ReferenceContract::getReferencedPrimaryKey)
+			.collect(Collectors.toSet());
+		final int totalParameterCount = originParameters.size();
+
 		assertEquals(
-			evitaSession.getEntitySchemaOrThrow(Entities.PRODUCT),
-			evitaSession.getEntitySchemaOrThrow(ProductInterface.class)
+			originParameters,
+			evitaClient.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final Set<Integer> referencedParameters = CollectionUtils.createHashSet(totalParameterCount);
+					for (int pageNumber = 1; pageNumber <= Math.ceil(totalParameterCount / 5.0f); pageNumber++) {
+						final SealedEntity productByPk = session.queryOneSealedEntity(
+							query(
+								collection(Entities.PRODUCT),
+								filterBy(
+									entityPrimaryKeyInSet(productWithMaxReferences.getPrimaryKeyOrThrowException())
+								),
+								require(
+									entityFetch(
+										// provide all brands
+										referenceContent(Entities.BRAND),
+										// but only first four parameters
+										referenceContent(
+											Entities.PARAMETER,
+											entityFetchAll(),
+											entityGroupFetchAll(),
+											page(pageNumber, 5)
+										)
+									)
+								)
+							)
+						).orElseThrow();
+
+						assertEquals(1, productByPk.getReferences(Entities.BRAND).size());
+
+						final Collection<ReferenceContract> foundParameters = productByPk.getReferences(Entities.PARAMETER);
+						assertTrue(!foundParameters.isEmpty() && foundParameters.size() <= 5);
+						assertEquals(foundParameters.size(), productByPk.getReferences().stream().filter(it -> it.getReferenceName().equals(Entities.PARAMETER)).count());
+
+						for (ReferenceContract foundParameter : foundParameters) {
+							assertNotNull(foundParameter.getReferencedEntity());
+							assertNotNull(foundParameter.getGroupEntity().orElse(null));
+						}
+
+						PaginatedList<ReferenceContract> parameters = new PaginatedList<>(pageNumber, 5, totalParameterCount, new ArrayList<>(foundParameters));
+						assertEquals(parameters, productByPk.getReferenceChunk(Entities.PARAMETER));
+						foundParameters
+							.stream()
+							.map(ReferenceContract::getReferencedPrimaryKey)
+							.forEach(referencedParameters::add);
+
+					}
+
+					return referencedParameters;
+				}
+			)
 		);
 	}
 

@@ -1188,6 +1188,29 @@ class EvitaQLRequireConstraintVisitorTest {
 			),
 			constraint47
 		);
+
+		final RequireConstraint constraint48 = parseRequireConstraint(
+			"require(" +
+					"entityFetch(" +
+						"referenceContent(" +
+							"?," +
+							"entityFetch()," +
+							"entityGroupFetch()," +
+							"page(?, ?)" +
+						")" +
+					")" +
+				")", "a", 2, 40);
+		assertEquals(
+			require(
+				entityFetch(
+					referenceContent(
+						"a", entityFetch(), entityGroupFetch(),
+						page(2, 40)
+					)
+				)
+			),
+			constraint48
+		);
 	}
 
 	@Test

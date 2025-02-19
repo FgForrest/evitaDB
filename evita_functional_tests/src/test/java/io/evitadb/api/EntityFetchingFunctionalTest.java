@@ -5099,7 +5099,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 	@DisplayName("Should provide paginated access to references")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
-	void shouldPaginateReferences(Evita evita, List<SealedEntity> originalProducts) {
+	void shouldReturnPaginatedReferences(Evita evita, List<SealedEntity> originalProducts) {
 		final SealedEntity productWithMaxReferences = originalProducts
 			.stream()
 			.max(Comparator.comparingInt(o -> o.getReferences(Entities.BRAND).size() + o.getReferences(Entities.PARAMETER).size()))
@@ -5116,7 +5116,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				TEST_CATALOG,
 				session -> {
 					final Set<Integer> referencedParameters = CollectionUtils.createHashSet(totalParameterCount);
-					for (int pageNumber = 1; pageNumber < (totalParameterCount / 5) + 1; pageNumber++) {
+					for (int pageNumber = 1; pageNumber <= Math.ceil(totalParameterCount / 5.0f); pageNumber++) {
 						final SealedEntity productByPk = session.queryOneSealedEntity(
 							query(
 								collection(Entities.PRODUCT),
@@ -5142,8 +5142,8 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 						assertEquals(1, productByPk.getReferences(Entities.BRAND).size());
 
 						final Collection<ReferenceContract> foundParameters = productByPk.getReferences(Entities.PARAMETER);
-						assertEquals(5, foundParameters.size());
-						assertEquals(5L, productByPk.getReferences().stream().filter(it -> it.getReferenceName().equals(Entities.PARAMETER)).count());
+						assertTrue(!foundParameters.isEmpty() && foundParameters.size() <= 5);
+						assertEquals(foundParameters.size(), productByPk.getReferences().stream().filter(it -> it.getReferenceName().equals(Entities.PARAMETER)).count());
 
 						for (ReferenceContract foundParameter : foundParameters) {
 							assertNotNull(foundParameter.getReferencedEntity());
@@ -5167,7 +5167,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 	@DisplayName("Should provide stripped access to references")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
-	void shouldStrippedReferences(Evita evita, List<SealedEntity> originalProducts) {
+	void shouldReturnStrippedReferences(Evita evita, List<SealedEntity> originalProducts) {
 		final SealedEntity productWithMaxReferences = originalProducts
 			.stream()
 			.max(Comparator.comparingInt(o -> o.getReferences(Entities.BRAND).size() + o.getReferences(Entities.PARAMETER).size()))
@@ -5184,7 +5184,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				TEST_CATALOG,
 				session -> {
 					final Set<Integer> referencedParameters = CollectionUtils.createHashSet(totalParameterCount);
-					for (int pageNumber = 1; pageNumber < (totalParameterCount / 5) + 1; pageNumber++) {
+					for (int pageNumber = 1; pageNumber <= Math.ceil(totalParameterCount / 5.0f); pageNumber++) {
 						final int offset = (pageNumber - 1) * 5;
 						final SealedEntity productByPk = session.queryOneSealedEntity(
 							query(
@@ -5211,8 +5211,8 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 						assertEquals(1, productByPk.getReferences(Entities.BRAND).size());
 
 						final Collection<ReferenceContract> foundParameters = productByPk.getReferences(Entities.PARAMETER);
-						assertEquals(5, foundParameters.size());
-						assertEquals(5L, productByPk.getReferences().stream().filter(it -> it.getReferenceName().equals(Entities.PARAMETER)).count());
+						assertTrue(!foundParameters.isEmpty() && foundParameters.size() <= 5);
+						assertEquals(foundParameters.size(), productByPk.getReferences().stream().filter(it -> it.getReferenceName().equals(Entities.PARAMETER)).count());
 
 						for (ReferenceContract foundParameter : foundParameters) {
 							assertNotNull(foundParameter.getReferencedEntity());
@@ -5233,7 +5233,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 		);
 	}
 
-	@DisplayName("Should provide paginet and stripped access to references at once")
+	@DisplayName("Should provide paginated and stripped access to references at once")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldCombinePaginatedAndStrippedReferences(Evita evita, List<SealedEntity> originalProducts) {
@@ -5257,7 +5257,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 			session -> {
 				final Set<Integer> referencedParameters = CollectionUtils.createHashSet(totalParameterCount);
 				final Set<Integer> referencedPriceLists = CollectionUtils.createHashSet(totalPriceListCount);
-				for (int pageNumber = 1; pageNumber < (Math.max(totalParameterCount, totalPriceListCount) / 5) + 1; pageNumber++) {
+				for (int pageNumber = 1; pageNumber <= Math.ceil(totalParameterCount / 5.0f); pageNumber++) {
 					final int offset = (pageNumber - 1) * 5;
 					final SealedEntity productByPk = session.queryOneSealedEntity(
 						query(

@@ -1113,11 +1113,24 @@ public class EvitaRequest {
 
 		/**
 		 * Slices the complete list of references according to the requirements of the transformer.
+		 * This method expects the complete list of references to be passed in and returns the sliced list.
+		 *
 		 * @param referenceContracts the complete list of references
 		 * @return the sliced list of references
 		 */
 		@Nonnull
 		DataChunk<ReferenceContract> createChunk(@Nonnull List<ReferenceContract> referenceContracts);
+
+		/**
+		 * Wraps the incomplete list of references into a data chunk.
+		 * This method expect that the list contains already resolved chunk with total count of references.
+		 *
+		 * @param referenceContracts the incomplete list of references
+		 * @param totalReferenceCount the total count of references
+		 * @return the wrapped data chunk
+		 */
+		@Nonnull
+		DataChunk<ReferenceContract> createChunk(@Nonnull List<ReferenceContract> referenceContracts, int totalReferenceCount);
 
 		/**
 		 * Slices the primary keys according to the requirements of the transformer.
@@ -1169,6 +1182,15 @@ public class EvitaRequest {
 			);
 		}
 
+		@Nonnull
+		@Override
+		public DataChunk<ReferenceContract> createChunk(@Nonnull List<ReferenceContract> referenceContracts, int totalReferenceCount) {
+			final int pageNumber = page.getPageNumber();
+			final int pageSize = page.getPageSize();
+			final int realPageNumber = PaginatedList.isRequestedResultBehindLimit(pageNumber, pageSize, totalReferenceCount) ?
+				1 : pageNumber;
+			return new PaginatedList<>(realPageNumber, pageSize, totalReferenceCount, referenceContracts);
+		}
 	}
 
 	/**
@@ -1201,6 +1223,11 @@ public class EvitaRequest {
 			);
 		}
 
+		@Nonnull
+		@Override
+		public DataChunk<ReferenceContract> createChunk(@Nonnull List<ReferenceContract> referenceContracts, int totalReferenceCount) {
+			return new StripList<>(strip.getOffset(), strip.getLimit(), totalReferenceCount, referenceContracts);
+		}
 	}
 
 	/**
@@ -1222,6 +1249,15 @@ public class EvitaRequest {
 			return new PlainChunk<>(referenceContracts);
 		}
 
+		@Nonnull
+		@Override
+		public DataChunk<ReferenceContract> createChunk(@Nonnull List<ReferenceContract> referenceContracts, int totalReferenceCount) {
+			Assert.isPremiseValid(
+				referenceContracts.size() == totalReferenceCount,
+				"Total count must match the chunk size in case of no transformer implementation!"
+			);
+			return new PlainChunk<>(referenceContracts);
+		}
 	}
 
 	/**

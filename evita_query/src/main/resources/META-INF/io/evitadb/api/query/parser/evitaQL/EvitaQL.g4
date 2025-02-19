@@ -132,11 +132,9 @@ requireConstraint
     | 'referenceContent'                    args = singleRefReferenceContent6Args                           # singleRefReferenceContent6Constraint
     | 'referenceContent'                    args = singleRefReferenceContent7Args                           # singleRefReferenceContent7Constraint
     | 'referenceContent'                    args = singleRefReferenceContent8Args                           # singleRefReferenceContent8Constraint
-    | 'referenceContent'                    args = singleRefReferenceContent9Args                           # singleRefReferenceContent9Constraint
     | 'referenceContentAllWithAttributes'   (emptyArgs | args = allRefsWithAttributesReferenceContent1Args) # allRefsWithAttributesReferenceContent1Constraint
     | 'referenceContentAllWithAttributes'   args = allRefsWithAttributesReferenceContent2Args               # allRefsWithAttributesReferenceContent2Constraint
     | 'referenceContentAllWithAttributes'   args = allRefsWithAttributesReferenceContent3Args               # allRefsWithAttributesReferenceContent3Constraint
-    | 'referenceContentAllWithAttributes'   args = allRefsWithAttributesReferenceContent4Args               # allRefsWithAttributesReferenceContent4Constraint
     | 'referenceContentWithAttributes'      args = singleRefReferenceContent1Args                           # singleRefReferenceContentWithAttributes1Constraint
     | 'referenceContentWithAttributes'      args = singleRefReferenceContentWithAttributes0Args             # singleRefReferenceContentWithAttributes0Constraint
     | 'referenceContentWithAttributes'      args = singleRefReferenceContentWithAttributes1Args             # singleRefReferenceContentWithAttributes2Constraint
@@ -150,7 +148,6 @@ requireConstraint
     | 'referenceContentWithAttributes'      args = singleRefReferenceContent7Args                           # singleRefReferenceContentWithAttributes10Constraint
     | 'referenceContentWithAttributes'      args = singleRefReferenceContentWithAttributes7Args             # singleRefReferenceContentWithAttributes11Constraint
     | 'referenceContentWithAttributes'      args = singleRefReferenceContentWithAttributes8Args             # singleRefReferenceContentWithAttributes12Constraint
-    | 'referenceContentWithAttributes'      args = singleRefReferenceContentWithAttributes9Args             # singleRefReferenceContentWithAttributes13Constraint
     | 'hierarchyContent'                    emptyArgs                                                       # emptyHierarchyContentConstraint
     | 'hierarchyContent'                    args = singleRequireHierarchyContentArgs                        # singleRequireHierarchyContentConstraint
     | 'hierarchyContent'                    args = allRequiresHierarchyContentArgs                          # allRequiresHierarchyContentConstraint
@@ -272,41 +269,37 @@ priceContentArgs :                                  argsOpening contentMode = va
 
 singleRefReferenceContent1Args :                    argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = valueToken argsClosing ;
 
-singleRefReferenceContent2Args :                    argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = valueToken ARGS_DELIMITER entityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint argsClosing ;
+singleRefReferenceContent2Args :                    argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = valueToken ARGS_DELIMITER entityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint (ARGS_DELIMITER requirement = requireConstraint)? argsClosing ;
 
 singleRefReferenceContent3Args :                    argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = valueToken ARGS_DELIMITER filterBy = filterConstraint (ARGS_DELIMITER requirement = requireConstraint)? argsClosing ;
 
-singleRefReferenceContent4Args :                    argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = valueToken ARGS_DELIMITER filterBy = filterConstraint ARGS_DELIMITER entityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint argsClosing ;
+singleRefReferenceContent4Args :                    argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = valueToken ARGS_DELIMITER filterBy = filterConstraint ARGS_DELIMITER entityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint (ARGS_DELIMITER requirement = requireConstraint)? argsClosing ;
 
 singleRefReferenceContent5Args :                    argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = valueToken ARGS_DELIMITER orderBy = orderConstraint (ARGS_DELIMITER requirement = requireConstraint)? argsClosing ;
 
-singleRefReferenceContent6Args :                    argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = valueToken ARGS_DELIMITER orderBy = orderConstraint ARGS_DELIMITER entityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint argsClosing ;
+singleRefReferenceContent6Args :                    argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = valueToken ARGS_DELIMITER orderBy = orderConstraint ARGS_DELIMITER entityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint (ARGS_DELIMITER requirement = requireConstraint)? argsClosing ;
 
 singleRefReferenceContent7Args :                    argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = valueToken ARGS_DELIMITER filterBy = filterConstraint ARGS_DELIMITER orderBy = orderConstraint (ARGS_DELIMITER requirement = requireConstraint)? argsClosing ;
 
-singleRefReferenceContent8Args :                    argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = valueToken ARGS_DELIMITER filterBy = filterConstraint ARGS_DELIMITER orderBy = orderConstraint ARGS_DELIMITER entityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint argsClosing ;
-
-singleRefReferenceContent9Args :                    argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = valueToken ARGS_DELIMITER filterBy = filterConstraint ARGS_DELIMITER orderBy = orderConstraint ARGS_DELIMITER entityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint ARGS_DELIMITER chunkRequirement = requireConstraint argsClosing ;
+singleRefReferenceContent8Args :                    argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = valueToken ARGS_DELIMITER filterBy = filterConstraint ARGS_DELIMITER orderBy = orderConstraint ARGS_DELIMITER entityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint (ARGS_DELIMITER requirement = requireConstraint)? argsClosing ;
 
 singleRefReferenceContentWithAttributes0Args :      argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = valueToken ARGS_DELIMITER attributeContent = requireConstraint;
 
 singleRefReferenceContentWithAttributes1Args :      argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = valueToken ARGS_DELIMITER requirement1 = requireConstraint ARGS_DELIMITER requirement2 = requireConstraint argsClosing ;
 
-singleRefReferenceContentWithAttributes2Args :      argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = valueToken ARGS_DELIMITER attributeContent = requireConstraint ARGS_DELIMITER entityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint argsClosing ;
+singleRefReferenceContentWithAttributes2Args :      argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = valueToken ARGS_DELIMITER attributeContent = requireConstraint ARGS_DELIMITER entityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint (ARGS_DELIMITER requirement = requireConstraint)? argsClosing ;
 
 singleRefReferenceContentWithAttributes3Args :      argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = valueToken ARGS_DELIMITER filterBy = filterConstraint ARGS_DELIMITER requirement1 = requireConstraint ARGS_DELIMITER requirement2 = requireConstraint argsClosing ;
 
-singleRefReferenceContentWithAttributes4Args :      argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = valueToken ARGS_DELIMITER filterBy = filterConstraint ARGS_DELIMITER attributeContent = requireConstraint ARGS_DELIMITER entityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint argsClosing ;
+singleRefReferenceContentWithAttributes4Args :      argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = valueToken ARGS_DELIMITER filterBy = filterConstraint ARGS_DELIMITER attributeContent = requireConstraint ARGS_DELIMITER entityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint (ARGS_DELIMITER requirement = requireConstraint)? argsClosing ;
 
 singleRefReferenceContentWithAttributes5Args :      argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = valueToken ARGS_DELIMITER orderBy = orderConstraint ARGS_DELIMITER requirement1 = requireConstraint ARGS_DELIMITER requirement2 = requireConstraint argsClosing ;
 
-singleRefReferenceContentWithAttributes6Args :      argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = valueToken ARGS_DELIMITER orderBy = orderConstraint ARGS_DELIMITER attributeContent = requireConstraint ARGS_DELIMITER entityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint argsClosing ;
+singleRefReferenceContentWithAttributes6Args :      argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = valueToken ARGS_DELIMITER orderBy = orderConstraint ARGS_DELIMITER attributeContent = requireConstraint ARGS_DELIMITER entityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint (ARGS_DELIMITER requirement = requireConstraint)? argsClosing ;
 
 singleRefReferenceContentWithAttributes7Args :      argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = valueToken ARGS_DELIMITER filterBy = filterConstraint ARGS_DELIMITER orderBy = orderConstraint ARGS_DELIMITER requirement1 = requireConstraint ARGS_DELIMITER requirement2 = requireConstraint argsClosing ;
 
-singleRefReferenceContentWithAttributes8Args :      argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = valueToken ARGS_DELIMITER filterBy = filterConstraint ARGS_DELIMITER orderBy = orderConstraint ARGS_DELIMITER attributeContent = requireConstraint ARGS_DELIMITER entityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint argsClosing ;
-
-singleRefReferenceContentWithAttributes9Args :      argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = valueToken ARGS_DELIMITER filterBy = filterConstraint ARGS_DELIMITER orderBy = orderConstraint ARGS_DELIMITER attributeContent = requireConstraint ARGS_DELIMITER entityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint ARGS_DELIMITER chunkRequirement = requireConstraint argsClosing ;
+singleRefReferenceContentWithAttributes8Args :      argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = valueToken ARGS_DELIMITER filterBy = filterConstraint ARGS_DELIMITER orderBy = orderConstraint ARGS_DELIMITER attributeContent = requireConstraint ARGS_DELIMITER entityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint (ARGS_DELIMITER requirement = requireConstraint)? argsClosing ;
 
 multipleRefsReferenceContentArgs :                  argsOpening (
                                                         ((managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifiers = variadicValueTokens) |
@@ -327,9 +320,7 @@ allRefsWithAttributesReferenceContent1Args :        argsOpening (
 
 allRefsWithAttributesReferenceContent2Args :        argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? requirement1 = requireConstraint ARGS_DELIMITER requirement2 = requireConstraint argsClosing ;
 
-allRefsWithAttributesReferenceContent3Args :        argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? attributeContent = requireConstraint ARGS_DELIMITER entityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint argsClosing ;
-
-allRefsWithAttributesReferenceContent4Args :        argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? attributeContent = requireConstraint ARGS_DELIMITER entityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint ARGS_DELIMITER chunkRequirement = requireConstraint argsClosing ;
+allRefsWithAttributesReferenceContent3Args :        argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? attributeContent = requireConstraint ARGS_DELIMITER entityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint (ARGS_DELIMITER requirement = requireConstraint)? argsClosing ;
 
 singleRequireHierarchyContentArgs :                 argsOpening requirement = requireConstraint argsClosing ;
 

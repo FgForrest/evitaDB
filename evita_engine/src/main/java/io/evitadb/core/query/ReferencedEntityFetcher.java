@@ -75,6 +75,7 @@ import io.evitadb.core.query.sort.ReferenceOrderByVisitor;
 import io.evitadb.core.query.sort.ReferenceOrderByVisitor.OrderingDescriptor;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.attribute.translator.EntityNestedQueryComparator;
+import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -1348,6 +1349,13 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		return ofNullable(globalPrefetchCollector.getEntityFetch())
 			.map(it -> executionContext.getEvitaRequest().deriveCopyWith(executionContext.getSchema().getName(), it))
 			.orElse(executionContext.getEvitaRequest());
+	}
+
+	@Nonnull
+	@Override
+	public DataChunk<ReferenceContract> createChunk(@Nonnull Entity entity, @Nonnull String referenceName, @Nonnull List<ReferenceContract> references) {
+		// the server side has always access to complete list of references
+		return entity.getReferenceChunkTransformer().apply(referenceName).createChunk(references);
 	}
 
 	/**

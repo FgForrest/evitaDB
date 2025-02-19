@@ -54,6 +54,7 @@ import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSeri
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
+import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.grpc.dataType.ComplexDataObjectConverter;
@@ -72,6 +73,7 @@ import java.util.Map.Entry;
 import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcScope;
@@ -189,7 +191,7 @@ public class EntityConverter {
 						.map(EvitaDataTypesConverter::toLocale)
 						.collect(Collectors.toSet()),
 					toScope(grpcEntity.getScope()),
-					referenceName -> evitaRequest.getReferenceChunkTransformer(referenceName)
+					evitaRequest::getReferenceChunkTransformer
 				),
 				entitySchema,
 				parentEntity,
@@ -203,6 +205,7 @@ public class EntityConverter {
 				new ClientReferenceFetcher(
 					parentEntity,
 					grpcEntity.getReferencesList(),
+					grpcEntity.getReferenceCountsMap(),
 					entitySchemaFetcher,
 					evitaRequest
 				)
@@ -326,7 +329,22 @@ public class EntityConverter {
 			priceForSale.ifPresent(it -> entityBuilder.setPriceForSale(toGrpcPrice(it)));
 		}
 
-		if (entity.referencesAvailable() && !entity.getReferences().isEmpty()) {
+		final boolean referencesRequested;
+		final Predicate<String> referenceRequestedPredicate;
+		final Entity internalEntity;
+		if (entity instanceof Entity theEntity) {
+			referencesRequested = true;
+			internalEntity = theEntity;
+			referenceRequestedPredicate = referenceName -> true;
+		} else if (entity instanceof EntityDecorator entityDecorator) {
+			final ReferenceContractSerializablePredicate referencePredicate = entityDecorator.getReferencePredicate();
+			internalEntity = entityDecorator.getDelegate();
+			referencesRequested = referencePredicate.isRequiresEntityReferences();
+			referenceRequestedPredicate = referencePredicate::isReferenceRequested;
+		} else {
+			throw new GenericEvitaInternalError("Unexpected entity type: " + entity.getClass());
+		}
+		if (referencesRequested) {
 			for (ReferenceContract reference : entity.getReferences()) {
 				final GrpcReference.Builder grpcReferenceBuilder = GrpcReference.newBuilder()
 					.setVersion(reference.version())
@@ -373,6 +391,16 @@ public class EntityConverter {
 
 				entityBuilder.addReferences(grpcReferenceBuilder);
 			}
+			internalEntity.getSchema().getReferences().keySet().forEach(
+				referenceName -> {
+					if (referenceRequestedPredicate.test(referenceName)) {
+						entityBuilder.putReferenceCounts(
+							referenceName,
+							entity.getReferenceChunk(referenceName).getTotalRecordCount()
+						);
+					}
+				}
+			);
 		}
 
 		if (entity.associatedDataAvailable() && !entity.getAssociatedDataValues().isEmpty()) {
@@ -778,11 +806,13 @@ public class EntityConverter {
 		private final EntityClassifierWithParent parentEntity;
 		private final Map<EntityReference, SealedEntity> entityIndex;
 		private final Map<EntityReference, SealedEntity> groupIndex;
+		private final Map<String, Integer> referencesCount;
 		private final EvitaRequest evitaRequest;
 
 		public ClientReferenceFetcher(
 			@Nullable EntityClassifierWithParent parentEntity,
 			@Nonnull List<GrpcReference> grpcReference,
+			@Nonnull Map<String, Integer> referencesCount,
 			@Nonnull Function<GrpcSealedEntity, SealedEntitySchema> entitySchemaFetcher,
 			@Nonnull EvitaRequest evitaRequest
 		) {
@@ -826,6 +856,7 @@ public class EntityConverter {
 						(sealedEntity, sealedEntity2) -> sealedEntity
 					)
 				);
+			this.referencesCount = referencesCount;
 			this.evitaRequest = evitaRequest;
 		}
 
@@ -876,6 +907,15 @@ public class EntityConverter {
 		public BiPredicate<Integer, ReferenceDecorator> getEntityFilter(@Nonnull ReferenceSchemaContract referenceSchema) {
 			return (entityId, referenceDecorator) -> true;
 		}
+
+		@Nonnull
+		@Override
+		public DataChunk<ReferenceContract> createChunk(@Nonnull Entity entity, @Nonnull String referenceName, @Nonnull List<ReferenceContract> references) {
+			// client reference fetcher sees only slice of the original reference list (in case of paginated access only requested page)
+			// so we need to use alternate method with providing full total count
+			return entity.getReferenceChunkTransformer().apply(referenceName).createChunk(references, this.referencesCount.get(referenceName));
+		}
+
 	}
 
 	/**

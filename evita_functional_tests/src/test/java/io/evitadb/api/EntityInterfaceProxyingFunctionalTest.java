@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -510,18 +510,11 @@ if (currency != null) {
 	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)
 	void shouldReturnEntitySchema(EvitaSessionContract evitaSession) {
-		assertNotNull(evitaSession.getEntitySchema(Entities.PRODUCT));
-		assertNotNull(evitaSession.getEntitySchema(ProductInterface.class));
-		assertEquals(
-			evitaSession.getEntitySchema(Entities.PRODUCT),
-			evitaSession.getEntitySchema(ProductInterface.class)
-		);
-
-		assertNotNull(evitaSession.getEntitySchemaOrThrowException(Entities.PRODUCT));
-		assertNotNull(evitaSession.getEntitySchemaOrThrowException(ProductInterface.class));
-		assertEquals(
-			evitaSession.getEntitySchemaOrThrowException(Entities.PRODUCT),
-			evitaSession.getEntitySchemaOrThrowException(ProductInterface.class)
+		assertNotNull(evitaSession.getEntitySchema(Entities.PRODUCT).orElse(null));
+		assertNotNull(evitaSession.getEntitySchema(ProductInterface.class).orElse(null));
+		assertSame(
+			evitaSession.getEntitySchema(Entities.PRODUCT).orElseThrow(),
+			evitaSession.getEntitySchema(ProductInterface.class).orElseThrow()
 		);
 	}
 

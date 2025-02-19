@@ -1023,7 +1023,7 @@ public class Entity implements SealedEntity {
 
 	@Nonnull
 	@Override
-	public DataChunk<ReferenceContract> getReferenceChunk(@Nonnull String referenceName) throws ContextMissingException {
+	public <T extends DataChunk<ReferenceContract>> T getReferenceChunk(@Nonnull String referenceName) throws ContextMissingException {
 		checkReferenceName(referenceName);
 		if (this.referencesByName == null) {
 			// here we never limit the references by input requirements
@@ -1044,7 +1044,8 @@ public class Entity implements SealedEntity {
 					)
 				);
 		}
-		return this.referencesByName.computeIfAbsent(
+		//noinspection unchecked
+		return (T) this.referencesByName.computeIfAbsent(
 			referenceName,
 			refName -> this.referenceChunkTransformer.apply(refName).createChunk(Collections.emptyList())
 		);
