@@ -1310,11 +1310,12 @@ As you can see, the filtered price list is returned.
 ```evitaql-syntax
 referenceContent(
     argument:enum(ANY|EXISTING)?,
-    argument:string+,
-    filterConstraint:any,
-    orderConstraint:any,
-    requireConstraint:entityFetch,
-    requireConstraint:entityGroupFetch
+    argument:string*,
+    filterConstraint:filterBy?,
+    orderConstraint:orderBy?,
+    requireConstraint:entityFetch?,
+    requireConstraint:entityGroupFetch?,
+    requireConstraint:(page|strip)?
 )
 ```
 
@@ -1329,35 +1330,43 @@ referenceContent(
         they point to to existing or non-existing entities (see [managed references behaviour](../requirements/reference.md#managed-references-behaviour) chapter for more details)
         </p>
     </dd>
-    <dt>argument:string+</dt>
+    <dt>argument:string*</dt>
     <dd>
-        mandatory one or more string arguments representing the names of the references to fetch for the entity;
+        optional zero or more string arguments representing the names of the references to fetch for the entity;
         if more than one name is given in the argument, any corresponding constraints in the same `referenceContent`
+        container will apply to all of them;
+        if none are given, all references are fetched and any corresponding constraints in the same `referenceContent`
         container will apply to all of them
     </dd>
-    <dt>filterConstraint:any</dt>
+    <dt>filterConstraint:filterBy?</dt>
     <dd>
         optional filter constraint that allows you to filter the references to be fetched for the entity;
         the filter constraint is targeted at the reference attributes, so if you want to filter by properties of the referenced
         entity, you must use the [`entityHaving`](../filtering/references.md#entity-having) constraint
     </dd>
-    <dt>orderConstraint:any</dt>
+    <dt>orderConstraint:orderBy?</dt>
     <dd>
         optional ordering constraint that allows you to sort the fetched references; the ordering constraint is targeted
         at the reference attributes, so if you want to order by properties of the referenced entity, you must use the
         [`entityProperty`](../ordering/references.md#entity-property) constraint
     </dd>
-    <dt>requireConstraint:entityFetch</dt>
+    <dt>requireConstraint:entityFetch?</dt>
     <dd>
         optional requirement constraint that allows you to fetch the referenced entity body; the `entityFetch`
         constraint can contain nested `referenceContent` with an additional `entityFetch` / `entityGroupFetch`
         constraints that allows you to fetch the entities in a graph-like manner to an "infinite" depth
     </dd>
-    <dt>requireConstraint:entityGroupFetch</dt>
+    <dt>requireConstraint:entityGroupFetch?</dt>
     <dd>
         optional requirement constraint that allows you to fetch the referenced entity group body; the `entityGroupFetch`
         constraint can contain nested `referenceContent` with an additional `entityFetch` / `entityGroupFetch`
         constraints that allows you to fetch the entities in a graph-like manner to an "infinite" depth
+    </dd>
+    <dt>requireConstraint:(page|strip)?</dt>
+    <dd>
+        optional requirement constraint that allows you to limit the number of returned references if there is
+        a large number of them; the `page` constraint allows you to paginate the references, while the `strip`
+        constraint allows you specify offset and limit for the returned references
     </dd>
 </dl>
 
@@ -1655,43 +1664,136 @@ The returned `Product` entity will contain a list of all parameters in the expec
 
 </Note>
 
+#### Paging / limiting fetched reference count
+
+By default, all references of the entity with the requested reference name are returned with the entity. If the possible 
+number of references is large, you can limit the number of references returned by using [`page`](paging.md#page) or 
+[`strip`](paging.md#strip) as the last constraint of the `referenceContent` container and access them in a paginated
+manner. You can combine paging with `filterBy` and `orderBy` constraints to your advantage.
+
+<Note type="info">
+
+Avoid fetching too much data if you don't need it; your queries will be faster if you only fetch the data you really 
+need. In server/client communication over the network, every byte counts. So if you only need to know if there are 
+references of a certain type, use `strip` with `limit: 0` or `page` with `size: 0` to fetch only the number of 
+references and avoid fetching the actual data.
+
+</Note>
+
+Let's say you need only to check whether there is any parameter for the product. To do this, use the following query:
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
+[Getting entity parameter values count without fetching them](/documentation/user/en/query/requirements/examples/fetching/referenceContentPageEmpty.evitaql)
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of an entity fetched with parameter count only
+</NoteTitle>
+
+The returned `Product` entity will only contain a total number of parameter values and no actual data:
+
+<LS to="e,j,c">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetched with parameter count only](/documentation/user/en/query/requirements/examples/fetching/referenceContentPageEmpty.evitaql.json.md)</MDInclude>
+
+</LS>
+<LS to="g">
+
+<MDInclude sourceVariable="data.queryProduct.recordPage">[The result of an entity fetched with parameter count only](/documentation/user/en/query/requirements/examples/fetching/referenceContentPageEmpty.graphql.json.md)</MDInclude>
+
+</LS>
+<LS to="r">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetched with parameter count only](/documentation/user/en/query/requirements/examples/fetching/referenceContentPageEmpty.rest.json.md)</MDInclude>
+
+</LS>
+
+</Note>
+
+If the number of possible parameter values is large, you'd better limit the returned count to the size that can actually 
+be processed/rendered by the client. In this situation you'd probably want to list the most important ones first, so 
+the `orderBy` constraint should be handy:
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
+[Getting entity parameter values count without fetching them](/documentation/user/en/query/requirements/examples/fetching/referenceContentPage.evitaql)
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of an entity fetched with top 3 parameters only
+</NoteTitle>
+
+The returned `Product` entity will contain a maximum of 3 parameters and provide access to a total number of parameter values:
+
+<LS to="e,j,c">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetched with top 3 parameters only](/documentation/user/en/query/requirements/examples/fetching/referenceContentPage.evitaql.json.md)</MDInclude>
+
+</LS>
+<LS to="g">
+
+<MDInclude sourceVariable="data.queryProduct.recordPage">[The result of an entity fetched with top 3 parameters only](/documentation/user/en/query/requirements/examples/fetching/referenceContentPage.graphql.json.md)</MDInclude>
+
+</LS>
+<LS to="r">
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetched with top 3 parameters only](/documentation/user/en/query/requirements/examples/fetching/referenceContentPage.rest.json.md)</MDInclude>
+
+</LS>
+
+</Note>
+
 <LS to="e,j,c">
 
 ### Reference content all
 
 ```evitaql-syntax
 referenceContentAll(
-    filterConstraint:any,
-    orderConstraint:any,
-    requireConstraint:entityFetch,
-    requireConstraint:entityGroupFetch
+    filterConstraint:filterBy?,
+    orderConstraint:filterBy?,
+    requireConstraint:entityFetch?,
+    requireConstraint:entityGroupFetch?,
+    requireConstraint:(page|strip)?
 )
 ```
 
 <dl>
-    <dt>filterConstraint:any</dt>
+    <dt>filterConstraint:filterBy?</dt>
     <dd>
         optional filter constraint that allows you to filter the references to be fetched for the entity;
         the filter constraint is targeted at the reference attributes, so if you want to filter by properties of the referenced
         entity, you must use the [`entityHaving`](../filtering/references.md#entity-having) constraint
     </dd>
-    <dt>orderConstraint:any</dt>
+    <dt>orderConstraint:orderBy?</dt>
     <dd>
         optional ordering constraint that allows you to sort the fetched references; the ordering constraint is targeted
         at the reference attributes, so if you want to order by properties of the referenced entity, you must use the
         [`entityProperty`](../ordering/references.md#entity-property) constraint
     </dd>
-    <dt>requireConstraint:entityFetch</dt>
+    <dt>requireConstraint:entityFetch?</dt>
     <dd>
         optional requirement constraint that allows you to fetch the referenced entity body; the `entityFetch`
         constraint can contain nested `referenceContent` with an additional `entityFetch` / `entityGroupFetch`
         constraints that allows you to fetch the entities in a graph-like manner to an "infinite" depth
     </dd>
-    <dt>requireConstraint:entityGroupFetch</dt>
+    <dt>requireConstraint:entityGroupFetch?</dt>
     <dd>
         optional requirement constraint that allows you to fetch the referenced entity group body; the `entityGroupFetch`
         constraint can contain nested `referenceContent` with an additional `entityFetch` / `entityGroupFetch`
         constraints that allows you to fetch the entities in a graph-like manner to an "infinite" depth
+    </dd>
+    <dt>requireConstraint:(page|strip)?</dt>
+    <dd>
+        optional requirement constraint that allows you to limit the number of returned references if there is
+        a large number of them; the `page` constraint allows you to paginate the references, while the `strip`
+        constraint allows you specify offset and limit for the returned references
     </dd>
 </dl>
 
@@ -1735,48 +1837,59 @@ The returned `Product` entity will contain primary keys and codes of all its ref
 
 ```evitaql-syntax
 referenceContentWithAttributes(
-    argument:string+,
-    filterConstraint:any,
-    orderConstraint:any,
-    requireConstraint:attributeContent,
-    requireConstraint:entityFetch,
-    requireConstraint:entityGroupFetch
+    argument:string*,
+    filterConstraint:filterBy?,
+    orderConstraint:orderBy?,
+    requireConstraint:attributeContent?,
+    requireConstraint:entityFetch?,
+    requireConstraint:entityGroupFetch?,
+    requireConstraint:(page|strip)?
 )
 ```
 
 <dl>
-    <dt>argument:string+</dt>
+    <dt>argument:string*</dt>
     <dd>
-        mandatory one or more string arguments representing the names of the references to fetch for the entity
+        optional zero or more string arguments representing the names of the references to fetch for the entity;
+        if more than one name is given in the argument, any corresponding constraints in the same `referenceContent`
+        container will apply to all of them;
+        if none are given, all references are fetched and any corresponding constraints in the same `referenceContent`
+        container will apply to all of them
     </dd>
-    <dt>filterConstraint:any</dt>
+    <dt>filterConstraint:filterBy?</dt>
     <dd>
         optional filter constraint that allows you to filter the references to be fetched for the entity;
         the filter constraint is targeted at the reference attributes, so if you want to filter by properties of the referenced
         entity, you must use the [`entityHaving`](../filtering/references.md#entity-having) constraint
     </dd>
-    <dt>orderConstraint:any</dt>
+    <dt>orderConstraint:filterBy?</dt>
     <dd>
         optional ordering constraint that allows you to sort the fetched references; the ordering constraint is targeted
         at the reference attributes, so if you want to order by properties of the referenced entity, you must use the
         [`entityProperty`](../ordering/references.md#entity-property) constraint
     </dd>
-    <dt>requireConstraint:attributeContent</dt>
+    <dt>requireConstraint:attributeContent?</dt>
     <dd>
         optional requirement constraint that allows you to limit the set of reference attributes to be fetched;
         if no `attributeContent` constraint is specified, all attributes of the reference will be fetched
     </dd>
-    <dt>requireConstraint:entityFetch</dt>
+    <dt>requireConstraint:entityFetch?</dt>
     <dd>
         optional requirement constraint that allows you to fetch the referenced entity body; the `entityFetch`
         constraint can contain nested `referenceContent` with an additional `entityFetch` / `entityGroupFetch`
         constraints that allows you to fetch the entities in a graph-like manner to an "infinite" depth
     </dd>
-    <dt>requireConstraint:entityGroupFetch</dt>
+    <dt>requireConstraint:entityGroupFetch?</dt>
     <dd>
         optional requirement constraint that allows you to fetch the referenced entity group body; the `entityGroupFetch`
         constraint can contain nested `referenceContent` with an additional `entityFetch` / `entityGroupFetch`
         constraints that allows you to fetch the entities in a graph-like manner to an "infinite" depth
+    </dd>
+    <dt>requireConstraint:(page|strip)?</dt>
+    <dd>
+        optional requirement constraint that allows you to limit the number of returned references if there is
+        a large number of them; the `page` constraint allows you to paginate the references, while the `strip`
+        constraint allows you specify offset and limit for the returned references
     </dd>
 </dl>
 
@@ -1830,43 +1943,50 @@ values define the product variant, while the other parameters only describe the 
 
 ```evitaql-syntax
 referenceContentAllWithAttributes(
-    filterConstraint:any,
-    orderConstraint:any,
-    requireConstraint:attributeContent,
-    requireConstraint:entityFetch,
-    requireConstraint:entityGroupFetch
+    filterConstraint:filterBy?,
+    orderConstraint:orderBy?,
+    requireConstraint:attributeContent?,
+    requireConstraint:entityFetch?,
+    requireConstraint:entityGroupFetch?,
+    requireConstraint:(page|strip)?
 )
 ```
 
 <dl>
-    <dt>filterConstraint:any</dt>
+    <dt>filterConstraint:filterBy?</dt>
     <dd>
         optional filter constraint that allows you to filter the references to be fetched for the entity;
         the filter constraint is targeted at the reference attributes, so if you want to filter by properties of the referenced
         entity, you must use the [`entityHaving`](../filtering/references.md#entity-having) constraint
     </dd>
-    <dt>orderConstraint:any</dt>
+    <dt>orderConstraint:orderBy?</dt>
     <dd>
         optional ordering constraint that allows you to sort the fetched references; the ordering constraint is targeted
         at the reference attributes, so if you want to order by properties of the referenced entity, you must use the
         [`entityProperty`](../ordering/references.md#entity-property) constraint
     </dd>
-    <dt>requireConstraint:attributeContent</dt>
+    <dt>requireConstraint:attributeContent?</dt>
     <dd>
         optional requirement constraint that allows you to limit the set of reference attributes to be fetched;
         if no `attributeContent` constraint is specified, all attributes of the reference will be fetched
     </dd>
-    <dt>requireConstraint:entityFetch</dt>
+    <dt>requireConstraint:entityFetch?</dt>
     <dd>
         optional requirement constraint that allows you to fetch the referenced entity body; the `entityFetch`
         constraint can contain nested `referenceContent` with an additional `entityFetch` / `entityGroupFetch`
         constraints that allows you to fetch the entities in a graph-like manner to an "infinite" depth
     </dd>
-    <dt>requireConstraint:entityGroupFetch</dt>
+    <dt>requireConstraint:entityGroupFetch?</dt>
     <dd>
         optional requirement constraint that allows you to fetch the referenced entity group body; the `entityGroupFetch`
         constraint can contain nested `referenceContent` with an additional `entityFetch` / `entityGroupFetch`
         constraints that allows you to fetch the entities in a graph-like manner to an "infinite" depth
+    </dd>
+    <dt>requireConstraint:(page|strip)?</dt>
+    <dd>
+        optional requirement constraint that allows you to limit the number of returned references if there is
+        a large number of them; the `page` constraint allows you to paginate the references, while the `strip`
+        constraint allows you specify offset and limit for the returned references
     </dd>
 </dl>
 
