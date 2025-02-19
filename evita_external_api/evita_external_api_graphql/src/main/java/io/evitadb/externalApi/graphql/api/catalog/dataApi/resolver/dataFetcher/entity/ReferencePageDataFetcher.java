@@ -29,20 +29,20 @@ import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.dataType.PaginatedList;
 import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
-import java.util.Collection;
 
 /**
- * Finds all references in parent entity that conforms to specified name.
+ * Finds paginated list of references in parent entity that conforms to specified name.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @RequiredArgsConstructor
-public class ReferencesDataFetcher implements DataFetcher<Collection<ReferenceContract>> {
+public class ReferencePageDataFetcher implements DataFetcher<PaginatedList<ReferenceContract>> {
 
     /**
      * Schema of reference to which this fetcher is mapped to.
@@ -52,15 +52,15 @@ public class ReferencesDataFetcher implements DataFetcher<Collection<ReferenceCo
 
     @Nonnull
     @Override
-    public Collection<ReferenceContract> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+    public PaginatedList<ReferenceContract> get(DataFetchingEnvironment environment) throws Exception {
         final EntityDecorator entity = environment.getSource();
-        Assert.isPremiseValid(entity != null, "Entity must not be null.");
+        Assert.isPremiseValid(entity != null, "Entity must not be null");
         Assert.isPremiseValid(
             referenceSchema.getCardinality() == Cardinality.ZERO_OR_MORE || referenceSchema.getCardinality() == Cardinality.ONE_OR_MORE,
             () -> new GraphQLQueryResolvingInternalError(
                 "Reference `" + referenceSchema.getName() + "` doesn't have cardinality of more references but more references were requested."
             )
         );
-        return entity.getReferences(referenceSchema.getName());
+        return entity.getReferenceChunk(referenceSchema.getName());
     }
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -39,6 +39,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocato
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.InlineReferenceDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesProviderDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.AccompanyingPriceFieldHeaderDescriptor;
@@ -47,7 +48,11 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.Attribute
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.ParentsFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceForSaleDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.ReferenceFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.ReferencePageFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.ReferenceStripFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.ReferencesFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
+import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidResponseUsageException;
 import io.evitadb.utils.Assert;
@@ -227,7 +232,7 @@ public class EntityFetchRequireResolver {
 		return currentEntitySchema.getReferences()
 			.values()
 			.stream()
-			.map(it -> it.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
+			.map(it -> it.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION) + "*")
 			.anyMatch(selectionSetAggregator::containsImmediate);
 	}
 
@@ -360,43 +365,58 @@ public class EntityFetchRequireResolver {
 			return List.of();
 		}
 
-		return currentEntitySchema.getReferences()
-			.values()
-			.stream()
-			.map(it -> new FieldsForReferenceHolder(
-				it,
-				selectionSetAggregator.getImmediateFields(it.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
-			))
-			.filter(it -> !it.fields().isEmpty())
-			.map(it -> new RequirementForReferenceHolder(
-				it.referenceSchema(),
-				resolveReferenceContentFilter(currentEntitySchema, it).orElse(null),
-				resolveReferenceContentOrder(currentEntitySchema, it).orElse(null),
-				resolveReferenceAttributeContent(it).orElse(null),
-				resolveReferenceEntityRequirement(desiredLocale, it).orElse(null),
-				resolveReferenceGroupRequirement(desiredLocale, it).orElse(null)
-			))
-			.map(it -> {
-				if (it.attributeContent() != null) {
-					return referenceContentWithAttributes(
-						it.referenceSchema().getName(),
-						it.filterBy(),
-						it.orderBy(),
-						it.attributeContent(),
-						it.entityRequirement(),
-						it.groupRequirement()
-					);
-				} else {
-					return referenceContent(
-						it.referenceSchema().getName(),
-						it.filterBy(),
-						it.orderBy(),
-						it.entityRequirement(),
-						it.groupRequirement()
-					);
-				}
-			})
-			.toList();
+		final List<ReferenceContent> referenceContents = new LinkedList<>();
+		for (final ReferenceSchemaContract referenceSchema : currentEntitySchema.getReferences().values()) {
+			final String baseReferenceFieldName = GraphQLEntityDescriptor.REFERENCE.name(referenceSchema);
+			final String referencePageFieldName = GraphQLEntityDescriptor.REFERENCE_PAGE.name(referenceSchema);
+			final String referenceStripFieldName = GraphQLEntityDescriptor.REFERENCE_STRIP.name(referenceSchema);
+			final List<SelectedField> fieldsForReference = selectionSetAggregator.getImmediateFields(Set.of(
+				baseReferenceFieldName,
+				referencePageFieldName,
+				referenceStripFieldName
+			));
+			if (fieldsForReference.isEmpty()) {
+				continue;
+			}
+
+			final FieldsForReferenceHolder fieldsForReferenceHolder = new FieldsForReferenceHolder(
+				referenceSchema,
+				fieldsForReference
+			);
+
+			final RequirementForReferenceHolder requirementForReferenceHolder = new RequirementForReferenceHolder(
+				fieldsForReferenceHolder.referenceSchema(),
+				resolveReferenceContentFilter(currentEntitySchema, fieldsForReferenceHolder).orElse(null),
+				resolveReferenceContentOrder(currentEntitySchema, fieldsForReferenceHolder).orElse(null),
+				resolveReferenceAttributeContent(fieldsForReferenceHolder).orElse(null),
+				resolveReferenceEntityRequirement(desiredLocale, fieldsForReferenceHolder).orElse(null),
+				resolveReferenceGroupRequirement(desiredLocale, fieldsForReferenceHolder).orElse(null),
+				resolveReferenceChunkingRequirement(fieldsForReferenceHolder, baseReferenceFieldName, referencePageFieldName, referenceStripFieldName).orElse(null)
+			);
+
+			if (requirementForReferenceHolder.attributeContent() != null) {
+				referenceContents.add(referenceContentWithAttributes(
+					requirementForReferenceHolder.referenceSchema().getName(),
+					requirementForReferenceHolder.filterBy(),
+					requirementForReferenceHolder.orderBy(),
+					requirementForReferenceHolder.attributeContent(),
+					requirementForReferenceHolder.entityRequirement(),
+					requirementForReferenceHolder.groupRequirement(),
+					requirementForReferenceHolder.chunk()
+				));
+			} else {
+				referenceContents.add(referenceContent(
+					requirementForReferenceHolder.referenceSchema().getName(),
+					requirementForReferenceHolder.filterBy(),
+					requirementForReferenceHolder.orderBy(),
+					requirementForReferenceHolder.entityRequirement(),
+					requirementForReferenceHolder.groupRequirement(),
+					requirementForReferenceHolder.chunk()
+				));
+			}
+		}
+
+		return referenceContents;
 	}
 
 	@Nonnull
@@ -511,6 +531,70 @@ public class EntityFetchRequireResolver {
 	}
 
 	@Nonnull
+	private Optional<ChunkingRequireConstraint> resolveReferenceChunkingRequirement(@Nonnull FieldsForReferenceHolder fieldsForReferenceHolder,
+																					@Nonnull String baseReferenceFieldName,
+	                                                                                @Nonnull String referencePageFieldName,
+																					@Nonnull String referenceStripFieldName) {
+		final List<SelectedField> fields = fieldsForReferenceHolder.fields();
+		final boolean hasChunkingArgument = fields.stream().anyMatch(field ->
+				(
+					field.getName().equals(baseReferenceFieldName) &&
+					field.getArguments().containsKey(ReferencesFieldHeaderDescriptor.LIMIT.name())
+				) ||
+				field.getName().equals(referencePageFieldName) ||
+				field.getName().equals(referenceStripFieldName)
+		);
+		if (!hasChunkingArgument) {
+			return Optional.empty();
+		}
+
+		Assert.isTrue(
+			fields.size() == 1,
+			() -> new GraphQLInvalidResponseUsageException(
+				"There may be only one reference field in entity if there is reference field with chunking."
+			)
+		);
+
+		final SelectedField dataChunkField = fields.get(0);
+		if (dataChunkField.getName().equals(baseReferenceFieldName)) {
+			return Optional.of(strip(
+				null,
+				(Integer) dataChunkField.getArguments().get(ReferencesFieldHeaderDescriptor.LIMIT.name())
+			));
+		} else if (dataChunkField.getName().equals(referencePageFieldName)) {
+			if (isOnlyTotalCountIsDesiredForReferenceDataChunk(dataChunkField)) {
+				// performance optimization, we don't need actual references
+				return Optional.of(page(1, 0));
+			}
+			return Optional.of(page(
+				(Integer) dataChunkField.getArguments().get(ReferencePageFieldHeaderDescriptor.NUMBER.name()),
+				(Integer) dataChunkField.getArguments().get(ReferencePageFieldHeaderDescriptor.SIZE.name())
+			));
+		} else if (dataChunkField.getName().equals(referenceStripFieldName)) {
+			if (isOnlyTotalCountIsDesiredForReferenceDataChunk(dataChunkField)) {
+				// performance optimization, we don't need actual references
+				return Optional.of(strip(0, 0));
+			}
+			return Optional.of(strip(
+				(Integer) dataChunkField.getArguments().get(ReferenceStripFieldHeaderDescriptor.OFFSET.name()),
+				(Integer) dataChunkField.getArguments().get(ReferenceStripFieldHeaderDescriptor.LIMIT.name())
+			));
+		} else {
+			throw new GraphQLInternalError(
+				"Invalid reference data chunk field.",
+				"There is supposed to be a data chunk field, but has invalid name `" + dataChunkField.getName() + "`."
+			);
+		}
+	}
+
+	private static boolean isOnlyTotalCountIsDesiredForReferenceDataChunk(@Nonnull SelectedField dataChunkField) {
+		final List<SelectedField> dataChuckInnerFields = dataChunkField.getSelectionSet().getImmediateFields();
+
+		return dataChuckInnerFields.size() == 1 &&
+			dataChuckInnerFields.get(0).getName().equals(DataChunkDescriptor.TOTAL_RECORD_COUNT.name());
+	}
+
+	@Nonnull
 	private static Optional<DataInLocales> resolveDataInLocales(@Nonnull SelectionSetAggregator selectionSetAggregator,
 	                                                            @Nullable Locale desiredLocale,
 	                                                            @Nonnull Set<Locale> allPossibleLocales) {
@@ -552,6 +636,7 @@ public class EntityFetchRequireResolver {
 	                                             @Nullable OrderBy orderBy,
 												 @Nullable AttributeContent attributeContent,
 	                                             @Nullable EntityFetch entityRequirement,
-	                                             @Nullable EntityGroupFetch groupRequirement) {
+	                                             @Nullable EntityGroupFetch groupRequirement,
+	                                             @Nullable ChunkingRequireConstraint chunk) {
 	}
 }

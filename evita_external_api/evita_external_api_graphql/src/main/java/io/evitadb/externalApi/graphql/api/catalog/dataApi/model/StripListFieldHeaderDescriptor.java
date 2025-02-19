@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,27 +21,29 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.dataApi.model;
+package io.evitadb.externalApi.graphql.api.catalog.dataApi.model;
 
-import io.evitadb.dataType.PaginatedList;
-import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
-import java.util.List;
-
-import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
+import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
- * Represents {@link PaginatedList} for entities
- *
- * Note: this descriptor is meant be template for generated specific entity DTOs base on internal data. Fields in this
- * descriptor are supposed to be dynamically registered to target generated entity DTO.
- *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * Descriptor of header arguments for fields returning chunked responses for strips
  */
-public interface RecordPageDescriptor extends PaginatedListDescriptor {
+public interface StripListFieldHeaderDescriptor extends DataChunkFieldHeaderDescriptor {
 
-	ObjectDescriptor THIS = ObjectDescriptor.extend(PaginatedListDescriptor.THIS)
-		.name("*RecordPage")
+	PropertyDescriptor OFFSET = PropertyDescriptor.builder()
+		.name("offset")
+		.description("""
+			Defines offset of records in all satisfactory records. If missing, default is used.
+			""")
+		.type(nullable(Integer.class))
+		.build();
+	PropertyDescriptor LIMIT = PropertyDescriptor.builder()
+		.name("limit")
+		.description("""
+			Defines number of records to return. If missing, default is used.
+			""")
+		.type(nullable(Integer.class))
 		.build();
 }

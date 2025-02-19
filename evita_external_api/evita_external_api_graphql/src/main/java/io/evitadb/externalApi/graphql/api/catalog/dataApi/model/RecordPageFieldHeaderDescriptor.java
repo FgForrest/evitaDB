@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,27 +21,22 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.dataApi.model;
+package io.evitadb.externalApi.graphql.api.catalog.dataApi.model;
 
-import io.evitadb.dataType.PaginatedList;
-import io.evitadb.externalApi.api.model.ObjectDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
-import java.util.List;
-
-import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
-
 /**
- * Represents {@link PaginatedList} for entities
- *
- * Note: this descriptor is meant be template for generated specific entity DTOs base on internal data. Fields in this
- * descriptor are supposed to be dynamically registered to target generated entity DTO.
- *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * Descriptor of header arguments of field {@link ResponseDescriptor#RECORD_PAGE}
  */
-public interface RecordPageDescriptor extends PaginatedListDescriptor {
+public interface RecordPageFieldHeaderDescriptor extends PaginatedListFieldHeaderDescriptor {
 
-	ObjectDescriptor THIS = ObjectDescriptor.extend(PaginatedListDescriptor.THIS)
-		.name("*RecordPage")
+	PropertyDescriptor SPACING = PropertyDescriptor.builder()
+		.name("spacing")
+		.description("""
+			Allows to insert artificial gaps instead of entities on particular pages. The gaps are defined by the
+			spacing sub-constraints, which specify the number of entities that should be skipped on the page when the
+			`onPage` expression is evaluated to true.
+			""")
 		.build();
 }
