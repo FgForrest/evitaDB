@@ -467,13 +467,19 @@ public class EntityDecorator implements SealedEntity {
 			);
 
 		this.filteredReferencesByName = CollectionUtils.toUnmodifiableMap(
-			indexByName
-				.entrySet()
+			entitySchema
+				.getReferences()
+				.keySet()
 				.stream()
+				.filter(referencePredicate::isReferenceRequested)
 				.collect(
 					Collectors.toMap(
-						Map.Entry::getKey,
-						entry -> referenceFetcher.createChunk(entity, entry.getKey(), entry.getValue()),
+						Function.identity(),
+						referenceName -> {
+							final List<ReferenceContract> references = ofNullable(indexByName.get(referenceName))
+								.orElse(Collections.emptyList());
+							return referenceFetcher.createChunk(entity, referenceName, references);
+						},
 						(referenceContracts, referenceContracts2) -> {
 							throw new GenericEvitaInternalError("Duplicate reference name found in the filtered references.");
 						},

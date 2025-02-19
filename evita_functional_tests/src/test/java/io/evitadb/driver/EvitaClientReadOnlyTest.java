@@ -1503,4 +1503,48 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		);
 	}
 
+	@DisplayName("Should provide total count of references only")
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	@Test
+	void shouldReturnTotalCountOfReferencesOnly(EvitaClient evitaClient, Map<Integer, SealedEntity> products) {
+		final SealedEntity productWithMaxReferences = products.values()
+			.stream()
+			.max(Comparator.comparingInt(o -> o.getReferences(Entities.BRAND).size() + o.getReferences(Entities.PARAMETER).size()))
+			.orElseThrow();
+		final Set<Integer> originParameters = productWithMaxReferences.getReferences(Entities.PARAMETER)
+			.stream()
+			.map(ReferenceContract::getReferencedPrimaryKey)
+			.collect(Collectors.toSet());
+
+		assertEquals(
+			Integer.valueOf(originParameters.size()),
+			evitaClient.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final SealedEntity productByPk = session.queryOneSealedEntity(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								entityPrimaryKeyInSet(productWithMaxReferences.getPrimaryKeyOrThrowException())
+							),
+							require(
+								entityFetch(
+									// but only first four parameters
+									referenceContent(
+										Entities.PARAMETER,
+										entityFetchAll(),
+										entityGroupFetchAll(),
+										page(1, 0)
+									)
+								)
+							)
+						)
+					).orElseThrow();
+
+					return productByPk.getReferenceChunk(Entities.PARAMETER).getTotalRecordCount();
+				}
+			)
+		);
+	}
+
 }

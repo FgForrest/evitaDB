@@ -78,6 +78,7 @@ import java.util.stream.Collectors;
 
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcScope;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toScope;
+import static java.util.Optional.ofNullable;
 
 /**
  * Class used for building suitable form of entity based on {@link SealedEntity}. The main methods here are
@@ -124,7 +125,7 @@ public class EntityConverter {
 		final EntityClassifierWithParent parentEntity;
 		if (grpcEntity.hasParentEntity()) {
 			final HierarchyContent hierarchyContent = evitaRequest.getHierarchyContent();
-			final EvitaRequest parentRequest = Optional.ofNullable(hierarchyContent)
+			final EvitaRequest parentRequest = ofNullable(hierarchyContent)
 				.flatMap(HierarchyContent::getEntityFetch)
 				.map(
 					it -> evitaRequest.deriveCopyWith(
@@ -820,7 +821,7 @@ public class EntityConverter {
 			this.entityIndex = grpcReference.stream()
 				.filter(GrpcReference::hasReferencedEntity)
 				.map(it -> {
-					final RequirementContext fetchCtx = Optional.ofNullable(evitaRequest.getReferenceEntityFetch().get(it.getReferenceName()))
+					final RequirementContext fetchCtx = ofNullable(evitaRequest.getReferenceEntityFetch().get(it.getReferenceName()))
 						.orElse(evitaRequest.getDefaultReferenceRequirement());
 					Assert.isPremiseValid(
 						fetchCtx != null && fetchCtx.entityFetch() != null,
@@ -839,7 +840,7 @@ public class EntityConverter {
 			this.groupIndex = grpcReference.stream()
 				.filter(GrpcReference::hasGroupReferencedEntity)
 				.map(it -> {
-					final RequirementContext fetchCtx = Optional.ofNullable(evitaRequest.getReferenceEntityFetch().get(it.getReferenceName()))
+					final RequirementContext fetchCtx = ofNullable(evitaRequest.getReferenceEntityFetch().get(it.getReferenceName()))
 						.orElse(evitaRequest.getDefaultReferenceRequirement());
 					Assert.isPremiseValid(
 						fetchCtx != null && fetchCtx.entityGroupFetch() != null,
@@ -913,7 +914,8 @@ public class EntityConverter {
 		public DataChunk<ReferenceContract> createChunk(@Nonnull Entity entity, @Nonnull String referenceName, @Nonnull List<ReferenceContract> references) {
 			// client reference fetcher sees only slice of the original reference list (in case of paginated access only requested page)
 			// so we need to use alternate method with providing full total count
-			return entity.getReferenceChunkTransformer().apply(referenceName).createChunk(references, this.referencesCount.get(referenceName));
+			return entity.getReferenceChunkTransformer().apply(referenceName)
+				.createChunk(references, ofNullable(this.referencesCount.get(referenceName)).orElse(0));
 		}
 
 	}
