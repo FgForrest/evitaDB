@@ -1743,7 +1743,6 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				);
 			this.referenceReferencedEntitiesToGroupIndex = CollectionUtils.createHashMap(expectedSize * 5);
 			this.referenceReferencedEntitiesToGroupCalculationIndex = new HashSet<>(5);
-			/* TODO JNO - use FacetIndex if possible */
 			this.referenceReferencedEntitiesToGroupLazyRetriever = referenceName -> richEnoughEntities
 				.stream()
 				.flatMap(it -> it.getReferences(referenceName).stream())
@@ -1765,7 +1764,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		 * If the group mapping for the specified reference name has not been computed yet, it is lazily computed
 		 * using the corresponding loader. This method relies on an internal index to fetch the group identifier.
 		 *
-		 * @param referenceName the name of the reference for which the group identifier is being retrieved; must not be null
+		 * @param referenceName        the name of the reference for which the group identifier is being retrieved; must not be null
 		 * @param referencedPrimaryKey the primary key of the referenced entity; must not be null
 		 * @return the group identifier for the provided reference name and primary key, or {@code null} if no group mapping exists
 		 */
@@ -1822,15 +1821,40 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	}
 
 	/**
-	 * TODO JNO - document!!!
+	 * Slicer is supposed to identify only a small subset of referenced entities and their groups that should
+	 * be actually fetched / returned in the result taking `filterBy` and `page` / `strip` constraints into an account.
 	 */
 	private static class Slicer {
+		/**
+		 * Arrays of source entity primary keys indexed by their scope.
+		 */
 		@Nonnull private final Map<Scope, int[]> entityPrimaryKey;
+		/**
+		 * The name of the reference for which the entities are being sliced.
+		 * The slicer always work with only single reference.
+		 */
 		@Nonnull private final String referenceName;
+		/**
+		 * The formula that contains only referenced entity ids that satisfy `filterBy` constraint.
+		 */
 		@Nonnull private final Formula filteredReferencedEntityIds;
+		/**
+		 * Function that accepts `referenceName` and `entityPrimaryKey` and returns the formula that contains all
+		 * referenced entity ids for the given entity.
+		 */
 		@Nonnull private final BiFunction<String, Integer, Formula> referencedEntityIdsFormula;
+		/**
+		 * Function that accepts `referenceName` and `referencedEntityId` and returns the group primary key
+		 * for the given referenced entity primary key.
+		 */
 		@Nonnull private final BiFunction<String, Integer, Integer> referencedEntityToGroupIdTranslator;
+		/**
+		 * Function that accepts the bitmap of referenced entity ids and returns the sliced bitmap to be fetched.
+		 */
 		@Nonnull private final Function<Bitmap, Bitmap> chunker;
+		/**
+		 * Contains cache of groups indexed by entity primary key.
+		 */
 		private Map<Integer, int[]> groupsForEntity;
 
 		public Slicer(
@@ -1857,6 +1881,17 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			}
 		}
 
+		/**
+		 * Iterates over all entity primary keys and picks up all references of particular referenceName, filters them
+		 * by {@link #filteredReferencedEntityIds} and then slices a single chunk by {@link #chunker}. For the sliced
+		 * referenced entity ids the set of group ids is gradually built up.
+		 *
+		 * This method is supposed to identify only a small subset of referenced entities and their groups that should
+		 * be actually fetched / returned in the result.
+		 *
+		 * @return all referenced entity ids that match {@link #filteredReferencedEntityIds} and are appropriately sliced
+		 * on per entity basis by {@link #chunker}
+		 */
 		@Nonnull
 		public Bitmap sliceEntityIds() {
 			this.groupsForEntity = CollectionUtils.createHashMap(this.entityPrimaryKey.size());
@@ -1884,12 +1919,33 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			).compute();
 		}
 
+		/**
+		 * Retrieves a Formula object that represents the group IDs associated with the given reference name
+		 * and entity ID. This method obtains the group IDs from an internal mapping and converts them into
+		 * a Formula for further processing or computation.
+		 *
+		 * When map doesn't contain the groups for the entityId, it is assumed the referenced entities don't have
+		 * any group assigned.
+		 *
+		 * @param referenceName the name of the reference associated with the entity, must not be null
+		 * @param entityId      the unique identifier of the entity for which group IDs are retrieved, must not be null
+		 * @return a Formula object representing the group IDs associated with the specified reference name and entity ID
+		 */
 		@Nonnull
 		public Formula getGroupIds(@Nonnull String referenceName, @Nonnull Integer entityId) {
 			// slicer is always created only for a single reference, we need to be fast as possible, so no checks here
 			return toFormula(this.groupsForEntity.get(entityId));
 		}
 
+		/**
+		 * Creates a subset of the provided bitmap by slicing it based on the specified page number and page size
+		 * defined in the provided page object. If the page number or size exceeds the bounds of the bitmap,
+		 * adjustments are made to fit within the bitmap size.
+		 *
+		 * @param primaryKeys the bitmap containing the full set of record IDs to be sliced
+		 * @param page        the page object defining the page number and size for slicing the bitmap
+		 * @return a new bitmap containing the sliced subset of record IDs
+		 */
 		@Nonnull
 		public Bitmap slice(@Nonnull Bitmap primaryKeys, @Nonnull Page page) {
 			final int pageNumber = page.getPageNumber();
@@ -1900,6 +1956,15 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			return new ArrayBitmap(primaryKeys.getRange(offset, Math.min(offset + pageSize, primaryKeys.size())));
 		}
 
+		/**
+		 * Creates a subset of the provided bitmap by slicing it based on the specified offset and limit
+		 * defined in the provided strip object. If the offset or limit exceeds the bounds of the bitmap,
+		 * the values are truncated to fit within the bitmap size.
+		 *
+		 * @param primaryKeys the bitmap containing the full set of record IDs to be sliced
+		 * @param strip       the strip object defining the offset and limit for slicing the bitmap
+		 * @return a new bitmap containing the subset of the original bitmap as defined by the strip
+		 */
 		@Nonnull
 		public Bitmap slice(@Nonnull Bitmap primaryKeys, @Nonnull Strip strip) {
 			return new ArrayBitmap(
