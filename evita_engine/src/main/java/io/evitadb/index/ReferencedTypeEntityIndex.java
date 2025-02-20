@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -240,7 +240,6 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		);
 	}
 
-
 	/**
 	 * Creates a proxy instance of {@link ReferencedTypeEntityIndex} that throws a {@link ReferenceNotIndexedException}
 	 * for any methods not explicitly handled within the proxy.
@@ -254,6 +253,50 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull EntityIndexKey entityIndexKey,
 		@Nonnull int[] superSetOfPrimaryKeys
+	) {
+		return ByteBuddyProxyGenerator.instantiate(
+			new ByteBuddyDispatcherInvocationHandler<>(
+				new ReferencedTypeEntityIndexProxyStateWithSuperSet(entitySchema, superSetOfPrimaryKeys),
+				// objects method must pass through
+				OBJECT_METHODS_IMPLEMENTATION,
+				// index id will be provided as 0, because this id cannot be generated for the index
+				GET_ID_IMPLEMENTATION,
+				// index key is known and will be used in additional code
+				GET_INDEX_KEY_IMPLEMENTATION,
+				// this is used to retrieve superset of primary keys in missing index - let's return empty bitmap
+				GET_ALL_PRIMARY_KEYS_IMPLEMENTATION,
+				// this is used to retrieve superset of primary keys in missing index - let's return empty formula
+				GET_ALL_PRIMARY_KEYS_FORMULA_IMPLEMENTATION,
+				// for all other methods we will throw the exception that the reference is not indexed
+				THROW_REFERENCE_NOT_FOUND_IMPLEMENTATION
+			),
+			new Class<?>[]{
+				ReferencedTypeEntityIndex.class
+			},
+			new Class<?>[]{
+				int.class,
+				String.class,
+				EntityIndexKey.class
+			},
+			new Object[]{
+				-1, entitySchema.getName(), entityIndexKey
+			}
+		);
+	}
+
+	/**
+	 * Creates a proxy instance of {@link ReferencedTypeEntityIndex} that throws a {@link ReferenceNotIndexedException}
+	 * for any methods not explicitly handled within the proxy.
+	 *
+	 * @param entitySchema The schema contract for the entity associated with the index.
+	 * @param entityIndexKey The key for the entity index.
+	 * @return A proxy instance of {@link ReferencedTypeEntityIndex} that conditionally throws exceptions.
+	 */
+	@Nonnull
+	public static ReferencedTypeEntityIndex createThrowingStub(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull EntityIndexKey entityIndexKey,
+		@Nonnull Bitmap superSetOfPrimaryKeys
 	) {
 		return ByteBuddyProxyGenerator.instantiate(
 			new ByteBuddyDispatcherInvocationHandler<>(
@@ -642,10 +685,16 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	@RequiredArgsConstructor
 	private static class ReferencedTypeEntityIndexProxyStateWithSuperSet implements ReferencedTypeEntityIndexProxyStateContract {
 		@Serial private static final long serialVersionUID = 5964561548578664820L;
-		@Getter private final @Nonnull EntitySchemaContract entitySchema;
-		private final @Nullable int[] superSetOfPrimaryKeys;
-		private Bitmap superSetOfPrimaryKeysBitmap;
-		private Formula superSetOfPrimaryKeysFormula;
+		@Getter @Nonnull private final EntitySchemaContract entitySchema;
+		@Nullable private final int[] superSetOfPrimaryKeys;
+		@Nullable private Bitmap superSetOfPrimaryKeysBitmap;
+		@Nullable private Formula superSetOfPrimaryKeysFormula;
+
+		public ReferencedTypeEntityIndexProxyStateWithSuperSet(@Nonnull EntitySchemaContract entitySchema, @Nullable Bitmap superSetOfPrimaryKeys) {
+			this.entitySchema = entitySchema;
+			this.superSetOfPrimaryKeys = null;
+			this.superSetOfPrimaryKeysBitmap = superSetOfPrimaryKeys;
+		}
 
 		@Nonnull
 		@Override
@@ -661,8 +710,9 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		@Override
 		public Formula getSuperSetOfPrimaryKeysFormula(@Nonnull ReferencedTypeEntityIndex entityIndex) {
 			if (this.superSetOfPrimaryKeysFormula == null) {
-				this.superSetOfPrimaryKeysFormula = ArrayUtils.isEmpty(this.superSetOfPrimaryKeys) ?
-					EmptyFormula.INSTANCE : new ConstantFormula(getSuperSetOfPrimaryKeysBitmap(entityIndex));
+				final Bitmap theBitmap = getSuperSetOfPrimaryKeysBitmap(entityIndex);
+				this.superSetOfPrimaryKeysFormula = theBitmap instanceof EmptyBitmap ?
+					EmptyFormula.INSTANCE : new ConstantFormula(theBitmap);
 			}
 			return this.superSetOfPrimaryKeysFormula;
 		}

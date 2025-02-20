@@ -1132,14 +1132,6 @@ public class EvitaRequest {
 		@Nonnull
 		DataChunk<ReferenceContract> createChunk(@Nonnull List<ReferenceContract> referenceContracts, int totalReferenceCount);
 
-		/**
-		 * Slices the primary keys according to the requirements of the transformer.
-		 * @param primaryKeys the primary keys to slice
-		 * @return the sliced primary keys
-		 */
-		@Nonnull
-		int[] slice(@Nonnull int[] primaryKeys);
-
 	}
 
 	/**
@@ -1148,22 +1140,7 @@ public class EvitaRequest {
 	 */
 	@RequiredArgsConstructor
 	public static class PageTransformer implements ChunkTransformer {
-		private final Page page;
-
-		@Nonnull
-		@Override
-		public int[] slice(@Nonnull int[] primaryKeys) {
-			final int pageNumber = page.getPageNumber();
-			final int pageSize = page.getPageSize();
-			final int realPageNumber = PaginatedList.isRequestedResultBehindLimit(pageNumber, pageSize, primaryKeys.length) ?
-				1 : pageNumber;
-			final int offset = PaginatedList.getFirstItemNumberForPage(realPageNumber, pageSize);
-			return Arrays.copyOfRange(
-				primaryKeys,
-				offset,
-				Math.min(offset + pageSize, primaryKeys.length)
-			);
-		}
+		@Getter private final Page page;
 
 		@Nonnull
 		@Override
@@ -1199,17 +1176,7 @@ public class EvitaRequest {
 	 */
 	@RequiredArgsConstructor
 	public static class StripTransformer implements ChunkTransformer {
-		private final Strip strip;
-
-		@Nonnull
-		@Override
-		public int[] slice(@Nonnull int[] primaryKeys) {
-			return Arrays.copyOfRange(
-				primaryKeys,
-				Math.min(strip.getOffset(), primaryKeys.length - 1),
-				Math.min(strip.getOffset() + strip.getLimit(), primaryKeys.length)
-			);
-		}
+		@Getter private final Strip strip;
 
 		@Nonnull
 		@Override
@@ -1236,12 +1203,6 @@ public class EvitaRequest {
 	@RequiredArgsConstructor
 	public static class NoTransformer implements ChunkTransformer {
 		public static final NoTransformer INSTANCE = new NoTransformer();
-
-		@Nonnull
-		@Override
-		public int[] slice(@Nonnull int[] primaryKeys) {
-			return primaryKeys;
-		}
 
 		@Nonnull
 		@Override
