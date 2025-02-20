@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -35,6 +35,7 @@ import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.QueryPlan;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
+import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.sort.ConditionalSorter;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -121,7 +122,8 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 			final int[] result = new int[filteredEntities.length];
 			firstApplicableSorter.sortAndSlice(
 				theSorter.queryContext(),
-				new ConstantFormula(new BaseBitmap(filteredEntities)),
+				ArrayUtils.isEmpty(filteredEntities) ?
+					EmptyFormula.INSTANCE : new ConstantFormula(new BaseBitmap(filteredEntities)),
 				0, filteredEntities.length,
 				result, 0
 			);

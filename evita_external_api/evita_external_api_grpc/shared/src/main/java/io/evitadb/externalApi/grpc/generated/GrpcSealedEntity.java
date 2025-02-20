@@ -248,6 +248,19 @@ private static final long serialVersionUID = 0L;
             scope_ = rawValue;
             break;
           }
+          case 146: {
+            if (!((mutable_bitField0_ & 0x00000080) != 0)) {
+              referenceCounts_ = com.google.protobuf.MapField.newMapField(
+                  ReferenceCountsDefaultEntryHolder.defaultEntry);
+              mutable_bitField0_ |= 0x00000080;
+            }
+            com.google.protobuf.MapEntry<java.lang.String, java.lang.Integer>
+            referenceCounts__ = input.readMessage(
+                ReferenceCountsDefaultEntryHolder.defaultEntry.getParserForType(), extensionRegistry);
+            referenceCounts_.getMutableMap().put(
+                referenceCounts__.getKey(), referenceCounts__.getValue());
+            break;
+          }
           default: {
             if (!parseUnknownField(
                 input, unknownFields, extensionRegistry, tag)) {
@@ -294,6 +307,8 @@ private static final long serialVersionUID = 0L;
         return internalGetGlobalAssociatedData();
       case 15:
         return internalGetLocalizedAssociatedData();
+      case 18:
+        return internalGetReferenceCounts();
       default:
         throw new RuntimeException(
             "Invalid map field number: " + number);
@@ -1195,6 +1210,107 @@ private static final long serialVersionUID = 0L;
     return result == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityScope.UNRECOGNIZED : result;
   }
 
+  public static final int REFERENCECOUNTS_FIELD_NUMBER = 18;
+  private static final class ReferenceCountsDefaultEntryHolder {
+    static final com.google.protobuf.MapEntry<
+        java.lang.String, java.lang.Integer> defaultEntry =
+            com.google.protobuf.MapEntry
+            .<java.lang.String, java.lang.Integer>newDefaultInstance(
+                io.evitadb.externalApi.grpc.generated.GrpcEntity.internal_static_io_evitadb_externalApi_grpc_generated_GrpcSealedEntity_ReferenceCountsEntry_descriptor,
+                com.google.protobuf.WireFormat.FieldType.STRING,
+                "",
+                com.google.protobuf.WireFormat.FieldType.INT32,
+                0);
+  }
+  private com.google.protobuf.MapField<
+      java.lang.String, java.lang.Integer> referenceCounts_;
+  private com.google.protobuf.MapField<java.lang.String, java.lang.Integer>
+  internalGetReferenceCounts() {
+    if (referenceCounts_ == null) {
+      return com.google.protobuf.MapField.emptyMapField(
+          ReferenceCountsDefaultEntryHolder.defaultEntry);
+    }
+    return referenceCounts_;
+  }
+
+  public int getReferenceCountsCount() {
+    return internalGetReferenceCounts().getMap().size();
+  }
+  /**
+   * <pre>
+   * Contains total count of references per reference name. This may differ from count of provided references
+   * if pagination or strip was used in the input query.
+   * </pre>
+   *
+   * <code>map&lt;string, int32&gt; referenceCounts = 18;</code>
+   */
+
+  @java.lang.Override
+  public boolean containsReferenceCounts(
+      java.lang.String key) {
+    if (key == null) { throw new NullPointerException("map key"); }
+    return internalGetReferenceCounts().getMap().containsKey(key);
+  }
+  /**
+   * Use {@link #getReferenceCountsMap()} instead.
+   */
+  @java.lang.Override
+  @java.lang.Deprecated
+  public java.util.Map<java.lang.String, java.lang.Integer> getReferenceCounts() {
+    return getReferenceCountsMap();
+  }
+  /**
+   * <pre>
+   * Contains total count of references per reference name. This may differ from count of provided references
+   * if pagination or strip was used in the input query.
+   * </pre>
+   *
+   * <code>map&lt;string, int32&gt; referenceCounts = 18;</code>
+   */
+  @java.lang.Override
+
+  public java.util.Map<java.lang.String, java.lang.Integer> getReferenceCountsMap() {
+    return internalGetReferenceCounts().getMap();
+  }
+  /**
+   * <pre>
+   * Contains total count of references per reference name. This may differ from count of provided references
+   * if pagination or strip was used in the input query.
+   * </pre>
+   *
+   * <code>map&lt;string, int32&gt; referenceCounts = 18;</code>
+   */
+  @java.lang.Override
+
+  public int getReferenceCountsOrDefault(
+      java.lang.String key,
+      int defaultValue) {
+    if (key == null) { throw new NullPointerException("map key"); }
+    java.util.Map<java.lang.String, java.lang.Integer> map =
+        internalGetReferenceCounts().getMap();
+    return map.containsKey(key) ? map.get(key) : defaultValue;
+  }
+  /**
+   * <pre>
+   * Contains total count of references per reference name. This may differ from count of provided references
+   * if pagination or strip was used in the input query.
+   * </pre>
+   *
+   * <code>map&lt;string, int32&gt; referenceCounts = 18;</code>
+   */
+  @java.lang.Override
+
+  public int getReferenceCountsOrThrow(
+      java.lang.String key) {
+    if (key == null) { throw new NullPointerException("map key"); }
+    java.util.Map<java.lang.String, java.lang.Integer> map =
+        internalGetReferenceCounts().getMap();
+    if (!map.containsKey(key)) {
+      throw new java.lang.IllegalArgumentException();
+    }
+    return map.get(key);
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -1272,6 +1388,12 @@ private static final long serialVersionUID = 0L;
     if (scope_ != io.evitadb.externalApi.grpc.generated.GrpcEntityScope.SCOPE_LIVE.getNumber()) {
       output.writeEnum(17, scope_);
     }
+    com.google.protobuf.GeneratedMessageV3
+      .serializeStringMapTo(
+        output,
+        internalGetReferenceCounts(),
+        ReferenceCountsDefaultEntryHolder.defaultEntry,
+        18);
     unknownFields.writeTo(output);
   }
 
@@ -1372,6 +1494,16 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeEnumSize(17, scope_);
     }
+    for (java.util.Map.Entry<java.lang.String, java.lang.Integer> entry
+         : internalGetReferenceCounts().getMap().entrySet()) {
+      com.google.protobuf.MapEntry<java.lang.String, java.lang.Integer>
+      referenceCounts__ = ReferenceCountsDefaultEntryHolder.defaultEntry.newBuilderForType()
+          .setKey(entry.getKey())
+          .setValue(entry.getValue())
+          .build();
+      size += com.google.protobuf.CodedOutputStream
+          .computeMessageSize(18, referenceCounts__);
+    }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
     return size;
@@ -1431,6 +1563,8 @@ private static final long serialVersionUID = 0L;
     if (!getLocalesList()
         .equals(other.getLocalesList())) return false;
     if (scope_ != other.scope_) return false;
+    if (!internalGetReferenceCounts().equals(
+        other.internalGetReferenceCounts())) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -1498,6 +1632,10 @@ private static final long serialVersionUID = 0L;
     }
     hash = (37 * hash) + SCOPE_FIELD_NUMBER;
     hash = (53 * hash) + scope_;
+    if (!internalGetReferenceCounts().getMap().isEmpty()) {
+      hash = (37 * hash) + REFERENCECOUNTS_FIELD_NUMBER;
+      hash = (53 * hash) + internalGetReferenceCounts().hashCode();
+    }
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -1623,6 +1761,8 @@ private static final long serialVersionUID = 0L;
           return internalGetGlobalAssociatedData();
         case 15:
           return internalGetLocalizedAssociatedData();
+        case 18:
+          return internalGetReferenceCounts();
         default:
           throw new RuntimeException(
               "Invalid map field number: " + number);
@@ -1640,6 +1780,8 @@ private static final long serialVersionUID = 0L;
           return internalGetMutableGlobalAssociatedData();
         case 15:
           return internalGetMutableLocalizedAssociatedData();
+        case 18:
+          return internalGetMutableReferenceCounts();
         default:
           throw new RuntimeException(
               "Invalid map field number: " + number);
@@ -1732,6 +1874,7 @@ private static final long serialVersionUID = 0L;
       }
       scope_ = 0;
 
+      internalGetMutableReferenceCounts().clear();
       return this;
     }
 
@@ -1820,6 +1963,8 @@ private static final long serialVersionUID = 0L;
         result.locales_ = localesBuilder_.build();
       }
       result.scope_ = scope_;
+      result.referenceCounts_ = internalGetReferenceCounts();
+      result.referenceCounts_.makeImmutable();
       onBuilt();
       return result;
     }
@@ -1985,6 +2130,8 @@ private static final long serialVersionUID = 0L;
       if (other.scope_ != 0) {
         setScopeValue(other.getScopeValue());
       }
+      internalGetMutableReferenceCounts().mergeFrom(
+          other.internalGetReferenceCounts());
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
       return this;
@@ -4650,6 +4797,169 @@ private static final long serialVersionUID = 0L;
 
       scope_ = 0;
       onChanged();
+      return this;
+    }
+
+    private com.google.protobuf.MapField<
+        java.lang.String, java.lang.Integer> referenceCounts_;
+    private com.google.protobuf.MapField<java.lang.String, java.lang.Integer>
+    internalGetReferenceCounts() {
+      if (referenceCounts_ == null) {
+        return com.google.protobuf.MapField.emptyMapField(
+            ReferenceCountsDefaultEntryHolder.defaultEntry);
+      }
+      return referenceCounts_;
+    }
+    private com.google.protobuf.MapField<java.lang.String, java.lang.Integer>
+    internalGetMutableReferenceCounts() {
+      onChanged();;
+      if (referenceCounts_ == null) {
+        referenceCounts_ = com.google.protobuf.MapField.newMapField(
+            ReferenceCountsDefaultEntryHolder.defaultEntry);
+      }
+      if (!referenceCounts_.isMutable()) {
+        referenceCounts_ = referenceCounts_.copy();
+      }
+      return referenceCounts_;
+    }
+
+    public int getReferenceCountsCount() {
+      return internalGetReferenceCounts().getMap().size();
+    }
+    /**
+     * <pre>
+     * Contains total count of references per reference name. This may differ from count of provided references
+     * if pagination or strip was used in the input query.
+     * </pre>
+     *
+     * <code>map&lt;string, int32&gt; referenceCounts = 18;</code>
+     */
+
+    @java.lang.Override
+    public boolean containsReferenceCounts(
+        java.lang.String key) {
+      if (key == null) { throw new NullPointerException("map key"); }
+      return internalGetReferenceCounts().getMap().containsKey(key);
+    }
+    /**
+     * Use {@link #getReferenceCountsMap()} instead.
+     */
+    @java.lang.Override
+    @java.lang.Deprecated
+    public java.util.Map<java.lang.String, java.lang.Integer> getReferenceCounts() {
+      return getReferenceCountsMap();
+    }
+    /**
+     * <pre>
+     * Contains total count of references per reference name. This may differ from count of provided references
+     * if pagination or strip was used in the input query.
+     * </pre>
+     *
+     * <code>map&lt;string, int32&gt; referenceCounts = 18;</code>
+     */
+    @java.lang.Override
+
+    public java.util.Map<java.lang.String, java.lang.Integer> getReferenceCountsMap() {
+      return internalGetReferenceCounts().getMap();
+    }
+    /**
+     * <pre>
+     * Contains total count of references per reference name. This may differ from count of provided references
+     * if pagination or strip was used in the input query.
+     * </pre>
+     *
+     * <code>map&lt;string, int32&gt; referenceCounts = 18;</code>
+     */
+    @java.lang.Override
+
+    public int getReferenceCountsOrDefault(
+        java.lang.String key,
+        int defaultValue) {
+      if (key == null) { throw new NullPointerException("map key"); }
+      java.util.Map<java.lang.String, java.lang.Integer> map =
+          internalGetReferenceCounts().getMap();
+      return map.containsKey(key) ? map.get(key) : defaultValue;
+    }
+    /**
+     * <pre>
+     * Contains total count of references per reference name. This may differ from count of provided references
+     * if pagination or strip was used in the input query.
+     * </pre>
+     *
+     * <code>map&lt;string, int32&gt; referenceCounts = 18;</code>
+     */
+    @java.lang.Override
+
+    public int getReferenceCountsOrThrow(
+        java.lang.String key) {
+      if (key == null) { throw new NullPointerException("map key"); }
+      java.util.Map<java.lang.String, java.lang.Integer> map =
+          internalGetReferenceCounts().getMap();
+      if (!map.containsKey(key)) {
+        throw new java.lang.IllegalArgumentException();
+      }
+      return map.get(key);
+    }
+
+    public Builder clearReferenceCounts() {
+      internalGetMutableReferenceCounts().getMutableMap()
+          .clear();
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains total count of references per reference name. This may differ from count of provided references
+     * if pagination or strip was used in the input query.
+     * </pre>
+     *
+     * <code>map&lt;string, int32&gt; referenceCounts = 18;</code>
+     */
+
+    public Builder removeReferenceCounts(
+        java.lang.String key) {
+      if (key == null) { throw new NullPointerException("map key"); }
+      internalGetMutableReferenceCounts().getMutableMap()
+          .remove(key);
+      return this;
+    }
+    /**
+     * Use alternate mutation accessors instead.
+     */
+    @java.lang.Deprecated
+    public java.util.Map<java.lang.String, java.lang.Integer>
+    getMutableReferenceCounts() {
+      return internalGetMutableReferenceCounts().getMutableMap();
+    }
+    /**
+     * <pre>
+     * Contains total count of references per reference name. This may differ from count of provided references
+     * if pagination or strip was used in the input query.
+     * </pre>
+     *
+     * <code>map&lt;string, int32&gt; referenceCounts = 18;</code>
+     */
+    public Builder putReferenceCounts(
+        java.lang.String key,
+        int value) {
+      if (key == null) { throw new NullPointerException("map key"); }
+
+      internalGetMutableReferenceCounts().getMutableMap()
+          .put(key, value);
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains total count of references per reference name. This may differ from count of provided references
+     * if pagination or strip was used in the input query.
+     * </pre>
+     *
+     * <code>map&lt;string, int32&gt; referenceCounts = 18;</code>
+     */
+
+    public Builder putAllReferenceCounts(
+        java.util.Map<java.lang.String, java.lang.Integer> values) {
+      internalGetMutableReferenceCounts().getMutableMap()
+          .putAll(values);
       return this;
     }
     @java.lang.Override

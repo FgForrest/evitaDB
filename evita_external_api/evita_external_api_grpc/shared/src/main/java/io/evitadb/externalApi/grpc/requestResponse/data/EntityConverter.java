@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -54,6 +54,8 @@ import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSeri
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
+import io.evitadb.dataType.DataChunk;
+import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.grpc.dataType.ComplexDataObjectConverter;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
@@ -66,23 +68,17 @@ import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcScope;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toScope;
+import static java.util.Optional.ofNullable;
 
 /**
  * Class used for building suitable form of entity based on {@link SealedEntity}. The main methods here are
@@ -129,7 +125,7 @@ public class EntityConverter {
 		final EntityClassifierWithParent parentEntity;
 		if (grpcEntity.hasParentEntity()) {
 			final HierarchyContent hierarchyContent = evitaRequest.getHierarchyContent();
-			final EvitaRequest parentRequest = Optional.ofNullable(hierarchyContent)
+			final EvitaRequest parentRequest = ofNullable(hierarchyContent)
 				.flatMap(HierarchyContent::getEntityFetch)
 				.map(
 					it -> evitaRequest.deriveCopyWith(
@@ -195,7 +191,8 @@ public class EntityConverter {
 						.stream()
 						.map(EvitaDataTypesConverter::toLocale)
 						.collect(Collectors.toSet()),
-					toScope(grpcEntity.getScope())
+					toScope(grpcEntity.getScope()),
+					evitaRequest::getReferenceChunkTransformer
 				),
 				entitySchema,
 				parentEntity,
@@ -209,6 +206,7 @@ public class EntityConverter {
 				new ClientReferenceFetcher(
 					parentEntity,
 					grpcEntity.getReferencesList(),
+					grpcEntity.getReferenceCountsMap(),
 					entitySchemaFetcher,
 					evitaRequest
 				)
@@ -291,7 +289,7 @@ public class EntityConverter {
 
 		if (entity.parentAvailable()) {
 			entity.getParentEntity()
-				.ifPresent(parent -> entityBuilder.setParent(Int32Value.of(parent.getPrimaryKey())));
+				.ifPresent(parent -> entityBuilder.setParent(Int32Value.of(parent.getPrimaryKeyOrThrowException())));
 
 			entity.getParentEntity()
 				.ifPresent(parent -> {
@@ -332,7 +330,22 @@ public class EntityConverter {
 			priceForSale.ifPresent(it -> entityBuilder.setPriceForSale(toGrpcPrice(it)));
 		}
 
-		if (entity.referencesAvailable() && !entity.getReferences().isEmpty()) {
+		final boolean referencesRequested;
+		final Predicate<String> referenceRequestedPredicate;
+		final Entity internalEntity;
+		if (entity instanceof Entity theEntity) {
+			referencesRequested = true;
+			internalEntity = theEntity;
+			referenceRequestedPredicate = referenceName -> true;
+		} else if (entity instanceof EntityDecorator entityDecorator) {
+			final ReferenceContractSerializablePredicate referencePredicate = entityDecorator.getReferencePredicate();
+			internalEntity = entityDecorator.getDelegate();
+			referencesRequested = referencePredicate.isRequiresEntityReferences();
+			referenceRequestedPredicate = referencePredicate::isReferenceRequested;
+		} else {
+			throw new GenericEvitaInternalError("Unexpected entity type: " + entity.getClass());
+		}
+		if (referencesRequested) {
 			for (ReferenceContract reference : entity.getReferences()) {
 				final GrpcReference.Builder grpcReferenceBuilder = GrpcReference.newBuilder()
 					.setVersion(reference.version())
@@ -379,6 +392,16 @@ public class EntityConverter {
 
 				entityBuilder.addReferences(grpcReferenceBuilder);
 			}
+			internalEntity.getSchema().getReferences().keySet().forEach(
+				referenceName -> {
+					if (referenceRequestedPredicate.test(referenceName)) {
+						entityBuilder.putReferenceCounts(
+							referenceName,
+							entity.getReferenceChunk(referenceName).getTotalRecordCount()
+						);
+					}
+				}
+			);
 		}
 
 		if (entity.associatedDataAvailable() && !entity.getAssociatedDataValues().isEmpty()) {
@@ -478,12 +501,14 @@ public class EntityConverter {
 			.setSellable(price.indexed())
 			.setIndexed(price.indexed())
 			.setVersion(price.version());
-		if (price.innerRecordId() != null) {
-			priceBuilder.setInnerRecordId(Int32Value.newBuilder().setValue(price.innerRecordId()).build());
+		final Integer innerRecordId = price.innerRecordId();
+		if (innerRecordId != null) {
+			priceBuilder.setInnerRecordId(Int32Value.newBuilder().setValue(innerRecordId).build());
 		}
 
-		if (price.validity() != null) {
-			priceBuilder.setValidity(EvitaDataTypesConverter.toGrpcDateTimeRange(price.validity()));
+		final DateTimeRange validity = price.validity();
+		if (validity != null) {
+			priceBuilder.setValidity(EvitaDataTypesConverter.toGrpcDateTimeRange(validity));
 		}
 
 		return priceBuilder.build();
@@ -782,11 +807,13 @@ public class EntityConverter {
 		private final EntityClassifierWithParent parentEntity;
 		private final Map<EntityReference, SealedEntity> entityIndex;
 		private final Map<EntityReference, SealedEntity> groupIndex;
+		private final Map<String, Integer> referencesCount;
 		private final EvitaRequest evitaRequest;
 
 		public ClientReferenceFetcher(
 			@Nullable EntityClassifierWithParent parentEntity,
 			@Nonnull List<GrpcReference> grpcReference,
+			@Nonnull Map<String, Integer> referencesCount,
 			@Nonnull Function<GrpcSealedEntity, SealedEntitySchema> entitySchemaFetcher,
 			@Nonnull EvitaRequest evitaRequest
 		) {
@@ -794,34 +821,43 @@ public class EntityConverter {
 			this.entityIndex = grpcReference.stream()
 				.filter(GrpcReference::hasReferencedEntity)
 				.map(it -> {
-					final RequirementContext fetchCtx = Optional.ofNullable(evitaRequest.getReferenceEntityFetch().get(it.getReferenceName()))
+					final RequirementContext fetchCtx = ofNullable(evitaRequest.getReferenceEntityFetch().get(it.getReferenceName()))
 						.orElse(evitaRequest.getDefaultReferenceRequirement());
+					Assert.isPremiseValid(
+						fetchCtx != null && fetchCtx.entityFetch() != null,
+						"Server returned referenced entity, but it's not requested in the request?!"
+					);
 					final GrpcSealedEntity referencedEntity = it.getReferencedEntity();
 					final EvitaRequest referenceRequest = evitaRequest.deriveCopyWith(referencedEntity.getEntityType(), fetchCtx.entityFetch());
 					return toEntity(entitySchemaFetcher, referenceRequest, referencedEntity, SealedEntity.class, SEALED_ENTITY_TYPE_CONVERTER);
 				})
 				.collect(
 					Collectors.toMap(
-						it -> new EntityReference(it.getType(), it.getPrimaryKey()),
+						it -> new EntityReference(it.getType(), it.getPrimaryKeyOrThrowException()),
 						Function.identity()
 					)
 				);
 			this.groupIndex = grpcReference.stream()
 				.filter(GrpcReference::hasGroupReferencedEntity)
 				.map(it -> {
-					final RequirementContext fetchCtx = Optional.ofNullable(evitaRequest.getReferenceEntityFetch().get(it.getReferenceName()))
+					final RequirementContext fetchCtx = ofNullable(evitaRequest.getReferenceEntityFetch().get(it.getReferenceName()))
 						.orElse(evitaRequest.getDefaultReferenceRequirement());
+					Assert.isPremiseValid(
+						fetchCtx != null && fetchCtx.entityGroupFetch() != null,
+						"Server returned referenced entity, but it's not requested in the request?!"
+					);
 					final GrpcSealedEntity referencedEntity = it.getGroupReferencedEntity();
 					final EvitaRequest referenceRequest = evitaRequest.deriveCopyWith(referencedEntity.getEntityType(), fetchCtx.entityGroupFetch());
 					return toEntity(entitySchemaFetcher, referenceRequest, referencedEntity, SealedEntity.class, SEALED_ENTITY_TYPE_CONVERTER);
 				})
 				.collect(
 					Collectors.toMap(
-						it -> new EntityReference(it.getType(), it.getPrimaryKey()),
+						it -> new EntityReference(it.getType(), it.getPrimaryKeyOrThrowException()),
 						Function.identity(),
 						(sealedEntity, sealedEntity2) -> sealedEntity
 					)
 				);
+			this.referencesCount = referencesCount;
 			this.evitaRequest = evitaRequest;
 		}
 
@@ -858,7 +894,7 @@ public class EntityConverter {
 		@Nullable
 		@Override
 		public Function<Integer, SealedEntity> getEntityGroupFetcher(@Nonnull ReferenceSchemaContract referenceSchema) {
-			return primaryKey -> groupIndex.get(new EntityReference(referenceSchema.getReferencedGroupType(), primaryKey));
+			return primaryKey -> groupIndex.get(new EntityReference(Objects.requireNonNull(referenceSchema.getReferencedGroupType()), primaryKey));
 		}
 
 		@Nullable
@@ -872,6 +908,16 @@ public class EntityConverter {
 		public BiPredicate<Integer, ReferenceDecorator> getEntityFilter(@Nonnull ReferenceSchemaContract referenceSchema) {
 			return (entityId, referenceDecorator) -> true;
 		}
+
+		@Nonnull
+		@Override
+		public DataChunk<ReferenceContract> createChunk(@Nonnull Entity entity, @Nonnull String referenceName, @Nonnull List<ReferenceContract> references) {
+			// client reference fetcher sees only slice of the original reference list (in case of paginated access only requested page)
+			// so we need to use alternate method with providing full total count
+			return entity.getReferenceChunkTransformer().apply(referenceName)
+				.createChunk(references, ofNullable(this.referencesCount.get(referenceName)).orElse(0));
+		}
+
 	}
 
 	/**

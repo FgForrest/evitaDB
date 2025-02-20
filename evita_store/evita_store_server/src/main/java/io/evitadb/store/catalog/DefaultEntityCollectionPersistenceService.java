@@ -39,6 +39,7 @@ import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedData
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
+import io.evitadb.api.requestResponse.data.structure.Entity.ChunkTransformerAccessor;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.predicate.AssociatedDataValueSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.AttributeValueSerializablePredicate;
@@ -305,7 +306,8 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 						attributesStorageContainers,
 						associatedDataStorageContainers,
 						referencesStorageContainer,
-						priceStorageContainer
+						priceStorageContainer,
+						evitaRequest::getReferenceChunkTransformer
 					),
 					ioFetchStatistics.getIoFetchCount(),
 					ioFetchStatistics.getIoFetchedBytes()
@@ -949,7 +951,8 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		@Nonnull AssociatedDataValueSerializablePredicate newAssociatedDataPredicate,
 		@Nonnull ReferenceContractSerializablePredicate newReferenceContractPredicate,
 		@Nonnull PriceContractSerializablePredicate newPricePredicate,
-		@Nonnull DataStoreReader dataStoreReader
+		@Nonnull DataStoreReader dataStoreReader,
+		@Nonnull ChunkTransformerAccessor referenceChunkTransformer
 	) {
 		final int entityPrimaryKey = Objects.requireNonNull(entityDecorator.getPrimaryKey());
 		final IoFetchStatistics ioFetchStatistics = new IoFetchStatistics();
@@ -1014,7 +1017,8 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 					attributesStorageContainers,
 					associatedDataStorageContainers,
 					referencesStorageContainer,
-					priceStorageContainer
+					priceStorageContainer,
+					referenceChunkTransformer
 				),
 				ioFetchStatistics.getIoFetchCount(),
 				ioFetchStatistics.getIoFetchedBytes()

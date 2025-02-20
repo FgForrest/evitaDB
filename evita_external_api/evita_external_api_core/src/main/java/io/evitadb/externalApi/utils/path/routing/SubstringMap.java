@@ -18,6 +18,7 @@
 
 package io.evitadb.externalApi.utils.path.routing;
 
+import javax.annotation.Nonnull;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -177,7 +178,8 @@ public class SubstringMap<V> {
 	}
 
 	public Iterable<String> keys() {
-		return new Iterable<String>() {
+		return new Iterable<>() {
+			@Nonnull
 			@Override
 			public Iterator<String> iterator() {
 				final Object[] tMap = table;
@@ -187,7 +189,7 @@ public class SubstringMap<V> {
 				}
 				final int startPos = i;
 
-				return new Iterator<String>() {
+				return new Iterator<>() {
 
 					private Object[] map = tMap;
 

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.AttributeContent;
+import io.evitadb.api.query.require.ChunkingRequireConstraint;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.EntityGroupFetch;
 import io.evitadb.api.query.require.ReferenceContent;
@@ -57,6 +58,8 @@ public class ReferenceContentSerializer extends Serializer<ReferenceContent> {
 
 		kryo.writeObjectOrNull(output, object.getFilterBy().orElse(null), FilterBy.class);
 		kryo.writeObjectOrNull(output, object.getOrderBy().orElse(null), OrderBy.class);
+
+		kryo.writeClassAndObject(output, object.getChunking().orElse(null));
 	}
 
 	@Override
@@ -74,16 +77,18 @@ public class ReferenceContentSerializer extends Serializer<ReferenceContent> {
 		final FilterBy filter = kryo.readObjectOrNull(input, FilterBy.class);
 		final OrderBy orderBy = kryo.readObjectOrNull(input, OrderBy.class);
 
+		final ChunkingRequireConstraint chunk = (ChunkingRequireConstraint) kryo.readClassAndObject(input);
+
 		if (referencedEntityTypeCount == 0) {
 			return attributeContent == null ?
-				new ReferenceContent(entityFetch, groupEntityFetch) :
-				new ReferenceContent(attributeContent, entityFetch, groupEntityFetch);
+				new ReferenceContent(entityFetch, groupEntityFetch, chunk) :
+				new ReferenceContent(attributeContent, entityFetch, groupEntityFetch, chunk);
 		} else if (referencedEntityTypeCount == 1) {
 			return attributeContent == null ?
-				new ReferenceContent(referencedEntityName[0], filter, orderBy, entityFetch, groupEntityFetch) :
-				new ReferenceContent(referencedEntityName[0], filter, orderBy, attributeContent, entityFetch, groupEntityFetch);
+				new ReferenceContent(referencedEntityName[0], filter, orderBy, entityFetch, groupEntityFetch, chunk) :
+				new ReferenceContent(referencedEntityName[0], filter, orderBy, attributeContent, entityFetch, groupEntityFetch, chunk);
 		} else {
-			return new ReferenceContent(referencedEntityName, entityFetch, groupEntityFetch);
+			return new ReferenceContent(referencedEntityName, entityFetch, groupEntityFetch, chunk);
 		}
 	}
 

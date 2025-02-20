@@ -170,6 +170,7 @@ public class QuerySerializationTest {
 		assertSerializationRound(entityFetch(referenceContent(new String[] {"a", "b"}, entityFetchAll(), entityGroupFetchAll())));
 		assertSerializationRound(entityFetch(referenceContent("a", filterBy(attributeEquals("a", "b")))));
 		assertSerializationRound(entityFetch(referenceContent("a", filterBy(attributeEquals("a", "b")), entityFetchAll())));
+		assertSerializationRound(entityFetch(referenceContent("a", filterBy(attributeEquals("a", "b")), entityFetchAll(), page(1, 20))));
 		assertSerializationRound(entityFetch(referenceContentAllWithAttributes()));
 		assertSerializationRound(entityFetch(referenceContentAllWithAttributes(attributeContent("a", "b", "c"))));
 		assertSerializationRound(entityFetch(referenceContentAllWithAttributes(entityFetchAll())));
@@ -180,6 +181,7 @@ public class QuerySerializationTest {
 		assertSerializationRound(entityFetch(referenceContentAllWithAttributes(attributeContent("a", "b", "c"), entityFetchAll(), entityGroupFetchAll())));
 		assertSerializationRound(entityFetch(referenceContentAllWithAttributes(ManagedReferencesBehaviour.ANY)));
 		assertSerializationRound(entityFetch(referenceContentAllWithAttributes(ManagedReferencesBehaviour.ANY, attributeContent("a", "b", "c"))));
+		assertSerializationRound(entityFetch(referenceContentAllWithAttributes(ManagedReferencesBehaviour.ANY, attributeContent("a", "b", "c"), page(1, 20))));
 		assertSerializationRound(entityFetch(referenceContentWithAttributes("a")));
 		assertSerializationRound(entityFetch(referenceContentWithAttributes("a", "b", "c")));
 		assertSerializationRound(entityFetch(referenceContentWithAttributes("a", attributeContent("b", "c"))));
@@ -191,6 +193,7 @@ public class QuerySerializationTest {
 		assertSerializationRound(entityFetch(referenceContentWithAttributes("a", attributeContent("b", "c"), entityFetchAll(), entityGroupFetchAll())));
 		assertSerializationRound(entityFetch(referenceContentWithAttributes("a", filterBy(attributeEquals("a", "b")))));
 		assertSerializationRound(entityFetch(referenceContentWithAttributes("a", filterBy(attributeEquals("a", "b")), entityFetchAll())));
+		assertSerializationRound(entityFetch(referenceContentWithAttributes("a", filterBy(attributeEquals("a", "b")), entityFetchAll(), page(1, 20))));
 		assertSerializationRound(entityFetch(priceContentAll()));
 		assertSerializationRound(entityFetch(priceContent(PriceContentMode.NONE)));
 		assertSerializationRound(entityFetch(priceContent(PriceContentMode.RESPECTING_FILTER, "a", "b", "c")));
