@@ -36,6 +36,7 @@ import io.evitadb.api.query.require.ManagedReferencesBehaviour;
 import io.evitadb.api.query.require.PriceContent;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.QueryPriceMode;
+import io.evitadb.api.query.require.Require;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.dataType.Scope;
@@ -47,6 +48,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.api.query.filter.AttributeSpecialValue.NULL;
 import static io.evitadb.api.query.require.FacetStatisticsDepth.COUNTS;
 import static io.evitadb.api.query.require.FacetStatisticsDepth.IMPACT;
 import static io.evitadb.api.query.require.QueryPriceMode.WITH_TAX;
@@ -1210,6 +1212,267 @@ class EvitaQLRequireConstraintVisitorTest {
 				)
 			),
 			constraint48
+		);
+	}
+
+	@Test
+	void shouldParseComplexRequirement() {
+		final RequireConstraint parsedConstraint = parseRequireConstraintUnsafe(
+			"""
+				require(
+						page(1, 20),
+						entityFetch(
+							attributeContentAll(),
+							priceContentRespectingFilter('reference', 'basic'),
+							referenceContentWithAttributes(
+								EXISTING,
+								'master',
+								filterBy(
+									entityHaving(
+										and(
+											inScope(
+												LIVE,
+												or(
+													attributeIs('validity', NULL),
+													attributeInRangeNow('validity')
+												)
+											),
+											attributeEquals('status', 'ACTIVE')
+										)
+									)
+								)
+							),
+							referenceContentWithAttributes(
+								EXISTING,
+								'bundles',
+								filterBy(
+									entityHaving(
+										and(
+											inScope(
+												LIVE,
+												or(
+													attributeIs('validity', NULL),
+													attributeInRangeNow('validity')
+												)
+											),
+											attributeEquals('status', 'ACTIVE')
+										)
+									)
+								)
+							),
+							referenceContentWithAttributes(
+								EXISTING,
+								'productSetItems',
+								filterBy(
+									entityHaving(
+										and(
+											inScope(
+												LIVE,
+												or(
+													attributeIs('validity', NULL),
+													attributeInRangeNow('validity')
+												)
+											),
+											attributeEquals('status', 'ACTIVE')
+										)
+									)
+								),
+								entityFetch(
+									attributeContentAll()
+								)
+							),
+							referenceContentWithAttributes(
+								EXISTING,
+								'stocks',
+								filterBy(
+									entityHaving(
+										and(
+											inScope(
+												LIVE,
+												or(
+													attributeIs('validity', NULL),
+													attributeInRangeNow('validity')
+												)
+											),
+											attributeEquals('status', 'ACTIVE')
+										)
+									)
+								),
+								entityFetch(
+									attributeContentAll()
+								)
+							),
+							referenceContentWithAttributes(
+								EXISTING,
+								'tags',
+								entityFetch(
+									attributeContentAll()
+								)
+							),
+							referenceContentWithAttributes(
+								EXISTING,
+								'parameterValues',
+								filterBy(
+									entityHaving(
+										and(
+											or(
+												attributeIs('validity', NULL),
+												attributeInRangeNow('validity')
+											),
+											attributeEquals('status', 'ACTIVE'),
+											referenceHaving(
+												'parameter',
+												entityHaving(
+													and(
+														or(
+															attributeIs('validity', NULL),
+															attributeInRangeNow('validity')
+														),
+														attributeEquals('status', 'ACTIVE')
+													)
+												)
+											)
+										)
+									)
+								),
+								entityFetch(
+									attributeContentAll()
+								),
+								entityGroupFetch(
+									attributeContentAll()
+								)
+							)
+						)
+					)
+				""");
+		final Require expectedConstraint = require(
+			page(1, 20),
+			entityFetch(
+				attributeContentAll(),
+				priceContentRespectingFilter("reference", "basic"),
+				referenceContentWithAttributes(
+					ManagedReferencesBehaviour.EXISTING,
+					"master",
+					filterBy(
+						entityHaving(
+							and(
+								inScope(
+									Scope.LIVE,
+									or(
+										attributeIs("validity", NULL),
+										attributeInRangeNow("validity")
+									)
+								),
+								attributeEquals("status", "ACTIVE")
+							)
+						)
+					)
+				),
+				referenceContentWithAttributes(
+					ManagedReferencesBehaviour.EXISTING,
+					"bundles",
+					filterBy(
+						entityHaving(
+							and(
+								inScope(
+									Scope.LIVE,
+									or(
+										attributeIs("validity", NULL),
+										attributeInRangeNow("validity")
+									)
+								),
+								attributeEquals("status", "ACTIVE")
+							)
+						)
+					)
+				),
+				referenceContentWithAttributes(
+					ManagedReferencesBehaviour.EXISTING,
+					"productSetItems",
+					filterBy(
+						entityHaving(
+							and(
+								inScope(
+									Scope.LIVE,
+									or(
+										attributeIs("validity", NULL),
+										attributeInRangeNow("validity")
+									)
+								),
+								attributeEquals("status", "ACTIVE")
+							)
+						)
+					),
+					entityFetch(
+						attributeContentAll()
+					)
+				),
+				referenceContentWithAttributes(
+					ManagedReferencesBehaviour.EXISTING,
+					"stocks",
+					filterBy(
+						entityHaving(
+							and(
+								inScope(
+									Scope.LIVE,
+									or(
+										attributeIs("validity", NULL),
+										attributeInRangeNow("validity")
+									)
+								),
+								attributeEquals("status", "ACTIVE")
+							)
+						)
+					),
+					entityFetch(
+						attributeContentAll()
+					)
+				),
+				referenceContentWithAttributes(
+					ManagedReferencesBehaviour.EXISTING,
+					"tags",
+					entityFetch(
+						attributeContentAll()
+					)
+				),
+				referenceContentWithAttributes(
+					ManagedReferencesBehaviour.EXISTING,
+					"parameterValues",
+					filterBy(
+						entityHaving(
+							and(
+								or(
+									attributeIs("validity", NULL),
+									attributeInRangeNow("validity")
+								),
+								attributeEquals("status", "ACTIVE"),
+								referenceHaving(
+									"parameter",
+									entityHaving(
+										and(
+											or(
+												attributeIs("validity", NULL),
+												attributeInRangeNow("validity")
+											),
+											attributeEquals("status", "ACTIVE")
+										)
+									)
+								)
+							)
+						)
+					),
+					entityFetch(
+						attributeContentAll()
+					),
+					entityGroupFetch(
+						attributeContentAll()
+					)
+				)
+			)
+		);
+		assertEquals(
+			expectedConstraint,
+			parsedConstraint
 		);
 	}
 

@@ -283,7 +283,7 @@ singleRefReferenceContent7Args :                    argsOpening (managedReferenc
 
 singleRefReferenceContent8Args :                    argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = valueToken ARGS_DELIMITER filterBy = filterConstraint ARGS_DELIMITER orderBy = orderConstraint ARGS_DELIMITER entityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint (ARGS_DELIMITER requirement = requireConstraint)? argsClosing ;
 
-singleRefReferenceContentWithAttributes0Args :      argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = valueToken ARGS_DELIMITER attributeContent = requireConstraint;
+singleRefReferenceContentWithAttributes0Args :      argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = valueToken ARGS_DELIMITER requirement = requireConstraint argsClosing;
 
 singleRefReferenceContentWithAttributes1Args :      argsOpening (managedReferencesBehaviour = valueToken ARGS_DELIMITER)? classifier = valueToken ARGS_DELIMITER requirement1 = requireConstraint ARGS_DELIMITER requirement2 = requireConstraint argsClosing ;
 

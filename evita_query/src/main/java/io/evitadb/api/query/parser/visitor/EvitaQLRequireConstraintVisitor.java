@@ -903,11 +903,27 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 						.accept(stringValueTokenVisitor)
 						.asString();
 
-				final AttributeContent attributeContent = visitChildConstraint(ctx.args.attributeContent, AttributeContent.class);
+				final RequireConstraint requirement = visitChildConstraint(ctx.args.requirement, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class, ChunkingRequireConstraint.class);
 
-				return new ReferenceContent(
-					managedReferencesBehaviour, referenceName, null, null, attributeContent, null, null, null
-				);
+				if (requirement instanceof  AttributeContent attributeContent) {
+					return new ReferenceContent(
+						managedReferencesBehaviour, referenceName, null, null, attributeContent, null, null, null
+					);
+				} else if (requirement instanceof EntityFetch entityFetch) {
+					return new ReferenceContent(
+						managedReferencesBehaviour, referenceName, null, null, AttributeContent.ALL_ATTRIBUTES, entityFetch, null, null
+					);
+				} else if (requirement instanceof EntityGroupFetch entityGroupFetch) {
+					return new ReferenceContent(
+						managedReferencesBehaviour, referenceName, null, null, AttributeContent.ALL_ATTRIBUTES, null, entityGroupFetch, null
+					);
+				} else if (requirement instanceof ChunkingRequireConstraint chunk) {
+					return new ReferenceContent(
+						managedReferencesBehaviour, referenceName, null, null, AttributeContent.ALL_ATTRIBUTES, null, null, chunk
+					);
+				} else {
+					throw new GenericEvitaInternalError("Should never happen!");
+				}
 			}
 		);
 	}
