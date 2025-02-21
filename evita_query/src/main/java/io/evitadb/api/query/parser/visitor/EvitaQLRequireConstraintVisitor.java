@@ -454,7 +454,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 
 				return new ReferenceContent(
 					managedReferencesBehaviour,
-					referenceName, null, null, null, null, null
+					referenceName, null, null, (EntityFetch) null, null, null
 				);
 			}
 		);
@@ -527,7 +527,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 
 				if (requirement == null) {
 					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, filterBy, null, null, null, null
+						managedReferencesBehaviour, referenceName, filterBy, null, (EntityFetch) null, null, null
 					);
 				} else if (requirement instanceof final EntityFetch entityFetch) {
 					return new ReferenceContent(
@@ -614,7 +614,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 
 				if (requirement == null) {
 					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, null, orderBy, null, null, null
+						managedReferencesBehaviour, referenceName, null, orderBy, (EntityFetch) null, null, null
 					);
 				} else if (requirement instanceof final EntityFetch entityFetch) {
 					return new ReferenceContent(
@@ -702,7 +702,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 
 				if (requirement == null) {
 					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, filterBy, orderBy, null, null, null
+						managedReferencesBehaviour, referenceName, filterBy, orderBy, (EntityFetch) null, null, null
 					);
 				} else if (requirement instanceof final EntityFetch entityFetch) {
 					return new ReferenceContent(

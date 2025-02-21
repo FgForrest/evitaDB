@@ -17067,7 +17067,7 @@ public interface QueryConstraints {
 		return referenceName == null ?
 			null :
 			new ReferenceContent(
-				managedReferencesBehaviour, referenceName, filterBy, null, null, null, null
+				managedReferencesBehaviour, referenceName, filterBy, null, (EntityFetch) null, null, null
 			);
 	}
 
@@ -18657,7 +18657,7 @@ public interface QueryConstraints {
 		return referenceName == null ?
 			null :
 			new ReferenceContent(
-				managedReferencesBehaviour, referenceName, null, orderBy, null, null, null
+				managedReferencesBehaviour, referenceName, null, orderBy, (EntityFetch) null, null, null
 			);
 	}
 
@@ -20247,7 +20247,7 @@ public interface QueryConstraints {
 		return referenceName == null ?
 			null :
 			new ReferenceContent(
-				managedReferencesBehaviour, referenceName, filterBy, orderBy, null, null, null
+				managedReferencesBehaviour, referenceName, filterBy, orderBy, (EntityFetch) null, null, null
 			);
 	}
 

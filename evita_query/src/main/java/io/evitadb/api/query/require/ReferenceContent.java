@@ -538,6 +538,38 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 		);
 	}
 
+	/**
+	 * This constructor causes ambiguity with the constructor that takes {@link AttributeContent} as the first parameter
+	 * and is there only for backward compatibility and will be removed.
+	 *
+	 * @deprecated will be removed in the future
+	 */
+	@Deprecated
+	public ReferenceContent(
+		@Nullable ManagedReferencesBehaviour managedReferences,
+		@Nonnull String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable AttributeContent attributeContent,
+		@Nullable EntityFetch entityFetch,
+		@Nullable EntityGroupFetch entityGroupFetch
+	) {
+		super(
+			ArrayUtils.mergeArrays(
+				new Serializable[]{ofNullable(managedReferences).orElse(ManagedReferencesBehaviour.ANY)},
+				new String[]{referenceName}
+			),
+			new RequireConstraint[]{
+				attributeContent,
+				entityFetch,
+				entityGroupFetch,
+				null
+			},
+			filterBy,
+			orderBy
+		);
+	}
+
 	public ReferenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferences,
 		@Nonnull String referenceName,
