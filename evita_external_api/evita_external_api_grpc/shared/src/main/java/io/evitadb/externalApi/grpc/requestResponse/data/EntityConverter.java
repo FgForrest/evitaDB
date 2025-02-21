@@ -330,22 +330,22 @@ public class EntityConverter {
 			priceForSale.ifPresent(it -> entityBuilder.setPriceForSale(toGrpcPrice(it)));
 		}
 
-		final boolean referencesRequested;
+		final boolean referencesRequestedAndFetched;
 		final Predicate<String> referenceRequestedPredicate;
 		final Entity internalEntity;
 		if (entity instanceof Entity theEntity) {
-			referencesRequested = true;
+			referencesRequestedAndFetched = true;
 			internalEntity = theEntity;
 			referenceRequestedPredicate = referenceName -> true;
 		} else if (entity instanceof EntityDecorator entityDecorator) {
 			final ReferenceContractSerializablePredicate referencePredicate = entityDecorator.getReferencePredicate();
 			internalEntity = entityDecorator.getDelegate();
-			referencesRequested = referencePredicate.isRequiresEntityReferences();
-			referenceRequestedPredicate = referencePredicate::isReferenceRequested;
+			referencesRequestedAndFetched = entityDecorator.referencesAvailable();
+			referenceRequestedPredicate = entityDecorator::referencesAvailable;
 		} else {
 			throw new GenericEvitaInternalError("Unexpected entity type: " + entity.getClass());
 		}
-		if (referencesRequested) {
+		if (referencesRequestedAndFetched) {
 			for (ReferenceContract reference : entity.getReferences()) {
 				final GrpcReference.Builder grpcReferenceBuilder = GrpcReference.newBuilder()
 					.setVersion(reference.version())
