@@ -454,7 +454,8 @@ public final class EntityCollection implements
 				referenceEntityFetch,
 				evitaRequest.getDefaultReferenceRequirement(),
 				queryContext.createExecutionContext(),
-				entity
+				entity,
+				evitaRequest::getReferenceChunkTransformer
 			);
 
 		// record query information
@@ -1983,7 +1984,8 @@ public final class EntityCollection implements
 				evitaRequest.getHierarchyContent(),
 				referenceEntityFetch,
 				evitaRequest.getDefaultReferenceRequirement(),
-				queryContext.createExecutionContext()
+				queryContext.createExecutionContext(),
+				evitaRequest::getReferenceChunkTransformer
 			);
 	}
 

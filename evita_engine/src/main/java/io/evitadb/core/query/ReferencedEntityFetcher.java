@@ -58,6 +58,7 @@ import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReferenc
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.Entity;
+import io.evitadb.api.requestResponse.data.structure.Entity.ChunkTransformerAccessor;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.EntityReferenceWithParent;
 import io.evitadb.api.requestResponse.data.structure.ReferenceComparator;
@@ -179,6 +180,11 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 */
 	@Nullable private IntObjectMap<EntityClassifierWithParent> parentEntities;
 	/**
+	 * Function providing access to {@link ChunkTransformer} implementations for particular references. Accessor is
+	 * simple wrapper over {@link EvitaRequest} method references.
+	 */
+	@Nonnull private final ChunkTransformerAccessor chunkTransformerAccessor;
+	/**
 	 * This request is used to extend the original request on top-level entity. It solves the scenario, when the nested
 	 * references are ordered by reference attribute. In that case we need to extend the original request with additional
 	 * requirements to fetch the reference attribute for ordering comparator.
@@ -251,7 +257,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			fetchRequest.getHierarchyContent(),
 			referenceEntityFetch,
 			fetchRequest.getDefaultReferenceRequirement(),
-			nestedQueryContext.createExecutionContext()
+			nestedQueryContext.createExecutionContext(),
+			fetchRequest::getReferenceChunkTransformer
 		);
 
 		try {
@@ -292,7 +299,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			null,
 			referenceEntityFetch,
 			fetchRequest.getDefaultReferenceRequirement(),
-			nestedQueryContext.createExecutionContext()
+			nestedQueryContext.createExecutionContext(),
+			fetchRequest::getReferenceChunkTransformer
 		);
 
 		try {
@@ -366,7 +374,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nullable HierarchyContent hierarchyContent,
 		@Nonnull Map<String, RequirementContext> referenceEntityFetch,
 		@Nullable RequirementContext defaultRequirementContext,
-		@Nonnull QueryExecutionContext nestedQueryContext
+		@Nonnull QueryExecutionContext nestedQueryContext,
+		@Nonnull ChunkTransformerAccessor chunkTransformerAccessor
 	) {
 		return referenceEntityFetch.isEmpty() && hierarchyContent == null ?
 			ReferenceFetcher.NO_IMPLEMENTATION :
@@ -374,7 +383,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				hierarchyContent,
 				referenceEntityFetch,
 				defaultRequirementContext,
-				nestedQueryContext
+				nestedQueryContext,
+				chunkTransformerAccessor
 			);
 	}
 
@@ -941,11 +951,13 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull Map<String, RequirementContext> requirementContext,
 		@Nullable RequirementContext defaultRequirementContext,
 		@Nonnull QueryExecutionContext executionContext,
-		@Nonnull EntityContract entity
+		@Nonnull EntityContract entity,
+		@Nonnull ChunkTransformerAccessor chunkTransformerAccessor
 	) {
 		this(
 			hierarchyContent, requirementContext, defaultRequirementContext, executionContext,
-			new ExistingEntityDecoratorProvider((EntityDecorator) entity)
+			new ExistingEntityDecoratorProvider((EntityDecorator) entity),
+			chunkTransformerAccessor
 		);
 	}
 
@@ -956,9 +968,13 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nullable HierarchyContent hierarchyContent,
 		@Nonnull Map<String, RequirementContext> requirementContext,
 		@Nullable RequirementContext defaultRequirementContext,
-		@Nonnull QueryExecutionContext executionContext
+		@Nonnull QueryExecutionContext executionContext,
+		@Nonnull ChunkTransformerAccessor chunkTransformerAccessor
 	) {
-		this(hierarchyContent, requirementContext, defaultRequirementContext, executionContext, EmptyEntityProvider.INSTANCE);
+		this(
+			hierarchyContent, requirementContext, defaultRequirementContext, executionContext,
+			EmptyEntityProvider.INSTANCE, chunkTransformerAccessor
+		);
 	}
 
 	/**
@@ -969,13 +985,15 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull Map<String, RequirementContext> requirementContext,
 		@Nullable RequirementContext defaultRequirementContext,
 		@Nonnull QueryExecutionContext executionContext,
-		@Nonnull ExistingEntityProvider existingEntityRetriever
+		@Nonnull ExistingEntityProvider existingEntityRetriever,
+		@Nonnull ChunkTransformerAccessor chunkTransformerAccessor
 	) {
 		this.hierarchyContent = hierarchyContent;
 		this.requirementContext = requirementContext;
 		this.defaultRequirementContext = defaultRequirementContext;
 		this.executionContext = executionContext;
 		this.existingEntityRetriever = existingEntityRetriever;
+		this.chunkTransformerAccessor = chunkTransformerAccessor;
 	}
 
 	@Nonnull
@@ -1177,7 +1195,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	@Override
 	public DataChunk<ReferenceContract> createChunk(@Nonnull Entity entity, @Nonnull String referenceName, @Nonnull List<ReferenceContract> references) {
 		// the server side has always access to complete list of references
-		return entity.getReferenceChunkTransformer().apply(referenceName).createChunk(references);
+		return this.chunkTransformerAccessor.apply(referenceName).createChunk(references);
 	}
 
 	/**

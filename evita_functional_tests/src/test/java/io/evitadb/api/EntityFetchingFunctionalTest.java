@@ -5310,6 +5310,167 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 		assertEquals(originPriceLists, result[1]);
 	}
 
+	@DisplayName("Should fetch entity without chunking and chunk it afterwards using enrichment")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldFetchEntityFirstAndEnrichItWithStrip(Evita evita, List<SealedEntity> originalProducts) {
+		final SealedEntity productWithMaxReferences = originalProducts
+			.stream()
+			.max(Comparator.comparingInt(o -> o.getReferences(Entities.BRAND).size() + o.getReferences(Entities.PARAMETER).size()))
+			.orElseThrow();
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final SealedEntity firstFetch = session.queryOneSealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(productWithMaxReferences.getPrimaryKeyOrThrowException())
+						)
+					)
+				).orElseThrow();
+
+				final SealedEntity secondFetch = session.enrichEntity(
+					firstFetch,
+					referenceContent(
+						Entities.PARAMETER,
+						entityFetchAll(),
+						entityGroupFetchAll(),
+						strip(2, 4)
+					)
+				);
+
+				final Collection<ReferenceContract> originalParameters = productWithMaxReferences.getReferences(Entities.PARAMETER);
+				final int[] expectedParameters = originalParameters
+					.stream()
+					.skip(2)
+					.limit(4)
+					.mapToInt(ReferenceContract::getReferencedPrimaryKey)
+					.toArray();
+
+				final Collection<ReferenceContract> foundParameters = secondFetch.getReferences(Entities.PARAMETER);
+				assertTrue(!foundParameters.isEmpty() && foundParameters.size() <= 4);
+				assertEquals(foundParameters.size(), secondFetch.getReferences().stream().filter(it -> it.getReferenceName().equals(Entities.PARAMETER)).count());
+				assertArrayEquals(
+					expectedParameters,
+					secondFetch.getReferences(Entities.PARAMETER)
+						.stream()
+						.mapToInt(ReferenceContract::getReferencedPrimaryKey)
+						.toArray()
+				);
+
+				for (ReferenceContract foundParameter : foundParameters) {
+					assertNotNull(foundParameter.getReferencedEntity());
+					assertNotNull(foundParameter.getGroupEntity().orElse(null));
+				}
+
+				StripList<ReferenceContract> parameters = new StripList<>(2, 4, (int) originalParameters.stream().count(), new ArrayList<>(foundParameters));
+				assertEquals(parameters, secondFetch.getReferenceChunk(Entities.PARAMETER));
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should fetch entity with one page and enrich it with different one")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldFetchEntityWithPageAndChangeItInEnrichment(Evita evita, List<SealedEntity> originalProducts) {
+		final SealedEntity productWithMaxReferences = originalProducts
+			.stream()
+			.max(Comparator.comparingInt(o -> o.getReferences(Entities.BRAND).size() + o.getReferences(Entities.PARAMETER).size()))
+			.orElseThrow();
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final SealedEntity firstFetch = session.queryOneSealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(productWithMaxReferences.getPrimaryKeyOrThrowException())
+						),
+						require(
+							entityFetch(
+								referenceContent(
+									Entities.PARAMETER,
+									entityFetchAll(),
+									entityGroupFetchAll(),
+									page(1, 4)
+								)
+							)
+						)
+					)
+				).orElseThrow();
+
+				final Collection<ReferenceContract> originalParameters = productWithMaxReferences.getReferences(Entities.PARAMETER);
+				final int[] expectedFirstFetchParameters = originalParameters
+					.stream()
+					.limit(4)
+					.mapToInt(ReferenceContract::getReferencedPrimaryKey)
+					.toArray();
+
+				final Collection<ReferenceContract> foundParametersOnFirstFetch = firstFetch.getReferences(Entities.PARAMETER);
+				assertTrue(!foundParametersOnFirstFetch.isEmpty() && foundParametersOnFirstFetch.size() <= 4);
+				assertEquals(foundParametersOnFirstFetch.size(), firstFetch.getReferences().stream().filter(it -> it.getReferenceName().equals(Entities.PARAMETER)).count());
+				assertArrayEquals(
+					expectedFirstFetchParameters,
+					firstFetch.getReferences(Entities.PARAMETER)
+						.stream()
+						.mapToInt(ReferenceContract::getReferencedPrimaryKey)
+						.toArray()
+				);
+
+				for (ReferenceContract foundParameter : foundParametersOnFirstFetch) {
+					assertNotNull(foundParameter.getReferencedEntity());
+					assertNotNull(foundParameter.getGroupEntity().orElse(null));
+				}
+
+				PaginatedList<ReferenceContract> firstFetchChunk = new PaginatedList<>(1, 4, (int) originalParameters.stream().count(), new ArrayList<>(foundParametersOnFirstFetch));
+				assertEquals(firstFetchChunk, firstFetch.getReferenceChunk(Entities.PARAMETER));
+
+				final SealedEntity secondFetch = session.enrichEntity(
+					firstFetch,
+					referenceContent(
+						Entities.PARAMETER,
+						entityFetchAll(),
+						entityGroupFetchAll(),
+						strip(2, 4)
+					)
+				);
+
+				final int[] expectedSecondFetchParameters = originalParameters
+					.stream()
+					.skip(2)
+					.limit(4)
+					.mapToInt(ReferenceContract::getReferencedPrimaryKey)
+					.toArray();
+
+				final Collection<ReferenceContract> foundParametersOnSecondFetch = secondFetch.getReferences(Entities.PARAMETER);
+				assertTrue(!foundParametersOnSecondFetch.isEmpty() && foundParametersOnSecondFetch.size() <= 4);
+				assertEquals(foundParametersOnSecondFetch.size(), secondFetch.getReferences().stream().filter(it -> it.getReferenceName().equals(Entities.PARAMETER)).count());
+				assertArrayEquals(
+					expectedSecondFetchParameters,
+					secondFetch.getReferences(Entities.PARAMETER)
+						.stream()
+						.mapToInt(ReferenceContract::getReferencedPrimaryKey)
+						.toArray()
+				);
+
+				for (ReferenceContract foundParameter : foundParametersOnSecondFetch) {
+					assertNotNull(foundParameter.getReferencedEntity());
+					assertNotNull(foundParameter.getGroupEntity().orElse(null));
+				}
+
+				StripList<ReferenceContract> secondFetchChunk = new StripList<>(2, 4, (int) originalParameters.stream().count(), new ArrayList<>(foundParametersOnSecondFetch));
+				assertEquals(secondFetchChunk, secondFetch.getReferenceChunk(Entities.PARAMETER));
+
+				return null;
+			}
+		);
+	}
+
 	private void assertProductHasAttributesInLocale(SealedEntity product, Locale locale, String... attributes) {
 		for (String attribute : attributes) {
 			assertNotNull(
