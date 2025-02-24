@@ -121,7 +121,7 @@ public class EvitaRequest {
 	@Nullable private Map<String, FacetFilterBy> facetGroupNegation;
 	private Boolean queryTelemetryRequested;
 	@Nullable private EnumSet<DebugMode> debugModes;
-	private Scope[] scopesAsArray;
+	@Nullable private Scope[] scopesAsArray;
 	@Nullable private Set<Scope> scopes;
 	@Nullable private Map<String, RequirementContext> entityFetchRequirements;
 	@Nullable private RequirementContext defaultReferenceRequirement;
@@ -215,6 +215,7 @@ public class EvitaRequest {
 		this.expectedType = evitaRequest.expectedType;
 		this.debugModes = evitaRequest.debugModes;
 		this.scopes = evitaRequest.scopes;
+		this.scopesAsArray = evitaRequest.scopesAsArray;
 	}
 
 	public EvitaRequest(
@@ -294,6 +295,7 @@ public class EvitaRequest {
 		this.expectedType = evitaRequest.expectedType;
 		this.debugModes = evitaRequest.debugModes;
 		this.scopes = evitaRequest.scopes;
+		this.scopesAsArray = evitaRequest.scopesAsArray;
 	}
 
 	public EvitaRequest(
@@ -359,6 +361,8 @@ public class EvitaRequest {
 		this.expectedType = evitaRequest.expectedType;
 		this.debugModes = null;
 		this.scopes = scopes;
+		this.scopesAsArray = this.scopes == null ?
+			null : this.scopes.toArray(Scope[]::new);
 	}
 
 	/**
