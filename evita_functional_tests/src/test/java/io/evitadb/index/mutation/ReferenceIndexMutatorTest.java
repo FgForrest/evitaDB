@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -90,7 +90,7 @@ class ReferenceIndexMutatorTest extends AbstractMutatorTestBase {
 		final ReferenceKey referenceKey = new ReferenceKey(Entities.BRAND, 10);
 		final EntityIndex referenceIndex = new GlobalEntityIndex(2, productSchema.getName(), new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, referenceKey));
 		referenceInsert(
-			1, productSchema, executor, entityIndex, referenceTypesIndex, referenceIndex, referenceKey,
+			1, productSchema, executor, entityIndex, referenceTypesIndex, referenceIndex, referenceKey, null,
 			getEntityAttributeValueSupplierFactory(ENTITY_NAME, 1), DO_NOTHING_CONSUMER
 		);
 		assertArrayEquals(new int[]{10}, referenceTypesIndex.getAllPrimaryKeys().getArray());
@@ -104,7 +104,7 @@ class ReferenceIndexMutatorTest extends AbstractMutatorTestBase {
 		final ExistingDataSupplierFactory entityAttributeValueSupplierFactory = getEntityAttributeValueSupplierFactory(ENTITY_NAME, 1);
 
 		referenceInsert(
-			1, productSchema, executor, entityIndex, referenceTypesIndex, referenceIndex, referenceKey, entityAttributeValueSupplierFactory, DO_NOTHING_CONSUMER
+			1, productSchema, executor, entityIndex, referenceTypesIndex, referenceIndex, referenceKey, null, entityAttributeValueSupplierFactory, DO_NOTHING_CONSUMER
 		);
 		final ReferenceAttributeMutation referenceMutation = new ReferenceAttributeMutation(referenceKey, new UpsertAttributeMutation(new AttributeKey(ATTRIBUTE_VARIANT_COUNT), 55));
 		attributeUpdate(
