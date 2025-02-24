@@ -35,8 +35,6 @@ import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.filter.EntityPrimaryKeyInSet;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.ReferenceHaving;
-import io.evitadb.api.query.order.EntityGroupProperty;
-import io.evitadb.api.query.order.EntityProperty;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.DefaultPrefetchRequirementCollector;
 import io.evitadb.api.query.require.EntityFetch;
@@ -82,6 +80,8 @@ import io.evitadb.core.query.sort.ReferenceOrderByVisitor;
 import io.evitadb.core.query.sort.ReferenceOrderByVisitor.OrderingDescriptor;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.attribute.translator.EntityNestedQueryComparator;
+import io.evitadb.core.query.sort.attribute.translator.EntityNestedQueryComparator.EntityGroupPropertyWithScopes;
+import io.evitadb.core.query.sort.attribute.translator.EntityNestedQueryComparator.EntityPropertyWithScopes;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.Scope;
@@ -720,16 +720,16 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull EvitaSessionContract evitaSession
 	) {
-		final EntityProperty entityOrderBy = entityNestedQueryComparator.getOrderBy();
+		final EntityPropertyWithScopes entityOrderBy = entityNestedQueryComparator.getOrderBy();
 		if (entityOrderBy != null) {
-			final OrderBy orderBy = new OrderBy(entityOrderBy.getChildren());
+			final OrderBy orderBy = entityOrderBy.createStandaloneOrderBy();
 			final QueryPlanningContext nestedQueryContext = targetEntityCollection.createQueryContext(
 				evitaRequest.deriveCopyWith(
 					targetEntityCollection.getEntityType(),
 					null,
 					orderBy,
 					entityNestedQueryComparator.getLocale(),
-					evitaRequest.getScopes()
+					entityOrderBy.scopes()
 				),
 				evitaSession
 			);
@@ -741,21 +741,21 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			final Sorter sorter = queryPlan.getSorter();
 			entityNestedQueryComparator.setSorter(nestedQueryContext.createExecutionContext(), sorter);
 		}
-		final EntityGroupProperty entityGroupOrderBy = entityNestedQueryComparator.getGroupOrderBy();
+		final EntityGroupPropertyWithScopes entityGroupOrderBy = entityNestedQueryComparator.getGroupOrderBy();
 		if (entityGroupOrderBy != null) {
 			Assert.isTrue(
 				targetEntityGroupCollection != null,
 				"The `entityGroupProperty` ordering is specified in the query but the reference `" + referenceSchema.getName() + "` does not have managed entity group collection!"
 			);
 
-			final OrderBy orderBy = new OrderBy(entityGroupOrderBy.getChildren());
+			final OrderBy orderBy = entityGroupOrderBy.createStandaloneOrderBy();
 			final QueryPlanningContext nestedQueryContext = targetEntityGroupCollection.createQueryContext(
 				evitaRequest.deriveCopyWith(
 					targetEntityGroupCollection.getEntityType(),
 					null,
 					orderBy,
 					entityNestedQueryComparator.getLocale(),
-					evitaRequest.getScopes()
+					entityGroupOrderBy.scopes()
 				),
 				evitaSession
 			);
@@ -1315,7 +1315,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 						} else {
 							// if not, leave the index empty
 							slicer = null;
-							filteredReferencedEntityIdsArray = null;
+							filteredReferencedEntityIdsArray = ArrayUtils.EMPTY_INT_ARRAY;
 							entityIndex = Collections.emptyMap();
 						}
 
@@ -1351,7 +1351,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 							filteredReferencedGroupEntityIdsArray = filteredReferencedGroupEntityIds.getArray();
 						} else {
 							// if not, leave the index empty
-							filteredReferencedGroupEntityIdsArray = null;
+							filteredReferencedGroupEntityIdsArray = ArrayUtils.EMPTY_INT_ARRAY;
 							entityGroupIndex = Collections.emptyMap();
 						}
 

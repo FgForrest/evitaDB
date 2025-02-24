@@ -378,6 +378,18 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 	}
 
 	/**
+	 * Retrieves the current set of scopes being applied in the query context.
+	 * If the scope stack is empty, this method delegates to the query context to retrieve the scopes.
+	 * Otherwise, it returns the top scope from the stack.
+	 *
+	 * @return a set of {@link Scope} objects representing the current query context scopes
+	 */
+	@Nonnull
+	public Set<Scope> getScopes() {
+		return this.scope.isEmpty() ? this.queryContext.getScopes() : this.scope.peek();
+	}
+
+	/**
 	 * Executes the given {@link Runnable} within the context of the specified {@link Scope scopes}.
 	 * The method temporarily pushes the provided scopes to the current scope stack,
 	 * executes the runnable, and ensures the stack is restored to its previous state
