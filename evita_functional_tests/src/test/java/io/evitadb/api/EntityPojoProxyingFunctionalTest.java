@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -322,7 +322,10 @@ public class EntityPojoProxyingFunctionalTest extends AbstractEntityProxyingFunc
 		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_CODE), product.getCode());
 		if (locale == null) {
 			if (!((SealedEntityProxy)product).entity().getLocales().isEmpty()) {
-				assertArrayEquals(originalProduct.getAttributeLocales().stream().map(it -> originalProduct.getAttribute(DataGenerator.ATTRIBUTE_NAME, it, String.class)).toArray(String[]::new), product.getNames());
+				assertArrayEquals(
+					originalProduct.getAttributeLocales().stream().map(it -> originalProduct.getAttribute(DataGenerator.ATTRIBUTE_NAME, it, String.class)).toArray(String[]::new),
+					product.getNames()
+				);
 			}
 		} else {
 			final String actualName = originalProduct.getAttribute(DataGenerator.ATTRIBUTE_NAME, locale, String.class);
@@ -602,7 +605,7 @@ public class EntityPojoProxyingFunctionalTest extends AbstractEntityProxyingFunc
 		);
 
 		assertProductBasicData(productWithCzkSellingPrice, limitedProduct);
-		assertProductAttributes(productWithCzkSellingPrice, limitedProduct, null);
+		assertProductAttributes(productWithCzkSellingPrice, limitedProduct, Locale.ENGLISH);
 		assertNull(limitedProduct.getReferencedFileSet());
 		assertNull(limitedProduct.getReferencedFileSetAsDifferentProperty());
 	}

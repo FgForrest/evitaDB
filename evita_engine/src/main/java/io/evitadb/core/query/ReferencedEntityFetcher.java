@@ -1971,7 +1971,14 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			final int realPageNumber = PaginatedList.isRequestedResultBehindLimit(pageNumber, pageSize, primaryKeys.size()) ?
 				1 : pageNumber;
 			final int offset = PaginatedList.getFirstItemNumberForPage(realPageNumber, pageSize);
-			return new ArrayBitmap(primaryKeys.getRange(offset, Math.min(offset + pageSize, primaryKeys.size())));
+			return primaryKeys.isEmpty() ?
+				EmptyBitmap.INSTANCE :
+				new ArrayBitmap(
+					primaryKeys.getRange(
+						offset,
+						Math.min(offset + pageSize, primaryKeys.size())
+					)
+				);
 		}
 
 		/**
@@ -1985,12 +1992,14 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		 */
 		@Nonnull
 		public Bitmap slice(@Nonnull Bitmap primaryKeys, @Nonnull Strip strip) {
-			return new ArrayBitmap(
-				primaryKeys.getRange(
-					Math.min(strip.getOffset(), primaryKeys.size() - 1),
-					Math.min(strip.getOffset() + strip.getLimit(), primaryKeys.size())
-				)
-			);
+			return primaryKeys.isEmpty() ?
+				EmptyBitmap.INSTANCE :
+				new ArrayBitmap(
+					primaryKeys.getRange(
+						Math.min(strip.getOffset(), primaryKeys.size() - 1),
+						Math.min(strip.getOffset() + strip.getLimit(), primaryKeys.size())
+					)
+				);
 		}
 
 	}

@@ -1152,10 +1152,12 @@ public class EvitaRequest {
 			final int offset = PaginatedList.getFirstItemNumberForPage(realPageNumber, pageSize);
 			return new PaginatedList<>(
 				realPageNumber, pageSize, referenceContracts.size(),
-				referenceContracts.subList(
-					offset,
-					Math.min(offset + pageSize, referenceContracts.size())
-				)
+				referenceContracts.isEmpty() ?
+					referenceContracts :
+					referenceContracts.subList(
+						offset,
+						Math.min(offset + pageSize, referenceContracts.size())
+					)
 			);
 		}
 
@@ -1183,10 +1185,12 @@ public class EvitaRequest {
 		public DataChunk<ReferenceContract> createChunk(@Nonnull List<ReferenceContract> referenceContracts) {
 			return new StripList<>(
 				strip.getOffset(), strip.getLimit(), referenceContracts.size(),
-				referenceContracts.subList(
-					Math.min(strip.getOffset(), referenceContracts.size() - 1),
-					Math.min(strip.getOffset() + strip.getLimit(), referenceContracts.size())
-				)
+				referenceContracts.isEmpty() ?
+					referenceContracts :
+					referenceContracts.subList(
+						Math.min(strip.getOffset(), referenceContracts.size() - 1),
+						Math.min(strip.getOffset() + strip.getLimit(), referenceContracts.size())
+					)
 			);
 		}
 

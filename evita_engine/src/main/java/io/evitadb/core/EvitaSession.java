@@ -42,6 +42,7 @@ import io.evitadb.api.proxy.SealedEntityProxy;
 import io.evitadb.api.proxy.SealedEntityReferenceProxy;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.require.DataInLocales;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.PriceContent;
 import io.evitadb.api.query.require.PriceContentMode;
@@ -110,6 +111,7 @@ import java.util.*;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -268,6 +270,55 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 				));
 		}
 		return entityType;
+	}
+
+	/**
+	 * Creates a factory function for generating {@link EvitaRequest} objects while either propagating
+	 * the original locale information or including all available locales based on the given requirements.
+	 * In other words,  when the client logic doesn't explicitly specify its own set of locales, the enriched entity
+	 * will respect the locales of the previously fetched entity.
+	 *
+	 * @param entityType the type of the entity for which the request is to be created
+	 * @param require    an array of {@link EntityContentRequire} instances that specify the data requirements for the request
+	 * @return a factory function that, when applied, generates an {@link EvitaRequest} based on the specified locales and requirements
+	 */
+	@Nonnull
+	private static BiFunction<Set<Locale>, Class<?>, EvitaRequest> createEvitaRequestFactoryPropagatingOriginalLocale(
+		@Nonnull String entityType,
+		@Nonnull EntityContentRequire... require
+	) {
+		return Arrays.stream(require).anyMatch(DataInLocales.class::isInstance) ?
+			(locales, requestedClass) -> {
+				return new EvitaRequest(
+					Query.query(
+						collection(entityType),
+						require(
+							entityFetch(require)
+						)
+					),
+					OffsetDateTime.now(),
+					requestedClass,
+					entityType
+				);
+			} :
+			(originalLocales, requestedClass) -> new EvitaRequest(
+				Query.query(
+					collection(entityType),
+					require(
+						entityFetch(
+							ArrayUtils.mergeArrays(
+								require,
+								new EntityContentRequire[]{
+									dataInLocales(originalLocales.toArray(new Locale[0]))
+								}
+							)
+						)
+					)
+				),
+				OffsetDateTime.now(),
+				requestedClass,
+				entityType
+			);
 	}
 
 	EvitaSession(
@@ -613,24 +664,18 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	public <T extends Serializable> T enrichEntity(@Nonnull T partiallyLoadedEntity, EntityContentRequire... require) {
 		assertActive();
 
-		final String entityType = getEntityTypeFromEntity(partiallyLoadedEntity, reflectionLookup);
+		final String entityType = getEntityTypeFromEntity(partiallyLoadedEntity, this.reflectionLookup);
 		final EntityEnrichEvent enrichEvent = new EntityEnrichEvent(getCatalogName(), entityType);
 		final EntityCollectionContract entityCollection = getCatalog().getCollectionForEntityOrThrowException(entityType);
-		final EvitaRequest evitaRequest = new EvitaRequest(
-			Query.query(
-				collection(entityType),
-				require(
-					entityFetch(require)
-				)
-			),
-			OffsetDateTime.now(),
-			EntityReference.class,
-			entityType
-		);
+		final BiFunction<Set<Locale>, Class<?>, EvitaRequest> evitaRequestFactory = createEvitaRequestFactoryPropagatingOriginalLocale(entityType, require);
 		if (partiallyLoadedEntity instanceof SealedEntityProxy sealedEntityProxy) {
+			final EntityContract innerEntity = sealedEntityProxy.entity();
 			final ServerEntityDecorator enrichedEntity = (ServerEntityDecorator) entityCollection.enrichEntity(
-				sealedEntityProxy.entity(),
-				evitaRequest,
+				innerEntity,
+				evitaRequestFactory.apply(
+					innerEntity.getLocales(),
+					sealedEntityProxy.getProxyClass()
+				),
 				this
 			);
 
@@ -645,11 +690,13 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 				sealedEntityProxy.getProxyClass(),
 				enrichedEntity
 			);
-		} else {
-			isTrue(partiallyLoadedEntity instanceof EntityDecorator, "Expected entity decorator in the input.");
+		} else if (partiallyLoadedEntity instanceof EntityDecorator entityDecorator) {
 			final ServerEntityDecorator enrichedEntity = (ServerEntityDecorator) entityCollection.enrichEntity(
-				(EntityDecorator) partiallyLoadedEntity,
-				evitaRequest,
+				entityDecorator,
+				evitaRequestFactory.apply(
+					entityDecorator.getLocales(),
+					partiallyLoadedEntity.getClass()
+				),
 				this
 			);
 			// emit the event
@@ -660,6 +707,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 
 			//noinspection unchecked
 			return (T) enrichedEntity;
+		} else {
+			throw new EvitaInvalidUsageException("Expected entity decorator in the input.");
 		}
 	}
 
@@ -675,19 +724,12 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 
 		final EntityCollectionContract entityCollection = getCatalog().getCollectionForEntity(entityType)
 			.orElseThrow(() -> new CollectionNotFoundException(entityType));
-		final EvitaRequest evitaRequest = new EvitaRequest(
-			Query.query(
-				collection(entityType),
-				require(
-					entityFetch(require)
-				)
-			),
-			OffsetDateTime.now(),
-			partiallyLoadedEntity instanceof SealedEntityProxy sealedEntityProxy ?
-				sealedEntityProxy.getProxyClass() : partiallyLoadedEntity.getClass(),
-			entityType
-		);
+		final BiFunction<Set<Locale>, Class<?>, EvitaRequest> evitaRequestFactory = createEvitaRequestFactoryPropagatingOriginalLocale(entityType, require);
 		if (partiallyLoadedEntity instanceof SealedEntityProxy sealedEntityProxy) {
+			final EvitaRequest evitaRequest = evitaRequestFactory.apply(
+				sealedEntityProxy.entity().getLocales(),
+				sealedEntityProxy.getProxyClass()
+			);
 			final ServerEntityDecorator enrichedEntity = (ServerEntityDecorator) entityCollection.limitEntity(
 				entityCollection.enrichEntity(
 					sealedEntityProxy.entity(),
@@ -708,10 +750,13 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 				sealedEntityProxy.getProxyClass(),
 				enrichedEntity
 			);
-		} else {
-			isTrue(partiallyLoadedEntity instanceof EntityDecorator, "Expected entity decorator in the input.");
+		} else if (partiallyLoadedEntity instanceof EntityDecorator entityDecorator) {
+			final EvitaRequest evitaRequest = evitaRequestFactory.apply(
+				entityDecorator.getLocales(),
+				partiallyLoadedEntity.getClass()
+			);
 			final ServerEntityDecorator enrichedEntity = (ServerEntityDecorator) entityCollection.limitEntity(
-				entityCollection.enrichEntity((EntityDecorator) partiallyLoadedEntity, evitaRequest, this),
+				entityCollection.enrichEntity(entityDecorator, evitaRequest, this),
 				evitaRequest, this
 			);
 
@@ -723,6 +768,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 
 			//noinspection unchecked
 			return (T) enrichedEntity;
+		} else {
+			throw new EvitaInvalidUsageException("Expected entity decorator in the input.");
 		}
 	}
 
@@ -1259,30 +1306,6 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			.flatMap(it -> it.toChangeCatalogCapture(mutationPredicate, criteria.content()));
 	}
 
-	@Nonnull
-	@Override
-	public Stream<TrafficRecording> getRecordings(@Nonnull TrafficRecordingCaptureRequest request) throws TemporalDataNotAvailableException {
-		assertActive();
-		final CatalogContract currentCatalog = getCatalog();
-		if (currentCatalog instanceof Catalog theCatalog) {
-			return theCatalog.getTrafficRecordingEngine().getRecordings(request);
-		} else {
-			throw new CatalogCorruptedException((CorruptedCatalog) currentCatalog);
-		}
-	}
-
-	@Nonnull
-	@Override
-	public Stream<TrafficRecording> getRecordingsReversed(@Nonnull TrafficRecordingCaptureRequest request) throws TemporalDataNotAvailableException, IndexNotReady {
-		assertActive();
-		final CatalogContract currentCatalog = getCatalog();
-		if (currentCatalog instanceof Catalog theCatalog) {
-			return theCatalog.getTrafficRecordingEngine().getRecordingsReversed(request);
-		} else {
-			throw new CatalogCorruptedException((CorruptedCatalog) currentCatalog);
-		}
-	}
-
 	@Interruptible
 	@Traced
 	@Nonnull
@@ -1340,6 +1363,30 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Override
 	public long getInactivityDurationInSeconds() {
 		return (System.currentTimeMillis() - this.lastCall) / 1000;
+	}
+
+	@Nonnull
+	@Override
+	public Stream<TrafficRecording> getRecordings(@Nonnull TrafficRecordingCaptureRequest request) throws TemporalDataNotAvailableException {
+		assertActive();
+		final CatalogContract currentCatalog = getCatalog();
+		if (currentCatalog instanceof Catalog theCatalog) {
+			return theCatalog.getTrafficRecordingEngine().getRecordings(request);
+		} else {
+			throw new CatalogCorruptedException((CorruptedCatalog) currentCatalog);
+		}
+	}
+
+	@Nonnull
+	@Override
+	public Stream<TrafficRecording> getRecordingsReversed(@Nonnull TrafficRecordingCaptureRequest request) throws TemporalDataNotAvailableException, IndexNotReady {
+		assertActive();
+		final CatalogContract currentCatalog = getCatalog();
+		if (currentCatalog instanceof Catalog theCatalog) {
+			return theCatalog.getTrafficRecordingEngine().getRecordingsReversed(request);
+		} else {
+			throw new CatalogCorruptedException((CorruptedCatalog) currentCatalog);
+		}
 	}
 
 	@Interruptible
@@ -1547,6 +1594,19 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	}
 
 	/**
+	 * Delegates call to internal {@link #proxyFactory#createEntityProxy(Class, SealedEntity, Map)}.
+	 *
+	 * @param contract     contract of the entity to be created
+	 * @param sealedEntity sealed entity to be used as a source of data
+	 * @param <S>          type of the entity
+	 * @return new instance of the entity proxy
+	 */
+	@Nonnull
+	public <S> S createEntityProxy(@Nonnull Class<S> contract, @Nonnull SealedEntity sealedEntity) {
+		return this.proxyFactory.createEntityProxy(contract, sealedEntity, getEntitySchemaIndex());
+	}
+
+	/**
 	 * Determines if the current execution is at the root level.
 	 *
 	 * @return {@code true} if the execution is at the root level, {@code false} otherwise.
@@ -1576,7 +1636,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	/**
 	 * Validates the schema of the given catalog.
 	 *
-	 * @param theCatalog  the catalog to be validated, must not be null
+	 * @param theCatalog the catalog to be validated, must not be null
 	 */
 	private void validateCatalogSchema(
 		@Nonnull CatalogContract theCatalog
@@ -1596,19 +1656,6 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	}
 
 	/**
-	 * Delegates call to internal {@link #proxyFactory#createEntityProxy(Class, SealedEntity, Map)}.
-	 *
-	 * @param contract     contract of the entity to be created
-	 * @param sealedEntity sealed entity to be used as a source of data
-	 * @param <S>          type of the entity
-	 * @return new instance of the entity proxy
-	 */
-	@Nonnull
-	public <S> S createEntityProxy(@Nonnull Class<S> contract, @Nonnull SealedEntity sealedEntity) {
-		return this.proxyFactory.createEntityProxy(contract, sealedEntity, getEntitySchemaIndex());
-	}
-
-	/**
 	 * Returns map with current {@link Catalog#getSchema() catalog} {@link EntitySchemaContract entity schema} instances
 	 * indexed by their {@link EntitySchemaContract#getName() name}.
 	 *
@@ -1624,13 +1671,13 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	 * The method asserts that at least one scope parameter is provided and invokes a fetch operation
 	 * within the context of an `EvitaRequest`.
 	 *
-	 * @param entityType the type of entity to retrieve.
-	 * @param expectedType the class object corresponding to the expected type of the entity.
-	 * @param transformer a function to transform the retrieved entity into the expected type.
+	 * @param entityType                     the type of entity to retrieve.
+	 * @param expectedType                   the class object corresponding to the expected type of the entity.
+	 * @param transformer                    a function to transform the retrieved entity into the expected type.
 	 * @param serverEntityDecoratorExtractor a function to extract a `ServerEntityDecorator` from the retrieved entity.
-	 * @param primaryKey the primary key identifying the specific entity to be retrieved.
-	 * @param scopes an array of scopes that define the context within which the entity is to be fetched.
-	 * @param require an array of `EntityContentRequire` instructions specifying any additional entity content requirements.
+	 * @param primaryKey                     the primary key identifying the specific entity to be retrieved.
+	 * @param scopes                         an array of scopes that define the context within which the entity is to be fetched.
+	 * @param require                        an array of `EntityContentRequire` instructions specifying any additional entity content requirements.
 	 * @return an `Optional` containing the entity if it exists, or an empty `Optional` if the entity does not exist.
 	 */
 	@Nonnull
