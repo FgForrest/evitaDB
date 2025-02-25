@@ -4,7 +4,7 @@ name: Notify Mattermost on Release
 
 on:
   release:
-    types: [published, edited]
+    types: [published]
 
 jobs:
   notify:
