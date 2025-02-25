@@ -17,10 +17,11 @@ jobs:
       - name: Prepare Release Body
         id: prepare_body
         run: |
-          echo " 🎉 evitaDB ${{ github.event.release.tag_name }} released!\n\n${{ toJSON(github.event.release.body) }}" > changes.txt
-          sed -i ':a;N;$!ba;s/\n/\\n/g' changes.txt
-          echo "Contents of the file: $(cat changes.txt)"
-          sanitized_body="$(cat changes.txt)"          
+          printf " 🎉 evitaDB ${{ github.event.release.tag_name }} released!\n\n${{ github.event.release.body }}" > changes.txt
+          sed -i ':a;N;$!ba;s/\\/\\\\/g; s/"/\\"/g; s/\n/\\n/g; s/\r/\\r/g; s/\t/\\t/g' changes.txt
+          echo "Contents of the file:"
+          cat changes.txt  
+          sanitized_body=$(< changes.txt)          
           echo "name=processed_body::$sanitized_body" >> $GITHUB_OUTPUT
 
       # Send the message to Mattermost with the escaped release body
