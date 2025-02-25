@@ -19,7 +19,7 @@ jobs:
           MATTERMOST_WEBHOOK_URL: ${{ secrets.MM_WEBHOOK_URL }}
           PAYLOAD: |-
             {
-              "text": "## 🎉 evitaDB ${{ github.event.release.tag_name }} released!\n\n**Release Notes**:\n ${{ toJSON(github.event.release.body) }}",
+              "text": "## 🎉 evitaDB ${{ github.event.release.tag_name }} released!\\n\\n**Release Notes**:\\n${{ toJSON(github.event.release.body) }}",
               "color":"#31bf2c",
               "username": "${{ github.triggering_actor }}",
               "icon": "https://raw.githubusercontent.com/FgForrest/evitaDB/dev/documentation/assets/img/evita.png"
