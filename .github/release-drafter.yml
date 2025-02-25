@@ -5,7 +5,7 @@ latest: 'true'
 prerelease: true
 prerelease-identifier: 'beta'
 categories:
-  - title: '⁉️ Breaking changes'
+  - title: '⛓️‍💥 Breaking changes'
     labels:
       - 'breaking change'
       - 'breaking'
@@ -28,7 +28,7 @@ autolabeler:
   - label: 'bug'
     title:
       - '/^fix(\(.*\))?:/'
-change-template: '- $TITLE @$AUTHOR (#$NUMBER)<br/>$BODY'
+change-template: '- **$TITLE** @$AUTHOR (#$NUMBER)<br/>$BODY'
 change-title-escapes: '\<*_&' # You can add # and @ to disable mentions, and add ` to disable code blocks.
 filter-by-commitish: true
 
