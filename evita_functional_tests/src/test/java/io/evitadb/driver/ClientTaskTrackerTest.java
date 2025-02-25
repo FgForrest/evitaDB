@@ -51,7 +51,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class ClientTaskTrackerTest implements TestConstants {
 	final EvitaManagementContract evitaClientMock = Mockito.mock(EvitaManagementContract.class);
-	private final ClientTaskTracker tested = new ClientTaskTracker(evitaClientMock, 100, 1);
+	private ClientTaskTracker tested = new ClientTaskTracker(evitaClientMock, 100, 1);
 
 	@Test
 	void shouldTrackTaskUntilFinished() throws ExecutionException, InterruptedException, TimeoutException {
