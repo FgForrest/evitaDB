@@ -17,7 +17,10 @@ jobs:
       - name: Prepare Release Body
         id: prepare_body
         run: |
-          sanitized_body=$(printf '%s' "${{ github.event.release.body }}" | sed ':a;N;$!ba;s/\n/\\n/g')          
+          echo " 🎉 evitaDB ${{ github.event.release.tag_name }} released!\n\n${{ toJSON(github.event.release.body) }}" > changes.txt
+          sed -i ':a;N;$!ba;s/\n/\\n/g' changes.txt
+          echo "Contents of the file: $(cat changes.txt)"
+          sanitized_body="$(cat changes.txt)"          
           echo "name=processed_body::$sanitized_body" >> $GITHUB_OUTPUT
 
       # Send the message to Mattermost with the escaped release body
@@ -27,7 +30,7 @@ jobs:
           MATTERMOST_WEBHOOK_URL: ${{ secrets.MM_WEBHOOK_URL }}
           PAYLOAD: |-
             {
-              "text": "## 🎉 evitaDB ${{ github.event.release.tag_name }} released!\n\n${{ steps.prepare_body.outputs.processed_body }}",
+              "text": "#${{ steps.prepare_body.outputs.processed_body }}",
               "color": "#31bf2c",
               "username": "${{ github.triggering_actor }}",
               "icon": "https://raw.githubusercontent.com/FgForrest/evitaDB/dev/documentation/assets/img/evita.png"
