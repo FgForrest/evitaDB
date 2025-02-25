@@ -17,8 +17,8 @@ jobs:
       - name: Prepare Release Body
         id: prepare_body
         run: |
-          sanitized_body=$(echo "${{ github.event.release.body }}" | sed ':a;N;$!ba;s/\n/\\n/g')
-          echo "::set-output name=processed_body::$sanitized_body"
+          sanitized_body=$(printf '%s' "${{ github.event.release.body }}" | sed ':a;N;$!ba;s/\n/\\n/g')          
+          echo "name=processed_body::$sanitized_body" >> $GITHUB_OUTPUT
 
       # Send the message to Mattermost with the escaped release body
       - name: Send message to Mattermost
