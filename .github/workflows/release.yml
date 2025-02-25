@@ -19,7 +19,7 @@ jobs:
         run: |
           printf "${{ github.event.release.body }}" > changes.txt
           sed -i ':a;N;$!ba;s/\\/\\\\/g; s/"/\\"/g; s/\n/\\n/g; s/\r//g; s/\t/\\t/g' changes.txt
-          sed -E 's/\(#([0-9]+)\)/([#\1](https:\/\/github.com\/FgForrest\/evitaDB\/issues\/\1))/g' changes.txt
+          sed -i -E 's/\(#([0-9]+)\)/([#\1](https:\/\/github.com\/FgForrest\/evitaDB\/issues\/\1))/g' changes.txt
           echo "Contents of the file:"
           cat changes.txt
           echo ""
@@ -35,7 +35,7 @@ jobs:
             {              
               "attachments": [
                 {
-                  "title": "🎉 evitaDB ${{ github.event.release.tag_name }} released!",                
+                  "title": "🎉 evitaDB ${{ github.event.release.name }} released!",                
                   "title_link": "${{ github.event.release.html_url }}",
                   "text": "${{ steps.prepare_body.outputs.processed_body }}",
                   "color": "#31bf2c"
