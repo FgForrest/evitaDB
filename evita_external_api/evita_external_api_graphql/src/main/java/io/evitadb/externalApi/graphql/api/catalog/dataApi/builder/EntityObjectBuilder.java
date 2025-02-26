@@ -637,7 +637,11 @@ public class EntityObjectBuilder {
 
 				{ // base reference field
 					final GraphQLOutputType referenceObject = switch (version) {
-						case DEFAULT -> buildReferenceObject(collectionBuildingContext, referenceSchema);
+						case DEFAULT -> {
+							final GraphQLObjectType object = buildReferenceObject(collectionBuildingContext, referenceSchema);
+							buildingContext.registerType(object);
+							yield object;
+						}
 						case NON_HIERARCHICAL ->
 							typeRef(ReferenceDescriptor.THIS.name(collectionBuildingContext.getSchema(), referenceSchema));
 						default -> throw new GraphQLSchemaBuildingError("Unsupported version `" + version + "`.");
@@ -679,7 +683,6 @@ public class EntityObjectBuilder {
 				}
 
 				{ // chunked reference fields
-					// todo lho verify we want this only for default
 					if (EntityObjectVariant.DEFAULT.equals(version) && referenceIsList) {
 						fields.add(new BuiltFieldDescriptor(
 							GraphQLEntityDescriptor.REFERENCE_PAGE
@@ -762,10 +765,7 @@ public class EntityObjectBuilder {
 			);
 		}
 
-		final GraphQLObjectType build = referenceObjectBuilder.build();
-		// todo lho this shouldnt be needed, or should it if it is used somewhere?
-		buildingContext.registerType(build);
-		return build;
+		return referenceObjectBuilder.build();
 	}
 
 	@Nonnull
