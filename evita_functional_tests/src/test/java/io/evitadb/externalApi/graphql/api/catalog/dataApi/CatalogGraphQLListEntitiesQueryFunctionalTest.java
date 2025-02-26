@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,6 +43,8 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ReferencePageDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ReferenceStripDescriptor;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
@@ -2589,6 +2591,183 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
                             store {
                                 referencedEntity {
                                     primaryKey
+                                }
+                            }
+	                    }
+	                }
+					""",
+				entities.get(0).getAttribute(ATTRIBUTE_CODE),
+				entities.get(1).getAttribute(ATTRIBUTE_CODE)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(PRODUCT_LIST_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return sublist of references for products")
+	void shouldReturnSublistOfReferencesForProducts(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final var entities = findEntities(
+			originalProductEntities,
+			it -> it.getReferences(Entities.STORE).size() >= 4,
+			2
+		);
+
+		final var expectedBody = entities.stream()
+			.map(entity -> map()
+				.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+				.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+				.e("store", entity.getReferences(Entities.STORE)
+					.stream()
+					.limit(2)
+					.map(reference ->
+						map()
+							.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
+								.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getReferencedPrimaryKey()))
+							.build())
+					.toList())
+				.build()
+			)
+			.toList();
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    listProduct(
+	                        filterBy: {
+	                            attributeCodeInSet: ["%s", "%s"]
+	                        }
+	                    ) {
+                            primaryKey
+	                        type
+                            store(limit: 2) {
+                                referencedEntity {
+                                    primaryKey
+                                }
+                            }
+                        }
+	                }
+					""",
+				entities.get(0).getAttribute(ATTRIBUTE_CODE),
+				entities.get(1).getAttribute(ATTRIBUTE_CODE)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(PRODUCT_LIST_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return reference page for products")
+	void shouldReturnReferencePageForProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final var entities = findEntities(
+			originalProductEntities,
+			it -> it.getReferences(Entities.STORE).size() >= 4,
+			2
+		);
+
+		final var expectedBody = entities.stream()
+			.map(entity -> map()
+				.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+				.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+				.e("storePage", map()
+					.e(ReferencePageDescriptor.TOTAL_RECORD_COUNT.name(), entity.getReferences(Entities.STORE).size())
+					.e(ReferencePageDescriptor.DATA.name(), entity.getReferences(Entities.STORE)
+						.stream()
+						.skip(2)
+						.limit(2)
+						.map(reference ->
+							map()
+							.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
+								.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getReferencedPrimaryKey()))
+								.build())
+						.toList()))
+				.build()
+			)
+			.toList();
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    listProduct(
+	                        filterBy: {
+	                            attributeCodeInSet: ["%s", "%s"]
+	                        }
+	                    ) {
+                            primaryKey
+	                        type
+                            storePage(number: 2, size: 2) {
+                                totalRecordCount
+                                data {
+	                                referencedEntity {
+	                                    primaryKey
+	                                }
+                                }
+                            }
+	                    }
+	                }
+					""",
+				entities.get(0).getAttribute(ATTRIBUTE_CODE),
+				entities.get(1).getAttribute(ATTRIBUTE_CODE)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(PRODUCT_LIST_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return reference strip for products")
+	void shouldReturnReferenceStripForProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final var entities = findEntities(
+			originalProductEntities,
+			it -> it.getReferences(Entities.STORE).size() >= 4,
+			2
+		);
+
+		final var expectedBody = entities.stream()
+			.map(entity -> map()
+				.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+				.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+				.e("storeStrip", map()
+					.e(ReferenceStripDescriptor.TOTAL_RECORD_COUNT.name(), entity.getReferences(Entities.STORE).size())
+					.e(ReferenceStripDescriptor.DATA.name(), entity.getReferences(Entities.STORE)
+						.stream()
+						.skip(2)
+						.limit(2)
+						.map(reference ->
+							map()
+							.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
+								.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getReferencedPrimaryKey()))
+								.build())
+						.toList()))
+				.build()
+			)
+			.toList();
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    listProduct(
+	                        filterBy: {
+	                            attributeCodeInSet: ["%s", "%s"]
+	                        }
+	                    ) {
+                            primaryKey
+	                        type
+                            storeStrip(offset: 2, limit: 2) {
+                                totalRecordCount
+                                data {
+	                                referencedEntity {
+	                                    primaryKey
+	                                }
                                 }
                             }
 	                    }
