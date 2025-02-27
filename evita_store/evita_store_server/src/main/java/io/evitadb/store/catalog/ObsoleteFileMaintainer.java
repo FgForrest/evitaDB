@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
 
 package io.evitadb.store.catalog;
 
-import io.evitadb.core.CatalogVersionBeyondTheHorizonListener;
+import io.evitadb.core.CatalogConsumersListener;
 import io.evitadb.core.async.DelayedAsyncTask;
 import io.evitadb.core.async.Scheduler;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -37,7 +37,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.Closeable;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -65,7 +64,7 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Slf4j
-public class ObsoleteFileMaintainer implements CatalogVersionBeyondTheHorizonListener, Closeable {
+public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeable {
 	/**
 	 * When time travel is enabled the files are not removed immediately but are kept until the WAL history is purged.
 	 */
@@ -96,7 +95,7 @@ public class ObsoleteFileMaintainer implements CatalogVersionBeyondTheHorizonLis
 	 * The catalog version that is no longer used and all files with the version less or equal to this value can be
 	 * safely purged.
 	 */
-	private final AtomicLong noLongerUsedCatalogVersion = new AtomicLong(0L);
+	private final AtomicLong lastKnownMinimalActiveVersion = new AtomicLong(0L);
 	/**
 	 * The supplier of the catalog header for the specified catalog version.
 	 */
@@ -176,22 +175,22 @@ public class ObsoleteFileMaintainer implements CatalogVersionBeyondTheHorizonLis
 	 * asynchronous file removal. This method does nothing when time travel is enabled, because the files are removed
 	 * when WAL files are removed and this logic is executed in {@link ObsoleteWalPurgeCallback} callback.
 	 *
-	 * @param minimalActiveCatalogVersion the minimal catalog version that is still being used, NULL when there is no
+	 * @param lastKnownMinimalActiveVersion the minimal catalog version that is still being used, NULL when there is no
 	 *                                    active session
 	 */
 	@Override
-	public void catalogVersionBeyondTheHorizon(@Nullable Long minimalActiveCatalogVersion) {
+	public void consumersLeft(long lastKnownMinimalActiveVersion) {
 		// immediate file purging on catalog version exchange is not used when time travel is enabled
 		if (!this.timeTravelEnabled) {
-			if (minimalActiveCatalogVersion == null && this.lastCatalogVersion.get() > 0L) {
-				this.noLongerUsedCatalogVersion.accumulateAndGet(
+			if (this.lastCatalogVersion.get() > 0L) {
+				this.lastKnownMinimalActiveVersion.accumulateAndGet(
 					this.lastCatalogVersion.get(),
 					Math::max
 				);
 				this.purgeTask.schedule();
-			} else if (minimalActiveCatalogVersion != null && minimalActiveCatalogVersion > 0L && this.firstCatalogVersion.get() <= minimalActiveCatalogVersion) {
-				this.noLongerUsedCatalogVersion.accumulateAndGet(
-					minimalActiveCatalogVersion,
+			} else if (lastKnownMinimalActiveVersion > 0L && this.firstCatalogVersion.get() <= lastKnownMinimalActiveVersion) {
+				this.lastKnownMinimalActiveVersion.accumulateAndGet(
+					lastKnownMinimalActiveVersion,
 					Math::max
 				);
 				this.purgeTask.schedule();
@@ -202,7 +201,7 @@ public class ObsoleteFileMaintainer implements CatalogVersionBeyondTheHorizonLis
 	@Override
 	public void close() {
 		// clear all files immediately, database shuts down and there will be no active sessions
-		this.noLongerUsedCatalogVersion.set(0L);
+		this.lastKnownMinimalActiveVersion.set(0L);
 		for (MaintainedFile maintainedFile : maintainedFiles) {
 			purgeFile(maintainedFile);
 		}
@@ -232,11 +231,11 @@ public class ObsoleteFileMaintainer implements CatalogVersionBeyondTheHorizonLis
 	 * @return the next scheduled time for the purge task (always -1L - i.e. do not schedule again)
 	 */
 	private long purgeObsoleteFiles() {
-		final long noLongerUsed = this.noLongerUsedCatalogVersion.get();
+		final long lastKnownMinimalActiveVersion = this.lastKnownMinimalActiveVersion.get();
 		final List<MaintainedFile> itemsToRemove = new LinkedList<>();
 		long newFirstCatalogVersion = 0L;
 		for (MaintainedFile maintainedFile : this.maintainedFiles) {
-			if (maintainedFile.catalogVersion() <= noLongerUsed) {
+			if (maintainedFile.catalogVersion() < lastKnownMinimalActiveVersion) {
 				purgeFile(maintainedFile);
 				itemsToRemove.add(maintainedFile);
 			} else {

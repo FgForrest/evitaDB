@@ -46,7 +46,7 @@ import io.evitadb.api.requestResponse.system.TimeFlow;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.core.Catalog;
-import io.evitadb.core.CatalogVersionBeyondTheHorizonListener;
+import io.evitadb.core.CatalogConsumersListener;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.buffer.DataStoreChanges;
@@ -163,7 +163,7 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @Slf4j
-public class DefaultCatalogPersistenceService implements CatalogPersistenceService, CatalogVersionBeyondTheHorizonListener {
+public class DefaultCatalogPersistenceService implements CatalogPersistenceService, CatalogConsumersListener {
 
 	/**
 	 * Factory function that configures new instance of the versioned kryo factory.
@@ -1926,12 +1926,18 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 
 	@Nonnull
 	@Override
-	public ServerTask<?, FileForFetch> createBackupTask(@Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException {
+	public ServerTask<?, FileForFetch> createBackupTask(
+		@Nullable OffsetDateTime pastMoment,
+		boolean includingWAL,
+		@Nullable LongConsumer onStart,
+		@Nullable LongConsumer onComplete
+	) throws TemporalDataNotAvailableException {
 		final CatalogBootstrap bootstrapRecord = pastMoment == null ?
 			this.bootstrapUsed : getCatalogBootstrapForSpecificMoment(this.catalogName, this.storageOptions, pastMoment);
 		return new BackupTask(
 			this.catalogName, pastMoment, includingWAL,
-			bootstrapRecord, this.exportFileService, this
+			bootstrapRecord, this.exportFileService, this,
+			onStart, onComplete
 		);
 	}
 
@@ -1974,11 +1980,11 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	}
 
 	@Override
-	public void catalogVersionBeyondTheHorizon(@Nullable Long minimalActiveCatalogVersion) {
-		this.catalogStoragePartPersistenceService.values().forEach(it -> it.purgeHistoryEqualAndLaterThan(minimalActiveCatalogVersion));
-		this.obsoleteFileMaintainer.catalogVersionBeyondTheHorizon(minimalActiveCatalogVersion);
+	public void consumersLeft(long lastKnownMinimalActiveVersion) {
+		this.catalogStoragePartPersistenceService.values().forEach(it -> it.purgeHistoryOlderThan(lastKnownMinimalActiveVersion));
+		this.obsoleteFileMaintainer.consumersLeft(lastKnownMinimalActiveVersion);
 		this.entityCollectionPersistenceServices.values()
-			.forEach(it -> it.catalogVersionBeyondTheHorizon(minimalActiveCatalogVersion));
+			.forEach(it -> it.consumersLeft(lastKnownMinimalActiveVersion));
 	}
 
 	@Override

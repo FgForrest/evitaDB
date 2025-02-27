@@ -50,7 +50,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.core.Catalog;
-import io.evitadb.core.CatalogVersionBeyondTheHorizonListener;
+import io.evitadb.core.CatalogConsumersListener;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.core.buffer.DataStoreChanges;
 import io.evitadb.core.buffer.DataStoreChanges.RemovedStoragePart;
@@ -152,7 +152,7 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @Slf4j
-public class DefaultEntityCollectionPersistenceService implements EntityCollectionPersistenceService, CatalogVersionBeyondTheHorizonListener {
+public class DefaultEntityCollectionPersistenceService implements EntityCollectionPersistenceService, CatalogConsumersListener {
 	public static final byte[][] BYTE_TWO_DIMENSIONAL_ARRAY = new byte[0][];
 	/**
 	 * Factory function that configures new instance of the versioned kryo factory.
@@ -870,8 +870,8 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	}
 
 	@Override
-	public void catalogVersionBeyondTheHorizon(@Nullable Long minimalActiveCatalogVersion) {
-		this.storagePartPersistenceService.purgeHistoryEqualAndLaterThan(minimalActiveCatalogVersion);
+	public void consumersLeft(long lastKnownMinimalActiveVersion) {
+		this.storagePartPersistenceService.purgeHistoryOlderThan(lastKnownMinimalActiveVersion);
 	}
 
 	@Nullable
