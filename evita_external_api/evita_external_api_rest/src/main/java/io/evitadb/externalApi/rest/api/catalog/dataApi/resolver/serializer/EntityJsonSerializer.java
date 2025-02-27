@@ -257,7 +257,7 @@ public class EntityJsonSerializer {
 	                                   @Nonnull ObjectNode rootNode,
 	                                   @Nonnull EntityDecorator entity,
 	                                   @Nonnull EntitySchemaContract entitySchema) {
-		if (entity.referencesAvailable() && !entity.getReferences().isEmpty()) {
+		if (entity.referencesAvailable()) {
 			entity.getReferenceNames().forEach(referenceName ->
 				serializeReferencesWithSameName(ctx, rootNode, entity, referenceName, entitySchema));
 		}
@@ -271,41 +271,42 @@ public class EntityJsonSerializer {
 	                                               @Nonnull EntityDecorator entity,
 	                                               @Nonnull String referenceName,
 	                                               @Nonnull EntitySchemaContract entitySchema) {
+		final ReferenceSchemaContract referenceSchema = entitySchema
+			.getReference(referenceName)
+			.orElseThrow(() -> new OpenApiBuildingError("Schema for reference `" + referenceName + "` not known."));
+		final Cardinality referenceCardinality = referenceSchema.getCardinality();
+
 		final DataChunk<ReferenceContract> groupedReferences = entity.getReferenceChunk(referenceName);
-		final Optional<ReferenceContract> anyReferenceFound = groupedReferences.stream().findFirst();
-		if (anyReferenceFound.isPresent()) {
-			final ReferenceContract firstReference = anyReferenceFound.get();
-			final ReferenceSchemaContract referenceSchema = firstReference.getReferenceSchema()
-				.orElseThrow(() -> new OpenApiBuildingError("Schema for reference `" + referenceName + "` not known yet."));
 
-			final String baseReferencePropertyName = RestEntityDescriptor.REFERENCE.name(referenceSchema);
+		if (referenceCardinality == Cardinality.EXACTLY_ONE || referenceCardinality == Cardinality.ZERO_OR_ONE) {
+			Assert.isPremiseValid(
+				groupedReferences instanceof PlainChunk<ReferenceContract> && groupedReferences.getTotalRecordCount() == 1,
+				"Reference cardinality is: " + referenceCardinality + " but found " +
+					groupedReferences.getTotalRecordCount() + " references with same name: " + referenceName
+			);
 
-			if (firstReference.getReferenceCardinality() == Cardinality.EXACTLY_ONE ||
-				firstReference.getReferenceCardinality() == Cardinality.ZERO_OR_ONE) {
-				Assert.isPremiseValid(
-					groupedReferences instanceof PlainChunk<ReferenceContract> && groupedReferences.getTotalRecordCount() == 1,
-					"Reference cardinality is: " + firstReference.getReferenceCardinality() + " but found " +
-						groupedReferences.getTotalRecordCount() + " references with same name: " + referenceName
-				);
-
-				rootNode.putIfAbsent(baseReferencePropertyName, serializeSingleReference(ctx, entity.getLocales(), firstReference, entitySchema));
+			final String referencePropertyName = RestEntityDescriptor.REFERENCE.name(referenceSchema);
+			if (groupedReferences.getData().isEmpty()) {
+				rootNode.putIfAbsent(referencePropertyName, null);
 			} else {
-				final String referencePropertyName;
-				if (groupedReferences instanceof PlainChunk<ReferenceContract>) {
-					referencePropertyName = baseReferencePropertyName;
-				} else if (groupedReferences instanceof PaginatedList<ReferenceContract>) {
-					referencePropertyName = RestEntityDescriptor.REFERENCE_PAGE.name(referenceSchema);
-				} else if (groupedReferences instanceof StripList<ReferenceContract>) {
-					referencePropertyName = RestEntityDescriptor.REFERENCE_STRIP.name(referenceSchema);
-				} else {
-					throw new OpenApiBuildingError("Unsupported implementation of data chunk `" + groupedReferences.getClass().getName() + "`");
-				}
-				final JsonNode dataChunkNode = dataChunkJsonSerializer.serialize(
-					groupedReferences,
-					groupedReference -> serializeSingleReference(ctx, entity.getLocales(), groupedReference, entitySchema)
-				);
-				rootNode.putIfAbsent(referencePropertyName, dataChunkNode);
+				rootNode.putIfAbsent(referencePropertyName, serializeSingleReference(ctx, entity.getLocales(), groupedReferences.getData().get(0), entitySchema));
 			}
+		} else {
+			final String referencePropertyName;
+			if (groupedReferences instanceof PlainChunk<ReferenceContract>) {
+				referencePropertyName = RestEntityDescriptor.REFERENCE.name(referenceSchema);
+			} else if (groupedReferences instanceof PaginatedList<ReferenceContract>) {
+				referencePropertyName = RestEntityDescriptor.REFERENCE_PAGE.name(referenceSchema);
+			} else if (groupedReferences instanceof StripList<ReferenceContract>) {
+				referencePropertyName = RestEntityDescriptor.REFERENCE_STRIP.name(referenceSchema);
+			} else {
+				throw new OpenApiBuildingError("Unsupported implementation of data chunk `" + groupedReferences.getClass().getName() + "`");
+			}
+			final JsonNode dataChunkNode = dataChunkJsonSerializer.serialize(
+				groupedReferences,
+				groupedReference -> serializeSingleReference(ctx, entity.getLocales(), groupedReference, entitySchema)
+			);
+			rootNode.putIfAbsent(referencePropertyName, dataChunkNode);
 		}
 	}
 
