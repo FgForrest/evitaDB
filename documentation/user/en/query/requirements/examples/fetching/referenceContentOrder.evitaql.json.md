@@ -9,6 +9,16 @@
       "references" : {
         "parameterValues" : [
           {
+            "group" : 114010,
+            "referencedKey" : 114011,
+            "referencedEntity" : {
+              "primaryKey" : 114011,
+              "attributes" : {
+                "name:en" : "USB"
+              }
+            }
+          },
+          {
             "group" : 66518,
             "referencedKey" : 103869,
             "referencedEntity" : {
@@ -165,16 +175,6 @@
               "primaryKey" : 103884,
               "attributes" : {
                 "name:en" : "Type C"
-              }
-            }
-          },
-          {
-            "group" : 114010,
-            "referencedKey" : 114011,
-            "referencedEntity" : {
-              "primaryKey" : 114011,
-              "attributes" : {
-                "name:en" : "USB"
               }
             }
           }

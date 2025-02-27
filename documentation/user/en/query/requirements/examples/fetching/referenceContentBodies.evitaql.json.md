@@ -9,6 +9,22 @@
       "references" : {
         "parameterValues" : [
           {
+            "group" : 114010,
+            "groupEntity" : {
+              "primaryKey" : 114010,
+              "attributes" : {
+                "code" : "connector-merge"
+              }
+            },
+            "referencedKey" : 114011,
+            "referencedEntity" : {
+              "primaryKey" : 114011,
+              "attributes" : {
+                "code" : "usb"
+              }
+            }
+          },
+          {
             "group" : 66518,
             "groupEntity" : {
               "primaryKey" : 66518,
@@ -261,22 +277,6 @@
               "primaryKey" : 103884,
               "attributes" : {
                 "code" : "connector-type-c"
-              }
-            }
-          },
-          {
-            "group" : 114010,
-            "groupEntity" : {
-              "primaryKey" : 114010,
-              "attributes" : {
-                "code" : "connector-merge"
-              }
-            },
-            "referencedKey" : 114011,
-            "referencedEntity" : {
-              "primaryKey" : 114011,
-              "attributes" : {
-                "code" : "usb"
               }
             }
           }
