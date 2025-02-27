@@ -29,6 +29,7 @@ import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
@@ -351,6 +352,13 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 			catalogHeaderConsumer.accept(newHeader);
 			return newOffsetIndex;
 		} else {
+			Assert.isPremiseValid(
+				catalogFilePath.toFile().exists(),
+				() -> new UnexpectedIOException(
+					"Catalog file `" + catalogFilePath + "` does not exist!",
+					"Catalog file does not exist!"
+				)
+			);
 			// load existing offset index
 			return new OffsetIndex(
 				catalogBootstrap.catalogVersion(),
@@ -439,9 +447,9 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 	}
 
 	@Override
-	public void purgeHistoryEqualAndLaterThan(@Nullable Long minimalActiveCatalogVersion) {
+	public void purgeHistoryOlderThan(long lastKnownMinimalActiveVersion) {
 		if (this.offsetIndex.isOperative()) {
-			this.offsetIndex.purge(minimalActiveCatalogVersion);
+			this.offsetIndex.purge(lastKnownMinimalActiveVersion - 1L);
 		}
 	}
 

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,21 +23,18 @@
 
 package io.evitadb.core;
 
-import javax.annotation.Nullable;
-
 /**
  * This interface represents a listener called by {@link SessionRegistry} when last active session using particular
  * catalog version is closed.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public interface CatalogVersionBeyondTheHorizonListener {
+public interface CatalogConsumersListener {
 
 	/**
 	 * Notifies listener that any active session no longer uses the catalog version.
 	 *
-	 * @param minimalActiveCatalogVersion minimal catalog version that is still being used, NULL when there is no
-	 *                                    active session
+	 * @param lastKnownMinimalActiveVersion minimal catalog version that is still being used
 	 */
-	void catalogVersionBeyondTheHorizon(@Nullable Long minimalActiveCatalogVersion);
+	void consumersLeft(long lastKnownMinimalActiveVersion);
 }

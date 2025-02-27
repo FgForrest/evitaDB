@@ -186,6 +186,11 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	 */
 	private final AtomicReference<Catalog> catalog;
 	/**
+	 * Contains reference to a control mechanism allowing to signalize work with tha catalog in particular version
+	 * to avoid purging necessary files.
+	 */
+	private final Function<String, CatalogConsumerControl> catalogConsumerControl;
+	/**
 	 * Represents the starting version of the catalog schema.
 	 * This variable is used to keep track of the initial version of the catalog schema.
 	 */
@@ -327,7 +332,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nullable EvitaSessionTerminationCallback terminationCallback,
 		@Nonnull CommitBehavior commitBehaviour,
-		@Nonnull SessionTraits sessionTraits
+		@Nonnull SessionTraits sessionTraits,
+		@Nonnull Function<String, CatalogConsumerControl> catalogConsumerControl
 	) {
 		this.evita = evita;
 		this.catalog = new AtomicReference<>(catalog);
@@ -338,6 +344,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		this.sessionTraits = sessionTraits;
 		this.terminationCallback = terminationCallback;
 		this.finalizationFuture = new CompletableFuture<>();
+		this.catalogConsumerControl = catalogConsumerControl;
 		if (catalog.supportsTransaction() && sessionTraits.isReadWrite()) {
 			this.transactionAccessor.set(createAndInitTransaction());
 		}
@@ -1316,7 +1323,13 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			!isReadOnly(),
 			ReadOnlyException::new
 		);
-		return getCatalog().backup(pastMoment, includingWAL);
+		final CatalogContract theCatalog = getCatalog();
+		final CatalogConsumerControl ccControl = this.catalogConsumerControl.apply(theCatalog.getName());
+		return theCatalog.backup(
+			pastMoment, includingWAL,
+			cv -> ccControl.registerConsumerOfCatalogInVersion(cv),
+			cv -> ccControl.unregisterConsumerOfCatalogInVersion(cv)
+		);
 	}
 
 	@Nonnull

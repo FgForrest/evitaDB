@@ -971,7 +971,8 @@ public final class Evita implements EvitaContract {
 				this, catalog, reflectionLookup,
 				terminationCallback,
 				ofNullable(sessionTraits.commitBehaviour()).orElse(CommitBehavior.defaultBehaviour()),
-				sessionTraits
+				sessionTraits,
+				sessionRegistry::createCatalogConsumerControl
 			)
 		);
 
@@ -1018,8 +1019,10 @@ public final class Evita implements EvitaContract {
 	 * Attempts to close all resources of evitaDB.
 	 */
 	private void closeInternal() {
+		// first close all sessions
+		this.closeAllSessions();
+
 		CompletableFuture.allOf(
-			CompletableFuture.runAsync(this::closeAllSessions),
 			CompletableFuture.runAsync(this.management::close),
 			CompletableFuture.runAsync(() -> shutdownScheduler("request", this.requestExecutor, 60)),
 			CompletableFuture.runAsync(() -> shutdownScheduler("transaction", this.transactionExecutor, 60)),
