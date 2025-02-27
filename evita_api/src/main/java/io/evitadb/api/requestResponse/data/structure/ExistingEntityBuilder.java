@@ -315,6 +315,15 @@ public class ExistingEntityBuilder implements EntityBuilder {
 
 	@Nonnull
 	@Override
+	public Set<String> getReferenceNames() {
+		return getReferences()
+			.stream()
+			.map(ReferenceContract::getReferenceName)
+			.collect(Collectors.toCollection(TreeSet::new));
+	}
+
+	@Nonnull
+	@Override
 	public Collection<ReferenceContract> getReferences(@Nonnull String referenceName) {
 		if (!referencesAvailable(referenceName)) {
 			throw ContextMissingException.referenceContextMissing(referenceName);

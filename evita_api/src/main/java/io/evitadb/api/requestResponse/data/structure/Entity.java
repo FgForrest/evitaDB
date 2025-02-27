@@ -1017,6 +1017,12 @@ public class Entity implements SealedEntity {
 
 	@Nonnull
 	@Override
+	public Set<String> getReferenceNames() {
+		return this.referencesDefined;
+	}
+
+	@Nonnull
+	@Override
 	public Collection<ReferenceContract> getReferences(@Nonnull String referenceName) {
 		return this.getReferenceChunk(referenceName).getData();
 	}

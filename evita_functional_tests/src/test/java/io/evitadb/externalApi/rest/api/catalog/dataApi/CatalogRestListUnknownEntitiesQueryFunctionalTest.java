@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -397,7 +397,7 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return price for entities")
 	void shouldReturnPriceForEntities(Evita evita, List<SealedEntity> originalProductEntities, RestTester tester) {
-		final var pks = findEntityWithPricePks(originalProductEntities);
+		final var pks = findEntityWithPricePks(originalProductEntities, 2);
 
 		final List<String> codes = getAttributesByPks(evita, pks, ATTRIBUTE_CODE);
 
@@ -434,7 +434,8 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 	void shouldReturnAssociatedDataWithCustomLocaleForEntities(Evita evita, List<SealedEntity> originalProductEntities, RestTester tester) {
 		final var pks = findEntityPks(
 			originalProductEntities,
-			it -> it.getAssociatedData(ASSOCIATED_DATA_LABELS, Locale.ENGLISH) != null
+			it -> it.getAssociatedData(ASSOCIATED_DATA_LABELS, Locale.ENGLISH) != null,
+			2
 		);
 
 		final List<String> codes = getAttributesByPks(evita, pks, ATTRIBUTE_CODE);
@@ -473,7 +474,8 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 	void shouldReturnAssociatedDataWithCustomLocaleForEntitiesWithLocaleInUrl(Evita evita, List<SealedEntity> originalProductEntities, RestTester tester) {
 		final var pks = findEntityPks(
 			originalProductEntities,
-			it -> it.getAssociatedData(ASSOCIATED_DATA_LABELS, Locale.ENGLISH) != null
+			it -> it.getAssociatedData(ASSOCIATED_DATA_LABELS, Locale.ENGLISH) != null,
+			2
 		);
 
 		final List<String> codes = getAttributesByPks(evita, pks, ATTRIBUTE_CODE);
@@ -511,7 +513,8 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 	void shouldReturnReferenceListForEntities(Evita evita, List<SealedEntity> originalProductEntities, RestTester tester) {
 		final var pks = findEntityPks(
 			originalProductEntities,
-			it -> it.getReferences(Entities.STORE).size() > 1
+			it -> it.getReferences(Entities.STORE).size() > 1,
+			2
 		);
 
 		final List<String> codes = getAttributesByPks(evita, pks, ATTRIBUTE_CODE);

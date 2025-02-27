@@ -21,9 +21,8 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.catalog.dataApi.model;
+package io.evitadb.externalApi.api.catalog.dataApi.model;
 
-import io.evitadb.externalApi.api.catalog.dataApi.model.PaginatedListDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 
 /**

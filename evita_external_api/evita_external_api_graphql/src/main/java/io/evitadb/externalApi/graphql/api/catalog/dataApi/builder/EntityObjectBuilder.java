@@ -56,8 +56,8 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.Ord
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.RequireConstraintSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GlobalEntityDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ReferencePageDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ReferenceStripDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.ReferencePageDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceStripDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.*;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.BigDecimalDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityDtoTypeResolver;
@@ -623,6 +623,17 @@ public class EntityObjectBuilder {
 			.flatMap(referenceSchema -> {
 				final List<BuiltFieldDescriptor> fields = new ArrayList<>(3);
 
+				final GraphQLOutputType referenceObject = switch (version) {
+					case DEFAULT -> {
+						final GraphQLObjectType object = buildReferenceObject(collectionBuildingContext, referenceSchema);
+						buildingContext.registerType(object);
+						yield object;
+					}
+					case NON_HIERARCHICAL ->
+						typeRef(ReferenceDescriptor.THIS.name(collectionBuildingContext.getSchema(), referenceSchema));
+					default -> throw new GraphQLSchemaBuildingError("Unsupported version `" + version + "`.");
+				};
+
 				// inline query args
 				final InlineReferenceDataLocator referenceDataLocator = new InlineReferenceDataLocator(
 					new ManagedEntityTypePointer(collectionBuildingContext.getSchema().getName()),
@@ -636,17 +647,6 @@ public class EntityObjectBuilder {
 					Cardinality.ONE_OR_MORE.equals(referenceCardinality);
 
 				{ // base reference field
-					final GraphQLOutputType referenceObject = switch (version) {
-						case DEFAULT -> {
-							final GraphQLObjectType object = buildReferenceObject(collectionBuildingContext, referenceSchema);
-							buildingContext.registerType(object);
-							yield object;
-						}
-						case NON_HIERARCHICAL ->
-							typeRef(ReferenceDescriptor.THIS.name(collectionBuildingContext.getSchema(), referenceSchema));
-						default -> throw new GraphQLSchemaBuildingError("Unsupported version `" + version + "`.");
-					};
-
 					final GraphQLFieldDefinition.Builder referenceFieldBuilder = GraphQLEntityDescriptor.REFERENCE
 						.to(fieldBuilderTransformer)
 						.name(GraphQLEntityDescriptor.REFERENCE.name(referenceSchema))

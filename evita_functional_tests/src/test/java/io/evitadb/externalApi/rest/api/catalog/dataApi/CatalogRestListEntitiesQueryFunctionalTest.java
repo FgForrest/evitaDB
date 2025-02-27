@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -83,7 +83,8 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 	void shouldReturnProductsByPrimaryKey(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
 		final var pks = findEntityPks(
 			originalProductEntities,
-			it -> it.getAttribute(ATTRIBUTE_CODE) != null
+			it -> it.getAttribute(ATTRIBUTE_CODE) != null,
+			2
 		);
 
 		final List<EntityClassifier> entities = getEntities(
@@ -408,7 +409,8 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 			originalProductEntities,
 			it -> it.getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH) != null &&
 				it.getAllLocales().contains(CZECH_LOCALE) &&
-				it.getAllLocales().contains(Locale.ENGLISH)
+				it.getAllLocales().contains(Locale.ENGLISH),
+			2
 		);
 
 		final List<EntityClassifier> entities = getEntities(
@@ -461,7 +463,8 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 			originalProductEntities,
 			it -> it.getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH) != null &&
 				it.getAllLocales().contains(CZECH_LOCALE) &&
-				it.getAllLocales().contains(Locale.ENGLISH)
+				it.getAllLocales().contains(Locale.ENGLISH),
+			2
 		);
 
 		final List<EntityClassifier> entities = getEntities(
@@ -512,7 +515,8 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 		final var pks = findEntityPks(
 			originalProductEntities,
 			it -> it.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH) != null &&
-				it.getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH) != null
+				it.getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH) != null,
+			2
 		);
 
 		final List<String> urls = getAttributesByPks(evita, pks, ATTRIBUTE_URL, Locale.ENGLISH);
@@ -940,7 +944,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should filter by and return price for sale for multiple products")
 	void shouldFilterByAndReturnPriceForSaleForMultipleProducts(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
-		final var pks = findEntityWithPricePks(originalProductEntities);
+		final var pks = findEntityWithPricePks(originalProductEntities, 2);
 
 		final List<EntityClassifier> entities = getEntities(
 			evita,
@@ -997,7 +1001,8 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 					.filter(PriceContract::indexed)
 					.map(PriceContract::innerRecordId)
 					.distinct()
-					.count() > 1
+					.count() > 1,
+			2
 		);
 
 		final Set<Integer> pksSet = Arrays.stream(pks).collect(Collectors.toSet());
@@ -1057,7 +1062,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should filter products by non-existent price")
 	void shouldFilterProductsByNonExistentPrice(RestTester tester, List<SealedEntity> originalProductEntities) {
-		final var pks = findEntityWithPricePks(originalProductEntities);
+		final var pks = findEntityWithPricePks(originalProductEntities, 2);
 
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/PRODUCT/list")
@@ -1079,7 +1084,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for filtering products by unknown currency")
 	void shouldReturnErrorForFilteringProductsByUnknownCurrency(RestTester tester, List<SealedEntity> originalProductEntities) {
-		final var pks = findEntityWithPricePks(originalProductEntities);
+		final var pks = findEntityWithPricePks(originalProductEntities, 2);
 
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/PRODUCT/list")
@@ -1101,7 +1106,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return custom price for sale for products")
 	void shouldReturnCustomPriceForSaleForProducts(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
-		final var pks = findEntityWithPricePks(originalProductEntities);
+		final var pks = findEntityWithPricePks(originalProductEntities, 2);
 
 		final List<EntityClassifier> entities = getEntities(
 			evita,
@@ -1150,7 +1155,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return price for products")
 	void shouldReturnPriceForProducts(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
-		final var pks = findEntityWithPricePks(originalProductEntities);
+		final var pks = findEntityWithPricePks(originalProductEntities, 2);
 
 		final List<EntityClassifier> entities = getEntities(
 			evita,
@@ -1201,7 +1206,8 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 	void shouldReturnAllPricesForProducts(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
 		final var pks = findEntityPks(
 			originalProductEntities,
-			it -> !it.getPrices().isEmpty()
+			it -> !it.getPrices().isEmpty(),
+			2
 		);
 
 		final List<EntityClassifier> entities = getEntities(
@@ -1250,7 +1256,8 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 		final var pks = findEntityPks(
 			originalProductEntities,
 			it -> it.getAssociatedData(ASSOCIATED_DATA_LABELS, Locale.ENGLISH) != null &&
-				it.getAllLocales().contains(Locale.ENGLISH)
+				it.getAllLocales().contains(Locale.ENGLISH),
+			2
 		);
 
 		final List<EntityClassifier> entities = getEntities(
@@ -1298,7 +1305,8 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 		final var pks = findEntityPks(
 			originalProductEntities,
 			it -> it.getAssociatedData(ASSOCIATED_DATA_LABELS, Locale.ENGLISH) != null &&
-				it.getAllLocales().contains(Locale.ENGLISH)
+				it.getAllLocales().contains(Locale.ENGLISH),
+			2
 		);
 
 		final List<EntityClassifier> entities = getEntities(
@@ -1345,7 +1353,8 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 		final var pks = findEntityPks(
 			originalProductEntities,
 			it -> it.getReferences(Entities.BRAND).size() == 1 &&
-				it.getReferences(Entities.BRAND).iterator().next().getAttribute(TestDataGenerator.ATTRIBUTE_MARKET_SHARE) != null
+				it.getReferences(Entities.BRAND).iterator().next().getAttribute(TestDataGenerator.ATTRIBUTE_MARKET_SHARE) != null,
+			2
 		);
 
 
@@ -1386,6 +1395,129 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 			.executeAndThen()
 			.statusCode(200)
 			.body("", equalTo(createEntityDtos(entities)));
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return reference page for products")
+	void shouldReturnReferencePageForProducts(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
+		final var entityPks = findEntityPks(
+			originalProductEntities,
+			it -> it.getReferences(Entities.STORE).size() >= 4,
+			2
+		);
+
+		final List<SealedEntity> products = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(entityPrimaryKeyInSet(entityPks)),
+				require(
+					page(1, 2),
+					entityFetch(
+						referenceContent(
+							Entities.STORE,
+							entityFetch(),
+							page(2, 2)
+						)
+					)
+				)
+			),
+			p -> {},
+			SealedEntity.class
+		);
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/list")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody(
+				"""
+	                {
+	                    "filterBy": {
+	                        "entityPrimaryKeyInSet": %s
+	                    },
+	                    "require": {
+	                        "entityFetch": {
+	                            "referenceStoreContent": {
+	                                "entityFetch": {},
+	                                "chunk": {
+	                                    "page": {
+	                                        "number": 2,
+	                                        "size": 2
+	                                    }
+	                                }
+	                            }
+	                        }
+	                    }
+	                }
+					""",
+				serializeIntArrayToQueryString(entityPks)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body("", equalTo(createEntityDtos(products)));
+	}
+
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return reference strip for products")
+	void shouldReturnReferenceStripForProducts(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
+		final var entityPks = findEntityPks(
+			originalProductEntities,
+			it -> it.getReferences(Entities.STORE).size() >= 4,
+			2
+		);
+
+		final List<SealedEntity> products = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(entityPrimaryKeyInSet(entityPks)),
+				require(
+					page(1, 2),
+					entityFetch(
+						referenceContent(
+							Entities.STORE,
+							entityFetch(),
+							strip(2, 2)
+						)
+					)
+				)
+			),
+			p -> {},
+			SealedEntity.class
+		);
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/list")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody(
+				"""
+	                {
+	                    "filterBy": {
+	                        "entityPrimaryKeyInSet": %s
+	                    },
+	                    "require": {
+	                        "entityFetch": {
+	                            "referenceStoreContent": {
+	                                "entityFetch": {},
+	                                "chunk": {
+	                                    "strip": {
+	                                        "offset": 2,
+	                                        "limit": 2
+	                                    }
+	                                }
+	                            }
+	                        }
+	                    }
+	                }
+					""",
+				serializeIntArrayToQueryString(entityPks)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body("", equalTo(createEntityDtos(products)));
 	}
 
 	@Test

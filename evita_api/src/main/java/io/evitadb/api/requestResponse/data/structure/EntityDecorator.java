@@ -648,6 +648,13 @@ public class EntityDecorator implements SealedEntity {
 
 	@Nonnull
 	@Override
+	public Set<String> getReferenceNames() {
+		this.referencePredicate.checkFetched();
+		return this.filteredReferencesByName.keySet();
+	}
+
+	@Nonnull
+	@Override
 	public Collection<ReferenceContract> getReferences(@Nonnull String referenceName) {
 		return getReferenceChunk(referenceName).getData();
 	}

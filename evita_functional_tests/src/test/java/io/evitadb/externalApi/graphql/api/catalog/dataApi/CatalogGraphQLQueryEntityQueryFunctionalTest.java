@@ -69,8 +69,8 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDes
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor.BucketDescriptor;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ReferencePageDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ReferenceStripDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.ReferencePageDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceStripDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.LevelInfoDescriptor;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
