@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -83,6 +83,10 @@ public record StorageRecord<T>(
 	 * Third bit of control byte marks that record has CRC32 calculated.
 	 */
 	public static final byte CRC32_BIT = 3;
+	/**
+	 * Fourth bit of control byte marks that record is compressed.
+	 */
+	public static final byte COMPRESSION_BIT = 4;
 
 	/**
 	 * Returns count of bytes that are used by infrastructure informations of the record.
@@ -228,7 +232,7 @@ public record StorageRecord<T>(
 			);
 
 			// record is active load and verify contents
-			input.markPayloadStart(location.recordLength());
+			input.markPayloadStart(location.recordLength(), control);
 			final long transactionId = input.readLong();
 
 			final T payload = input.doWithOnBufferOverflowHandler(
@@ -249,7 +253,7 @@ public record StorageRecord<T>(
 			);
 		} else {
 			boolean closesTransaction = isBitSet(control, TRANSACTION_CLOSING_BIT);
-			input.markPayloadStart(location.recordLength());
+			input.markPayloadStart(location.recordLength(), control);
 			final long transactionId = input.readLong();
 			final T payload = payloadReader.get();
 			input.markEnd(control);
@@ -401,10 +405,10 @@ public record StorageRecord<T>(
 		if (this == o) return true;
 		if (o == null || getClass() != o.getClass()) return false;
 		StorageRecord<?> that = (StorageRecord<?>) o;
-		return transactionId == that.transactionId &&
-			closesTransaction == that.closesTransaction &&
-			Objects.equals(payload, that.payload) &&
-			Objects.equals(fileLocation, that.fileLocation);
+		return this.transactionId == that.transactionId &&
+			this.closesTransaction == that.closesTransaction &&
+			Objects.equals(this.payload, that.payload) &&
+			Objects.equals(this.fileLocation, that.fileLocation);
 	}
 
 	/*
@@ -517,8 +521,8 @@ public record StorageRecord<T>(
 				int lengthAcc = lastRecordLocation.recordLength();
 				long startingPosition = lastRecordLocation.startingPosition();
 				FileLocationPointer current = this;
-				while (!current.isEmpty()) {
-					final FileLocation currentFileLocation = current.fileLocation;
+				while (current != null && !current.isEmpty()) {
+					final FileLocation currentFileLocation = Objects.requireNonNull(current.fileLocation());
 					lengthAcc += currentFileLocation.recordLength();
 					startingPosition = currentFileLocation.startingPosition();
 					current = current.previousPointer;
@@ -543,24 +547,24 @@ public record StorageRecord<T>(
 
 		@Override
 		public void accept(ObservableInput<IS> observableInput) {
-			observableInput.markEnd(context.getControlByte());
+			observableInput.markEnd(this.context.getControlByte());
 
 			observableInput.markStart();
 			final int continuingRecordLength = observableInput.readInt();
 			final byte continuingControl = observableInput.readByte();
 
-			observableInput.markPayloadStart(continuingRecordLength);
+			observableInput.markPayloadStart(continuingRecordLength, continuingControl);
 			final long continuingTransactionId = observableInput.readLong();
 
 			Assert.isPremiseValid(
-				transactionId == continuingTransactionId,
+				this.transactionId == continuingTransactionId,
 				() -> new CorruptedRecordException(
 					"Transaction id differs in continuous record (" +
-						transactionId + " vs. " + continuingTransactionId +
-						"). This is not expected!", transactionId, continuingTransactionId
+						this.transactionId + " vs. " + continuingTransactionId +
+						"). This is not expected!", this.transactionId, continuingTransactionId
 				)
 			);
-			context.updateWithNextRecord(continuingRecordLength, continuingControl);
+			this.context.updateWithNextRecord(continuingRecordLength, continuingControl);
 		}
 
 	}
@@ -582,9 +586,9 @@ public record StorageRecord<T>(
 			final byte controlByte = setBit((byte) 0, CONTINUATION_BIT, true);
 			final FileLocation incompleteRecordLocation = filledOutput.markEnd(controlByte);
 			// register file location of the continuous record
-			recordLocations.set(new FileLocationPointer(recordLocations.get(), incompleteRecordLocation));
+			this.recordLocations.set(new FileLocationPointer(recordLocations.get(), incompleteRecordLocation));
 			// write storage record header for another record
-			writeHeader(output, transactionId);
+			writeHeader(this.output, this.transactionId);
 		}
 	}
 }

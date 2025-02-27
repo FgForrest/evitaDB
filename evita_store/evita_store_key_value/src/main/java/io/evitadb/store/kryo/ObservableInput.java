@@ -31,15 +31,21 @@ import io.evitadb.store.offsetIndex.exception.KryoSerializationException;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.stream.AbstractRandomAccessInputStream;
 import io.evitadb.stream.RandomAccessFileInputStream;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.BitUtils;
+import io.evitadb.utils.IOUtils;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.zip.CRC32C;
+import java.util.zip.DataFormatException;
+import java.util.zip.Inflater;
 
 import static io.evitadb.store.kryo.ObservableOutput.TAIL_MANDATORY_SPACE;
 import static io.evitadb.utils.Assert.isPremiseValid;
@@ -64,18 +70,61 @@ public class ObservableInput<T extends InputStream> extends Input {
 	 */
 	private CRC32C crc32C;
 	/**
+	 * Inflater instance. Reused - instantiated only once.
+	 */
+	private Inflater inflater;
+	/**
+	 * Input buffer for decompression.
+	 */
+	private byte[] decompressionBuffer;
+	/**
+	 * Bytes read from underlying input stream since last {@link #reset()}.
+	 */
+	private int bytesReadFromInputStreamSinceReset;
+	/**
+	 * Start of the sensible data in the {@link #decompressionBuffer}.
+	 */
+	private int decompressionBufferStart;
+	/**
+	 * Limit of the {@link #decompressionBuffer} that is filled with actual data.
+	 */
+	private int decompressionBufferPeek;
+	/**
+	 * Contains number of bytes that were present in {@link Inflater#getBytesRead()} when the decompression buffer
+	 * was filled in for the last time.
+	 */
+	private int inflaterReadBytesOnLastDecompressionBufferFill;
+	/**
+	 * Flag indicating whether the record payload is compressed.
+	 */
+	private boolean compressed;
+	/**
 	 * Record start position. Use {@link #markStart()} to init.
 	 */
 	@Getter private int startPosition = -1;
 	/**
-	 * Record payload (i.e. real record contents). Use {@link #markPayloadStart(int)} to init.
+	 * Record payload (i.e. real record contents). Use {@link #markPayloadStart(int, byte)} to init.
 	 */
 	@Getter private int payloadStartPosition = -1;
 	/**
-	 * Contains number of bytes that were read since {@link #markStart()} at the time {@link #markPayloadStart(int)} was
-	 * executed.
+	 * Contains number of bytes that were read since {@link #markStart()} at the time {@link #markPayloadStart(int, byte)} was
+	 * executed. This number represents part in active buffer, when the buffer is wrapped around part of the payload
+	 * prefix is in {@link #accumulatedLength}.
 	 */
 	private int payloadPrefixLength = 0;
+	/**
+	 * Contains expected number of bytes for the record payload.
+	 */
+	private int expectedPayloadLength = 0;
+	/**
+	 * Contains number of bytes that were read from underlying input stream since {@link #markPayloadStart(int, byte)}
+	 * was executed.
+	 */
+	private int payloadReadLength = 0;
+	/**
+	 * Contains number of bytes that were decompressed from the compressed payload.
+	 */
+	private int payloadDecompressedLength = 0;
 	/**
 	 * Counter accumulating already read bytes since the {@link #markStart()} when buffer is filled in and must be
 	 * reused for different content.
@@ -89,13 +138,13 @@ public class ObservableInput<T extends InputStream> extends Input {
 	 * This piece of logic should handle the situation when the deserializes data that exceeds the record expected size.
 	 * Handler might allow to fetch next chunk of the data and reset the input stream.
 	 */
-	private Consumer<ObservableInput<T>> onBufferOverflow;
+	@Nullable private Consumer<ObservableInput<T>> onBufferOverflow;
 	/**
 	 * Internal flag that is set to true only when {@link #onBufferOverflow} handler is being executed.
 	 */
 	private boolean overflowing;
 	/**
-	 * Internal flag that is set to true only when {@link #markPayloadStart(int)} method was called and method
+	 * Internal flag that is set to true only when {@link #markPayloadStart(int, byte)} method was called and method
 	 * {@link #markEnd(byte)}  was not yet called. When this flag is true we read payload.
 	 */
 	private boolean readingPayload;
@@ -231,6 +280,14 @@ public class ObservableInput<T extends InputStream> extends Input {
 		this.actualLimit = -1;
 		this.readingPayload = false;
 		this.overflowing = false;
+		this.compressed = false;
+		this.decompressionBufferStart = 0;
+		this.decompressionBufferPeek = 0;
+		this.bytesReadFromInputStreamSinceReset = 0;
+		this.inflaterReadBytesOnLastDecompressionBufferFill = 0;
+		this.payloadReadLength = 0;
+		this.payloadDecompressedLength = 0;
+		this.expectedPayloadLength = -1;
 		this.capacity = this.buffer.length;
 	}
 
@@ -243,13 +300,13 @@ public class ObservableInput<T extends InputStream> extends Input {
 	public void skip(int count) throws KryoException {
 		// this method doesn't call `require` at the start of the super implementation, and we need to trigger
 		// onBufferOverflow logic immediately when there is no content available - that's why the check is here
-		int skipCount = Math.min(limit - position, count);
+		int skipCount = Math.min(this.limit - this.position, count);
 		while (true) {
 			require(skipCount);
-			position += skipCount;
+			this.position += skipCount;
 			count -= skipCount;
 			if (count == 0) break;
-			skipCount = Math.min(count, capacity);
+			skipCount = Math.min(count, this.capacity);
 		}
 	}
 
@@ -267,60 +324,56 @@ public class ObservableInput<T extends InputStream> extends Input {
 	@Override
 	protected int require(int required) throws KryoException {
 		/* EXTENSION */
-		final int limit = this.actualLimit == -1 ? this.limit : this.actualLimit;
-		final int reserve = readingTail ? 0 : TAIL_MANDATORY_SPACE;
-		final int totalReadLength = computeTotalReadLength();
-		if (expectedLength != -1 && totalReadLength + reserve + required > expectedLength) {
-			if (overflowing || onBufferOverflow == null) {
-				throw new CorruptedRecordException(
-					"Unexpected record length - data probably corrupted " +
-						"(record should be long " + expectedLength + "B, but was read " + (totalReadLength + reserve) + "B and another " + required + "B was requested for reading).",
-					expectedLength, (long)totalReadLength + (long)reserve + required
-				);
-			} else {
-				try {
-					overflowing = true;
-					onBufferOverflow.accept(this);
-					require(required);
-				} finally {
-					overflowing = false;
-				}
+		final int limit = this.actualLimit == -1 || this.compressed || this.readingTail ? this.limit : this.actualLimit;
+		final int reserve = this.readingTail ? 0 : TAIL_MANDATORY_SPACE;
+		final int totalReadLengthWithReserve = computeTotalReadLength() + reserve;
+		// if we read compressed payload
+		if (this.compressed) {
+			// and we've decompressed all expected bytes and there is not enough unprocessed bytes in current buffer
+			if (limit - this.position < required && this.inflater.getBytesRead() == this.expectedPayloadLength) {
+				// trigger overflow situation
+				handleOverflow(totalReadLengthWithReserve, required);
 			}
+		} else if (this.expectedLength != -1 && totalReadLengthWithReserve + required > this.expectedLength) {
+			// else if we've read all the current buffer and more is required, trigger overflow situation
+			handleOverflow(totalReadLengthWithReserve, required);
 		}
 		/* END OF EXTENSION */
 
-		int remaining = limit - position;
+		int remaining = limit - this.position;
 		if (remaining >= required) return remaining;
-		if (required > capacity)
-			throw new KryoException("Buffer too small: capacity: " + capacity + ", required: " + required);
+		if (required > this.capacity)
+			throw new KryoException("Buffer too small: capacity: " + this.capacity + ", required: " + required);
 
 		int count;
 		// Try to fill the buffer.
 		if (remaining > 0) {
-			count = fill(buffer, limit, capacity - limit);
+			count = fill(this.buffer, limit, this.capacity - limit);
 			if (count == -1) throw new KryoException("Buffer underflow.");
 			remaining += count;
 			if (remaining >= required) {
 				/* EXTENSION */
 				this.limit += count;
-				this.limit = constraintLimitWithRecordLength();
+				/* TODO JNO - nevím */
+				if (!this.compressed) {
+					this.limit = constraintLimitWithRecordLength();
+				}
 				/* END OF EXTENSION */
 				return remaining;
 			}
 		}
 
 		/* EXTENSION */
-		final int attemptedToRead = capacity - remaining;
-		updateLostBuffer(remaining, attemptedToRead);
+		updateLostBuffer(remaining, this.capacity - remaining);
 		/* END OF EXTENSION */
 
 		// Was not enough, compact and try again.
-		System.arraycopy(buffer, position, buffer, 0, remaining);
-		total += position;
-		position = 0;
+		System.arraycopy(this.buffer, this.position, this.buffer, 0, remaining);
+		this.total += this.position;
+		this.position = 0;
 
 		while (true) {
-			count = fill(buffer, remaining, attemptedToRead);
+			count = fill(this.buffer, remaining, this.capacity - remaining);
 			if (count == -1) {
 				if (remaining >= required) break;
 				throw new KryoException("Buffer underflow.");
@@ -331,9 +384,41 @@ public class ObservableInput<T extends InputStream> extends Input {
 
 		/* EXTENSION */
 		this.limit = remaining;
-		this.limit = constraintLimitWithRecordLength();
+		/* TODO JNO - nevím */
+		if (!this.compressed) {
+			this.limit = constraintLimitWithRecordLength();
+		}
 		/* END OF EXTENSION */
 		return limit;
+	}
+
+	/**
+	 * Handles the scenario where a buffer overflow occurs during record processing. In this case we try to fall back
+	 * on overflow handler that can decide whether to continue reading or throw an exception.
+	 *
+	 * @param totalReadLengthWithReserve The total length of data already read, including reserved bytes.
+	 * @param required                   The number of additional bytes required to continue processing the record.
+	 * @throws CorruptedRecordException If the buffer is overflowing and no overflow handler is provided,
+	 *                                  indicating that the record length is unexpected and data might be corrupted.
+	 */
+	@SuppressWarnings("StringConcatenationMissingWhitespace")
+	private void handleOverflow(int totalReadLengthWithReserve, int required) {
+		if (this.overflowing || this.onBufferOverflow == null) {
+			throw new CorruptedRecordException(
+				"Unexpected record length - data probably corrupted " +
+					"(record should be long " + this.expectedLength + "B, but was read " + totalReadLengthWithReserve +
+					"B and another " + required + "B was requested for reading).",
+				this.expectedLength, (long) totalReadLengthWithReserve + required
+			);
+		} else {
+			try {
+				this.overflowing = true;
+				this.onBufferOverflow.accept(this);
+				require(required);
+			} finally {
+				this.overflowing = false;
+			}
+		}
 	}
 
 	/**
@@ -348,22 +433,22 @@ public class ObservableInput<T extends InputStream> extends Input {
 	@Override
 	protected int optional(int optional) throws KryoException {
 		/* EXTENSION */
-		if (position + optional > Math.min(limit, capacity)) {
-			final int reserve = readingTail ? 0 : TAIL_MANDATORY_SPACE;
+		if (this.position + optional > Math.min(this.limit, this.capacity)) {
+			final int reserve = this.readingTail ? 0 : TAIL_MANDATORY_SPACE;
 			final int totalReadLength = computeTotalReadLength();
-			if (expectedLength != -1 && totalReadLength + reserve + optional > expectedLength) {
-				return limit - position;
+			if (this.expectedLength != -1 && totalReadLength + reserve + optional > this.expectedLength) {
+				return this.limit - this.position;
 			}
 		}
 		/* END OF EXTENSION */
-		int remaining = limit - position;
+		int remaining = this.limit - this.position;
 		if (remaining >= optional) return optional;
-		optional = Math.min(optional, capacity);
+		optional = Math.min(optional, this.capacity);
 
 		int count;
 
 		// Try to fill the buffer.
-		count = fill(buffer, limit, capacity - limit);
+		count = fill(this.buffer, this.limit, this.capacity - this.limit);
 		if (count == -1) return remaining == 0 ? -1 : Math.min(remaining, optional);
 		remaining += count;
 		if (remaining >= optional) {
@@ -375,17 +460,17 @@ public class ObservableInput<T extends InputStream> extends Input {
 		}
 
 		/* EXTENSION */
-		final int attemptedToRead = capacity - remaining;
+		final int attemptedToRead = this.capacity - remaining;
 		updateLostBuffer(remaining, attemptedToRead);
 		/* END OF EXTENSION */
 
 		// Was not enough, compact and try again.
-		System.arraycopy(buffer, position, buffer, 0, remaining);
-		total += position;
-		position = 0;
+		System.arraycopy(this.buffer, this.position, this.buffer, 0, remaining);
+		this.total += this.position;
+		this.position = 0;
 
 		while (true) {
-			count = fill(buffer, remaining, attemptedToRead);
+			count = fill(this.buffer, remaining, attemptedToRead);
 			if (count == -1) break;
 			remaining += count;
 			if (remaining >= optional) break; // Enough has been read.
@@ -393,9 +478,98 @@ public class ObservableInput<T extends InputStream> extends Input {
 
 		/* EXTENSION */
 		this.limit = remaining;
-		this.limit = constraintLimitWithRecordLength();
-		return limit == 0 ? -1 : Math.min(limit, optional);
+		/* TODO JNO - nevím */
+		if (!this.compressed) {
+			this.limit = constraintLimitWithRecordLength();
+		}
+		return this.limit == 0 ? -1 : Math.min(this.limit, optional);
 		/* END OF EXTENSION */
+	}
+
+	/**
+	 * This method overrides default implementation by uncompressing data from the inflater if the record is compressed.
+	 * The read from the underlying stream is performed only when the inflater needs more data to uncompress.
+	 *
+	 * @param buffer to fill data in
+	 * @param offset offset to fill the data to
+	 * @param count count of bytes to fill
+	 * @return number of bytes filled in
+	 * @throws KryoException when the underlying stream throws an exception
+	 */
+	@Override
+	protected int fill(byte[] buffer, int offset, int count) throws KryoException {
+		if (this.inputStream == null) {
+			return -1;
+		} else if (count == 0) {
+			return 0;
+		}
+		if (this.compressed) {
+			Assert.isPremiseValid(this.inflater != null, "Record is compressed and ObservableInput has inflate support disabled!");
+			try {
+				int n;
+				while ((n = this.inflater.inflate(buffer, offset, count)) == 0) {
+					if (this.inflater.finished() || this.inflater.needsDictionary()) {
+						return -1;
+					}
+					if (this.inflater.needsInput()) {
+						// update CRC32C checksum before the buffer gets overwritten
+						if (this.crc32C != null) {
+							this.crc32C.update(
+								this.decompressionBuffer,
+								this.decompressionBufferStart,
+								this.decompressionBufferPeek - this.decompressionBufferStart
+							);
+						}
+						// check how much data has been read from the decompression buffer so far
+						final int currentlyReadBytes = Math.toIntExact(this.inflater.getBytesRead());
+						/* TODO JNO - tady bychom možná mohli číst a plnit buffer úplně celý, stejně se pak swapne */
+						final int leftToRead = this.expectedPayloadLength - (this.payloadReadLength + (currentlyReadBytes - this.inflaterReadBytesOnLastDecompressionBufferFill));
+						if (leftToRead > 0) {
+							// attempt to read next chunk of data from the underlying stream into the decompression buffer
+							final int readLength = IOUtils.executeSafely(
+								KryoException::new,
+								() -> this.inputStream.read(
+									this.decompressionBuffer, 0,
+									Math.min(this.decompressionBuffer.length, leftToRead)
+								)
+							);
+							if (readLength == -1) {
+								throw new KryoException("Unexpected end of ZLIB input stream");
+							} else {
+								// data has been read successfully, now we need to update the inflater and counters
+								this.inflaterReadBytesOnLastDecompressionBufferFill = currentlyReadBytes;
+								this.decompressionBufferStart = 0;
+								this.decompressionBufferPeek = readLength;
+								this.payloadReadLength += readLength;
+								this.bytesReadFromInputStreamSinceReset += readLength;
+								this.inflater.setInput(this.decompressionBuffer, 0, readLength);
+							}
+						} else {
+							// there are no data to read, we need to trigger overflow handler
+							handleOverflow(
+								this.accumulatedLength + this.payloadPrefixLength + this.payloadReadLength + TAIL_MANDATORY_SPACE,
+								count
+							);
+							return n;
+						}
+					}
+				}
+				this.payloadDecompressedLength += n;
+				return n;
+			} catch (DataFormatException e) {
+				final String message = e.getMessage();
+				throw new KryoException(message != null ? message : "Invalid ZLIB data format");
+			}
+		} else {
+			try {
+				// read data from the underlying input stream
+				final int readLength = this.inputStream.read(buffer, offset, count);
+				this.bytesReadFromInputStreamSinceReset += readLength;
+				return readLength;
+			} catch (IOException ex) {
+				throw new KryoException(ex);
+			}
+		}
 	}
 
 	/**
@@ -417,11 +591,11 @@ public class ObservableInput<T extends InputStream> extends Input {
 		// onBufferOverflow logic immediately when there is no content available - that's why the check is here
 		if (bytes == null) throw new KryoSerializationException("bytes cannot be null.");
 		int startingCount = count;
-		int copyCount = Math.min(limit - position, count);
+		int copyCount = Math.min(this.limit - this.position, count);
 		while (true) {
 			require(copyCount);
-			System.arraycopy(buffer, position, bytes, offset, copyCount);
-			position += copyCount;
+			System.arraycopy(this.buffer, this.position, bytes, offset, copyCount);
+			this.position += copyCount;
 			count -= copyCount;
 			if (count == 0) break;
 			offset += copyCount;
@@ -431,7 +605,7 @@ public class ObservableInput<T extends InputStream> extends Input {
 				if (startingCount == count) return -1;
 				break;
 			}
-			if (position == limit) break;
+			if (this.position == this.limit) break;
 		}
 		return startingCount - count;
 	}
@@ -446,15 +620,15 @@ public class ObservableInput<T extends InputStream> extends Input {
 		// this method doesn't call `require` at the start of the super implementation, and we need to trigger
 		// onBufferOverflow logic immediately when there is no content available - that's why the check is here
 		if (bytes == null) throw new KryoSerializationException("bytes cannot be null.");
-		int copyCount = Math.min(limit - position, count);
+		int copyCount = Math.min(this.limit - this.position, count);
 		while (true) {
 			require(copyCount);
-			System.arraycopy(buffer, position, bytes, offset, copyCount);
-			position += copyCount;
+			System.arraycopy(this.buffer, this.position, bytes, offset, copyCount);
+			this.position += copyCount;
 			count -= copyCount;
 			if (count == 0) break;
 			offset += copyCount;
-			copyCount = Math.min(count, capacity);
+			copyCount = Math.min(count, this.capacity);
 		}
 	}
 
@@ -484,14 +658,37 @@ public class ObservableInput<T extends InputStream> extends Input {
 	 * Initializes start position of the record payload - i.e. since this moment CRC32C checksum starts to be computed
 	 * for each byte read from now on.
 	 */
-	public void markPayloadStart(int expectedLength) {
+	public void markPayloadStart(int expectedLength, byte controlByte) {
 		this.expectedLength = expectedLength;
 		this.payloadStartPosition = this.position;
 		this.payloadPrefixLength = computeReadLengthUpTo(this.payloadStartPosition);
+		this.expectedPayloadLength = this.expectedLength - (this.payloadPrefixLength + this.accumulatedLength + TAIL_MANDATORY_SPACE);
+		this.payloadReadLength = 0;
+		this.compressed = BitUtils.isBitSet(controlByte, StorageRecord.COMPRESSION_BIT);
 		this.readingPayload = true;
-		this.limit = Math.min(this.buffer.length, constraintLimitWithRecordLength() + this.payloadPrefixLength);
-		if (crc32C != null) {
-			crc32C.reset();
+		if (this.crc32C != null) {
+			this.crc32C.reset();
+		}
+		if (this.inflater != null && this.compressed) {
+			this.inflater.reset();
+			// now we need to reset the limit in the buffer - since it may have been already filled with
+			// compressed data and copy those data into decompression buffer, by this the pointer in underlying
+			// stream will match the content in the decompression buffer
+			this.payloadDecompressedLength = 0;
+			// swap buffer and decompression buffer,
+			// decompression buffer will contain raw data and buffer "unknown data" that would be rewritten by inflater
+			// when the decompression finishes - buffers will be swapped back again
+			final byte[] tmp = this.decompressionBuffer;
+			this.decompressionBuffer = this.buffer;
+			this.buffer = tmp;
+			this.inflater.setInput(this.decompressionBuffer, this.position, this.limit - this.position);
+			this.decompressionBufferStart = this.position;
+			this.decompressionBufferPeek = this.actualLimit == -1 ? this.limit : this.actualLimit;
+			this.inflaterReadBytesOnLastDecompressionBufferFill = 0;
+			// this will enforce invoking `fill` method with first inflater call
+			this.limit = this.position;
+		} else {
+			this.limit = Math.min(this.buffer.length, constraintLimitWithRecordLength() + this.payloadPrefixLength);
 		}
 	}
 
@@ -508,19 +705,52 @@ public class ObservableInput<T extends InputStream> extends Input {
 			// enlarge limit to original value - we're already finishing record
 			this.limit = this.actualLimit >= 0 ? this.actualLimit : this.limit;
 
-			if (payloadStartPosition != -1) {
+			if (this.payloadStartPosition != -1) {
 				// compute the final part of the payload that hasn't been added to accumulated length and CRC32 checksum
-				final int payloadLength = super.position - this.payloadStartPosition;
-				final int totalLength = super.position - this.startPosition;
-				if (crc32C == null || !BitUtils.isBitSet(controlByte, StorageRecord.CRC32_BIT)) {
+				final int payloadLength;
+				final int totalLength;
+				final int bytesReadSinceLastFill;
+				final int bytesSavedByCompression;
+				// was the record compressed?
+				if (this.compressed) {
+					// if payload was compressed, switch to standard - non-compressed mode,
+					// we've read entire compressed payload
+					this.compressed = false;
+					this.expectedLength = this.accumulatedLength + this.payloadPrefixLength + this.payloadDecompressedLength + TAIL_MANDATORY_SPACE;
+					bytesReadSinceLastFill = Math.toIntExact(this.inflater.getBytesRead()) - this.inflaterReadBytesOnLastDecompressionBufferFill;
+					// swap buffers back
+					final byte[] tmp = this.decompressionBuffer;
+					this.decompressionBuffer = this.buffer;
+					this.buffer = tmp;
+					// update position in the buffer and limit
+					this.position = this.decompressionBufferStart + bytesReadSinceLastFill;
+					this.limit = this.decompressionBufferPeek;
+					bytesSavedByCompression = this.payloadDecompressedLength - this.expectedPayloadLength;
+					// calculate really read length
+					payloadLength = this.payloadDecompressedLength;
+					totalLength = this.payloadPrefixLength + this.payloadDecompressedLength;
+				} else {
+					payloadLength = this.position - this.payloadStartPosition;
+					totalLength = this.position - this.startPosition;
+					bytesReadSinceLastFill = 0;
+					bytesSavedByCompression = 0;
+				}
+				// do we need to verify checksum?
+				if (this.crc32C == null || !BitUtils.isBitSet(controlByte, StorageRecord.CRC32_BIT)) {
 					// skip CRC32 checksum - it will not be verified
 					super.skip(8);
 				} else {
-					// update CRC32 checksum with the final payload part
-					crc32C.update(super.buffer, this.payloadStartPosition, payloadLength);
-					crc32C.update(BitUtils.setBit(controlByte, StorageRecord.CRC32_BIT, true));
+					if (bytesSavedByCompression > 0) {
+						// update CRC32 checksum with the rest of the decompression buffer (it was swapped with the buffer)
+						this.crc32C.update(this.buffer, this.decompressionBufferStart, bytesReadSinceLastFill);
+					} else {
+						// otherwise, update CRC32 checksum with the final payload part
+						this.crc32C.update(this.buffer, this.payloadStartPosition, payloadLength);
+					}
+					// update CRC32C checksum with the control byte
+					this.crc32C.update(controlByte);
 					// verify checksum
-					final long computedChecksum = crc32C.getValue();
+					final long computedChecksum = this.crc32C.getValue();
 					final long loadedChecksum = readLong();
 					isPremiseValid(
 						computedChecksum == loadedChecksum,
@@ -548,6 +778,13 @@ public class ObservableInput<T extends InputStream> extends Input {
 			this.actualLimit = -1;
 			this.payloadStartPosition = -1;
 			this.payloadPrefixLength = 0;
+			this.compressed = false;
+			this.decompressionBufferStart = 0;
+			this.decompressionBufferPeek = 0;
+			this.inflaterReadBytesOnLastDecompressionBufferFill = 0;
+			this.expectedPayloadLength = 0;
+			this.payloadReadLength = 0;
+			this.payloadDecompressedLength = 0;
 			this.expectedLength = -1;
 			this.accumulatedLength = 0;
 			this.readingTail = false;
@@ -565,13 +802,25 @@ public class ObservableInput<T extends InputStream> extends Input {
 	}
 
 	/**
+	 * Enables compression support for each record payload.
+	 */
+	@Nonnull
+	public ObservableInput<T> inflate() {
+		if (this.inflater == null) {
+			this.inflater = new Inflater(true);
+			this.decompressionBuffer = new byte[this.buffer.length];
+		}
+		return this;
+	}
+
+	/**
 	 * Initializes start position of the records - i.e. since this moment record size starts to be observed.
 	 */
 	public long markStart() {
-		this.startPosition = super.position;
+		this.startPosition = this.position;
 		this.expectedLength = -1;
 		this.accumulatedLength = 0;
-		return total();
+		return this.bytesReadFromInputStreamSinceReset - (this.limit - this.position);
 	}
 
 	/**
@@ -626,6 +875,7 @@ public class ObservableInput<T extends InputStream> extends Input {
 		this.payloadPrefixLength = 0;
 		this.readingPayload = false;
 		this.overflowing = false;
+		this.bytesReadFromInputStreamSinceReset = 0;
 		this.capacity = Math.min(this.buffer.length, location.recordLength());
 	}
 
@@ -664,7 +914,7 @@ public class ObservableInput<T extends InputStream> extends Input {
 	 * of the next record.
 	 */
 	private int constraintLimitWithRecordLength(int mandatorySpaceLength) {
-		if (!readingTail && this.expectedLength > 0 && this.expectedLength < this.accumulatedLength + this.limit - this.lastOffset) {
+		if (!this.readingTail && this.expectedLength > 0 && this.expectedLength < this.accumulatedLength + this.limit - this.lastOffset) {
 			// remember but cap the limit
 			this.actualLimit = this.limit;
 			return this.startPosition + this.expectedLength - mandatorySpaceLength - this.accumulatedLength;
@@ -695,7 +945,7 @@ public class ObservableInput<T extends InputStream> extends Input {
 	 * and updates moving CRC32 hash computation when data in the buffer is about to be rewritten with the new content.
 	 */
 	private void updateLostBuffer(int offset, int count) {
-		if (count > 0) {
+		if (!this.compressed && count > 0) {
 			// recompute accumulated length since the start of the record
 			if (this.lastCount != -1) {
 				if (!this.readingTail) {
@@ -706,9 +956,10 @@ public class ObservableInput<T extends InputStream> extends Input {
 				// we're reading payload - we have to recompute accumulated length
 				if (this.readingPayload) {
 					// and if crc32 checksum is enabled update id by the read contents
-					if (crc32C != null) {
+					// when the content is compressed the crc32 checksum is computed in `fill` method
+					if (this.crc32C != null) {
 						final int consumedLength = this.lastCount - (this.payloadStartPosition - this.lastOffset);
-						crc32C.update(buffer, this.payloadStartPosition, consumedLength);
+						this.crc32C.update(buffer, this.payloadStartPosition, consumedLength);
 					}
 					// update payload start positions - we're going to rewrite the buffer so the sensible payload start changes
 					this.payloadStartPosition = offset;

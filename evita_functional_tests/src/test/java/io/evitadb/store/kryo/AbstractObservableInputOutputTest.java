@@ -36,6 +36,7 @@ import java.util.Random;
 import java.util.zip.CRC32C;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Abstract superclass for tests in this package.
@@ -91,18 +92,32 @@ abstract class AbstractObservableInputOutputTest {
 	 */
 	protected long writeRandomRecord(@Nullable ObservableOutput<?> output, @Nullable Output controlOutput, int length) {
 		final byte[] bytes = generateBytes(length);
+		return writeRecord(output, controlOutput, length, bytes);
+	}
+
+	/**
+	 * Writes all record bytes to the provided {@link ObservableOutput} and its associated control output.
+	 * The method generates random payload bytes, calculates a CRC32C checksum, writes metadata and payload
+	 * to the control output, and updates the provided observable output to mark various record positions.
+	 *
+	 * @param output        the {@link ObservableOutput} to which the record data will be written
+	 * @param controlOutput the {@link Output} for writing the control metadata and payload
+	 * @param length        the length of the random payload data to generate and write
+	 * @return the start position of the record in the control output / output
+	 */
+	public long writeRecord(@Nullable ObservableOutput<?> output, @Nullable Output controlOutput, int length, byte[] bytes) {
 		long startPosition = -1;
 		final byte controlByte = BitUtils.setBit((byte) 0, StorageRecord.CRC32_BIT, true);
 
 		if (controlOutput != null) {
 			startPosition = controlOutput.total();
-			crc32C.reset();
-			crc32C.update(bytes);
-			crc32C.update(controlByte);
+			this.crc32C.reset();
+			this.crc32C.update(bytes);
+			this.crc32C.update(controlByte);
 			controlOutput.writeInt(length + OVERHEAD_SIZE);
 			controlOutput.writeByte(controlByte);
 			controlOutput.writeBytes(bytes);
-			controlOutput.writeLong(crc32C.getValue());
+			controlOutput.writeLong(this.crc32C.getValue());
 			controlOutput.flush();
 		}
 
@@ -147,11 +162,16 @@ abstract class AbstractObservableInputOutputTest {
 		input.markStart();
 		final int length = input.readInt();
 		byte controlByte = input.readByte();
-		input.markPayloadStart(length);
-		final byte[] payload = input.readBytes(length - OVERHEAD_SIZE);
+		input.markPayloadStart(length, controlByte);
+		final byte[] payload = input.readBytes(payloadSize);
 		input.markEnd(controlByte);
 
-		assertEquals(payloadSize + OVERHEAD_SIZE, length);
+		if (BitUtils.isBitSet(controlByte, StorageRecord.COMPRESSION_BIT)) {
+			assertTrue(length < payloadSize + OVERHEAD_SIZE);
+		} else {
+			assertEquals(payloadSize + OVERHEAD_SIZE, length);
+		}
+
 		// first byte of payload is control byte
 		assertEquals(payloadSize, payload.length);
 
@@ -164,7 +184,7 @@ abstract class AbstractObservableInputOutputTest {
 	 * @param count the number of random bytes to generate
 	 * @return a byte array filled with random values
 	 */
-	private byte[] generateBytes(int count) {
+	protected byte[] generateBytes(int count) {
 		final byte[] result = new byte[count];
 		random.nextBytes(result);
 		return result;

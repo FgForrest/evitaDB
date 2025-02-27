@@ -143,19 +143,23 @@ class ObservableOutputTest extends AbstractObservableInputOutputTest {
 		final int bufferSize = RECORD_SIZE + 128;
 
 		final ByteArrayOutputStream baos = new ByteArrayOutputStream(bufferSize);
-		final ObservableOutput<?> output = new ObservableOutput<>(baos, flushSize, 128, 0).computeCRC32();
-
 		final ByteArrayOutputStream controlBaos = new ByteArrayOutputStream(bufferSize);
-		final Output controlOutput = new Output(controlBaos, bufferSize);
 
-		writeRandomRecord(output, controlOutput, PAYLOAD_SIZE);
-		writeRandomRecord(output, controlOutput, 128 - OVERHEAD_SIZE);
+		try (
+			final ObservableOutput<?> output = new ObservableOutput<>(baos, flushSize, 128, 0).computeCRC32();
+			final Output controlOutput = new Output(controlBaos, bufferSize);
+		) {
 
-		// our output stream was regularly flushed
-		assertArrayEquals(new byte[0], output.toBytes());
+			writeRandomRecord(output, controlOutput, PAYLOAD_SIZE);
+			writeRandomRecord(output, controlOutput, 128 - OVERHEAD_SIZE);
+
+			// our output stream was regularly flushed
+			assertArrayEquals(new byte[0], output.toBytes());
+			assertEquals(bufferSize, output.total());
+			assertEquals(0, output.position());
+		}
+
 		assertArrayEquals(controlBaos.toByteArray(), baos.toByteArray());
-		assertEquals(bufferSize, output.total());
-		assertEquals(0, output.position());
 	}
 
 }

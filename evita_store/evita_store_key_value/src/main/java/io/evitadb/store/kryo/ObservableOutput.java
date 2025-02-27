@@ -30,6 +30,7 @@ import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.BitUtils;
+import io.evitadb.utils.IOUtils;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -41,6 +42,7 @@ import java.util.Arrays;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.zip.CRC32C;
+import java.util.zip.Deflater;
 
 /**
  * This observable output extends original Kryo {@link Output} allowing to automatically compute CRC32C checksums after
@@ -64,19 +66,27 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 	public static final int TAIL_MANDATORY_SPACE = 8;
 	static final long NULL_CRC = 0xFFFFFFFFFFFFFFFFL;
 	/**
-	 * Flush size that determines whether non-flushed but finalized contents of the current buffer should be written
-	 * to the output stream (disk).
-	 */
-	@Getter private final int flushSize;
-	/**
 	 * CRC32C computation instance. Reused - instantiated only once.
 	 */
 	private CRC32C crc32C;
 	/**
-	 * Contains floating position in the buffer that marks bytes already written to the output stream (disk). I.e. every
-	 * byte before this position were already flushed out.
+	 * Deflater instance. Reused - instantiated only once.
 	 */
-	private int lastFlushedPosition;
+	private Deflater deflater;
+	/**
+	 * Buffer used for compressed data.
+	 */
+	private byte[] deflateBuffer;
+	/**
+	 * Accumulated count of bytes that have been saved by compression.
+	 * This number is crucial for correct file location calculation when multiple records are written to the output.
+	 */
+	private int savedBytesByCompressionSinceReset;
+	/**
+	 * Contains floating position in the buffer that marks bytes already written to the output stream (disk). I.e. every
+	 * byte before this position were already written out.
+	 */
+	private int lastConsumedPosition;
 	/**
 	 * Record start position. Use {@link #markStart()} to init.
 	 */
@@ -117,7 +127,6 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 	public ObservableOutput(@Nonnull T outputStream, @Nonnull byte[] buffer) {
 		super(buffer);
 		super.setOutputStream(outputStream);
-		this.flushSize = buffer.length;
 		// we need to hide CRC mandatory space from the Kryo output so that it asks for `require` when it reaches
 		// the end of the capacity - this way we will have reserved space for safely writing the CRC checksum
 		this.capacity = buffer.length - TAIL_MANDATORY_SPACE;
@@ -138,7 +147,6 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 		if (bufferSize < flushSize) {
 			throw new StorageException("Buffer size cannot be lower than flush limit with some reserve space!");
 		}
-		this.flushSize = flushSize;
 		this.total = currentFileSize;
 		// we need to hide CRC mandatory space from the Kryo output so that it asks for `require` when it reaches
 		// the end of the capacity - this way we will have reserved space for safely writing the CRC checksum
@@ -152,6 +160,22 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 	public ObservableOutput<T> computeCRC32() {
 		if (this.crc32C == null) {
 			this.crc32C = new CRC32C();
+		}
+		return this;
+	}
+
+	/**
+	 * Enables compression for each record payload.
+	 */
+	@Nonnull
+	public ObservableOutput<T> deflate() {
+		if (this.deflater == null) {
+			this.deflater = new Deflater(Deflater.DEFAULT_COMPRESSION, true);
+			// the deflate buffer must be the same size as the buffer,
+			// if the data exceed the buffer size, it means compressed data are larger than the original data
+			// and the compression would not be used at all
+			/* TODO JNO - verify whether the main buffer isn't pooled somewhere and how the release when not used works */
+			this.deflateBuffer = new byte[this.buffer.length];
 		}
 		return this;
 	}
@@ -186,49 +210,118 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 	 * When CRC32C checksum should be computed, it's done at this moment.
 	 * Record length is computed and is written to the specified position of the record as INT value.
 	 * Method resets all record related flags and another record can be written afterwards.
-	 * Record is marked as finished and can be safely written to the output stream (disk) - but may not depending on
-	 * the {@link #getFlushSize()}.
+	 * Record is marked as finished and can be safely written to the output stream (disk).
 	 */
 	@Nonnull
 	public FileLocation markEnd(byte controlByte) {
 		try {
 			Assert.isPremiseValid(this.payloadStartPosition != -1, "Payload start position must be initialized!");
 			this.writingTail = true;
-			final byte alteredControlByte;
+			byte alteredControlByte = controlByte;
+			final int payloadLength = this.position - this.payloadStartPosition;
+
+			// compress payload if requested
+			final int savedBytesByCompression;
+			if (this.deflater != null) {
+				this.deflater.reset();
+				this.deflater.setInput(this.buffer, this.payloadStartPosition, payloadLength);
+				this.deflater.finish();
+				int deflatedLength = this.deflater.deflate(this.deflateBuffer, 0, this.deflateBuffer.length);
+				if (deflater.finished() && deflatedLength < payloadLength) {
+					savedBytesByCompression = payloadLength - deflatedLength;
+					alteredControlByte = BitUtils.setBit(alteredControlByte, StorageRecord.COMPRESSION_BIT, true);
+				} else {
+					savedBytesByCompression = 0;
+				}
+			} else {
+				savedBytesByCompression = 0;
+			}
+
+			// compute CRC32 checksum if requested
 			final long crc;
 			if (this.crc32C == null) {
-				alteredControlByte = controlByte;
 				crc = NULL_CRC;
 			} else {
-				alteredControlByte = BitUtils.setBit(controlByte, StorageRecord.CRC32_BIT, true);
-				// compute CRC32 checksum if requested
-				this.crc32C.update(this.buffer, this.payloadStartPosition, this.position - this.payloadStartPosition);
-				this.crc32C.update(alteredControlByte);
-				crc = this.crc32C.getValue();
+				alteredControlByte = BitUtils.setBit(alteredControlByte, StorageRecord.CRC32_BIT, true);
+				crc = calculateChecksum(savedBytesByCompression, payloadLength, alteredControlByte);
 			}
+
 			// write CRC32 or blank
 			super.writeLong(crc);
 			// store current position
 			final int savedPosition = this.position;
-			final int length = this.position - this.startPosition;
+			final int length = this.position - this.startPosition - savedBytesByCompression;
 			// seek backwards to the place of record length and write it
 			writeIntWithoutTouchingPosition(this.recordLengthPosition, length);
 			writeByteWithoutTouchingPosition(this.recordLengthPosition + 4, alteredControlByte);
 			// restore position to the EOF
 			super.position = savedPosition;
 			// compute file coordinates before resetting positions
-			final FileLocation fileLocation = new FileLocation(this.total + (this.startPosition - this.lastFlushedPosition), length);
-			// clear open record indexes
-			this.startPosition = -1;
-			this.payloadStartPosition = -1;
+			final long supposedRecordStartPosition = this.total + (this.startPosition - this.lastConsumedPosition) - this.savedBytesByCompressionSinceReset;
 
-			flushIfNecessary();
+			// write the record to the output stream
+			IOUtils.executeSafely(
+				payloadLength, savedBytesByCompression,
+				KryoException::new,
+				this::finishRecord
+			);
 
 			// return location coordinates
-			return fileLocation;
+			return new FileLocation(supposedRecordStartPosition, length);
 		} finally {
 			this.writingTail = false;
 		}
+	}
+
+	/**
+	 * Calculates a CRC32C checksum based on the given input parameters and updates
+	 * the CRC32C instance with the relevant data.
+	 *
+	 * @param savedBytesByCompression the number of bytes saved by compression.
+	 *        This determines whether deflateBuffer or buffer is used for the checksum calculation.
+	 * @param payloadLength the length of the payload used in checksum computation.
+	 * @param alteredControlByte a single byte that will also be included in the checksum.
+	 * @return the computed CRC32C checksum as a long value.
+	 */
+	private long calculateChecksum(int savedBytesByCompression, int payloadLength, byte alteredControlByte) {
+		if (savedBytesByCompression > 0) {
+			this.crc32C.update(this.deflateBuffer, 0, payloadLength - savedBytesByCompression);
+		} else {
+			this.crc32C.update(this.buffer, this.payloadStartPosition, payloadLength);
+		}
+		this.crc32C.update(alteredControlByte);
+		return this.crc32C.getValue();
+	}
+
+	/**
+	 * Finalizes the record writing process by writing its components (header, payload, and tail)
+	 * to the output stream while considering compression savings. Updates internal counters
+	 * and resets all record-related flags to prepare for another record to be written.
+	 *
+	 * @param thePayloadLength           the length of the record payload to be written
+	 * @param theSavedBytesByCompression the number of bytes saved by compression
+	 * @throws IOException if an I/O error occurs during writing
+	 */
+	private void finishRecord(int thePayloadLength, int theSavedBytesByCompression) throws IOException {
+		// write header to the output stream
+		this.outputStream.write(this.buffer, this.lastConsumedPosition, this.payloadStartPosition - this.lastConsumedPosition);
+		// write payload to the output stream
+		if (theSavedBytesByCompression > 0) {
+			this.outputStream.write(this.deflateBuffer, 0, thePayloadLength - theSavedBytesByCompression);
+			this.savedBytesByCompressionSinceReset += theSavedBytesByCompression;
+		} else {
+			this.outputStream.write(this.buffer, this.payloadStartPosition, thePayloadLength);
+		}
+		// write tail to the output stream
+		this.outputStream.write(this.buffer, this.position - TAIL_MANDATORY_SPACE, TAIL_MANDATORY_SPACE);
+
+		// update counters as if the uncompressed data was written
+		final int consumedLength = this.position - this.lastConsumedPosition;
+		this.total += consumedLength;
+		this.lastConsumedPosition += consumedLength;
+		// clear open record indexes
+		this.startPosition = -1;
+		this.payloadStartPosition = -1;
 	}
 
 	/**
@@ -252,13 +345,13 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 	@Override
 	public byte[] toBytes() {
 		byte[] newBuffer = new byte[this.position()];
-		System.arraycopy(this.buffer, this.lastFlushedPosition, newBuffer, 0, newBuffer.length);
+		System.arraycopy(this.buffer, this.lastConsumedPosition, newBuffer, 0, newBuffer.length);
 		return newBuffer;
 	}
 
 	@Override
 	public int position() {
-		return this.position - this.lastFlushedPosition;
+		return this.position - this.lastConsumedPosition;
 	}
 
 	@Override
@@ -274,10 +367,11 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 	@Override
 	public void reset() {
 		super.reset();
-		this.lastFlushedPosition = 0;
+		this.lastConsumedPosition = 0;
 		this.startPosition = -1;
 		this.payloadStartPosition = -1;
 		this.recordLengthPosition = -1;
+		this.savedBytesByCompressionSinceReset = 0;
 	}
 
 	/**
@@ -296,18 +390,18 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 			// there is enough capacity available
 			return false;
 		}
-		// flush to disk if there enough accumulated data
-		flush();
+		// write data if there is enough accumulated
+		writeDataToOutputStream();
 		// we've moved far in the buffer, and we can rewind
-		if (this.lastFlushedPosition > 0) {
-			final int activeBufferSize = this.startPosition == -1 ? 0 : this.position - this.lastFlushedPosition;
-			if (activeBufferSize < this.lastFlushedPosition) {
+		if (this.lastConsumedPosition > 0) {
+			final int activeBufferSize = this.startPosition == -1 ? 0 : this.position - this.lastConsumedPosition;
+			if (activeBufferSize < this.lastConsumedPosition) {
 				// if it's safe to copy within single buffer - do it
-				System.arraycopy(this.buffer, this.lastFlushedPosition, this.buffer, 0, activeBufferSize);
+				System.arraycopy(this.buffer, this.lastConsumedPosition, this.buffer, 0, activeBufferSize);
 			} else {
 				// it's not safe - data would be overwritten - we need to allocate new byte buffer
 				final byte[] newBuffer = new byte[this.capacity + TAIL_MANDATORY_SPACE];
-				System.arraycopy(this.buffer, this.lastFlushedPosition, newBuffer, 0, activeBufferSize);
+				System.arraycopy(this.buffer, this.lastConsumedPosition, newBuffer, 0, activeBufferSize);
 				this.buffer = newBuffer;
 			}
 			recomputePositionsToNewStart();
@@ -353,9 +447,11 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 		if (this.outputStream == null) {
 			return;
 		}
-		final int flushPosition = this.startPosition == -1 ? this.position : this.startPosition;
-		final int flushLength = flushPosition - this.lastFlushedPosition;
-		doFlush(flushLength);
+		writeDataToOutputStream();
+		IOUtils.close(
+			KryoException::new,
+			this.outputStream::flush
+		);
 	}
 
 	@Override
@@ -403,39 +499,12 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 	private void recomputePositionsToNewStart() {
 		// we have to align new starts
 		if (this.startPosition != -1) {
-			this.startPosition = this.startPosition - this.lastFlushedPosition;
-			this.payloadStartPosition = this.payloadStartPosition == -1 ? -1 : this.payloadStartPosition - this.lastFlushedPosition;
-			this.recordLengthPosition = this.recordLengthPosition - this.lastFlushedPosition;
+			this.startPosition = this.startPosition - this.lastConsumedPosition;
+			this.payloadStartPosition = this.payloadStartPosition == -1 ? -1 : this.payloadStartPosition - this.lastConsumedPosition;
+			this.recordLengthPosition = this.recordLengthPosition - this.lastConsumedPosition;
 		}
-		this.position = this.position - this.lastFlushedPosition;
-		this.lastFlushedPosition = 0;
-	}
-
-	/**
-	 * Flushes finished contents of this buffer but only if their size exceeds {@link #getFlushSize()}.
-	 */
-	private void flushIfNecessary() {
-		final int flushPosition = this.startPosition == -1 ? this.position : this.startPosition;
-		final int flushLength = flushPosition - this.lastFlushedPosition;
-		if (flushLength >= this.flushSize) {
-			doFlush(flushLength);
-		}
-	}
-
-	/**
-	 * Executes the flush of the buffer from the `lastFlushedPosition` with length passed in argument.
-	 */
-	private void doFlush(int flushLength) {
-		if (flushLength > 0) {
-			try {
-				this.outputStream.write(this.buffer, this.lastFlushedPosition, flushLength);
-				this.outputStream.flush();
-			} catch (IOException ex) {
-				throw new KryoException(ex);
-			}
-			this.total += flushLength;
-			this.lastFlushedPosition += flushLength;
-		}
+		this.position = this.position - this.lastConsumedPosition;
+		this.lastConsumedPosition = 0;
 	}
 
 	/**
@@ -450,6 +519,25 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 		this.buffer[position + 1] = (byte) (integerToWrite >> 8);
 		this.buffer[position + 2] = (byte) (integerToWrite >> 16);
 		this.buffer[position + 3] = (byte) (integerToWrite >> 24);
+	}
+
+	/**
+	 * Executes the flush of the buffer from the `lastFlushedPosition` with length passed in argument.
+	 */
+	private void writeDataToOutputStream() {
+		final int flushPosition = this.startPosition == -1 ? this.position : this.startPosition;
+		final int flushLength = flushPosition - this.lastConsumedPosition;
+		if (flushLength > 0) {
+			IOUtils.executeSafely(
+				flushLength,
+				KryoException::new,
+				theLength -> {
+					this.outputStream.write(this.buffer, this.lastConsumedPosition, theLength);
+					this.total += theLength;
+					this.lastConsumedPosition += theLength;
+				}
+			);
+		}
 	}
 
 	/**

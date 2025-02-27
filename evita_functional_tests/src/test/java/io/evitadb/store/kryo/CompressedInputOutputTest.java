@@ -26,6 +26,8 @@ package io.evitadb.store.kryo;
 
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.store.offsetIndex.model.StorageRecord;
+import io.evitadb.utils.BitUtils;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayInputStream;
@@ -33,6 +35,7 @@ import java.io.ByteArrayOutputStream;
 import java.util.Arrays;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 /**
  * This test verifies compression behavior of the {@link ObservableOutput} and {@link ObservableInput}.
@@ -40,23 +43,31 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 public class CompressedInputOutputTest extends AbstractObservableInputOutputTest {
-	private final static int BIG_PAYLOAD_SIZE = PAYLOAD_SIZE * 50;
+	public static final int REPETITIONS = 50;
+	private final static int BIG_PAYLOAD_SIZE = PAYLOAD_SIZE * REPETITIONS;
 
 	@Test
 	void shouldWriteAndReadCompressedData() {
 		final int bufferSize = BIG_PAYLOAD_SIZE + OVERHEAD_SIZE;
 		final ByteArrayOutputStream baos = new ByteArrayOutputStream(bufferSize);
-		final ObservableOutput<?> output = new ObservableOutput<>(
-			baos, bufferSize, bufferSize, 0
-		).computeCRC32();
+		final ObservableOutput<?> output = new ObservableOutput<>(baos, bufferSize, bufferSize, 0)
+			.computeCRC32()
+			.deflate();
 
 		final ByteArrayOutputStream controlBaos = new ByteArrayOutputStream(bufferSize);
 		final Output controlOutput = new Output(controlBaos, bufferSize);
 
-		writeRandomRecord(output, controlOutput, BIG_PAYLOAD_SIZE);
+		final byte[] bytes = generateBytes(PAYLOAD_SIZE);
+		final byte[] repeatedBytes = new byte[BIG_PAYLOAD_SIZE];
+		for (int i = 0; i < REPETITIONS; i++) {
+			System.arraycopy(bytes, 0, repeatedBytes, i * PAYLOAD_SIZE, PAYLOAD_SIZE);
+		}
+		writeRecord(output, controlOutput, BIG_PAYLOAD_SIZE, repeatedBytes);
 
 		final ByteArrayInputStream bais = new ByteArrayInputStream(baos.toByteArray());
-		final ObservableInput<?> input = new ObservableInput<>(bais, 24).computeCRC32();
+		final ObservableInput<?> input = new ObservableInput<>(bais, 24)
+			.computeCRC32()
+			.inflate();
 
 		final byte[] payload = readAndVerifyRecord(input, BIG_PAYLOAD_SIZE);
 
@@ -69,4 +80,49 @@ public class CompressedInputOutputTest extends AbstractObservableInputOutputTest
 			payload
 		);
 	}
+
+	@Test
+	void shouldNotCompressIncompressibleData() {
+		final int bufferSize = PAYLOAD_SIZE + OVERHEAD_SIZE;
+		final ByteArrayOutputStream baos = new ByteArrayOutputStream(bufferSize);
+		final ObservableOutput<?> output = new ObservableOutput<>(baos, bufferSize, bufferSize, 0)
+			.computeCRC32()
+			.deflate();
+
+		final ByteArrayOutputStream controlBaos = new ByteArrayOutputStream(bufferSize);
+		final Output controlOutput = new Output(controlBaos, bufferSize);
+
+		final byte[] bytes = new byte[PAYLOAD_SIZE];
+		for (int i = 0; i < bytes.length; i++) {
+			bytes[i] = (byte) i;
+		}
+
+		writeRecord(output, controlOutput, PAYLOAD_SIZE, bytes);
+
+		final ByteArrayInputStream bais = new ByteArrayInputStream(baos.toByteArray());
+		final ObservableInput<?> input = new ObservableInput<>(bais, 24)
+			.computeCRC32()
+			.inflate();
+
+		// read control byte
+		input.markStart();
+		input.skip(4);
+		byte controlByte = input.readByte();
+		// verify that compression bit is not set
+		assertFalse(BitUtils.isBitSet(controlByte, StorageRecord.COMPRESSION_BIT));
+
+		// try to deserialize the record as normal
+		input.reset();
+		final byte[] payload = readAndVerifyRecord(input, PAYLOAD_SIZE);
+
+		final Input controlInput = new Input(new ByteArrayInputStream(controlBaos.toByteArray()), 24);
+		final byte[] controlPayload = new byte[bufferSize];
+		controlInput.readBytes(controlPayload);
+
+		assertArrayEquals(
+			Arrays.copyOfRange(controlPayload, HEADER_SIZE, HEADER_SIZE + PAYLOAD_SIZE),
+			payload
+		);
+	}
+
 }
