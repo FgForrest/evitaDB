@@ -258,14 +258,14 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 		@Nullable @AdditionalChild(domain = ConstraintDomain.INLINE_REFERENCE) OrderBy orderBy,
 		@Nullable EntityFetch entityFetch,
 		@Nullable EntityGroupFetch entityGroupFetch,
-		@Nullable @Child(uniqueChildren = true) ChunkingRequireConstraint chunk
+		@Nullable @Child(uniqueChildren = true) ChunkingRequireConstraint chunking
 	) {
 		super(
 			ArrayUtils.mergeArrays(
 				new Serializable[]{ManagedReferencesBehaviour.ANY},
 				ofNullable(referenceName).map(it -> new Serializable[]{it}).orElse(NO_ARGS)
 			),
-			new RequireConstraint[]{entityFetch, entityGroupFetch, chunk},
+			new RequireConstraint[]{entityFetch, entityGroupFetch, chunking},
 			filterBy,
 			orderBy
 		);
@@ -279,7 +279,7 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 		@Nullable AttributeContent attributeContent,
 		@Nullable EntityFetch entityFetch,
 		@Nullable EntityGroupFetch entityGroupFetch,
-		@Nullable ChunkingRequireConstraint chunk
+		@Nullable ChunkingRequireConstraint chunking
 	) {
 		super(
 			ArrayUtils.mergeArrays(
@@ -290,7 +290,7 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 				attributeContent,
 				entityFetch,
 				entityGroupFetch,
-				chunk
+				chunking
 			},
 			filterBy,
 			orderBy
@@ -388,22 +388,22 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 		);
 	}
 
-	public ReferenceContent(@Nullable ChunkingRequireConstraint chunk) {
+	public ReferenceContent(@Nullable ChunkingRequireConstraint chunking) {
 		super(
 			new Serializable[]{ManagedReferencesBehaviour.ANY},
-			chunk
+			chunking
 		);
 	}
 
 	public ReferenceContent(
 		@Nonnull String referenceName,
 		@Nullable AttributeContent attributeContent,
-		@Nullable ChunkingRequireConstraint chunk
+		@Nullable ChunkingRequireConstraint chunking
 	) {
 		super(
 			new Serializable[]{ManagedReferencesBehaviour.ANY, referenceName},
 			attributeContent,
-			chunk
+			chunking
 		);
 	}
 
@@ -411,7 +411,7 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 		@Nonnull String[] referenceNames,
 		@Nullable EntityFetch entityRequirement,
 		@Nullable EntityGroupFetch groupEntityRequirement,
-		@Nullable ChunkingRequireConstraint chunk
+		@Nullable ChunkingRequireConstraint chunking
 	) {
 		super(
 			ArrayUtils.mergeArrays(
@@ -420,20 +420,20 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 			),
 			entityRequirement,
 			groupEntityRequirement,
-			chunk
+			chunking
 		);
 	}
 
 	public ReferenceContent(
 		@Nullable EntityFetch entityRequirement,
 		@Nullable EntityGroupFetch groupEntityRequirement,
-		@Nullable ChunkingRequireConstraint chunk
+		@Nullable ChunkingRequireConstraint chunking
 	) {
 		super(
 			new Serializable[]{ManagedReferencesBehaviour.ANY},
 			entityRequirement,
 			groupEntityRequirement,
-			chunk
+			chunking
 		);
 	}
 
@@ -441,30 +441,30 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 		@Nullable AttributeContent attributeContent,
 		@Nullable EntityFetch entityRequirement,
 		@Nullable EntityGroupFetch groupEntityRequirement,
-		@Nullable ChunkingRequireConstraint chunk
+		@Nullable ChunkingRequireConstraint chunking
 	) {
 		super(
 			new Serializable[]{ManagedReferencesBehaviour.ANY},
 			attributeContent,
 			entityRequirement,
 			groupEntityRequirement,
-			chunk
+			chunking
 		);
 	}
 
 	public ReferenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferences,
-		@Nullable ChunkingRequireConstraint chunk
+		@Nullable ChunkingRequireConstraint chunking
 	) {
 		super(
 			new Serializable[]{ofNullable(managedReferences).orElse(ManagedReferencesBehaviour.ANY)},
-			chunk
+			chunking
 		);
 	}
 
 	public ReferenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferences,
-		@Nullable ChunkingRequireConstraint chunk,
+		@Nullable ChunkingRequireConstraint chunking,
 		@Nonnull String... referenceName
 	) {
 		super(
@@ -472,7 +472,7 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 				new Serializable[]{ofNullable(managedReferences).orElse(ManagedReferencesBehaviour.ANY)},
 				referenceName
 			),
-			chunk
+			chunking
 		);
 	}
 
@@ -480,24 +480,24 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 		@Nullable ManagedReferencesBehaviour managedReferences,
 		@Nonnull String referenceName,
 		@Nullable AttributeContent attributeContent,
-		@Nullable ChunkingRequireConstraint chunk
+		@Nullable ChunkingRequireConstraint chunking
 	) {
 		super(
 			new Serializable[]{ofNullable(managedReferences).orElse(ManagedReferencesBehaviour.ANY), referenceName},
 			attributeContent,
-			chunk
+			chunking
 		);
 	}
 
 	public ReferenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferences,
 		@Nullable AttributeContent attributeContent,
-		@Nullable ChunkingRequireConstraint chunk
+		@Nullable ChunkingRequireConstraint chunking
 	) {
 		super(
 			new Serializable[]{ofNullable(managedReferences).orElse(ManagedReferencesBehaviour.ANY)},
 			attributeContent,
-			chunk
+			chunking
 		);
 	}
 
@@ -506,7 +506,7 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 		@Nonnull String[] referenceNames,
 		@Nullable EntityFetch entityRequirement,
 		@Nullable EntityGroupFetch groupEntityRequirement,
-		@Nullable ChunkingRequireConstraint chunk
+		@Nullable ChunkingRequireConstraint chunking
 	) {
 		super(
 			ArrayUtils.mergeArrays(
@@ -515,7 +515,7 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 			),
 			entityRequirement,
 			groupEntityRequirement,
-			chunk
+			chunking
 		);
 	}
 
@@ -526,14 +526,14 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 		@Nullable OrderBy orderBy,
 		@Nullable EntityFetch entityFetch,
 		@Nullable EntityGroupFetch entityGroupFetch,
-		@Nullable ChunkingRequireConstraint chunk
+		@Nullable ChunkingRequireConstraint chunking
 	) {
 		super(
 			ArrayUtils.mergeArrays(
 				new Serializable[]{ofNullable(managedReferences).orElse(ManagedReferencesBehaviour.ANY)},
 				new String[]{referenceName}
 			),
-			new RequireConstraint[]{entityFetch, entityGroupFetch, chunk},
+			new RequireConstraint[]{entityFetch, entityGroupFetch, chunking},
 			filterBy,
 			orderBy
 		);
@@ -579,7 +579,7 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 		@Nullable AttributeContent attributeContent,
 		@Nullable EntityFetch entityFetch,
 		@Nullable EntityGroupFetch entityGroupFetch,
-		@Nullable ChunkingRequireConstraint chunk
+		@Nullable ChunkingRequireConstraint chunking
 	) {
 		super(
 			ArrayUtils.mergeArrays(
@@ -590,7 +590,7 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 				attributeContent,
 				entityFetch,
 				entityGroupFetch,
-				chunk
+				chunking
 			},
 			filterBy,
 			orderBy
@@ -601,13 +601,13 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 		@Nullable ManagedReferencesBehaviour managedReferences,
 		@Nullable EntityFetch entityRequirement,
 		@Nullable EntityGroupFetch groupEntityRequirement,
-		@Nullable ChunkingRequireConstraint chunk
+		@Nullable ChunkingRequireConstraint chunking
 	) {
 		super(
 			new Serializable[]{ofNullable(managedReferences).orElse(ManagedReferencesBehaviour.ANY)},
 			entityRequirement,
 			groupEntityRequirement,
-			chunk
+			chunking
 		);
 	}
 
@@ -616,14 +616,14 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 		@Nullable AttributeContent attributeContent,
 		@Nullable EntityFetch entityRequirement,
 		@Nullable EntityGroupFetch groupEntityRequirement,
-		@Nullable ChunkingRequireConstraint chunk
+		@Nullable ChunkingRequireConstraint chunking
 	) {
 		super(
 			new Serializable[]{ofNullable(managedReferences).orElse(ManagedReferencesBehaviour.ANY)},
 			attributeContent,
 			entityRequirement,
 			groupEntityRequirement,
-			chunk
+			chunking
 		);
 	}
 
