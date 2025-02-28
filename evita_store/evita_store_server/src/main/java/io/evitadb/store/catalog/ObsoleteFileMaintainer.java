@@ -182,13 +182,7 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 	public void consumersLeft(long lastKnownMinimalActiveVersion) {
 		// immediate file purging on catalog version exchange is not used when time travel is enabled
 		if (!this.timeTravelEnabled) {
-			if (this.lastCatalogVersion.get() > 0L) {
-				this.lastKnownMinimalActiveVersion.accumulateAndGet(
-					this.lastCatalogVersion.get(),
-					Math::max
-				);
-				this.purgeTask.schedule();
-			} else if (lastKnownMinimalActiveVersion > 0L && this.firstCatalogVersion.get() <= lastKnownMinimalActiveVersion) {
+			if (lastKnownMinimalActiveVersion > 0L && this.firstCatalogVersion.get() < lastKnownMinimalActiveVersion) {
 				this.lastKnownMinimalActiveVersion.accumulateAndGet(
 					lastKnownMinimalActiveVersion,
 					Math::max
@@ -202,7 +196,7 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 	public void close() {
 		// clear all files immediately, database shuts down and there will be no active sessions
 		this.lastKnownMinimalActiveVersion.set(0L);
-		for (MaintainedFile maintainedFile : maintainedFiles) {
+		for (MaintainedFile maintainedFile : this.maintainedFiles) {
 			purgeFile(maintainedFile);
 		}
 		this.maintainedFiles.clear();
@@ -314,10 +308,12 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 					)
 				);
 
-			Arrays.stream(
-					this.catalogStoragePath.toFile()
-						.listFiles((dir, name) -> name.endsWith(CATALOG_FILE_SUFFIX))
-				)
+			ofNullable(
+				this.catalogStoragePath.toFile()
+					.listFiles((dir, name) -> name.endsWith(CATALOG_FILE_SUFFIX))
+			)
+				.stream()
+				.flatMap(Arrays::stream)
 				.filter(file -> getIndexFromCatalogFileName(file.getName()) < firstUsedCatalogDataFileIndex)
 				.forEach(file -> {
 					if (file.delete()) {
@@ -327,10 +323,12 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 					}
 				});
 
-			Arrays.stream(
-					this.catalogStoragePath.toFile()
-						.listFiles((dir, name) -> name.endsWith(ENTITY_COLLECTION_FILE_SUFFIX))
-				)
+			ofNullable(
+				this.catalogStoragePath.toFile()
+					.listFiles((dir, name) -> name.endsWith(ENTITY_COLLECTION_FILE_SUFFIX))
+			)
+				.stream()
+				.flatMap(Arrays::stream)
 				.filter(file -> {
 					final EntityTypePrimaryKeyAndFileIndex result = getEntityPrimaryKeyAndIndexFromEntityCollectionFileName(file.getName());
 					final Integer firstUsedEntityFileIndex = entityFileIndex.get(result.entityTypePrimaryKey());

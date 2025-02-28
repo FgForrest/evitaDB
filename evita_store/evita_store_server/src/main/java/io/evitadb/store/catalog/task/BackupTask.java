@@ -90,7 +90,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 	private final CatalogBootstrap bootstrapRecord;
 	private final AtomicReference<ExportFileService> exportFileService;
 	private final AtomicReference<DefaultCatalogPersistenceService> catalogPersistenceService;
-	private final LongConsumer onComplete;
+	private final AtomicReference<LongConsumer> onComplete;
 
 	public BackupTask(
 		@Nonnull String catalogName,
@@ -116,7 +116,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 		this.bootstrapRecord = bootstrapRecord;
 		this.exportFileService = new AtomicReference<>(exportFileService);
 		this.catalogPersistenceService = new AtomicReference<>(catalogPersistenceService);
-		this.onComplete = onComplete;
+		this.onComplete = new AtomicReference<>(onComplete);
 		if (onStart != null) {
 			onStart.accept(this.bootstrapRecord.catalogVersion());
 		}
@@ -235,12 +235,29 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 				throw exception;
 			}
 		} finally {
-			// free references to expensive resources
-			this.catalogPersistenceService.set(null);
-			this.exportFileService.set(null);
-			if (this.onComplete != null) {
-				this.onComplete.accept(this.bootstrapRecord.catalogVersion());
-			}
+			tearDown();
+		}
+	}
+
+	@Override
+	public boolean cancel() {
+		final boolean cancel = super.cancel();
+		if (cancel) {
+			tearDown();
+		}
+		return cancel;
+	}
+
+	/**
+	 * Cleans up resources used by this task.
+	 */
+	private void tearDown() {
+		// free references to expensive resources
+		this.catalogPersistenceService.set(null);
+		this.exportFileService.set(null);
+		final LongConsumer onComplete = this.onComplete.getAndSet(null);
+		if (onComplete != null) {
+			onComplete.accept(this.bootstrapRecord.catalogVersion());
 		}
 	}
 

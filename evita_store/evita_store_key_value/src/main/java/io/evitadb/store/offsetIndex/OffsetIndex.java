@@ -1071,7 +1071,8 @@ public class OffsetIndex {
 		@Nonnull OffsetIndexDescriptor fileOffsetIndexDescriptor,
 		boolean close
 	) {
-		if (this.volatileValues.hasValuesToFlush()) {
+		// if there are any non-flushed values, we need to flush them to the disk (of if the offset index was not yet created)
+		if (this.volatileValues.hasValuesToFlush() || fileOffsetIndexDescriptor.fileLocation() == null) {
 			final OffsetIndexDescriptor newFileOffsetIndexDescriptor = writeHandle.checkAndExecuteAndSync(
 				"Writing mem table",
 				this::assertOperative,
