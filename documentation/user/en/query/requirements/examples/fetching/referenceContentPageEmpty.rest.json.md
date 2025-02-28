@@ -33,9 +33,9 @@
 		"empty" : false,
 		"pageSize" : 0,
 		"pageNumber" : 1,
-		"lastPageNumber" : 1,
+		"lastPageNumber" : 0,
 		"firstPageItemNumber" : 0,
-		"lastPageItemNumber" : 1
+		"lastPageItemNumber" : -1
       }
     }
   ],
