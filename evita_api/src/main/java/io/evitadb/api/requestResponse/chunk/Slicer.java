@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,10 +21,10 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.query.slice;
+package io.evitadb.api.requestResponse.chunk;
 
 
-import io.evitadb.api.requestResponse.EvitaRequest;
+import io.evitadb.api.requestResponse.EvitaRequest.ResultForm;
 
 import javax.annotation.Nonnull;
 
@@ -40,31 +40,13 @@ public interface Slicer {
 	/**
 	 * Calculates the offset and limit for pagination based on the provided EvitaRequest and the total record count.
 	 *
-	 * @param evitaRequest the request object containing pagination information.
+	 * @param resultForm       the expected result form of the paginated result
+	 * @param offset           initial offset value (in case of page it contains page number).
+	 * @param limit            initial limit value (in case of page it contains page size).
 	 * @param totalRecordCount the total number of records from which a subset is to be retrieved.
 	 * @return an OffsetAndLimit object containing the calculated offset, limit, and last page number.
 	 */
 	@Nonnull
-	OffsetAndLimit calculateOffsetAndLimit(@Nonnull EvitaRequest evitaRequest, int totalRecordCount);
-
-	/**
-	 * The OffsetAndLimit record represents pagination parameters including offset, limit, and the last page number.
-	 *
-	 * @param offset The starting point for fetching records.
-	 * @param limit The number of records to fetch from the starting point.
-	 * @param lastPageNumber The last page number based on the current pagination settings.
-	 */
-	record OffsetAndLimit(int offset, int limit, int lastPageNumber) {
-
-		/**
-		 * Calculates the total length of the current page including the offset and limit values.
-		 *
-		 * @return the sum of offset and limit.
-		 */
-		public int length() {
-			return offset + limit;
-		}
-
-	}
+	OffsetAndLimit calculateOffsetAndLimit(@Nonnull ResultForm resultForm, int offset, int limit, int totalRecordCount);
 
 }

@@ -31,6 +31,7 @@ import io.evitadb.api.query.require.HierarchyContent;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.EvitaRequest;
+import io.evitadb.api.requestResponse.chunk.ChunkTransformer;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.PriceContract;
@@ -282,9 +283,11 @@ public class EntityDecorator implements SealedEntity {
 			.collect(
 				Collectors.toMap(
 					Map.Entry::getKey,
-					entry -> this.delegate.getReferenceChunkTransformer()
-						.apply(entry.getKey())
-						.createChunk(entry.getValue())
+					entry -> {
+						final ChunkTransformer chunker = this.delegate.getReferenceChunkTransformer()
+							.apply(entry.getKey());
+						return chunker.createChunk(entry.getValue());
+					}
 				)
 			);
 	}

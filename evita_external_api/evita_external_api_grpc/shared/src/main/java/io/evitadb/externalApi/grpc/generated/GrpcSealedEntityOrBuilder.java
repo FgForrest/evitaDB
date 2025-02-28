@@ -603,56 +603,56 @@ public interface GrpcSealedEntityOrBuilder extends
    * if pagination or strip was used in the input query.
    * </pre>
    *
-   * <code>map&lt;string, int32&gt; referenceCounts = 18;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit&gt; referenceOffsetAndLimits = 18;</code>
    */
-  int getReferenceCountsCount();
+  int getReferenceOffsetAndLimitsCount();
   /**
    * <pre>
    * Contains total count of references per reference name. This may differ from count of provided references
    * if pagination or strip was used in the input query.
    * </pre>
    *
-   * <code>map&lt;string, int32&gt; referenceCounts = 18;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit&gt; referenceOffsetAndLimits = 18;</code>
    */
-  boolean containsReferenceCounts(
+  boolean containsReferenceOffsetAndLimits(
       java.lang.String key);
   /**
-   * Use {@link #getReferenceCountsMap()} instead.
+   * Use {@link #getReferenceOffsetAndLimitsMap()} instead.
    */
   @java.lang.Deprecated
-  java.util.Map<java.lang.String, java.lang.Integer>
-  getReferenceCounts();
+  java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit>
+  getReferenceOffsetAndLimits();
   /**
    * <pre>
    * Contains total count of references per reference name. This may differ from count of provided references
    * if pagination or strip was used in the input query.
    * </pre>
    *
-   * <code>map&lt;string, int32&gt; referenceCounts = 18;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit&gt; referenceOffsetAndLimits = 18;</code>
    */
-  java.util.Map<java.lang.String, java.lang.Integer>
-  getReferenceCountsMap();
+  java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit>
+  getReferenceOffsetAndLimitsMap();
   /**
    * <pre>
    * Contains total count of references per reference name. This may differ from count of provided references
    * if pagination or strip was used in the input query.
    * </pre>
    *
-   * <code>map&lt;string, int32&gt; referenceCounts = 18;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit&gt; referenceOffsetAndLimits = 18;</code>
    */
 
-  int getReferenceCountsOrDefault(
+  io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit getReferenceOffsetAndLimitsOrDefault(
       java.lang.String key,
-      int defaultValue);
+      io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit defaultValue);
   /**
    * <pre>
    * Contains total count of references per reference name. This may differ from count of provided references
    * if pagination or strip was used in the input query.
    * </pre>
    *
-   * <code>map&lt;string, int32&gt; referenceCounts = 18;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit&gt; referenceOffsetAndLimits = 18;</code>
    */
 
-  int getReferenceCountsOrThrow(
+  io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit getReferenceOffsetAndLimitsOrThrow(
       java.lang.String key);
 }

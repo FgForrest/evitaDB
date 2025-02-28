@@ -32,6 +32,9 @@ import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.HierarchyContent;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
+import io.evitadb.api.requestResponse.chunk.ChunkTransformer;
+import io.evitadb.api.requestResponse.chunk.OffsetAndLimit;
+import io.evitadb.api.requestResponse.chunk.PageTransformer;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
@@ -56,6 +59,8 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.dataType.PaginatedList;
+import io.evitadb.dataType.StripList;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.grpc.dataType.ComplexDataObjectConverter;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
@@ -65,6 +70,7 @@ import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
+import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -206,7 +212,7 @@ public class EntityConverter {
 				new ClientReferenceFetcher(
 					parentEntity,
 					grpcEntity.getReferencesList(),
-					grpcEntity.getReferenceCountsMap(),
+					toReferenceOffsetAndLimits(grpcEntity.getReferenceOffsetAndLimitsMap()),
 					entitySchemaFetcher,
 					evitaRequest
 				)
@@ -219,6 +225,28 @@ public class EntityConverter {
 				return typeConverter.apply(expectedType, sealedEntity);
 			}
 		}
+	}
+
+	/**
+	 * Method converts map {@link GrpcOffsetAndLimit} to the {@link OffsetAndLimit} map.
+	 */
+	@Nonnull
+	private static Map<String, OffsetAndLimit> toReferenceOffsetAndLimits(@Nonnull Map<String, GrpcOffsetAndLimit> referenceOffsetAndLimitsMap) {
+		return referenceOffsetAndLimitsMap.entrySet()
+			.stream()
+			.collect(Collectors.toMap(
+				Entry::getKey,
+				entry -> {
+					final GrpcOffsetAndLimit value = entry.getValue();
+					return new OffsetAndLimit(
+						value.getOffset(),
+						value.getLimit(),
+						value.getPageNumber(),
+						value.getLastPageNumber(),
+						value.getTotalRecordCount()
+					);
+				}
+			));
 	}
 
 	/**
@@ -395,9 +423,26 @@ public class EntityConverter {
 			internalEntity.getSchema().getReferences().keySet().forEach(
 				referenceName -> {
 					if (referenceRequestedPredicate.test(referenceName)) {
-						entityBuilder.putReferenceCounts(
+						final DataChunk<ReferenceContract> referenceChunk = entity.getReferenceChunk(referenceName);
+						final GrpcOffsetAndLimit.Builder offsetAndLimit = GrpcOffsetAndLimit.newBuilder();
+						if (referenceChunk instanceof PaginatedList<?> paginatedList) {
+							offsetAndLimit.setOffset(paginatedList.getFirstPageItemNumber());
+							offsetAndLimit.setLimit(paginatedList.getPageSize());
+							offsetAndLimit.setPageNumber(paginatedList.getPageNumber());
+							offsetAndLimit.setLastPageNumber(paginatedList.getLastPageNumber());
+							offsetAndLimit.setTotalRecordCount(paginatedList.getTotalRecordCount());
+						} else if (referenceChunk instanceof StripList<?> stripList) {
+							offsetAndLimit.setOffset(stripList.getOffset());
+							offsetAndLimit.setLimit(stripList.getLimit());
+							offsetAndLimit.setTotalRecordCount(stripList.getTotalRecordCount());
+						} else {
+							offsetAndLimit.setOffset(0);
+							offsetAndLimit.setLimit(referenceChunk.getTotalRecordCount());
+							offsetAndLimit.setTotalRecordCount(referenceChunk.getTotalRecordCount());
+						}
+						entityBuilder.putReferenceOffsetAndLimits(
 							referenceName,
-							entity.getReferenceChunk(referenceName).getTotalRecordCount()
+							offsetAndLimit.build()
 						);
 					}
 				}
@@ -807,13 +852,13 @@ public class EntityConverter {
 		private final EntityClassifierWithParent parentEntity;
 		private final Map<EntityReference, SealedEntity> entityIndex;
 		private final Map<EntityReference, SealedEntity> groupIndex;
-		private final Map<String, Integer> referencesCount;
+		private final Map<String, OffsetAndLimit> referencesOffsetAndLimit;
 		private final EvitaRequest evitaRequest;
 
 		public ClientReferenceFetcher(
 			@Nullable EntityClassifierWithParent parentEntity,
 			@Nonnull List<GrpcReference> grpcReference,
-			@Nonnull Map<String, Integer> referencesCount,
+			@Nonnull Map<String, OffsetAndLimit> referencesOffsetAndLimit,
 			@Nonnull Function<GrpcSealedEntity, SealedEntitySchema> entitySchemaFetcher,
 			@Nonnull EvitaRequest evitaRequest
 		) {
@@ -857,7 +902,7 @@ public class EntityConverter {
 						(sealedEntity, sealedEntity2) -> sealedEntity
 					)
 				);
-			this.referencesCount = referencesCount;
+			this.referencesOffsetAndLimit = referencesOffsetAndLimit;
 			this.evitaRequest = evitaRequest;
 		}
 
@@ -914,10 +959,48 @@ public class EntityConverter {
 		public DataChunk<ReferenceContract> createChunk(@Nonnull Entity entity, @Nonnull String referenceName, @Nonnull List<ReferenceContract> references) {
 			// client reference fetcher sees only slice of the original reference list (in case of paginated access only requested page)
 			// so we need to use alternate method with providing full total count
-			return entity.getReferenceChunkTransformer().apply(referenceName)
-				.createChunk(references, ofNullable(this.referencesCount.get(referenceName)).orElse(0));
+			final ChunkTransformer chunker = entity.getReferenceChunkTransformer().apply(referenceName);
+			if (chunker instanceof PageTransformer pageTransformer) {
+				// when page transformer is used, we need to use server side calculated offset and limit
+				// because spacing could have been used and this cannot be interpreted on the client side
+				return new ClientPageTransformer(
+					pageTransformer.getPage().getPageSize(),
+					Objects.requireNonNull(this.referencesOffsetAndLimit.get(referenceName))
+				).createChunk(references);
+			} else {
+				return chunker.createChunk(references);
+			}
 		}
 
+		/**
+		 * An implementation of the {@link ChunkTransformer} interface that slices a list of {@link ReferenceContract}
+		 * objects into chunks based on pagination parameters defined by a given {@link OffsetAndLimit} instance.
+		 *
+		 * This class provides functionality to transform a complete list of references into a paged data chunk
+		 * aligned with the specified offset, limit, and page number parameters. It internally delegates the
+		 * chunk creation process to {@code PageTransformer}.
+		 */
+		@RequiredArgsConstructor
+		private static class ClientPageTransformer implements ChunkTransformer {
+			private final int pageSize;
+			private final OffsetAndLimit offsetAndLimit;
+
+			@Nonnull
+			@Override
+			public DataChunk<ReferenceContract> createChunk(@Nonnull List<ReferenceContract> referenceContracts) {
+				return PageTransformer.getReferenceContractDataChunk(
+					referenceContracts,
+					this.offsetAndLimit.pageNumber(),
+					this.pageSize,
+					this.offsetAndLimit.lastPageNumber(),
+					// always zero - server sends only a single page
+					0,
+					referenceContracts.size(),
+					this.offsetAndLimit.totalRecordCount()
+				);
+			}
+
+		}
 	}
 
 	/**
