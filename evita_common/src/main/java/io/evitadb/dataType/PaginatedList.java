@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -85,7 +85,7 @@ public final class PaginatedList<T extends Serializable> implements DataChunk<T>
 	 * @param totalRecordCount total number of records
 	 */
 	public PaginatedList(int pageNumber, int pageSize, int totalRecordCount) {
-		this(pageNumber, (int) Math.ceil((float) (totalRecordCount) / (float) pageSize), pageSize, totalRecordCount);
+		this(pageNumber, pageSize == 0 ? 0 : (int) Math.ceil((float) (totalRecordCount) / (float) pageSize), pageSize, totalRecordCount);
 	}
 
 	/**
@@ -113,7 +113,7 @@ public final class PaginatedList<T extends Serializable> implements DataChunk<T>
 	 * @param data             list of records
 	 */
 	public PaginatedList(int pageNumber, int pageSize, int totalRecordCount, List<T> data) {
-		this(pageNumber, (int) Math.ceil((float) (totalRecordCount) / (float) pageSize), pageSize, totalRecordCount, data);
+		this(pageNumber, pageSize == 0 ? 0 : (int) Math.ceil((float) (totalRecordCount) / (float) pageSize), pageSize, totalRecordCount, data);
 	}
 
 	/**
