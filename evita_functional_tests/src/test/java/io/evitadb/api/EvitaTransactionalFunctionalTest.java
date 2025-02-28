@@ -1397,6 +1397,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 						.exportDirectory(testDirectoryExport)
 						.minimalActiveRecordShare(0.9)
 						.fileSizeCompactionThresholdBytes(16_384)
+						.timeTravelEnabled(true)
 						.build()
 				)
 				.transaction(

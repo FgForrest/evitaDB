@@ -1714,7 +1714,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			}
 		);
 		this.obsoleteFileMaintainer.removeFileWhenNotUsed(
-			catalogVersion,
+			catalogVersion - 1L,
 			replacedEntityTypeFileReference.toFilePath(this.catalogStoragePath),
 			() -> removeEntityCollectionPersistenceServiceAndClose(replacedEntityTypeFileReference)
 		);
@@ -1879,48 +1879,62 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 
 	@Override
 	public void purgeAllObsoleteFiles() {
-		final CatalogBootstrap catalogBootstrap = getFirstCatalogBootstrap(this.catalogName, this.storageOptions).orElse(this.bootstrapUsed);
-		final CatalogHeader catalogHeader = fetchCatalogHeader(catalogBootstrap);
-		final Pattern catalogDataFilePattern = CatalogPersistenceService.getCatalogDataStoreFileNamePattern(this.catalogName);
-		final File[] filesToDelete = Objects.requireNonNull(
-			this.catalogStoragePath.toFile()
-				.listFiles((dir, name) -> {
-					// bootstrap file is never removed
-					if (name.equals(getCatalogBootstrapFileName(this.catalogName))) {
-						return false;
-					}
-					// WAL is never removed
-					if (name.endsWith(WAL_FILE_SUFFIX)) {
-						return false;
-					}
-					// actual catalog data file is not removed
-					final Matcher catalogFileMatcher = catalogDataFilePattern.matcher(name);
-					if (catalogFileMatcher.matches() && Integer.parseInt(catalogFileMatcher.group(1)) >= catalogBootstrap.catalogFileIndex()) {
-						return false;
-					}
-					// collection data files are not removed if they are referenced in the current catalog header
-					if (name.endsWith(ENTITY_COLLECTION_FILE_SUFFIX)) {
-						final EntityTypePrimaryKeyAndFileIndex parsedName = CatalogPersistenceService.getEntityPrimaryKeyAndIndexFromEntityCollectionFileName(name);
-						return catalogHeader.getEntityTypeFileIndexes()
-							.stream()
-							.filter(it -> parsedName.entityTypePrimaryKey() == it.entityTypePrimaryKey())
-							.map(it -> parsedName.fileIndex() < it.fileIndex())
-							.findAny().orElse(false);
-					}
-					// all other files are removed
-					return true;
-				})
-		);
-		// delete and inform
-		if (filesToDelete.length > 0) {
-			log.info(
-				"Purging obsolete files for catalog `{}`: {}",
-				catalogName,
-				Arrays.stream(filesToDelete).map(File::getName).collect(Collectors.joining(", "))
+		try {
+			final CatalogBootstrap catalogBootstrap = storageOptions.timeTravelEnabled() ?
+				// if time travel is enabled we need to keep all the files that are referenced in the bootstrap file
+				getFirstCatalogBootstrap(this.catalogName, this.storageOptions).orElse(this.bootstrapUsed) :
+				// otherwise we can remove all the files that are not referenced in the current catalog header
+				this.bootstrapUsed;
+
+			final CatalogHeader catalogHeader = fetchCatalogHeader(catalogBootstrap);
+			final Pattern catalogDataFilePattern = CatalogPersistenceService.getCatalogDataStoreFileNamePattern(this.catalogName);
+			final File[] filesToDelete = Objects.requireNonNull(
+				this.catalogStoragePath.toFile()
+					.listFiles((dir, name) -> {
+						// bootstrap file is never removed
+						if (name.equals(getCatalogBootstrapFileName(this.catalogName))) {
+							return false;
+						}
+						// WAL is never removed
+						if (name.endsWith(WAL_FILE_SUFFIX)) {
+							return false;
+						}
+						// actual catalog data file is not removed
+						final Matcher catalogFileMatcher = catalogDataFilePattern.matcher(name);
+						if (catalogFileMatcher.matches() && Integer.parseInt(catalogFileMatcher.group(1)) >= catalogBootstrap.catalogFileIndex()) {
+							return false;
+						}
+						// collection data files are not removed if they are referenced in the current catalog header
+						if (name.endsWith(ENTITY_COLLECTION_FILE_SUFFIX)) {
+							final EntityTypePrimaryKeyAndFileIndex parsedName = CatalogPersistenceService.getEntityPrimaryKeyAndIndexFromEntityCollectionFileName(name);
+							return catalogHeader.getEntityTypeFileIndexes()
+								.stream()
+								.filter(it -> parsedName.entityTypePrimaryKey() == it.entityTypePrimaryKey())
+								.map(it -> parsedName.fileIndex() < it.fileIndex())
+								.findAny().orElse(false);
+						}
+						// all other files are removed
+						return true;
+					})
 			);
-			for (File file : filesToDelete) {
-				Assert.isPremiseValid(file.delete(), "Failed to delete file `" + file.getAbsolutePath() + "`!");
+			// delete and inform
+			if (filesToDelete.length > 0) {
+				log.info(
+					"Purging obsolete files for catalog `{}`: {}",
+					catalogName,
+					Arrays.stream(filesToDelete).map(File::getName).collect(Collectors.joining(", "))
+				);
+				for (File file : filesToDelete) {
+					Assert.isPremiseValid(file.delete(), "Failed to delete file `" + file.getAbsolutePath() + "`!");
+				}
 			}
+		} catch (Exception ex) {
+			log.warn(
+				"Failed to purge obsolete files for catalog `{}`: {}",
+				catalogName,
+				ex.getMessage(),
+				ex
+			);
 		}
 	}
 
