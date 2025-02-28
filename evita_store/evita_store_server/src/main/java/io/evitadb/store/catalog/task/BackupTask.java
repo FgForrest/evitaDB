@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -67,6 +67,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
@@ -89,6 +90,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 	private final CatalogBootstrap bootstrapRecord;
 	private final AtomicReference<ExportFileService> exportFileService;
 	private final AtomicReference<DefaultCatalogPersistenceService> catalogPersistenceService;
+	private final AtomicReference<LongConsumer> onComplete;
 
 	public BackupTask(
 		@Nonnull String catalogName,
@@ -96,7 +98,9 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 		boolean includingWAL,
 		@Nonnull CatalogBootstrap bootstrapRecord,
 		@Nonnull ExportFileService exportFileService,
-		@Nonnull DefaultCatalogPersistenceService catalogPersistenceService
+		@Nonnull DefaultCatalogPersistenceService catalogPersistenceService,
+		@Nullable LongConsumer onStart,
+		@Nullable LongConsumer onComplete
 	) {
 		super(
 			catalogName,
@@ -112,6 +116,10 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 		this.bootstrapRecord = bootstrapRecord;
 		this.exportFileService = new AtomicReference<>(exportFileService);
 		this.catalogPersistenceService = new AtomicReference<>(catalogPersistenceService);
+		this.onComplete = new AtomicReference<>(onComplete);
+		if (onStart != null) {
+			onStart.accept(this.bootstrapRecord.catalogVersion());
+		}
 	}
 
 	/**
@@ -227,9 +235,29 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 				throw exception;
 			}
 		} finally {
-			// free references to expensive resources
-			this.catalogPersistenceService.set(null);
-			this.exportFileService.set(null);
+			tearDown();
+		}
+	}
+
+	@Override
+	public boolean cancel() {
+		final boolean cancel = super.cancel();
+		if (cancel) {
+			tearDown();
+		}
+		return cancel;
+	}
+
+	/**
+	 * Cleans up resources used by this task.
+	 */
+	private void tearDown() {
+		// free references to expensive resources
+		this.catalogPersistenceService.set(null);
+		this.exportFileService.set(null);
+		final LongConsumer onComplete = this.onComplete.getAndSet(null);
+		if (onComplete != null) {
+			onComplete.accept(this.bootstrapRecord.catalogVersion());
 		}
 	}
 

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -54,6 +54,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
+import java.util.function.LongConsumer;
 import java.util.stream.Stream;
 
 /**
@@ -279,9 +280,9 @@ public interface CatalogContract {
 	 * It returns only versions that are known in history - there may be a lot of other versions for which we don't have
 	 * information anymore, because the data were purged to save space.
 	 *
-	 * @param timeFlow   the time flow used to filter the catalog versions
-	 * @param page       the page number of the paginated list
-	 * @param pageSize   the number of versions per page
+	 * @param timeFlow the time flow used to filter the catalog versions
+	 * @param page     the page number of the paginated list
+	 * @param pageSize the number of versions per page
 	 * @return a paginated list of {@link CatalogVersion} instances
 	 */
 	@Nonnull
@@ -333,14 +334,22 @@ public interface CatalogContract {
 	 *                     the dataset as it was at that moment
 	 * @param includingWAL if true, the backup will include the Write-Ahead Log (WAL) file and when the catalog is
 	 *                     restored, it'll replay the WAL contents locally to bring the catalog to the current state
+	 * @param onStart      callback that will be executed before the backup process starts
+	 * @param onComplete   callback that will be executed when the backup process is completed
 	 * @return jobId of the backup process
 	 * @throws TemporalDataNotAvailableException when the past data is not available
 	 */
 	@Nonnull
-	ServerTask<?, FileForFetch> backup(@Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException;
+	ServerTask<?, FileForFetch> backup(
+		@Nullable OffsetDateTime pastMoment,
+		boolean includingWAL,
+		@Nullable LongConsumer onStart,
+		@Nullable LongConsumer onComplete
+	) throws TemporalDataNotAvailableException;
 
 	/**
 	 * Returns catalog statistics aggregating basic information about the catalog and the data stored in it.
+	 *
 	 * @return catalog statistics
 	 */
 	@Nonnull
