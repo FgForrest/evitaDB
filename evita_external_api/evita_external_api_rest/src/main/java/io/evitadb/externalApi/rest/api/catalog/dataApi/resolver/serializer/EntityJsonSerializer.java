@@ -280,7 +280,7 @@ public class EntityJsonSerializer {
 
 		if (referenceCardinality == Cardinality.EXACTLY_ONE || referenceCardinality == Cardinality.ZERO_OR_ONE) {
 			Assert.isPremiseValid(
-				groupedReferences instanceof PlainChunk<ReferenceContract> && groupedReferences.getTotalRecordCount() == 1,
+				groupedReferences instanceof PlainChunk<ReferenceContract> && groupedReferences.getTotalRecordCount() <= 1,
 				"Reference cardinality is: " + referenceCardinality + " but found " +
 					groupedReferences.getTotalRecordCount() + " references with same name: " + referenceName
 			);
