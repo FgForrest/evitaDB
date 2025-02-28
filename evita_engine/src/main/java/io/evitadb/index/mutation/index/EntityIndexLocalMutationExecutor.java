@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -1068,9 +1068,10 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 					final EntityIndexKey referencedTypeIndexKey = getReferencedTypeIndexKey(referenceKey.referenceName(), scope);
 					final ReferencedTypeEntityIndex referenceTypeIndex = (ReferencedTypeEntityIndex) getOrCreateIndex(referencedTypeIndexKey);
 					final EntityIndex mainReferenceIndex = ReferenceIndexMutator.getOrCreateReferencedEntityIndex(this, referenceKey, scope);
+					final Integer groupId = reference.getGroup().filter(Droppable::exists).map(GroupEntityReference::getPrimaryKey).orElse(null);
 					ReferenceIndexMutator.referenceInsert(
 						epk, entitySchema, this,
-						globalIndex, referenceTypeIndex, mainReferenceIndex, referenceKey,
+						globalIndex, referenceTypeIndex, mainReferenceIndex, referenceKey, groupId,
 						existingDataSupplierFactory,
 						this.undoActionsAppender
 					);
@@ -1081,7 +1082,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 								ReferenceIndexMutator.addFacetToIndex(
 									referenceIndex,
 									referenceKey,
-									reference.getGroup().filter(Droppable::exists).map(GroupEntityReference::getPrimaryKey).orElse(null),
+									groupId,
 									this,
 									epk,
 									this.undoActionsAppender
@@ -1170,7 +1171,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 					final EntityIndex referenceIndex = ReferenceIndexMutator.getOrCreateReferencedEntityIndex(this, referenceKey, scope);
 					ReferenceIndexMutator.referenceInsert(
 						theEntityPrimaryKey, entitySchema, this,
-						entityIndex, referenceTypeIndex, referenceIndex, referenceKey,
+						entityIndex, referenceTypeIndex, referenceIndex, referenceKey, null,
 						getStoragePartExistingDataFactory(),
 						this.undoActionsAppender
 					);

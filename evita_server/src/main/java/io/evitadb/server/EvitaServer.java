@@ -44,6 +44,8 @@ import io.evitadb.server.configuration.EvitaServerConfiguration;
 import io.evitadb.server.exception.ConfigurationParseException;
 import io.evitadb.server.yaml.AbstractClassDeserializer;
 import io.evitadb.server.yaml.EvitaConstructor;
+import io.evitadb.server.yaml.SpecialConfigInputFormatsHandler;
+import io.evitadb.server.yaml.UnknownPropertyProblemHandler;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ConsoleWriter;
@@ -113,6 +115,10 @@ public class EvitaServer {
 	 */
 	public static final String OPTION_EVITA_CONFIGURATION_DIR = "configDir";
 	/**
+	 * Name of the argument for enabling/disabling strict configuration file check.
+	 */
+	public static final String OPTION_STRICT_CONFIG_FILE_CHECK = "strictConfigFileCheck";
+	/**
 	 * Pattern for matching Java arguments `-Dname=value`
 	 */
 	private static final Pattern OPTION_JAVA_ARGUMENT = Pattern.compile("-D(\\S+)=(\\S+)");
@@ -174,7 +180,11 @@ public class EvitaServer {
 			.map(it -> Paths.get("").resolve(it))
 			.orElseGet(() -> Paths.get(""));
 
-		final EvitaServer evitaServer = new EvitaServer(configDirPath, logMsg, options);
+		final boolean strictConfigFileCheck = ofNullable(options.get(OPTION_STRICT_CONFIG_FILE_CHECK))
+			.map(Boolean::parseBoolean)
+			.orElse(false);
+
+		final EvitaServer evitaServer = new EvitaServer(configDirPath, strictConfigFileCheck, logMsg, options);
 		final ShutdownSequence shutdownSequence = new ShutdownSequence(evitaServer);
 		Runtime.getRuntime().addShutdownHook(new Thread(shutdownSequence));
 		evitaServer.run();
@@ -494,15 +504,15 @@ public class EvitaServer {
 	 * Constructor that initializes the EvitaServer.
 	 */
 	public EvitaServer(@Nonnull Path configDirLocation, @Nonnull Map<String, String> arguments) {
-		this(configDirLocation, null, arguments);
+		this(configDirLocation, false, null, arguments);
 	}
 
 	/**
 	 * Constructor that initializes the EvitaServer.
 	 */
-	public EvitaServer(@Nonnull Path configDirLocation, @Nullable String logInitializationStatus, @Nonnull Map<String, String> arguments) {
+	public EvitaServer(@Nonnull Path configDirLocation, boolean strictConfigFileCheck, @Nullable String logInitializationStatus, @Nonnull Map<String, String> arguments) {
 		this.externalApiProviders = ExternalApiServer.gatherExternalApiProviders();
-		final EvitaServerConfigurationWithLogFilesListing evitaServerConfigurationWithLogFilesListing = parseConfiguration(configDirLocation, arguments);
+		final EvitaServerConfigurationWithLogFilesListing evitaServerConfigurationWithLogFilesListing = parseConfiguration(configDirLocation, strictConfigFileCheck, arguments);
 		final EvitaServerConfiguration evitaServerConfig = evitaServerConfigurationWithLogFilesListing.configuration();
 		this.evitaServerConfiguration = evitaServerConfig;
 		this.evitaConfiguration = new EvitaConfiguration(
@@ -614,12 +624,22 @@ public class EvitaServer {
 	@Nonnull
 	private EvitaServerConfigurationWithLogFilesListing parseConfiguration(
 		@Nonnull Path configDirLocation,
+		boolean strictConfigFileCheck,
 		@Nonnull Map<String, String> arguments
 	) throws ConfigurationParseException {
 		final StringSubstitutor stringSubstitutor = createStringSubstitutor(arguments);
 
 		final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
-		yamlMapper.registerModule(createAbstractApiConfigModule());
+		// if strictConfigFileCheck is enabled, we should fail on unknown properties
+		final UnknownPropertyProblemHandler unknownPropertyProblemHandler;
+		if (!strictConfigFileCheck) {
+			unknownPropertyProblemHandler = new UnknownPropertyProblemHandler();
+			yamlMapper.addHandler(unknownPropertyProblemHandler);
+		} else {
+			unknownPropertyProblemHandler = null;
+		}
+
+		yamlMapper.registerModule(createAbstractApiConfigModule(unknownPropertyProblemHandler));
 		yamlMapper.registerModule(new ParameterNamesModule());
 		yamlMapper.addHandler(new SpecialConfigInputFormatsHandler());
 
@@ -673,9 +693,11 @@ public class EvitaServer {
 	 * configuration files based on the presence of {@link ExternalApiProviderRegistrar} on the classpath.
 	 */
 	@Nonnull
-	private SimpleModule createAbstractApiConfigModule() {
+	private SimpleModule createAbstractApiConfigModule(@Nullable UnknownPropertyProblemHandler unknownPropertyProblemHandler) {
 		final SimpleModule module = new SimpleModule();
-		final AbstractClassDeserializer<AbstractApiConfiguration> deserializer = new AbstractClassDeserializer<>(AbstractApiConfiguration.class);
+		final AbstractClassDeserializer<AbstractApiConfiguration> deserializer = new AbstractClassDeserializer<>(
+			AbstractApiConfiguration.class, unknownPropertyProblemHandler
+		);
 		for (ExternalApiProviderRegistrar<?> apiProviderRegistrar : this.externalApiProviders) {
 			deserializer.registerConcreteClass(
 				apiProviderRegistrar.getExternalApiCode(),

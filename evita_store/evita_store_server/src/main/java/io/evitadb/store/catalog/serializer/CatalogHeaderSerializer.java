@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.spi.model.CatalogHeader;
 import io.evitadb.store.spi.model.reference.CollectionFileReference;
 import io.evitadb.store.spi.model.reference.WalFileReference;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 
 import java.util.Collection;
@@ -58,8 +59,13 @@ public class CatalogHeaderSerializer extends AbstractPersistentStorageHeaderSeri
 		if (walFileReference != null) {
 			output.writeBoolean(true);
 			output.writeVarInt(walFileReference.fileIndex(), true);
-			output.writeVarLong(walFileReference.fileLocation().startingPosition(), true);
-			output.writeVarInt(walFileReference.fileLocation().recordLength(), true);
+			final FileLocation walFileLocation = walFileReference.fileLocation();
+			Assert.isPremiseValid(
+				walFileLocation != null,
+				"File location must be present for WAL file!"
+			);
+			output.writeVarLong(walFileLocation.startingPosition(), true);
+			output.writeVarInt(walFileLocation.recordLength(), true);
 		} else {
 			output.writeBoolean(false);
 		}
@@ -70,8 +76,14 @@ public class CatalogHeaderSerializer extends AbstractPersistentStorageHeaderSeri
 			output.writeString(entityTypeFileIndex.entityType());
 			output.writeVarInt(entityTypeFileIndex.entityTypePrimaryKey(), true);
 			output.writeVarInt(entityTypeFileIndex.fileIndex(), true);
-			output.writeVarLong(entityTypeFileIndex.fileLocation().startingPosition(), true);
-			output.writeVarInt(entityTypeFileIndex.fileLocation().recordLength(), true);
+
+			final FileLocation entityTypeFileLocation = entityTypeFileIndex.fileLocation();
+			Assert.isPremiseValid(
+				entityTypeFileLocation != null,
+				"File location must be present for entity type file index!"
+			);
+			output.writeVarLong(entityTypeFileLocation.startingPosition(), true);
+			output.writeVarInt(entityTypeFileLocation.recordLength(), true);
 		}
 
 		serializeKeys(catalogHeader.compressedKeys(), output, kryo);

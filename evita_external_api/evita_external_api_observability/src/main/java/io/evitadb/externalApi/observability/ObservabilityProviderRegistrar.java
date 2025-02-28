@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -66,7 +66,7 @@ public class ObservabilityProviderRegistrar implements ExternalApiProviderRegist
 	public ExternalApiProvider<ObservabilityConfig> register(@Nonnull Evita evita, @Nonnull ExternalApiServer externalApiServer, @Nonnull ApiOptions apiOptions, @Nonnull ObservabilityConfig observabilityConfig) {
 		final ObservabilityManager observabilityManager = new ObservabilityManager(observabilityConfig, evita);
 		final TracingConfig tracingConfig = observabilityConfig.getTracing();
-		if (tracingConfig != null && tracingConfig.getEndpoint() != null) {
+		if (tracingConfig != null && tracingConfig.endpoint() != null) {
 			OpenTelemetryTracerSetup.setTracingConfig(observabilityConfig.getTracing());
 		}
 		observabilityManager.registerPrometheusMetricHandler();

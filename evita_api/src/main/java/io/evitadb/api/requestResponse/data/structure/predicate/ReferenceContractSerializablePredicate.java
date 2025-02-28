@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -161,7 +161,7 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 		@Nullable AttributeRequest defaultAttributeRequest,
 		boolean requiresEntityReferences,
 		@Nullable Locale implicitLocale,
-		@Nonnull Set<Locale> locales
+		@Nullable Set<Locale> locales
 	) {
 		this.referenceSet = referenceSet;
 		this.defaultAttributeRequest = defaultAttributeRequest;
@@ -206,9 +206,25 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	@Override
 	public boolean test(ReferenceContract reference) {
 		if (requiresEntityReferences) {
-			final String referencedEntityType = reference.getReferenceName();
+			final String referenceName = reference.getReferenceName();
 			return reference.exists() &&
-				(referenceSet.isEmpty() || referenceSet.containsKey(referencedEntityType));
+				(referenceSet.isEmpty() || referenceSet.containsKey(referenceName));
+		} else {
+			return false;
+		}
+	}
+
+	/**
+	 * Determines if a reference with a given name has been requested based on the current state
+	 * of reference requirements and the reference set.
+	 *
+	 * @param referenceName the name of the reference to check.
+	 * @return {@code true} if references are required and the reference name is either part of the set
+	 *         or the set is empty; {@code false} otherwise.
+	 */
+	public boolean isReferenceRequested(@Nonnull String referenceName) {
+		if (requiresEntityReferences) {
+			return referenceSet.isEmpty() || referenceSet.containsKey(referenceName);
 		} else {
 			return false;
 		}

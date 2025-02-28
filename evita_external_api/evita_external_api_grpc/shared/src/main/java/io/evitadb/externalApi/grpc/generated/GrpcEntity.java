@@ -73,6 +73,11 @@ public final class GrpcEntity {
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcSealedEntity_LocalizedAssociatedDataEntry_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcSealedEntity_ReferenceCountsEntry_descriptor;
+  static final
+    com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+      internal_static_io_evitadb_externalApi_grpc_generated_GrpcSealedEntity_ReferenceCountsEntry_fieldAccessorTable;
+  static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcBinaryEntity_descriptor;
   static final 
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
@@ -113,7 +118,7 @@ public final class GrpcEntity {
       "WithParent\022\022\n\nentityType\030\001 \001(\t\022\022\n\nprimar" +
       "yKey\030\002 \001(\005\022\023\n\007version\030\003 \001(\005B\002\030\001\022T\n\006paren" +
       "t\030\004 \001(\0132D.io.evitadb.externalApi.grpc.ge" +
-      "nerated.GrpcEntityReferenceWithParent\"\266\r" +
+      "nerated.GrpcEntityReferenceWithParent\"\325\016" +
       "\n\020GrpcSealedEntity\022\022\n\nentityType\030\001 \001(\t\022\022" +
       "\n\nprimaryKey\030\002 \001(\005\022\017\n\007version\030\003 \001(\005\022\025\n\rs" +
       "chemaVersion\030\004 \001(\005\022+\n\006parent\030\005 \001(\0132\033.goo" +
@@ -144,50 +149,54 @@ public final class GrpcEntity {
       "\022B\n\007locales\030\020 \003(\01321.io.evitadb.externalA" +
       "pi.grpc.generated.GrpcLocale\022E\n\005scope\030\021 " +
       "\001(\01626.io.evitadb.externalApi.grpc.genera" +
-      "ted.GrpcEntityScope\032n\n\025GlobalAttributesE" +
-      "ntry\022\013\n\003key\030\001 \001(\t\022D\n\005value\030\002 \001(\01325.io.ev" +
-      "itadb.externalApi.grpc.generated.GrpcEvi" +
-      "taValue:\0028\001\032y\n\030LocalizedAttributesEntry\022" +
-      "\013\n\003key\030\001 \001(\t\022L\n\005value\030\002 \001(\0132=.io.evitadb" +
-      ".externalApi.grpc.generated.GrpcLocalize" +
-      "dAttribute:\0028\001\032\200\001\n\031GlobalAssociatedDataE" +
-      "ntry\022\013\n\003key\030\001 \001(\t\022R\n\005value\030\002 \001(\0132C.io.ev" +
-      "itadb.externalApi.grpc.generated.GrpcEvi" +
-      "taAssociatedDataValue:\0028\001\032\202\001\n\034LocalizedA" +
-      "ssociatedDataEntry\022\013\n\003key\030\001 \001(\t\022Q\n\005value" +
-      "\030\002 \001(\0132B.io.evitadb.externalApi.grpc.gen" +
-      "erated.GrpcLocalizedAssociatedData:\0028\001\"\347" +
-      "\001\n\020GrpcBinaryEntity\022\022\n\nentityType\030\001 \001(\t\022" +
-      "\022\n\nprimaryKey\030\002 \001(\005\022\025\n\rschemaVersion\030\003 \001" +
-      "(\005\022\031\n\021entityStoragePart\030\004 \001(\014\022\035\n\025attribu" +
-      "teStorageParts\030\005 \003(\014\022\"\n\032associatedDataSt" +
-      "orageParts\030\006 \003(\014\022\030\n\020priceStoragePart\030\007 \001" +
-      "(\014\022\034\n\024referenceStoragePart\030\010 \001(\014\"\322\007\n\rGrp" +
-      "cReference\022\025\n\rreferenceName\030\001 \001(\t\022\017\n\007ver" +
-      "sion\030\002 \001(\005\022]\n\031referencedEntityReference\030" +
-      "\003 \001(\0132:.io.evitadb.externalApi.grpc.gene" +
-      "rated.GrpcEntityReference\022Q\n\020referencedE" +
-      "ntity\030\004 \001(\01327.io.evitadb.externalApi.grp" +
-      "c.generated.GrpcSealedEntity\022d\n\036groupRef" +
-      "erencedEntityReference\030\005 \001(\0132:.io.evitad" +
-      "b.externalApi.grpc.generated.GrpcEntityR" +
-      "eferenceH\000\022X\n\025groupReferencedEntity\030\006 \001(" +
-      "\01327.io.evitadb.externalApi.grpc.generate" +
-      "d.GrpcSealedEntityH\000\022d\n\020globalAttributes" +
-      "\030\007 \003(\0132J.io.evitadb.externalApi.grpc.gen" +
-      "erated.GrpcReference.GlobalAttributesEnt" +
-      "ry\022j\n\023localizedAttributes\030\010 \003(\0132M.io.evi" +
-      "tadb.externalApi.grpc.generated.GrpcRefe" +
-      "rence.LocalizedAttributesEntry\022T\n\024refere" +
-      "nceCardinality\030\t \001(\01626.io.evitadb.extern" +
-      "alApi.grpc.generated.GrpcCardinality\032n\n\025" +
-      "GlobalAttributesEntry\022\013\n\003key\030\001 \001(\t\022D\n\005va" +
-      "lue\030\002 \001(\01325.io.evitadb.externalApi.grpc." +
-      "generated.GrpcEvitaValue:\0028\001\032y\n\030Localize" +
-      "dAttributesEntry\022\013\n\003key\030\001 \001(\t\022L\n\005value\030\002" +
-      " \001(\0132=.io.evitadb.externalApi.grpc.gener" +
-      "ated.GrpcLocalizedAttribute:\0028\001B\024\n\022group" +
-      "ReferenceTypeB\014P\001\252\002\007EvitaDBb\006proto3"
+      "ted.GrpcEntityScope\022e\n\017referenceCounts\030\022" +
+      " \003(\0132L.io.evitadb.externalApi.grpc.gener" +
+      "ated.GrpcSealedEntity.ReferenceCountsEnt" +
+      "ry\032n\n\025GlobalAttributesEntry\022\013\n\003key\030\001 \001(\t" +
+      "\022D\n\005value\030\002 \001(\01325.io.evitadb.externalApi" +
+      ".grpc.generated.GrpcEvitaValue:\0028\001\032y\n\030Lo" +
+      "calizedAttributesEntry\022\013\n\003key\030\001 \001(\t\022L\n\005v" +
+      "alue\030\002 \001(\0132=.io.evitadb.externalApi.grpc" +
+      ".generated.GrpcLocalizedAttribute:\0028\001\032\200\001" +
+      "\n\031GlobalAssociatedDataEntry\022\013\n\003key\030\001 \001(\t" +
+      "\022R\n\005value\030\002 \001(\0132C.io.evitadb.externalApi" +
+      ".grpc.generated.GrpcEvitaAssociatedDataV" +
+      "alue:\0028\001\032\202\001\n\034LocalizedAssociatedDataEntr" +
+      "y\022\013\n\003key\030\001 \001(\t\022Q\n\005value\030\002 \001(\0132B.io.evita" +
+      "db.externalApi.grpc.generated.GrpcLocali" +
+      "zedAssociatedData:\0028\001\0326\n\024ReferenceCounts" +
+      "Entry\022\013\n\003key\030\001 \001(\t\022\r\n\005value\030\002 \001(\005:\0028\001\"\347\001" +
+      "\n\020GrpcBinaryEntity\022\022\n\nentityType\030\001 \001(\t\022\022" +
+      "\n\nprimaryKey\030\002 \001(\005\022\025\n\rschemaVersion\030\003 \001(" +
+      "\005\022\031\n\021entityStoragePart\030\004 \001(\014\022\035\n\025attribut" +
+      "eStorageParts\030\005 \003(\014\022\"\n\032associatedDataSto" +
+      "rageParts\030\006 \003(\014\022\030\n\020priceStoragePart\030\007 \001(" +
+      "\014\022\034\n\024referenceStoragePart\030\010 \001(\014\"\322\007\n\rGrpc" +
+      "Reference\022\025\n\rreferenceName\030\001 \001(\t\022\017\n\007vers" +
+      "ion\030\002 \001(\005\022]\n\031referencedEntityReference\030\003" +
+      " \001(\0132:.io.evitadb.externalApi.grpc.gener" +
+      "ated.GrpcEntityReference\022Q\n\020referencedEn" +
+      "tity\030\004 \001(\01327.io.evitadb.externalApi.grpc" +
+      ".generated.GrpcSealedEntity\022d\n\036groupRefe" +
+      "rencedEntityReference\030\005 \001(\0132:.io.evitadb" +
+      ".externalApi.grpc.generated.GrpcEntityRe" +
+      "ferenceH\000\022X\n\025groupReferencedEntity\030\006 \001(\013" +
+      "27.io.evitadb.externalApi.grpc.generated" +
+      ".GrpcSealedEntityH\000\022d\n\020globalAttributes\030" +
+      "\007 \003(\0132J.io.evitadb.externalApi.grpc.gene" +
+      "rated.GrpcReference.GlobalAttributesEntr" +
+      "y\022j\n\023localizedAttributes\030\010 \003(\0132M.io.evit" +
+      "adb.externalApi.grpc.generated.GrpcRefer" +
+      "ence.LocalizedAttributesEntry\022T\n\024referen" +
+      "ceCardinality\030\t \001(\01626.io.evitadb.externa" +
+      "lApi.grpc.generated.GrpcCardinality\032n\n\025G" +
+      "lobalAttributesEntry\022\013\n\003key\030\001 \001(\t\022D\n\005val" +
+      "ue\030\002 \001(\01325.io.evitadb.externalApi.grpc.g" +
+      "enerated.GrpcEvitaValue:\0028\001\032y\n\030Localized" +
+      "AttributesEntry\022\013\n\003key\030\001 \001(\t\022L\n\005value\030\002 " +
+      "\001(\0132=.io.evitadb.externalApi.grpc.genera" +
+      "ted.GrpcLocalizedAttribute:\0028\001B\024\n\022groupR" +
+      "eferenceTypeB\014P\001\252\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
@@ -216,7 +225,7 @@ public final class GrpcEntity {
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcSealedEntity_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcSealedEntity_descriptor,
-        new java.lang.String[] { "EntityType", "PrimaryKey", "Version", "SchemaVersion", "Parent", "ParentReference", "ParentEntity", "GlobalAttributes", "LocalizedAttributes", "Prices", "PriceForSale", "PriceInnerRecordHandling", "References", "GlobalAssociatedData", "LocalizedAssociatedData", "Locales", "Scope", });
+        new java.lang.String[] { "EntityType", "PrimaryKey", "Version", "SchemaVersion", "Parent", "ParentReference", "ParentEntity", "GlobalAttributes", "LocalizedAttributes", "Prices", "PriceForSale", "PriceInnerRecordHandling", "References", "GlobalAssociatedData", "LocalizedAssociatedData", "Locales", "Scope", "ReferenceCounts", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcSealedEntity_GlobalAttributesEntry_descriptor =
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcSealedEntity_descriptor.getNestedTypes().get(0);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcSealedEntity_GlobalAttributesEntry_fieldAccessorTable = new
@@ -240,6 +249,12 @@ public final class GrpcEntity {
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcSealedEntity_LocalizedAssociatedDataEntry_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcSealedEntity_LocalizedAssociatedDataEntry_descriptor,
+        new java.lang.String[] { "Key", "Value", });
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcSealedEntity_ReferenceCountsEntry_descriptor =
+      internal_static_io_evitadb_externalApi_grpc_generated_GrpcSealedEntity_descriptor.getNestedTypes().get(4);
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcSealedEntity_ReferenceCountsEntry_fieldAccessorTable = new
+      com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
+        internal_static_io_evitadb_externalApi_grpc_generated_GrpcSealedEntity_ReferenceCountsEntry_descriptor,
         new java.lang.String[] { "Key", "Value", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcBinaryEntity_descriptor =
       getDescriptor().getMessageTypes().get(3);

@@ -1217,6 +1217,18 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 */
 	void exitSingleRefReferenceContentWithAttributes1Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes1ConstraintContext ctx);
 	/**
+	 * Enter a parse tree produced by the {@code singleRefReferenceContentWithAttributes0Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterSingleRefReferenceContentWithAttributes0Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes0ConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code singleRefReferenceContentWithAttributes0Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitSingleRefReferenceContentWithAttributes0Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes0ConstraintContext ctx);
+	/**
 	 * Enter a parse tree produced by the {@code singleRefReferenceContentWithAttributes2Constraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
 	 * @param ctx the parse tree
@@ -2292,6 +2304,16 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitSingleRefReferenceContent8Args(EvitaQLParser.SingleRefReferenceContent8ArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#singleRefReferenceContentWithAttributes0Args}.
+	 * @param ctx the parse tree
+	 */
+	void enterSingleRefReferenceContentWithAttributes0Args(EvitaQLParser.SingleRefReferenceContentWithAttributes0ArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#singleRefReferenceContentWithAttributes0Args}.
+	 * @param ctx the parse tree
+	 */
+	void exitSingleRefReferenceContentWithAttributes0Args(EvitaQLParser.SingleRefReferenceContentWithAttributes0ArgsContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link EvitaQLParser#singleRefReferenceContentWithAttributes1Args}.
 	 * @param ctx the parse tree

@@ -155,6 +155,12 @@
 							</includes>
 						</filter>
 						<filter>
+							<artifact>io.netty:netty-common</artifact>
+							<excludes>
+								<excludes>META-INF/services/reactor.blockhound.integration.BlockHoundIntegration</excludes>
+							</excludes>
+						</filter>
+						<filter>
 							<artifact>*:*</artifact>
 							<excludes>
 								<exclude>META-INF/versions/**</exclude>

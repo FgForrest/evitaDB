@@ -596,4 +596,63 @@ public interface GrpcSealedEntityOrBuilder extends
    * @return The scope.
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntityScope getScope();
+
+  /**
+   * <pre>
+   * Contains total count of references per reference name. This may differ from count of provided references
+   * if pagination or strip was used in the input query.
+   * </pre>
+   *
+   * <code>map&lt;string, int32&gt; referenceCounts = 18;</code>
+   */
+  int getReferenceCountsCount();
+  /**
+   * <pre>
+   * Contains total count of references per reference name. This may differ from count of provided references
+   * if pagination or strip was used in the input query.
+   * </pre>
+   *
+   * <code>map&lt;string, int32&gt; referenceCounts = 18;</code>
+   */
+  boolean containsReferenceCounts(
+      java.lang.String key);
+  /**
+   * Use {@link #getReferenceCountsMap()} instead.
+   */
+  @java.lang.Deprecated
+  java.util.Map<java.lang.String, java.lang.Integer>
+  getReferenceCounts();
+  /**
+   * <pre>
+   * Contains total count of references per reference name. This may differ from count of provided references
+   * if pagination or strip was used in the input query.
+   * </pre>
+   *
+   * <code>map&lt;string, int32&gt; referenceCounts = 18;</code>
+   */
+  java.util.Map<java.lang.String, java.lang.Integer>
+  getReferenceCountsMap();
+  /**
+   * <pre>
+   * Contains total count of references per reference name. This may differ from count of provided references
+   * if pagination or strip was used in the input query.
+   * </pre>
+   *
+   * <code>map&lt;string, int32&gt; referenceCounts = 18;</code>
+   */
+
+  int getReferenceCountsOrDefault(
+      java.lang.String key,
+      int defaultValue);
+  /**
+   * <pre>
+   * Contains total count of references per reference name. This may differ from count of provided references
+   * if pagination or strip was used in the input query.
+   * </pre>
+   *
+   * <code>map&lt;string, int32&gt; referenceCounts = 18;</code>
+   */
+
+  int getReferenceCountsOrThrow(
+      java.lang.String key);
 }

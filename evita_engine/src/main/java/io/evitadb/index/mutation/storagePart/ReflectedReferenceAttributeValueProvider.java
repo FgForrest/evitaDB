@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 
 import javax.annotation.Nonnull;
 import java.util.Collection;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -60,6 +61,16 @@ interface ReflectedReferenceAttributeValueProvider<T> {
 		@Nonnull ReferenceSchema referencedEntityReferenceSchema,
 		@Nonnull Set<String> inheritedAttributes
 	);
+
+	/**
+	 * Retrieves the appropriate reference carrier of type T based on the provided reference key.
+	 * The reference carrier contains key information about the corresponding reference.
+	 *
+	 * @param referenceKey The unique key identifying the reference for which the carrier is to be retrieved.
+	 * @return An Optional containing the reference carrier if it exists, or an empty Optional if no carrier is found.
+	 */
+	@Nonnull
+	Optional<T> getReferenceCarrier(@Nonnull ReferenceKey referenceKey);
 
 	/**
 	 * Retrieves a stream of reference carriers of type T. The type depends on the implementation and should provide
@@ -108,4 +119,5 @@ interface ReflectedReferenceAttributeValueProvider<T> {
 		@Nonnull T referenceCarrier,
 		@Nonnull String attributeName
 	);
+
 }

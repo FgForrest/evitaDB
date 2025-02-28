@@ -141,6 +141,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -158,7 +159,7 @@ import static java.util.Optional.ofNullable;
  */
 @Slf4j
 @ThreadSafe
-public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHorizonListener, TransactionalLayerProducer<DataStoreChanges, Catalog> {
+public final class Catalog implements CatalogContract, CatalogConsumersListener, TransactionalLayerProducer<DataStoreChanges, Catalog> {
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
 	 * Contains information about version of the catalog which corresponds to transaction commit sequence number.
@@ -892,8 +893,15 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 
 	@Nonnull
 	@Override
-	public ServerTask<?, FileForFetch> backup(@Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException {
-		final ServerTask<?, FileForFetch> backupTask = this.persistenceService.createBackupTask(pastMoment, includingWAL);
+	public ServerTask<?, FileForFetch> backup(
+		@Nullable OffsetDateTime pastMoment,
+		boolean includingWAL,
+		@Nullable LongConsumer onStart,
+		@Nullable LongConsumer onComplete
+	) throws TemporalDataNotAvailableException {
+		final ServerTask<?, FileForFetch> backupTask = this.persistenceService.createBackupTask(
+			pastMoment, includingWAL, onStart, onComplete
+		);
 		this.scheduler.submit(backupTask);
 		return backupTask;
 	}
@@ -1333,9 +1341,9 @@ public final class Catalog implements CatalogContract, CatalogVersionBeyondTheHo
 	}
 
 	@Override
-	public void catalogVersionBeyondTheHorizon(@Nullable Long minimalActiveCatalogVersion) {
-		if (this.persistenceService instanceof CatalogVersionBeyondTheHorizonListener cvbthl) {
-			cvbthl.catalogVersionBeyondTheHorizon(minimalActiveCatalogVersion);
+	public void consumersLeft(long lastKnownMinimalActiveVersion) {
+		if (this.persistenceService instanceof CatalogConsumersListener cvbthl) {
+			cvbthl.consumersLeft(lastKnownMinimalActiveVersion);
 		}
 	}
 

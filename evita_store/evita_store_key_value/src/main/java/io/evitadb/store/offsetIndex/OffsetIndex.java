@@ -711,10 +711,10 @@ public class OffsetIndex {
 	 * Purges the catalog for the given catalog version. This method should be called when there is no client using
 	 * a particular version of the catalog.
 	 *
-	 * @param catalogVersion the version of the catalog to be purged, NULL if entire history should be purged
+	 * @param catalogVersion the version of the catalog that can be purged
 	 * @throws IllegalStateException if the catalog is not in an operative state
 	 */
-	public void purge(@Nullable Long catalogVersion) {
+	public void purge(long catalogVersion) {
 		assertOperative();
 		this.volatileValues.purge(catalogVersion);
 	}
@@ -1071,7 +1071,8 @@ public class OffsetIndex {
 		@Nonnull OffsetIndexDescriptor fileOffsetIndexDescriptor,
 		boolean close
 	) {
-		if (this.volatileValues.hasValuesToFlush()) {
+		// if there are any non-flushed values, we need to flush them to the disk (of if the offset index was not yet created)
+		if (this.volatileValues.hasValuesToFlush() || fileOffsetIndexDescriptor.fileLocation() == null) {
 			final OffsetIndexDescriptor newFileOffsetIndexDescriptor = writeHandle.checkAndExecuteAndSync(
 				"Writing mem table",
 				this::assertOperative,
@@ -1968,9 +1969,10 @@ public class OffsetIndex {
 		 * Removes all versions of volatile record backup that are lower than the given catalog version.
 		 * There will never be another client asking for those values.
 		 *
-		 * @param catalogVersion the catalog version to compare against, NULL if all versions should be removed
+		 * @param catalogVersion the catalog version to compare against, all values related to this or
+		 *                       lesser version will be removed
 		 */
-		public void purge(@Nullable Long catalogVersion) {
+		public void purge(long catalogVersion) {
 			final long[] hv;
 			try {
 				this.lock.lock();
@@ -1980,7 +1982,7 @@ public class OffsetIndex {
 			}
 			if (hv != null && hv.length > 0) {
 				this.purgeOlderThan.accumulateAndGet(
-					catalogVersion == null ? hv[hv.length - 1] : catalogVersion,
+					catalogVersion,
 					(prev, next) -> prev > -1 ? Math.min(prev, next) : next
 				);
 			}

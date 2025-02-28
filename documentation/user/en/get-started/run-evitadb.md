@@ -70,7 +70,7 @@ To integrate evitaDB into your project, use the following steps:
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_db:2024.10.0'
+implementation 'io.evitadb:evita_db:2025.1.0'
 ```
 </CodeTabsBlock>
 </CodeTabs>
@@ -115,7 +115,7 @@ exception when you enable the corresponding API in evitaDB's configuration.
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_external_api_grpc:2024.10.0'
+implementation 'io.evitadb:evita_external_api_grpc:2025.1.0'
 ```
 </CodeTabsBlock>
 </CodeTabs>
@@ -135,7 +135,7 @@ implementation 'io.evitadb:evita_external_api_grpc:2024.10.0'
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_external_api_graphql:2024.10.0'
+implementation 'io.evitadb:evita_external_api_graphql:2025.1.0'
 ```
 </CodeTabsBlock>
 </CodeTabs>
@@ -155,7 +155,7 @@ implementation 'io.evitadb:evita_external_api_graphql:2024.10.0'
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_external_api_rest:2024.10.0'
+implementation 'io.evitadb:evita_external_api_rest:2025.1.0'
 ```
 </CodeTabsBlock>
 </CodeTabs>
@@ -225,7 +225,7 @@ When you start the evitaDB server you should see the following information in th
 |  __/\ V /| | || (_| | |_| | |_) |
  \___| \_/ |_|\__\__,_|____/|____/
 
-beta build 2024.10.0 (keep calm and report bugs 😉)
+beta build 2025.1.0 (keep calm and report bugs 😉)
 Visit us at: https://evitadb.io
 
 Log config used: META-INF/logback.xml

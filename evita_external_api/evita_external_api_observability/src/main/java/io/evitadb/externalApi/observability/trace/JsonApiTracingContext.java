@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.common.RequestHeaders;
 import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.api.observability.trace.TracingContext.SpanAttribute;
+import io.evitadb.api.query.head.Label;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.netty.util.AsciiString;
 import io.opentelemetry.context.Context;
@@ -35,6 +36,7 @@ import io.opentelemetry.context.propagation.TextMapGetter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -173,13 +175,31 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpRequ
 	@Nullable
 	@Override
 	public <T> T executeWithinBlock(@Nonnull String protocolName, @Nonnull HttpRequest context, @Nonnull Supplier<T> lambda) {
+		final RequestHeaders headers = context.headers();
+		final String clientIpAddress = headers.get(X_FORWARDED_FOR);
+		final String clientUri = headers.get(X_FORWARDED_URI);
+		final Label[] labels = headers.getAll(X_META_LABEL)
+			.stream()
+			.map(header -> {
+				final String[] label = header.split("=", 2);
+				return label.length == 2 ? new Label(label[0], label[1]) : null;
+			})
+			.filter(Objects::nonNull)
+			.toArray(Label[]::new);
+
 		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
-			return lambda.get();
+			return TracingContext.executeWithClientContext(
+				clientIpAddress, clientUri, labels,
+				lambda
+			);
 		}
 		try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
-			return tracingContext.executeWithinBlock(
-				protocolName,
-				lambda
+			return TracingContext.executeWithClientContext(
+				clientIpAddress, clientUri, labels,
+				() -> tracingContext.executeWithinBlock(
+					protocolName,
+					lambda
+				)
 			);
 		}
 	}

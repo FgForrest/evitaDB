@@ -211,22 +211,9 @@ final class SessionRegistry {
 						transaction.isRollbackOnly() ? TransactionResolution.ROLLBACK : TransactionResolution.COMMIT
 					).commit();
 			});
-			final SessionFinalizationResult finalizationResult = this.catalogConsumedVersions.get(session.getCatalogName())
-				.unregisterSessionConsumingCatalogInVersion(session.getCatalogVersion());
-			if (finalizationResult.lastReader()) {
-				// notify listeners that the catalog version is no longer used
-				final Catalog theCatalog = this.catalog.get();
-				if (theCatalog != null) {
-					theCatalog.catalogVersionBeyondTheHorizon(
-						finalizationResult.minimalActiveCatalogVersion()
-					);
-				} else {
-					log.error(
-						"Catalog is not available for the session finalization.",
-						new GenericEvitaInternalError("Catalog is not available for the session finalization.")
-					);
-				}
-			}
+
+			this.catalogConsumedVersions.get(session.getCatalogName())
+				.unregisterSessionConsumingCatalogInVersion(session.getCatalogVersion(), this.catalog);
 
 			// emit event
 			//noinspection CastToIncompatibleInterface,resource
@@ -238,6 +225,20 @@ final class SessionRegistry {
 					this.activeSessions.size()
 				);
 		}
+	}
+
+	/**
+	 * Returns control object that allows external objects signalize work with the catalog of particular version.
+	 *
+	 * @param catalogName the name of the catalog
+	 * @return the control object
+	 */
+	@Nonnull
+	public CatalogConsumerControl createCatalogConsumerControl(@Nonnull String catalogName) {
+		return new CatalogConsumerControlInternal(
+			this.catalogConsumedVersions.computeIfAbsent(catalogName, k -> new VersionConsumingSessions()),
+			this.catalog
+		);
 	}
 
 	/**
@@ -470,7 +471,7 @@ final class SessionRegistry {
 		 *
 		 * @param version the version of the catalog
 		 */
-		void registerSessionConsumingCatalogInVersion(@Nonnull Long version) {
+		void registerSessionConsumingCatalogInVersion(long version) {
 			this.versionConsumingSessions.compute(
 				version,
 				(k, v) -> v == null ? 1 : v + 1
@@ -481,34 +482,41 @@ final class SessionRegistry {
 		 * Unregisters a session that is consuming a catalog in the specified version.
 		 *
 		 * @param version the version of the catalog
-		 * @return the result of the finalization of the session
+		 * @param catalog the supplier of currently active catalog instance
 		 */
-		@Nonnull
-		SessionFinalizationResult unregisterSessionConsumingCatalogInVersion(long version) {
+		void unregisterSessionConsumingCatalogInVersion(long version, @Nonnull Supplier<Catalog> catalog) {
 			final Integer readerCount = this.versionConsumingSessions.compute(
 				version,
 				(k, v) -> v== null || v == 1 ? null : v - 1
 			);
+
+			// the minimal active catalog version used by another session now
+			final OptionalLong minimalActiveCatalogVersion;
+			// TRUE when the session was the last reader
+			final boolean lastReader;
 			if (readerCount == null) {
-				final OptionalLong minimalVersion = this.versionConsumingSessions.keySet().stream().mapToLong(Long::longValue).min();
-				return new SessionFinalizationResult(minimalVersion.isEmpty() ? null : minimalVersion.getAsLong(), true);
+				minimalActiveCatalogVersion = this.versionConsumingSessions.keySet().stream().mapToLong(Long::longValue).min();
+				lastReader = true;
 			} else {
-				return new SessionFinalizationResult(version, false);
+				minimalActiveCatalogVersion = OptionalLong.of(version);
+				lastReader = false;
+			}
+
+			if (lastReader) {
+				// notify listeners that the catalog version is no longer used
+				final Catalog theCatalog = catalog.get();
+				if (theCatalog != null) {
+					final long minimalActiveVersion = minimalActiveCatalogVersion.orElse(theCatalog.getVersion());
+					theCatalog.consumersLeft(minimalActiveVersion);
+				} else {
+					log.error(
+						"Catalog is not available for the session finalization.",
+						new GenericEvitaInternalError("Catalog is not available for the session finalization.")
+					);
+				}
 			}
 		}
 
-	}
-
-	/**
-	 * The result of the finalization of the session.
-	 *
-	 * @param minimalActiveCatalogVersion the minimal active catalog version used by another session now
-	 * @param lastReader                  TRUE when the session was the last reader
-	 */
-	public record SessionFinalizationResult(
-		@Nullable Long minimalActiveCatalogVersion,
-		boolean lastReader
-	) {
 	}
 
 	public static class SessionRegistryDataStore {
@@ -553,6 +561,26 @@ final class SessionRegistry {
 				.stream()
 				.map(EvitaSessionTuple::proxySession);
 		}
+	}
+
+	/**
+	 * This interface allows external objects signalize work with the catalog of particular version.
+	 */
+	@RequiredArgsConstructor
+	private static class CatalogConsumerControlInternal implements CatalogConsumerControl {
+		private final VersionConsumingSessions versionConsumingSessions;
+		private final Supplier<Catalog> catalog;
+
+		@Override
+		public void registerConsumerOfCatalogInVersion(long version) {
+			this.versionConsumingSessions.registerSessionConsumingCatalogInVersion(version);
+		}
+
+		@Override
+		public void unregisterConsumerOfCatalogInVersion(long version) {
+			this.versionConsumingSessions.unregisterSessionConsumingCatalogInVersion(version, this.catalog);
+		}
+
 	}
 
 }

@@ -220,15 +220,19 @@ You can take advantage of all the following variables:
     <Tbody>
         <Tr>
             <Td>**`EVITA_CONFIG_FILE`**</Td>
-            <Td>path to configuration file, default: `/evita/conf/evita-configuration.yaml`</Td>
+            <Td>Path to configuration file, default: `/evita/conf/evita-configuration.yaml`</Td>
+        </Tr>
+        <Tr>
+            <Td>**`EVITA_STRICT_CONFIG_FILE_CHECK`**</Td>
+            <Td>Optional flag that may set configuration file validations to strict. Default: `false`</Td>
         </Tr>
         <Tr>
             <Td>**`EVITA_STORAGE_DIR`**</Td>
-            <Td>path to storage directory, default: `/evita/data`</Td>
+            <Td>Path to storage directory, default: `/evita/data`</Td>
         </Tr>
         <Tr>
             <Td>**`EVITA_CERTIFICATE_DIR`**</Td>
-            <Td>path to directory with automatically generated server certificates. Default: `/evita/certificates`</Td>
+            <Td>Path to directory with automatically generated server certificates. Default: `/evita/certificates`</Td>
         </Tr>
         <Tr>
             <Td>**`EVITA_JAVA_OPTS`**</Td>

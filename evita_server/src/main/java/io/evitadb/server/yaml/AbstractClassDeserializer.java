@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.Serial;
 import java.util.HashMap;
@@ -50,12 +51,20 @@ public class AbstractClassDeserializer<T> extends StdDeserializer<T> {
 	 * Simple registry that keeps key string mapping to concrete classes.
 	 */
 	private final Map<String, Class<? extends T>> registry = new HashMap<>(16);
+	/**
+	 * Unknown property handler to initialize path.
+	 */
+	private final UnknownPropertyProblemHandler unknownPropertyProblemHandler;
 
 	/**
 	 * Initializes deserializer with abstract class information.
 	 */
-	public AbstractClassDeserializer(@Nonnull Class<T> abstractClass) {
+	public AbstractClassDeserializer(
+		@Nonnull Class<T> abstractClass,
+		@Nullable UnknownPropertyProblemHandler unknownPropertyProblemHandler
+	) {
 		super(abstractClass);
+		this.unknownPropertyProblemHandler = unknownPropertyProblemHandler;
 	}
 
 	/**
@@ -66,13 +75,14 @@ public class AbstractClassDeserializer<T> extends StdDeserializer<T> {
 		registry.put(keyValue, concreteClass);
 	}
 
+	@Nullable
 	@Override
 	public T deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
 		final ObjectMapper mapper = (ObjectMapper) p.getCodec();
 		final ObjectNode root = mapper.readTree(p);
 
 		Class<? extends T> concreteClass = null;
-		for (Entry<String, Class<? extends T>> entry : registry.entrySet()) {
+		for (Entry<String, Class<? extends T>> entry : this.registry.entrySet()) {
 			if (entry.getKey().equalsIgnoreCase(p.getParsingContext().getCurrentName())) {
 				concreteClass = entry.getValue();
 				break;
@@ -83,7 +93,18 @@ public class AbstractClassDeserializer<T> extends StdDeserializer<T> {
 			return null;
 		}
 
-		return mapper.treeToValue(root, concreteClass);
+		try {
+			if (this.unknownPropertyProblemHandler != null) {
+				this.unknownPropertyProblemHandler.setPrefix(
+					ctxt.getParser().getParsingContext().pathAsPointer().toString()
+				);
+			}
+			return mapper.treeToValue(root, concreteClass);
+		} finally {
+			if (this.unknownPropertyProblemHandler != null) {
+				this.unknownPropertyProblemHandler.clearPrefix();
+			}
+		}
 	}
 
 }

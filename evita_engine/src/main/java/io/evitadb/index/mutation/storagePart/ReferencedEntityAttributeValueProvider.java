@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -38,6 +38,7 @@ import javax.annotation.Nonnull;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -91,7 +92,13 @@ class ReferencedEntityAttributeValueProvider implements ReflectedReferenceAttrib
 	@Nonnull
 	@Override
 	public Stream<ReferenceKey> getReferenceCarriers() {
-		return referenceKeys.stream();
+		return this.referenceKeys.stream();
+	}
+
+	@Nonnull
+	@Override
+	public Optional<ReferenceKey> getReferenceCarrier(@Nonnull ReferenceKey referenceKey) {
+		return Optional.ofNullable(this.referenceKeys.contains(referenceKey) ? referenceKey : null);
 	}
 
 	@Override

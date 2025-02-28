@@ -46,7 +46,7 @@ import io.evitadb.api.requestResponse.system.TimeFlow;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.core.Catalog;
-import io.evitadb.core.CatalogVersionBeyondTheHorizonListener;
+import io.evitadb.core.CatalogConsumersListener;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.buffer.DataStoreChanges;
@@ -163,7 +163,7 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @Slf4j
-public class DefaultCatalogPersistenceService implements CatalogPersistenceService, CatalogVersionBeyondTheHorizonListener {
+public class DefaultCatalogPersistenceService implements CatalogPersistenceService, CatalogConsumersListener {
 
 	/**
 	 * Factory function that configures new instance of the versioned kryo factory.
@@ -1714,7 +1714,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			}
 		);
 		this.obsoleteFileMaintainer.removeFileWhenNotUsed(
-			catalogVersion,
+			catalogVersion - 1L,
 			replacedEntityTypeFileReference.toFilePath(this.catalogStoragePath),
 			() -> removeEntityCollectionPersistenceServiceAndClose(replacedEntityTypeFileReference)
 		);
@@ -1879,59 +1879,79 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 
 	@Override
 	public void purgeAllObsoleteFiles() {
-		final CatalogBootstrap catalogBootstrap = getFirstCatalogBootstrap(this.catalogName, this.storageOptions).orElse(this.bootstrapUsed);
-		final CatalogHeader catalogHeader = fetchCatalogHeader(catalogBootstrap);
-		final Pattern catalogDataFilePattern = CatalogPersistenceService.getCatalogDataStoreFileNamePattern(this.catalogName);
-		final File[] filesToDelete = Objects.requireNonNull(
-			this.catalogStoragePath.toFile()
-				.listFiles((dir, name) -> {
-					// bootstrap file is never removed
-					if (name.equals(getCatalogBootstrapFileName(this.catalogName))) {
-						return false;
-					}
-					// WAL is never removed
-					if (name.endsWith(WAL_FILE_SUFFIX)) {
-						return false;
-					}
-					// actual catalog data file is not removed
-					final Matcher catalogFileMatcher = catalogDataFilePattern.matcher(name);
-					if (catalogFileMatcher.matches() && Integer.parseInt(catalogFileMatcher.group(1)) >= catalogBootstrap.catalogFileIndex()) {
-						return false;
-					}
-					// collection data files are not removed if they are referenced in the current catalog header
-					if (name.endsWith(ENTITY_COLLECTION_FILE_SUFFIX)) {
-						final EntityTypePrimaryKeyAndFileIndex parsedName = CatalogPersistenceService.getEntityPrimaryKeyAndIndexFromEntityCollectionFileName(name);
-						return catalogHeader.getEntityTypeFileIndexes()
-							.stream()
-							.filter(it -> parsedName.entityTypePrimaryKey() == it.entityTypePrimaryKey())
-							.map(it -> parsedName.fileIndex() < it.fileIndex())
-							.findAny().orElse(false);
-					}
-					// all other files are removed
-					return true;
-				})
-		);
-		// delete and inform
-		if (filesToDelete.length > 0) {
-			log.info(
-				"Purging obsolete files for catalog `{}`: {}",
-				catalogName,
-				Arrays.stream(filesToDelete).map(File::getName).collect(Collectors.joining(", "))
+		try {
+			final CatalogBootstrap catalogBootstrap = storageOptions.timeTravelEnabled() ?
+				// if time travel is enabled we need to keep all the files that are referenced in the bootstrap file
+				getFirstCatalogBootstrap(this.catalogName, this.storageOptions).orElse(this.bootstrapUsed) :
+				// otherwise we can remove all the files that are not referenced in the current catalog header
+				this.bootstrapUsed;
+
+			final CatalogHeader catalogHeader = fetchCatalogHeader(catalogBootstrap);
+			final Pattern catalogDataFilePattern = CatalogPersistenceService.getCatalogDataStoreFileNamePattern(this.catalogName);
+			final File[] filesToDelete = Objects.requireNonNull(
+				this.catalogStoragePath.toFile()
+					.listFiles((dir, name) -> {
+						// bootstrap file is never removed
+						if (name.equals(getCatalogBootstrapFileName(this.catalogName))) {
+							return false;
+						}
+						// WAL is never removed
+						if (name.endsWith(WAL_FILE_SUFFIX)) {
+							return false;
+						}
+						// actual catalog data file is not removed
+						final Matcher catalogFileMatcher = catalogDataFilePattern.matcher(name);
+						if (catalogFileMatcher.matches() && Integer.parseInt(catalogFileMatcher.group(1)) >= catalogBootstrap.catalogFileIndex()) {
+							return false;
+						}
+						// collection data files are not removed if they are referenced in the current catalog header
+						if (name.endsWith(ENTITY_COLLECTION_FILE_SUFFIX)) {
+							final EntityTypePrimaryKeyAndFileIndex parsedName = CatalogPersistenceService.getEntityPrimaryKeyAndIndexFromEntityCollectionFileName(name);
+							return catalogHeader.getEntityTypeFileIndexes()
+								.stream()
+								.filter(it -> parsedName.entityTypePrimaryKey() == it.entityTypePrimaryKey())
+								.map(it -> parsedName.fileIndex() < it.fileIndex())
+								.findAny().orElse(false);
+						}
+						// all other files are removed
+						return true;
+					})
 			);
-			for (File file : filesToDelete) {
-				Assert.isPremiseValid(file.delete(), "Failed to delete file `" + file.getAbsolutePath() + "`!");
+			// delete and inform
+			if (filesToDelete.length > 0) {
+				log.info(
+					"Purging obsolete files for catalog `{}`: {}",
+					catalogName,
+					Arrays.stream(filesToDelete).map(File::getName).collect(Collectors.joining(", "))
+				);
+				for (File file : filesToDelete) {
+					Assert.isPremiseValid(file.delete(), "Failed to delete file `" + file.getAbsolutePath() + "`!");
+				}
 			}
+		} catch (Exception ex) {
+			log.warn(
+				"Failed to purge obsolete files for catalog `{}`: {}",
+				catalogName,
+				ex.getMessage(),
+				ex
+			);
 		}
 	}
 
 	@Nonnull
 	@Override
-	public ServerTask<?, FileForFetch> createBackupTask(@Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException {
+	public ServerTask<?, FileForFetch> createBackupTask(
+		@Nullable OffsetDateTime pastMoment,
+		boolean includingWAL,
+		@Nullable LongConsumer onStart,
+		@Nullable LongConsumer onComplete
+	) throws TemporalDataNotAvailableException {
 		final CatalogBootstrap bootstrapRecord = pastMoment == null ?
 			this.bootstrapUsed : getCatalogBootstrapForSpecificMoment(this.catalogName, this.storageOptions, pastMoment);
 		return new BackupTask(
 			this.catalogName, pastMoment, includingWAL,
-			bootstrapRecord, this.exportFileService, this
+			bootstrapRecord, this.exportFileService, this,
+			onStart, onComplete
 		);
 	}
 
@@ -1974,11 +1994,11 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	}
 
 	@Override
-	public void catalogVersionBeyondTheHorizon(@Nullable Long minimalActiveCatalogVersion) {
-		this.catalogStoragePartPersistenceService.values().forEach(it -> it.purgeHistoryEqualAndLaterThan(minimalActiveCatalogVersion));
-		this.obsoleteFileMaintainer.catalogVersionBeyondTheHorizon(minimalActiveCatalogVersion);
+	public void consumersLeft(long lastKnownMinimalActiveVersion) {
+		this.catalogStoragePartPersistenceService.values().forEach(it -> it.purgeHistoryOlderThan(lastKnownMinimalActiveVersion));
+		this.obsoleteFileMaintainer.consumersLeft(lastKnownMinimalActiveVersion);
 		this.entityCollectionPersistenceServices.values()
-			.forEach(it -> it.catalogVersionBeyondTheHorizon(minimalActiveCatalogVersion));
+			.forEach(it -> it.consumersLeft(lastKnownMinimalActiveVersion));
 	}
 
 	@Override

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.QueryConstraints;
+import io.evitadb.utils.ArrayUtils;
 import org.junit.jupiter.api.Test;
 
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -195,11 +196,57 @@ class ReferenceContentTest {
 		assertEquals(entityFetch(), referenceContent16.getEntityRequirement().orElse(null));
 		assertTrue(referenceContent16.getGroupEntityRequirement().isEmpty());
 		assertEquals(ManagedReferencesBehaviour.ANY, referenceContent16.getManagedReferencesBehaviour());
+
+		final ReferenceContent referenceContent17 = referenceContent("a", entityFetch(), page(2, 40));
+		assertArrayEquals(new String[] {"a"}, referenceContent17.getReferenceNames());
+		assertTrue(referenceContent17.getFilterBy().isEmpty());
+		assertTrue(referenceContent17.getOrderBy().isEmpty());
+		assertNull(referenceContent17.getAttributeContent().orElse(null));
+		assertEquals(entityFetch(), referenceContent17.getEntityRequirement().orElse(null));
+		assertTrue(referenceContent17.getGroupEntityRequirement().isEmpty());
+		assertEquals(ManagedReferencesBehaviour.ANY, referenceContent17.getManagedReferencesBehaviour());
+		assertEquals(page(2, 40), referenceContent17.getPage().orElse(null));
+		assertNull(referenceContent17.getStrip().orElse(null));
+
+		final ReferenceContent referenceContent18 = referenceContentWithAttributes("a", entityFetch(), page(2, 40));
+		assertArrayEquals(new String[] {"a"}, referenceContent18.getReferenceNames());
+		assertTrue(referenceContent18.getFilterBy().isEmpty());
+		assertTrue(referenceContent18.getOrderBy().isEmpty());
+		assertEquals(attributeContentAll(), referenceContent18.getAttributeContent().orElse(null));
+		assertEquals(entityFetch(), referenceContent18.getEntityRequirement().orElse(null));
+		assertTrue(referenceContent18.getGroupEntityRequirement().isEmpty());
+		assertEquals(ManagedReferencesBehaviour.ANY, referenceContent18.getManagedReferencesBehaviour());
+		assertEquals(page(2, 40), referenceContent18.getPage().orElse(null));
+		assertNull(referenceContent18.getStrip().orElse(null));
+
+		final ReferenceContent referenceContent19 = referenceContentAll(entityFetch(), page(2, 40));
+		assertTrue(ArrayUtils.isEmpty(referenceContent19.getReferenceNames()));
+		assertTrue(referenceContent19.getFilterBy().isEmpty());
+		assertTrue(referenceContent19.getOrderBy().isEmpty());
+		assertNull(referenceContent19.getAttributeContent().orElse(null));
+		assertEquals(entityFetch(), referenceContent19.getEntityRequirement().orElse(null));
+		assertTrue(referenceContent19.getGroupEntityRequirement().isEmpty());
+		assertEquals(ManagedReferencesBehaviour.ANY, referenceContent19.getManagedReferencesBehaviour());
+		assertEquals(page(2, 40), referenceContent19.getPage().orElse(null));
+		assertNull(referenceContent19.getStrip().orElse(null));
+
+		final ReferenceContent referenceContent20 = referenceContentAllWithAttributes(entityFetch(), page(2, 40));
+		assertTrue(ArrayUtils.isEmpty(referenceContent19.getReferenceNames()));
+		assertTrue(referenceContent20.getFilterBy().isEmpty());
+		assertTrue(referenceContent20.getOrderBy().isEmpty());
+		assertEquals(attributeContentAll(), referenceContent20.getAttributeContent().orElse(null));
+		assertEquals(entityFetch(), referenceContent20.getEntityRequirement().orElse(null));
+		assertTrue(referenceContent20.getGroupEntityRequirement().isEmpty());
+		assertEquals(ManagedReferencesBehaviour.ANY, referenceContent20.getManagedReferencesBehaviour());
+		assertEquals(page(2, 40), referenceContent20.getPage().orElse(null));
+		assertNull(referenceContent20.getStrip().orElse(null));
 	}
 
 	@Test
 	void shouldRecognizeApplicability() {
 		assertTrue(referenceContentAll().isApplicable());
+		assertTrue(referenceContentAll(page(2, 20)).isApplicable());
+		assertTrue(referenceContentAll(strip(2, 20)).isApplicable());
 		assertTrue(referenceContent("a").isApplicable());
 		assertTrue(referenceContent("a", "c").isApplicable());
 		assertTrue(referenceContent("a", filterBy(entityPrimaryKeyInSet(1))).isApplicable());
@@ -208,6 +255,24 @@ class ReferenceContentTest {
 		assertTrue(referenceContent("a", entityFetch(attributeContentAll())).isApplicable());
 		assertTrue(referenceContent("a", filterBy(entityPrimaryKeyInSet(1)), entityFetch(attributeContentAll())).isApplicable());
 		assertTrue(referenceContent("a", filterBy(entityPrimaryKeyInSet(1)), orderBy(attributeNatural("code")), entityFetch(attributeContentAll()), entityGroupFetch()).isApplicable());
+		assertTrue(referenceContent("a", filterBy(entityPrimaryKeyInSet(1)), orderBy(attributeNatural("code")), entityFetch(attributeContentAll()), entityGroupFetch(), page(2, 20)).isApplicable());
+		assertTrue(referenceContent("a", page(2, 20)).isApplicable());
+		assertTrue(referenceContent("a", strip(2, 20)).isApplicable());
+		assertTrue(referenceContent("a", entityFetchAll(), page(2, 20)).isApplicable());
+		assertTrue(referenceContent("a", entityFetchAll(), entityGroupFetchAll(), page(2, 20)).isApplicable());
+		assertTrue(referenceContentWithAttributes("a").isApplicable());
+		assertTrue(referenceContentWithAttributes("a", "c").isApplicable());
+		assertTrue(referenceContentWithAttributes("a", filterBy(entityPrimaryKeyInSet(1))).isApplicable());
+		assertTrue(referenceContentWithAttributes("a", orderBy(attributeNatural("code"))).isApplicable());
+		assertTrue(referenceContentWithAttributes("a", filterBy(entityPrimaryKeyInSet(1)), orderBy(attributeNatural("code"))).isApplicable());
+		assertTrue(referenceContentWithAttributes("a", entityFetch(attributeContentAll())).isApplicable());
+		assertTrue(referenceContentWithAttributes("a", filterBy(entityPrimaryKeyInSet(1)), entityFetch(attributeContentAll())).isApplicable());
+		assertTrue(referenceContentWithAttributes("a", filterBy(entityPrimaryKeyInSet(1)), orderBy(attributeNatural("code")), entityFetch(attributeContentAll()), entityGroupFetch()).isApplicable());
+		assertTrue(referenceContentWithAttributes("a", filterBy(entityPrimaryKeyInSet(1)), orderBy(attributeNatural("code")), entityFetch(attributeContentAll()), entityGroupFetch(), page(2, 20)).isApplicable());
+		assertTrue(referenceContentWithAttributes("a", page(2, 20)).isApplicable());
+		assertTrue(referenceContentWithAttributes("a", strip(2, 20)).isApplicable());
+		assertTrue(referenceContentWithAttributes("a", entityFetchAll(), page(2, 20)).isApplicable());
+		assertTrue(referenceContentWithAttributes("a", entityFetchAll(), entityGroupFetchAll(), page(2, 20)).isApplicable());
 	}
 
 	@Test
@@ -247,6 +312,9 @@ class ReferenceContentTest {
 
 		final ReferenceContent referenceContentWithAttributes3 = referenceContentAllWithAttributes(attributeContent("a"));
 		assertEquals("referenceContentAllWithAttributes(attributeContent('a'))", referenceContentWithAttributes3.toString());
+
+		final ReferenceContent referenceContentWithAttributes4 = referenceContentAllWithAttributes(attributeContent("a"), page(2, 20));
+		assertEquals("referenceContentAllWithAttributes(attributeContent('a'),page(2,20))", referenceContentWithAttributes4.toString());
 	}
 
 	@Test
@@ -304,6 +372,10 @@ class ReferenceContentTest {
 		assertEquals(referenceContent("a", orderBy(attributeNatural("code")), entityFetch()).hashCode(), referenceContent("a", orderBy(attributeNatural("code")), entityFetch()).hashCode());
 		assertNotEquals(referenceContent("a", "b").hashCode(), referenceContent("a").hashCode());
 		assertNotEquals(referenceContent("a", filterBy(entityPrimaryKeyInSet(1))).hashCode(), referenceContent("a", entityFetch()).hashCode());
+		assertNotEquals(referenceContent("a", filterBy(entityPrimaryKeyInSet(1))), referenceContent("a", entityFetch(), page(2, 40)));
+		assertNotEquals(referenceContent("a", filterBy(entityPrimaryKeyInSet(1))).hashCode(), referenceContent("a", entityFetch(), page(2, 40)).hashCode());
+		assertNotEquals(referenceContent("a", filterBy(entityPrimaryKeyInSet(1)), strip(2, 40)), referenceContent("a", entityFetch(), page(2, 40)));
+		assertNotEquals(referenceContent("a", filterBy(entityPrimaryKeyInSet(1)), strip(2, 40)).hashCode(), referenceContent("a", entityFetch(), page(2, 40)).hashCode());
 	}
 
 }

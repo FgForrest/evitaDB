@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -60,6 +60,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.LongConsumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -428,8 +429,8 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 * the catalog to the given version. This method differs from {@link #getCommittedMutationStream(long)} in that
 	 * it expects the WAL is being actively written to and the returned stream may be potentially infinite.
 	 *
-	 * @param startCatalogVersion             the catalog version to start reading from
-	 * @param requestedCatalogVersion         the minimal catalog version to finish reading
+	 * @param startCatalogVersion     the catalog version to start reading from
+	 * @param requestedCatalogVersion the minimal catalog version to finish reading
 	 * @return a stream containing committed mutations
 	 */
 	@Nonnull
@@ -497,18 +498,26 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	/**
 	 * Creates a backup of the specified catalog and returns an InputStream to read the binary data of the zip file.
 	 *
-	 * @param pastMoment      leave null for creating backup for actual dataset, or specify past moment to create backup for
-	 *                        the dataset as it was at that moment
-	 * @param includingWAL    if true, the backup will include the Write-Ahead Log (WAL) file and when the catalog is
-	 *                        restored, it'll replay the WAL contents locally to bring the catalog to the current state
+	 * @param pastMoment   leave null for creating backup for actual dataset, or specify past moment to create backup for
+	 *                     the dataset as it was at that moment
+	 * @param includingWAL if true, the backup will include the Write-Ahead Log (WAL) file and when the catalog is
+	 *                     restored, it'll replay the WAL contents locally to bring the catalog to the current state
+	 * @param onStart      callback that is called before the backup starts
+	 * @param onComplete   callback that is called when the backup is finished (either successfully or with an error)
 	 * @return path to the file where the backup was created
 	 * @throws TemporalDataNotAvailableException when the past data is not available
 	 */
 	@Nonnull
-	ServerTask<?, FileForFetch> createBackupTask(@Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException;
+	ServerTask<?, FileForFetch> createBackupTask(
+		@Nullable OffsetDateTime pastMoment,
+		boolean includingWAL,
+		@Nullable LongConsumer onStart,
+		@Nullable LongConsumer onComplete
+	) throws TemporalDataNotAvailableException;
 
 	/**
 	 * Returns size taken by all catalog data structures in bytes.
+	 *
 	 * @return size taken by all catalog data structures in bytes
 	 */
 	long getSizeOnDiskInBytes();

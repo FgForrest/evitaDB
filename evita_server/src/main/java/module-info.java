@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -37,6 +37,7 @@ module evita.server {
 	opens io.evitadb.server.configuration to com.fasterxml.jackson.databind;
 	exports io.evitadb.server;
 	exports io.evitadb.server.log to ch.qos.logback.core;
+	exports io.evitadb.server.yaml;
 
 	requires static lombok;
 	requires static jsr305;
