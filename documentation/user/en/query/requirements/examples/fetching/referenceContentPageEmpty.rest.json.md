@@ -21,10 +21,9 @@
           }
         }
       },
-      "parameterValuesPage": {
-        "type": "PAGE",
-        "data" : [
-        ],
+      "parameterValuesPage" : {
+        "type" : "PAGE",
+        "data" : [ ],
 		"totalRecordCount" : 17,
 		"first" : true,
 		"last" : true,

@@ -26,11 +26,13 @@
           number: 1,
           size: 3
         ) {
-          referencedPrimaryKey
-          referencedEntity {
-            primaryKey
-            attributes {
-              name
+          data {
+            referencedPrimaryKey
+            referencedEntity {
+              primaryKey
+              attributes {
+                name
+              }
             }
           }
         }
