@@ -33,36 +33,36 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * This tests verifies basic properties of {@link ReferenceIncludingChildrenExcept} query.
+ * This tests verifies basic properties of {@link FacetIncludingChildrenExcept} query.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-class ReferenceIncludingChildrenExceptTest {
+class FacetIncludingChildrenExceptTest {
 
 	@Test
 	void shouldCreateViaFactoryClassWorkAsExpected() {
-		final ReferenceIncludingChildrenExcept referenceIncludingChildrenExcept = includingChildrenExcept(entityPrimaryKeyInSet(1, 5, 7));
+		final FacetIncludingChildrenExcept referenceIncludingChildrenExcept = includingChildrenExcept(entityPrimaryKeyInSet(1, 5, 7));
 		assertEquals(1, referenceIncludingChildrenExcept.getChildren().length);
 		assertEquals(entityPrimaryKeyInSet(1, 5, 7), referenceIncludingChildrenExcept.getChildren()[0]);
 	}
 
 	@Test
 	void shouldRecognizeApplicability() {
-		assertTrue(new ReferenceIncludingChildrenExcept().isApplicable());
+		assertTrue(new FacetIncludingChildrenExcept().isApplicable());
 		assertTrue(includingChildrenExcept(entityPrimaryKeyInSet(1)).isApplicable());
 		assertTrue(includingChildrenExcept(entityPrimaryKeyInSet(1, 5, 7)).isApplicable());
 	}
 
 	@Test
 	void shouldToStringReturnExpectedFormat() {
-		assertEquals("includingChildrenExcept()", new ReferenceIncludingChildrenExcept().toString());
+		assertEquals("includingChildrenExcept()", new FacetIncludingChildrenExcept().toString());
 		assertEquals("includingChildrenExcept(entityPrimaryKeyInSet(1,5,7))", includingChildrenExcept(entityPrimaryKeyInSet(1, 5, 7)).toString());
 	}
 
 	@Test
 	void shouldConformToEqualsAndHashContract() {
-		assertNotSame(new ReferenceIncludingChildrenExcept(), includingChildrenExcept(entityPrimaryKeyInSet(1, 1, 5)));
-		assertNotEquals(new ReferenceIncludingChildrenExcept(), includingChildrenExcept(entityPrimaryKeyInSet(1, 1, 5)));
+		assertNotSame(new FacetIncludingChildrenExcept(), includingChildrenExcept(entityPrimaryKeyInSet(1, 1, 5)));
+		assertNotEquals(new FacetIncludingChildrenExcept(), includingChildrenExcept(entityPrimaryKeyInSet(1, 1, 5)));
 		assertNotSame(includingChildrenExcept(entityPrimaryKeyInSet(1, 1, 5)), includingChildrenExcept(entityPrimaryKeyInSet(1, 1, 5)));
 		assertEquals(includingChildrenExcept(entityPrimaryKeyInSet(1, 1, 5)), includingChildrenExcept(entityPrimaryKeyInSet(1, 1, 5)));
 		assertNotEquals(includingChildrenExcept(entityPrimaryKeyInSet(1, 1, 5)), includingChildrenExcept(entityPrimaryKeyInSet(1, 1, 6)));

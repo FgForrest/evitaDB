@@ -28,6 +28,7 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.ConstraintWithSuffix;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
+import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.require.FacetSummary;
@@ -110,21 +111,22 @@ import java.util.Optional;
 	name = "includingChildren",
 	shortDescription = "The constraint automatically selects all children (or their subset satisfying additional constraints) of the hierarchical entities matched by `facetHaving` container.",
 	userDocsLink = "/documentation/query/filtering/references#including-children-having",
-	supportedIn = ConstraintDomain.FACET
+	supportedIn = ConstraintDomain.REFERENCE
 )
-public class FacetIncludingChildren extends AbstractFilterConstraintContainer implements ConstraintWithSuffix, FacetSpecificationFilterConstraint {
+public class FacetIncludingChildren extends AbstractFilterConstraintContainer implements ConstraintWithSuffix, HierarchyReferenceSpecificationFilterConstraint {
 	@Serial private static final long serialVersionUID = -7258410742839628308L;
 	private static final String SUFFIX_HAVING = "having";
 	private static final String CONSTRAINT_NAME = "includingChildren";
 
+	@Creator
 	public FacetIncludingChildren() {
 		// because this query can be used only within some other facet query, it would be
 		// unnecessary to duplicate the facet prefix
 		super(CONSTRAINT_NAME);
 	}
 
-	@Creator
-	public FacetIncludingChildren(@Nonnull FilterConstraint child) {
+	@Creator(suffix = SUFFIX_HAVING)
+	public FacetIncludingChildren(@Nonnull @Child(domain = ConstraintDomain.ENTITY) FilterConstraint child) {
 		super(CONSTRAINT_NAME, child);
 	}
 

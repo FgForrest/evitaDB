@@ -102,7 +102,7 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 		boolean isHierarchical = false;
 		for (int i = 0; i < children.length; i++) {
 			FilterConstraint child = children[i];
-			if (child instanceof ReferenceIncludingChildren fic) {
+			if (child instanceof FacetIncludingChildren fic) {
 				hierarchyIncludeConstraint = having(fic.getChildren());
 				if (excludedIndexes == null) {
 					targetSchema = assertReferenceIsHierarchical(filterByVisitor, referenceSchema, scopes);
@@ -110,7 +110,7 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 					isHierarchical = true;
 				}
 				excludedIndexes.add(i);
-			} else if (child instanceof ReferenceIncludingChildrenExcept fic) {
+			} else if (child instanceof FacetIncludingChildrenExcept fic) {
 				hierarchyExcludeConstraint = excluding(fic.getChildren());
 				if (excludedIndexes == null) {
 					targetSchema = assertReferenceIsHierarchical(filterByVisitor, referenceSchema, scopes);

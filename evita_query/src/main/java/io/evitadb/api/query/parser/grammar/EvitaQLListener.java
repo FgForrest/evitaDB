@@ -521,6 +521,42 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 */
 	void exitFacetHavingConstraint(EvitaQLParser.FacetHavingConstraintContext ctx);
 	/**
+	 * Enter a parse tree produced by the {@code facetIncludingChildrenConstraint}
+	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterFacetIncludingChildrenConstraint(EvitaQLParser.FacetIncludingChildrenConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code facetIncludingChildrenConstraint}
+	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitFacetIncludingChildrenConstraint(EvitaQLParser.FacetIncludingChildrenConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code facetIncludingChildrenHavingConstraint}
+	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterFacetIncludingChildrenHavingConstraint(EvitaQLParser.FacetIncludingChildrenHavingConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code facetIncludingChildrenHavingConstraint}
+	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitFacetIncludingChildrenHavingConstraint(EvitaQLParser.FacetIncludingChildrenHavingConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code facetIncludingChildrenExceptConstraint}
+	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterFacetIncludingChildrenExceptConstraint(EvitaQLParser.FacetIncludingChildrenExceptConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code facetIncludingChildrenExceptConstraint}
+	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitFacetIncludingChildrenExceptConstraint(EvitaQLParser.FacetIncludingChildrenExceptConstraintContext ctx);
+	/**
 	 * Enter a parse tree produced by the {@code referenceHavingConstraint}
 	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
 	 * @param ctx the parse tree
@@ -532,42 +568,6 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitReferenceHavingConstraint(EvitaQLParser.ReferenceHavingConstraintContext ctx);
-	/**
-	 * Enter a parse tree produced by the {@code referenceIncludingChildrenConstraint}
-	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
-	 * @param ctx the parse tree
-	 */
-	void enterReferenceIncludingChildrenConstraint(EvitaQLParser.ReferenceIncludingChildrenConstraintContext ctx);
-	/**
-	 * Exit a parse tree produced by the {@code referenceIncludingChildrenConstraint}
-	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
-	 * @param ctx the parse tree
-	 */
-	void exitReferenceIncludingChildrenConstraint(EvitaQLParser.ReferenceIncludingChildrenConstraintContext ctx);
-	/**
-	 * Enter a parse tree produced by the {@code referenceIncludingChildrenHavingConstraint}
-	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
-	 * @param ctx the parse tree
-	 */
-	void enterReferenceIncludingChildrenHavingConstraint(EvitaQLParser.ReferenceIncludingChildrenHavingConstraintContext ctx);
-	/**
-	 * Exit a parse tree produced by the {@code referenceIncludingChildrenHavingConstraint}
-	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
-	 * @param ctx the parse tree
-	 */
-	void exitReferenceIncludingChildrenHavingConstraint(EvitaQLParser.ReferenceIncludingChildrenHavingConstraintContext ctx);
-	/**
-	 * Enter a parse tree produced by the {@code referenceIncludingChildrenExceptConstraint}
-	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
-	 * @param ctx the parse tree
-	 */
-	void enterReferenceIncludingChildrenExceptConstraint(EvitaQLParser.ReferenceIncludingChildrenExceptConstraintContext ctx);
-	/**
-	 * Exit a parse tree produced by the {@code referenceIncludingChildrenExceptConstraint}
-	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
-	 * @param ctx the parse tree
-	 */
-	void exitReferenceIncludingChildrenExceptConstraint(EvitaQLParser.ReferenceIncludingChildrenExceptConstraintContext ctx);
 	/**
 	 * Enter a parse tree produced by the {@code hierarchyWithinConstraint}
 	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.

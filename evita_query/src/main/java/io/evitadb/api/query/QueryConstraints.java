@@ -1928,8 +1928,8 @@ public interface QueryConstraints {
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/references#including-children-having">Visit detailed user documentation</a></p>
 	 */
 	@Nonnull
-	static ReferenceIncludingChildren includingChildren() {
-		return new ReferenceIncludingChildren();
+	static FacetIncludingChildren includingChildren() {
+		return new FacetIncludingChildren();
 	}
 
 	/**
@@ -1998,8 +1998,8 @@ public interface QueryConstraints {
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/references#including-children-having">Visit detailed user documentation</a></p>
 	 */
 	@Nonnull
-	static ReferenceIncludingChildren includingChildrenHaving(@Nullable FilterConstraint filterConstraint) {
-		return filterConstraint == null ? new ReferenceIncludingChildren() : new ReferenceIncludingChildren(filterConstraint);
+	static FacetIncludingChildren includingChildrenHaving(@Nullable FilterConstraint filterConstraint) {
+		return filterConstraint == null ? new FacetIncludingChildren() : new FacetIncludingChildren(filterConstraint);
 	}
 
 	/**
@@ -2042,8 +2042,8 @@ public interface QueryConstraints {
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/references#including-children-except">Visit detailed user documentation</a></p>
 	 */
 	@Nonnull
-	static ReferenceIncludingChildrenExcept includingChildrenExcept(@Nullable FilterConstraint filterConstraint) {
-		return filterConstraint == null ? new ReferenceIncludingChildrenExcept() : new ReferenceIncludingChildrenExcept(filterConstraint);
+	static FacetIncludingChildrenExcept includingChildrenExcept(@Nullable FilterConstraint filterConstraint) {
+		return filterConstraint == null ? new FacetIncludingChildrenExcept() : new FacetIncludingChildrenExcept(filterConstraint);
 	}
 
 	/**
