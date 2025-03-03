@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -51,10 +51,11 @@ import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.data.ComplexDataObjectConverter;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ReflectionLookup;
@@ -133,6 +134,15 @@ public class EntityDecorator implements SealedEntity {
 	 */
 	private final EntityClassifierWithParent parentEntity;
 	/**
+	 * Optimization that ensures that expensive reference filtering using predicates happens only once.
+	 */
+	private final Map<ReferenceKey, ReferenceContract> filteredReferences;
+	/**
+	 * Contains map of all references by their name. This map is used for fast lookup of the references by their name
+	 * and is initialized lazily on first request.
+	 */
+	private final Map<String, DataChunk<ReferenceContract>> filteredReferencesByName;
+	/**
 	 * Optimization that ensures that expensive attributes filtering using predicates happens only once.
 	 */
 	private List<AttributeValue> filteredAttributes;
@@ -140,10 +150,6 @@ public class EntityDecorator implements SealedEntity {
 	 * Optimization that ensures that expensive associated data filtering using predicates happens only once.
 	 */
 	private List<AssociatedDataValue> filteredAssociatedData;
-	/**
-	 * Optimization that ensures that expensive reference filtering using predicates happens only once.
-	 */
-	private Map<ReferenceKey, ReferenceContract> filteredReferences;
 	/**
 	 * Optimization that ensures that expensive prices filtering using predicates happens only once.
 	 */
@@ -192,6 +198,36 @@ public class EntityDecorator implements SealedEntity {
 	 * Creates wrapper around {@link Entity} that filters existing data according passed predicates (which are constructed
 	 * to match query that is used to retrieve the decorator).
 	 *
+	 * @param delegate     fully or partially loaded entity - it's usually wider than decorator (may be even complete),
+	 *                     delegate might be obtained from shared global cache
+	 * @param entitySchema schema of the delegate entity
+	 * @param parent       body of the {@link Entity#getParent()} entity
+	 * @param evitaRequest request that was used for retrieving the `delegate` entity
+	 */
+	public EntityDecorator(
+		@Nonnull Entity delegate,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable EntityClassifierWithParent parent,
+		@Nonnull EvitaRequest evitaRequest
+	) {
+		this(
+			delegate,
+			entitySchema,
+			parent,
+			new LocaleSerializablePredicate(evitaRequest),
+			new HierarchySerializablePredicate(evitaRequest),
+			new AttributeValueSerializablePredicate(evitaRequest),
+			new AssociatedDataValueSerializablePredicate(evitaRequest),
+			new ReferenceContractSerializablePredicate(evitaRequest),
+			new PriceContractSerializablePredicate(evitaRequest, (Boolean) null),
+			evitaRequest.getAlignedNow()
+		);
+	}
+
+	/**
+	 * Creates wrapper around {@link Entity} that filters existing data according passed predicates (which are constructed
+	 * to match query that is used to retrieve the decorator).
+	 *
 	 * @param delegate                fully or partially loaded entity - it's usually wider than decorator (may be even complete), delegate
 	 *                                might be obtained from shared global cache
 	 * @param entitySchema            schema of the delegate entity
@@ -225,6 +261,32 @@ public class EntityDecorator implements SealedEntity {
 		this.referencePredicate = referencePredicate;
 		this.pricePredicate = pricePredicate;
 		this.alignedNow = alignedNow;
+
+		final Collection<ReferenceContract> references = delegate.getReferences();
+		this.filteredReferences = CollectionUtils.createHashMap(references.size());
+		final Map<String, List<ReferenceContract>> allReferencesByName = CollectionUtils.createHashMap(entitySchema.getReferences().size());
+		for (ReferenceContract reference : references) {
+			if (referencePredicate.test(reference)) {
+				this.filteredReferences.put(reference.getReferenceKey(), reference);
+				allReferencesByName
+					.computeIfAbsent(
+						reference.getReferenceName(),
+						s -> new ArrayList<>(references.size() / entitySchema.getReferences().size())
+					)
+					.add(reference);
+			}
+		}
+		this.filteredReferencesByName = allReferencesByName
+			.entrySet()
+			.stream()
+			.collect(
+				Collectors.toMap(
+					Map.Entry::getKey,
+					entry -> this.delegate.getReferenceChunkTransformer()
+						.apply(entry.getKey())
+						.createChunk(entry.getValue())
+				)
+			);
 	}
 
 	/**
@@ -264,28 +326,8 @@ public class EntityDecorator implements SealedEntity {
 		this.referencePredicate = referencePredicate;
 		this.pricePredicate = pricePredicate;
 		this.alignedNow = alignedNow;
-		final Map<ReferenceKey, ReferenceContract> theFilteredReferences = decorator.referencesAvailable() ?
-			decorator.getReferences()
-				.stream()
-				.filter(referencePredicate)
-				.map(reference ->
-					// prefer the instances from decorator, since they may have initialized the pointers to rich entities
-					ofNullable(decorator.filteredReferences.get(reference.getReferenceKey()))
-						.orElseGet(() -> this.delegate.getReference(reference.getReferenceKey()).orElse(null))
-				)
-				.filter(Objects::nonNull)
-				// the listing from decorator is also properly sorted, so we don't need to sort it again
-				.collect(
-					Collectors.toMap(
-						ReferenceContract::getReferenceKey,
-						Function.identity(),
-						(o, o2) -> {
-							throw new EvitaInvalidUsageException("Sanity check: " + o + ", " + o2);
-						},
-						LinkedHashMap::new
-					)
-				) : Collections.emptyMap();
-		this.filteredReferences = CollectionUtils.toUnmodifiableMap(theFilteredReferences);
+		this.filteredReferences = decorator.filteredReferences;
+		this.filteredReferencesByName = decorator.filteredReferencesByName;
 	}
 
 	/**
@@ -414,47 +456,42 @@ public class EntityDecorator implements SealedEntity {
 			);
 		}
 
-		final LinkedHashMap<ReferenceKey, ReferenceContract> theFilteredReferences = Arrays.stream(fetchedAndFilteredReferences)
+		final Map<String, List<ReferenceContract>> indexByName = Arrays.stream(fetchedAndFilteredReferences)
 			.filter(Objects::nonNull)
 			.collect(
-				Collectors.toMap(
-					ReferenceContract::getReferenceKey,
-					Function.identity(),
-					(o, o2) -> {
-						throw new EvitaInvalidUsageException("Sanity check: " + o + ", " + o2);
-					},
-					LinkedHashMap::new
+				Collectors.groupingBy(
+					ReferenceDecorator::getReferenceName,
+					LinkedHashMap::new,
+					Collectors.toList()
 				)
 			);
-		this.filteredReferences = CollectionUtils.toUnmodifiableMap(theFilteredReferences);
-	}
 
-	/**
-	 * Creates wrapper around {@link Entity} that filters existing data according passed predicates (which are constructed
-	 * to match query that is used to retrieve the decorator).
-	 *
-	 * @param delegate     fully or partially loaded entity - it's usually wider than decorator (may be even complete),
-	 *                     delegate might be obtained from shared global cache
-	 * @param entitySchema schema of the delegate entity
-	 * @param parent       body of the {@link Entity#getParent()} entity
-	 * @param evitaRequest request that was used for retrieving the `delegate` entity
-	 */
-	public EntityDecorator(
-		@Nonnull Entity delegate,
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nullable EntityClassifierWithParent parent,
-		@Nonnull EvitaRequest evitaRequest
-	) {
-		this.delegate = delegate;
-		this.entitySchema = entitySchema;
-		this.parentEntity = parent;
-		this.localePredicate = new LocaleSerializablePredicate(evitaRequest);
-		this.hierarchyPredicate = new HierarchySerializablePredicate(evitaRequest);
-		this.attributePredicate = new AttributeValueSerializablePredicate(evitaRequest);
-		this.associatedDataPredicate = new AssociatedDataValueSerializablePredicate(evitaRequest);
-		this.referencePredicate = new ReferenceContractSerializablePredicate(evitaRequest);
-		this.pricePredicate = new PriceContractSerializablePredicate(evitaRequest, (Boolean) null);
-		this.alignedNow = evitaRequest.getAlignedNow();
+		this.filteredReferencesByName = CollectionUtils.toUnmodifiableMap(
+			entitySchema
+				.getReferences()
+				.keySet()
+				.stream()
+				.filter(referencePredicate::isReferenceRequested)
+				.collect(
+					Collectors.toMap(
+						Function.identity(),
+						referenceName -> {
+							final List<ReferenceContract> references = ofNullable(indexByName.get(referenceName))
+								.orElse(Collections.emptyList());
+							return referenceFetcher.createChunk(entity, referenceName, references);
+						},
+						(referenceContracts, referenceContracts2) -> {
+							throw new GenericEvitaInternalError("Duplicate reference name found in the filtered references.");
+						},
+						LinkedHashMap::new
+					)
+				)
+		);
+		this.filteredReferences = this.filteredReferencesByName.values()
+			.stream()
+			.map(DataChunk::getData)
+			.flatMap(Collection::stream)
+			.collect(Collectors.toMap(ReferenceContract::getReferenceKey, Function.identity()));
 	}
 
 	/**
@@ -571,12 +608,6 @@ public class EntityDecorator implements SealedEntity {
 		return this.delegate.getPrimaryKey();
 	}
 
-	@Nonnull
-	@Override
-	public Scope getScope() {
-		return this.delegate.getScope();
-	}
-
 	@Override
 	public boolean parentAvailable() {
 		return this.delegate.parentAvailable() && this.hierarchyPredicate.wasFetched();
@@ -612,35 +643,32 @@ public class EntityDecorator implements SealedEntity {
 	@Override
 	public Collection<ReferenceContract> getReferences() {
 		this.referencePredicate.checkFetched();
-		return getFilteredReferences().values();
+		return this.filteredReferences.values();
 	}
 
 	@Nonnull
 	@Override
 	public Collection<ReferenceContract> getReferences(@Nonnull String referenceName) {
-		this.referencePredicate.checkFetched(referenceName);
-		this.delegate.checkReferenceName(referenceName);
-		final Collection<ReferenceContract> values = getFilteredReferences().values();
-		final List<ReferenceContract> matchingReferences = new ArrayList<>(values.size());
-		boolean found = false;
-		for (ReferenceContract value : values) {
-			if (Objects.equals(referenceName, value.getReferenceName())) {
-				found = true;
-				matchingReferences.add(value);
-			} else if (found) {
-				// we may prematurely finish here,
-				// because the filtered references are primarily sorted by reference name
-				break;
-			}
-		}
-		return matchingReferences;
+		return getReferenceChunk(referenceName).getData();
 	}
 
 	@Nonnull
 	@Override
 	public Optional<ReferenceContract> getReference(@Nonnull String referenceName, int referencedEntityId) {
 		this.referencePredicate.checkFetched(referenceName);
-		return ofNullable(getFilteredReferences().get(new ReferenceKey(referenceName, referencedEntityId)));
+		return ofNullable(this.filteredReferences.get(new ReferenceKey(referenceName, referencedEntityId)));
+	}
+
+	@Nonnull
+	@Override
+	public <T extends DataChunk<ReferenceContract>> T getReferenceChunk(@Nonnull String referenceName) throws ContextMissingException {
+		this.referencePredicate.checkFetched(referenceName);
+		this.delegate.checkReferenceName(referenceName);
+		final DataChunk<ReferenceContract> chunk = this.filteredReferencesByName.get(referenceName);
+		//noinspection unchecked
+		return (T) (chunk == null ?
+					this.delegate.getReferenceChunkTransformer().apply(referenceName).createChunk(Collections.emptyList()) :
+					chunk);
 	}
 
 	@Nonnull
@@ -658,6 +686,12 @@ public class EntityDecorator implements SealedEntity {
 			.collect(Collectors.toSet());
 	}
 
+	@Nonnull
+	@Override
+	public Scope getScope() {
+		return this.delegate.getScope();
+	}
+
 	/**
 	 * Returns parent entity without checking the predicate.
 	 * Part of the PRIVATE API.
@@ -669,7 +703,7 @@ public class EntityDecorator implements SealedEntity {
 
 	@Nonnull
 	public Optional<ReferenceContract> getReferenceWithoutCheckingPredicate(@Nonnull String referenceName, int referencedEntityId) {
-		return ofNullable(getFilteredReferences().get(new ReferenceKey(referenceName, referencedEntityId)));
+		return ofNullable(this.filteredReferences.get(new ReferenceKey(referenceName, referencedEntityId)));
 	}
 
 	@Nullable
@@ -863,7 +897,7 @@ public class EntityDecorator implements SealedEntity {
 	@Override
 	public <T extends Serializable> T getAssociatedData(@Nonnull String associatedDataName, @Nonnull Class<T> dtoType, @Nonnull ReflectionLookup reflectionLookup) {
 		return getAssociatedDataValue(associatedDataName)
-			.map(it -> ComplexDataObjectConverter.getOriginalForm(it.value(), dtoType, reflectionLookup))
+			.map(it -> ComplexDataObjectConverter.getOriginalForm(Objects.requireNonNull(it.value()), dtoType, reflectionLookup))
 			.orElse(null);
 	}
 
@@ -995,7 +1029,7 @@ public class EntityDecorator implements SealedEntity {
 		return this.pricePredicate.isFetched() && this.delegate.pricesAvailable();
 	}
 
-	@Nullable
+	@Nonnull
 	@Override
 	public Optional<PriceContract> getPrice(@Nonnull PriceKey priceKey) throws ContextMissingException {
 		this.pricePredicate.checkFetched(priceKey.currency(), priceKey.priceList());
@@ -1053,7 +1087,7 @@ public class EntityDecorator implements SealedEntity {
 				() -> "Entity cannot provide price for sale different from the context it was loaded in! " +
 					"The entity `" + getPrimaryKey() + "` was fetched using `" + this.pricePredicate.getCurrency() + "` currency, " +
 					ofNullable(this.pricePredicate.getValidIn()).map(it -> "valid at `" + DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(it) + "`").orElse("") +
-					" and price list in this priority: " + Arrays.stream(this.pricePredicate.getPriceLists()).map(it -> "`" + it + "`").collect(Collectors.joining(", ")) + "."
+					" and price list in this priority: " + ofNullable(this.pricePredicate.getPriceLists()).map(Arrays::stream).map(it -> it.map(element -> "`" + element + "`").collect(Collectors.joining(", "))) + "."
 			);
 		}
 		return SealedEntity.super.getPriceForSale(currency, atTheMoment, priceListPriority);
@@ -1075,6 +1109,8 @@ public class EntityDecorator implements SealedEntity {
 	public Optional<PriceContract> getPriceForSale() throws ContextMissingException {
 		if (this.pricePredicate.isContextAvailable()) {
 			this.pricePredicate.checkPricesFetched();
+			// method context available does NullPointer check
+			// noinspection DataFlowIssue
 			return SealedEntity.super.getPriceForSale(
 				this.pricePredicate.getCurrency(),
 				this.pricePredicate.getValidIn(),
@@ -1090,6 +1126,8 @@ public class EntityDecorator implements SealedEntity {
 	public Optional<PriceContract> getPriceForSaleIfAvailable() {
 		if (this.pricePredicate.isContextAvailable()) {
 			this.pricePredicate.checkPricesFetched();
+			// method context available does NullPointer check
+			// noinspection DataFlowIssue
 			return getPriceForSale(
 				this.pricePredicate.getCurrency(),
 				this.pricePredicate.getValidIn(),
@@ -1121,28 +1159,13 @@ public class EntityDecorator implements SealedEntity {
 
 	@Nonnull
 	@Override
-	public List<PriceContract> getAllPricesForSale() {
-		if (this.pricePredicate.isContextAvailable()) {
-			this.pricePredicate.checkPricesFetched();
-			return getAllPricesForSale(
-				this.pricePredicate.getCurrency(),
-				this.pricePredicate.getValidIn(),
-				this.pricePredicate.getPriceLists()
-			);
-		} else {
-			throw new ContextMissingException();
-		}
-	}
-
-
-
-	@Nonnull
-	@Override
-	public List<PriceForSaleWithAccompanyingPrices> getAllPricesForSaleWithAccompanyingPrices(@Nullable Currency currency,
-	                                                                                          @Nullable OffsetDateTime atTheMoment,
-	                                                                                          @Nullable String[] priceListPriority,
-	                                                                                          @Nonnull AccompanyingPrice[] accompanyingPricesRequest) {
-		this.pricePredicate.checkFetched(currency, priceListPriority);
+	public List<PriceForSaleWithAccompanyingPrices> getAllPricesForSaleWithAccompanyingPrices(
+		@Nullable Currency currency,
+		@Nullable OffsetDateTime atTheMoment,
+		@Nullable String[] priceListPriority,
+		@Nonnull AccompanyingPrice[] accompanyingPricesRequest
+	) {
+		this.pricePredicate.checkFetched(currency, priceListPriority == null ? ArrayUtils.EMPTY_STRING_ARRAY : priceListPriority);
 		final List<PriceForSaleWithAccompanyingPrices> allPricesForSale = SealedEntity.super.getAllPricesForSaleWithAccompanyingPrices(currency, atTheMoment, priceListPriority, accompanyingPricesRequest);
 		if (allPricesForSale.size() > 1) {
 			return allPricesForSale
@@ -1159,10 +1182,29 @@ public class EntityDecorator implements SealedEntity {
 		}
 	}
 
+	@Nonnull
+	@Override
+	public List<PriceContract> getAllPricesForSale() {
+		if (this.pricePredicate.isContextAvailable()) {
+			this.pricePredicate.checkPricesFetched();
+			// method context available does NullPointer check
+			// noinspection DataFlowIssue
+			return getAllPricesForSale(
+				this.pricePredicate.getCurrency(),
+				this.pricePredicate.getValidIn(),
+				this.pricePredicate.getPriceLists()
+			);
+		} else {
+			throw new ContextMissingException();
+		}
+	}
+
 	@Override
 	public boolean hasPriceInInterval(@Nonnull BigDecimal from, @Nonnull BigDecimal to, @Nonnull QueryPriceMode queryPriceMode) throws ContextMissingException {
 		if (this.pricePredicate.isContextAvailable()) {
 			this.pricePredicate.checkPricesFetched();
+			// method context available does NullPointer check
+			// noinspection DataFlowIssue
 			return hasPriceInInterval(
 				from, to, queryPriceMode,
 				this.pricePredicate.getCurrency(),
@@ -1200,6 +1242,8 @@ public class EntityDecorator implements SealedEntity {
 	public Optional<PriceContract> getPriceForSale(@Nonnull Predicate<PriceContract> predicate) throws ContextMissingException {
 		if (this.pricePredicate.isContextAvailable()) {
 			this.pricePredicate.checkPricesFetched();
+			// method context available does NullPointer check
+			// noinspection DataFlowIssue
 			return PricesContract.computePriceForSale(
 				getPrices(),
 				getPriceInnerRecordHandling(),
@@ -1277,36 +1321,6 @@ public class EntityDecorator implements SealedEntity {
 	 */
 	public boolean isLocaleRequested(@Nonnull Locale locale) {
 		return this.localePredicate.test(locale);
-	}
-
-	/**
-	 * Method collects all references in delegate and filters them by using {@link #referencePredicate}. The result
-	 * of this operation is memoized so all subsequent calls to this method are pretty cheap.
-	 */
-	@Nonnull
-	private Map<ReferenceKey, ReferenceContract> getFilteredReferences() {
-		if (this.filteredReferences == null) {
-			final LinkedHashMap<ReferenceKey, ReferenceContract> theFilteredReferences = this.delegate.getReferences()
-				.stream()
-				.filter(this.referencePredicate)
-				.map(
-					it -> new ReferenceDecorator(
-						it, this.referencePredicate.getAttributePredicate(it.getReferenceKey().referenceName())
-					)
-				)
-				.collect(
-					Collectors.toMap(
-						ReferenceContract::getReferenceKey,
-						Function.identity(),
-						(o, o2) -> {
-							throw new EvitaInvalidUsageException("Sanity check: " + o + ", " + o2);
-						},
-						LinkedHashMap::new
-					)
-				);
-			this.filteredReferences = CollectionUtils.toUnmodifiableMap(theFilteredReferences);
-		}
-		return this.filteredReferences;
 	}
 
 	/**

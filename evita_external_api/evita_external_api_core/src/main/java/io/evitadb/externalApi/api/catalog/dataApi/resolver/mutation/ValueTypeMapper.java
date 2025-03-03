@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -118,7 +118,7 @@ public class ValueTypeMapper implements Function<Object, Class<? extends Seriali
 	private final PropertyDescriptor field;
 
 	@Override
-	public Class<? extends Serializable> apply(@Nonnull Object rawField) {
+	public Class<? extends Serializable> apply(Object rawField) {
 		if (rawField instanceof Class<?> valueType) {
 			//noinspection unchecked
 			return (Class<? extends Serializable>) valueType;

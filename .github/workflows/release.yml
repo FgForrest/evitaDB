@@ -13,14 +13,34 @@ jobs:
       contents: read
     runs-on: ubuntu-latest
     steps:
+      # Preprocess the release body to escape newlines and set as an output variable
+      - name: Prepare Release Body
+        id: prepare_body
+        run: |
+          printf "${{ github.event.release.body }}" > changes.txt
+          sed -i ':a;N;$!ba;s/\\/\\\\/g; s/"/\\"/g; s/\n/\\n/g; s/\r//g; s/\t/\\t/g' changes.txt
+          sed -i -E 's/\(#([0-9]+)\)/([#\1](https:\/\/github.com\/FgForrest\/evitaDB\/issues\/\1))/g' changes.txt
+          echo "Contents of the file:"
+          cat changes.txt
+          echo ""
+          sanitized_body=$(< changes.txt)          
+          echo "processed_body=$sanitized_body" >> $GITHUB_OUTPUT
+
+      # Send the message to Mattermost with the escaped release body
       - name: Send message to Mattermost
         uses: mattermost/action-mattermost-notify@b7d118e440bf2749cd18a4a8c88e7092e696257a # v2.0.0
         with:
           MATTERMOST_WEBHOOK_URL: ${{ secrets.MM_WEBHOOK_URL }}
           PAYLOAD: |-
-            {
-              "text": "## 🎉 evitaDB ${{ github.event.release.tag_name }} released!\n\n**Release Notes**:\\n${{ github.event.release.body }}",
-              "color":"#31bf2c",
+            {              
+              "attachments": [
+                {
+                  "title": "🎉 evitaDB ${{ github.event.release.name }} released!",                
+                  "title_link": "${{ github.event.release.html_url }}",
+                  "text": "${{ steps.prepare_body.outputs.processed_body }}",
+                  "color": "#31bf2c"
+                }
+              ],            
               "username": "${{ github.triggering_actor }}",
               "icon": "https://raw.githubusercontent.com/FgForrest/evitaDB/dev/documentation/assets/img/evita.png"
             }

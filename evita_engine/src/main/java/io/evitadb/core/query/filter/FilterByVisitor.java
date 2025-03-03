@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -143,7 +143,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 * A no-operation (no-op) implementation of a {@link BiFunction} that returns {@code null} for any input value combination.
 	 */
 	private static final BiFunction<EntitySchemaContract, EntityIndexKey, ReferencedTypeEntityIndex> THROWING_MISSING_RTEI_SUPPLIER =
-		(entitySchema, entityIndexKey) -> ReferencedTypeEntityIndex.createThrowingStub(entitySchema, entityIndexKey);
+		ReferencedTypeEntityIndex::createThrowingStub;
 	/**
 	 * A no-operation (no-op) implementation of a {@link BiFunction} that returns {@code null} for any input value combination.
 	 */

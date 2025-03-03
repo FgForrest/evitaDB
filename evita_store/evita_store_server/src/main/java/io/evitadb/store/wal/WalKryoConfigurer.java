@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -114,7 +114,6 @@ import io.evitadb.store.wal.schema.sortableAttributeCompound.SetSortableAttribut
 import io.evitadb.store.wal.transaction.TransactionMutationSerializer;
 import io.evitadb.utils.Assert;
 
-import javax.annotation.Nonnull;
 import java.util.function.Consumer;
 
 /**
@@ -126,7 +125,7 @@ public class WalKryoConfigurer implements Consumer<Kryo> {
 	private static final int WAL_BASE = 400;
 
 	@Override
-	public void accept(@Nonnull Kryo kryo) {
+	public void accept(Kryo kryo) {
 		int index = WAL_BASE;
 
 		kryo.register(EvolutionMode.class, new EnumNameSerializer<>(), index++);

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -148,6 +148,7 @@ public interface ReferenceIndexMutator {
 		@Nonnull ReferencedTypeEntityIndex referenceTypeIndex,
 		@Nullable EntityIndex referenceIndex,
 		@Nonnull ReferenceKey referenceKey,
+		@Nullable Integer groupId,
 		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
@@ -157,7 +158,7 @@ public interface ReferenceIndexMutator {
 		}
 
 		// add facet to global index
-		addFacetToIndex(entityIndex, referenceKey, null, executor, entityPrimaryKey, undoActionConsumer);
+		addFacetToIndex(entityIndex, referenceKey, groupId, executor, entityPrimaryKey, undoActionConsumer);
 
 		// index all reference attributes to the reference type index
 		final ReferenceSchemaContract referenceSchema = entitySchema.getReferenceOrThrowException(referenceKey.referenceName());
@@ -198,7 +199,7 @@ public interface ReferenceIndexMutator {
 
 			// add facet to reference index
 			addFacetToIndex(
-				referenceIndex, referenceKey, null, executor, entityPrimaryKey, undoActionConsumer
+				referenceIndex, referenceKey, groupId, executor, entityPrimaryKey, undoActionConsumer
 			);
 		}
 	}
