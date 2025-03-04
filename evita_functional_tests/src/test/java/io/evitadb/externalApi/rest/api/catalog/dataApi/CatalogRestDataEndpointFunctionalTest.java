@@ -57,6 +57,7 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.RestEntityDe
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.SectionedAssociatedDataDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.SectionedAttributesDescriptor;
 import io.evitadb.externalApi.rest.api.testSuite.RestEndpointFunctionalTest;
+import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.builder.MapBuilder;
 import io.evitadb.test.extension.DataCarrier;
@@ -393,7 +394,7 @@ public abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpoint
 	public static void createReferencesDto(@Nonnull MapBuilder entityDto,
 	                                 @Nonnull SealedEntity entity,
 	                                 boolean localized) {
-		if (entity.referencesAvailable() && !entity.getReferences().isEmpty()) {
+		if (entity.referencesAvailable()) {
 			entity.getReferenceNames()
 				.forEach(it -> createReferencesOfNameDto(entityDto, entity, it, localized));
 		}
@@ -403,69 +404,71 @@ public abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpoint
 	                                             @Nonnull SealedEntity entity,
 	                                             @Nonnull String referenceName,
 	                                             boolean localized) {
+		final ReferenceSchemaContract referenceSchema = entity.getSchema()
+			.getReference(referenceName)
+			.orElseThrow(() -> new RuntimeException("Schema for reference `" + referenceName + "` not known."));
+		final Cardinality referenceCardinality = referenceSchema.getCardinality();
+
 		final DataChunk<ReferenceContract> groupedReferences = entity.getReferenceChunk(referenceName);
-		final Optional<ReferenceContract> anyReferenceFound = groupedReferences.stream().findFirst();
-		if (anyReferenceFound.isPresent()) {
-			final ReferenceContract firstReference = anyReferenceFound.get();
-			final ReferenceSchemaContract referenceSchema = firstReference.getReferenceSchema().orElseThrow();
+
+		if (referenceCardinality == Cardinality.EXACTLY_ONE || referenceCardinality == Cardinality.ZERO_OR_ONE) {
+			Assert.isPremiseValid(groupedReferences.getTotalRecordCount() <= 1, "Reference cardinality is: " +
+				referenceCardinality + " but found " + groupedReferences.getTotalRecordCount() +
+				" references with same name: " + referenceName);
 
 			final String referencePropertyName = RestEntityDescriptor.REFERENCE.name(referenceSchema);
-
-			if (firstReference.getReferenceCardinality() == Cardinality.EXACTLY_ONE ||
-				firstReference.getReferenceCardinality() == Cardinality.ZERO_OR_ONE) {
-				Assert.isPremiseValid(groupedReferences.getTotalRecordCount() == 1, "Reference cardinality is: " +
-					firstReference.getReferenceCardinality() + " but found " + groupedReferences.getTotalRecordCount() +
-					" references with same name: " + referenceName);
-
-				entityDto.e(referencePropertyName, createReferenceDto(entity.getLocales(), firstReference, localized));
+			if (groupedReferences.getData().isEmpty()) {
+				entityDto.e(referencePropertyName, null);
 			} else {
-				final List<Map<String, Object>> data = groupedReferences.stream()
-					.map(it -> createReferenceDto(entity.getLocales(), it, localized).build())
-					.toList();
+				entityDto.e(referencePropertyName, createReferenceDto(entity.getLocales(), groupedReferences.getData().get(0), localized));
+			}
+		} else {
+			final List<Map<String, Object>> data = groupedReferences.stream()
+				.map(it -> createReferenceDto(entity.getLocales(), it, localized).build())
+				.toList();
 
-				if (groupedReferences instanceof PlainChunk<ReferenceContract>) {
-	                entityDto.e(
-						referencePropertyName,
-		                data
-					);
-				} else if (groupedReferences instanceof PaginatedList<ReferenceContract> groupedReferencePage) {
-					entityDto.e(
-						RestEntityDescriptor.REFERENCE_PAGE.name(referenceSchema),
-						map()
-							.e("type", DataChunkType.PAGE.name())
-							.e(ReferencePageDescriptor.DATA.name(), data)
-							.e(ReferencePageDescriptor.TOTAL_RECORD_COUNT.name(), groupedReferencePage.getTotalRecordCount())
-							.e(ReferencePageDescriptor.FIRST.name(), groupedReferencePage.isFirst())
-							.e(ReferencePageDescriptor.LAST.name(), groupedReferencePage.isLast())
-							.e(ReferencePageDescriptor.HAS_PREVIOUS.name(), groupedReferencePage.hasPrevious())
-							.e(ReferencePageDescriptor.HAS_NEXT.name(), groupedReferencePage.hasNext())
-							.e(ReferencePageDescriptor.SINGLE_PAGE.name(), groupedReferencePage.isSinglePage())
-							.e(ReferencePageDescriptor.EMPTY.name(), groupedReferencePage.isEmpty())
-							.e(ReferencePageDescriptor.PAGE_SIZE.name(), groupedReferencePage.getPageSize())
-							.e(ReferencePageDescriptor.PAGE_NUMBER.name(), groupedReferencePage.getPageNumber())
-							.e(ReferencePageDescriptor.LAST_PAGE_NUMBER.name(), groupedReferencePage.getLastPageNumber())
-							.e(ReferencePageDescriptor.FIRST_PAGE_ITEM_NUMBER.name(), groupedReferencePage.getFirstPageItemNumber())
-							.e(ReferencePageDescriptor.LAST_PAGE_ITEM_NUMBER.name(), groupedReferencePage.getLastPageItemNumber())
-					);
-				} else if (groupedReferences instanceof StripList<ReferenceContract> groupedReferencesStrip) {
-					entityDto.e(
-						RestEntityDescriptor.REFERENCE_STRIP.name(referenceSchema),
-						map()
-							.e("type", DataChunkType.STRIP.name())
-							.e(ReferenceStripDescriptor.DATA.name(), data)
-							.e(ReferenceStripDescriptor.TOTAL_RECORD_COUNT.name(), groupedReferencesStrip.getTotalRecordCount())
-							.e(ReferenceStripDescriptor.FIRST.name(), groupedReferencesStrip.isFirst())
-							.e(ReferenceStripDescriptor.LAST.name(), groupedReferencesStrip.isLast())
-							.e(ReferenceStripDescriptor.HAS_PREVIOUS.name(), groupedReferencesStrip.hasPrevious())
-							.e(ReferenceStripDescriptor.HAS_NEXT.name(), groupedReferencesStrip.hasNext())
-							.e(ReferenceStripDescriptor.SINGLE_PAGE.name(), groupedReferencesStrip.isSinglePage())
-							.e(ReferenceStripDescriptor.EMPTY.name(), groupedReferencesStrip.isEmpty())
-							.e(ReferenceStripDescriptor.OFFSET.name(), groupedReferencesStrip.getOffset())
-							.e(ReferenceStripDescriptor.LIMIT.name(), groupedReferencesStrip.getLimit())
-					);
-				} else {
-					throw new IllegalArgumentException("Unsupported data chunk type " + groupedReferences.getClass().getName());
-				}
+			if (groupedReferences instanceof PlainChunk<ReferenceContract>) {
+				entityDto.e(
+					RestEntityDescriptor.REFERENCE.name(referenceSchema),
+					data
+				);
+			} else if (groupedReferences instanceof PaginatedList<ReferenceContract> groupedReferencePage) {
+				entityDto.e(
+					RestEntityDescriptor.REFERENCE_PAGE.name(referenceSchema),
+					map()
+						.e(ReferencePageDescriptor.DATA.name(), data)
+						.e("type", DataChunkType.PAGE.name())
+						.e(ReferencePageDescriptor.TOTAL_RECORD_COUNT.name(), groupedReferencePage.getTotalRecordCount())
+						.e(ReferencePageDescriptor.FIRST.name(), groupedReferencePage.isFirst())
+						.e(ReferencePageDescriptor.LAST.name(), groupedReferencePage.isLast())
+						.e(ReferencePageDescriptor.HAS_PREVIOUS.name(), groupedReferencePage.hasPrevious())
+						.e(ReferencePageDescriptor.HAS_NEXT.name(), groupedReferencePage.hasNext())
+						.e(ReferencePageDescriptor.SINGLE_PAGE.name(), groupedReferencePage.isSinglePage())
+						.e(ReferencePageDescriptor.EMPTY.name(), groupedReferencePage.isEmpty())
+						.e(ReferencePageDescriptor.PAGE_SIZE.name(), groupedReferencePage.getPageSize())
+						.e(ReferencePageDescriptor.PAGE_NUMBER.name(), groupedReferencePage.getPageNumber())
+						.e(ReferencePageDescriptor.LAST_PAGE_NUMBER.name(), groupedReferencePage.getLastPageNumber())
+						.e(ReferencePageDescriptor.FIRST_PAGE_ITEM_NUMBER.name(), groupedReferencePage.getFirstPageItemNumber())
+						.e(ReferencePageDescriptor.LAST_PAGE_ITEM_NUMBER.name(), groupedReferencePage.getLastPageItemNumber())
+				);
+			} else if (groupedReferences instanceof StripList<ReferenceContract> groupedReferencesStrip) {
+				entityDto.e(
+					RestEntityDescriptor.REFERENCE_STRIP.name(referenceSchema),
+					map()
+						.e(ReferenceStripDescriptor.DATA.name(), data)
+						.e("type", DataChunkType.STRIP.name())
+						.e(ReferenceStripDescriptor.TOTAL_RECORD_COUNT.name(), groupedReferencesStrip.getTotalRecordCount())
+						.e(ReferenceStripDescriptor.FIRST.name(), groupedReferencesStrip.isFirst())
+						.e(ReferenceStripDescriptor.LAST.name(), groupedReferencesStrip.isLast())
+						.e(ReferenceStripDescriptor.HAS_PREVIOUS.name(), groupedReferencesStrip.hasPrevious())
+						.e(ReferenceStripDescriptor.HAS_NEXT.name(), groupedReferencesStrip.hasNext())
+						.e(ReferenceStripDescriptor.SINGLE_PAGE.name(), groupedReferencesStrip.isSinglePage())
+						.e(ReferenceStripDescriptor.EMPTY.name(), groupedReferencesStrip.isEmpty())
+						.e(ReferenceStripDescriptor.OFFSET.name(), groupedReferencesStrip.getOffset())
+						.e(ReferenceStripDescriptor.LIMIT.name(), groupedReferencesStrip.getLimit())
+				);
+			} else {
+				throw new IllegalArgumentException("Unsupported data chunk type " + groupedReferences.getClass().getName());
 			}
 		}
 	}

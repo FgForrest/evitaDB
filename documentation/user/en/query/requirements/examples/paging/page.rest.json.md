@@ -22,18 +22,18 @@
       "type" : "Product"
     }
   ],
-  "empty" : false,
-  "first" : false,
-  "firstPageItemNumber" : 5,
-  "hasNext" : true,
-  "hasPrevious" : true,
-  "last" : false,
-  "lastPageItemNumber" : 9,
-  "lastPageNumber" : 833,
-  "pageNumber" : 2,
-  "pageSize" : 5,
-  "singlePage" : false,
+  "type" : "PAGE",
   "totalRecordCount" : 4161,
-  "type" : "PAGE"
+  "first" : false,
+  "last" : true,
+  "hasPrevious" : true,
+  "hasNext" : false,
+  "singlePage" : false,
+  "empty" : false,
+  "pageSize" : 5,
+  "pageNumber" : 2,
+  "lastPageNumber" : 1,
+  "firstPageItemNumber" : 5,
+  "lastPageItemNumber" : 9
 }
 ```

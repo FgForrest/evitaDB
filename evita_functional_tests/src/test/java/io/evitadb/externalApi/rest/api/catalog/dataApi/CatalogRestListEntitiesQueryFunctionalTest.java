@@ -1440,7 +1440,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 	                        "entityFetch": {
 	                            "referenceStoreContent": {
 	                                "entityFetch": {},
-	                                "chunk": {
+	                                "chunking": {
 	                                    "page": {
 	                                        "number": 2,
 	                                        "size": 2
@@ -1502,7 +1502,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 	                        "entityFetch": {
 	                            "referenceStoreContent": {
 	                                "entityFetch": {},
-	                                "chunk": {
+	                                "chunking": {
 	                                    "strip": {
 	                                        "offset": 2,
 	                                        "limit": 2

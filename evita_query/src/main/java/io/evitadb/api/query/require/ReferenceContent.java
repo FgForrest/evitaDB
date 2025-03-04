@@ -212,16 +212,12 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 		);
 	}
 
+	@Creator(suffix = SUFFIX_ALL_WITH_ATTRIBUTES)
 	public ReferenceContent(@Nullable AttributeContent attributeContent) {
 		super(
 			new Serializable[]{ManagedReferencesBehaviour.ANY},
-			attributeContent
+			attributeContent == null ? AttributeContent.ALL_ATTRIBUTES : attributeContent
 		);
-	}
-
-	@Creator(suffix = SUFFIX_ALL_WITH_ATTRIBUTES)
-	public static ReferenceContent allWithAttributes() {
-		return new ReferenceContent(AttributeContent.ALL_ATTRIBUTES);
 	}
 
 	public ReferenceContent(@Nonnull String... referenceName) {

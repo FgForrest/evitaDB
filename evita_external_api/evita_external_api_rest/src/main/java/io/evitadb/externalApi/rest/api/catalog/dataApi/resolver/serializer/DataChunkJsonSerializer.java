@@ -107,8 +107,8 @@ public class DataChunkJsonSerializer {
 
 		final ArrayNode dataNode = serializeData(dataChunk, itemSerializer);
 
-		dataChunkNode.put("type", dataChunkType.name());
 		dataChunkNode.putIfAbsent(DataChunkDescriptor.DATA.name(), dataNode);
+		dataChunkNode.put("type", dataChunkType.name());
 		dataChunkNode.put(DataChunkDescriptor.TOTAL_RECORD_COUNT.name(), dataChunk.getTotalRecordCount());
 		dataChunkNode.put(DataChunkDescriptor.FIRST.name(), dataChunk.isFirst());
 		dataChunkNode.put(DataChunkDescriptor.LAST.name(), dataChunk.isLast());

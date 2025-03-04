@@ -20,7 +20,7 @@ POST /rest/evita/Product/query
                 "code"
               ]
             },
-            "siblings" : { },
+            "siblings" : true,
             "requirements" : {
               "statistics" : {
                 "statisticsBase" : "WITHOUT_USER_FILTER",

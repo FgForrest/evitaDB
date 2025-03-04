@@ -5873,7 +5873,7 @@ public interface QueryConstraints {
 	 */
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes() {
-		return ReferenceContent.allWithAttributes();
+		return new ReferenceContent(AttributeContent.ALL_ATTRIBUTES);
 	}
 
 	/**

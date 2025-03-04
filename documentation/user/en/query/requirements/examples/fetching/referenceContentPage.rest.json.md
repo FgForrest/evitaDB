@@ -22,7 +22,6 @@
         }
       },
       "parameterValuesPage" : {
-        "type" : "PAGE",
         "data" : [
           {
             "referencedPrimaryKey" : 103869,
@@ -105,6 +104,7 @@
             }
           }
         ],
+		"type" : "PAGE",
         "totalRecordCount" : 17,
         "first" : true,
         "last" : false,
