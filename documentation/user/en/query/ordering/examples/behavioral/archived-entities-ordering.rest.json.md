@@ -90,14 +90,14 @@
   "type" : "PAGE",
   "totalRecordCount" : 5,
   "first" : true,
-  "last" : false,
+  "last" : true,
   "hasPrevious" : false,
-  "hasNext" : true,
-  "singlePage" : false,
+  "hasNext" : false,
+  "singlePage" : true,
   "empty" : false,
   "pageSize" : 20,
   "pageNumber" : 1,
-  "lastPageNumber" : 4,
+  "lastPageNumber" : 1,
   "firstPageItemNumber" : 0,
   "lastPageItemNumber" : 5
 }

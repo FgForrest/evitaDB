@@ -645,14 +645,14 @@
     "type" : "PAGE",
     "totalRecordCount" : 537,
     "first" : true,
-    "last" : true,
+    "last" : false,
     "hasPrevious" : false,
-    "hasNext" : false,
-    "singlePage" : true,
+    "hasNext" : true,
+    "singlePage" : false,
     "empty" : false,
     "pageSize" : 20,
     "pageNumber" : 1,
-    "lastPageNumber" : 1,
+    "lastPageNumber" : 27,
     "firstPageItemNumber" : 0,
     "lastPageItemNumber" : 19
   }

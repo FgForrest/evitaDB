@@ -1,6 +1,10 @@
 POST /rest/evita/Product/query
 
 {
+  "label" : {
+    "name" : "query-name",
+    "value" : "my-query"
+  },
   "filterBy" : {
     "and" : [
       {

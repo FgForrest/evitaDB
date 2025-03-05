@@ -25,14 +25,14 @@
   "type" : "PAGE",
   "totalRecordCount" : 4161,
   "first" : false,
-  "last" : true,
+  "last" : false,
   "hasPrevious" : true,
-  "hasNext" : false,
+  "hasNext" : true,
   "singlePage" : false,
   "empty" : false,
   "pageSize" : 5,
   "pageNumber" : 2,
-  "lastPageNumber" : 1,
+  "lastPageNumber" : 833,
   "firstPageItemNumber" : 5,
   "lastPageItemNumber" : 9
 }

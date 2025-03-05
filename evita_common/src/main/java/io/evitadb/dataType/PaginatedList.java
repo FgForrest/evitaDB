@@ -127,7 +127,7 @@ public final class PaginatedList<T extends Serializable> implements DataChunk<T>
 	 * @param totalRecordCount total number of records
 	 * @param data             list of records
 	 */
-	public PaginatedList(int pageNumber, int pageSize, int totalRecordCount, List<T> data) {
+	public PaginatedList(int pageNumber, int pageSize, int totalRecordCount, @Nonnull List<T> data) {
 		this(pageNumber, getLastPageNumber(pageSize, totalRecordCount), pageSize, totalRecordCount, data);
 	}
 
@@ -139,7 +139,7 @@ public final class PaginatedList<T extends Serializable> implements DataChunk<T>
 	 * @param totalRecordCount total number of records
 	 * @param data             list of records
 	 */
-	public PaginatedList(int pageNumber, int lastPageNumber, int pageSize, int totalRecordCount, List<T> data) {
+	public PaginatedList(int pageNumber, int lastPageNumber, int pageSize, int totalRecordCount, @Nonnull List<T> data) {
 		this.pageSize = pageSize;
 		this.lastPageNumber = lastPageNumber;
 		this.pageNumber = pageNumber;

@@ -11,8 +11,8 @@ POST /rest/evita/Product/query
       "attributeContent" : [
         "code"
       ],
-      "referenceBrandContent" : { },
-      "referenceCategoriesContent" : { }
+      "referenceBrandContent" : true,
+      "referenceCategoriesContent" : true
     }
   }
 }

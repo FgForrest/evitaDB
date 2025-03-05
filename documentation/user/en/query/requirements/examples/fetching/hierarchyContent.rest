@@ -6,7 +6,7 @@ POST /rest/evita/Category/query
   },
   "require" : {
     "entityFetch" : {
-      "hierarchyContent" : { }
+      "hierarchyContent" : true
     }
   }
 }

@@ -53,7 +53,7 @@ public class DefaultSlicer implements Slicer {
 					Math.max(0, calculatedOffset < totalRecordCount ? calculatedOffset : 0),
 					limit,
 					calculatedOffset < totalRecordCount ? offset : 1,
-					PaginatedList.getLastPageNumber(totalRecordCount, limit),
+					PaginatedList.getLastPageNumber(limit, totalRecordCount),
 					totalRecordCount
 				);
 			}

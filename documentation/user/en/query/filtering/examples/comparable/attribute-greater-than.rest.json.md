@@ -36,14 +36,14 @@
     "type" : "PAGE",
     "totalRecordCount" : 2,
     "first" : true,
-    "last" : false,
+    "last" : true,
     "hasPrevious" : false,
-    "hasNext" : true,
-    "singlePage" : false,
+    "hasNext" : false,
+    "singlePage" : true,
     "empty" : false,
     "pageSize" : 20,
     "pageNumber" : 1,
-    "lastPageNumber" : 10,
+    "lastPageNumber" : 1,
     "firstPageItemNumber" : 0,
     "lastPageItemNumber" : 2
   }
