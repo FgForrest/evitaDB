@@ -26,6 +26,7 @@ package io.evitadb.api.query.filter;
 
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.ConstraintWithSuffix;
+import io.evitadb.api.query.FacetConstraint;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.Child;
@@ -111,9 +112,9 @@ import java.util.Optional;
 	name = "includingChildren",
 	shortDescription = "The constraint automatically selects all children (or their subset satisfying additional constraints) of the hierarchical entities matched by `facetHaving` container.",
 	userDocsLink = "/documentation/query/filtering/references#including-children-having",
-	supportedIn = ConstraintDomain.REFERENCE
+	supportedIn = ConstraintDomain.FACET
 )
-public class FacetIncludingChildren extends AbstractFilterConstraintContainer implements ConstraintWithSuffix, HierarchyReferenceSpecificationFilterConstraint {
+public class FacetIncludingChildren extends AbstractFilterConstraintContainer implements ConstraintWithSuffix, FacetConstraint<FilterConstraint>, HierarchyReferenceSpecificationFilterConstraint {
 	@Serial private static final long serialVersionUID = -7258410742839628308L;
 	private static final String SUFFIX_HAVING = "having";
 	private static final String CONSTRAINT_NAME = "includingChildren";

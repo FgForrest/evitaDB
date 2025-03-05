@@ -32,5 +32,5 @@ import io.evitadb.api.query.ReferenceConstraint;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public interface HierarchyReferenceSpecificationFilterConstraint extends ReferenceConstraint<FilterConstraint>, SeparateEntityScopeContainer, FilterConstraint {
+public interface HierarchyReferenceSpecificationFilterConstraint extends SeparateEntityScopeContainer, FilterConstraint {
 }

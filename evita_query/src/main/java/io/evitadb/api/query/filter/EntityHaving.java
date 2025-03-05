@@ -64,7 +64,7 @@ import java.io.Serializable;
 		"match inner filtering constraints. This container resembles the SQL inner join clauses where the `entityHaving`" +
 		"contains the filtering condition on particular join.",
 	userDocsLink = "/documentation/query/filtering/references#entity-having",
-	supportedIn = { ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE, ConstraintDomain.SEGMENT }
+	supportedIn = { ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE, ConstraintDomain.FACET, ConstraintDomain.SEGMENT }
 )
 public class EntityHaving extends AbstractFilterConstraintContainer implements EntityConstraint<FilterConstraint>, SeparateEntityScopeContainer {
 	@Serial private static final long serialVersionUID = 7151549459608672988L;
