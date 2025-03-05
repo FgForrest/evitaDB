@@ -1863,6 +1863,190 @@ public interface QueryConstraints {
 	}
 
 	/**
+	 * The constraint `includingChildren` is a constraint that can only be used within {@link FacetHaving} parent constraint.
+	 * It simply makes no sense anywhere else because it changes the default behavior of this constraint. Facet having
+	 * filters entities that have a direct reference to matching faceted entity. When the `includingChildren` constraint is
+	 * used, the query will return all entities that have a direct reference to the matching entity or any of its children
+	 * in the hierarchy.
+	 *
+	 * This constraint cannot be used for references to non-hierarchical entities - in such case the query will return an
+	 * error.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     filterBy(
+	 *         facetHaving(
+	 *             "categories",
+	 *             attributeEquals("code", "accessories"),
+	 *             includingChildren()
+	 *         )
+	 *     ),
+	 *     require(
+	 *         entityFetch(
+	 *             attributeContent("code")
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * This query will match all products that have reference to the category with code "accessories" or any of its children.
+	 * The {@link FacetSummary} will take references to any of the category children into account when calculating the impact
+	 * of category facet selection.
+	 *
+	 * It's also possible to specify sub-constraint that each of the child must satisfy in order to be included in selection.
+	 * This can be done by adding suffix `Having` and additional constraints to the `includingChildren` constraint:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     filterBy(
+	 *         facetHaving(
+	 *             "categories",
+	 *             attributeEquals("code", "accessories"),
+	 *             includingChildrenHaving(
+	 *                 or(
+	 *                     attributeInRangeNow("validity"),
+	 *                     attributeIs("validity", NULL)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     require(
+	 *         entityFetch(
+	 *             attributeContent("code")
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * This query will select only children of the category "accessories" that have attribute `validity` range that includes
+	 * the current date or the attribute is not set at all.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/references#including-children-having">Visit detailed user documentation</a></p>
+	 */
+	@Nonnull
+	static FacetIncludingChildren includingChildren() {
+		return new FacetIncludingChildren();
+	}
+
+	/**
+	 * The constraint `includingChildren` is a constraint that can only be used within {@link FacetHaving} parent constraint.
+	 * It simply makes no sense anywhere else because it changes the default behavior of this constraint. Facet having
+	 * filters entities that have a direct reference to matching faceted entity. When the `includingChildren` constraint is
+	 * used, the query will return all entities that have a direct reference to the matching entity or any of its children
+	 * in the hierarchy.
+	 *
+	 * This constraint cannot be used for references to non-hierarchical entities - in such case the query will return an
+	 * error.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     filterBy(
+	 *         facetHaving(
+	 *             "categories",
+	 *             attributeEquals("code", "accessories"),
+	 *             includingChildren()
+	 *         )
+	 *     ),
+	 *     require(
+	 *         entityFetch(
+	 *             attributeContent("code")
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * This query will match all products that have reference to the category with code "accessories" or any of its children.
+	 * The {@link FacetSummary} will take references to any of the category children into account when calculating the impact
+	 * of category facet selection.
+	 *
+	 * It's also possible to specify sub-constraint that each of the child must satisfy in order to be included in selection.
+	 * This can be done by adding suffix `Having` and additional constraints to the `includingChildren` constraint:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     filterBy(
+	 *         facetHaving(
+	 *             "categories",
+	 *             attributeEquals("code", "accessories"),
+	 *             includingChildrenHaving(
+	 *                 or(
+	 *                     attributeInRangeNow("validity"),
+	 *                     attributeIs("validity", NULL)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     require(
+	 *         entityFetch(
+	 *             attributeContent("code")
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * This query will select only children of the category "accessories" that have attribute `validity` range that includes
+	 * the current date or the attribute is not set at all.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/references#including-children-having">Visit detailed user documentation</a></p>
+	 */
+	@Nonnull
+	static FacetIncludingChildren includingChildrenHaving(@Nullable FilterConstraint filterConstraint) {
+		return filterConstraint == null ? new FacetIncludingChildren() : new FacetIncludingChildren(filterConstraint);
+	}
+
+	/**
+	 * The constraint `includingChildrenExcept` is a constraint that can only be used within {@link FacetHaving} parent constraint.
+	 * It simply makes no sense anywhere else because it changes the default behavior of this constraint. Facet having
+	 * filters entities that have a direct reference to matching faceted entity. When the `includingChildrenExcept` constraint
+	 * is used, the query will return all entities that have a direct reference to the matching entity or any of its children
+	 * in the hierarchy except the children that satisfy the internal constraints of the `includingChildrenExcept` constraint
+	 * container.
+	 *
+	 * This constraint cannot be used for references to non-hierarchical entities - in such case the query will return an
+	 * error.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     filterBy(
+	 *         facetHaving(
+	 *             "categories",
+	 *             attributeEquals("code", "accessories"),
+	 *             includingChildrenExcept(
+	 *                 attributeEquals("visible", "INVISIBLE"),
+	 *             )
+	 *         )
+	 *     ),
+	 *     require(
+	 *         entityFetch(
+	 *             attributeContent("code")
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * This query will match all products that have reference to the category with code "accessories" or any of its children
+	 * except those with attribute `visible` set to "INVISIBLE". The {@link FacetSummary} will take references to any of
+	 * the category children into account when calculating the impact of category facet selection.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/references#including-children-except">Visit detailed user documentation</a></p>
+	 */
+	@Nonnull
+	static FacetIncludingChildrenExcept includingChildrenExcept(@Nullable FilterConstraint filterConstraint) {
+		return filterConstraint == null ? new FacetIncludingChildrenExcept() : new FacetIncludingChildrenExcept(filterConstraint);
+	}
+
+	/**
 	 * The `entityPrimaryKeyInSet` constraint limits the list of returned entities by exactly specifying their entity
 	 * primary keys.
 	 *
@@ -26479,7 +26663,7 @@ public interface QueryConstraints {
 		@Nullable EntityFetch entityRequirement,
 		@Nullable EntityGroupFetch groupEntityRequirement,
 		@Nullable ChunkingRequireConstraint chunk
-		) {
+	) {
 		return referenceName == null ?
 			null :
 			new ReferenceContent(
@@ -27256,7 +27440,7 @@ public interface QueryConstraints {
 	) {
 		return referenceName == null ?
 			null : new ReferenceContent(
-				referenceName, null, orderBy,
+			referenceName, null, orderBy,
 			AttributeContent.ALL_ATTRIBUTES, entityRequirement, null, chunk
 		);
 	}

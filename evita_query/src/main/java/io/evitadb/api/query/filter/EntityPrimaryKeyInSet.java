@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -53,7 +53,7 @@ import java.util.Arrays;
 	shortDescription = "The constraint checks if primary key of the entity equals to at least one of the passed values. " +
 		"The constraint is equivalent to one or more `equals` constraints combined with logical OR.",
 	userDocsLink = "/documentation/query/filtering/constant#entity-primary-key-in-set",
-	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE }
+	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE, ConstraintDomain.FACET }
 )
 public class EntityPrimaryKeyInSet extends AbstractFilterConstraintLeaf
 	implements EntityConstraint<FilterConstraint> {
