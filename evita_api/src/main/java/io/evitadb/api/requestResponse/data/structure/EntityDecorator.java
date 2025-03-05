@@ -159,8 +159,10 @@ public class EntityDecorator implements SealedEntity {
 	/**
 	 * Method sorts and filters the data in `references` using `referenceFilter` and `referenceComparator` but only
 	 * within bounds specified by `start` (inclusive) and `end` (exclusive).
+	 *
+	 * @return count of filtered out references
 	 */
-	private static void sortAndFilterSubList(
+	private static int sortAndFilterSubList(
 		int entityPrimaryKey,
 		@Nonnull ReferenceDecorator[] references,
 		@Nullable ReferenceComparator referenceComparator,
@@ -168,6 +170,7 @@ public class EntityDecorator implements SealedEntity {
 		int start,
 		int end
 	) {
+		int filteredOutReferences = 0;
 		if (referenceComparator != null) {
 			if (referenceComparator instanceof ReferenceComparator.EntityPrimaryKeyAwareComparator epkAware) {
 				epkAware.setEntityPrimaryKey(entityPrimaryKey);
@@ -180,6 +183,8 @@ public class EntityDecorator implements SealedEntity {
 					final ReferenceDecorator[] filteredReferences = Arrays.stream(references, start, end)
 						.filter(it -> referenceFilter.test(entityPrimaryKey, it))
 						.toArray(ReferenceDecorator[]::new);
+					filteredOutReferences += (end - start) - filteredReferences.length;
+
 					Arrays.sort(filteredReferences, referenceComparator);
 
 					for (int i = start; i < end; i++) {
@@ -192,7 +197,7 @@ public class EntityDecorator implements SealedEntity {
 				referenceComparator = referenceComparator.getNextComparator();
 			} while (referenceComparator != null && nonSortedReferenceCount > 0);
 		}
-
+		return filteredOutReferences;
 	}
 
 	/**
@@ -264,8 +269,8 @@ public class EntityDecorator implements SealedEntity {
 		this.alignedNow = alignedNow;
 
 		final Collection<ReferenceContract> references = delegate.getReferences();
-		this.filteredReferences = CollectionUtils.createHashMap(references.size());
-		final Map<String, List<ReferenceContract>> allReferencesByName = CollectionUtils.createHashMap(entitySchema.getReferences().size());
+		this.filteredReferences = CollectionUtils.createLinkedHashMap(references.size());
+		final Map<String, List<ReferenceContract>> allReferencesByName = CollectionUtils.createLinkedHashMap(entitySchema.getReferences().size());
 		for (ReferenceContract reference : references) {
 			if (referencePredicate.test(reference)) {
 				this.filteredReferences.put(reference.getReferenceKey(), reference);
@@ -419,6 +424,7 @@ public class EntityDecorator implements SealedEntity {
 
 		final int entityPrimaryKey = Objects.requireNonNull(getPrimaryKey());
 		final ReferenceDecorator[] fetchedAndFilteredReferences = new ReferenceDecorator[filteredReferences.length];
+		int filteredOutReferences = 0;
 		for (int i = 0; i < fetchedAndFilteredReferences.length; i++) {
 			final ReferenceContract referenceContract = filteredReferences[i];
 			final String thisReferenceName = referenceContract.getReferenceName();
@@ -430,7 +436,7 @@ public class EntityDecorator implements SealedEntity {
 				entityGroupFetcher = referenceFetcher.getEntityGroupFetcher(referenceSchema);
 				fetchedReferenceComparator = referenceFetcher.getEntityComparator(referenceSchema);
 			} else if (!referenceSchema.getName().equals(thisReferenceName)) {
-				sortAndFilterSubList(
+				filteredOutReferences += sortAndFilterSubList(
 					entityPrimaryKey,
 					fetchedAndFilteredReferences, fetchedReferenceComparator,
 					referenceFetcher.getEntityFilter(referenceSchema),
@@ -451,7 +457,7 @@ public class EntityDecorator implements SealedEntity {
 			).orElseGet(() -> new ReferenceDecorator(referenceContract, referencePredicate.getAttributePredicate(thisReferenceName)));
 		}
 		if (referenceSchema != null && fetchedReferenceComparator != null) {
-			sortAndFilterSubList(
+			filteredOutReferences += sortAndFilterSubList(
 				entityPrimaryKey,
 				fetchedAndFilteredReferences, fetchedReferenceComparator,
 				referenceFetcher.getEntityFilter(referenceSchema),
@@ -459,42 +465,37 @@ public class EntityDecorator implements SealedEntity {
 			);
 		}
 
-		final Map<String, List<ReferenceContract>> indexByName = Arrays.stream(fetchedAndFilteredReferences)
-			.filter(Objects::nonNull)
-			.collect(
-				Collectors.groupingBy(
-					ReferenceDecorator::getReferenceName,
-					LinkedHashMap::new,
-					Collectors.toList()
-				)
-			);
+		final Map<String, ReferenceSchemaContract> referencesAccordingToSchema = entitySchema.getReferences();
+		this.filteredReferencesByName = CollectionUtils.createLinkedHashMap(referencesAccordingToSchema.size());
 
-		this.filteredReferencesByName = CollectionUtils.toUnmodifiableMap(
-			entitySchema
-				.getReferences()
-				.keySet()
-				.stream()
-				.filter(referencePredicate::isReferenceRequested)
-				.collect(
-					Collectors.toMap(
-						Function.identity(),
-						referenceName -> {
-							final List<ReferenceContract> references = ofNullable(indexByName.get(referenceName))
-								.orElse(Collections.emptyList());
-							return referenceFetcher.createChunk(entity, referenceName, references);
-						},
-						(referenceContracts, referenceContracts2) -> {
-							throw new GenericEvitaInternalError("Duplicate reference name found in the filtered references.");
-						},
-						LinkedHashMap::new
-					)
-				)
-		);
-		this.filteredReferences = this.filteredReferencesByName.values()
-			.stream()
-			.map(DataChunk::getData)
-			.flatMap(Collection::stream)
-			.collect(Collectors.toMap(ReferenceContract::getReferenceKey, Function.identity()));
+		final int length = fetchedAndFilteredReferences.length - filteredOutReferences;
+		final Set<ReferenceKey> presentReferenceKeys = CollectionUtils.createHashSet(length);
+		final Map<String, List<ReferenceContract>> indexByName = CollectionUtils.createLinkedHashMap(length);
+		final int averageExpectedCount = referencesAccordingToSchema.isEmpty() ?
+			16 : Math.min(16, length / referencesAccordingToSchema.size() + 1);
+		for (int i = 0; i < length; i++) {
+			final ReferenceDecorator reference = fetchedAndFilteredReferences[i];
+			indexByName.computeIfAbsent(reference.getReferenceName(), s -> new ArrayList<>(averageExpectedCount)).add(reference);
+		}
+		for (String referenceName : referencesAccordingToSchema.keySet()) {
+			if (referencePredicate.isReferenceRequested(referenceName)) {
+				final List<ReferenceContract> references = ofNullable(indexByName.get(referenceName))
+					.orElse(Collections.emptyList());
+				final DataChunk<ReferenceContract> chunk = referenceFetcher.createChunk(entity, referenceName, references);
+				for (ReferenceContract reference : chunk) {
+					presentReferenceKeys.add(reference.getReferenceKey());
+				}
+				this.filteredReferencesByName.put(referenceName, chunk);
+			}
+		}
+
+		this.filteredReferences = CollectionUtils.createLinkedHashMap(presentReferenceKeys.size());
+		for (int i = 0; i < length; i++) {
+			final ReferenceDecorator reference = fetchedAndFilteredReferences[i];
+			if (presentReferenceKeys.contains(reference.getReferenceKey())) {
+				this.filteredReferences.put(reference.getReferenceKey(), reference);
+			}
+		}
 	}
 
 	/**

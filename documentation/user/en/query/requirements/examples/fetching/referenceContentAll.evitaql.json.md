@@ -19,10 +19,6 @@
         ],
         "parameterValues" : [
           {
-            "group" : 114010,
-            "referencedKey" : 114011
-          },
-          {
             "group" : 66518,
             "referencedKey" : 103869
           },
@@ -85,6 +81,10 @@
           {
             "group" : 66533,
             "referencedKey" : 103884
+          },
+          {
+            "group" : 114010,
+            "referencedKey" : 114011
           }
         ],
         "stockVisibilities" : [

@@ -766,6 +766,12 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 			.toArray(Serializable[]::new);
 	}
 
+	@Override
+	public boolean isArgumentImplicitForSuffix(@Nonnull Serializable argument) {
+		return argument instanceof ManagedReferencesBehaviour mrb &&
+			mrb == ManagedReferencesBehaviour.ANY;
+	}
+
 	@Nonnull
 	@Override
 	public RequireConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {

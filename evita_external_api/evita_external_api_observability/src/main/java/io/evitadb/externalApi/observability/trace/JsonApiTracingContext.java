@@ -181,8 +181,12 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpRequ
 		final Label[] labels = headers.getAll(X_META_LABEL)
 			.stream()
 			.map(header -> {
-				final String[] label = header.split("=", 2);
-				return label.length == 2 ? new Label(label[0], label[1]) : null;
+				final int index = header.indexOf('=');
+				if (index < 0) {
+					return null;
+				} else {
+					return new Label(header.substring(0, index), header.substring(index + 1));
+				}
 			})
 			.filter(Objects::nonNull)
 			.toArray(Label[]::new);

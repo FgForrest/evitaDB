@@ -160,11 +160,6 @@ public class EntityConverter {
 				.map(it -> toReference(entitySchema, it))
 				.collect(Collectors.toList());
 
-			if (DevelopmentConstants.isTestRun()) {
-				// for test purposes we need to have the references data sorted by their keys to make tests reproducible
-				references.sort(Comparator.comparing(ReferenceContract::getReferenceKey));
-			}
-
 			final EntityDecorator sealedEntity = new EntityDecorator(
 				Entity._internalBuild(
 					grpcEntity.getPrimaryKey(),
@@ -366,7 +361,6 @@ public class EntityConverter {
 			internalEntity = theEntity;
 			referenceRequestedPredicate = referenceName -> true;
 		} else if (entity instanceof EntityDecorator entityDecorator) {
-			final ReferenceContractSerializablePredicate referencePredicate = entityDecorator.getReferencePredicate();
 			internalEntity = entityDecorator.getDelegate();
 			referencesRequestedAndFetched = entityDecorator.referencesAvailable();
 			referenceRequestedPredicate = entityDecorator::referencesAvailable;
