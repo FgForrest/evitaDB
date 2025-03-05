@@ -22,7 +22,7 @@ POST /rest/evita/Product/query
       ],
       "associatedDataContentAll" : true,
       "priceContentRespectingFilter" : [ ],
-      "referenceBrandContent" : true
+      "referenceBrandContent" : { }
     }
   }
 }

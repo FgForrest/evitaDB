@@ -1,6 +1,5 @@
 ```json
 {
-  "type" : "PAGE",
   "data" : [
     {
       "primaryKey" : 105703,
@@ -427,6 +426,7 @@
       ]
     }
   ],
+  "type" : "PAGE",
   "totalRecordCount" : 1,
   "first" : true,
   "last" : true,
