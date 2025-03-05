@@ -417,7 +417,7 @@ public final class Evita implements EvitaContract {
 			if (catalogMutation instanceof CreateCatalogSchemaMutation createCatalogSchema) {
 				createCatalogInternal(createCatalogSchema);
 			} else if (catalogMutation instanceof ModifyCatalogSchemaNameMutation modifyCatalogSchemaName) {
-				if (modifyCatalogSchemaName.isOverwriteTarget() && catalogs.containsKey(modifyCatalogSchemaName.getNewCatalogName())) {
+				if (modifyCatalogSchemaName.isOverwriteTarget() && this.catalogs.containsKey(modifyCatalogSchemaName.getNewCatalogName())) {
 					replaceCatalogInternal(modifyCatalogSchemaName);
 				} else {
 					renameCatalogInternal(modifyCatalogSchemaName);
@@ -777,11 +777,11 @@ public final class Evita implements EvitaContract {
 			// notify callback that it's now a live snapshot
 			((Catalog) replacedCatalog).notifyCatalogPresentInLiveView();
 
-			structuralChangeObservers.forEach(it -> it.onCatalogDelete(catalogNameToBeReplacedWith));
+			this.structuralChangeObservers.forEach(it -> it.onCatalogDelete(catalogNameToBeReplacedWith));
 			if (previousCatalog == null) {
-				structuralChangeObservers.forEach(it -> it.onCatalogCreate(catalogNameToBeReplaced));
+				this.structuralChangeObservers.forEach(it -> it.onCatalogCreate(catalogNameToBeReplaced));
 			} else {
-				structuralChangeObservers.forEach(it -> it.onCatalogSchemaUpdate(catalogNameToBeReplaced));
+				this.structuralChangeObservers.forEach(it -> it.onCatalogSchemaUpdate(catalogNameToBeReplaced));
 			}
 
 			// now remove the catalog that was renamed to, we need observers to be still able to access it and therefore

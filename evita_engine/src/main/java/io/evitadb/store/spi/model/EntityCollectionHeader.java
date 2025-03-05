@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -72,7 +72,7 @@ import static java.util.Optional.ofNullable;
  */
 public record EntityCollectionHeader(
 	long version,
-	@Nullable FileLocation fileLocation,
+	@Nonnull FileLocation fileLocation,
 	@Nonnull Map<Integer, Object> compressedKeys,
 	@Nonnull String entityType,
 	int entityTypePrimaryKey,
@@ -112,7 +112,7 @@ public record EntityCollectionHeader(
 	) {
 		this(
 			ofNullable(storageDescriptor).map(PersistentStorageDescriptor::version).orElse(1L),
-			ofNullable(storageDescriptor).map(PersistentStorageDescriptor::fileLocation).orElse(null),
+			ofNullable(storageDescriptor).map(PersistentStorageDescriptor::fileLocation).orElse(FileLocation.EMPTY),
 			ofNullable(storageDescriptor)
 				.map(PersistentStorageDescriptor::compressedKeys)
 				.map(Collections::unmodifiableMap)

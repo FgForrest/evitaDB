@@ -306,7 +306,7 @@ duration of the probe.</dd>
   <dt><code>io_evitadb_system_evita_started_cache_size_in_bytes</code> (GAUGE)</dt>
   <dd><strong>Maximum cache size in Bytes</strong>: Configured threshold for the maximum cache size in Bytes (`cache.cacheSizeInBytes`).</dd>
   <dt><code>io_evitadb_system_evita_started_compaction_file_size_threshold_bytes</code> (GAUGE)</dt>
-  <dd><strong>Minimum file size threshold to start compression in bytes</strong>: Configured threshold for the minimum file size threshold to start compression in bytes (`storage.fileSizeCompactionThresholdBytes`).</dd>
+  <dd><strong>Minimum file size threshold to start compress in bytes</strong>: Configured threshold for the minimum file size threshold to start compress in bytes (`storage.fileSizeCompactionThresholdBytes`).</dd>
   <dt><code>io_evitadb_system_evita_started_compaction_minimal_active_record_share_percent</code> (GAUGE)</dt>
   <dd><strong>Minimum percentage of active records in the file to start compacting in %.</strong>: Configured threshold for the minimum percentage of active records in the file to start compacting in % (`storage.minimalActiveRecordShare`).</dd>
   <dt><code>io_evitadb_system_evita_started_query_timeout_seconds</code> (GAUGE)</dt>

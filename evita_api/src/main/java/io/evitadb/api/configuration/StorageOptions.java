@@ -58,6 +58,9 @@ import java.util.Optional;
  *                                           are situations where disabling this feature can improve performance and
  *                                           the client can accept the risk of data loss (e.g. when running automated
  *                                           tests, etc.).
+ * @param compress                           Specifies whether or not to compress the data. If set to true, all data
+ *                                           will be compressed, but only those whose compressed size is less than
+ *                                           the original size will be saved in compressed form. The default is false.
  * @param computeCRC32C                      Determines whether CRC32C checksums will be computed for written
  *                                           records and also whether the CRC32C checksum will be checked on record read.
  * @param minimalActiveRecordShare           Minimal share of active records in the file. If the share is lower, the file will
@@ -86,6 +89,7 @@ public record StorageOptions(
 	int outputBufferSize,
 	int maxOpenedReadHandles,
 	boolean syncWrites,
+	boolean compress,
 	boolean computeCRC32C,
 	double minimalActiveRecordShare,
 	long fileSizeCompactionThresholdBytes,
@@ -101,6 +105,7 @@ public record StorageOptions(
 	public static final int DEFAULT_WAIT_ON_CLOSE_SECONDS = 5;
 	public static final int DEFAULT_MAX_OPENED_READ_HANDLES = Runtime.getRuntime().availableProcessors();
 	public static final boolean DEFAULT_SYNC_WRITES = true;
+	public static final boolean DEFAULT_COMPRESS = true;
 	public static final boolean DEFAULT_COMPUTE_CRC = true;
 	public static final double DEFAULT_MINIMAL_ACTIVE_RECORD_SHARE = 0.5;
 	public static final long DEFAULT_MINIMAL_FILE_SIZE_COMPACTION_THRESHOLD = 104_857_600L; // 100MB
@@ -119,6 +124,7 @@ public record StorageOptions(
 			5, 5, DEFAULT_OUTPUT_BUFFER_SIZE,
 			Runtime.getRuntime().availableProcessors(),
 			false,
+			true,
 			true,
 			DEFAULT_MINIMAL_ACTIVE_RECORD_SHARE,
 			DEFAULT_MINIMAL_FILE_SIZE_COMPACTION_THRESHOLD,
@@ -153,6 +159,7 @@ public record StorageOptions(
 			DEFAULT_OUTPUT_BUFFER_SIZE,
 			DEFAULT_MAX_OPENED_READ_HANDLES,
 			DEFAULT_SYNC_WRITES,
+			DEFAULT_COMPRESS,
 			DEFAULT_COMPUTE_CRC,
 			DEFAULT_MINIMAL_ACTIVE_RECORD_SHARE,
 			DEFAULT_MINIMAL_FILE_SIZE_COMPACTION_THRESHOLD,
@@ -170,6 +177,7 @@ public record StorageOptions(
 		int outputBufferSize,
 		int maxOpenedReadHandles,
 		boolean syncWrites,
+		boolean compress,
 		boolean computeCRC32C,
 		double minimalActiveRecordShare,
 		long fileSizeCompactionThresholdBytes,
@@ -184,6 +192,7 @@ public record StorageOptions(
 		this.outputBufferSize = outputBufferSize;
 		this.maxOpenedReadHandles = maxOpenedReadHandles;
 		this.syncWrites = syncWrites;
+		this.compress = compress;
 		this.computeCRC32C = computeCRC32C;
 		this.minimalActiveRecordShare = minimalActiveRecordShare;
 		this.fileSizeCompactionThresholdBytes = fileSizeCompactionThresholdBytes;
@@ -204,6 +213,7 @@ public record StorageOptions(
 		private int outputBufferSize = DEFAULT_OUTPUT_BUFFER_SIZE;
 		private int maxOpenedReadHandles = DEFAULT_MAX_OPENED_READ_HANDLES;
 		private boolean syncWrites = DEFAULT_SYNC_WRITES;
+		private boolean compression = DEFAULT_COMPRESS;
 		private boolean computeCRC32C = DEFAULT_COMPUTE_CRC;
 		private double minimalActiveRecordShare = DEFAULT_MINIMAL_ACTIVE_RECORD_SHARE;
 		private long fileSizeCompactionThresholdBytes = DEFAULT_MINIMAL_FILE_SIZE_COMPACTION_THRESHOLD;
@@ -222,6 +232,7 @@ public record StorageOptions(
 			this.outputBufferSize = storageOptions.outputBufferSize;
 			this.maxOpenedReadHandles = storageOptions.maxOpenedReadHandles;
 			this.syncWrites = storageOptions.syncWrites;
+			this.compression = storageOptions.compress;
 			this.computeCRC32C = storageOptions.computeCRC32C;
 			this.minimalActiveRecordShare = storageOptions.minimalActiveRecordShare;
 			this.fileSizeCompactionThresholdBytes = storageOptions.fileSizeCompactionThresholdBytes;
@@ -275,6 +286,12 @@ public record StorageOptions(
 		}
 
 		@Nonnull
+		public Builder compress(boolean compress) {
+			this.compression = compress;
+			return this;
+		}
+
+		@Nonnull
 		public Builder computeCRC32(boolean computeCRC32) {
 			this.computeCRC32C = computeCRC32;
 			return this;
@@ -320,6 +337,7 @@ public record StorageOptions(
 				outputBufferSize,
 				maxOpenedReadHandles,
 				syncWrites,
+				compression,
 				computeCRC32C,
 				minimalActiveRecordShare,
 				fileSizeCompactionThresholdBytes,

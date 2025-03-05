@@ -175,7 +175,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 	};
 	private final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(
 		TEST_CATALOG,
-		StorageOptions.builder().build(),
+		StorageOptions.temporary(),
 		Mockito.mock(Scheduler.class)
 	);
 	private final OffHeapMemoryManager offHeapMemoryManager = new OffHeapMemoryManager(TEST_CATALOG, 10_000_000, 128);
@@ -1615,7 +1615,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			KryoFactory.createKryo(WalKryoConfigurer.INSTANCE),
 			new WriteOnlyOffHeapWithFileBackupHandle(
 				isolatedWalFilePath,
-				false,
+				StorageOptions.temporary(),
 				this.observableOutputKeeper,
 				offHeapMemoryManager
 			)

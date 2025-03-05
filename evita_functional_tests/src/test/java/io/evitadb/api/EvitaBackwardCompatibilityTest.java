@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -78,6 +78,7 @@ public class EvitaBackwardCompatibilityTest implements EvitaTestSupport {
 	@Tag(LONG_RUNNING_TEST)
 	@Test
 	void verifyBackwardCompatibilityTo_2024_5() throws IOException {
+		/* TODO JNO - implementovat automatický upgrade datového souboru */
 		final Path directory_2024_5 = mainDirectory.resolve("2024.5");
 		if (!directory_2024_5.toFile().exists()) {
 			log.info("Downloading and unzipping evita-demo-dataset_2024.5.zip");

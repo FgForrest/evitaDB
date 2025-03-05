@@ -38,7 +38,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
 /**
- * This test verifies compression behavior of the {@link ObservableOutput} and {@link ObservableInput}.
+ * This test verifies compress behavior of the {@link ObservableOutput} and {@link ObservableInput}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
@@ -52,7 +52,7 @@ public class CompressedInputOutputTest extends AbstractObservableInputOutputTest
 		final ByteArrayOutputStream baos = new ByteArrayOutputStream(bufferSize);
 		final ObservableOutput<?> output = new ObservableOutput<>(baos, bufferSize, bufferSize, 0)
 			.computeCRC32()
-			.deflate();
+			.compress();
 
 		final ByteArrayOutputStream controlBaos = new ByteArrayOutputStream(bufferSize);
 		final Output controlOutput = new Output(controlBaos, bufferSize);
@@ -67,7 +67,7 @@ public class CompressedInputOutputTest extends AbstractObservableInputOutputTest
 		final ByteArrayInputStream bais = new ByteArrayInputStream(baos.toByteArray());
 		final ObservableInput<?> input = new ObservableInput<>(bais, 24)
 			.computeCRC32()
-			.inflate();
+			.compress();
 
 		final byte[] payload = readAndVerifyRecord(input, BIG_PAYLOAD_SIZE);
 
@@ -87,7 +87,7 @@ public class CompressedInputOutputTest extends AbstractObservableInputOutputTest
 		final ByteArrayOutputStream baos = new ByteArrayOutputStream(bufferSize);
 		final ObservableOutput<?> output = new ObservableOutput<>(baos, bufferSize, bufferSize, 0)
 			.computeCRC32()
-			.deflate();
+			.compress();
 
 		final ByteArrayOutputStream controlBaos = new ByteArrayOutputStream(bufferSize);
 		final Output controlOutput = new Output(controlBaos, bufferSize);
@@ -102,13 +102,13 @@ public class CompressedInputOutputTest extends AbstractObservableInputOutputTest
 		final ByteArrayInputStream bais = new ByteArrayInputStream(baos.toByteArray());
 		final ObservableInput<?> input = new ObservableInput<>(bais, 24)
 			.computeCRC32()
-			.inflate();
+			.compress();
 
 		// read control byte
 		input.markStart();
 		input.skip(4);
 		byte controlByte = input.readByte();
-		// verify that compression bit is not set
+		// verify that compress bit is not set
 		assertFalse(BitUtils.isBitSet(controlByte, StorageRecord.COMPRESSION_BIT));
 
 		// try to deserialize the record as normal

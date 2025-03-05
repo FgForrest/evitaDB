@@ -24,6 +24,7 @@
 package io.evitadb.store.offsetIndex.model;
 
 import com.esotericsoftware.kryo.Kryo;
+import io.evitadb.function.TriFunction;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.model.FileLocation;
@@ -49,32 +50,36 @@ import static io.evitadb.utils.BitUtils.setBit;
  * This class represents wrapper for any binary content, that needs to be stored / was already stored in file storage.
  * When this instance of this data wrapper exists it means data are present in the data store.
  *
- * @param <T>               Type of the payload that is stored in the data store.
- * @param transactionId     transaction id can be used to group multiple records into single transaction
- * @param closesTransaction set to TRUE when this record is the last record of the transaction
- * @param payload           this object represents the real payload of the record.
- * @param fileLocation      file location is a pointer to the location in the file that is occupied by binary content of
- *                          this record.
+ * @param <T>              Type of the payload that is stored in the data store.
+ * @param generationId     generation id can be used to group multiple records into single generation
+ * @param closesGeneration set to TRUE when this record is the last record of the generation
+ * @param payload          this object represents the real payload of the record.
+ * @param fileLocation     file location is a pointer to the location in the file that is occupied by binary content of
+ *                         this record.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public record StorageRecord<T>(
-	long transactionId,
-	boolean closesTransaction,
+	long generationId,
+	boolean closesGeneration,
 	@Nullable T payload,
 	@Nonnull FileLocation fileLocation
 ) {
 	/**
-	 * CRC not covered head 5B: length(int), control (byte)
+	 * CRC not covered head 5B: length(int), control (byte), generationId (long)
 	 */
-	public static final int CRC_NOT_COVERED_HEAD = 4 + 1;
+	public static final int CRC_NOT_COVERED_HEAD = 4 + 1 + 8;
 	/**
-	 * Overhead is 22B: length(int), control (byte), transactionId (long), crc (long).
+	 * CRC not covered part 13B: length(int), control (byte), crc itself (long)
 	 */
-	public static final int OVERHEAD_SIZE = CRC_NOT_COVERED_HEAD + 8 + ObservableOutput.TAIL_MANDATORY_SPACE;
+	public static final int CRC_NOT_COVERED_PART = CRC_NOT_COVERED_HEAD + ObservableOutput.TAIL_MANDATORY_SPACE;
 	/**
-	 * First bit of control byte marks end of transaction record.
+	 * Overhead is 22B: length(int), control (byte), generationId (long), crc (long).
 	 */
-	public static final byte TRANSACTION_CLOSING_BIT = 1;
+	public static final int OVERHEAD_SIZE = CRC_NOT_COVERED_HEAD + ObservableOutput.TAIL_MANDATORY_SPACE;
+	/**
+	 * First bit of control byte marks end of generation record span.
+	 */
+	public static final byte GENERATION_CLOSING_BIT = 1;
 	/**
 	 * Second bit of control byte marks that record spans with next record.
 	 */
@@ -119,9 +124,9 @@ public record StorageRecord<T>(
 		if (payloadType == null) {
 			// record is obsolete - it cannot be mapped to any know type
 			input.skip(recordLength);
-			final boolean closesTransaction = isBitSet(control, TRANSACTION_CLOSING_BIT);
+			final boolean closesGeneration = isBitSet(control, GENERATION_CLOSING_BIT);
 			return new StorageRecord<>(
-				-1L, closesTransaction, null, location
+				-1L, closesGeneration, null, location
 			);
 		}
 
@@ -139,31 +144,55 @@ public record StorageRecord<T>(
 	 * Constructor that is used for READING known record from the input stream on known file location. Constructor should
 	 * be used for random access reading of arbitrary records o reading lead record for the file offset index.
 	 */
+	@Nonnull
 	public static <T> StorageRecord<T> read(
 		@Nonnull ObservableInput<?> input,
 		@Nonnull FileLocation location,
-		@Nonnull BiFunction<ObservableInput<?>, Integer, T> reader
+		@Nonnull TriFunction<ObservableInput<?>, Integer, Byte, T> reader
 	) {
 		input.seek(location);
 		input.markStart();
 		final int recordLength = input.readInt();
 		byte control = input.readByte();
 
-		final Supplier<T> payloadReader = () -> reader.apply(input, recordLength);
-		//noinspection StringConcatenationMissingWhitespace
+		final Supplier<T> payloadReader = () -> reader.apply(input, recordLength, control);
 		return doReadStorageRecord(
 			input,
 			new FileLocation(location.startingPosition(), recordLength),
 			control,
-			fileLocation -> Assert.isPremiseValid(
-				location.recordLength() == fileLocation.recordLength(),
-				() -> new CorruptedRecordException(
-					"Record length differs (" + fileLocation.recordLength() + "B, " +
-						"expected " + location.recordLength() + "B) - it's probably corrupted!",
-					location.recordLength(), fileLocation.recordLength()
-				)
-			),
+			fileLocation -> verifyExpectedLength(location, fileLocation),
 			payloadReader
+		);
+	}
+
+	/**
+	 * Constructor that is used for READING known record from the input stream on known file location. Constructor should
+	 * be used for random access reading of arbitrary records o reading lead record for the file offset index.
+	 *
+	 * This method overrides the control byte to indicate that the record should be read as uncompressed. The payload
+	 * can be read only as a byte array and will contain compressed data of the original record
+	 */
+	@Nonnull
+	public static RawRecord readRaw(
+		@Nonnull ObservableInput<?> input,
+		@Nonnull FileLocation location
+	) {
+		input.seek(location);
+		input.markStart();
+		final int recordLength = input.readInt();
+		final byte originalControl = input.readByte();
+		final long generationId = input.readLong();
+		// if the data is compressed we need to override the control byte and read it uncompressed
+		byte control = setBit(originalControl, COMPRESSION_BIT, false);
+		input.markPayloadStart(location.recordLength(), control);
+		final byte[] payload = input.readBytes(recordLength - CRC_NOT_COVERED_PART);
+		input.markEnd(originalControl);
+
+		return new RawRecord(
+			new FileLocation(location.startingPosition(), location.recordLength()),
+			originalControl,
+			generationId,
+			payload
 		);
 	}
 
@@ -171,6 +200,7 @@ public record StorageRecord<T>(
 	 * Constructor that is used for READING known record from the input stream on known start position. Constructor
 	 * should be used for sequential access reading of arbitrary records o reading lead record for the file offset index.
 	 */
+	@Nonnull
 	public static <T> StorageRecord<T> read(
 		@Nonnull ObservableInput<?> input,
 		@Nonnull BiFunction<ObservableInput<?>, Integer, T> reader
@@ -191,7 +221,7 @@ public record StorageRecord<T>(
 	/**
 	 * Reads the {@link FileLocation} of a record from the specified {@link ObservableInput}.
 	 *
-	 * @param input          The input stream to read from.
+	 * @param input         The input stream to read from.
 	 * @param startPosition The starting position of the record in the file.
 	 * @return The {@link FileLocation} of the record.
 	 */
@@ -205,6 +235,57 @@ public record StorageRecord<T>(
 		final int recordLength = input.readInt();
 		input.reset();
 		return new FileLocation(startPosition, recordLength);
+	}
+
+	/**
+	 * Method allows to write raw data to the output stream. The method is used for writing data that were read using
+	 * {@link #readRaw(ObservableInput, FileLocation)} method.
+	 */
+	@Nonnull
+	public static FileLocation writeRaw(
+		@Nonnull ObservableOutput<?> output,
+		byte control,
+		long generationId,
+		@Nonnull byte[] rawData
+	) {
+		output.markStart();
+		output.markRecordLengthPosition();
+		output.writeInt(0);
+		output.writeByte(0);
+		output.writeLong(generationId);
+		output.markPayloadStart();
+		output.writeBytes(rawData);
+		final FileLocation resultLocation = output.markEndSuppressingCompression(control);
+		//noinspection StringConcatenationMissingWhitespace
+		Assert.isPremiseValid(
+			rawData.length + CRC_NOT_COVERED_PART == resultLocation.recordLength(),
+			() -> new CorruptedRecordException(
+				"Record length differs (" + resultLocation.recordLength() + "B, " +
+					"expected " + (rawData.length + CRC_NOT_COVERED_PART) + "B) - it's probably corrupted!",
+				resultLocation.recordLength(), rawData.length + CRC_NOT_COVERED_PART
+			)
+		);
+		return resultLocation;
+	}
+
+	/**
+	 * Verifies that the record length of the calculated file location matches the expected record length
+	 * of the input file location. If the lengths differ, an exception is thrown indicating a corrupted record.
+	 *
+	 * @param inputLocation      The {@code FileLocation} representing the expected record location and length.
+	 * @param calculatedLocation The {@code FileLocation} representing the calculated record location and length.
+	 * @throws CorruptedRecordException If the record lengths do not match, indicating a potential corruption.
+	 */
+	private static void verifyExpectedLength(@Nonnull FileLocation inputLocation, @Nonnull FileLocation calculatedLocation) {
+		//noinspection StringConcatenationMissingWhitespace
+		Assert.isPremiseValid(
+			inputLocation.recordLength() == calculatedLocation.recordLength(),
+			() -> new CorruptedRecordException(
+				"Record length differs (" + calculatedLocation.recordLength() + "B, " +
+					"expected " + inputLocation.recordLength() + "B) - it's probably corrupted!",
+				inputLocation.recordLength(), calculatedLocation.recordLength()
+			)
+		);
 	}
 
 	/**
@@ -231,12 +312,12 @@ public record StorageRecord<T>(
 				location.startingPosition(), location.recordLength(), control
 			);
 
+			final long generationId = input.readLong();
 			// record is active load and verify contents
 			input.markPayloadStart(location.recordLength(), control);
-			final long transactionId = input.readLong();
 
 			final T payload = input.doWithOnBufferOverflowHandler(
-				new BufferOverflowReadHandler<>(context, transactionId),
+				new BufferOverflowReadHandler<>(context, generationId),
 				payloadReader
 			);
 
@@ -249,17 +330,17 @@ public record StorageRecord<T>(
 			}
 
 			return new StorageRecord<>(
-				transactionId, context.isClosesTransaction(), payload, fileLocation
+				generationId, context.isClosesGeneration(), payload, fileLocation
 			);
 		} else {
-			boolean closesTransaction = isBitSet(control, TRANSACTION_CLOSING_BIT);
+			boolean closesGeneration = isBitSet(control, GENERATION_CLOSING_BIT);
+			final long generationId = input.readLong();
 			input.markPayloadStart(location.recordLength(), control);
-			final long transactionId = input.readLong();
 			final T payload = payloadReader.get();
 			input.markEnd(control);
 
 			return new StorageRecord<>(
-				transactionId, closesTransaction, payload,
+				generationId, closesGeneration, payload,
 				new FileLocation(location.startingPosition(), location.recordLength())
 			);
 		}
@@ -268,10 +349,10 @@ public record StorageRecord<T>(
 	/**
 	 * Writes the header of a storage record to the specified output.
 	 *
-	 * @param output The output stream to write the header to.
-	 * @param transactionId The transaction id of the record.
+	 * @param output       The output stream to write the header to.
+	 * @param generationId The generation id of the record.
 	 */
-	private static void writeHeader(@Nonnull ObservableOutput<?> output, long transactionId) {
+	private static void writeHeader(@Nonnull ObservableOutput<?> output, long generationId) {
 		output.markStart();
 
 		// we don't know the record length yet
@@ -279,40 +360,40 @@ public record StorageRecord<T>(
 		// reserve int space for the record length and control byte
 		output.writeInt(0);
 		output.writeByte(0);
+		// write generation information
+		output.writeLong(generationId);
 
 		output.markPayloadStart();
-		// write transactional information
-		output.writeLong(transactionId);
 	}
 
 	/**
-	 * Writes a record to the specified output stream with the given transaction id and payload writer.
+	 * Writes a record to the specified output stream with the given generation id and payload writer.
 	 *
-	 * @param output            The output stream to write the record to.
-	 * @param transactionId     The transaction id of the record.
-	 * @param closesTransaction A flag indicating whether the record closes the transaction.
-	 * @param payloadWriter     The payload writer function that writes the payload to the output stream.
-	 * @param <T>               The type of the payload.
-	 * @param <OS>              The type of the output stream.
+	 * @param output           The output stream to write the record to.
+	 * @param generationId     The generation id of the record.
+	 * @param closesGeneration A flag indicating whether the record closes the generation.
+	 * @param payloadWriter    The payload writer function that writes the payload to the output stream.
+	 * @param <T>              The type of the payload.
+	 * @param <OS>             The type of the output stream.
 	 * @return A {@link PayloadWithFileLocation} object containing the payload and file location of the written record.
 	 */
 	@Nonnull
 	private static <T, OS extends OutputStream> PayloadWithFileLocation<T> writeRecord(
 		@Nonnull ObservableOutput<OS> output,
-		long transactionId,
-		boolean closesTransaction,
+		long generationId,
+		boolean closesGeneration,
 		@Nonnull Function<ObservableOutput<?>, T> payloadWriter
 	) {
 		final AtomicReference<FileLocationPointer> recordLocations = new AtomicReference<>(FileLocationPointer.INITIAL);
 		return output.doWithOnBufferOverflowHandler(
-			new OnBufferOverflowHandler<>(recordLocations, output, transactionId),
+			new OnBufferOverflowHandler<>(recordLocations, output, generationId),
 			() -> {
 				// write storage record header
-				writeHeader(output, transactionId);
+				writeHeader(output, generationId);
 				// finally, write payload
 				final T thePayload = payloadWriter.apply(output);
 				// compute crc32 and fill in record length
-				final FileLocation theFileLocation = output.markEnd(setBit((byte) 0, TRANSACTION_CLOSING_BIT, closesTransaction));
+				final FileLocation theFileLocation = output.markEnd(setBit((byte) 0, GENERATION_CLOSING_BIT, closesGeneration));
 				// return both
 				return new PayloadWithFileLocation<>(thePayload, theFileLocation);
 			}
@@ -320,35 +401,35 @@ public record StorageRecord<T>(
 	}
 
 	/**
-	 * Writes a record to the specified output stream with the given transaction id and payload.
+	 * Writes a record to the specified output stream with the given generation id and payload.
 	 *
-	 * @param output            The output stream to write the record to.
-	 * @param transactionId     The transaction id of the record.
-	 * @param closesTransaction A flag indicating whether the record closes the transaction.
-	 * @param kryo              The Kryo instance used for serialization.
-	 * @param payload           The payload object to be written.
-	 * @param <T>               The type of the payload.
-	 * @param <OS>              The type of the output stream.
+	 * @param output           The output stream to write the record to.
+	 * @param generationId     The generation id of the record.
+	 * @param closesGeneration A flag indicating whether the record closes the generation.
+	 * @param kryo             The Kryo instance used for serialization.
+	 * @param payload          The payload object to be written.
+	 * @param <T>              The type of the payload.
+	 * @param <OS>             The type of the output stream.
 	 * @return The file location object specifying the position and length of the written record in the file.
 	 */
 	@Nonnull
 	private static <T, OS extends OutputStream> FileLocation writeRecord(
 		@Nonnull ObservableOutput<OS> output,
-		long transactionId,
-		boolean closesTransaction,
+		long generationId,
+		boolean closesGeneration,
 		@Nonnull Kryo kryo,
 		@Nonnull T payload
 	) {
 		final AtomicReference<FileLocationPointer> recordLocations = new AtomicReference<>(FileLocationPointer.INITIAL);
 		return output.doWithOnBufferOverflowHandler(
-			new OnBufferOverflowHandler<>(recordLocations, output, transactionId),
+			new OnBufferOverflowHandler<>(recordLocations, output, generationId),
 			() -> {
 				// write storage record header
-				writeHeader(output, transactionId);
+				writeHeader(output, generationId);
 				// finally, write payload
 				kryo.writeObject(output, payload);
 				// compute crc32 and fill in record length
-				final byte controlByte = setBit((byte) 0, TRANSACTION_CLOSING_BIT, closesTransaction);
+				final byte controlByte = setBit((byte) 0, GENERATION_CLOSING_BIT, closesGeneration);
 				final FileLocation completeRecordLocation = output.markEnd(controlByte);
 				// return file length that possibly spans multiple records
 				return recordLocations.get().computeOverallFileLocation(completeRecordLocation);
@@ -362,15 +443,15 @@ public record StorageRecord<T>(
 	public <OS extends OutputStream> StorageRecord(
 		@Nonnull Kryo kryo,
 		@Nonnull ObservableOutput<OS> output,
-		long transactionId,
-		boolean closesTransaction,
+		long generationId,
+		boolean closesGeneration,
 		@Nonnull T payload
 	) {
 		this(
-			transactionId,
-			closesTransaction,
+			generationId,
+			closesGeneration,
 			payload,
-			writeRecord(output, transactionId, closesTransaction, kryo, payload)
+			writeRecord(output, generationId, closesGeneration, kryo, payload)
 		);
 	}
 
@@ -379,24 +460,24 @@ public record StorageRecord<T>(
 	 */
 	public <OS extends OutputStream> StorageRecord(
 		@Nonnull ObservableOutput<OS> output,
-		long transactionId,
-		boolean closesTransaction,
+		long generationId,
+		boolean closesGeneration,
 		@Nonnull Function<ObservableOutput<?>, T> payloadWriter
 	) {
 		this(
-			transactionId,
-			closesTransaction,
-			writeRecord(output, transactionId, closesTransaction, payloadWriter)
+			generationId,
+			closesGeneration,
+			writeRecord(output, generationId, closesGeneration, payloadWriter)
 		);
 	}
 
 	private StorageRecord(
-		long transactionId,
-		boolean closesTransaction,
+		long generationId,
+		boolean closesGeneration,
 		@Nonnull PayloadWithFileLocation<T> tPayloadWithFileLocation
 	) {
 		this(
-			transactionId, closesTransaction, tPayloadWithFileLocation.payload(), tPayloadWithFileLocation.fileLocation()
+			generationId, closesGeneration, tPayloadWithFileLocation.payload(), tPayloadWithFileLocation.fileLocation()
 		);
 	}
 
@@ -405,8 +486,8 @@ public record StorageRecord<T>(
 		if (this == o) return true;
 		if (o == null || getClass() != o.getClass()) return false;
 		StorageRecord<?> that = (StorageRecord<?>) o;
-		return this.transactionId == that.transactionId &&
-			this.closesTransaction == that.closesTransaction &&
+		return this.generationId == that.generationId &&
+			this.closesGeneration == that.closesGeneration &&
 			Objects.equals(this.payload, that.payload) &&
 			Objects.equals(this.fileLocation, that.fileLocation);
 	}
@@ -417,8 +498,8 @@ public record StorageRecord<T>(
 
 	@Override
 	public int hashCode() {
-		int result = (int) (transactionId ^ (transactionId >>> 32));
-		result = 31 * result + (closesTransaction ? 1 : 0);
+		int result = (int) (generationId ^ (generationId >>> 32));
+		result = 31 * result + (closesGeneration ? 1 : 0);
 		result = 31 * result + (payload != null ? payload.hashCode() : 0);
 		result = 31 * result + fileLocation.hashCode();
 		return result;
@@ -440,7 +521,7 @@ public record StorageRecord<T>(
 	/**
 	 * The ReadingContext class represents the context of reading a record from the input stream.
 	 * It stores information such as the start position, record length, control byte, and flags indicating if
-	 * the record closes a transaction or is a continuation record.
+	 * the record closes a generation or is a continuation record.
 	 */
 	@Getter
 	private static class ReadingContext {
@@ -456,13 +537,13 @@ public record StorageRecord<T>(
 		private int recordLength;
 		/**
 		 * The controlByte variable represents the control byte of a record in the ReadingContext class.
-		 * It stores information about the record, such as transaction closing, continuation, etc.
+		 * It stores information about the record, such as generation closing, continuation, etc.
 		 */
 		private byte controlByte;
 		/**
-		 * The closesTransaction variable represents a flag indicating whether a record is the last record of a transaction.
+		 * The closesGeneration variable represents a flag indicating whether a record is the last record of a generation.
 		 **/
-		private boolean closesTransaction;
+		private boolean closesGeneration;
 		/**
 		 * The continuationRecord flag indicates that the payload continues in the next record.
 		 */
@@ -472,14 +553,14 @@ public record StorageRecord<T>(
 			this.startPosition = startPosition;
 			this.recordLength = recordLength;
 			this.controlByte = control;
-			this.closesTransaction = isBitSet(control, TRANSACTION_CLOSING_BIT);
+			this.closesGeneration = isBitSet(control, GENERATION_CLOSING_BIT);
 			this.continuationRecord = isBitSet(control, CONTINUATION_BIT);
 		}
 
 		public void updateWithNextRecord(int recordLength, byte control) {
 			this.recordLength += recordLength;
 			this.controlByte = control;
-			this.closesTransaction = isBitSet(control, TRANSACTION_CLOSING_BIT);
+			this.closesGeneration = isBitSet(control, GENERATION_CLOSING_BIT);
 			this.continuationRecord = isBitSet(control, CONTINUATION_BIT);
 		}
 
@@ -536,13 +617,13 @@ public record StorageRecord<T>(
 	 * BufferOverflowReadHandler is used to handle situation when the payload didn't fit into the buffer and needs
 	 * to be read and joined from multiple records.
 	 *
-	 * @param context       the reading context
-	 * @param transactionId the transaction id of the record
-	 * @param <IS>          the type of the InputStream
+	 * @param context      the reading context
+	 * @param generationId the generation id of the record
+	 * @param <IS>         the type of the InputStream
 	 */
 	private record BufferOverflowReadHandler<IS extends InputStream>(
 		ReadingContext context,
-		long transactionId
+		long generationId
 	) implements Consumer<ObservableInput<IS>> {
 
 		@Override
@@ -552,16 +633,16 @@ public record StorageRecord<T>(
 			observableInput.markStart();
 			final int continuingRecordLength = observableInput.readInt();
 			final byte continuingControl = observableInput.readByte();
+			final long continuingGenerationId = observableInput.readLong();
 
 			observableInput.markPayloadStart(continuingRecordLength, continuingControl);
-			final long continuingTransactionId = observableInput.readLong();
 
 			Assert.isPremiseValid(
-				this.transactionId == continuingTransactionId,
+				this.generationId == continuingGenerationId,
 				() -> new CorruptedRecordException(
-					"Transaction id differs in continuous record (" +
-						this.transactionId + " vs. " + continuingTransactionId +
-						"). This is not expected!", this.transactionId, continuingTransactionId
+					"Generation id differs in continuous record (" +
+						this.generationId + " vs. " + continuingGenerationId +
+						"). This is not expected!", this.generationId, continuingGenerationId
 				)
 			);
 			this.context.updateWithNextRecord(continuingRecordLength, continuingControl);
@@ -576,9 +657,9 @@ public record StorageRecord<T>(
 	 * @param <OO> the type of the ObservableOutput used in the record
 	 */
 	private record OnBufferOverflowHandler<OO extends ObservableOutput<?>>(
-		AtomicReference<FileLocationPointer> recordLocations,
-		OO output,
-		long transactionId
+		@Nonnull AtomicReference<FileLocationPointer> recordLocations,
+		@Nonnull OO output,
+		long generationId
 	) implements Consumer<OO> {
 
 		@Override
@@ -588,7 +669,30 @@ public record StorageRecord<T>(
 			// register file location of the continuous record
 			this.recordLocations.set(new FileLocationPointer(recordLocations.get(), incompleteRecordLocation));
 			// write storage record header for another record
-			writeHeader(this.output, this.transactionId);
+			writeHeader(this.output, this.generationId);
 		}
 	}
+
+	/**
+	 * A record representing raw data read from or written to a storage.
+	 * This is a lower-level structure typically utilized for operations that work directly
+	 * with unprocessed data within file locations.
+	 *
+	 * Instances of this record encapsulate the following:
+	 * 1. A {@link FileLocation} object indicating the location of the record in a file.
+	 * 2. A control byte which provides metadata or flags about the record.
+	 * 3. A byte array containing the raw data payload associated with the record.
+	 *
+	 * This class is most commonly utilized for handling operations that bypass higher-level
+	 * abstractions in the data storage layer. It is used internally for seeking, reading, or
+	 * writing raw storage segments and may also carry additional contextual information
+	 * in its `control` byte about the record.
+	 */
+	public record RawRecord(
+		@Nonnull FileLocation location,
+		byte control,
+		long generationId,
+		byte[] rawData
+	) {}
+
 }

@@ -92,11 +92,11 @@ class StorageRecordTest {
 
 	/**
 	 * Configures the given {@link ObservableOutput} by optionally computing a CRC32 checksum
-	 * and/or applying compression based on the provided parameters.
+	 * and/or applying compress based on the provided parameters.
 	 *
 	 * @param output      the {@link ObservableOutput} to be configured
 	 * @param crc32Check  an enum indicating whether CRC32 checksum computation should be enabled
-	 * @param compression an enum indicating whether compression should be applied
+	 * @param compression an enum indicating whether compress should be applied
 	 * @return the configured {@link ObservableOutput}
 	 */
 	private static <T extends OutputStream> ObservableOutput<T> configure(
@@ -108,18 +108,18 @@ class StorageRecordTest {
 			output.computeCRC32();
 		}
 		if (compression == Compression.YES) {
-			output.deflate();
+			output.compress();
 		}
 		return output;
 	}
 
 	/**
 	 * Configures the given {@link ObservableOutput} by optionally computing a CRC32 checksum
-	 * and/or applying compression based on the provided parameters.
+	 * and/or applying compress based on the provided parameters.
 	 *
 	 * @param input       the {@link ObservableOutput} to be configured
 	 * @param crc32Check  an enum indicating whether CRC32 checksum computation should be enabled
-	 * @param compression an enum indicating whether compression should be applied
+	 * @param compression an enum indicating whether compress should be applied
 	 * @return the configured {@link ObservableOutput}
 	 */
 	private static <T extends InputStream> ObservableInput<T> configure(
@@ -131,7 +131,7 @@ class StorageRecordTest {
 			input.computeCRC32();
 		}
 		if (compression == Compression.YES) {
-			input.inflate();
+			input.compress();
 		}
 		return input;
 	}
@@ -278,7 +278,7 @@ class StorageRecordTest {
 		try (final RandomAccessFileInputStream is = new RandomAccessFileInputStream(new RandomAccessFile(tempFile, "r"));
 		     final ObservableInput<RandomAccessFileInputStream> input = configure(new ObservableInput<>(is, 8_192), crc32Check, compression)) {
 			index.forEach((key, expectedRecord) -> {
-				final StorageRecord<ByteChunk> loadedRecord = StorageRecord.read(input, key, (stream, length) -> kryo.readObject(stream, ByteChunk.class));
+				final StorageRecord<ByteChunk> loadedRecord = StorageRecord.read(input, key, (stream, length, control) -> kryo.readObject(stream, ByteChunk.class));
 				assertEquals(expectedRecord, loadedRecord);
 			});
 		}
@@ -300,7 +300,7 @@ class StorageRecordTest {
 		     final ObservableInput<RandomAccessFileInputStream> input = configure(new ObservableInput<>(is, 8_192 * 2), crc32Check, compression)) {
 			for (int i = 0; i < retrievalCount; i++) {
 				final FileLocation randomLocation = locations.get(random.nextInt(locations.size()));
-				final StorageRecord<ByteChunk> loadedRecord = StorageRecord.read(input, randomLocation, (stream, length) -> kryo.readObject(stream, ByteChunk.class));
+				final StorageRecord<ByteChunk> loadedRecord = StorageRecord.read(input, randomLocation, (stream, length, control) -> kryo.readObject(stream, ByteChunk.class));
 				final StorageRecord<ByteChunk> expectedRecord = index.get(randomLocation);
 				assertEquals(expectedRecord, loadedRecord);
 			}
@@ -323,17 +323,17 @@ class StorageRecordTest {
 			);
 			assertEquals(record.fileLocation(), loadedRecord.fileLocation());
 			assertEquals(record, loadedRecord);
-			assertTrue(loadedRecord.closesTransaction());
+			assertTrue(loadedRecord.closesGeneration());
 		}
 
 		try (final ObservableInput<RandomAccessFileInputStream> input = configure(new ObservableInput<>(new RandomAccessFileInputStream(new RandomAccessFile(tempFile, "r")), 8_192), crc32Check, compression)) {
 			final StorageRecord<LongSetChunk> loadedRecord = StorageRecord.read(
 				input, record.fileLocation(),
-				(stream, length) -> kryo.readObject(stream, LongSetChunk.class)
+				(stream, length, control) -> kryo.readObject(stream, LongSetChunk.class)
 			);
 			assertEquals(record.fileLocation(), loadedRecord.fileLocation());
 			assertEquals(record, loadedRecord);
-			assertTrue(loadedRecord.closesTransaction());
+			assertTrue(loadedRecord.closesGeneration());
 		}
 	}
 
@@ -369,11 +369,11 @@ class StorageRecordTest {
 		try (final ObservableInput<RandomAccessFileInputStream> input = configure(new ObservableInput<>(new RandomAccessFileInputStream(new RandomAccessFile(tempFile, "r")), 8_192), crc32Check, compression)) {
 			final StorageRecord<Roaring64Bitmap> loadedRecord = StorageRecord.read(
 				input, record.fileLocation(),
-				(stream, length) -> kryo.readObject(stream, Roaring64Bitmap.class)
+				(stream, length, control) -> kryo.readObject(stream, Roaring64Bitmap.class)
 			);
 			assertEquals(record.fileLocation(), loadedRecord.fileLocation());
 			assertEquals(record, loadedRecord);
-			assertTrue(loadedRecord.closesTransaction());
+			assertTrue(loadedRecord.closesGeneration());
 		}
 	}
 

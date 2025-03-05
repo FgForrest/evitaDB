@@ -185,8 +185,19 @@ abstract class AbstractObservableInputOutputTest {
 	 * @return a byte array filled with random values
 	 */
 	protected byte[] generateBytes(int count) {
+		return generateBytes(count, this.random);
+	}
+
+	/**
+	 * Generates an array of random bytes with the specified length.
+	 *
+	 * @param count the number of random bytes to generate
+	 * @param theRandom random number generator
+	 * @return a byte array filled with random values
+	 */
+	protected byte[] generateBytes(int count, @Nonnull Random theRandom) {
 		final byte[] result = new byte[count];
-		random.nextBytes(result);
+		theRandom.nextBytes(result);
 		return result;
 	}
 

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -34,10 +34,10 @@ import io.evitadb.store.service.KeyCompressor;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 
 /**
@@ -62,7 +62,7 @@ public class OffsetIndexDescriptor implements PersistentStorageDescriptor {
 	/**
 	 * Contains location of the last OffsetIndex fragment for this version of the header / collection.
 	 */
-	@Nullable private final FileLocation fileLocation;
+	@Nonnull private final FileLocation fileLocation;
 	/**
 	 * Implementation of {@link KeyCompressor} that allows adding new entries during write.
 	 */
@@ -115,7 +115,7 @@ public class OffsetIndexDescriptor implements PersistentStorageDescriptor {
 
 	public OffsetIndexDescriptor(
 		long version,
-		@Nullable FileLocation fileLocation,
+		@Nonnull FileLocation fileLocation,
 		@Nonnull Map<Integer, Object> compressedKeys,
 		@Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory,
 		double activeRecordShare,
@@ -127,7 +127,8 @@ public class OffsetIndexDescriptor implements PersistentStorageDescriptor {
 		// create writable instances
 		this.writeKeyCompressor = new ReadWriteKeyCompressor(compressedKeys);
 		this.readOnlyKeyCompressor = new ReadOnlyKeyCompressor(compressedKeys);
-		this.writeKryo = kryoFactory.apply(new VersionedKryoKeyInputs(writeKeyCompressor, 1));
+		final VersionedKryoKeyInputs versionedInputs = new VersionedKryoKeyInputs(this.writeKeyCompressor, 1);
+		this.writeKryo = kryoFactory.apply(versionedInputs);
 		// create read only instances
 		this.readKryoFactory = updatedVersion -> kryoFactory.apply(
 			new VersionedKryoKeyInputs(readOnlyKeyCompressor, updatedVersion)
@@ -137,7 +138,7 @@ public class OffsetIndexDescriptor implements PersistentStorageDescriptor {
 	}
 
 	public OffsetIndexDescriptor(
-		@Nullable FileLocation fileLocation,
+		@Nonnull FileLocation fileLocation,
 		@Nonnull OffsetIndexDescriptor fileOffsetIndexDescriptor,
 		double activeRecordShare,
 		long fileSize
@@ -164,24 +165,24 @@ public class OffsetIndexDescriptor implements PersistentStorageDescriptor {
 	 * Returns true if there were any changes in {@link VersionedKryoKeyInputs} that require purging kryo pools.
 	 */
 	public boolean resetDirty() {
-		return writeKeyCompressor.resetDirtyFlag();
+		return this.writeKeyCompressor.resetDirtyFlag();
 	}
 
 	@Override
 	public long version() {
-		return version;
+		return this.version;
 	}
 
 	@Nonnull
 	@Override
 	public FileLocation fileLocation() {
-		return fileLocation;
+		return Objects.requireNonNull(this.fileLocation);
 	}
 
 	@Override
 	@Nonnull
 	public Map<Integer, Object> compressedKeys() {
-		return writeKeyCompressor.getKeys();
+		return this.writeKeyCompressor.getKeys();
 	}
 
 }

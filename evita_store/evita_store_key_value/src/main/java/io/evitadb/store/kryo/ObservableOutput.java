@@ -31,6 +31,7 @@ import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.BitUtils;
 import io.evitadb.utils.IOUtils;
+import io.evitadb.utils.MemoryMeasuringConstants;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -63,8 +64,12 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 	/**
 	 * Reserved space in the buffer that will be occupied by mandatory information (CRC).
 	 */
-	public static final int TAIL_MANDATORY_SPACE = 8;
+	public static final int TAIL_MANDATORY_SPACE = MemoryMeasuringConstants.LONG_SIZE;
 	static final long NULL_CRC = 0xFFFFFFFFFFFFFFFFL;
+	/**
+	 * Default flush size in bytes.
+	 */
+	public static final int DEFAULT_FLUSH_SIZE = 16_384;
 	/**
 	 * CRC32C computation instance. Reused - instantiated only once.
 	 */
@@ -78,7 +83,7 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 	 */
 	private byte[] deflateBuffer;
 	/**
-	 * Accumulated count of bytes that have been saved by compression.
+	 * Accumulated count of bytes that have been saved by compress.
 	 * This number is crucial for correct file location calculation when multiple records are written to the output.
 	 */
 	private int savedBytesByCompressionSinceReset;
@@ -139,7 +144,7 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 	 * @param bufferSize maximal size of the single record that can be stored
 	 */
 	public ObservableOutput(@Nonnull T outputStream, int bufferSize, long currentFileSize) {
-		this(outputStream, 16_384, bufferSize, currentFileSize);
+		this(outputStream, DEFAULT_FLUSH_SIZE, bufferSize, currentFileSize);
 	}
 
 	public ObservableOutput(@Nonnull T outputStream, int flushSize, int bufferSize, long currentFileSize) {
@@ -165,19 +170,26 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 	}
 
 	/**
-	 * Enables compression for each record payload.
+	 * Enables compress for each record payload.
 	 */
 	@Nonnull
-	public ObservableOutput<T> deflate() {
+	public ObservableOutput<T> compress() {
 		if (this.deflater == null) {
 			this.deflater = new Deflater(Deflater.DEFAULT_COMPRESSION, true);
 			// the deflate buffer must be the same size as the buffer,
 			// if the data exceed the buffer size, it means compressed data are larger than the original data
-			// and the compression would not be used at all
-			/* TODO JNO - verify whether the main buffer isn't pooled somewhere and how the release when not used works */
+			// and the compress would not be used at all
 			this.deflateBuffer = new byte[this.buffer.length];
 		}
 		return this;
+	}
+
+	/**
+	 * Returns true if the compression is enabled.
+	 * @return true if the compression is enabled
+	 */
+	public boolean isCompressionEnabled() {
+		return this.deflater != null;
 	}
 
 	/**
@@ -211,9 +223,43 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 	 * Record length is computed and is written to the specified position of the record as INT value.
 	 * Method resets all record related flags and another record can be written afterwards.
 	 * Record is marked as finished and can be safely written to the output stream (disk).
+	 *
+	 * @param controlByte the control byte to be written along with the record
 	 */
 	@Nonnull
 	public FileLocation markEnd(byte controlByte) {
+		return markEndInternal(controlByte, this.deflater);
+	}
+
+	/**
+	 * Method finalizes the record writing.
+	 * When CRC32C checksum should be computed, it's done at this moment.
+	 * Record length is computed and is written to the specified position of the record as INT value.
+	 * Method resets all record related flags and another record can be written afterwards.
+	 * Record is marked as finished and can be safely written to the output stream (disk).
+	 *
+	 * This method deliberately avoids compression. The control byte is not checked for the compression flag, so that
+	 * its possible to store already compressed content using this method.
+	 *
+	 * @param controlByte the control byte to be written along with the record
+	 */
+	@Nonnull
+	public FileLocation markEndSuppressingCompression(byte controlByte) {
+		return markEndInternal(controlByte, null);
+	}
+
+	/**
+	 * Method finalizes the record writing.
+	 * When CRC32C checksum should be computed, it's done at this moment.
+	 * Record length is computed and is written to the specified position of the record as INT value.
+	 * Method resets all record related flags and another record can be written afterwards.
+	 * Record is marked as finished and can be safely written to the output stream (disk).
+	 *
+	 * @param controlByte the control byte to be written along with the record
+	 * @param theDeflater the Deflater instance tobe used for compression, or null to disable compression
+	 */
+	@Nonnull
+	public FileLocation markEndInternal(byte controlByte, @Nullable Deflater theDeflater) {
 		try {
 			Assert.isPremiseValid(this.payloadStartPosition != -1, "Payload start position must be initialized!");
 			this.writingTail = true;
@@ -222,12 +268,12 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 
 			// compress payload if requested
 			final int savedBytesByCompression;
-			if (this.deflater != null) {
-				this.deflater.reset();
-				this.deflater.setInput(this.buffer, this.payloadStartPosition, payloadLength);
-				this.deflater.finish();
-				int deflatedLength = this.deflater.deflate(this.deflateBuffer, 0, this.deflateBuffer.length);
-				if (deflater.finished() && deflatedLength < payloadLength) {
+			if (theDeflater != null) {
+				theDeflater.reset();
+				theDeflater.setInput(this.buffer, this.payloadStartPosition, payloadLength);
+				theDeflater.finish();
+				int deflatedLength = theDeflater.deflate(this.deflateBuffer, 0, this.deflateBuffer.length);
+				if (theDeflater.finished() && deflatedLength < payloadLength) {
 					savedBytesByCompression = payloadLength - deflatedLength;
 					alteredControlByte = BitUtils.setBit(alteredControlByte, StorageRecord.COMPRESSION_BIT, true);
 				} else {
@@ -277,7 +323,7 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 	 * Calculates a CRC32C checksum based on the given input parameters and updates
 	 * the CRC32C instance with the relevant data.
 	 *
-	 * @param savedBytesByCompression the number of bytes saved by compression.
+	 * @param savedBytesByCompression the number of bytes saved by compress.
 	 *        This determines whether deflateBuffer or buffer is used for the checksum calculation.
 	 * @param payloadLength the length of the payload used in checksum computation.
 	 * @param alteredControlByte a single byte that will also be included in the checksum.
@@ -295,11 +341,11 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 
 	/**
 	 * Finalizes the record writing process by writing its components (header, payload, and tail)
-	 * to the output stream while considering compression savings. Updates internal counters
+	 * to the output stream while considering compress savings. Updates internal counters
 	 * and resets all record-related flags to prepare for another record to be written.
 	 *
 	 * @param thePayloadLength           the length of the record payload to be written
-	 * @param theSavedBytesByCompression the number of bytes saved by compression
+	 * @param theSavedBytesByCompression the number of bytes saved by compress
 	 * @throws IOException if an I/O error occurs during writing
 	 */
 	private void finishRecord(int thePayloadLength, int theSavedBytesByCompression) throws IOException {
@@ -359,9 +405,26 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 		throw new UnsupportedOperationException();
 	}
 
+	/**
+	 * Do not use for checking how many bytes were written to the output stream.
+	 * Instead use {@link #getWrittenBytesSinceReset()}.
+	 *
+	 * @return the total number of bytes written to the uncompressed byte array
+	 */
 	@Override
 	public long total() {
 		return this.total + position();
+	}
+
+	/**
+	 * Retrieves the number of bytes written since the last reset.
+	 * This value is calculated based on the total written bytes, the current position,
+	 * and adjustments from compression savings since the last reset.
+	 *
+	 * @return the number of bytes written since the last reset as a long value.
+	 */
+	public long getWrittenBytesSinceReset() {
+		return this.total + position() - this.savedBytesByCompressionSinceReset;
 	}
 
 	@Override
