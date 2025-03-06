@@ -1183,13 +1183,16 @@ statistics(
 ```
 
 <dl>
-    <dt>argument:enum(COMPLETE_FILTER|WITHOUT_USER_FILTER)</dt>
+    <dt>argument:enum(COMPLETE_FILTER|WITHOUT_USER_FILTER|COMPLETE_FILTER_EXCLUDING_SELF_IN_USER_FILTER)</dt>
     <dd>
         optional argument of type <LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/StatisticsBase.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/StatisticsBase.cs</SourceClass></LS>
         enum allowing you to specify the base queried entity set that is the source for statistics calculations:
         - **COMPLETE_FILTER**: complete filtering query constraint
         - **WITHOUT_USER_FILTER**: filtering query constraint where the contents of optional
             [`userFilter`](../filtering/behavioral.md#user-filter) are ignored
+        - **COMPLETE_FILTER_EXCLUDING_SELF_IN_USER_FILTER**: Full filter query constraint, taking into account 
+            the contents of the optional [`userFilter`](../filtering/behavioral.md#user-filter), except the filter 
+            related to the reference to the entity for which the statistics are being calculated
 
         The calculation always ignores `hierarchyWithin` because the focused part of the hierarchy tree is
         defined on the requirement constraint level, but including having/excluding constraints. The having/excluding

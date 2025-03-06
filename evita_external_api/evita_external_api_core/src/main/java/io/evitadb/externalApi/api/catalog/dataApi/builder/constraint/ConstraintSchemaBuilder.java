@@ -679,7 +679,10 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 					.filter(cd -> !cd.creator().hasClassifierParameter())
 					.collect(Collectors.toUnmodifiableSet()),
 				constraintDescriptor -> buildFieldFromConstraintDescriptor(
-					buildContext.switchToChildContext(new FacetDataLocator(buildContext.dataLocator().entityTypePointer())),
+					buildContext.switchToChildContext(new FacetDataLocator(
+						buildContext.dataLocator().entityTypePointer(),
+						(buildContext.dataLocator() instanceof DataLocatorWithReference dataLocatorWithReference) ? dataLocatorWithReference.referenceName() : null
+					)),
 					constraintDescriptor,
 					null,
 					null

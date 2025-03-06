@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,13 +23,14 @@
 
 package io.evitadb.core.query.filter.translator.facet;
 
+import com.carrotsearch.hppc.IntHashSet;
+import com.carrotsearch.hppc.IntSet;
+import io.evitadb.api.exception.EntityIsNotHierarchicalException;
 import io.evitadb.api.query.FilterConstraint;
-import io.evitadb.api.query.filter.And;
-import io.evitadb.api.query.filter.FacetHaving;
-import io.evitadb.api.query.filter.Not;
-import io.evitadb.api.query.filter.Or;
+import io.evitadb.api.query.filter.*;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.core.exception.HierarchyNotIndexedException;
 import io.evitadb.core.exception.ReferenceNotFacetedException;
 import io.evitadb.core.query.QueryPlanner.FutureNotFormula;
 import io.evitadb.core.query.algebra.AbstractFormula;
@@ -45,21 +46,28 @@ import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
+import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinTranslator;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.EntityIndex;
 import io.evitadb.index.Index;
-import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
-import static io.evitadb.api.query.QueryConstraints.filterBy;
+import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.utils.Assert.isTrue;
 import static java.util.Optional.ofNullable;
 
@@ -70,24 +78,192 @@ import static java.util.Optional.ofNullable;
  */
 public class FacetHavingTranslator implements FilteringConstraintTranslator<FacetHaving>, SelfTraversingTranslator {
 
+	/**
+	 * Isolates and processes filtering constraints related to facet filtering for hierarchical and non-hierarchical references.
+	 * The method identifies inclusion and exclusion constraints specific to hierarchical facet references and ensures that references
+	 * are properly validated and managed within the given processing scope.
+	 *
+	 * @param filterByVisitor an instance of {@link FilterByVisitor} used for schema and processing scope management
+	 * @param children        an array of {@link FilterConstraint} objects representing the constraints to be processed
+	 * @param referenceSchema a {@link ReferenceSchemaContract} representing the reference schema to validate
+	 * @return a {@link FacetFiltering} object bundling the main filtering constraint, and optional hierarchy inclusion/exclusion constraints
+	 */
+	@Nonnull
+	private static FacetFiltering isolateFilteringConstraints(
+		@Nonnull FilterByVisitor filterByVisitor,
+		@Nonnull FilterConstraint[] children,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull Set<Scope> scopes
+	) {
+		HierarchyHaving hierarchyIncludeConstraint = null;
+		HierarchyExcluding hierarchyExcludeConstraint = null;
+		IntSet excludedIndexes = null;
+		EntitySchemaContract targetSchema = null;
+		boolean isHierarchical = false;
+		for (int i = 0; i < children.length; i++) {
+			FilterConstraint child = children[i];
+			if (child instanceof FacetIncludingChildren fic) {
+				hierarchyIncludeConstraint = having(fic.getChildren());
+				if (excludedIndexes == null) {
+					targetSchema = assertReferenceIsHierarchical(filterByVisitor, referenceSchema, scopes);
+					excludedIndexes = new IntHashSet(2);
+					isHierarchical = true;
+				}
+				excludedIndexes.add(i);
+			} else if (child instanceof FacetIncludingChildrenExcept fic) {
+				hierarchyExcludeConstraint = excluding(fic.getChildren());
+				if (excludedIndexes == null) {
+					targetSchema = assertReferenceIsHierarchical(filterByVisitor, referenceSchema, scopes);
+					excludedIndexes = new IntHashSet(2);
+					isHierarchical = true;
+				}
+				excludedIndexes.add(i);
+			}
+		}
+
+		final FilterBy mainFiltering = excludedIndexes == null ?
+			filterBy(children) : createCopyExcludingIndexes(children, excludedIndexes);
+
+		Assert.isTrue(
+			mainFiltering.getChildrenCount() > 0,
+			() -> "FacetHaving must contain at least one filter constraint!"
+		);
+
+		final HierarchySpecificationFilterConstraint[] hierarchyConstraints = Stream.of(
+				(HierarchySpecificationFilterConstraint) hierarchyIncludeConstraint,
+				hierarchyExcludeConstraint
+			)
+			.filter(Objects::nonNull)
+			.toArray(HierarchySpecificationFilterConstraint[]::new);
+		return new FacetFiltering(
+			mainFiltering,
+			isHierarchical ?
+				parentNodeIds -> hierarchyWithin(
+					referenceSchema.getName(),
+					entityPrimaryKeyInSet(parentNodeIds),
+					hierarchyConstraints
+				) : null,
+			targetSchema,
+			scopes.stream()
+				.map(scope -> filterByVisitor.getGlobalEntityIndexIfExists(referenceSchema.getReferencedEntityType(), scope))
+				.filter(Optional::isPresent)
+				.map(Optional::get)
+				.toArray(EntityIndex[]::new)
+		);
+	}
+
+	/**
+	 * Ensures that the provided reference is hierarchical and properly indexed in the given processing scope.
+	 * This method verifies that:
+	 *
+	 * 1. The reference is associated with an entity type that is managed.
+	 * 2. The referenced entity schema supports hierarchy.
+	 * 3. The hierarchy is indexed in each scope of the current processing scope.
+	 *
+	 * @param filterByVisitor an instance of {@link FilterByVisitor} used for retrieving schemas and processing scopes
+	 * @param referenceSchema a {@link ReferenceSchemaContract} representing the reference to validate
+	 * @throws EntityIsNotHierarchicalException if the referenced entity is not hierarchical or its type is not managed
+	 * @throws HierarchyNotIndexedException     if the hierarchy is not indexed in the currently used scopes
+	 */
+	@Nonnull
+	private static EntitySchemaContract assertReferenceIsHierarchical(
+		@Nonnull FilterByVisitor filterByVisitor,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull Set<Scope> scopes
+	) {
+		Assert.isTrue(
+			referenceSchema.isReferencedEntityTypeManaged(),
+			() -> new EntityIsNotHierarchicalException(referenceSchema.getName(), referenceSchema.getReferencedEntityType())
+		);
+
+		final EntitySchemaContract referencedEntitySchema = filterByVisitor.getSchema(referenceSchema.getReferencedEntityType());
+		Assert.isTrue(
+			referencedEntitySchema.isWithHierarchy(),
+			() -> new EntityIsNotHierarchicalException(referenceSchema.getName(), referenceSchema.getReferencedEntityType())
+		);
+
+		// verify the hierarchy is indexed in currently used scopes
+		scopes.forEach(
+			scope -> Assert.isTrue(
+				referencedEntitySchema.isHierarchyIndexedInScope(scope),
+				() -> new HierarchyNotIndexedException(referencedEntitySchema, scope)
+			)
+		);
+
+		return referencedEntitySchema;
+	}
+
+	/**
+	 * Creates a new array of {@link FilterConstraint} objects, excluding the elements at specified indexes.
+	 * The method iterates through the input array and omits elements whose indexes are contained in the provided set.
+	 *
+	 * @param children        an array of {@link FilterConstraint} objects to process
+	 * @param excludedIndexes a set of indexes that should be excluded from the resulting array
+	 * @return a new array of {@link FilterConstraint} objects, excluding the elements at the specified indexes
+	 */
+	@Nonnull
+	private static FilterBy createCopyExcludingIndexes(@Nonnull FilterConstraint[] children, @Nonnull IntSet excludedIndexes) {
+		final FilterConstraint[] result = new FilterConstraint[children.length - excludedIndexes.size()];
+		int resultIndex = 0;
+		for (int i = 0; i < children.length; i++) {
+			if (!excludedIndexes.contains(i)) {
+				result[resultIndex++] = children[i];
+			}
+		}
+		return filterBy(result);
+	}
+
 	@Nonnull
 	@Override
 	public Formula translate(@Nonnull FacetHaving facetHaving, @Nonnull FilterByVisitor filterByVisitor) {
 		final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
 		final EntitySchemaContract entitySchema = processingScope.getEntitySchemaOrThrowException();
 		final ReferenceSchemaContract referenceSchema = entitySchema.getReferenceOrThrowException(facetHaving.getReferenceName());
+		final Set<Scope> scopes = processingScope.getScopes();
 		isTrue(
-			processingScope.getScopes().stream().anyMatch(referenceSchema::isFacetedInScope),
+			scopes.stream().anyMatch(referenceSchema::isFacetedInScope),
 			() -> new ReferenceNotFacetedException(facetHaving.getReferenceName(), entitySchema)
 		);
 
 		final List<Formula> collectedFormulas = filterByVisitor.collectFromIndexes(
 			entityIndex -> {
-				final Bitmap facetIds = filterByVisitor.getReferencedRecordIdFormula(
+				final FacetFiltering facetFiltering = isolateFilteringConstraints(
+					filterByVisitor, facetHaving.getChildren(), referenceSchema, scopes
+				);
+
+				final Formula mainFacetIds = filterByVisitor.getReferencedRecordIdFormula(
 					entitySchema,
 					referenceSchema,
-					filterBy(facetHaving.getChildren())
-				).compute();
+					facetFiltering.mainFiltering()
+				);
+
+				final Formula finalFacetIds;
+				if (facetFiltering.includeChildren()) {
+					final HierarchyWithin hierarchyWithin = Objects.requireNonNull(facetFiltering.hierarchyFiltering())
+						.apply(mainFacetIds.compute().getArray());
+					finalFacetIds = FormulaFactory.or(
+						Stream.concat(
+							Stream.of(mainFacetIds),
+							Arrays.stream(Objects.requireNonNull(facetFiltering.targetIndex()))
+								.map(targetIndex ->
+									HierarchyWithinTranslator.createFormulaFromHierarchyIndex(
+										hierarchyWithin,
+										Objects.requireNonNull(targetIndex),
+										mainFacetIds.compute().getArray(),
+										filterByVisitor.getQueryContext(),
+										scopes,
+										referenceSchema,
+										Objects.requireNonNull(facetFiltering.targetSchema())
+									)
+								)
+						).toArray(Formula[]::new)
+					);
+				} else {
+					finalFacetIds = mainFacetIds;
+				}
+
+				// initialize the formula before compute is called
+				finalFacetIds.initialize(filterByVisitor.getInternalExecutionContext());
 				// first collect all formulas
 				return entityIndex.getFacetReferencingEntityIdsFormula(
 					facetHaving.getReferenceName(),
@@ -104,7 +280,7 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 							);
 						}
 					},
-					facetIds
+					finalFacetIds.compute()
 				).stream();
 			});
 
@@ -129,7 +305,6 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 			.stream()
 			.filter(Optional::isPresent)
 			.map(Optional::get)
-			.map(FacetGroupFormula.class::cast)
 			.collect(
 				Collectors.groupingBy(
 					it -> {
@@ -192,6 +367,16 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 		}
 	}
 
+	/**
+	 * Represents a unique key for grouping entities or facets based on their group ID.
+	 * This class is a record that holds an optional group ID and provides custom implementations
+	 * for equality and hash code computation.
+	 *
+	 * The GroupKey is typically used as an identifier for aggregating or organizing data
+	 * in the context of group-based operations.
+	 *
+	 * @param groupId the ID of the group, which may be null
+	 */
 	public record GroupKey(@Nullable Integer groupId) {
 
 		@Override
@@ -207,6 +392,38 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 			return Objects.hash(groupId);
 		}
 
+	}
+
+	/**
+	 * Facet filtering constraints bundle.
+	 *
+	 * @param mainFiltering      constraint to be used for general facet filtering
+	 * @param hierarchyFiltering constraint to be used to match additional children of all matched hierarchy facets
+	 * @param targetSchema       the schema of the target entity
+	 * @param targetIndex        the global index of the target entity
+	 */
+	public record FacetFiltering(
+		@Nonnull FilterBy mainFiltering,
+		@Nullable Function<int[], HierarchyWithin> hierarchyFiltering,
+		@Nullable EntitySchemaContract targetSchema,
+		@Nullable EntityIndex[] targetIndex
+	) {
+
+		public FacetFiltering {
+			Assert.isPremiseValid(
+				hierarchyFiltering == null || (targetSchema != null && targetIndex != null),
+				() -> "Hierarchy filtering must be accompanied by target schema and index!"
+			);
+		}
+
+		/**
+		 * Returns true if the hierarchical facets should include all or certain children.
+		 *
+		 * @return true if the hierarchical facets should include all or certain children
+		 */
+		public boolean includeChildren() {
+			return this.hierarchyFiltering != null;
+		}
 	}
 
 }

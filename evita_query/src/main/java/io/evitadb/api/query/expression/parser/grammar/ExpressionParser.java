@@ -1,41 +1,15 @@
-/*
- *
- *                         _ _        ____  ____
- *               _____   _(_) |_ __ _|  _ \| __ )
- *              / _ \ \ / / | __/ _` | | | |  _ \
- *             |  __/\ V /| | || (_| | |_| | |_) |
- *              \___| \_/ |_|\__\__,_|____/|____/
- *
- *   Copyright (c) 2025
- *
- *   Licensed under the Business Source License, Version 1.1 (the "License");
- *   you may not use this file except in compliance with the License.
- *   You may obtain a copy of the License at
- *
- *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
- *
- *   Unless required by applicable law or agreed to in writing, software
- *   distributed under the License is distributed on an "AS IS" BASIS,
- *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *   See the License for the specific language governing permissions and
- *   limitations under the License.
- */
-
 // Generated from Expression.g4 by ANTLR 4.9.2
 
     package io.evitadb.api.query.expression.parser.grammar;
 
-import org.antlr.v4.runtime.*;
-import org.antlr.v4.runtime.atn.ATN;
-import org.antlr.v4.runtime.atn.ATNDeserializer;
-import org.antlr.v4.runtime.atn.ParserATNSimulator;
-import org.antlr.v4.runtime.atn.PredictionContextCache;
+import org.antlr.v4.runtime.atn.*;
 import org.antlr.v4.runtime.dfa.DFA;
-import org.antlr.v4.runtime.tree.ParseTreeListener;
-import org.antlr.v4.runtime.tree.ParseTreeVisitor;
-import org.antlr.v4.runtime.tree.TerminalNode;
-
+import org.antlr.v4.runtime.*;
+import org.antlr.v4.runtime.misc.*;
+import org.antlr.v4.runtime.tree.*;
 import java.util.List;
+import java.util.Iterator;
+import java.util.ArrayList;
 
 @SuppressWarnings({"all", "warnings", "unchecked", "unused", "cast"})
 public class ExpressionParser extends Parser {
@@ -45,17 +19,17 @@ public class ExpressionParser extends Parser {
 	protected static final PredictionContextCache _sharedContextCache =
 		new PredictionContextCache();
 	public static final int
-		LPAREN=1, RPAREN=2, PLUS=3, MINUS=4, TIMES=5, DIV=6, MOD=7, GT=8, GT_EQ=9,
-		LT=10, LT_EQ=11, EQ=12, NOT_EQ=13, NOT=14, AND=15, OR=16, COMMA=17, POINT=18,
-		POW=19, VARIABLE=20, CEIL=21, SQRT=22, FLOOR=23, ABS=24, ROUND=25, LOG=26,
+		LPAREN=1, RPAREN=2, PLUS=3, MINUS=4, TIMES=5, DIV=6, MOD=7, GT=8, GT_EQ=9, 
+		LT=10, LT_EQ=11, EQ=12, NOT_EQ=13, NOT=14, AND=15, OR=16, COMMA=17, POINT=18, 
+		POW=19, VARIABLE=20, CEIL=21, SQRT=22, FLOOR=23, ABS=24, ROUND=25, LOG=26, 
 		MAX=27, MIN=28, RANDOM=29, WS=30, STRING=31, INT=32, FLOAT=33, BOOLEAN=34;
 	public static final int
-		RULE_expression = 0, RULE_combinationExpression = 1, RULE_multiplyingExpression = 2,
-		RULE_powExpression = 3, RULE_signedAtom = 4, RULE_atom = 5, RULE_variable = 6,
+		RULE_expression = 0, RULE_combinationExpression = 1, RULE_multiplyingExpression = 2, 
+		RULE_powExpression = 3, RULE_signedAtom = 4, RULE_atom = 5, RULE_variable = 6, 
 		RULE_function = 7, RULE_valueToken = 8;
 	private static String[] makeRuleNames() {
 		return new String[] {
-			"expression", "combinationExpression", "multiplyingExpression", "powExpression",
+			"expression", "combinationExpression", "multiplyingExpression", "powExpression", 
 			"signedAtom", "atom", "variable", "function", "valueToken"
 		};
 	}
@@ -63,18 +37,18 @@ public class ExpressionParser extends Parser {
 
 	private static String[] makeLiteralNames() {
 		return new String[] {
-			null, "'('", "')'", "'+'", "'-'", "'*'", "'/'", "'%'", "'>'", "'>='",
-			"'<'", "'<='", "'=='", "'!='", "'!'", "'&&'", "'||'", "','", "'.'", "'^'",
-			null, "'ceil'", "'sqrt'", "'floor'", "'abs'", "'round'", "'log'", "'max'",
+			null, "'('", "')'", "'+'", "'-'", "'*'", "'/'", "'%'", "'>'", "'>='", 
+			"'<'", "'<='", "'=='", "'!='", "'!'", "'&&'", "'||'", "','", "'.'", "'^'", 
+			null, "'ceil'", "'sqrt'", "'floor'", "'abs'", "'round'", "'log'", "'max'", 
 			"'min'", "'random'"
 		};
 	}
 	private static final String[] _LITERAL_NAMES = makeLiteralNames();
 	private static String[] makeSymbolicNames() {
 		return new String[] {
-			null, "LPAREN", "RPAREN", "PLUS", "MINUS", "TIMES", "DIV", "MOD", "GT",
-			"GT_EQ", "LT", "LT_EQ", "EQ", "NOT_EQ", "NOT", "AND", "OR", "COMMA",
-			"POINT", "POW", "VARIABLE", "CEIL", "SQRT", "FLOOR", "ABS", "ROUND",
+			null, "LPAREN", "RPAREN", "PLUS", "MINUS", "TIMES", "DIV", "MOD", "GT", 
+			"GT_EQ", "LT", "LT_EQ", "EQ", "NOT_EQ", "NOT", "AND", "OR", "COMMA", 
+			"POINT", "POW", "VARIABLE", "CEIL", "SQRT", "FLOOR", "ABS", "ROUND", 
 			"LOG", "MAX", "MIN", "RANDOM", "WS", "STRING", "INT", "FLOAT", "BOOLEAN"
 		};
 	}
@@ -134,7 +108,7 @@ public class ExpressionParser extends Parser {
 			super(parent, invokingState);
 		}
 		@Override public int getRuleIndex() { return RULE_expression; }
-
+	 
 		public ExpressionContext() { }
 		public void copyFrom(ExpressionContext ctx) {
 			super.copyFrom(ctx);
@@ -650,7 +624,7 @@ public class ExpressionParser extends Parser {
 						pushNewRecursionContext(_localctx, _startState, RULE_expression);
 						setState(58);
 						if (!(precpred(_ctx, 8))) throw new FailedPredicateException(this, "precpred(_ctx, 8)");
-						setState(61);
+						setState(61); 
 						_errHandler.sync(this);
 						_alt = 1;
 						do {
@@ -668,7 +642,7 @@ public class ExpressionParser extends Parser {
 							default:
 								throw new NoViableAltException(this);
 							}
-							setState(63);
+							setState(63); 
 							_errHandler.sync(this);
 							_alt = getInterpreter().adaptivePredict(_input,1,_ctx);
 						} while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER );
@@ -681,7 +655,7 @@ public class ExpressionParser extends Parser {
 						pushNewRecursionContext(_localctx, _startState, RULE_expression);
 						setState(65);
 						if (!(precpred(_ctx, 7))) throw new FailedPredicateException(this, "precpred(_ctx, 7)");
-						setState(68);
+						setState(68); 
 						_errHandler.sync(this);
 						_alt = 1;
 						do {
@@ -699,14 +673,14 @@ public class ExpressionParser extends Parser {
 							default:
 								throw new NoViableAltException(this);
 							}
-							setState(70);
+							setState(70); 
 							_errHandler.sync(this);
 							_alt = getInterpreter().adaptivePredict(_input,2,_ctx);
 						} while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER );
 						}
 						break;
 					}
-					}
+					} 
 				}
 				setState(76);
 				_errHandler.sync(this);
@@ -730,7 +704,7 @@ public class ExpressionParser extends Parser {
 			super(parent, invokingState);
 		}
 		@Override public int getRuleIndex() { return RULE_combinationExpression; }
-
+	 
 		public CombinationExpressionContext() { }
 		public void copyFrom(CombinationExpressionContext ctx) {
 			super.copyFrom(ctx);
@@ -815,7 +789,7 @@ public class ExpressionParser extends Parser {
 						setState(79);
 						multiplyingExpression();
 						}
-						}
+						} 
 					}
 					setState(84);
 					_errHandler.sync(this);
@@ -841,7 +815,7 @@ public class ExpressionParser extends Parser {
 						setState(87);
 						multiplyingExpression();
 						}
-						}
+						} 
 					}
 					setState(92);
 					_errHandler.sync(this);
@@ -867,7 +841,7 @@ public class ExpressionParser extends Parser {
 			super(parent, invokingState);
 		}
 		@Override public int getRuleIndex() { return RULE_multiplyingExpression; }
-
+	 
 		public MultiplyingExpressionContext() { }
 		public void copyFrom(MultiplyingExpressionContext ctx) {
 			super.copyFrom(ctx);
@@ -978,7 +952,7 @@ public class ExpressionParser extends Parser {
 						setState(97);
 						powExpression();
 						}
-						}
+						} 
 					}
 					setState(102);
 					_errHandler.sync(this);
@@ -1004,7 +978,7 @@ public class ExpressionParser extends Parser {
 						setState(105);
 						powExpression();
 						}
-						}
+						} 
 					}
 					setState(110);
 					_errHandler.sync(this);
@@ -1030,7 +1004,7 @@ public class ExpressionParser extends Parser {
 						setState(113);
 						powExpression();
 						}
-						}
+						} 
 					}
 					setState(118);
 					_errHandler.sync(this);
@@ -1102,7 +1076,7 @@ public class ExpressionParser extends Parser {
 					setState(123);
 					signedAtom();
 					}
-					}
+					} 
 				}
 				setState(128);
 				_errHandler.sync(this);
@@ -1126,7 +1100,7 @@ public class ExpressionParser extends Parser {
 			super(parent, invokingState);
 		}
 		@Override public int getRuleIndex() { return RULE_signedAtom; }
-
+	 
 		public SignedAtomContext() { }
 		public void copyFrom(SignedAtomContext ctx) {
 			super.copyFrom(ctx);
@@ -1287,7 +1261,7 @@ public class ExpressionParser extends Parser {
 			super(parent, invokingState);
 		}
 		@Override public int getRuleIndex() { return RULE_atom; }
-
+	 
 		public AtomContext() { }
 		public void copyFrom(AtomContext ctx) {
 			super.copyFrom(ctx);
@@ -1453,7 +1427,7 @@ public class ExpressionParser extends Parser {
 			super(parent, invokingState);
 		}
 		@Override public int getRuleIndex() { return RULE_function; }
-
+	 
 		public FunctionContext() { }
 		public void copyFrom(FunctionContext ctx) {
 			super.copyFrom(ctx);
@@ -1840,7 +1814,7 @@ public class ExpressionParser extends Parser {
 			super(parent, invokingState);
 		}
 		@Override public int getRuleIndex() { return RULE_valueToken; }
-
+	 
 		public ValueTokenContext() { }
 		public void copyFrom(ValueTokenContext ctx) {
 			super.copyFrom(ctx);

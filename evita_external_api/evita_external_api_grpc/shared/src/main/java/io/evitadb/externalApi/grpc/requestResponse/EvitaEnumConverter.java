@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -281,6 +281,7 @@ public class EvitaEnumConverter {
 		return switch (grpcStatisticsBase.getNumber()) {
 			case 0 -> StatisticsBase.COMPLETE_FILTER;
 			case 1 -> StatisticsBase.WITHOUT_USER_FILTER;
+			case 2 -> StatisticsBase.COMPLETE_FILTER_EXCLUDING_SELF_IN_USER_FILTER;
 			default ->
 				throw new GenericEvitaInternalError("Unrecognized remote statistics base: " + grpcStatisticsBase);
 		};
@@ -297,6 +298,7 @@ public class EvitaEnumConverter {
 		return switch (statisticsBase) {
 			case COMPLETE_FILTER -> GrpcStatisticsBase.COMPLETE_FILTER;
 			case WITHOUT_USER_FILTER -> GrpcStatisticsBase.WITHOUT_USER_FILTER;
+			case COMPLETE_FILTER_EXCLUDING_SELF_IN_USER_FILTER -> GrpcStatisticsBase.COMPLETE_FILTER_EXCLUDING_SELF_IN_USER_FILTER;
 		};
 	}
 

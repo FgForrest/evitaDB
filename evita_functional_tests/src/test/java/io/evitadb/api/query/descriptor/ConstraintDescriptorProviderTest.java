@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -58,7 +58,7 @@ class ConstraintDescriptorProviderTest {
 
 	@Test
 	void shouldHaveProcessedConstraints() {
-		assertEquals(104, ConstraintDescriptorProvider.getAllConstraints().size());
+		assertEquals(107, ConstraintDescriptorProvider.getAllConstraints().size());
 	}
 
 	@Test
@@ -134,7 +134,7 @@ class ConstraintDescriptorProviderTest {
 
 	@Test
 	void shouldFindAllConstraintsForSpecificType() {
-		assertEquals(39, ConstraintDescriptorProvider.getConstraints(ConstraintType.FILTER).size());
+		assertEquals(42, ConstraintDescriptorProvider.getConstraints(ConstraintType.FILTER).size());
 		assertEquals(19, ConstraintDescriptorProvider.getConstraints(ConstraintType.ORDER).size());
 	}
 
