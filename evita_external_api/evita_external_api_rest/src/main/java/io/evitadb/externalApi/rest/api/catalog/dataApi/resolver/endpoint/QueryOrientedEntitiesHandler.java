@@ -42,6 +42,7 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.QueryEntityRequestDto
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.FetchEntityRequestDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.FetchEntityEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.HeadConstraintResolver;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver;
 import io.evitadb.externalApi.rest.api.openApi.SchemaUtils;
@@ -59,14 +60,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.LinkedHashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -83,6 +77,7 @@ import static java.util.Optional.ofNullable;
  */
 @Slf4j
 public abstract class QueryOrientedEntitiesHandler extends JsonRestHandler<CollectionRestHandlingContext> {
+	@Nonnull private final HeadConstraintResolver headConstraintResolver;
 	@Nonnull private final FilterConstraintResolver filterConstraintResolver;
 	@Nonnull private final OrderConstraintResolver orderConstraintResolver;
 	@Nonnull private final RequireConstraintResolver requireConstraintResolver;
@@ -90,6 +85,7 @@ public abstract class QueryOrientedEntitiesHandler extends JsonRestHandler<Colle
 	protected QueryOrientedEntitiesHandler(@Nonnull CollectionRestHandlingContext restApiHandlingContext) {
 		super(restApiHandlingContext);
 
+		this.headConstraintResolver = new HeadConstraintResolver(restApiHandlingContext.getCatalogSchema());
 		this.filterConstraintResolver = new FilterConstraintResolver(restApiHandlingContext.getCatalogSchema());
 		this.orderConstraintResolver = new OrderConstraintResolver(
 			restApiHandlingContext.getCatalogSchema(),
@@ -135,14 +131,19 @@ public abstract class QueryOrientedEntitiesHandler extends JsonRestHandler<Colle
 				}
 			})
 			.thenApply(requestData -> {
-				final Head head = buildHead(executionContext);
-
+				final Optional<Object> rawHead = requestData.getHead().map(it -> deserializeConstraintContainer(FetchEntityRequestDescriptor.HEAD.name(), it));
 				final Optional<Object> rawFilterBy = requestData.getFilterBy().map(it -> deserializeConstraintContainer(FetchEntityRequestDescriptor.FILTER_BY.name(), it));
 				final Optional<Object> rawOrderBy = requestData.getOrderBy().map(it -> deserializeConstraintContainer(FetchEntityRequestDescriptor.ORDER_BY.name(), it));
 				final Optional<Object> rawRequire = requestData.getRequire().map(it -> deserializeConstraintContainer(FetchEntityRequestDescriptor.REQUIRE.name(), it));
 				requestExecutedEvent.finishInputDeserialization();
 
 				return requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> {
+					final Head head = enrichHeadWithInternalConstraints(
+						executionContext,
+						rawHead
+							.map(container -> (Head) headConstraintResolver.resolve(restHandlingContext.getEntityType(), FetchEntityRequestDescriptor.HEAD.name(), container))
+							.orElse(null)
+					);
 					final FilterBy filterBy = rawFilterBy
 						.map(container -> (FilterBy) filterConstraintResolver.resolve(restHandlingContext.getEntityType(), FetchEntityRequestDescriptor.FILTER_BY.name(), container))
 						.map(it -> addLocaleIntoFilterByWhenUrlPathLocalized(executionContext, it))
@@ -187,18 +188,22 @@ public abstract class QueryOrientedEntitiesHandler extends JsonRestHandler<Colle
 		}
 	}
 
-	@Nullable
-	protected Head buildHead(@Nonnull RestEndpointExecutionContext executionContext) {
+	@Nonnull
+	protected Head enrichHeadWithInternalConstraints(@Nonnull RestEndpointExecutionContext executionContext,
+	                                                 @Nullable Head head) {
 		final List<HeadConstraint> headConstraints = new LinkedList<>();
+
 		headConstraints.add(collection(restHandlingContext.getEntityType()));
 		headConstraints.add(label(Label.LABEL_SOURCE_TYPE, RestQueryLabels.REST_SOURCE_TYPE_VALUE));
 
 		executionContext.trafficSourceQueryRecordingId()
 			.ifPresent(uuid -> headConstraints.add(label(Label.LABEL_SOURCE_QUERY, uuid)));
 
-		headConstraints.addAll(parseQueryLabelsFromHeaders(executionContext));
+		if (head != null) {
+			Collections.addAll(headConstraints, head.getChildren());
+		}
 
-		return head(headConstraints.toArray(HeadConstraint[]::new));
+		return Objects.requireNonNull(head(headConstraints.toArray(HeadConstraint[]::new)));
 	}
 
 	@Nullable

@@ -27,8 +27,8 @@ import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.query.require.ManagedReferencesBehaviour;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.AttributeRequest;
-import io.evitadb.api.requestResponse.EvitaRequest.NoTransformer;
 import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
+import io.evitadb.api.requestResponse.chunk.NoTransformer;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 

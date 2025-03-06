@@ -21,19 +21,18 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.catalog.dataApi.model;
+package io.evitadb.externalApi.api.catalog.dataApi.model;
 
-import io.evitadb.externalApi.api.catalog.dataApi.model.StripListDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 
 /**
- * Represents {@link io.evitadb.dataType.StripList} for references within entities.
+ * Represents {@link io.evitadb.dataType.PaginatedList} for references within entities.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */
-public interface ReferenceStripDescriptor extends StripListDescriptor {
+public interface ReferencePageDescriptor extends PaginatedListDescriptor {
 
-	ObjectDescriptor THIS = ObjectDescriptor.extend(StripListDescriptor.THIS)
-		.name("*ReferenceStrip")
+	ObjectDescriptor THIS = ObjectDescriptor.extend(PaginatedListDescriptor.THIS)
+		.name("*ReferencePage")
 		.build();
 }

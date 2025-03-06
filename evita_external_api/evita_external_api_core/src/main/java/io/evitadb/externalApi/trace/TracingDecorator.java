@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.trace;
 
 
+import com.linecorp.armeria.common.HttpHeaderNames;
 import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.server.HttpService;
@@ -64,7 +65,7 @@ public class TracingDecorator extends SimpleDecoratingHttpService {
 		final HttpRequest requestWithUpdatedHeaders = req.withHeaders(
 			req.headers()
 				.toBuilder()
-				.set(ExternalApiTracingContext.X_FORWARDED_FOR, clientIpAddress)
+				.set(HttpHeaderNames.X_FORWARDED_FOR, clientIpAddress)
 				.build()
 		);
 		return unwrap().serve(ctx, requestWithUpdatedHeaders);

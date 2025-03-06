@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -202,6 +202,21 @@ public class DataDeserializer {
 	public Object deserializeTree(@Nonnull Schema<?> schema, @Nonnull JsonNode jsonNode) {
 		if (jsonNode instanceof NullNode) {
 			return null;
+		} else if (schema.getAnyOf() != null) {
+			for (final Schema<?> possibleSchema : schema.getAnyOf()) {
+				try {
+					return deserializeTree(possibleSchema, jsonNode);
+				} catch (RestInvalidArgumentException e) {
+					// not the schema the input data used, lets try another one
+					continue;
+				}
+			}
+
+			// no match for any of the possible schemas
+			throw new RestInvalidArgumentException(
+				"Expected `Any` for schema `" + schema.getName() + "` but got `" + jsonNode.getClass().getSimpleName() + "`.",
+				"Expected Any object."
+			);
 		} else if (schema instanceof ArraySchema || OpenApiConstants.TYPE_ARRAY.equals(schema.getType())) {
 			Assert.isTrue(
 				jsonNode instanceof ArrayNode,

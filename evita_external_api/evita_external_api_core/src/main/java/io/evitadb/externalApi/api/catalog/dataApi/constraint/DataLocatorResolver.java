@@ -124,6 +124,7 @@ public class DataLocatorResolver {
 							throw new ExternalApiInternalError("Unsupported domain `" + desiredChildDomainOfParameter + "`.");
 					};
 				} else {
+					//noinspection DataFlowIssue
 					final ReferenceSchemaContract referenceSchema = catalogSchema.getEntitySchemaOrThrowException(dataLocatorWithReference.entityType())
 						.getReferenceOrThrowException(dataLocatorWithReference.referenceName());
 
@@ -151,6 +152,7 @@ public class DataLocatorResolver {
 									: new ExternalEntityTypePointer(referencedGroupType)
 							));
 						}
+						case SEGMENT -> Optional.of(new SegmentDataLocator(dataLocatorWithReference.entityTypePointer()));
 						default ->
 							throw new ExternalApiInternalError("Unsupported domain `" + desiredChildDomainOfParameter + "`.");
 					};

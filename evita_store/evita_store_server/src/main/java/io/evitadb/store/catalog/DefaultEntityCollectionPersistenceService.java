@@ -109,6 +109,7 @@ import io.evitadb.store.service.SharedClassesConfigurer;
 import io.evitadb.store.spi.EntityCollectionPersistenceService;
 import io.evitadb.store.spi.HeaderInfoSupplier;
 import io.evitadb.store.spi.StoragePartPersistenceService;
+import io.evitadb.store.spi.chunk.ServerChunkTransformerAccessor;
 import io.evitadb.store.spi.model.EntityCollectionHeader;
 import io.evitadb.store.spi.model.reference.CollectionFileReference;
 import io.evitadb.store.spi.model.storageParts.index.*;
@@ -307,7 +308,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 						associatedDataStorageContainers,
 						referencesStorageContainer,
 						priceStorageContainer,
-						evitaRequest::getReferenceChunkTransformer
+						new ServerChunkTransformerAccessor(evitaRequest)
 					),
 					ioFetchStatistics.getIoFetchCount(),
 					ioFetchStatistics.getIoFetchedBytes()

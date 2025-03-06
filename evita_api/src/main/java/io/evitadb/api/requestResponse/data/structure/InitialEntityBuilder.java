@@ -74,6 +74,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -285,6 +286,15 @@ public class InitialEntityBuilder implements EntityBuilder {
 	@Override
 	public Collection<ReferenceContract> getReferences() {
 		return this.references.values();
+	}
+
+	@Nonnull
+	@Override
+	public Set<String> getReferenceNames() {
+		return this.references.keySet()
+			.stream()
+			.map(ReferenceKey::referenceName)
+			.collect(Collectors.toCollection(TreeSet::new));
 	}
 
 	@Nonnull

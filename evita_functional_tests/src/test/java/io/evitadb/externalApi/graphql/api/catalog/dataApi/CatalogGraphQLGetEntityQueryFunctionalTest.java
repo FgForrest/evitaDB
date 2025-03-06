@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -37,6 +37,8 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
+import io.evitadb.externalApi.api.catalog.dataApi.model.ReferencePageDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceStripDescriptor;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
@@ -2114,6 +2116,199 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 						.toArray(Boolean[]::new)
 				)
 			);
+	}
+
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return sublist of references for product")
+	void shouldReturnSublistOfReferencesForProduct(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final var entity = findEntity(
+			originalProductEntities,
+			it -> it.getReferences(Entities.STORE).size() >= 4
+		);
+
+		final var expectedBody = map()
+			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+			.e("store", entity.getReferences(Entities.STORE)
+				.stream()
+				.limit(2)
+				.map(reference ->
+					map()
+						.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
+							.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getReferencedPrimaryKey()))
+						.build())
+				.toList())
+			.build();
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    getProduct(
+	                        code: "%s"
+	                    ) {
+                            primaryKey
+	                        type
+                            store(limit: 2) {
+                                referencedEntity {
+                                    primaryKey
+                                }
+                            }
+                        }
+	                }
+					""",
+				(String) entity.getAttribute(ATTRIBUTE_CODE)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(GET_PRODUCT_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return reference page for product")
+	void shouldReturnReferencePageForProduct(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final var entity = findEntity(
+			originalProductEntities,
+			it -> it.getReferences(Entities.STORE).size() >= 4
+		);
+
+		final var expectedBody = map()
+			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+			.e("storePage", map()
+				.e(ReferencePageDescriptor.TOTAL_RECORD_COUNT.name(), entity.getReferences(Entities.STORE).size())
+				.e(ReferencePageDescriptor.DATA.name(), entity.getReferences(Entities.STORE)
+					.stream()
+					.skip(2)
+					.limit(2)
+					.map(reference ->
+						map()
+							.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
+								.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getReferencedPrimaryKey()))
+							.build())
+					.toList()))
+			.build();
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    getProduct(
+                            code: "%s"
+	                    ) {
+                            primaryKey
+	                        type
+                            storePage(number: 2, size: 2) {
+                                totalRecordCount
+                                data {
+	                                referencedEntity {
+	                                    primaryKey
+	                                }
+                                }
+                            }
+	                    }
+	                }
+					""",
+				(String) entity.getAttribute(ATTRIBUTE_CODE)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(GET_PRODUCT_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return reference strip for product")
+	void shouldReturnReferenceStripForProduct(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final var entity = findEntity(
+			originalProductEntities,
+			it -> it.getReferences(Entities.STORE).size() >= 4
+		);
+
+		final var expectedBody = map()
+			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+			.e("storeStrip", map()
+				.e(ReferenceStripDescriptor.TOTAL_RECORD_COUNT.name(), entity.getReferences(Entities.STORE).size())
+				.e(ReferenceStripDescriptor.DATA.name(), entity.getReferences(Entities.STORE)
+					.stream()
+					.skip(2)
+					.limit(2)
+					.map(reference ->
+						map()
+							.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
+								.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getReferencedPrimaryKey()))
+							.build())
+					.toList()))
+			.build();
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    getProduct(
+                            code: "%s"
+	                    ) {
+                            primaryKey
+	                        type
+                            storeStrip(offset: 2, limit: 2) {
+                                totalRecordCount
+                                data {
+	                                referencedEntity {
+	                                    primaryKey
+	                                }
+                                }
+                            }
+	                    }
+	                }
+					""",
+				(String) entity.getAttribute(ATTRIBUTE_CODE)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(GET_PRODUCT_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should pass query labels")
+	void shouldPassQueryLabels(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final SealedEntity entity = findEntity(
+			originalProductEntities,
+			it -> it.getAttribute(ATTRIBUTE_CODE) != null
+		);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    getProduct(
+	                        labels: [
+	                            {
+							        name: "myLabel1"
+							        value: "myValue1"
+								},
+								{
+							        name: "myLabel2"
+							        value: 100
+								}
+	                        ]
+	                        primaryKey: %d
+                        ) {
+	                        primaryKey
+	                    }
+	                }
+					""",
+				entity.getPrimaryKey()
+			)
+			.executeAndExpectOkAndThen()
+			.body(GET_PRODUCT_PATH, notNullValue());
 	}
 
 	@Nonnull

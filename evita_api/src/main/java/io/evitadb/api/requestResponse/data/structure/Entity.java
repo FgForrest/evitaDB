@@ -44,8 +44,8 @@ import io.evitadb.api.query.require.HierarchyOfSelf;
 import io.evitadb.api.query.require.PriceContent;
 import io.evitadb.api.query.require.PriceHistogram;
 import io.evitadb.api.query.require.QueryPriceMode;
-import io.evitadb.api.requestResponse.EvitaRequest.ChunkTransformer;
-import io.evitadb.api.requestResponse.EvitaRequest.NoTransformer;
+import io.evitadb.api.requestResponse.chunk.ChunkTransformer;
+import io.evitadb.api.requestResponse.chunk.NoTransformer;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract;
 import io.evitadb.api.requestResponse.data.AssociatedDataEditor.AssociatedDataBuilder;
 import io.evitadb.api.requestResponse.data.AttributesEditor.AttributesBuilder;
@@ -1017,6 +1017,12 @@ public class Entity implements SealedEntity {
 
 	@Nonnull
 	@Override
+	public Set<String> getReferenceNames() {
+		return this.referencesDefined;
+	}
+
+	@Nonnull
+	@Override
 	public Collection<ReferenceContract> getReferences(@Nonnull String referenceName) {
 		return this.getReferenceChunk(referenceName).getData();
 	}
@@ -1134,7 +1140,7 @@ public class Entity implements SealedEntity {
 	 */
 	@Nonnull
 	public ChunkTransformerAccessor getReferenceChunkTransformer() {
-		return referenceChunkTransformer;
+		return this.referenceChunkTransformer;
 	}
 
 	@Override

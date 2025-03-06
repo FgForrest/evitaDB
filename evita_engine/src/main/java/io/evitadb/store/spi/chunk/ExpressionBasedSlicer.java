@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,25 +21,31 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.query.slice;
+package io.evitadb.store.spi.chunk;
 
 
 import io.evitadb.api.query.expression.evaluate.SingleVariableEvaluationContext;
-import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.ConditionalGap;
 import io.evitadb.api.requestResponse.EvitaRequest.ResultForm;
+import io.evitadb.api.requestResponse.chunk.OffsetAndLimit;
+import io.evitadb.api.requestResponse.chunk.Slicer;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.util.Arrays;
+import java.util.Map;
 
 /**
  * ExpressionBasedSlicer is an implementation of the Slicer interface that calculates pagination offsets and limits
  * based on conditional gaps defined in the constructor.
+ *
+ * We have the expression based slice in engine JAR because it might be enriched with engine specific variables in
+ * the future and it might be problem to extract and move it from the evita API JAR.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
@@ -56,18 +62,44 @@ public class ExpressionBasedSlicer implements Slicer {
 	 * that is evaluated to determine whether the gap should be applied during the pagination calculation.
 	 */
 	private final ConditionalGap[] conditionalGaps;
+	/**
+	 * Cache for storing previously calculated offsets and limits based on the page number, requested page size,
+	 * and total record count.
+	 */
+	private final Map<CacheKey, OffsetAndLimit> cache = CollectionUtils.createHashMap(16);
 
 	@Nonnull
 	@Override
-	public OffsetAndLimit calculateOffsetAndLimit(@Nonnull EvitaRequest evitaRequest, int totalRecordCount) {
+	public OffsetAndLimit calculateOffsetAndLimit(@Nonnull ResultForm resultForm, int pageNumber, int requestedPageSize, int totalRecordCount) {
 		Assert.isPremiseValid(
-			evitaRequest.getResultForm() == ResultForm.PAGINATED_LIST,
+			resultForm == ResultForm.PAGINATED_LIST,
 			"Spacing can be calculated only for paginated list!"
 		);
-		// input parameters defined in the query
-		final int pageNumber = evitaRequest.getStart();
-		final int requestedPageSize = evitaRequest.getLimit();
 
+		return this.cache.computeIfAbsent(
+			new CacheKey(pageNumber, requestedPageSize, totalRecordCount),
+			cacheKey -> calculateOffsetAndLimitInternal(
+				cacheKey.pageNumber(),
+				cacheKey.requestedPageSize(),
+				cacheKey.totalRecordCount()
+			)
+		);
+	}
+
+	/**
+	 * Calculates the offset and limit for pagination, taking into account potential gaps defined by conditional expressions
+	 * and the total record count. The method determines the appropriate offset and page size based on the requested page
+	 * number and its relation to any conditional gaps.
+	 *
+	 * @param pageNumber       The requested page number for which the offset and limit are being calculated.
+	 * @param requestedPageSize The size of the page requested, representing the number of records per page.
+	 * @param totalRecordCount  The total number of records available for pagination.
+	 *
+	 * @return An instance of {@code OffsetAndLimit} containing the calculated offset, limit, current page number,
+	 *         and the last page number based on the pagination settings.
+	 */
+	@Nonnull
+	private OffsetAndLimit calculateOffsetAndLimitInternal(int pageNumber, int requestedPageSize, int totalRecordCount) {
 		// determine possible page number ranges
 		final int[] activeGaps = new int[this.conditionalGaps.length];
 		final BigDecimalNumberRange[] pageNumberRanges = new BigDecimalNumberRange[this.conditionalGaps.length];
@@ -137,8 +169,13 @@ public class ExpressionBasedSlicer implements Slicer {
 
 		// return the offset and limit
 		return offset > totalRecordCount ?
-			new OffsetAndLimit(0, firstPageSize, lastPageNumber - 2) :
-			new OffsetAndLimit(offset, pageSize, lastPageNumber - 2);
+			new OffsetAndLimit(0, firstPageSize, 1, lastPageNumber - 2, totalRecordCount) :
+			new OffsetAndLimit(offset, pageSize, pageNumber, lastPageNumber - 2, totalRecordCount);
 	}
+
+	/**
+	 * Cache key for caching the results of the calculateOffsetAndLimit method.
+	 */
+	private record CacheKey(int pageNumber, int requestedPageSize, int totalRecordCount) {}
 
 }

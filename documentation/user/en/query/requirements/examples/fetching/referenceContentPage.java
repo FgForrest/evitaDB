@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,27 +21,34 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.catalog.dataApi.dto;
-
-import com.fasterxml.jackson.databind.JsonNode;
-import io.evitadb.dataType.StripList;
-import lombok.Getter;
-
-import javax.annotation.Nonnull;
-
-/**
- * This class is used to convert information from {@link StripList} into form serializable into JSON.
- *
- * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
- */
-@Getter
-public class StripListDto extends DataChunkDto {
-	private final int offset;
-	private final int limit;
-
-	public StripListDto(@Nonnull StripList<?> stripList, @Nonnull JsonNode data) {
-		super(stripList, data, DataChunkType.STRIP);
-		offset = stripList.getOffset();
-		limit = stripList.getLimit();
+final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
+	"evita",
+	session -> {
+		return session.querySealedEntity(
+			query(
+				collection("Product"),
+				filterBy(
+					entityPrimaryKeyInSet(103885),
+					entityLocaleEquals(Locale.forLanguageTag("en"))
+				),
+				require(
+					entityFetch(
+						attributeContent("name"),
+						referenceContent(
+							"parameterValues",
+							orderBy(
+								entityProperty(
+									attributeNatural("order", ASC)
+								)
+							),
+							entityFetch(
+								attributeContent("name")
+							),
+							page(1, 3)
+						)
+					)
+				)
+			)
+		);
 	}
-}
+);
