@@ -7,29 +7,25 @@
       entityLocaleEquals: en
     }
   ) {
-    recordPage {
-      data {
-        primaryKey
-        attributes {
-          name
-        }
-        parameterValues(
-          orderBy: [
+    parameterValuesPage(
+      orderBy: [
+        {
+          entityProperty: [
             {
-              entityProperty: [
-                {
-                  attributeOrderNatural: ASC
-                }
-              ]
+              attributeOrderNatural: ASC
             }
           ]
-        ) {
-          referencedPrimaryKey
-          referencedEntity {
-            primaryKey
-            attributes {
-              name
-            }
+        }
+      ],
+      number: 1,
+      size: 3
+    ) {
+      data {
+        referencedPrimaryKey
+        referencedEntity {
+          primaryKey
+          attributes {
+            name
           }
         }
       }
