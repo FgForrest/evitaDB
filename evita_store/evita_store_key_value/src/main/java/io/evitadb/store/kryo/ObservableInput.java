@@ -381,7 +381,7 @@ public class ObservableInput<T extends InputStream> extends Input {
 	@Override
 	protected int require(int required) throws KryoException {
 		/* EXTENSION */
-		final int limit = this.actualLimit == -1 || this.compressed || this.readingTail ? this.limit : this.actualLimit;
+		int limit = this.actualLimit == -1 || this.compressed || this.readingTail ? this.limit : this.actualLimit;
 		final int reserve = this.readingTail ? 0 : TAIL_MANDATORY_SPACE;
 		final int totalReadLengthWithReserve = computeTotalReadLength() + reserve;
 		// if we read compressed payload
@@ -390,10 +390,14 @@ public class ObservableInput<T extends InputStream> extends Input {
 			if (limit - this.position < required && this.inflater.finished() && this.inflater.getBytesRead() == this.expectedPayloadLength) {
 				// trigger overflow situation
 				handleOverflow(totalReadLengthWithReserve, required);
+				// update limit after overflow handler was executed
+				limit = this.actualLimit == -1 || this.compressed || this.readingTail ? this.limit : this.actualLimit;
 			}
 		} else if (this.expectedLength != -1 && totalReadLengthWithReserve + required > this.expectedLength) {
 			// else if we've read all the current buffer and more is required, trigger overflow situation
 			handleOverflow(totalReadLengthWithReserve, required);
+			// update limit after overflow handler was executed
+			limit = this.actualLimit == -1 || this.compressed || this.readingTail ? this.limit : this.actualLimit;
 		}
 		/* END OF EXTENSION */
 

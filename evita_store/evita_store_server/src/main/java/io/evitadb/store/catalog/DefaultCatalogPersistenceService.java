@@ -752,27 +752,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 */
 	@Nonnull
 	private static CatalogVersion readCatalogVersion(@Nonnull ReadOnlyFileHandle readHandle, long positionForRecord) {
-		final CatalogBootstrap catalogBootstrap = readHandle.execute(
-			input -> StorageRecord.read(
-				input,
-				new FileLocation(positionForRecord, CatalogBootstrap.BOOTSTRAP_RECORD_SIZE),
-				(theInput, recordLength, control) -> new CatalogBootstrap(
-					theInput.readLong(),
-					theInput.readInt(),
-					Instant.ofEpochMilli(theInput.readLong()).atZone(ZoneId.systemDefault()).toOffsetDateTime(),
-					new FileLocation(
-						theInput.readLong(),
-						theInput.readInt()
-					)
-				)
-			)
-		).payload();
-
-		Assert.isPremiseValid(
-			catalogBootstrap != null,
-			"Catalog bootstrap record is not expected to be null!"
-		);
-
+		final CatalogBootstrap catalogBootstrap = deserializeCatalogBootstrapRecord(positionForRecord, readHandle);
 		return new CatalogVersion(
 			catalogBootstrap.catalogVersion(),
 			catalogBootstrap.timestamp()

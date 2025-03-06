@@ -201,23 +201,19 @@ public record StorageRecord<T>(
 	 * can be read only as a byte array and will contain compressed data of the original record
 	 */
 	@Nonnull
-	public static RawRecord readRaw(
-		@Nonnull ObservableInput<?> input,
-		@Nonnull FileLocation location
-	) {
-		input.seek(location);
-		input.markStart();
+	public static RawRecord readRaw(@Nonnull ObservableInput<?> input) {
+		final long startingPosition = input.markStart();
 		final int recordLength = input.readInt();
 		final byte originalControl = input.readByte();
 		final long generationId = input.readLong();
 		// if the data is compressed we need to override the control byte and read it uncompressed
 		byte control = setBit(originalControl, COMPRESSION_BIT, false);
-		input.markPayloadStart(location.recordLength(), control);
+		input.markPayloadStart(recordLength, control);
 		final byte[] payload = input.readBytes(recordLength - CRC_NOT_COVERED_PART);
 		input.markEnd(originalControl);
 
 		return new RawRecord(
-			new FileLocation(location.startingPosition(), location.recordLength()),
+			new FileLocation(startingPosition, recordLength),
 			originalControl,
 			generationId,
 			payload

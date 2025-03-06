@@ -1550,7 +1550,11 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 
 				// read entire history
 				DefaultCatalogPersistenceService.getCatalogBootstrapRecordStream(
-					TEST_CATALOG, restartedEvita.getConfiguration().storage()
+					TEST_CATALOG,
+					// bootstrap records must never be compressed
+					StorageOptions.builder(restartedEvita.getConfiguration().storage())
+						.compress(false)
+						.build()
 				).forEach(
 					record -> {
 						try {

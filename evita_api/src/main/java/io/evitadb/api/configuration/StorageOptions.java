@@ -105,7 +105,7 @@ public record StorageOptions(
 	public static final int DEFAULT_WAIT_ON_CLOSE_SECONDS = 5;
 	public static final int DEFAULT_MAX_OPENED_READ_HANDLES = Runtime.getRuntime().availableProcessors();
 	public static final boolean DEFAULT_SYNC_WRITES = true;
-	public static final boolean DEFAULT_COMPRESS = true;
+	public static final boolean DEFAULT_COMPRESS = false;
 	public static final boolean DEFAULT_COMPUTE_CRC = true;
 	public static final double DEFAULT_MINIMAL_ACTIVE_RECORD_SHARE = 0.5;
 	public static final long DEFAULT_MINIMAL_FILE_SIZE_COMPACTION_THRESHOLD = 104_857_600L; // 100MB
@@ -124,7 +124,7 @@ public record StorageOptions(
 			5, 5, DEFAULT_OUTPUT_BUFFER_SIZE,
 			Runtime.getRuntime().availableProcessors(),
 			false,
-			true,
+			false,
 			true,
 			DEFAULT_MINIMAL_ACTIVE_RECORD_SHARE,
 			DEFAULT_MINIMAL_FILE_SIZE_COMPACTION_THRESHOLD,

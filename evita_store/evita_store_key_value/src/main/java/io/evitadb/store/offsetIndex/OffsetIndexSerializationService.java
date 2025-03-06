@@ -274,27 +274,38 @@ public class OffsetIndexSerializationService {
 				fileLocation = entry.getValue();
 			}
 
-			final RawRecord sourceRecord = StorageRecord.readRaw(inputStream, fileLocation);
-			byte control = sourceRecord.control();
-
 			final byte[] overriddenValue = valuesToOverride.get(entry.getKey());
 			final FileLocation copiedRecordLocation;
 			if (overriddenValue == null) {
-				// write original value in raw form
-				byte[] rawData = sourceRecord.rawData();
-				FileLocation firstRecordLocation = null;
+				inputStream.seekWithUnknownLength(fileLocation.startingPosition());
+				long startPosition = -1;
+				int recordLength = 0;
+				byte control;
+				RawRecord sourceRecord;
 				do {
-					final FileLocation recordLocation = StorageRecord.writeRaw(output, control, catalogVersion, rawData);
-					if (firstRecordLocation == null) {
-						firstRecordLocation = recordLocation;
-					}
+					sourceRecord = StorageRecord.readRaw(inputStream);
+					control = sourceRecord.control();
 
-					final RawRecord recordContinuation = StorageRecord.readRaw(inputStream, fileLocation);
-					control = recordContinuation.control();
-					rawData = recordContinuation.rawData();
+					// write original value in raw form
+					byte[] rawData = sourceRecord.rawData();
+
+					final FileLocation recordLocation = StorageRecord.writeRaw(output, control, catalogVersion, rawData);
+					if (startPosition == -1) {
+						startPosition = recordLocation.startingPosition();
+					}
+					recordLength += recordLocation.recordLength();
 				} while (BitUtils.isBitSet(control, StorageRecord.CONTINUATION_BIT));
-				// only first record is stored in non-flushed values
-				copiedRecordLocation = firstRecordLocation;
+
+				Assert.isPremiseValid(
+					startPosition >= 0,
+					"Start position must be greater than 0!"
+				);
+				Assert.isPremiseValid(
+					recordLength > 0,
+					"Record length must be greater than 0!"
+				);
+
+				copiedRecordLocation = new FileLocation(startPosition, recordLength);
 			} else {
 				// write overridden value
 				copiedRecordLocation = new StorageRecord<>(

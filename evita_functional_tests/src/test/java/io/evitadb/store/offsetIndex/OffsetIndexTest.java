@@ -82,7 +82,6 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * This test verifies functionality of {@link OffsetIndex} operations.
- * TODO JNO - doplnit test na copySnapshot s continuation bit
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -126,6 +125,7 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 	private static EntityBodyStoragePart getNonExisting(
 		@Nonnull Set<Integer> recordIds,
 		@Nonnull Set<Integer> touchedInThisRound,
+		@Nonnull StorageOptions storageOptions,
 		@Nonnull Random random
 	) {
 		int recPrimaryKey;
@@ -133,7 +133,7 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 			recPrimaryKey = Math.abs(random.nextInt());
 		} while (recPrimaryKey != 0 && (recordIds.contains(recPrimaryKey) || touchedInThisRound.contains(recPrimaryKey)));
 
-		return createEntityBodyStoragePartOfRandomSize(random, recPrimaryKey);
+		return createEntityBodyStoragePartOfRandomSize(storageOptions, random, recPrimaryKey);
 	}
 
 	/**
@@ -145,10 +145,14 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 	 * @return a newly created instance of {@link EntityBodyStoragePart} containing randomly generated associated data
 	 */
 	@Nonnull
-	private static EntityBodyStoragePart createEntityBodyStoragePartOfRandomSize(@Nonnull Random random, int recPrimaryKey) {
+	private static EntityBodyStoragePart createEntityBodyStoragePartOfRandomSize(
+		@Nonnull StorageOptions storageOptions,
+		@Nonnull Random random,
+		int recPrimaryKey
+	) {
 		// we need to generate some fake data to cross the 4096 bytes boundary
 		final Faker faker = new Faker(random);
-		final int associatedDataKeys = random.nextInt(1000);
+		final int associatedDataKeys = random.nextInt(storageOptions.compress() ? 4000 : 1000);
 		final Set<AssociatedDataKey> associatedData = new HashSet<>(associatedDataKeys);
 		for (int i = 0; i < associatedDataKeys; i++) {
 			associatedData.add(
@@ -320,7 +324,7 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 		final Map<Integer, EntityBodyStoragePart> parts = new HashMap<>();
 		final InsertionOutput insertionOutput = serializeAndReconstructBigFileOffsetIndex(
 			limitedBufferOptions,
-			pk -> parts.computeIfAbsent(pk, thePk -> createEntityBodyStoragePartOfRandomSize(random, thePk))
+			pk -> parts.computeIfAbsent(pk, thePk -> createEntityBodyStoragePartOfRandomSize(limitedBufferOptions, random, thePk))
 		);
 		final OffsetIndexDescriptor fileOffsetIndexDescriptor = insertionOutput.descriptor();
 		final StorageOptions storageOptions = configure(this.options, crc32Check, compression);
@@ -600,6 +604,7 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalProofTest(GenerationalTestInput input) {
 		final AtomicReference<Path> currentFilePath = new AtomicReference<>(targetFile);
+		final StorageOptions storageOptions = buildOptionsWithLimitedBuffer(Crc32Check.YES, Compression.NO);
 		final AtomicReference<OffsetIndex> fileOffsetIndex = new AtomicReference<>(
 			new OffsetIndex(
 				0L,
@@ -608,7 +613,7 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 					createKryo(),
 					1.0, 0L
 				),
-				buildOptionsWithLimitedBuffer(Crc32Check.YES, Compression.NO),
+				storageOptions,
 				offsetIndexRecordTypeRegistry,
 				new WriteOnlyFileHandle(targetFile, options, observableOutputKeeper),
 				nonFlushedBlock -> {
@@ -638,7 +643,7 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 					final int rndOp = random.nextInt(3);
 					final RecordOperation operation;
 					if (currentSnapshot.isEmpty() || (rndOp == 0 && currentSnapshot.size() < maximalRecordCount)) {
-						operation = new RecordOperation(getNonExisting(currentSnapshot.keySet(), touchedInThisRound, random), Operation.INSERT);
+						operation = new RecordOperation(getNonExisting(currentSnapshot.keySet(), touchedInThisRound, storageOptions, random), Operation.INSERT);
 						currentSnapshot.put(operation.record().getPrimaryKey(), operation.record());
 					} else if (currentSnapshot.size() - touchedInThisRound.size() > minimalRecordCount && rndOp == 1) {
 						operation = new RecordOperation(getExisting(currentSnapshot, touchedInThisRound, random), Operation.UPDATE);

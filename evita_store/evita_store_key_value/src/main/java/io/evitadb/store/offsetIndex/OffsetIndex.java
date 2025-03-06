@@ -1384,10 +1384,8 @@ public class OffsetIndex {
 					return this.readKryoPool.borrowAndExecute(
 						kryo -> {
 							try {
-								final RawRecord rawRecord = StorageRecord.readRaw(
-									exclusiveReadAccess,
-									it
-								);
+								exclusiveReadAccess.seek(it);
+								final RawRecord rawRecord = StorageRecord.readRaw(exclusiveReadAccess);
 								/* TOBEDONE 13 - THIS LOGIC SHOULD BE EXTRACTED TO HIGHER LEVELS,
 								     DECOMPRESSION SHOULD OCCUR ON THE CLIENT TO SAVE NETWORK BANDWITH */
 								final byte[] decompressed;
