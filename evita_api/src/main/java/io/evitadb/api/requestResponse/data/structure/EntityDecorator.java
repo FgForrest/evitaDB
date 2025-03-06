@@ -469,31 +469,50 @@ public class EntityDecorator implements SealedEntity {
 		this.filteredReferencesByName = CollectionUtils.createLinkedHashMap(referencesAccordingToSchema.size());
 
 		final int length = fetchedAndFilteredReferences.length - filteredOutReferences;
-		final Set<ReferenceKey> presentReferenceKeys = CollectionUtils.createHashSet(length);
 		final Map<String, List<ReferenceContract>> indexByName = CollectionUtils.createLinkedHashMap(length);
+		this.filteredReferences = CollectionUtils.createLinkedHashMap(length);
 		final int averageExpectedCount = referencesAccordingToSchema.isEmpty() ?
 			16 : Math.min(16, length / referencesAccordingToSchema.size() + 1);
 		for (int i = 0; i < length; i++) {
 			final ReferenceDecorator reference = fetchedAndFilteredReferences[i];
 			indexByName.computeIfAbsent(reference.getReferenceName(), s -> new ArrayList<>(averageExpectedCount)).add(reference);
+			this.filteredReferences.put(reference.getReferenceKey(), reference);
 		}
 		for (String referenceName : referencesAccordingToSchema.keySet()) {
 			if (referencePredicate.isReferenceRequested(referenceName)) {
 				final List<ReferenceContract> references = ofNullable(indexByName.get(referenceName))
 					.orElse(Collections.emptyList());
 				final DataChunk<ReferenceContract> chunk = referenceFetcher.createChunk(entity, referenceName, references);
-				for (ReferenceContract reference : chunk) {
-					presentReferenceKeys.add(reference.getReferenceKey());
-				}
+				removeReferencesNotPresentInChunk(chunk, references);
 				this.filteredReferencesByName.put(referenceName, chunk);
 			}
 		}
+	}
 
-		this.filteredReferences = CollectionUtils.createLinkedHashMap(presentReferenceKeys.size());
-		for (int i = 0; i < length; i++) {
-			final ReferenceDecorator reference = fetchedAndFilteredReferences[i];
-			if (presentReferenceKeys.contains(reference.getReferenceKey())) {
-				this.filteredReferences.put(reference.getReferenceKey(), reference);
+	/**
+	 * Removes references from {@code filteredReferences} that are not present in the provided data chunk. Most of the
+	 * time all the references will be present in the chunk, only when pagination is used and there is a lot of references
+	 * some of them will be missing. In such case, we need to remove them from the filtered references.
+	 *
+	 * @param chunk      The chunk containing a subset of reference contracts. Must not be null.
+	 * @param references The list of references to filter. Must not be null.
+	 *                   References within the list might contain null elements.
+	 */
+	private void removeReferencesNotPresentInChunk(
+		@Nonnull DataChunk<ReferenceContract> chunk,
+		@Nonnull List<ReferenceContract> references
+	) {
+		// this will be true only if there is pagination defined (small number of cases)
+		final int chunkSize = chunk.getData().size();
+		if (chunkSize < references.size()) {
+			final Set<ReferenceKey> returnedKeys = CollectionUtils.createHashSet(chunkSize);
+			for (ReferenceContract referenceContract : chunk) {
+				returnedKeys.add(referenceContract.getReferenceKey());
+			}
+			for (ReferenceContract reference : references) {
+				if (reference != null && !returnedKeys.contains(reference.getReferenceKey())) {
+					this.filteredReferences.remove(reference.getReferenceKey());
+				}
 			}
 		}
 	}
