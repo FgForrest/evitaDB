@@ -49,6 +49,7 @@ import java.util.UUID;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
+import static io.evitadb.api.configuration.StorageOptions.DEFAULT_OUTPUT_BUFFER_SIZE;
 import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.entityFetchAll;
 import static io.evitadb.api.query.QueryConstraints.page;
@@ -78,7 +79,6 @@ public class EvitaBackwardCompatibilityTest implements EvitaTestSupport {
 	@Tag(LONG_RUNNING_TEST)
 	@Test
 	void verifyBackwardCompatibilityTo_2024_5() throws IOException {
-		/* TODO JNO - implementovat automatický upgrade datového souboru */
 		final Path directory_2024_5 = mainDirectory.resolve("2024.5");
 		if (!directory_2024_5.toFile().exists()) {
 			log.info("Downloading and unzipping evita-demo-dataset_2024.5.zip");
@@ -120,6 +120,7 @@ public class EvitaBackwardCompatibilityTest implements EvitaTestSupport {
 				.storage(
 					StorageOptions.builder()
 						.storageDirectory(directory_2024_5)
+						.outputBufferSize(DEFAULT_OUTPUT_BUFFER_SIZE * 2)
 						.build()
 				)
 				.build()

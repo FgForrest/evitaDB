@@ -169,6 +169,34 @@ public record StorageRecord<T>(
 	 * Constructor that is used for READING known record from the input stream on known file location. Constructor should
 	 * be used for random access reading of arbitrary records o reading lead record for the file offset index.
 	 *
+	 * @deprecated introduced with #650 and could be removed later when no version prior to 2025.2 is used
+	 */
+	@Deprecated
+	@Nonnull
+	public static <T> StorageRecord<T> readOldFormat(
+		@Nonnull ObservableInput<?> input,
+		@Nonnull FileLocation location,
+		@Nonnull TriFunction<ObservableInput<?>, Integer, Byte, T> reader
+	) {
+		input.seek(location);
+		input.markStart();
+		final int recordLength = input.readInt();
+		byte control = input.readByte();
+
+		final Supplier<T> payloadReader = () -> reader.apply(input, recordLength, control);
+		return doReadOldStorageRecord(
+			input,
+			new FileLocation(location.startingPosition(), recordLength),
+			control,
+			fileLocation -> verifyExpectedLength(location, fileLocation),
+			payloadReader
+		);
+	}
+
+	/**
+	 * Constructor that is used for READING known record from the input stream on known file location. Constructor should
+	 * be used for random access reading of arbitrary records o reading lead record for the file offset index.
+	 *
 	 * This method overrides the control byte to indicate that the record should be read as uncompressed. The payload
 	 * can be read only as a byte array and will contain compressed data of the original record
 	 */
@@ -190,6 +218,39 @@ public record StorageRecord<T>(
 
 		return new RawRecord(
 			new FileLocation(location.startingPosition(), location.recordLength()),
+			originalControl,
+			generationId,
+			payload
+		);
+	}
+
+	/**
+	 * Constructor that is used for READING known record from the input stream on known file location. Constructor should
+	 * be used for random access reading of arbitrary records o reading lead record for the file offset index.
+	 *
+	 * This method overrides the control byte to indicate that the record should be read as uncompressed. The payload
+	 * can be read only as a byte array and will contain compressed data of the original record
+	 *
+	 * @deprecated introduced with #650 and could be removed later when no version prior to 2025.2 is used
+	 */
+	@Deprecated
+	@Nonnull
+	public static RawRecord readOldRaw(
+		@Nonnull ObservableInput<?> input
+	) {
+		final long startPosition = input.markStart();
+		final int recordLength = input.readInt();
+		final byte originalControl = input.readByte();
+
+		// if the data is compressed we need to override the control byte and read it uncompressed
+		byte control = setBit(originalControl, COMPRESSION_BIT, false);
+		input.markPayloadStart(recordLength, control);
+		final long generationId = input.readLong();
+		final byte[] payload = input.readBytes(recordLength - CRC_NOT_COVERED_PART);
+		input.markEnd(originalControl);
+
+		return new RawRecord(
+			new FileLocation(startPosition, recordLength),
 			originalControl,
 			generationId,
 			payload
@@ -336,6 +397,66 @@ public record StorageRecord<T>(
 			boolean closesGeneration = isBitSet(control, GENERATION_CLOSING_BIT);
 			final long generationId = input.readLong();
 			input.markPayloadStart(location.recordLength(), control);
+			final T payload = payloadReader.get();
+			input.markEnd(control);
+
+			return new StorageRecord<>(
+				generationId, closesGeneration, payload,
+				new FileLocation(location.startingPosition(), location.recordLength())
+			);
+		}
+	}
+
+	/**
+	 * Reads a storage record from the input stream.
+	 *
+	 * @param input         The input stream to read from.
+	 * @param location      The file location of the record.
+	 * @param control       The control byte of the record.
+	 * @param assertion     An optional assertion to be performed on the file location.
+	 * @param payloadReader A supplier for reading the payload of the record.
+	 * @param <T>           The type of the payload.
+	 * @return The storage record read from the input stream.
+	 * @deprecated introduced with #650 and could be removed later when no version prior to 2025.2 is used
+	 */
+	@Deprecated
+	@Nonnull
+	private static <T> StorageRecord<T> doReadOldStorageRecord(
+		@Nonnull ObservableInput<?> input,
+		@Nonnull FileLocation location,
+		byte control,
+		@Nullable Consumer<FileLocation> assertion,
+		@Nonnull Supplier<T> payloadReader
+	) {
+		if (isBitSet(control, CONTINUATION_BIT)) {
+			final ReadingContext context = new ReadingContext(
+				location.startingPosition(), location.recordLength(), control
+			);
+
+			// record is active load and verify contents
+			input.markPayloadStart(location.recordLength(), control);
+			final long generationId = input.readLong();
+
+			final T payload = input.doWithOnBufferOverflowHandler(
+				new BufferOverflowReadHandler<>(context, generationId),
+				payloadReader
+			);
+
+			input.markEnd(context.getControlByte());
+
+			final FileLocation fileLocation = new FileLocation(context.getStartPosition(), context.getRecordLength());
+
+			if (assertion != null) {
+				assertion.accept(fileLocation);
+			}
+
+			return new StorageRecord<>(
+				generationId, context.isClosesGeneration(), payload, fileLocation
+			);
+		} else {
+			boolean closesGeneration = isBitSet(control, GENERATION_CLOSING_BIT);
+			input.markPayloadStart(location.recordLength(), control);
+			final long generationId = input.readLong();
 			final T payload = payloadReader.get();
 			input.markEnd(control);
 
