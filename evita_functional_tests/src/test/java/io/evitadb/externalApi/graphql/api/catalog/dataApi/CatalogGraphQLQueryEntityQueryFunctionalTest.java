@@ -68,6 +68,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDes
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor.BucketDescriptor;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.FullResponseObjectBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferencePageDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceStripDescriptor;
@@ -6752,6 +6753,46 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				}
 			}
 		);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should pass query labels")
+	void shouldPassQueryLabels(GraphQLTester tester) {
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    queryProduct(
+	                        head: [
+	                            {
+	                                label: {
+	                                    name: "myLabel1"
+	                                    value: "myValue1"
+	                                }
+	                            },
+	                            {
+	                                label: {
+	                                    name: "myLabel2"
+	                                    value: 100
+	                                }
+	                            }
+	                        ]
+	                        filterBy: {
+	                            attributeCodeContains: "a"
+	                        }
+	                    ) {
+	                        recordPage {
+	                            totalRecordCount
+	                        }
+	                    }
+	                }
+					"""
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.RECORD_PAGE, RecordPageDescriptor.TOTAL_RECORD_COUNT), greaterThan(0));
 	}
 
 	/**

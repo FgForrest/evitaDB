@@ -415,7 +415,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 				.filter(path -> path.toString().endsWith(".md"))
 				.map(it -> {
 					final List<DynamicTest> tests = this.createTests(
-						Environment.LOCALHOST,
+						Environment.DEMO_SERVER,
 						it,
 						new ExampleFilter[]{
 							// ExampleFilter.CSHARP,

@@ -3212,6 +3212,45 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 		);
 	}
 
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should pass query labels")
+	void shouldPassQueryLabels(GraphQLTester tester) {
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    listProduct(
+	                        head: [
+	                            {
+	                                label: {
+	                                    name: "myLabel1"
+	                                    value: "myValue1"
+	                                }
+	                            },
+	                            {
+	                                label: {
+	                                    name: "myLabel2"
+	                                    value: 100
+	                                }
+	                            }
+	                        ]
+	                        filterBy: {
+	                            attributeCodeContains: "a"
+	                        }
+	                    ) {
+	                        primaryKey
+	                    }
+	                }
+					"""
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(PRODUCT_LIST_PATH, hasSize(greaterThan(0)));
+	}
+
+
 
 	@Nonnull
 	private List<SealedEntity> findEntities(@Nonnull List<SealedEntity> originalProductEntities,

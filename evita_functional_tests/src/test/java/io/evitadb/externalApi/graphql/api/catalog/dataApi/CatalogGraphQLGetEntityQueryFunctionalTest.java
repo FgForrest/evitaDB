@@ -2275,6 +2275,42 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.body(GET_PRODUCT_PATH, equalTo(expectedBody));
 	}
 
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should pass query labels")
+	void shouldPassQueryLabels(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final SealedEntity entity = findEntity(
+			originalProductEntities,
+			it -> it.getAttribute(ATTRIBUTE_CODE) != null
+		);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    getProduct(
+	                        labels: [
+	                            {
+							        name: "myLabel1"
+							        value: "myValue1"
+								},
+								{
+							        name: "myLabel2"
+							        value: 100
+								}
+	                        ]
+	                        primaryKey: %d
+                        ) {
+	                        primaryKey
+	                    }
+	                }
+					""",
+				entity.getPrimaryKey()
+			)
+			.executeAndExpectOkAndThen()
+			.body(GET_PRODUCT_PATH, notNullValue());
+	}
+
 	@Nonnull
 	private SealedEntity findEntity(@Nonnull List<SealedEntity> originalProductEntities,
 	                                @Nonnull Predicate<SealedEntity> filter) {

@@ -1946,6 +1946,39 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 		);
 	}
 
+	@DisplayName("Should pass query labels")
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@Test
+	void shouldPassQueryLabels(RestTester tester) {
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/list")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody("""
+				{
+					"head": [
+						{
+							"label": {
+								"name": "myLabel1",
+								"value": "myValue1"
+							}
+						},
+						{
+							"label": {
+								"name": "myLabel2",
+								"value": 100
+							}
+						}
+					],
+					"filterBy": {
+						"attributeCodeContains": "a"
+					}
+				}
+				""")
+			.executeAndThen()
+			.statusCode(200)
+			.body("", hasSize(greaterThan(0)));
+	}
+
 	@Nonnull
 	private static Query fabricateEvitaQLSegmentedQuery(int pageNumber, int pageSize, @Nonnull Segments segments) {
 		return query(
