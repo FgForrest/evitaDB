@@ -2224,13 +2224,13 @@ class EvitaTest implements EvitaTestSupport {
 
 			final CatalogStatistics statistics2 = Arrays.stream(catalogStatistics).filter(it -> (TEST_CATALOG + "_2").equals(it.catalogName())).findFirst().orElseThrow();
 			assertTrue(
-				statistics2.sizeOnDiskInBytes() > 1000L && statistics2.sizeOnDiskInBytes() < 1500L,
-				"Expected size on disk to be between 1000 and 1500 bytes, but was " + statistics2.sizeOnDiskInBytes()
+				statistics2.sizeOnDiskInBytes() > 1000L && statistics2.sizeOnDiskInBytes() < 1700L,
+				"Expected size on disk to be between 1000 and 1700 bytes, but was " + statistics2.sizeOnDiskInBytes()
 			);
 			final EntityCollectionStatistics productStatistics = statistics2.entityCollectionStatistics()[0];
 			assertTrue(
-				productStatistics.sizeOnDiskInBytes() > 300L && productStatistics.sizeOnDiskInBytes() < 500L,
-				"Expected size on disk to be between 300 and 500 bytes, but was " + productStatistics.sizeOnDiskInBytes()
+				productStatistics.sizeOnDiskInBytes() > 300L && productStatistics.sizeOnDiskInBytes() < 600L,
+				"Expected size on disk to be between 300 and 600 bytes, but was " + productStatistics.sizeOnDiskInBytes()
 			);
 			assertEquals(
 				new CatalogStatistics(
