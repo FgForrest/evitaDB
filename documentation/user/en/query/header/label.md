@@ -42,3 +42,20 @@ Each label is a key-value pair appended to the query header, as shown in the fol
 [Attaching labels to query](/documentation/user/en/query/header/examples/labels.evitaql)
 
 </SourceCodeTabs>
+
+<Note type="info">
+
+You can also provide labels using HTTP request headers in the form of `X-Meta-Label: <label-name>=<label-value>`.
+You may set multiple labels by providing multiple `X-Meta-Label` headers in the same request.
+
+There are also automatic labels that are added to the query by the system, such as:
+
+- `client-ip`: the IP address of the client that sent the query (real client IP address can be propagated using the
+  [X-Forwarded-For](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Forwarded-For) header)
+- `client-uri`: the URI of the client that sent the query, present only if [X-Forwarded-Uri](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Forwarded-Uri) header is present
+- `client-id`: the identification of the client - see [clientId](../../use/connectors/java.md#configuration)
+- `trace-id`: current trace ID if [tracing](../../operate/observe.md#tracing) is enabled
+
+<LS to="g">If you use GraphQL API there is also `operation-name` label derived from the query name (if any name is defined).</LS>
+
+</Note>

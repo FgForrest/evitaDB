@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.server;
+package io.evitadb.server.yaml;
 
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.deser.DeserializationProblemHandler;
@@ -59,7 +59,7 @@ import java.util.regex.Pattern;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-class SpecialConfigInputFormatsHandler extends DeserializationProblemHandler {
+public class SpecialConfigInputFormatsHandler extends DeserializationProblemHandler {
 	private final Pattern SIZE_FORMAT = Pattern.compile("(\\d+(\\.\\d+)?)(KB|MB|GB|TB)");
 	private final Pattern NUMBER_FORMAT = Pattern.compile("([\\d_]+(\\.\\d+)?)([KMGT])");
 	private final Pattern TIME_FORMAT = Pattern.compile("([\\d_]+(\\.\\d+)?)([smhdwy])");

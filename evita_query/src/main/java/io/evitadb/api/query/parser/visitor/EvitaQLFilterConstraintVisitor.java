@@ -30,10 +30,10 @@ import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.AttributeInRangeNowConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.EntityScopeConstraintContext;
+import io.evitadb.api.query.parser.grammar.EvitaQLParser.FacetIncludingChildrenConstraintContext;
+import io.evitadb.api.query.parser.grammar.EvitaQLParser.FacetIncludingChildrenExceptConstraintContext;
+import io.evitadb.api.query.parser.grammar.EvitaQLParser.FacetIncludingChildrenHavingConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.FilterInScopeConstraintContext;
-import io.evitadb.api.query.parser.grammar.EvitaQLParser.ReferenceIncludingChildrenConstraintContext;
-import io.evitadb.api.query.parser.grammar.EvitaQLParser.ReferenceIncludingChildrenExceptConstraintContext;
-import io.evitadb.api.query.parser.grammar.EvitaQLParser.ReferenceIncludingChildrenHavingConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
 import io.evitadb.dataType.Scope;
 
@@ -496,23 +496,23 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	}
 
 	@Override
-	public FilterConstraint visitReferenceIncludingChildrenConstraint(ReferenceIncludingChildrenConstraintContext ctx) {
-		return parse(ctx, ReferenceIncludingChildren::new);
+	public FilterConstraint visitFacetIncludingChildrenConstraint(FacetIncludingChildrenConstraintContext ctx) {
+		return parse(ctx, FacetIncludingChildren::new);
 	}
 
 	@Override
-	public FilterConstraint visitReferenceIncludingChildrenHavingConstraint(@Nonnull ReferenceIncludingChildrenHavingConstraintContext ctx) {
+	public FilterConstraint visitFacetIncludingChildrenHavingConstraint(@Nonnull FacetIncludingChildrenHavingConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new ReferenceIncludingChildren(visitChildConstraint(ctx.args.filter, FilterConstraint.class))
+			() -> new FacetIncludingChildren(visitChildConstraint(ctx.args.filter, FilterConstraint.class))
 		);
 	}
 
 	@Override
-	public FilterConstraint visitReferenceIncludingChildrenExceptConstraint(@Nonnull ReferenceIncludingChildrenExceptConstraintContext ctx) {
+	public FilterConstraint visitFacetIncludingChildrenExceptConstraint(@Nonnull FacetIncludingChildrenExceptConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new ReferenceIncludingChildrenExcept(visitChildConstraint(ctx.args.filter, FilterConstraint.class))
+			() -> new FacetIncludingChildrenExcept(visitChildConstraint(ctx.args.filter, FilterConstraint.class))
 		);
 	}
 

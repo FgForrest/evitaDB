@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -45,6 +45,7 @@ public interface ExternalApiTracingContext<C> {
 	 * Format of the client ID used by the server.
 	 */
 	String SERVER_CLIENT_ID_FORMAT = "%s|%s";
+
 	/**
 	 * Default client ID used when the client does not send any.
 	 */
@@ -54,6 +55,21 @@ public interface ExternalApiTracingContext<C> {
 	 * Name of the ContextKey used by tracing library.
 	 */
 	String CLIENT_ID_CONTEXT_KEY_NAME = "client_id";
+
+	/**
+	 * Header name for meta labels that allow to set traffic recording labels via HTTP headers.
+	 */
+	String X_META_LABEL = "X-Meta-Label";
+
+	/**
+	 * Header name for the client URI.
+	 */
+	String X_FORWARDED_URI = "X-Forwarded-Uri";
+
+	/**
+	 * Header name for the client IP.
+	 */
+	String X_FORWARDED_FOR = "X-Forwarded-For";
 
 	/**
 	 * Regex identifying characters that are not allowed inside client ID.

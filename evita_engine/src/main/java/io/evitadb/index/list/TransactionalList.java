@@ -144,6 +144,7 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 		}
 	}
 
+	@Nonnull
 	@Override
 	public Iterator<V> iterator() {
 		final ListChanges<V> layer = getTransactionalMemoryLayerIfExists(this);
@@ -154,11 +155,13 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 		}
 	}
 
+	@Nonnull
 	@Override
 	public Object[] toArray() {
 		return toArray(new Object[0]);
 	}
 
+	@Nonnull
 	@SuppressWarnings("unchecked")
 	@Override
 	public <T> T[] toArray(@Nonnull T[] array) {
@@ -332,6 +335,7 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 		return -1;
 	}
 
+	@Nonnull
 	@Override
 	public ListIterator<V> listIterator() {
 		final ListChanges<V> layer = getTransactionalMemoryLayerIfExists(this);
@@ -342,6 +346,7 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 		}
 	}
 
+	@Nonnull
 	@Override
 	public ListIterator<V> listIterator(int index) {
 		final ListChanges<V> layer = getTransactionalMemoryLayerIfExists(this);
@@ -352,6 +357,7 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 		}
 	}
 
+	@Nonnull
 	@Override
 	public List<V> subList(int fromIndex, int toIndex) {
 		final ListChanges<V> layer = getTransactionalMemoryLayerIfExists(this);

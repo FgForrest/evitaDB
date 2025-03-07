@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.api.requestResponse.data.structure.Entity;
+import io.evitadb.api.requestResponse.data.structure.Entity.ChunkTransformerAccessor;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.predicate.AssociatedDataValueSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.AttributeValueSerializablePredicate;
@@ -145,7 +146,8 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 		@Nonnull AssociatedDataValueSerializablePredicate newAssociatedDataPredicate,
 		@Nonnull ReferenceContractSerializablePredicate newReferenceContractPredicate,
 		@Nonnull PriceContractSerializablePredicate newPricePredicate,
-		@Nonnull DataStoreReader dataStoreReader
+		@Nonnull DataStoreReader dataStoreReader,
+		@Nonnull ChunkTransformerAccessor referenceChunkTransformer
 	) throws EntityAlreadyRemovedException;
 
 	/**

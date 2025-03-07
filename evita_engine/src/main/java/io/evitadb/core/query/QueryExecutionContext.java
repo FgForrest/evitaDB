@@ -195,7 +195,8 @@ public class QueryExecutionContext implements Closeable {
 				evitaRequest.getHierarchyContent(),
 				requirementTuples,
 				evitaRequest.getDefaultReferenceRequirement(),
-				this
+				this,
+				evitaRequest::getReferenceChunkTransformer
 			);
 
 		if (this.prefetchedEntities == null) {

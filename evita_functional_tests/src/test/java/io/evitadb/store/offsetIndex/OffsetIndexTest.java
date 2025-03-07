@@ -180,6 +180,26 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 		cleanTestSubDirectory(TEST_FOLDER_EXPORT);
 	}
 
+	@DisplayName("Offset index can be stored empty.")
+	@Test
+	void shouldSerializeAndReconstructEmptyOffsetIndex() {
+		shouldSerializeAndReconstructOffsetIndex(options, EntityBodyStoragePart::new, 0);
+	}
+
+	@DisplayName("Offset index can be stored empty and then new records added.")
+	@Test
+	void shouldSerializeEmptyOffsetIndexWithLaterAddingRecordsAndReconstructCorrectly() {
+		final InsertionOutput insertionOutput = shouldSerializeAndReconstructOffsetIndex(options, EntityBodyStoragePart::new, 0);
+		final OffsetIndex offsetIndex = insertionOutput.fileOffsetIndex;
+		final InsertionOutput insertionOutput2 = createRecordsInFileOffsetIndex(offsetIndex, 100, 0, 1);
+		/* input count records +1 record for the OffsetIndex itself */
+		assertEquals(
+			/* 100 records, 1 empty header, 1 header with single fragment */
+			100 + computeExpectedRecordCount(options, 100).fragments() + 1,
+			insertionOutput2.fileOffsetIndex().verifyContents().getRecordCount()
+		);
+	}
+
 	@DisplayName("Hundreds entities should be stored in OffsetIndex and retrieved intact.")
 	@Test
 	void shouldSerializeAndReconstructBigFileOffsetIndex() {
@@ -651,7 +671,16 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 	private InsertionOutput serializeAndReconstructBigFileOffsetIndex(
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull IntFunction<EntityBodyStoragePart> bodyPartFactory
-		) {
+	) {
+		return shouldSerializeAndReconstructOffsetIndex(storageOptions, bodyPartFactory, 600);
+	}
+
+	@Nonnull
+	private InsertionOutput shouldSerializeAndReconstructOffsetIndex(
+		@Nonnull StorageOptions storageOptions,
+		@Nonnull IntFunction<EntityBodyStoragePart> bodyPartFactory,
+		int recordCount
+	) {
 		final OffsetIndex fileOffsetIndex = new OffsetIndex(
 			0L,
 			new OffsetIndexDescriptor(
@@ -665,7 +694,6 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 			nonFlushedBlock -> {},
 			oldestRecordTimestamp -> {}
 		);
-		final int recordCount = 600;
 
 		final long transactionId = 0L;
 		for (int i = 1; i <= recordCount; i++) {
@@ -700,9 +728,9 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 		}
 
 		assertTrue(fileOffsetIndex.fileOffsetIndexEquals(loadedFileOffsetIndex));
-		/* 600 records +1 record for the OffsetIndex itself */
+		/* input count records +1 record for the OffsetIndex itself */
 		assertEquals(
-			recordCount + computeExpectedRecordCount(storageOptions, recordCount).fragments(),
+			recordCount + Math.max(1, computeExpectedRecordCount(storageOptions, recordCount).fragments()),
 			fileOffsetIndex.verifyContents().getRecordCount()
 		);
 		log.info("Average reads: " + StringUtils.formatRequestsPerSec(recordCount, duration));
@@ -731,6 +759,16 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 			oldestRecordTimestamp -> {}
 		);
 
+		return createRecordsInFileOffsetIndex(fileOffsetIndex, recordCount, removedRecords, iterationCount);
+	}
+
+	@Nonnull
+	private static InsertionOutput createRecordsInFileOffsetIndex(
+		@Nonnull OffsetIndex fileOffsetIndex,
+		int recordCount,
+		int removedRecords,
+		int iterationCount
+	) {
 		OffsetIndexDescriptor fileOffsetIndexDescriptor = null;
 
 		long transactionId = 0;

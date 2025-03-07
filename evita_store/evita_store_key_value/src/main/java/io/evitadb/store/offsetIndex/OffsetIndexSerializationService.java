@@ -254,7 +254,9 @@ public class OffsetIndexSerializationService {
 				if (volatileValue.removed() || volatileValue.addedInFuture()) {
 					continue;
 				} else {
-					fileLocation = volatileValue.versionedValue().fileLocation();
+					final VersionedValue versionedValue = volatileValue.versionedValue();
+					Assert.isPremiseValid(versionedValue != null, "Versioned value must be present!");
+					fileLocation = versionedValue.fileLocation();
 				}
 			} else {
 				fileLocation = entry.getValue();
@@ -309,7 +311,6 @@ public class OffsetIndexSerializationService {
 		@Nullable FileLocation lastFileOffsetIndexLocation,
 		@Nonnull StorageOptions storageOptions
 	) {
-		final int totalEntryCount = nonFlushedEntries.size();
 		final Iterator<VersionedValue> entries = nonFlushedEntries.iterator();
 
 		// start with full buffer
@@ -317,40 +318,56 @@ public class OffsetIndexSerializationService {
 		// this holds file location pointer to the last stored OffsetIndex fragment and is used to allow single direction pointing
 		final AtomicReference<FileLocation> lastStorageRecordLocation = new AtomicReference<>(lastFileOffsetIndexLocation);
 		final ExpectedCounts fileOffsetIndexRecordCount = computeExpectedRecordCount(storageOptions, nonFlushedEntries.size());
-		for (int i = 0; i < fileOffsetIndexRecordCount.fragments; i++) {
+		if (fileOffsetIndexRecordCount.fragments == 0 && lastFileOffsetIndexLocation == null) {
+			// no previous offset index fragment and no new entries - serialize empty record at least
 			lastStorageRecordLocation.set(
 				new StorageRecord<>(
 					output,
 					catalogVersion,
-					i + 1 == fileOffsetIndexRecordCount.fragments(),
+					true,
 					stream -> {
-						final FileLocation lsrl = lastStorageRecordLocation.get();
-						if (lsrl == null) {
-							// if no last record location is known - this is root mem table fragment
-							stream.writeLong(-1);
-							stream.writeInt(-1);
-						} else {
-							// if last record location is known - refer to it (chain the fragments)
-							stream.writeLong(lsrl.startingPosition());
-							stream.writeInt(lsrl.recordLength());
-						}
-						// iterate over entries (iterator is global and continues where last fragment finished)
-						// we need to stop at the point when we know we would not be able to store any more records
-						int cnt = 0;
-						while (entries.hasNext() && cnt++ < fileOffsetIndexRecordCount.recordsInFragment()) {
-							final VersionedValue nonFlushedValue = entries.next();
-							stream.writeLong(nonFlushedValue.primaryKey());
-							stream.writeByte(nonFlushedValue.recordType());
-							final FileLocation fileLocation = nonFlushedValue.fileLocation();
-							stream.writeLong(fileLocation.startingPosition());
-							stream.writeInt(fileLocation.recordLength());
-						}
+						// if no last record location is known - this is root mem table fragment
+						stream.writeLong(-1);
+						stream.writeInt(-1);
 						return null;
 					}
 				).fileLocation()
 			);
+		} else {
+			for (int i = 0; i < fileOffsetIndexRecordCount.fragments; i++) {
+				lastStorageRecordLocation.set(
+					new StorageRecord<>(
+						output,
+						catalogVersion,
+						i + 1 == fileOffsetIndexRecordCount.fragments(),
+						stream -> {
+							final FileLocation lsrl = lastStorageRecordLocation.get();
+							if (lsrl == null) {
+								// if no last record location is known - this is root mem table fragment
+								stream.writeLong(-1);
+								stream.writeInt(-1);
+							} else {
+								// if last record location is known - refer to it (chain the fragments)
+								stream.writeLong(lsrl.startingPosition());
+								stream.writeInt(lsrl.recordLength());
+							}
+							// iterate over entries (iterator is global and continues where last fragment finished)
+							// we need to stop at the point when we know we would not be able to store any more records
+							int cnt = 0;
+							while (entries.hasNext() && cnt++ < fileOffsetIndexRecordCount.recordsInFragment()) {
+								final VersionedValue nonFlushedValue = entries.next();
+								stream.writeLong(nonFlushedValue.primaryKey());
+								stream.writeByte(nonFlushedValue.recordType());
+								final FileLocation fileLocation = nonFlushedValue.fileLocation();
+								stream.writeLong(fileLocation.startingPosition());
+								stream.writeInt(fileLocation.recordLength());
+							}
+							return null;
+						}
+					).fileLocation()
+				);
+			}
 		}
-
 
 		Assert.isPremiseValid(
 			!entries.hasNext(),
@@ -361,8 +378,10 @@ public class OffsetIndexSerializationService {
 		output.flush();
 
 		// return location of the last stored memory fragment file
+		final FileLocation fileLocation = lastStorageRecordLocation.get();
+		Assert.isPremiseValid(fileLocation != null, "No file location was stored!");
 		return new FileLocationAndWrittenBytes(
-			lastStorageRecordLocation.get(),
+			fileLocation,
 			output.total()
 		);
 	}
@@ -396,30 +415,32 @@ public class OffsetIndexSerializationService {
 						);
 					}
 
-					do {
-						// read mem table records
-						final long primaryKey = stream.readLong();
-						final byte recordType = stream.readByte();
-						final long startingPosition = stream.readLong();
-						final int recordLength = stream.readInt();
-						if (recordType < 0) {
-							removedEntries.add(
-								new RecordKey((byte) (recordType * -1), primaryKey)
-							);
-						} else {
-							final RecordKey recordKey = new RecordKey(recordType, primaryKey);
-							final boolean wasRemoved = removedEntries.contains(recordKey);
-							final boolean wasUpdated = OffsetIndexBuilder.contains(recordKey);
-							if (!wasRemoved && !wasUpdated) {
-								OffsetIndexBuilder.register(
-									recordKey,
-									new FileLocation(startingPosition, recordLength)
+					if (input.total() < effectiveLength) {
+						do {
+							// read mem table records
+							final long primaryKey = stream.readLong();
+							final byte recordType = stream.readByte();
+							final long startingPosition = stream.readLong();
+							final int recordLength = stream.readInt();
+							if (recordType < 0) {
+								removedEntries.add(
+									new RecordKey((byte) (recordType * -1), primaryKey)
 								);
+							} else {
+								final RecordKey recordKey = new RecordKey(recordType, primaryKey);
+								final boolean wasRemoved = removedEntries.contains(recordKey);
+								final boolean wasUpdated = OffsetIndexBuilder.contains(recordKey);
+								if (!wasRemoved && !wasUpdated) {
+									OffsetIndexBuilder.register(
+										recordKey,
+										new FileLocation(startingPosition, recordLength)
+									);
+								}
 							}
-						}
 
-						// until we read as many bytes as effective fragment size
-					} while (input.total() < effectiveLength);
+							// until we read as many bytes as effective fragment size
+						} while (input.total() < effectiveLength);
+					}
 
 					return null;
 				});

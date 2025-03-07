@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -88,6 +88,21 @@ public interface GraphQLEntityDescriptor extends EntityDescriptor {
 			respect price inner record handling. Use `accompanyingPrice` fields within the `priceForSale` field instead.
 			""")
 		.type(nullableRef(PriceDescriptor.THIS))
+		.build();
+	PropertyDescriptor REFERENCE = PropertyDescriptor.builder()
+		.name("*")
+		.description("References")
+		// type is expected to be reference or list of references
+		.build();
+	PropertyDescriptor REFERENCE_PAGE = PropertyDescriptor.builder()
+		.name("*Page")
+		.description("Paginated list of references.")
+		// type is expected to be paginated list of references
+		.build();
+	PropertyDescriptor REFERENCE_STRIP = PropertyDescriptor.builder()
+		.name("*Strip")
+		.description("Strip list of references.")
+		// type is expected to be strip list of references
 		.build();
 
 	ObjectDescriptor THIS_NON_HIERARCHICAL = ObjectDescriptor.extend(THIS_CLASSIFIER)

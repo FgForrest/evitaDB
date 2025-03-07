@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,23 +21,29 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core;
+package io.evitadb.externalApi.graphql.api.catalog.dataApi.model;
 
-import javax.annotation.Nullable;
+import io.evitadb.externalApi.api.model.PropertyDescriptor;
+
+import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
- * This interface represents a listener called by {@link SessionRegistry} when last active session using particular
- * catalog version is closed.
- *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
+ * Descriptor of header arguments for fields returning chunked responses for strips
  */
-public interface CatalogVersionBeyondTheHorizonListener {
+public interface StripListFieldHeaderDescriptor extends DataChunkFieldHeaderDescriptor {
 
-	/**
-	 * Notifies listener that any active session no longer uses the catalog version.
-	 *
-	 * @param minimalActiveCatalogVersion minimal catalog version that is still being used, NULL when there is no
-	 *                                    active session
-	 */
-	void catalogVersionBeyondTheHorizon(@Nullable Long minimalActiveCatalogVersion);
+	PropertyDescriptor OFFSET = PropertyDescriptor.builder()
+		.name("offset")
+		.description("""
+			Defines offset of records in all satisfactory records. If missing, default is used.
+			""")
+		.type(nullable(Integer.class))
+		.build();
+	PropertyDescriptor LIMIT = PropertyDescriptor.builder()
+		.name("limit")
+		.description("""
+			Defines number of records to return. If missing, default is used.
+			""")
+		.type(nullable(Integer.class))
+		.build();
 }

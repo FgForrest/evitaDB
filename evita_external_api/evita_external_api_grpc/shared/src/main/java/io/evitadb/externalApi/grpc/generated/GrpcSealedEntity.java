@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -248,6 +248,19 @@ private static final long serialVersionUID = 0L;
             scope_ = rawValue;
             break;
           }
+          case 146: {
+            if (!((mutable_bitField0_ & 0x00000080) != 0)) {
+              referenceCounts_ = com.google.protobuf.MapField.newMapField(
+                  ReferenceCountsDefaultEntryHolder.defaultEntry);
+              mutable_bitField0_ |= 0x00000080;
+            }
+            com.google.protobuf.MapEntry<java.lang.String, java.lang.Integer>
+            referenceCounts__ = input.readMessage(
+                ReferenceCountsDefaultEntryHolder.defaultEntry.getParserForType(), extensionRegistry);
+            referenceCounts_.getMutableMap().put(
+                referenceCounts__.getKey(), referenceCounts__.getValue());
+            break;
+          }
           default: {
             if (!parseUnknownField(
                 input, unknownFields, extensionRegistry, tag)) {
@@ -294,6 +307,8 @@ private static final long serialVersionUID = 0L;
         return internalGetGlobalAssociatedData();
       case 15:
         return internalGetLocalizedAssociatedData();
+      case 18:
+        return internalGetReferenceCounts();
       default:
         throw new RuntimeException(
             "Invalid map field number: " + number);
@@ -325,7 +340,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       entityType_ = s;
@@ -347,7 +362,7 @@ private static final long serialVersionUID = 0L;
       getEntityTypeBytes() {
     java.lang.Object ref = entityType_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       entityType_ = b;
@@ -525,7 +540,7 @@ private static final long serialVersionUID = 0L;
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcEvitaValue> defaultEntry =
             com.google.protobuf.MapEntry
             .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcEvitaValue>newDefaultInstance(
-                io.evitadb.externalApi.grpc.generated.GrpcEntity.internal_static_io_evitadb_externalApi_grpc_generated_GrpcSealedEntity_GlobalAttributesEntry_descriptor, 
+                io.evitadb.externalApi.grpc.generated.GrpcEntity.internal_static_io_evitadb_externalApi_grpc_generated_GrpcSealedEntity_GlobalAttributesEntry_descriptor,
                 com.google.protobuf.WireFormat.FieldType.STRING,
                 "",
                 com.google.protobuf.WireFormat.FieldType.MESSAGE,
@@ -622,7 +637,7 @@ private static final long serialVersionUID = 0L;
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute> defaultEntry =
             com.google.protobuf.MapEntry
             .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute>newDefaultInstance(
-                io.evitadb.externalApi.grpc.generated.GrpcEntity.internal_static_io_evitadb_externalApi_grpc_generated_GrpcSealedEntity_LocalizedAttributesEntry_descriptor, 
+                io.evitadb.externalApi.grpc.generated.GrpcEntity.internal_static_io_evitadb_externalApi_grpc_generated_GrpcSealedEntity_LocalizedAttributesEntry_descriptor,
                 com.google.protobuf.WireFormat.FieldType.STRING,
                 "",
                 com.google.protobuf.WireFormat.FieldType.MESSAGE,
@@ -734,7 +749,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder> 
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder>
       getPricesOrBuilderList() {
     return prices_;
   }
@@ -867,7 +882,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcReferenceOrBuilder> 
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcReferenceOrBuilder>
       getReferencesOrBuilderList() {
     return references_;
   }
@@ -915,7 +930,7 @@ private static final long serialVersionUID = 0L;
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue> defaultEntry =
             com.google.protobuf.MapEntry
             .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue>newDefaultInstance(
-                io.evitadb.externalApi.grpc.generated.GrpcEntity.internal_static_io_evitadb_externalApi_grpc_generated_GrpcSealedEntity_GlobalAssociatedDataEntry_descriptor, 
+                io.evitadb.externalApi.grpc.generated.GrpcEntity.internal_static_io_evitadb_externalApi_grpc_generated_GrpcSealedEntity_GlobalAssociatedDataEntry_descriptor,
                 com.google.protobuf.WireFormat.FieldType.STRING,
                 "",
                 com.google.protobuf.WireFormat.FieldType.MESSAGE,
@@ -1012,7 +1027,7 @@ private static final long serialVersionUID = 0L;
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData> defaultEntry =
             com.google.protobuf.MapEntry
             .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData>newDefaultInstance(
-                io.evitadb.externalApi.grpc.generated.GrpcEntity.internal_static_io_evitadb_externalApi_grpc_generated_GrpcSealedEntity_LocalizedAssociatedDataEntry_descriptor, 
+                io.evitadb.externalApi.grpc.generated.GrpcEntity.internal_static_io_evitadb_externalApi_grpc_generated_GrpcSealedEntity_LocalizedAssociatedDataEntry_descriptor,
                 com.google.protobuf.WireFormat.FieldType.STRING,
                 "",
                 com.google.protobuf.WireFormat.FieldType.MESSAGE,
@@ -1126,7 +1141,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder> 
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder>
       getLocalesOrBuilderList() {
     return locales_;
   }
@@ -1193,6 +1208,107 @@ private static final long serialVersionUID = 0L;
     @SuppressWarnings("deprecation")
     io.evitadb.externalApi.grpc.generated.GrpcEntityScope result = io.evitadb.externalApi.grpc.generated.GrpcEntityScope.valueOf(scope_);
     return result == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityScope.UNRECOGNIZED : result;
+  }
+
+  public static final int REFERENCECOUNTS_FIELD_NUMBER = 18;
+  private static final class ReferenceCountsDefaultEntryHolder {
+    static final com.google.protobuf.MapEntry<
+        java.lang.String, java.lang.Integer> defaultEntry =
+            com.google.protobuf.MapEntry
+            .<java.lang.String, java.lang.Integer>newDefaultInstance(
+                io.evitadb.externalApi.grpc.generated.GrpcEntity.internal_static_io_evitadb_externalApi_grpc_generated_GrpcSealedEntity_ReferenceCountsEntry_descriptor,
+                com.google.protobuf.WireFormat.FieldType.STRING,
+                "",
+                com.google.protobuf.WireFormat.FieldType.INT32,
+                0);
+  }
+  private com.google.protobuf.MapField<
+      java.lang.String, java.lang.Integer> referenceCounts_;
+  private com.google.protobuf.MapField<java.lang.String, java.lang.Integer>
+  internalGetReferenceCounts() {
+    if (referenceCounts_ == null) {
+      return com.google.protobuf.MapField.emptyMapField(
+          ReferenceCountsDefaultEntryHolder.defaultEntry);
+    }
+    return referenceCounts_;
+  }
+
+  public int getReferenceCountsCount() {
+    return internalGetReferenceCounts().getMap().size();
+  }
+  /**
+   * <pre>
+   * Contains total count of references per reference name. This may differ from count of provided references
+   * if pagination or strip was used in the input query.
+   * </pre>
+   *
+   * <code>map&lt;string, int32&gt; referenceCounts = 18;</code>
+   */
+
+  @java.lang.Override
+  public boolean containsReferenceCounts(
+      java.lang.String key) {
+    if (key == null) { throw new NullPointerException("map key"); }
+    return internalGetReferenceCounts().getMap().containsKey(key);
+  }
+  /**
+   * Use {@link #getReferenceCountsMap()} instead.
+   */
+  @java.lang.Override
+  @java.lang.Deprecated
+  public java.util.Map<java.lang.String, java.lang.Integer> getReferenceCounts() {
+    return getReferenceCountsMap();
+  }
+  /**
+   * <pre>
+   * Contains total count of references per reference name. This may differ from count of provided references
+   * if pagination or strip was used in the input query.
+   * </pre>
+   *
+   * <code>map&lt;string, int32&gt; referenceCounts = 18;</code>
+   */
+  @java.lang.Override
+
+  public java.util.Map<java.lang.String, java.lang.Integer> getReferenceCountsMap() {
+    return internalGetReferenceCounts().getMap();
+  }
+  /**
+   * <pre>
+   * Contains total count of references per reference name. This may differ from count of provided references
+   * if pagination or strip was used in the input query.
+   * </pre>
+   *
+   * <code>map&lt;string, int32&gt; referenceCounts = 18;</code>
+   */
+  @java.lang.Override
+
+  public int getReferenceCountsOrDefault(
+      java.lang.String key,
+      int defaultValue) {
+    if (key == null) { throw new NullPointerException("map key"); }
+    java.util.Map<java.lang.String, java.lang.Integer> map =
+        internalGetReferenceCounts().getMap();
+    return map.containsKey(key) ? map.get(key) : defaultValue;
+  }
+  /**
+   * <pre>
+   * Contains total count of references per reference name. This may differ from count of provided references
+   * if pagination or strip was used in the input query.
+   * </pre>
+   *
+   * <code>map&lt;string, int32&gt; referenceCounts = 18;</code>
+   */
+  @java.lang.Override
+
+  public int getReferenceCountsOrThrow(
+      java.lang.String key) {
+    if (key == null) { throw new NullPointerException("map key"); }
+    java.util.Map<java.lang.String, java.lang.Integer> map =
+        internalGetReferenceCounts().getMap();
+    if (!map.containsKey(key)) {
+      throw new java.lang.IllegalArgumentException();
+    }
+    return map.get(key);
   }
 
   private byte memoizedIsInitialized = -1;
@@ -1272,6 +1388,12 @@ private static final long serialVersionUID = 0L;
     if (scope_ != io.evitadb.externalApi.grpc.generated.GrpcEntityScope.SCOPE_LIVE.getNumber()) {
       output.writeEnum(17, scope_);
     }
+    com.google.protobuf.GeneratedMessageV3
+      .serializeStringMapTo(
+        output,
+        internalGetReferenceCounts(),
+        ReferenceCountsDefaultEntryHolder.defaultEntry,
+        18);
     unknownFields.writeTo(output);
   }
 
@@ -1372,6 +1494,16 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeEnumSize(17, scope_);
     }
+    for (java.util.Map.Entry<java.lang.String, java.lang.Integer> entry
+         : internalGetReferenceCounts().getMap().entrySet()) {
+      com.google.protobuf.MapEntry<java.lang.String, java.lang.Integer>
+      referenceCounts__ = ReferenceCountsDefaultEntryHolder.defaultEntry.newBuilderForType()
+          .setKey(entry.getKey())
+          .setValue(entry.getValue())
+          .build();
+      size += com.google.protobuf.CodedOutputStream
+          .computeMessageSize(18, referenceCounts__);
+    }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
     return size;
@@ -1431,6 +1563,8 @@ private static final long serialVersionUID = 0L;
     if (!getLocalesList()
         .equals(other.getLocalesList())) return false;
     if (scope_ != other.scope_) return false;
+    if (!internalGetReferenceCounts().equals(
+        other.internalGetReferenceCounts())) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -1498,6 +1632,10 @@ private static final long serialVersionUID = 0L;
     }
     hash = (37 * hash) + SCOPE_FIELD_NUMBER;
     hash = (53 * hash) + scope_;
+    if (!internalGetReferenceCounts().getMap().isEmpty()) {
+      hash = (37 * hash) + REFERENCECOUNTS_FIELD_NUMBER;
+      hash = (53 * hash) + internalGetReferenceCounts().hashCode();
+    }
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -1623,6 +1761,8 @@ private static final long serialVersionUID = 0L;
           return internalGetGlobalAssociatedData();
         case 15:
           return internalGetLocalizedAssociatedData();
+        case 18:
+          return internalGetReferenceCounts();
         default:
           throw new RuntimeException(
               "Invalid map field number: " + number);
@@ -1640,6 +1780,8 @@ private static final long serialVersionUID = 0L;
           return internalGetMutableGlobalAssociatedData();
         case 15:
           return internalGetMutableLocalizedAssociatedData();
+        case 18:
+          return internalGetMutableReferenceCounts();
         default:
           throw new RuntimeException(
               "Invalid map field number: " + number);
@@ -1732,6 +1874,7 @@ private static final long serialVersionUID = 0L;
       }
       scope_ = 0;
 
+      internalGetMutableReferenceCounts().clear();
       return this;
     }
 
@@ -1820,6 +1963,8 @@ private static final long serialVersionUID = 0L;
         result.locales_ = localesBuilder_.build();
       }
       result.scope_ = scope_;
+      result.referenceCounts_ = internalGetReferenceCounts();
+      result.referenceCounts_.makeImmutable();
       onBuilt();
       return result;
     }
@@ -1912,7 +2057,7 @@ private static final long serialVersionUID = 0L;
             pricesBuilder_ = null;
             prices_ = other.prices_;
             bitField0_ = (bitField0_ & ~0x00000004);
-            pricesBuilder_ = 
+            pricesBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getPricesFieldBuilder() : null;
           } else {
@@ -1944,7 +2089,7 @@ private static final long serialVersionUID = 0L;
             referencesBuilder_ = null;
             references_ = other.references_;
             bitField0_ = (bitField0_ & ~0x00000008);
-            referencesBuilder_ = 
+            referencesBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getReferencesFieldBuilder() : null;
           } else {
@@ -1974,7 +2119,7 @@ private static final long serialVersionUID = 0L;
             localesBuilder_ = null;
             locales_ = other.locales_;
             bitField0_ = (bitField0_ & ~0x00000040);
-            localesBuilder_ = 
+            localesBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getLocalesFieldBuilder() : null;
           } else {
@@ -1985,6 +2130,8 @@ private static final long serialVersionUID = 0L;
       if (other.scope_ != 0) {
         setScopeValue(other.getScopeValue());
       }
+      internalGetMutableReferenceCounts().mergeFrom(
+          other.internalGetReferenceCounts());
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
       return this;
@@ -2052,7 +2199,7 @@ private static final long serialVersionUID = 0L;
         getEntityTypeBytes() {
       java.lang.Object ref = entityType_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         entityType_ = b;
@@ -2077,7 +2224,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-  
+
       entityType_ = value;
       onChanged();
       return this;
@@ -2093,7 +2240,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearEntityType() {
-      
+
       entityType_ = getDefaultInstance().getEntityType();
       onChanged();
       return this;
@@ -2115,7 +2262,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      
+
       entityType_ = value;
       onChanged();
       return this;
@@ -2146,7 +2293,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setPrimaryKey(int value) {
-      
+
       primaryKey_ = value;
       onChanged();
       return this;
@@ -2161,7 +2308,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearPrimaryKey() {
-      
+
       primaryKey_ = 0;
       onChanged();
       return this;
@@ -2192,7 +2339,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setVersion(int value) {
-      
+
       version_ = value;
       onChanged();
       return this;
@@ -2207,7 +2354,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearVersion() {
-      
+
       version_ = 0;
       onChanged();
       return this;
@@ -2238,7 +2385,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setSchemaVersion(int value) {
-      
+
       schemaVersion_ = value;
       onChanged();
       return this;
@@ -2253,7 +2400,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearSchemaVersion() {
-      
+
       schemaVersion_ = 0;
       onChanged();
       return this;
@@ -2374,7 +2521,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value parent = 5;</code>
      */
     public com.google.protobuf.Int32Value.Builder getParentBuilder() {
-      
+
       onChanged();
       return getParentFieldBuilder().getBuilder();
     }
@@ -2401,7 +2548,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value parent = 5;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> 
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>
         getParentFieldBuilder() {
       if (parentBuilder_ == null) {
         parentBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -2529,7 +2676,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parentReference = 6;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent.Builder getParentReferenceBuilder() {
-      
+
       onChanged();
       return getParentReferenceFieldBuilder().getBuilder();
     }
@@ -2556,7 +2703,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parentReference = 6;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParentOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParentOrBuilder>
         getParentReferenceFieldBuilder() {
       if (parentReferenceBuilder_ == null) {
         parentReferenceBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -2684,7 +2831,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder getParentEntityBuilder() {
-      
+
       onChanged();
       return getParentEntityFieldBuilder().getBuilder();
     }
@@ -2711,7 +2858,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder>
         getParentEntityFieldBuilder() {
       if (parentEntityBuilder_ == null) {
         parentEntityBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -3297,7 +3444,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder> 
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder>
          getPricesOrBuilderList() {
       if (pricesBuilder_ != null) {
         return pricesBuilder_.getMessageOrBuilderList();
@@ -3335,12 +3482,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder> 
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder>
          getPricesBuilderList() {
       return getPricesFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcPrice, io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder, io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcPrice, io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder, io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder>
         getPricesFieldBuilder() {
       if (pricesBuilder_ == null) {
         pricesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
@@ -3483,7 +3630,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSale = 11;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder getPriceForSaleBuilder() {
-      
+
       onChanged();
       return getPriceForSaleFieldBuilder().getBuilder();
     }
@@ -3514,7 +3661,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSale = 11;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcPrice, io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder, io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcPrice, io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder, io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder>
         getPriceForSaleFieldBuilder() {
       if (priceForSaleBuilder_ == null) {
         priceForSaleBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -3549,7 +3696,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setPriceInnerRecordHandlingValue(int value) {
-      
+
       priceInnerRecordHandling_ = value;
       onChanged();
       return this;
@@ -3581,7 +3728,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-      
+
       priceInnerRecordHandling_ = value.getNumber();
       onChanged();
       return this;
@@ -3595,7 +3742,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearPriceInnerRecordHandling() {
-      
+
       priceInnerRecordHandling_ = 0;
       onChanged();
       return this;
@@ -3871,7 +4018,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcReferenceOrBuilder> 
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcReferenceOrBuilder>
          getReferencesOrBuilderList() {
       if (referencesBuilder_ != null) {
         return referencesBuilder_.getMessageOrBuilderList();
@@ -3912,12 +4059,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcReference.Builder> 
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcReference.Builder>
          getReferencesBuilderList() {
       return getReferencesFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcReference, io.evitadb.externalApi.grpc.generated.GrpcReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcReferenceOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcReference, io.evitadb.externalApi.grpc.generated.GrpcReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcReferenceOrBuilder>
         getReferencesFieldBuilder() {
       if (referencesBuilder_ == null) {
         referencesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
@@ -4519,7 +4666,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder> 
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder>
          getLocalesOrBuilderList() {
       if (localesBuilder_ != null) {
         return localesBuilder_.getMessageOrBuilderList();
@@ -4560,12 +4707,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder> 
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder>
          getLocalesBuilderList() {
       return getLocalesFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcLocale, io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcLocale, io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder>
         getLocalesFieldBuilder() {
       if (localesBuilder_ == null) {
         localesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
@@ -4601,7 +4748,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setScopeValue(int value) {
-      
+
       scope_ = value;
       onChanged();
       return this;
@@ -4633,7 +4780,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-      
+
       scope_ = value.getNumber();
       onChanged();
       return this;
@@ -4647,9 +4794,172 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearScope() {
-      
+
       scope_ = 0;
       onChanged();
+      return this;
+    }
+
+    private com.google.protobuf.MapField<
+        java.lang.String, java.lang.Integer> referenceCounts_;
+    private com.google.protobuf.MapField<java.lang.String, java.lang.Integer>
+    internalGetReferenceCounts() {
+      if (referenceCounts_ == null) {
+        return com.google.protobuf.MapField.emptyMapField(
+            ReferenceCountsDefaultEntryHolder.defaultEntry);
+      }
+      return referenceCounts_;
+    }
+    private com.google.protobuf.MapField<java.lang.String, java.lang.Integer>
+    internalGetMutableReferenceCounts() {
+      onChanged();;
+      if (referenceCounts_ == null) {
+        referenceCounts_ = com.google.protobuf.MapField.newMapField(
+            ReferenceCountsDefaultEntryHolder.defaultEntry);
+      }
+      if (!referenceCounts_.isMutable()) {
+        referenceCounts_ = referenceCounts_.copy();
+      }
+      return referenceCounts_;
+    }
+
+    public int getReferenceCountsCount() {
+      return internalGetReferenceCounts().getMap().size();
+    }
+    /**
+     * <pre>
+     * Contains total count of references per reference name. This may differ from count of provided references
+     * if pagination or strip was used in the input query.
+     * </pre>
+     *
+     * <code>map&lt;string, int32&gt; referenceCounts = 18;</code>
+     */
+
+    @java.lang.Override
+    public boolean containsReferenceCounts(
+        java.lang.String key) {
+      if (key == null) { throw new NullPointerException("map key"); }
+      return internalGetReferenceCounts().getMap().containsKey(key);
+    }
+    /**
+     * Use {@link #getReferenceCountsMap()} instead.
+     */
+    @java.lang.Override
+    @java.lang.Deprecated
+    public java.util.Map<java.lang.String, java.lang.Integer> getReferenceCounts() {
+      return getReferenceCountsMap();
+    }
+    /**
+     * <pre>
+     * Contains total count of references per reference name. This may differ from count of provided references
+     * if pagination or strip was used in the input query.
+     * </pre>
+     *
+     * <code>map&lt;string, int32&gt; referenceCounts = 18;</code>
+     */
+    @java.lang.Override
+
+    public java.util.Map<java.lang.String, java.lang.Integer> getReferenceCountsMap() {
+      return internalGetReferenceCounts().getMap();
+    }
+    /**
+     * <pre>
+     * Contains total count of references per reference name. This may differ from count of provided references
+     * if pagination or strip was used in the input query.
+     * </pre>
+     *
+     * <code>map&lt;string, int32&gt; referenceCounts = 18;</code>
+     */
+    @java.lang.Override
+
+    public int getReferenceCountsOrDefault(
+        java.lang.String key,
+        int defaultValue) {
+      if (key == null) { throw new NullPointerException("map key"); }
+      java.util.Map<java.lang.String, java.lang.Integer> map =
+          internalGetReferenceCounts().getMap();
+      return map.containsKey(key) ? map.get(key) : defaultValue;
+    }
+    /**
+     * <pre>
+     * Contains total count of references per reference name. This may differ from count of provided references
+     * if pagination or strip was used in the input query.
+     * </pre>
+     *
+     * <code>map&lt;string, int32&gt; referenceCounts = 18;</code>
+     */
+    @java.lang.Override
+
+    public int getReferenceCountsOrThrow(
+        java.lang.String key) {
+      if (key == null) { throw new NullPointerException("map key"); }
+      java.util.Map<java.lang.String, java.lang.Integer> map =
+          internalGetReferenceCounts().getMap();
+      if (!map.containsKey(key)) {
+        throw new java.lang.IllegalArgumentException();
+      }
+      return map.get(key);
+    }
+
+    public Builder clearReferenceCounts() {
+      internalGetMutableReferenceCounts().getMutableMap()
+          .clear();
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains total count of references per reference name. This may differ from count of provided references
+     * if pagination or strip was used in the input query.
+     * </pre>
+     *
+     * <code>map&lt;string, int32&gt; referenceCounts = 18;</code>
+     */
+
+    public Builder removeReferenceCounts(
+        java.lang.String key) {
+      if (key == null) { throw new NullPointerException("map key"); }
+      internalGetMutableReferenceCounts().getMutableMap()
+          .remove(key);
+      return this;
+    }
+    /**
+     * Use alternate mutation accessors instead.
+     */
+    @java.lang.Deprecated
+    public java.util.Map<java.lang.String, java.lang.Integer>
+    getMutableReferenceCounts() {
+      return internalGetMutableReferenceCounts().getMutableMap();
+    }
+    /**
+     * <pre>
+     * Contains total count of references per reference name. This may differ from count of provided references
+     * if pagination or strip was used in the input query.
+     * </pre>
+     *
+     * <code>map&lt;string, int32&gt; referenceCounts = 18;</code>
+     */
+    public Builder putReferenceCounts(
+        java.lang.String key,
+        int value) {
+      if (key == null) { throw new NullPointerException("map key"); }
+
+      internalGetMutableReferenceCounts().getMutableMap()
+          .put(key, value);
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains total count of references per reference name. This may differ from count of provided references
+     * if pagination or strip was used in the input query.
+     * </pre>
+     *
+     * <code>map&lt;string, int32&gt; referenceCounts = 18;</code>
+     */
+
+    public Builder putAllReferenceCounts(
+        java.util.Map<java.lang.String, java.lang.Integer> values) {
+      internalGetMutableReferenceCounts().getMutableMap()
+          .putAll(values);
       return this;
     }
     @java.lang.Override

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -218,10 +218,9 @@ public interface StoragePartPersistenceService extends Closeable {
 	 * The caller also ensures there is no other reader reading the later (lower) catalog versions and thus that
 	 * the entire history for this and previous versions can be purged from memory.
 	 *
-	 * @param minimalActiveCatalogVersion minimal catalog version that is still being used, NULL when there is no
-	 *                                    active session
+	 * @param lastKnownMinimalActiveVersion minimal catalog version that is still being used
 	 */
-	void purgeHistoryEqualAndLaterThan(@Nullable Long minimalActiveCatalogVersion);
+	void purgeHistoryOlderThan(long lastKnownMinimalActiveVersion);
 
 	/**
 	 * Checks whether the persistence storage is already present and filled with data.

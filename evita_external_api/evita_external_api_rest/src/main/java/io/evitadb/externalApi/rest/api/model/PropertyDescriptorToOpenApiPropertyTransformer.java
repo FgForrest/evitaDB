@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -48,13 +48,15 @@ public class PropertyDescriptorToOpenApiPropertyTransformer implements PropertyD
 	@Override
 	public OpenApiProperty.Builder apply(@Nonnull PropertyDescriptor propertyDescriptor) {
 		final OpenApiProperty.Builder propertyBuilder = OpenApiProperty.newProperty()
-			.name(propertyDescriptor.name())
 			.description(propertyDescriptor.description());
 		Assert.isPremiseValid(
 			propertyDescriptor.defaultValue() == null,
 			() -> new OpenApiBuildingError("Default values are not supported in REST API right now.")
 		);
 
+		if (propertyDescriptor.isNameStatic()) {
+			propertyBuilder.name(propertyDescriptor.name());
+		}
 		if (propertyDescriptor.deprecate() != null) {
 			propertyBuilder.deprecationNotice(propertyDescriptor.deprecate());
 		}

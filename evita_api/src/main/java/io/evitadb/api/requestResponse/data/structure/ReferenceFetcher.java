@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,6 +29,8 @@ import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.dataType.DataChunk;
+import io.evitadb.dataType.PlainChunk;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -93,6 +95,11 @@ public interface ReferenceFetcher {
 			return null;
 		}
 
+		@Nonnull
+		@Override
+		public DataChunk<ReferenceContract> createChunk(@Nonnull Entity entity, @Nonnull String referenceName, @Nonnull List<ReferenceContract> references) {
+			return new PlainChunk<>(references);
+		}
 	};
 
 	/**
@@ -187,5 +194,21 @@ public interface ReferenceFetcher {
 	 */
 	@Nonnull
 	EvitaRequest getEnvelopingEntityRequest();
+
+	/**
+	 * Creates a chunk of data containing reference contracts. This method processes the provided entity,
+	 * the name of the reference, and a list of reference contracts to produce a structured data chunk.
+	 *
+	 * @param entity the entity containing reference information
+	 * @param referenceName the name of the reference being processed
+	 * @param references the list of references to be included in the data chunk
+	 * @return a data chunk containing the specified reference contracts
+	 */
+	@Nonnull
+	DataChunk<ReferenceContract> createChunk(
+		@Nonnull Entity entity,
+		@Nonnull String referenceName,
+		@Nonnull List<ReferenceContract> references
+	);
 
 }

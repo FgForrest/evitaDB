@@ -877,8 +877,8 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 								return formula;
 							}
 						},
-						ReferenceIncludingChildren.class,
-						ReferenceIncludingChildrenExcept.class
+						FacetIncludingChildren.class,
+						FacetIncludingChildrenExcept.class
 					);
 				})
 				.filter(it -> it != EmptyFormula.INSTANCE)

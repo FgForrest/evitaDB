@@ -25,8 +25,10 @@ package io.evitadb.api.query.filter;
 
 
 import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.FacetConstraint;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
+import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.require.FacetSummary;
@@ -84,7 +86,7 @@ import java.io.Serializable;
 	userDocsLink = "/documentation/query/filtering/references#including-children-except",
 	supportedIn = ConstraintDomain.FACET
 )
-public class FacetIncludingChildrenExcept extends AbstractFilterConstraintContainer implements FacetSpecificationFilterConstraint {
+public class FacetIncludingChildrenExcept extends AbstractFilterConstraintContainer implements FacetConstraint<FilterConstraint>, HierarchyReferenceSpecificationFilterConstraint {
 	@Serial private static final long serialVersionUID = 3828147822588237136L;
 	private static final String CONSTRAINT_NAME = "includingChildrenExcept";
 
@@ -95,7 +97,7 @@ public class FacetIncludingChildrenExcept extends AbstractFilterConstraintContai
 	}
 
 	@Creator
-	public FacetIncludingChildrenExcept(@Nonnull FilterConstraint child) {
+	public FacetIncludingChildrenExcept(@Nonnull @Child(domain = ConstraintDomain.ENTITY) FilterConstraint child) {
 		super(CONSTRAINT_NAME, child);
 	}
 

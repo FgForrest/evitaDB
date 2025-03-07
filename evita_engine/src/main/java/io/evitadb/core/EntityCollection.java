@@ -454,7 +454,8 @@ public final class EntityCollection implements
 				referenceEntityFetch,
 				evitaRequest.getDefaultReferenceRequirement(),
 				queryContext.createExecutionContext(),
-				entity
+				entity,
+				evitaRequest::getReferenceChunkTransformer
 			);
 
 		// record query information
@@ -1194,7 +1195,8 @@ public final class EntityCollection implements
 					partiallyLoadedEntity.getAssociatedDataPredicate(),
 					new ReferenceContractSerializablePredicate(true),
 					partiallyLoadedEntity.getPricePredicate(),
-					this.dataStoreReader
+					this.dataStoreReader,
+					partiallyLoadedEntity.getDelegate().getReferenceChunkTransformer()
 				);
 				//noinspection unchecked
 				return (T) ServerEntityDecorator.decorate(
@@ -1858,7 +1860,8 @@ public final class EntityCollection implements
 			newAssociatedDataPredicate,
 			newReferenceContractPredicate,
 			newPriceContractPredicate,
-			this.dataStoreReader
+			this.dataStoreReader,
+			evitaRequest::getReferenceChunkTransformer
 		);
 		return ServerEntityDecorator.decorate(
 			// load all missing data according to current evita request
@@ -1981,7 +1984,8 @@ public final class EntityCollection implements
 				evitaRequest.getHierarchyContent(),
 				referenceEntityFetch,
 				evitaRequest.getDefaultReferenceRequirement(),
-				queryContext.createExecutionContext()
+				queryContext.createExecutionContext(),
+				evitaRequest::getReferenceChunkTransformer
 			);
 	}
 

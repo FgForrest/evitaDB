@@ -322,33 +322,33 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitFacetHavingConstraint(EvitaQLParser.FacetHavingConstraintContext ctx);
 	/**
+	 * Visit a parse tree produced by the {@code facetIncludingChildrenConstraint}
+	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitFacetIncludingChildrenConstraint(EvitaQLParser.FacetIncludingChildrenConstraintContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code facetIncludingChildrenHavingConstraint}
+	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitFacetIncludingChildrenHavingConstraint(EvitaQLParser.FacetIncludingChildrenHavingConstraintContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code facetIncludingChildrenExceptConstraint}
+	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitFacetIncludingChildrenExceptConstraint(EvitaQLParser.FacetIncludingChildrenExceptConstraintContext ctx);
+	/**
 	 * Visit a parse tree produced by the {@code referenceHavingConstraint}
 	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
 	T visitReferenceHavingConstraint(EvitaQLParser.ReferenceHavingConstraintContext ctx);
-	/**
-	 * Visit a parse tree produced by the {@code referenceIncludingChildrenConstraint}
-	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitReferenceIncludingChildrenConstraint(EvitaQLParser.ReferenceIncludingChildrenConstraintContext ctx);
-	/**
-	 * Visit a parse tree produced by the {@code referenceIncludingChildrenHavingConstraint}
-	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitReferenceIncludingChildrenHavingConstraint(EvitaQLParser.ReferenceIncludingChildrenHavingConstraintContext ctx);
-	/**
-	 * Visit a parse tree produced by the {@code referenceIncludingChildrenExceptConstraint}
-	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitReferenceIncludingChildrenExceptConstraint(EvitaQLParser.ReferenceIncludingChildrenExceptConstraintContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code hierarchyWithinConstraint}
 	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
@@ -727,6 +727,13 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitSingleRefReferenceContentWithAttributes1Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes1ConstraintContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code singleRefReferenceContentWithAttributes0Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitSingleRefReferenceContentWithAttributes0Constraint(EvitaQLParser.SingleRefReferenceContentWithAttributes0ConstraintContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code singleRefReferenceContentWithAttributes2Constraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
@@ -1376,6 +1383,12 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitSingleRefReferenceContent8Args(EvitaQLParser.SingleRefReferenceContent8ArgsContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link EvitaQLParser#singleRefReferenceContentWithAttributes0Args}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitSingleRefReferenceContentWithAttributes0Args(EvitaQLParser.SingleRefReferenceContentWithAttributes0ArgsContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link EvitaQLParser#singleRefReferenceContentWithAttributes1Args}.
 	 * @param ctx the parse tree

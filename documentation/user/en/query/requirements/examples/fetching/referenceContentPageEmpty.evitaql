@@ -1,0 +1,16 @@
+query(
+    collection("Product"),
+    filterBy(
+        entityPrimaryKeyInSet(103885),
+        entityLocaleEquals("en")
+    ),
+    require(
+        entityFetch(
+            attributeContent("name"),
+            referenceContent(
+                "parameterValues",
+                page(1, 0)
+            )
+        )
+    )
+)

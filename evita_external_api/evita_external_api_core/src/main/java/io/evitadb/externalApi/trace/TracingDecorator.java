@@ -29,7 +29,7 @@ import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import com.linecorp.armeria.server.SimpleDecoratingHttpService;
-import io.evitadb.api.observability.trace.TracingContext;
+import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 
 import javax.annotation.Nonnull;
 import java.util.function.Function;
@@ -61,10 +61,13 @@ public class TracingDecorator extends SimpleDecoratingHttpService {
 	@Override
 	public HttpResponse serve(@Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) throws Exception {
 		final String clientIpAddress = ctx.clientAddress().getHostAddress();
-		return TracingContext.executeWithClientIpAddress(
-			clientIpAddress,
-			() -> unwrap().serve(ctx, req)
+		final HttpRequest requestWithUpdatedHeaders = req.withHeaders(
+			req.headers()
+				.toBuilder()
+				.set(ExternalApiTracingContext.X_FORWARDED_FOR, clientIpAddress)
+				.build()
 		);
+		return unwrap().serve(ctx, requestWithUpdatedHeaders);
 	}
 
 }

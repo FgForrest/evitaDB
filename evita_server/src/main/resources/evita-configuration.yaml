@@ -142,6 +142,7 @@ api:
       tlsMode: ${api.endpoints.observability.tlsMode:FORCE_NO_TLS}
       keepAlive: ${api.endpoints.observability.keepAlive:null}
       tracing:
+        serviceName: ${api.endpoints.observability.tracing.serviceName:evitaDB}
         endpoint: ${api.endpoints.observability.tracing.endpoint:null}
         protocol: ${api.endpoints.observability.tracing.protocol:grpc}
       allowedEvents: !include ${api.endpoints.observability.allowedEvents:null}
