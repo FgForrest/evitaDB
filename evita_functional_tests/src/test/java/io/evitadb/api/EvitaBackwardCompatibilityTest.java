@@ -227,4 +227,71 @@ public class EvitaBackwardCompatibilityTest implements EvitaTestSupport {
 		assertNotNull(catalogId);
 	}
 
+	@Test
+	@Disabled
+	void verifyCatalogLoad() throws IOException {
+		final Path directory_2025_1 = mainDirectory.resolve("2025.1");
+		if (!directory_2025_1.toFile().exists()) {
+			log.info("Copying evita catalog");
+
+			io.evitadb.utils.FileUtils.deleteFileIfExists(directory_2025_1);
+
+			// copy directory
+			FileUtils.copyDirectory(
+				Path.of("/www/oss/evitaDB/new-data/new-compressed/evita").toFile(),
+				directory_2025_1.resolve("evita").toFile()
+			);
+		}
+
+		log.info("Starting Evita with backward compatibility to 2025.1");
+		final Evita evita = new Evita(
+			EvitaConfiguration.builder()
+				.server(
+					ServerOptions.builder()
+						.closeSessionsAfterSecondsOfInactivity(-1)
+						.build()
+				)
+				.storage(
+					StorageOptions.builder()
+						.storageDirectory(directory_2025_1)
+						.outputBufferSize(DEFAULT_OUTPUT_BUFFER_SIZE * 2)
+						.computeCRC32(true)
+						.compress(true)
+						.build()
+				)
+				.build()
+		);
+
+		final SystemStatus status = evita.management().getSystemStatus();
+		assertEquals(0, status.catalogsCorrupted());
+		assertEquals(1, status.catalogsOk());
+
+		// check the catalog has its own id
+		final UUID catalogId = evita.queryCatalog(
+			"evita",
+			session -> {
+				for (String entityType : session.getAllEntityTypes()) {
+					log.info("Entity type: {}", entityType);
+					if (session.getEntityCollectionSize(entityType)  > 0) {
+						final List<SealedEntity> sealedEntities = session.queryListOfSealedEntities(
+							Query.query(
+								collection(entityType),
+								require(
+									page(1, 20),
+									entityFetchAll()
+								)
+							)
+						);
+						for (SealedEntity sealedEntity : sealedEntities) {
+							assertNotNull(sealedEntity);
+						}
+					}
+				}
+
+				return session.getCatalogId();
+			}
+		);
+		assertNotNull(catalogId);
+	}
+
 }

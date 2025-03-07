@@ -502,7 +502,7 @@ public class ObservableInput<T extends InputStream> extends Input {
 		this.position = 0;
 
 		while (true) {
-			count = fill(this.buffer, remaining, attemptedToRead);
+			count = fill(this.buffer, remaining, this.capacity - remaining);
 			if (count == -1) break;
 			remaining += count;
 			if (remaining >= optional) break; // Enough has been read.
@@ -514,7 +514,7 @@ public class ObservableInput<T extends InputStream> extends Input {
 		if (!this.compressed) {
 			this.limit = constraintLimitWithRecordLength();
 		}
-		return this.limit == 0 ? -1 : Math.min(this.limit, optional);
+		return this.limit == 0 ? -1 : Math.min(remaining, optional);
 		/* END OF EXTENSION */
 	}
 
