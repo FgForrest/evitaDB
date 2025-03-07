@@ -2589,6 +2589,11 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				// upgrade from version 1 to version 2
 				ConsoleWriter.writeLine("Catalog `" + catalogHeader.catalogName() + "` uses deprecated entity collection data file names of storage protocol version 1.", ConsoleColor.BRIGHT_BLUE, ConsoleDecoration.BOLD);
 				upgradeFromStorageProtocolVersion_1_to_2(catalogVersion, catalogHeader, storagePartPersistenceService);
+			} else if (catalogHeader.storageProtocolVersion() == 2) {
+				// upgrade storage protocol version 2 to 3
+				ConsoleWriter.writeLine("Catalog `" + catalogHeader.catalogName() + "` contains storage protocol version 2 in its header, updating.", ConsoleColor.BRIGHT_BLUE);
+				updateStorageProtocolInCatalogHeader(catalogVersion, catalogHeader, storagePartPersistenceService);
+				ConsoleWriter.writeLine("Catalog `" + catalogHeader.catalogName() + "` catalog header updated.", ConsoleColor.BRIGHT_BLUE);
 			}
 			// try to initialize the persistence service again - it should now have the correct storage protocol version
 			final CatalogOffsetIndexStoragePartPersistenceService reinitializedService = storagePartPersistenceFactory.get();
@@ -2610,7 +2615,9 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 * @param catalogVersion                the version of the catalog
 	 * @param catalogHeader                 the catalog header
 	 * @param storagePartPersistenceService the storage part persistence service
+	 * @deprecated introduced with ##41 and could be removed later when no version prior to 2024.11 is used
 	 */
+	@Deprecated
 	private void upgradeFromStorageProtocolVersion_1_to_2(
 		long catalogVersion,
 		@Nonnull CatalogHeader catalogHeader,
@@ -2633,28 +2640,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			}
 
 			// entity collection files contains also their primary key in the name
-			storagePartPersistenceService.writeCatalogHeader(
-				STORAGE_PROTOCOL_VERSION,
-				catalogHeader.version(),
-				catalogStoragePath,
-				catalogHeader.walFileReference(),
-				catalogHeader.collectionFileIndex(),
-				catalogHeader.catalogId(),
-				catalogHeader.catalogName(),
-				catalogHeader.catalogState(),
-				catalogHeader.lastEntityCollectionPrimaryKey()
-			);
-			final OffsetIndexDescriptor flushedDescriptor = storagePartPersistenceService.flush(catalogVersion);
-			this.bootstrapUsed = writeCatalogBootstrap(
-				catalogHeader.version(),
-				catalogHeader.catalogName(),
-				new CatalogBootstrap(
-					this.bootstrapUsed.catalogVersion(),
-					this.bootstrapUsed.catalogFileIndex(),
-					OffsetDateTime.now(),
-					flushedDescriptor.fileLocation()
-				)
-			);
+			updateStorageProtocolInCatalogHeader(catalogVersion, catalogHeader, storagePartPersistenceService);
 
 			ConsoleWriter.writeLine("Catalog `" + catalogHeader.catalogName() + "` successfully upgraded from storage protocol version 1 to version " + STORAGE_PROTOCOL_VERSION + ".", ConsoleColor.BRIGHT_BLUE, ConsoleDecoration.BOLD);
 		} catch (IOException e) {
@@ -2664,6 +2650,45 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				"Failed to upgrade storage protocol."
 			);
 		}
+	}
+
+	/**
+	 * Updates the storage protocol version in the catalog header and persists the updated information
+	 * using the supplied catalog offset index storage service. It also updates the catalog bootstrap
+	 * data after flushing the updated catalog header.
+	 *
+	 * @param catalogVersion The current version of the catalog being processed.
+	 * @param catalogHeader The catalog header containing metadata about the catalog.
+	 * @param storagePartPersistenceService The service used to manage persistence of the catalog
+	 *                                      header and related storage parts.
+	 */
+	private void updateStorageProtocolInCatalogHeader(
+		long catalogVersion,
+		@Nonnull CatalogHeader catalogHeader,
+		@Nonnull CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService
+	) {
+		storagePartPersistenceService.writeCatalogHeader(
+			STORAGE_PROTOCOL_VERSION,
+			catalogHeader.version(),
+			catalogStoragePath,
+			catalogHeader.walFileReference(),
+			catalogHeader.collectionFileIndex(),
+			catalogHeader.catalogId(),
+			catalogHeader.catalogName(),
+			catalogHeader.catalogState(),
+			catalogHeader.lastEntityCollectionPrimaryKey()
+		);
+		final OffsetIndexDescriptor flushedDescriptor = storagePartPersistenceService.flush(catalogVersion);
+		this.bootstrapUsed = writeCatalogBootstrap(
+			catalogHeader.version(),
+			catalogHeader.catalogName(),
+			new CatalogBootstrap(
+				this.bootstrapUsed.catalogVersion(),
+				this.bootstrapUsed.catalogFileIndex(),
+				OffsetDateTime.now(),
+				flushedDescriptor.fileLocation()
+			)
+		);
 	}
 
 	/**
