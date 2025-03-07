@@ -1926,10 +1926,6 @@ public interface QueryConstraints {
 	 * the current date or the attribute is not set at all.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/references#including-children-having">Visit detailed user documentation</a></p>
-	 *
-	 * TODO JNO - rename back to FacetIncludingChildren
-	 *
-	 * <p><a href="https://evitadb.io/documentation/query/filtering/references#including-children-having">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static FacetIncludingChildren includingChildren() {
@@ -1998,10 +1994,6 @@ public interface QueryConstraints {
 	 *
 	 * This query will select only children of the category "accessories" that have attribute `validity` range that includes
 	 * the current date or the attribute is not set at all.
-	 *
-	 * <p><a href="https://evitadb.io/documentation/query/filtering/references#including-children-having">Visit detailed user documentation</a></p>
-	 *
-	 * TODO JNO - rename back to FacetIncludingChildren
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/references#including-children-having">Visit detailed user documentation</a></p>
 	*/

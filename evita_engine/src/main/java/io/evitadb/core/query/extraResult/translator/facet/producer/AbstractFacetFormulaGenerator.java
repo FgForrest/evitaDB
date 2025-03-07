@@ -68,6 +68,7 @@ import java.util.Arrays;
 import java.util.Deque;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static io.evitadb.api.query.require.FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP;
@@ -726,7 +727,13 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	}
 
 	/**
-	 * TODO JNO - document me
+	 * A functional interface that resolves the type of relation for a facet group.
+	 * The method evaluates the relation based on the provided reference schema, facet group ID,
+	 * and the level of relation within the facet group.
+	 *
+	 * The implementation of this interface is expected to determine whether
+	 * a condition is met based on the provided parameters - principle is same as {@link Predicate},
+	 * but accepts 3 arguments.
 	 */
 	@FunctionalInterface
 	public interface FacetGroupRelationTypeResolver {

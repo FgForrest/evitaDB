@@ -135,7 +135,6 @@ public class PriceDiscount extends AbstractOrderConstraintLeaf implements Constr
 
 	@Override
 	public boolean isArgumentImplicit(@Nonnull Serializable serializable) {
-		// todo jno verify
 		return serializable == OrderDirection.DESC;
 	}
 

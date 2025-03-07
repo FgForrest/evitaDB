@@ -302,7 +302,6 @@ public class FacetSummaryOfReference
 
 	@Override
 	public boolean isArgumentImplicit(@Nonnull Serializable serializable) {
-		// todo jno verify
 		return serializable == FacetStatisticsDepth.COUNTS;
 	}
 

@@ -769,7 +769,6 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 
 	@Override
 	public boolean isArgumentImplicit(@Nonnull Serializable serializable) {
-		// todo jno verify
 		return serializable == ManagedReferencesBehaviour.ANY;
 	}
 

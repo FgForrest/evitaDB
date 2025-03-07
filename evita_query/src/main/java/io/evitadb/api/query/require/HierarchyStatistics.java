@@ -183,7 +183,6 @@ public class HierarchyStatistics extends AbstractRequireConstraintLeaf implement
 
 	@Override
 	public boolean isArgumentImplicit(@Nonnull Serializable serializable) {
-		// todo jno verify
 		return serializable == StatisticsBase.WITHOUT_USER_FILTER;
 	}
 

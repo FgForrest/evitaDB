@@ -242,7 +242,6 @@ public class HierarchyOfReference extends AbstractRequireConstraintContainer
 
 	@Override
 	public boolean isArgumentImplicit(@Nonnull Serializable serializable) {
-		// todo jno verify
 		return serializable == EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY;
 	}
 

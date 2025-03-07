@@ -151,7 +151,6 @@ public class AttributeHistogram extends AbstractRequireConstraintLeaf implements
 
 	@Override
 	public boolean isArgumentImplicit(@Nonnull Serializable serializable) {
-		// todo jno verify
 		return serializable == HistogramBehavior.STANDARD;
 	}
 

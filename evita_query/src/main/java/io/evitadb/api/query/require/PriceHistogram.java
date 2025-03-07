@@ -116,7 +116,6 @@ public class PriceHistogram extends AbstractRequireConstraintLeaf implements Con
 
 	@Override
 	public boolean isArgumentImplicit(@Nonnull Serializable serializable) {
-		// todo jno verify
 		return serializable == HistogramBehavior.STANDARD;
 	}
 

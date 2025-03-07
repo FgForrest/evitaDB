@@ -170,7 +170,6 @@ public class FacetGroupsNegation extends AbstractRequireConstraintContainer impl
 
 	@Override
 	public boolean isArgumentImplicit(@Nonnull Serializable serializable) {
-		// todo jno verify
 		if (getFacetGroupRelationLevel() == FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP) {
 			return !(serializable instanceof String);
 		}
