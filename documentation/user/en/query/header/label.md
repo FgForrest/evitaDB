@@ -45,8 +45,8 @@ Each label is a key-value pair appended to the query header, as shown in the fol
 
 <Note type="info">
 
-You can also provide labels using HTTP request headers in the form of `X-Meta-Label: <label-name>=<label-value>`.
-You may set multiple labels by providing multiple `X-Meta-Label` headers in the same request.
+You can also provide labels using HTTP request headers in the form of `X-EvitaDB-Label: <label-name>=<label-value>`.
+You may set multiple labels by providing multiple `X-EvitaDB-Label` headers in the same request.
 
 There are also automatic labels that are added to the query by the system, such as:
 

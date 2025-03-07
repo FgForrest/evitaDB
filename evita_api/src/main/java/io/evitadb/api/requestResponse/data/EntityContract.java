@@ -134,6 +134,16 @@ public interface EntityContract extends EntityClassifierWithParent,
 		throws ContextMissingException;
 
 	/**
+	 * Returns set of unique names of references of this entity.
+	 *
+	 * @return set of all names of the fetched references of the entity
+	 * @throws ContextMissingException when {@link ReferenceContent} is not part of the query requirements
+	 */
+	@Nonnull
+	Set<String> getReferenceNames()
+		throws ContextMissingException;
+
+	/**
 	 * Returns collection of {@link Reference} to certain type of other entities. References represent relations to
 	 * other evitaDB entities or external entities in different systems.
 	 *

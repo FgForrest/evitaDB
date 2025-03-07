@@ -41,6 +41,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePo
 import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesProviderDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
+import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.AccompanyingPriceFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.AssociatedDataFieldHeaderDescriptor;
@@ -382,7 +383,10 @@ public class EntityFetchRequireResolver {
 
 			final FieldsForReferenceHolder fieldsForReferenceHolder = new FieldsForReferenceHolder(
 				referenceSchema,
-				fieldsForReference
+				fieldsForReference,
+				baseReferenceFieldName,
+				referencePageFieldName,
+				referenceStripFieldName
 			);
 
 			final RequirementForReferenceHolder requirementForReferenceHolder = new RequirementForReferenceHolder(
@@ -390,9 +394,9 @@ public class EntityFetchRequireResolver {
 				resolveReferenceContentFilter(currentEntitySchema, fieldsForReferenceHolder).orElse(null),
 				resolveReferenceContentOrder(currentEntitySchema, fieldsForReferenceHolder).orElse(null),
 				resolveReferenceAttributeContent(fieldsForReferenceHolder).orElse(null),
-				resolveReferenceEntityRequirement(desiredLocale, fieldsForReferenceHolder, baseReferenceFieldName, referencePageFieldName, referenceStripFieldName).orElse(null),
-				resolveReferenceGroupRequirement(desiredLocale, fieldsForReferenceHolder, baseReferenceFieldName, referencePageFieldName, referenceStripFieldName).orElse(null),
-				resolveReferenceChunkingRequirement(fieldsForReferenceHolder, baseReferenceFieldName, referencePageFieldName, referenceStripFieldName).orElse(null)
+				resolveReferenceEntityRequirement(desiredLocale, fieldsForReferenceHolder).orElse(null),
+				resolveReferenceGroupRequirement(desiredLocale, fieldsForReferenceHolder).orElse(null),
+				resolveReferenceChunkingRequirement(fieldsForReferenceHolder).orElse(null)
 			);
 
 			if (requirementForReferenceHolder.attributeContent() != null) {
@@ -492,27 +496,8 @@ public class EntityFetchRequireResolver {
 
 	@Nonnull
 	private Optional<EntityFetch> resolveReferenceEntityRequirement(@Nullable Locale desiredLocale,
-	                                                                @Nonnull FieldsForReferenceHolder fieldsForReference,
-	                                                                // todo lho refactor
-	                                                                @Nonnull String baseReferenceFieldName,
-	                                                                @Nonnull String referencePageFieldName,
-	                                                                @Nonnull String referenceStripFieldName) {
-		final SelectionSetAggregator referencedEntitySelectionSet = SelectionSetAggregator.from(
-			Stream.concat(
-				fieldsForReference.fields()
-					.stream()
-					.filter(it -> it.getName().equals(baseReferenceFieldName))
-					.flatMap(it -> SelectionSetAggregator.getImmediateFields(ReferenceDescriptor.REFERENCED_ENTITY.name(), it.getSelectionSet()).stream())
-					.map(SelectedField::getSelectionSet),
-				fieldsForReference.fields()
-					.stream()
-					.filter(it -> it.getName().equals(referencePageFieldName) || it.getName().equals(referenceStripFieldName))
-					.flatMap(it -> SelectionSetAggregator.getImmediateFields(DataChunkDescriptor.DATA.name(), it.getSelectionSet()).stream())
-					.flatMap(it -> SelectionSetAggregator.getImmediateFields(ReferenceDescriptor.REFERENCED_ENTITY.name(), it.getSelectionSet()).stream())
-					.map(SelectedField::getSelectionSet)
-			)
-				.toList()
-		);
+	                                                                @Nonnull FieldsForReferenceHolder fieldsForReference) {
+		final SelectionSetAggregator referencedEntitySelectionSet = resolveReferencedEntitySelectionSet(fieldsForReference, ReferenceDescriptor.REFERENCED_ENTITY);
 
 		final EntitySchemaContract referencedEntitySchema = fieldsForReference.referenceSchema().isReferencedEntityTypeManaged()
 			? entitySchemaFetcher.apply(fieldsForReference.referenceSchema().getReferencedEntityType())
@@ -528,27 +513,8 @@ public class EntityFetchRequireResolver {
 
 	@Nonnull
 	private Optional<EntityGroupFetch> resolveReferenceGroupRequirement(@Nullable Locale desiredLocale,
-	                                                                    @Nonnull FieldsForReferenceHolder fieldsForReference,
-																		// todo lho refactor
-	                                                                    @Nonnull String baseReferenceFieldName,
-	                                                                    @Nonnull String referencePageFieldName,
-	                                                                    @Nonnull String referenceStripFieldName) {
-		final SelectionSetAggregator referencedGroupSelectionSet = SelectionSetAggregator.from(
-			Stream.concat(
-				fieldsForReference.fields()
-					.stream()
-					.filter(it -> it.getName().equals(baseReferenceFieldName))
-					.flatMap(it -> SelectionSetAggregator.getImmediateFields(ReferenceDescriptor.GROUP_ENTITY.name(), it.getSelectionSet()).stream())
-					.map(SelectedField::getSelectionSet),
-				fieldsForReference.fields()
-					.stream()
-					.filter(it -> it.getName().equals(referencePageFieldName) || it.getName().equals(referenceStripFieldName))
-					.flatMap(it -> SelectionSetAggregator.getImmediateFields(DataChunkDescriptor.DATA.name(), it.getSelectionSet()).stream())
-					.flatMap(it -> SelectionSetAggregator.getImmediateFields(ReferenceDescriptor.GROUP_ENTITY.name(), it.getSelectionSet()).stream())
-					.map(SelectedField::getSelectionSet)
-			)
-				.toList()
-		);
+	                                                                    @Nonnull FieldsForReferenceHolder fieldsForReference) {
+		final SelectionSetAggregator referencedGroupSelectionSet = resolveReferencedEntitySelectionSet(fieldsForReference, ReferenceDescriptor.GROUP_ENTITY);
 
 		final EntitySchemaContract referencedEntitySchema = fieldsForReference.referenceSchema().isReferencedGroupTypeManaged() ?
 			entitySchemaFetcher.apply(fieldsForReference.referenceSchema().getReferencedGroupType()) :
@@ -558,18 +524,36 @@ public class EntityFetchRequireResolver {
 	}
 
 	@Nonnull
-	private Optional<ChunkingRequireConstraint> resolveReferenceChunkingRequirement(@Nonnull FieldsForReferenceHolder fieldsForReferenceHolder,
-																					@Nonnull String baseReferenceFieldName,
-	                                                                                @Nonnull String referencePageFieldName,
-																					@Nonnull String referenceStripFieldName) {
+	private static SelectionSetAggregator resolveReferencedEntitySelectionSet(@Nonnull FieldsForReferenceHolder fieldsForReference,
+	                                                                          @Nonnull PropertyDescriptor referencedEntityField) {
+		return SelectionSetAggregator.from(
+			Stream.concat(
+					fieldsForReference.fields()
+						.stream()
+						.filter(it -> it.getName().equals(fieldsForReference.baseReferenceFieldName()))
+						.flatMap(it -> SelectionSetAggregator.getImmediateFields(referencedEntityField.name(), it.getSelectionSet()).stream())
+						.map(SelectedField::getSelectionSet),
+					fieldsForReference.fields()
+						.stream()
+						.filter(it -> it.getName().equals(fieldsForReference.referencePageFieldName()) || it.getName().equals(fieldsForReference.referenceStripFieldName()))
+						.flatMap(it -> SelectionSetAggregator.getImmediateFields(DataChunkDescriptor.DATA.name(), it.getSelectionSet()).stream())
+						.flatMap(it -> SelectionSetAggregator.getImmediateFields(referencedEntityField.name(), it.getSelectionSet()).stream())
+						.map(SelectedField::getSelectionSet)
+				)
+				.toList()
+		);
+	}
+
+	@Nonnull
+	private Optional<ChunkingRequireConstraint> resolveReferenceChunkingRequirement(@Nonnull FieldsForReferenceHolder fieldsForReferenceHolder) {
 		final List<SelectedField> fields = fieldsForReferenceHolder.fields();
 		final boolean hasChunkingArgument = fields.stream().anyMatch(field ->
 				(
-					field.getName().equals(baseReferenceFieldName) &&
+					field.getName().equals(fieldsForReferenceHolder.baseReferenceFieldName()) &&
 					field.getArguments().containsKey(ReferencesFieldHeaderDescriptor.LIMIT.name())
 				) ||
-				field.getName().equals(referencePageFieldName) ||
-				field.getName().equals(referenceStripFieldName)
+				field.getName().equals(fieldsForReferenceHolder.referencePageFieldName()) ||
+				field.getName().equals(fieldsForReferenceHolder.referenceStripFieldName())
 		);
 		if (!hasChunkingArgument) {
 			return Optional.empty();
@@ -583,12 +567,12 @@ public class EntityFetchRequireResolver {
 		);
 
 		final SelectedField dataChunkField = fields.get(0);
-		if (dataChunkField.getName().equals(baseReferenceFieldName)) {
+		if (dataChunkField.getName().equals(fieldsForReferenceHolder.baseReferenceFieldName())) {
 			return Optional.of(strip(
 				null,
 				(Integer) dataChunkField.getArguments().get(ReferencesFieldHeaderDescriptor.LIMIT.name())
 			));
-		} else if (dataChunkField.getName().equals(referencePageFieldName)) {
+		} else if (dataChunkField.getName().equals(fieldsForReferenceHolder.referencePageFieldName())) {
 			if (isOnlyTotalCountIsDesiredForReferenceDataChunk(dataChunkField)) {
 				// performance optimization, we don't need actual references
 				return Optional.of(page(1, 0));
@@ -597,7 +581,7 @@ public class EntityFetchRequireResolver {
 				(Integer) dataChunkField.getArguments().get(ReferencePageFieldHeaderDescriptor.NUMBER.name()),
 				(Integer) dataChunkField.getArguments().get(ReferencePageFieldHeaderDescriptor.SIZE.name())
 			));
-		} else if (dataChunkField.getName().equals(referenceStripFieldName)) {
+		} else if (dataChunkField.getName().equals(fieldsForReferenceHolder.referenceStripFieldName())) {
 			if (isOnlyTotalCountIsDesiredForReferenceDataChunk(dataChunkField)) {
 				// performance optimization, we don't need actual references
 				return Optional.of(strip(0, 0));
@@ -655,7 +639,10 @@ public class EntityFetchRequireResolver {
 	}
 
 	private record FieldsForReferenceHolder(@Nonnull ReferenceSchemaContract referenceSchema,
-	                                        @Nonnull List<SelectedField> fields) {
+	                                        @Nonnull List<SelectedField> fields,
+	                                        @Nonnull String baseReferenceFieldName,
+	                                        @Nonnull String referencePageFieldName,
+	                                        @Nonnull String referenceStripFieldName) {
 	}
 
 	private record RequirementForReferenceHolder(@Nonnull ReferenceSchemaContract referenceSchema,

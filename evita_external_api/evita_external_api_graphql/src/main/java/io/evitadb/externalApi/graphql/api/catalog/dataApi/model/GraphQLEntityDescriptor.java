@@ -89,21 +89,6 @@ public interface GraphQLEntityDescriptor extends EntityDescriptor {
 			""")
 		.type(nullableRef(PriceDescriptor.THIS))
 		.build();
-	PropertyDescriptor REFERENCE = PropertyDescriptor.builder()
-		.name("*")
-		.description("References")
-		// type is expected to be reference or list of references
-		.build();
-	PropertyDescriptor REFERENCE_PAGE = PropertyDescriptor.builder()
-		.name("*Page")
-		.description("Paginated list of references.")
-		// type is expected to be paginated list of references
-		.build();
-	PropertyDescriptor REFERENCE_STRIP = PropertyDescriptor.builder()
-		.name("*Strip")
-		.description("Strip list of references.")
-		// type is expected to be strip list of references
-		.build();
 
 	ObjectDescriptor THIS_NON_HIERARCHICAL = ObjectDescriptor.extend(THIS_CLASSIFIER)
 		.name("NonHierarchical*")

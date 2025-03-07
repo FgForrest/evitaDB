@@ -21,19 +21,31 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.catalog.dataApi.model;
+package io.evitadb.api.requestResponse.chunk;
 
-import io.evitadb.externalApi.api.catalog.dataApi.model.PaginatedListDescriptor;
-import io.evitadb.externalApi.api.model.ObjectDescriptor;
+
+import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.dataType.DataChunk;
+
+import javax.annotation.Nonnull;
+import java.util.List;
 
 /**
- * Represents {@link io.evitadb.dataType.PaginatedList} for references within entities.
+ * Implementations of this interface are responsible for slicing the complete list of references into smaller chunk
+ * that was requested in the query.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-public interface ReferencePageDescriptor extends PaginatedListDescriptor {
+public interface ChunkTransformer {
 
-	ObjectDescriptor THIS = ObjectDescriptor.extend(PaginatedListDescriptor.THIS)
-		.name("*ReferencePage")
-		.build();
+	/**
+	 * Slices the complete list of references according to the requirements of the transformer.
+	 * This method expects the complete list of references to be passed in and returns the sliced list.
+	 *
+	 * @param referenceContracts the complete list of references
+	 * @return the sliced list of references
+	 */
+	@Nonnull
+	DataChunk<ReferenceContract> createChunk(@Nonnull List<ReferenceContract> referenceContracts);
+
 }

@@ -34,12 +34,11 @@ import io.evitadb.api.query.head.Label;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.*;
 import io.evitadb.api.query.visitor.ConstraintCloneVisitor;
-import io.evitadb.api.requestResponse.data.ReferenceContract;
-import io.evitadb.dataType.DataChunk;
-import io.evitadb.dataType.PaginatedList;
-import io.evitadb.dataType.PlainChunk;
+import io.evitadb.api.requestResponse.chunk.ChunkTransformer;
+import io.evitadb.api.requestResponse.chunk.NoTransformer;
+import io.evitadb.api.requestResponse.chunk.PageTransformer;
+import io.evitadb.api.requestResponse.chunk.StripTransformer;
 import io.evitadb.dataType.Scope;
-import io.evitadb.dataType.StripList;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.ArrayUtils;
@@ -148,7 +147,14 @@ public class EvitaRequest {
 			referenceContent.getChunking()
 				.map(chunking -> {
 					if (chunking instanceof Page page) {
-						return new PageTransformer(page);
+						return new PageTransformer(
+							page,
+							page.getSpacing()
+								.stream()
+								.flatMap(it -> Arrays.stream(it.getGaps()))
+								.map(it -> new ConditionalGap(it.getSize(), it.getOnPage()))
+								.toArray(ConditionalGap[]::new)
+						);
 					} else if (chunking instanceof Strip strip) {
 						return new StripTransformer(strip);
 					} else {
@@ -1063,7 +1069,7 @@ public class EvitaRequest {
 	 */
 	@Nonnull
 	public Set<Scope> getScopes() {
-		if (this.scopes == null) {
+		if (this.scopes == null || this.scopesAsArray == null) {
 			this.scopesAsArray = ofNullable(QueryUtils.findFilter(this.query, EntityScope.class))
 				.map(it -> it.getScope().toArray(Scope[]::new))
 				.orElse(Scope.DEFAULT_SCOPES);
@@ -1084,7 +1090,7 @@ public class EvitaRequest {
 	public Scope[] getScopesAsArray() {
 		// init scopes
 		getScopes();
-		return this.scopesAsArray;
+		return Objects.requireNonNull(this.scopesAsArray);
 	}
 
 	/**
@@ -1175,122 +1181,6 @@ public class EvitaRequest {
 				entityFetch != null || entityGroupFetch != null || filterBy != null || orderBy != null;
 		}
 
-	}
-
-	public interface ChunkTransformer {
-
-		/**
-		 * Slices the complete list of references according to the requirements of the transformer.
-		 * This method expects the complete list of references to be passed in and returns the sliced list.
-		 *
-		 * @param referenceContracts the complete list of references
-		 * @return the sliced list of references
-		 */
-		@Nonnull
-		DataChunk<ReferenceContract> createChunk(@Nonnull List<ReferenceContract> referenceContracts);
-
-		/**
-		 * Wraps the incomplete list of references into a data chunk.
-		 * This method expect that the list contains already resolved chunk with total count of references.
-		 *
-		 * @param referenceContracts the incomplete list of references
-		 * @param totalReferenceCount the total count of references
-		 * @return the wrapped data chunk
-		 */
-		@Nonnull
-		DataChunk<ReferenceContract> createChunk(@Nonnull List<ReferenceContract> referenceContracts, int totalReferenceCount);
-
-	}
-
-	/**
-	 * Contains transformation function that wraps list of references into {@link PaginatedList} implementation as
-	 * requested by {@link Page} requirement constraint in particular {@link ReferenceContent}.
-	 */
-	@RequiredArgsConstructor
-	public static class PageTransformer implements ChunkTransformer {
-		@Getter private final Page page;
-
-		@Nonnull
-		@Override
-		public DataChunk<ReferenceContract> createChunk(@Nonnull List<ReferenceContract> referenceContracts) {
-			final int pageNumber = page.getPageNumber();
-			final int pageSize = page.getPageSize();
-			final int realPageNumber = PaginatedList.isRequestedResultBehindLimit(pageNumber, pageSize, referenceContracts.size()) ?
-				1 : pageNumber;
-			final int offset = PaginatedList.getFirstItemNumberForPage(realPageNumber, pageSize);
-			return new PaginatedList<>(
-				realPageNumber, pageSize, referenceContracts.size(),
-				referenceContracts.isEmpty() ?
-					referenceContracts :
-					referenceContracts.subList(
-						offset,
-						Math.min(offset + pageSize, referenceContracts.size())
-					)
-			);
-		}
-
-		@Nonnull
-		@Override
-		public DataChunk<ReferenceContract> createChunk(@Nonnull List<ReferenceContract> referenceContracts, int totalReferenceCount) {
-			final int pageNumber = page.getPageNumber();
-			final int pageSize = page.getPageSize();
-			final int realPageNumber = PaginatedList.isRequestedResultBehindLimit(pageNumber, pageSize, totalReferenceCount) ?
-				1 : pageNumber;
-			return new PaginatedList<>(realPageNumber, pageSize, totalReferenceCount, referenceContracts);
-		}
-	}
-
-	/**
-	 * Contains transformation function that wraps list of references into {@link StripList} implementation as
-	 * requested by {@link Strip} requirement constraint in particular {@link ReferenceContent}.
-	 */
-	@RequiredArgsConstructor
-	public static class StripTransformer implements ChunkTransformer {
-		@Getter private final Strip strip;
-
-		@Nonnull
-		@Override
-		public DataChunk<ReferenceContract> createChunk(@Nonnull List<ReferenceContract> referenceContracts) {
-			return new StripList<>(
-				strip.getOffset(), strip.getLimit(), referenceContracts.size(),
-				referenceContracts.isEmpty() ?
-					referenceContracts :
-					referenceContracts.subList(
-						Math.min(strip.getOffset(), referenceContracts.size() - 1),
-						Math.min(strip.getOffset() + strip.getLimit(), referenceContracts.size())
-					)
-			);
-		}
-
-		@Nonnull
-		@Override
-		public DataChunk<ReferenceContract> createChunk(@Nonnull List<ReferenceContract> referenceContracts, int totalReferenceCount) {
-			return new StripList<>(strip.getOffset(), strip.getLimit(), totalReferenceCount, referenceContracts);
-		}
-	}
-
-	/**
-	 * Contains transformation function that wraps list of references into plain chunked facade without real chunking.
-	 */
-	@RequiredArgsConstructor
-	public static class NoTransformer implements ChunkTransformer {
-		public static final NoTransformer INSTANCE = new NoTransformer();
-
-		@Nonnull
-		@Override
-		public DataChunk<ReferenceContract> createChunk(@Nonnull List<ReferenceContract> referenceContracts) {
-			return new PlainChunk<>(referenceContracts);
-		}
-
-		@Nonnull
-		@Override
-		public DataChunk<ReferenceContract> createChunk(@Nonnull List<ReferenceContract> referenceContracts, int totalReferenceCount) {
-			Assert.isPremiseValid(
-				referenceContracts.size() == totalReferenceCount,
-				"Total count must match the chunk size in case of no transformer implementation!"
-			);
-			return new PlainChunk<>(referenceContracts);
-		}
 	}
 
 	/**

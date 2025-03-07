@@ -15,9 +15,39 @@
           "code" : "apple-ipad-10-2-10th-generation-2022-6"
         }
       },
-      "brand" : {
-        "referencedPrimaryKey" : 66465
+      "productSetItems" : [ ],
+      "relatedProducts" : [ ],
+      "groups" : [ ],
+      "variants" : [ ],
+      "variantParameters" : [ ],
+      "stockVisibilities" : [
+        {
+          "referencedPrimaryKey" : 119334
+        }
+      ],
+      "stocks" : [
+        {
+          "referencedPrimaryKey" : 119334,
+          "attributes" : {
+            "global" : {
+              "quantityOnStock" : "4.00000"
+            }
+          }
+        }
+      ],
+      "tags" : [
+        {
+          "referencedPrimaryKey" : 10,
+          "groupEntity" : {
+            "primaryKey" : 9,
+            "type" : "tagCategory"
+          }
+        }
+      ],
+      "master" : {
+        "referencedPrimaryKey" : 103911
       },
+      "bundles" : [ ],
       "categories" : [
         {
           "referencedPrimaryKey" : 66472,
@@ -29,8 +59,8 @@
           }
         }
       ],
-      "master" : {
-        "referencedPrimaryKey" : 103911
+      "brand" : {
+        "referencedPrimaryKey" : 66465
       },
       "parameterValues" : [
         {
@@ -393,45 +423,21 @@
             }
           }
         }
-      ],
-      "stockVisibilities" : [
-        {
-          "referencedPrimaryKey" : 119334
-        }
-      ],
-      "stocks" : [
-        {
-          "referencedPrimaryKey" : 119334,
-          "attributes" : {
-            "global" : {
-              "quantityOnStock" : "4.00000"
-            }
-          }
-        }
-      ],
-      "tags" : [
-        {
-          "referencedPrimaryKey" : 10,
-          "groupEntity" : {
-            "primaryKey" : 9,
-            "type" : "tagCategory"
-          }
-        }
       ]
     }
   ],
-  "empty" : false,
-  "first" : true,
-  "firstPageItemNumber" : 0,
-  "hasNext" : false,
-  "hasPrevious" : false,
-  "last" : true,
-  "lastPageItemNumber" : 1,
-  "lastPageNumber" : 1,
-  "pageNumber" : 1,
-  "pageSize" : 20,
-  "singlePage" : true,
+  "type" : "PAGE",
   "totalRecordCount" : 1,
-  "type" : "PAGE"
+  "first" : true,
+  "last" : true,
+  "hasPrevious" : false,
+  "hasNext" : false,
+  "singlePage" : true,
+  "empty" : false,
+  "pageSize" : 20,
+  "pageNumber" : 1,
+  "lastPageNumber" : 1,
+  "firstPageItemNumber" : 0,
+  "lastPageItemNumber" : 1
 }
 ```

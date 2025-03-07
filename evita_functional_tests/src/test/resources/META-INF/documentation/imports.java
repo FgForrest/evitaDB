@@ -152,6 +152,7 @@ import static io.evitadb.api.query.require.StatisticsType.*;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.Query.*;
 import static io.evitadb.api.query.order.OrderDirection.*;
+import static io.evitadb.api.query.require.ManagedReferencesBehaviour.*;
 import static io.evitadb.api.query.require.PriceContentMode.*;
 import static io.evitadb.api.query.require.FacetStatisticsDepth.*;
 import static io.evitadb.api.query.require.QueryPriceMode.*;
