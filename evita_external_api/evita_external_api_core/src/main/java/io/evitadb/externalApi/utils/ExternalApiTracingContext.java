@@ -57,21 +57,6 @@ public interface ExternalApiTracingContext<C> {
 	String CLIENT_ID_CONTEXT_KEY_NAME = "client_id";
 
 	/**
-	 * Header name for meta labels that allow to set traffic recording labels via HTTP headers.
-	 */
-	String X_META_LABEL = "X-Meta-Label";
-
-	/**
-	 * Header name for the client URI.
-	 */
-	String X_FORWARDED_URI = "X-Forwarded-Uri";
-
-	/**
-	 * Header name for the client IP.
-	 */
-	String X_FORWARDED_FOR = "X-Forwarded-For";
-
-	/**
 	 * Regex identifying characters that are not allowed inside client ID.
 	 */
 	Pattern ID_FORBIDDEN_CHARACTERS = Pattern.compile("[^a-zA-Z0-9\\-_.]");

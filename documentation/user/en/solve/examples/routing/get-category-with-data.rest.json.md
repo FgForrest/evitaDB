@@ -54,6 +54,9 @@
         }
       }
     }
-  }
+  },
+  "relatedProducts" : [ ],
+  "representedCategory" : null,
+  "tags" : [ ]
 }
 ```

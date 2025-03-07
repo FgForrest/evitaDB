@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -1269,6 +1269,41 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(LIST_ENTITY_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should pass query labels")
+	void shouldPassQueryLabels(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final String codeAttribute1 = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CODE, 5);
+		final String codeAttribute2 = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CODE, 7);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    listEntity(
+	                        labels: [
+	                            {
+							        name: "myLabel1"
+							        value: "myValue1"
+								},
+								{
+							        name: "myLabel2"
+							        value: 100
+								}
+	                        ]
+	                        code: ["%s","%s"]
+                        ) {
+	                        primaryKey
+	                    }
+	                }
+					""",
+				codeAttribute1,
+				codeAttribute2
+			)
+			.executeAndExpectOkAndThen()
+			.body(LIST_ENTITY_PATH, hasSize(greaterThan(0)));
 	}
 
 

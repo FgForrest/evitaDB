@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import io.evitadb.api.query.ConstraintVisitor;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.filter.FacetHaving;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.HierarchyFilterConstraint;
 import io.evitadb.api.query.filter.HierarchyWithin;
@@ -89,6 +90,7 @@ import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
 import lombok.experimental.Delegate;
 
@@ -181,20 +183,15 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 */
 	private ExtraResultProducer lastReturnedProducer;
 	/**
-	 * Contains {@link #getFilterBy()} without {@link HierarchyWithin} / {@link HierarchyWithinRoot} sub-constraints.
-	 * The field is initialized lazily.
-	 */
-	@Nullable private FilterBy filterByWithoutHierarchyFilter;
-	/**
 	 * Contains {@link #getFilteringFormula()} without {@link UserFilterFormula} sub-trees. The field is initialized
 	 * lazily.
-	 */
+	 **/
 	private Formula filteringFormulaWithoutUserFilter;
 	/**
-	 * Contains {@link #getFilterBy()} ()} without {@link UserFilterFormula} and {@link HierarchyWithin} /
-	 * {@link HierarchyWithinRoot} sub-constraints. The field is initialized lazily.
+	 * Contains cache of {@link FilterBy} varinants that are used to filter the results based on the statistics base
+	 * and reference schema.
 	 */
-	private FilterBy filteringFormulaWithoutHierarchyAndUserFilter;
+	private Map<FormulaVariant, FilterBy> formulaVariantCache;
 	/**
 	 * Contains set (usually of size == 1 or 0) that contains references to the {@link UserFilterFormula} inside
 	 * {@link #filteringFormula}. This is a helper field that allows to reuse result of the formula search multiple
@@ -229,6 +226,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 
 	/**
 	 * Returns superset of all possible results without any filtering.
+	 *
 	 * @return formula that represents the superset of all possible results.
 	 */
 	@Nonnull
@@ -266,9 +264,9 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 		if (filteringFormulaWithoutUserFilter == null) {
 			filteringFormulaWithoutUserFilter = ofNullable(
 				FormulaCloner.clone(
-				filteringFormula,
-				formula -> formula instanceof UserFilterFormula ? null : formula
-			)).orElseGet(this::getSuperSetFormula);
+					filteringFormula,
+					formula -> formula instanceof UserFilterFormula ? null : formula
+				)).orElseGet(this::getSuperSetFormula);
 		}
 		return filteringFormulaWithoutUserFilter;
 	}
@@ -280,104 +278,56 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 */
 	@Nonnull
 	public Set<Formula> getUserFilteringFormula() {
-		if (userFilterFormula == null) {
-			userFilterFormula = new HashSet<>(
+		if (this.userFilterFormula == null) {
+			this.userFilterFormula = new HashSet<>(
 				FormulaFinder.find(
 					getFilteringFormula(), UserFilterFormula.class, LookUp.SHALLOW
 				)
 			);
 		}
-		return userFilterFormula;
+		return this.userFilterFormula;
 	}
 
 	/**
-	 * Returns the {@link #getFilterBy()} that is stripped of all {@link HierarchyWithin} and
-	 * {@link HierarchyWithinRoot} sub-constraints. Result of this method is cached so that additional calls introduce no
-	 * performance penalty.
+	 * Determines the appropriate {@link FilterBy} object based on the provided {@link StatisticsBase} and
+	 * {@link ReferenceSchemaContract}. This method applies different filtering logic depending on the provided
+	 * base type of statistics calculations.
+	 *
+	 * @param statisticsBase  the base type that defines the scope of the filtering for calculating statistics,
+	 *                        as specified by the {@link StatisticsBase} enum.
+	 * @param referenceSchema the reference schema that is used to generate the corresponding filter constraints.
+	 *                        It provides structural and validation information for creating the filter.
+	 * @return an instance of {@link FilterBy} containing the appropriate filtering constraints based on the
+	 * statistics base, or null if no suitable filter is defined for the given configuration.
 	 */
 	@Nullable
-	public FilterBy getFilterByWithoutHierarchyFilter(@Nullable ReferenceSchemaContract referenceSchema) {
-		if (filterByWithoutHierarchyFilter == null) {
-			filterByWithoutHierarchyFilter = (FilterBy) ofNullable(getFilterBy())
-				.map(it ->
-					ConstraintCloneVisitor.clone(
-						it,
-						(visitor, constraint) -> {
-							final Function<FilterConstraint, FilterConstraint> wrapper = referenceSchema == null ?
-								Function.identity() :
-								filter -> new FilterBy(new ReferenceHaving(referenceSchema.getName(), entityHaving(filter)));
-							if (constraint instanceof HierarchyFilterConstraint hfc) {
-								final FilterConstraint[] excludedChildrenFilter = hfc.getExcludedChildrenFilter();
-								final FilterConstraint[] havingChildrenFilter = hfc.getHavingChildrenFilter();
-								if (ArrayUtils.isEmpty(excludedChildrenFilter)) {
-									if (ArrayUtils.isEmpty(havingChildrenFilter)) {
-										return null;
-									} else if (havingChildrenFilter.length == 1) {
-										return wrapper.apply(havingChildrenFilter[0]);
-									} else {
-										return wrapper.apply(and(havingChildrenFilter));
-									}
-								} else if (excludedChildrenFilter.length == 1) {
-									return wrapper.apply(not(excludedChildrenFilter[0]));
-								} else {
-									return wrapper.apply(not(and(excludedChildrenFilter)));
-								}
-							} else {
-								return constraint;
-							}
-						}
-					)
-				)
-				.orElseGet(FilterBy::new);
-
+	public FilterBy getFilterByForStatisticsBase(
+		@Nullable StatisticsBase statisticsBase,
+		@Nullable ReferenceSchemaContract referenceSchema
+	) {
+		if (statisticsBase == null) {
+			// initialize default value
+			statisticsBase = StatisticsBase.WITHOUT_USER_FILTER;
 		}
-		return filterByWithoutHierarchyFilter.isApplicable() ? filterByWithoutHierarchyFilter : null;
-	}
-
-	/**
-	 * Returns the {@link #getFilterBy()} that is stripped of all {@link HierarchyWithin},
-	 * {@link HierarchyWithinRoot} constraints and {@link UserFilter} parts. Result of this method is cached so that
-	 * additional calls introduce no performance penalty.
-	 */
-	@Nullable
-	public FilterBy getFilterByWithoutHierarchyAndUserFilter(@Nullable ReferenceSchemaContract referenceSchema) {
-		if (filteringFormulaWithoutHierarchyAndUserFilter == null) {
-			filteringFormulaWithoutHierarchyAndUserFilter = (FilterBy) ofNullable(getFilterBy())
-				.map(it ->
-					ConstraintCloneVisitor.clone(
-						it,
-						(visitor, constraint) -> {
-							if (constraint instanceof HierarchyFilterConstraint hfc) {
-								final Function<FilterConstraint, FilterConstraint> wrapper = referenceSchema == null ?
-									Function.identity() :
-									filter -> new FilterBy(new ReferenceHaving(referenceSchema.getName(), entityHaving(filter)));
-								final FilterConstraint[] excludedChildrenFilter = hfc.getExcludedChildrenFilter();
-								final FilterConstraint[] havingChildrenFilter = hfc.getHavingChildrenFilter();
-								if (ArrayUtils.isEmpty(excludedChildrenFilter)) {
-									if (ArrayUtils.isEmpty(havingChildrenFilter)) {
-										return null;
-									} else if (havingChildrenFilter.length == 1) {
-										return wrapper.apply(havingChildrenFilter[0]);
-									} else {
-										return wrapper.apply(and(havingChildrenFilter));
-									}
-								} else if (excludedChildrenFilter.length == 1) {
-									return wrapper.apply(not(excludedChildrenFilter[0]));
-								} else {
-									return wrapper.apply(not(and(excludedChildrenFilter)));
-								}
-							} else if (constraint instanceof UserFilter) {
-								return null;
-							} else {
-								return constraint;
-							}
-						}
-					)
-				)
-				.orElseGet(FilterBy::new);
-
+		final FormulaVariant cacheKey = new FormulaVariant(
+			referenceSchema == null ? null : referenceSchema.getName(),
+			statisticsBase
+		);
+		if (this.formulaVariantCache != null) {
+			final FilterBy cachedResult = this.formulaVariantCache.get(cacheKey);
+			if (cachedResult != null) {
+				return cachedResult.isApplicable() ? cachedResult : null;
+			}
 		}
-		return filteringFormulaWithoutHierarchyAndUserFilter.isApplicable() ? filteringFormulaWithoutHierarchyAndUserFilter : null;
+		if (this.formulaVariantCache == null) {
+			this.formulaVariantCache = CollectionUtils.createHashMap(4);
+		}
+		return switch (statisticsBase) {
+			case COMPLETE_FILTER -> getFilterByWithoutHierarchyFilter(cacheKey);
+			case WITHOUT_USER_FILTER -> getFilterByWithoutHierarchyAndUserFilter(cacheKey);
+			case COMPLETE_FILTER_EXCLUDING_SELF_IN_USER_FILTER ->
+				getFilterByIncludingUserFilterWithoutHierarchyInIt(cacheKey);
+		};
 	}
 
 	/**
@@ -621,6 +571,128 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	}
 
 	/**
+	 * Returns the {@link #getFilterBy()} that is stripped of all {@link HierarchyWithin} and
+	 * {@link HierarchyWithinRoot} sub-constraints. Result of this method is cached so that additional calls introduce no
+	 * performance penalty.
+	 */
+	@Nullable
+	private FilterBy getFilterByWithoutHierarchyFilter(@Nonnull FormulaVariant formulaVariant) {
+		final FilterBy result = (FilterBy) ofNullable(getFilterBy())
+			.map(it ->
+				ConstraintCloneVisitor.clone(
+					it,
+					(visitor, constraint) -> {
+						final Function<FilterConstraint, FilterConstraint> wrapper = formulaVariant.referenceName() == null ?
+							Function.identity() :
+							filter -> new FilterBy(new ReferenceHaving(formulaVariant.referenceName(), entityHaving(filter)));
+						if (constraint instanceof HierarchyFilterConstraint hfc) {
+							final FilterConstraint[] excludedChildrenFilter = hfc.getExcludedChildrenFilter();
+							final FilterConstraint[] havingChildrenFilter = hfc.getHavingChildrenFilter();
+							if (ArrayUtils.isEmpty(excludedChildrenFilter)) {
+								if (ArrayUtils.isEmpty(havingChildrenFilter)) {
+									return null;
+								} else if (havingChildrenFilter.length == 1) {
+									return wrapper.apply(havingChildrenFilter[0]);
+								} else {
+									return wrapper.apply(and(havingChildrenFilter));
+								}
+							} else if (excludedChildrenFilter.length == 1) {
+								return wrapper.apply(not(excludedChildrenFilter[0]));
+							} else {
+								return wrapper.apply(not(and(excludedChildrenFilter)));
+							}
+						} else {
+							return constraint;
+						}
+					}
+				)
+			)
+			.orElseGet(FilterBy::new);
+
+		this.formulaVariantCache.put(formulaVariant, result);
+		return result.isApplicable() ? result : null;
+	}
+
+	/**
+	 * Returns the {@link #getFilterBy()} that is stripped of all {@link HierarchyWithin},
+	 * {@link HierarchyWithinRoot} constraints and {@link UserFilter} parts. Result of this method is cached so that
+	 * additional calls introduce no performance penalty.
+	 */
+	@Nullable
+	private FilterBy getFilterByWithoutHierarchyAndUserFilter(@Nonnull FormulaVariant formulaVariant) {
+		final FilterBy result = (FilterBy) ofNullable(getFilterBy())
+			.map(it ->
+				ConstraintCloneVisitor.clone(
+					it,
+					(visitor, constraint) -> {
+						if (constraint instanceof HierarchyFilterConstraint hfc) {
+							final Function<FilterConstraint, FilterConstraint> wrapper = formulaVariant.referenceName() == null ?
+								Function.identity() :
+								filter -> new FilterBy(new ReferenceHaving(formulaVariant.referenceName(), entityHaving(filter)));
+							final FilterConstraint[] excludedChildrenFilter = hfc.getExcludedChildrenFilter();
+							final FilterConstraint[] havingChildrenFilter = hfc.getHavingChildrenFilter();
+							if (ArrayUtils.isEmpty(excludedChildrenFilter)) {
+								if (ArrayUtils.isEmpty(havingChildrenFilter)) {
+									return null;
+								} else if (havingChildrenFilter.length == 1) {
+									return wrapper.apply(havingChildrenFilter[0]);
+								} else {
+									return wrapper.apply(and(havingChildrenFilter));
+								}
+							} else if (excludedChildrenFilter.length == 1) {
+								return wrapper.apply(not(excludedChildrenFilter[0]));
+							} else {
+								return wrapper.apply(not(and(excludedChildrenFilter)));
+							}
+						} else if (constraint instanceof UserFilter) {
+							return null;
+						} else {
+							return constraint;
+						}
+					}
+				)
+			)
+			.orElseGet(FilterBy::new);
+		this.formulaVariantCache.put(formulaVariant, result);
+		return result.isApplicable() ? result : null;
+	}
+
+	/**
+	 * Returns the {@link #getFilterBy()} that is stripped of all {@link HierarchyWithin},
+	 * {@link HierarchyWithinRoot} constraints inside {@link UserFilter} parts only. Result of this method is cached so that
+	 * additional calls introduce no performance penalty.
+	 */
+	@Nullable
+	private FilterBy getFilterByIncludingUserFilterWithoutHierarchyInIt(@Nonnull FormulaVariant formulaVariant) {
+		final FilterBy result = (FilterBy) ofNullable(getFilterBy())
+			.map(it ->
+				ConstraintCloneVisitor.clone(
+					it,
+					(visitor, constraint) -> {
+						if (constraint instanceof HierarchyFilterConstraint hfc) {
+							if ((formulaVariant.referenceName() == null && hfc.getReferenceName().isEmpty()) ||
+								(formulaVariant.referenceName() != null && hfc.getReferenceName().map(refName -> refName.equals(formulaVariant.referenceName())).orElse(false)) &&
+									visitor.isWithin(UserFilter.class)) {
+								return null;
+							}
+						} else if (constraint instanceof FacetHaving fh) {
+							if ((formulaVariant.referenceName() == null && fh.getReferenceName().isEmpty()) ||
+								(formulaVariant.referenceName() != null && fh.getReferenceName().equals(formulaVariant.referenceName())) &&
+									visitor.isWithin(UserFilter.class)) {
+								return null;
+							}
+						}
+						return constraint;
+					}
+				)
+			)
+			.orElseGet(FilterBy::new);
+
+		this.formulaVariantCache.put(formulaVariant, result);
+		return result.isApplicable() ? result : null;
+	}
+
+	/**
 	 * Processing scope contains contextual information that could be overridden in {@link RequireConstraintTranslator}
 	 * implementations to exchange schema that is being used, suppressing certain query evaluation or accessing
 	 * attribute schema information.
@@ -664,7 +736,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 		 * the previous scope afterwards.
 		 *
 		 * @param scopeToUse the scope to be applied during the execution of the supplier
-		 * @param lambda the supplier function to be executed within the specified scope
+		 * @param lambda     the supplier function to be executed within the specified scope
 		 * @return the result produced by the supplier
 		 */
 		public <S> S doWithScope(@Nonnull Scope scopeToUse, @Nonnull Supplier<S> lambda) {
@@ -676,6 +748,16 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 			}
 		}
 
+	}
+
+	/**
+	 * Represents a specific formula variant which encapsulates a reference name and the base type of
+	 * statistics calculation. This record is used as a cache key to {@link ExtraResultPlanningVisitor#formulaVariantCache}
+	 */
+	private record FormulaVariant(
+		@Nullable String referenceName,
+		@Nonnull StatisticsBase statisticsBase
+	) {
 	}
 
 }

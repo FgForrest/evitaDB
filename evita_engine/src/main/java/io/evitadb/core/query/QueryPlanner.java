@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -47,7 +47,6 @@ import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.policy.BitmapFavouringNoCachePolicy;
 import io.evitadb.core.query.policy.CacheEnforcingPolicy;
 import io.evitadb.core.query.policy.PrefetchFavouringNoCachePolicy;
-import io.evitadb.core.query.slice.ExpressionBasedSlicer;
 import io.evitadb.core.query.sort.NoSorter;
 import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.Sorter;
@@ -56,6 +55,7 @@ import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.Index;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.store.spi.chunk.ExpressionBasedSlicer;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.RandomUtils;

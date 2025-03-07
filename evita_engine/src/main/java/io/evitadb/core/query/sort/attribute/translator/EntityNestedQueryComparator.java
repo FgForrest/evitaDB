@@ -36,6 +36,7 @@ import io.evitadb.api.requestResponse.data.structure.ReferenceDecorator;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.QueryPlan;
 import io.evitadb.core.query.QueryPlanningContext;
+import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.sort.ConditionalSorter;
@@ -123,12 +124,14 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 		if (firstApplicableSorter == null) {
 			return filteredEntities;
 		} else {
-			final int[] result = new int[filteredEntities.length];
+			// if the input filtered entities contains duplicates, this will make distinct bitmap
+			final Formula input = ArrayUtils.isEmpty(filteredEntities) ?
+				EmptyFormula.INSTANCE : new ConstantFormula(new BaseBitmap(filteredEntities));
+			final int inputSize = input.compute().size();
+			final int[] result = new int[inputSize];
 			firstApplicableSorter.sortAndSlice(
 				theSorter.queryContext(),
-				ArrayUtils.isEmpty(filteredEntities) ?
-					EmptyFormula.INSTANCE : new ConstantFormula(new BaseBitmap(filteredEntities)),
-				0, filteredEntities.length,
+				input, 0, inputSize,
 				result, 0
 			);
 			return result;
@@ -206,12 +209,12 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 			this.sortedEntityIndexes[i] = i;
 		}
 		if (!ArrayUtils.isEmpty(filteredEntities)) {
-			if (groupSorter == null) {
-				final int[] sortedEntities = getSortedEntities(filteredEntities, sorter);
+			if (this.groupSorter == null) {
+				final int[] sortedEntities = getSortedEntities(filteredEntities, this.sorter);
 				ArrayUtils.sortSecondAlongFirstArray(sortedEntities, this.sortedEntityIndexes);
 			} else {
-				final int[] sortedGroupEntities = getSortedEntities(filteredEntityGroups, groupSorter);
-				final int[] sortedEntities = getSortedEntities(filteredEntities, sorter);
+				final int[] sortedGroupEntities = getSortedEntities(filteredEntityGroups, this.groupSorter);
+				final int[] sortedEntities = getSortedEntities(filteredEntities, this.sorter);
 				final IntSet filteredEntitySet = new IntHashSet(filteredEntities.length);
 				for (int entityPk : filteredEntities) {
 					filteredEntitySet.add(entityPk);

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,6 +30,8 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.RecordPageDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.RecordStripDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.ReferencePageDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceStripDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor;
@@ -82,6 +84,20 @@ public class DataApiNamesConstructor {
 	                                                  @Nonnull ReferenceSchemaContract referenceSchema,
 	                                                  boolean localized) {
 		return ReferenceDescriptor.THIS.name(getLocalizedSuffix(localized), entitySchema, referenceSchema);
+	}
+
+	@Nonnull
+	public static String constructReferencePageObjectName(@Nonnull EntitySchemaContract entitySchema,
+	                                                      @Nonnull ReferenceSchemaContract referenceSchema,
+	                                                      boolean localized) {
+		return ReferencePageDescriptor.THIS.name(getLocalizedSuffix(localized), entitySchema, referenceSchema);
+	}
+
+	@Nonnull
+	public static String constructReferenceStripObjectName(@Nonnull EntitySchemaContract entitySchema,
+	                                                      @Nonnull ReferenceSchemaContract referenceSchema,
+	                                                      boolean localized) {
+		return ReferenceStripDescriptor.THIS.name(getLocalizedSuffix(localized), entitySchema, referenceSchema);
 	}
 
 	@Nonnull

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,10 +21,10 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.query.slice;
+package io.evitadb.api.requestResponse.chunk;
 
 
-import io.evitadb.api.requestResponse.EvitaRequest;
+import io.evitadb.api.requestResponse.EvitaRequest.ResultForm;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.GenericEvitaInternalError;
 import lombok.AccessLevel;
@@ -45,25 +45,23 @@ public class DefaultSlicer implements Slicer {
 
 	@Nonnull
 	@Override
-	public OffsetAndLimit calculateOffsetAndLimit(@Nonnull EvitaRequest evitaRequest, int totalRecordCount) {
-		switch (evitaRequest.getResultForm()) {
+	public OffsetAndLimit calculateOffsetAndLimit(@Nonnull ResultForm resultForm, int offset, int limit, int totalRecordCount) {
+		switch (resultForm) {
 			case PAGINATED_LIST -> {
-				final int offset = PaginatedList.getFirstItemNumberForPage(evitaRequest.getStart(), evitaRequest.getLimit());
+				final int calculatedOffset = PaginatedList.getFirstItemNumberForPage(offset, limit);
 				return new OffsetAndLimit(
-					Math.max(0, offset < totalRecordCount ? offset : 0),
-					evitaRequest.getLimit(),
-					(int) Math.ceil((float) (totalRecordCount) / (float) evitaRequest.getLimit())
+					Math.max(0, calculatedOffset < totalRecordCount ? calculatedOffset : 0),
+					limit,
+					calculatedOffset < totalRecordCount ? offset : 1,
+					PaginatedList.getLastPageNumber(limit, totalRecordCount),
+					totalRecordCount
 				);
 			}
 			case STRIP_LIST -> {
-				return new OffsetAndLimit(
-					evitaRequest.getStart(),
-					evitaRequest.getLimit(),
-					-1
-				);
+				return new OffsetAndLimit(offset, limit, totalRecordCount);
 			}
 			default -> throw new GenericEvitaInternalError(
-				"Unsupported result form: " + evitaRequest.getResultForm()
+				"Unsupported result form: " + resultForm
 			);
 		}
 	}

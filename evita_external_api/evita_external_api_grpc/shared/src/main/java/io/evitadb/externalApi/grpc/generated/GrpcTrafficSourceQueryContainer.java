@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -195,7 +195,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs =
+      com.google.protobuf.ByteString bs = 
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       sourceQuery_ = s;
@@ -215,7 +215,7 @@ private static final long serialVersionUID = 0L;
       getSourceQueryBytes() {
     java.lang.Object ref = sourceQuery_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b =
+      com.google.protobuf.ByteString b = 
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       sourceQuery_ = b;
@@ -246,7 +246,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 3;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryLabelOrBuilder>
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryLabelOrBuilder> 
       getLabelsOrBuilderList() {
     return labels_;
   }
@@ -640,7 +640,7 @@ private static final long serialVersionUID = 0L;
             labelsBuilder_ = null;
             labels_ = other.labels_;
             bitField0_ = (bitField0_ & ~0x00000001);
-            labelsBuilder_ =
+            labelsBuilder_ = 
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getLabelsFieldBuilder() : null;
           } else {
@@ -793,7 +793,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sourceQueryId = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder getSourceQueryIdBuilder() {
-
+      
       onChanged();
       return getSourceQueryIdFieldBuilder().getBuilder();
     }
@@ -820,7 +820,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sourceQueryId = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder> 
         getSourceQueryIdFieldBuilder() {
       if (sourceQueryIdBuilder_ == null) {
         sourceQueryIdBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -866,7 +866,7 @@ private static final long serialVersionUID = 0L;
         getSourceQueryBytes() {
       java.lang.Object ref = sourceQuery_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b =
+        com.google.protobuf.ByteString b = 
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         sourceQuery_ = b;
@@ -889,7 +889,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-
+  
       sourceQuery_ = value;
       onChanged();
       return this;
@@ -903,7 +903,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearSourceQuery() {
-
+      
       sourceQuery_ = getDefaultInstance().getSourceQuery();
       onChanged();
       return this;
@@ -923,7 +923,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-
+      
       sourceQuery_ = value;
       onChanged();
       return this;
@@ -1184,7 +1184,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 3;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryLabelOrBuilder>
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryLabelOrBuilder> 
          getLabelsOrBuilderList() {
       if (labelsBuilder_ != null) {
         return labelsBuilder_.getMessageOrBuilderList();
@@ -1222,12 +1222,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 3;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryLabel.Builder>
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryLabel.Builder> 
          getLabelsBuilderList() {
       return getLabelsFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcQueryLabel, io.evitadb.externalApi.grpc.generated.GrpcQueryLabel.Builder, io.evitadb.externalApi.grpc.generated.GrpcQueryLabelOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcQueryLabel, io.evitadb.externalApi.grpc.generated.GrpcQueryLabel.Builder, io.evitadb.externalApi.grpc.generated.GrpcQueryLabelOrBuilder> 
         getLabelsFieldBuilder() {
       if (labelsBuilder_ == null) {
         labelsBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<

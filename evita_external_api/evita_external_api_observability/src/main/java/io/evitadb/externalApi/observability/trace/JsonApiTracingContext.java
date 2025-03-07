@@ -23,11 +23,13 @@
 
 package io.evitadb.externalApi.observability.trace;
 
+import com.linecorp.armeria.common.HttpHeaderNames;
 import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.common.RequestHeaders;
 import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.api.observability.trace.TracingContext.SpanAttribute;
 import io.evitadb.api.query.head.Label;
+import io.evitadb.externalApi.http.AdditionalHttpHeaderNames;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.netty.util.AsciiString;
 import io.opentelemetry.context.Context;
@@ -176,13 +178,17 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpRequ
 	@Override
 	public <T> T executeWithinBlock(@Nonnull String protocolName, @Nonnull HttpRequest context, @Nonnull Supplier<T> lambda) {
 		final RequestHeaders headers = context.headers();
-		final String clientIpAddress = headers.get(X_FORWARDED_FOR);
-		final String clientUri = headers.get(X_FORWARDED_URI);
-		final Label[] labels = headers.getAll(X_META_LABEL)
+		final String clientIpAddress = headers.get(HttpHeaderNames.X_FORWARDED_FOR);
+		final String clientUri = headers.get(AdditionalHttpHeaderNames.X_FORWARDED_URI);
+		final Label[] labels = headers.getAll(AdditionalHttpHeaderNames.X_EVITADB_META_LABEL)
 			.stream()
 			.map(header -> {
-				final String[] label = header.split("=", 2);
-				return label.length == 2 ? new Label(label[0], label[1]) : null;
+				final int index = header.indexOf('=');
+				if (index < 0) {
+					return null;
+				} else {
+					return new Label(header.substring(0, index), header.substring(index + 1));
+				}
 			})
 			.filter(Objects::nonNull)
 			.toArray(Label[]::new);
@@ -217,7 +223,7 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpRequ
 			.extract(Context.current(), headers, CONTEXT_GETTER);
 		final String clientId = convertClientId(
 			protocolName,
-			headers.get(CLIENT_ID_CONTEXT_KEY_NAME)
+			headers.get(AdditionalHttpHeaderNames.X_EVITADB_CLIENTID)
 		);
 		return context.with(OpenTelemetryTracerSetup.CONTEXT_KEY, clientId);
 	}

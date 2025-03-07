@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,27 +21,16 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.catalog.dataApi.dto;
+package io.evitadb.api.query.filter;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import io.evitadb.dataType.StripList;
-import lombok.Getter;
-
-import javax.annotation.Nonnull;
+import io.evitadb.api.query.FacetConstraint;
+import io.evitadb.api.query.FilterConstraint;
 
 /**
- * This class is used to convert information from {@link StripList} into form serializable into JSON.
+ * This interface marks all filtering constraints that can be used to further specify facet queries and that can
+ * be used within {@link FacetHaving} container.
  *
- * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@Getter
-public class StripListDto extends DataChunkDto {
-	private final int offset;
-	private final int limit;
-
-	public StripListDto(@Nonnull StripList<?> stripList, @Nonnull JsonNode data) {
-		super(stripList, data, DataChunkType.STRIP);
-		offset = stripList.getOffset();
-		limit = stripList.getLimit();
-	}
+public interface FacetSpecificationFilterConstraint extends FacetConstraint<FilterConstraint>, FilterConstraint {
 }

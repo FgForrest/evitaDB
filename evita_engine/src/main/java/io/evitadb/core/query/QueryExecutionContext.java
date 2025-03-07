@@ -54,6 +54,7 @@ import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.function.TriFunction;
 import io.evitadb.index.attribute.EntityReferenceWithLocale;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.store.spi.chunk.ServerChunkTransformerAccessor;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -195,7 +196,7 @@ public class QueryExecutionContext implements Closeable {
 				requirementTuples,
 				evitaRequest.getDefaultReferenceRequirement(),
 				this,
-				evitaRequest::getReferenceChunkTransformer
+				new ServerChunkTransformerAccessor(evitaRequest)
 			);
 
 		if (this.prefetchedEntities == null) {

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -51,6 +51,7 @@ import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Objects;
@@ -231,7 +232,7 @@ public class AttributeNaturalTranslator
 		@Nonnull NamedSchemaContract attributeOrCompoundSchema,
 		@Nonnull EntityIndex[] targetIndex,
 		@Nonnull OrderByVisitor orderByVisitor,
-		@Nonnull Locale locale
+		@Nullable Locale locale
 		) implements Supplier<SortedRecordsProvider[]> {
 		private static final SortedRecordsProvider[] EMPTY_PROVIDERS = {SortedRecordsProvider.EMPTY};
 

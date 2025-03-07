@@ -522,7 +522,7 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 			// pick first name that doesn't contain Observable in the class name
 			String name = "Unknown";
 			for (StackTraceElement element : stackTrace) {
-				if (!element.getClassName().contains("Observable")) {
+				if (element.getClassName().contains("io.evitadb") && !element.getClassName().contains("Observable")) {
 					name = element.toString();
 					break;
 				}
@@ -610,7 +610,7 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 			// pick first name that doesn't contain Observable in the class name
 			String name = "Unknown";
 			for (StackTraceElement element : stackTrace) {
-				if (!element.getClassName().contains("Observable")) {
+				if (element.getClassName().contains("io.evitadb") && !element.getClassName().contains("Observable")) {
 					name = element.toString();
 					break;
 				}

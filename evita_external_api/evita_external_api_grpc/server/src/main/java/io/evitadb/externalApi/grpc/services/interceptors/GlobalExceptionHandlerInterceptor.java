@@ -136,6 +136,11 @@ public class GlobalExceptionHandlerInterceptor implements ServerInterceptor {
 		public void onHalfClose() {
 			try {
 				super.onHalfClose();
+			} catch (EvitaInvalidUsageException ex) {
+				// log as debug, the problem is probably on the client side
+				log.debug("Exception occurred during processing of gRPC call", ex);
+				handleException(ex, delegate);
+				throw ex;
 			} catch (RuntimeException ex) {
 				// we're responsible for logging the exception here
 				log.error("Exception occurred during processing of gRPC call", ex);

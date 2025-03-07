@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -244,22 +244,6 @@ public abstract class RestEndpointHandler<CTX extends RestHandlingContext> exten
                 " is missing in query data (" + parameter.getIn() + ")");
         }
         return Optional.empty();
-    }
-
-    @Nonnull
-    protected static List<Label> parseQueryLabelsFromHeaders(@Nonnull RestEndpointExecutionContext executionContext) {
-        return executionContext.httpRequest()
-            .headers()
-            .getAll(AdditionalHttpHeaderNames.EVITADB_QUERY_LABEL_HEADER_STRING)
-            .stream()
-            .map(labelHeader -> {
-                final String[] labelParts = labelHeader.split("=");
-                if (labelParts.length != 2) {
-                    throw new RestInvalidArgumentException("Invalid label `" + labelHeader + "`.");
-                }
-                return new Label(labelParts[0], labelParts[1]);
-            })
-            .toList();
     }
 
     @Nonnull
