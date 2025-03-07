@@ -29,23 +29,24 @@ import lombok.Getter;
 import javax.annotation.Nullable;
 
 /**
- * Represents a successful response. Either {@link HttpStatus#OK} or {@link HttpStatus#NO_CONTENT} depending on passed body
- * object. The result object must be in serializable form and thus be ready to be serialized.
+ * Represents a error on the server side response. The {@link HttpStatus#BAD_REQUEST} will be returned along
+ * with data of passed body object. The result object must be in serializable form and thus be ready to be serialized.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
+ * @author Jan Novotný, FG Forrest a.s. (c) 2025
  */
-public class SuccessEndpointResponse implements EndpointResponse {
-	public static final SuccessEndpointResponse NO_CONTENT = new SuccessEndpointResponse();
+public class ClientErrorEndpointResponse implements EndpointResponse {
+	public static final ClientErrorEndpointResponse NO_RESPONSE = new ClientErrorEndpointResponse();
 
 	@Nullable
 	@Getter
 	private final Object result;
 
-	private SuccessEndpointResponse() {
+	public ClientErrorEndpointResponse() {
 		this.result = null;
 	}
 
-	public SuccessEndpointResponse(@Nullable Object result) {
+	public ClientErrorEndpointResponse(@Nullable Object result) {
 		this.result = result;
 	}
+
 }

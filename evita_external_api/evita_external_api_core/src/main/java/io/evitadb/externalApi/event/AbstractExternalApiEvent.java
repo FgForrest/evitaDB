@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,31 +21,29 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.http;
+package io.evitadb.externalApi.event;
 
-import com.linecorp.armeria.common.HttpStatus;
+
+import io.evitadb.api.observability.annotation.EventGroup;
+import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
+import jdk.jfr.Category;
 import lombok.Getter;
-
-import javax.annotation.Nullable;
+import lombok.RequiredArgsConstructor;
 
 /**
- * Represents a successful response. Either {@link HttpStatus#OK} or {@link HttpStatus#NO_CONTENT} depending on passed body
- * object. The result object must be in serializable form and thus be ready to be serialized.
+ * This event is base class for all external API related events.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-public class SuccessEndpointResponse implements EndpointResponse {
-	public static final SuccessEndpointResponse NO_CONTENT = new SuccessEndpointResponse();
+@EventGroup(
+	value = AbstractExternalApiEvent.PACKAGE_NAME,
+	name = "evitaDB - external API",
+	description = "evitaDB events related external HTTP APIs."
+)
+@Category({"evitaDB", "API"})
+@RequiredArgsConstructor
+@Getter
+public class AbstractExternalApiEvent extends CustomMetricsExecutionEvent {
+	protected static final String PACKAGE_NAME = "io.evitadb.externalApi";
 
-	@Nullable
-	@Getter
-	private final Object result;
-
-	private SuccessEndpointResponse() {
-		this.result = null;
-	}
-
-	public SuccessEndpointResponse(@Nullable Object result) {
-		this.result = result;
-	}
 }
