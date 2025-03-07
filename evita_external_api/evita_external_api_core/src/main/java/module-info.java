@@ -68,6 +68,7 @@ module evita.external.api.core {
 	requires static jsr305;
 	requires org.slf4j;
 	requires com.fasterxml.jackson.databind;
+	requires com.esotericsoftware.kryo;
 	requires zero.allocation.hashing;
 
 	requires evita.api;
