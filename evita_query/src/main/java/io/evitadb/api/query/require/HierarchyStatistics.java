@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.api.query.require;
 
+import io.evitadb.api.query.ConstraintWithDefaults;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
@@ -89,7 +90,7 @@ import java.util.EnumSet;
 	userDocsLink = "/documentation/query/requirements/hierarchy#statistics",
 	supportedIn = ConstraintDomain.HIERARCHY
 )
-public class HierarchyStatistics extends AbstractRequireConstraintLeaf implements HierarchyOutputRequireConstraint {
+public class HierarchyStatistics extends AbstractRequireConstraintLeaf implements ConstraintWithDefaults<RequireConstraint>, HierarchyOutputRequireConstraint {
 	@Serial private static final long serialVersionUID = 264601966496432983L;
 	private static final String CONSTRAINT_NAME = "statistics";
 
@@ -175,9 +176,15 @@ public class HierarchyStatistics extends AbstractRequireConstraintLeaf implement
 	@Nonnull
 	@Override
 	public Serializable[] getArgumentsExcludingDefaults() {
-		return Arrays.stream(super.getArgumentsExcludingDefaults())
+		return Arrays.stream(getArguments())
 			.filter(it -> it != StatisticsBase.WITHOUT_USER_FILTER)
 			.toArray(Serializable[]::new);
+	}
+
+	@Override
+	public boolean isArgumentImplicit(@Nonnull Serializable serializable) {
+		// todo jno verify
+		return serializable == StatisticsBase.WITHOUT_USER_FILTER;
 	}
 
 	@Nonnull

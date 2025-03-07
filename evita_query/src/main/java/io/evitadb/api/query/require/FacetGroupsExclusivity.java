@@ -24,6 +24,7 @@
 package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.ConstraintWithDefaults;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.AdditionalChild;
@@ -94,7 +95,7 @@ import java.util.Optional;
 	shortDescription = "Sets facet relation on particular level (within group or with different group facets) to exclusive - only one facet can be selected.",
 	userDocsLink = "/documentation/query/requirements/facet#facet-groups-exclusivity"
 )
-public class FacetGroupsExclusivity extends AbstractRequireConstraintContainer implements FacetGroupsConstraint {
+public class FacetGroupsExclusivity extends AbstractRequireConstraintContainer implements ConstraintWithDefaults<RequireConstraint>, FacetGroupsConstraint {
 	@Serial private static final long serialVersionUID = 849094126558825930L;
 
 	private FacetGroupsExclusivity(@Nonnull Serializable[] arguments, @Nonnull Constraint<?>... additionalChildren) {
@@ -166,6 +167,15 @@ public class FacetGroupsExclusivity extends AbstractRequireConstraintContainer i
 		} else {
 			return super.getArguments();
 		}
+	}
+
+	@Override
+	public boolean isArgumentImplicit(@Nonnull Serializable serializable) {
+		// todo jno verify
+		if (getFacetGroupRelationLevel() == FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP) {
+			return !(serializable instanceof String);
+		}
+		return false;
 	}
 
 	@Nonnull

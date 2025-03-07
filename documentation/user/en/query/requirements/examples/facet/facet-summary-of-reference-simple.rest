@@ -11,8 +11,6 @@ POST /rest/evita/Product/query
     "entityLocaleEquals" : "en"
   },
   "require" : {
-    "facetBrandSummary" : {
-      "statisticsDepth" : "COUNTS"
-    }
+    "facetBrandSummary" : { }
   }
 }

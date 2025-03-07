@@ -24,6 +24,7 @@
 package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.ConstraintWithDefaults;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.AdditionalChild;
@@ -106,7 +107,7 @@ import java.util.Optional;
 	shortDescription = "Sets facet relation on particular level (within group or with different group facets) to [logical OR](https://en.wikipedia.org/wiki/Logical_disjunction) .",
 	userDocsLink = "/documentation/query/requirements/facet#facet-groups-disjunction"
 )
-public class FacetGroupsDisjunction extends AbstractRequireConstraintContainer implements FacetGroupsConstraint {
+public class FacetGroupsDisjunction extends AbstractRequireConstraintContainer implements ConstraintWithDefaults<RequireConstraint>, FacetGroupsConstraint {
 	@Serial private static final long serialVersionUID = 1087282346634617160L;
 
 	private FacetGroupsDisjunction(@Nonnull Serializable[] arguments, @Nonnull Constraint<?>... additionalChildren) {
@@ -178,6 +179,15 @@ public class FacetGroupsDisjunction extends AbstractRequireConstraintContainer i
 		} else {
 			return super.getArguments();
 		}
+	}
+
+	@Override
+	public boolean isArgumentImplicit(@Nonnull Serializable serializable) {
+		// todo jno verify
+		if (getFacetGroupRelationLevel() == FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP) {
+			return !(serializable instanceof String);
+		}
+		return false;
 	}
 
 	@Nonnull

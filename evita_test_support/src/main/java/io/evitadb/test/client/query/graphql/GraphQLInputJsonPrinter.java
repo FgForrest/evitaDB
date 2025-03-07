@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -34,6 +34,8 @@ import com.fasterxml.jackson.databind.ObjectWriter;
 import io.evitadb.api.query.filter.AttributeSpecialValue;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
+import io.evitadb.api.query.require.FacetGroupRelationLevel;
+import io.evitadb.api.query.require.FacetRelationType;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.QueryPriceMode;
@@ -66,7 +68,9 @@ public class GraphQLInputJsonPrinter {
 		QueryPriceMode.class,
 		StatisticsBase.class,
 		StatisticsType.class,
-		Scope.class
+		Scope.class,
+		FacetGroupRelationLevel.class,
+		FacetRelationType.class
 	);
 
 	@Nonnull private final ObjectWriter constraintWriter;

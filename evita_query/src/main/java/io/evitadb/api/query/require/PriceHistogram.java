@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.api.query.require;
 
+import io.evitadb.api.query.ConstraintWithDefaults;
 import io.evitadb.api.query.PriceConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
@@ -68,7 +69,7 @@ import java.util.Arrays;
 	shortDescription = "The constraint triggers computation of the [histogram](https://en.wikipedia.org/wiki/Histogram) of price for sale into response.",
 	userDocsLink = "/documentation/query/requirements/histogram#price-histogram"
 )
-public class PriceHistogram extends AbstractRequireConstraintLeaf implements PriceConstraint<RequireConstraint>, ExtraResultRequireConstraint {
+public class PriceHistogram extends AbstractRequireConstraintLeaf implements ConstraintWithDefaults<RequireConstraint>, PriceConstraint<RequireConstraint>, ExtraResultRequireConstraint {
 	@Serial private static final long serialVersionUID = 7734875430759525982L;
 
 	private PriceHistogram(Serializable... arguments) {
@@ -108,9 +109,15 @@ public class PriceHistogram extends AbstractRequireConstraintLeaf implements Pri
 	@Nonnull
 	@Override
 	public Serializable[] getArgumentsExcludingDefaults() {
-		return Arrays.stream(super.getArgumentsExcludingDefaults())
+		return Arrays.stream(getArguments())
 			.filter(it -> it != HistogramBehavior.STANDARD)
 			.toArray(Serializable[]::new);
+	}
+
+	@Override
+	public boolean isArgumentImplicit(@Nonnull Serializable serializable) {
+		// todo jno verify
+		return serializable == HistogramBehavior.STANDARD;
 	}
 
 	@Nonnull

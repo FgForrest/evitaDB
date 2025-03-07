@@ -87,9 +87,6 @@ class RequireConstraintToJsonConverterTest extends ConstraintToJsonConverterTest
 
 		final ObjectNode filterBy = jsonNodeFactory.objectNode();
 
-		/* TOBEDONE LHO - remove with https://github.com/FgForrest/evitaDB/issues/808 */
-		facetBrandGroupsConjunction.putIfAbsent("facetGroupRelationLevel", jsonNodeFactory.textNode("WITH_DIFFERENT_FACETS_IN_GROUP"));
-
 		final ArrayNode entityPrimaryKeyInSet = jsonNodeFactory.arrayNode();
 		entityPrimaryKeyInSet.add(1);
 		entityPrimaryKeyInSet.add(2);

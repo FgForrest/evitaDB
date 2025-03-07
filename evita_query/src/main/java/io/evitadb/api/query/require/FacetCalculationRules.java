@@ -27,6 +27,7 @@ package io.evitadb.api.query.require;
 import io.evitadb.api.query.FacetConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.annotation.AliasForParameter;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.utils.Assert;
 
@@ -68,6 +69,11 @@ import java.util.Arrays;
  * @see FacetRelationType
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
+@ConstraintDefinition(
+	name = "calculationRules",
+	shortDescription = "Allows specifying default facet relation for each recognized level.",
+	userDocsLink = "/documentation/query/requirements/facet#facet-calculation-rules"
+)
 public class FacetCalculationRules extends AbstractRequireConstraintLeaf implements FacetConstraint<RequireConstraint> {
 	@Serial private static final long serialVersionUID = -5431884195676521481L;
 

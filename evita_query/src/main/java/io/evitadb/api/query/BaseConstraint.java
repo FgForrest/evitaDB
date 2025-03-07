@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -112,7 +112,7 @@ public abstract class BaseConstraint<T extends Constraint<T>> implements Constra
 	public String toString() {
 		return getName() +
 			ARG_OPENING +
-			Arrays.stream(getArgumentsExcludingDefaults())
+			Arrays.stream((this instanceof ConstraintWithDefaults<?> constraintWithDefaults) ? constraintWithDefaults.getArgumentsExcludingDefaults() : getArguments())
 				.filter(it -> !(this instanceof ConstraintWithSuffix cws) || !cws.isArgumentImplicitForSuffix(it))
 				.map(BaseConstraint::convertToString)
 				.collect(Collectors.joining(",")) +

@@ -76,6 +76,8 @@ public class GraphQLQueryConverter {
 		FacetGroupsConjunction.class,
 		FacetGroupsDisjunction.class,
 		FacetGroupsNegation.class,
+		FacetCalculationRules.class,
+		FacetGroupsExclusivity.class,
 		PriceType.class
 	);
 

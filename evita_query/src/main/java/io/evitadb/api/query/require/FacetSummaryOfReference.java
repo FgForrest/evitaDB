@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.ConstraintWithDefaults;
 import io.evitadb.api.query.FacetConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
@@ -127,7 +128,9 @@ import java.util.Optional;
 	shortDescription = "The constraint triggers computation of facet summary of all facet in searched scope into response with custom \"fetching\" settings for specific reference.",
 	userDocsLink = "/documentation/query/requirements/facet#facet-summary-of-reference"
 )
-public class FacetSummaryOfReference extends AbstractRequireConstraintContainer implements FacetConstraint<RequireConstraint>, SeparateEntityContentRequireContainer, ExtraResultRequireConstraint {
+public class FacetSummaryOfReference
+	extends AbstractRequireConstraintContainer
+	implements ConstraintWithDefaults<RequireConstraint>, FacetConstraint<RequireConstraint>, SeparateEntityContentRequireContainer, ExtraResultRequireConstraint {
 	@Serial private static final long serialVersionUID = 2377379601711709241L;
 
 	private FacetSummaryOfReference(@Nonnull Serializable[] arguments, @Nonnull RequireConstraint[] children, @Nonnull Constraint<?>... additionalChildren) {
@@ -172,16 +175,19 @@ public class FacetSummaryOfReference extends AbstractRequireConstraintContainer 
 
 	public FacetSummaryOfReference(
 		@Nonnull String referenceName,
-		@Nonnull FacetStatisticsDepth statisticsDepth,
+		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nonnull EntityFetchRequire... requirements
 	) {
-		this(new Serializable[]{referenceName, statisticsDepth}, requirements);
+		this(
+			new Serializable[]{referenceName, Optional.ofNullable(statisticsDepth).orElse(FacetStatisticsDepth.COUNTS)},
+			requirements
+		);
 	}
 
 	@Creator
 	public FacetSummaryOfReference(
 		@Nonnull @Classifier String referenceName,
-		@Nonnull FacetStatisticsDepth statisticsDepth,
+		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable @AdditionalChild(domain = ConstraintDomain.ENTITY) FilterBy filterBy,
 		@Nullable @AdditionalChild(domain = ConstraintDomain.GROUP_ENTITY) FilterGroupBy filterGroupBy,
 		@Nullable @AdditionalChild(domain = ConstraintDomain.ENTITY) OrderBy orderBy,
@@ -189,7 +195,10 @@ public class FacetSummaryOfReference extends AbstractRequireConstraintContainer 
 		@Nonnull @Child(uniqueChildren = true) EntityFetchRequire... requirements
 	) {
 		super(
-			new Serializable[]{referenceName, Optional.ofNullable(statisticsDepth).orElse(FacetStatisticsDepth.COUNTS)},
+			new Serializable[]{
+				referenceName,
+				Optional.ofNullable(statisticsDepth).orElse(FacetStatisticsDepth.COUNTS)
+			},
 			requirements,
 			new Constraint<?>[]{
 				filterBy,
@@ -286,9 +295,15 @@ public class FacetSummaryOfReference extends AbstractRequireConstraintContainer 
 	@Nonnull
 	@Override
 	public Serializable[] getArgumentsExcludingDefaults() {
-		return Arrays.stream(super.getArgumentsExcludingDefaults())
+		return Arrays.stream(getArguments())
 			.filter(it -> it != FacetStatisticsDepth.COUNTS)
 			.toArray(Serializable[]::new);
+	}
+
+	@Override
+	public boolean isArgumentImplicit(@Nonnull Serializable serializable) {
+		// todo jno verify
+		return serializable == FacetStatisticsDepth.COUNTS;
 	}
 
 	@Nonnull

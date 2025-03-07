@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.ConstraintWithDefaults;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.AdditionalChild;
@@ -90,7 +91,7 @@ import static java.util.Optional.ofNullable;
 	userDocsLink = "/documentation/query/requirements/hierarchy#hierarchy-of-reference"
 )
 public class HierarchyOfReference extends AbstractRequireConstraintContainer
-	implements RootHierarchyConstraint, SeparateEntityContentRequireContainer, ExtraResultRequireConstraint {
+	implements ConstraintWithDefaults<RequireConstraint>, RootHierarchyConstraint, SeparateEntityContentRequireContainer, ExtraResultRequireConstraint {
 
 	@Serial private static final long serialVersionUID = 3121491811975308390L;
 
@@ -234,9 +235,15 @@ public class HierarchyOfReference extends AbstractRequireConstraintContainer
 	@Nonnull
 	@Override
 	public Serializable[] getArgumentsExcludingDefaults() {
-		return Arrays.stream(super.getArgumentsExcludingDefaults())
+		return Arrays.stream(getArguments())
 			.filter(it -> it != EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY)
 			.toArray(Serializable[]::new);
+	}
+
+	@Override
+	public boolean isArgumentImplicit(@Nonnull Serializable serializable) {
+		// todo jno verify
+		return serializable == EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY;
 	}
 
 	@Nonnull

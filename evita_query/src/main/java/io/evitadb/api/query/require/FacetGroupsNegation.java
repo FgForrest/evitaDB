@@ -24,6 +24,7 @@
 package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.ConstraintWithDefaults;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.AdditionalChild;
@@ -93,7 +94,7 @@ import java.util.Optional;
 		"facet groups in the sense that their selection would return entities that don't have any of those facets.",
 	userDocsLink = "/documentation/query/requirements/facet#facet-groups-negation"
 )
-public class FacetGroupsNegation extends AbstractRequireConstraintContainer implements FacetGroupsConstraint {
+public class FacetGroupsNegation extends AbstractRequireConstraintContainer implements ConstraintWithDefaults<RequireConstraint>, FacetGroupsConstraint {
 	@Serial private static final long serialVersionUID = 3993873252481237893L;
 
 	private FacetGroupsNegation(@Nonnull Serializable[] arguments, @Nonnull Constraint<?>... additionalChildren) {
@@ -165,6 +166,15 @@ public class FacetGroupsNegation extends AbstractRequireConstraintContainer impl
 		} else {
 			return super.getArguments();
 		}
+	}
+
+	@Override
+	public boolean isArgumentImplicit(@Nonnull Serializable serializable) {
+		// todo jno verify
+		if (getFacetGroupRelationLevel() == FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP) {
+			return !(serializable instanceof String);
+		}
+		return false;
 	}
 
 	@Nonnull
