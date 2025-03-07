@@ -17,6 +17,7 @@
     },
     require: {
       facetParameterValuesGroupsDisjunction: {
+        facetGroupRelationLevel: WITH_DIFFERENT_GROUPS,
         filterBy: {
           attributeCodeInSet: [
             "ram-memory",
