@@ -470,7 +470,7 @@ public class ExternalApiServer implements AutoCloseable {
 						unused -> {
 							ConsoleWriter.write(
 								"External APIs stopped in " + StringUtils.formatPreciseNano(System.nanoTime() - start) + ".\n");
-							probesMaintainer.closeProbes();
+							this.probesMaintainer.closeProbes();
 						}
 					);
 			}
