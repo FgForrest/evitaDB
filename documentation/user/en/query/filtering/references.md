@@ -320,7 +320,8 @@ using the [`hierarchy](../requirements/hierarchy.md#hierarchy-of-reference) requ
 the category options, it should automatically select all subcategories as well, and also change the predicted
 [facet statistics](../requirements/facet.md#facet-summary-of-reference) accordingly.
 
-To achieve this, you can use the `includingChildren` constraint within the `facetHaving` constraint:
+To achieve this, you can use the `includingChildren` constraint within the `facetHaving` constraint. The query is also
+restricted to the products of the `ASUS` manufacturer so that the facet summary is not too long:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -386,7 +387,8 @@ the child entities that are included in the `facetHaving` parent constraint. Thi
 filters in the [`facetSummary`](../requirements/facet.md#facet-summary-of-reference) and your selection logic needs 
 to match it.
 
-To better understand how the `includingChildrenHaving` constraint works, let's look at an example:
+To better understand how the `includingChildrenHaving` constraint works, let's look at an example (the query is also
+restricted to the products of the `ASUS` manufacturer so that the facet summary is not too long):
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -457,7 +459,8 @@ You can also combine the `includingChildrenExcept` constraint with the `includin
 In this case, the `includingChildrenHaving` constraint is evaluated first and the `includingChildrenExcept` constraint 
 is applied to the result of the `includingChildrenHaving` constraint.
 
-To better understand how the `includingChildrenExcept` constraint works, let's look at an example:
+To better understand how the `includingChildrenExcept` constraint works, let's look at an example (the query is also
+restricted to the products of the `ASUS` manufacturer so that the facet summary is not too long):
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
