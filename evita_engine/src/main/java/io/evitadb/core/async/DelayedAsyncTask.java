@@ -23,6 +23,8 @@
 
 package io.evitadb.core.async;
 
+import io.evitadb.core.metric.event.system.BackgroundTaskFinishedEvent;
+import io.evitadb.core.metric.event.system.BackgroundTaskStartedEvent;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -228,17 +230,20 @@ public class DelayedAsyncTask {
 	 */
 	private void runTask(@Nonnull LongSupplier runnable) {
 		final long planWithShorterDelay;
+		final BackgroundTaskFinishedEvent finishEvent = new BackgroundTaskFinishedEvent(this.catalogName, this.taskName);
 		try {
 			Assert.isPremiseValid(
 				this.running.compareAndSet(false, true),
 				"Task is already running."
 			);
+			new BackgroundTaskStartedEvent(this.catalogName, this.taskName).commit();
 			planWithShorterDelay = runnable.getAsLong();
 			this.lastFinishedExecution.set(OffsetDateTime.now());
 		} catch (RuntimeException ex) {
 			log.error("Error while running task: {}", this.taskName, ex);
 			throw ex;
 		} finally {
+			finishEvent.commit();
 			Assert.isPremiseValid(
 				this.running.compareAndSet(true, false),
 				"Task is not running."
