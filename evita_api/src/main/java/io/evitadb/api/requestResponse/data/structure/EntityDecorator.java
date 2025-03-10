@@ -440,7 +440,7 @@ public class EntityDecorator implements SealedEntity {
 					entityPrimaryKey,
 					fetchedAndFilteredReferences, fetchedReferenceComparator,
 					referenceFetcher.getEntityFilter(referenceSchema),
-					index, i
+					index, i - filteredOutReferences
 				);
 				index = i - filteredOutReferences;
 				referenceSchema = entitySchema.getReference(thisReferenceName)
@@ -461,7 +461,7 @@ public class EntityDecorator implements SealedEntity {
 				entityPrimaryKey,
 				fetchedAndFilteredReferences, fetchedReferenceComparator,
 				referenceFetcher.getEntityFilter(referenceSchema),
-				index, fetchedAndFilteredReferences.length
+				index, fetchedAndFilteredReferences.length - filteredOutReferences
 			);
 		}
 
