@@ -60,10 +60,6 @@ public record GraphQLResponse<T>(@Nullable T data,
         );
     }
 
-    public boolean hasErrors() {
-        return this.errors != null && !this.errors.isEmpty();
-    }
-
     private record GraphQLResponseError(@Nonnull String message,
                                         @Nonnull List<SourceLocation> locations,
                                         @Nonnull List<Object> path,

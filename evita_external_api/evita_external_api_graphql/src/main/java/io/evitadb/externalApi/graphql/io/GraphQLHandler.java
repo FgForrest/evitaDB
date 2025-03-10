@@ -54,7 +54,6 @@ import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
 import io.evitadb.externalApi.http.EndpointHandler;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.MimeTypes;
-import io.evitadb.externalApi.http.ServerErrorEndpointResponse;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
@@ -71,7 +70,6 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.utils.CollectionUtils.createLinkedHashSet;
-import static java.util.Optional.ofNullable;
 
 /**
  * HTTP request handler for processing {@link GraphQLRequest}s and returning {@link GraphQLResponse}s using passed
@@ -155,11 +153,7 @@ public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExecutionCont
                     executionContext.httpRequest(),
                     () -> executeRequest(executionContext, graphQLRequest)
                 );
-                if (ofNullable(graphQLResponse).map(GraphQLResponse::hasErrors).orElse(false)) {
-                    return new ServerErrorEndpointResponse(graphQLResponse);
-                } else {
-                    return new SuccessEndpointResponse(graphQLResponse);
-                }
+                return new SuccessEndpointResponse(graphQLResponse);
             });
     }
 

@@ -98,10 +98,6 @@ public abstract class EndpointHandler<C extends EndpointExecutionContext> implem
 
 							if (response instanceof NotFoundEndpointResponse) {
 								throw new HttpExchangeException(HttpStatus.NOT_FOUND.code(), "Requested resource wasn't found.");
-							} else if (response instanceof ServerErrorEndpointResponse errorResponse) {
-								return getResponse(ctx, executionContext, errorResponse.getResult(), HttpStatus.INTERNAL_SERVER_ERROR);
-							} else if (response instanceof ClientErrorEndpointResponse errorResponse) {
-								return getResponse(ctx, executionContext, errorResponse.getResult(), HttpStatus.BAD_REQUEST);
 							} else if (response instanceof SuccessEndpointResponse successResponse) {
 								final Object result = successResponse.getResult();
 								if (result == null) {
