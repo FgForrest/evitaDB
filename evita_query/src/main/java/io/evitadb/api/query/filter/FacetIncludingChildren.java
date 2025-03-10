@@ -37,6 +37,7 @@ import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Optional;
@@ -59,7 +60,9 @@ import java.util.Optional;
  *     filterBy(
  *         facetHaving(
  *             "categories",
- *             attributeEquals("code", "accessories"),
+ *             entityHaving(
+ *                attributeEquals("code", "accessories")
+ *             ),
  *             includingChildren()
  *         )
  *     ),
@@ -84,7 +87,9 @@ import java.util.Optional;
  *     filterBy(
  *         facetHaving(
  *             "categories",
- *             attributeEquals("code", "accessories"),
+ *             entityHaving(
+ *                attributeEquals("code", "accessories"),
+ *             ),
  *             includingChildrenHaving(
  *                 or(
  *                     attributeInRangeNow("validity"),
@@ -129,6 +134,12 @@ public class FacetIncludingChildren extends AbstractFilterConstraintContainer im
 	@Creator(suffix = SUFFIX_HAVING)
 	public FacetIncludingChildren(@Nonnull @Child(domain = ConstraintDomain.ENTITY) FilterConstraint child) {
 		super(CONSTRAINT_NAME, child);
+	}
+
+	@Nullable
+	public FilterConstraint getChild() {
+		final FilterConstraint[] children = getChildren();
+		return children.length == 0 ? null : children[0];
 	}
 
 	@Override

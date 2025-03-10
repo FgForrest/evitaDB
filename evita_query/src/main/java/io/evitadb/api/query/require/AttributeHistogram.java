@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.AttributeConstraint;
+import io.evitadb.api.query.ConstraintWithDefaults;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
@@ -71,7 +72,7 @@ import java.util.Arrays;
 	userDocsLink = "/documentation/query/requirements/histogram#attribute-histogram",
 	supportedValues = @ConstraintSupportedValues(supportedTypes = {Byte.class, Short.class, Integer.class, Long.class, BigDecimal.class})
 )
-public class AttributeHistogram extends AbstractRequireConstraintLeaf implements AttributeConstraint<RequireConstraint>, ExtraResultRequireConstraint {
+public class AttributeHistogram extends AbstractRequireConstraintLeaf implements ConstraintWithDefaults<RequireConstraint>, AttributeConstraint<RequireConstraint>, ExtraResultRequireConstraint {
 	@Serial private static final long serialVersionUID = -3462067705883466799L;
 
 	private AttributeHistogram(Serializable... arguments) {
@@ -143,9 +144,14 @@ public class AttributeHistogram extends AbstractRequireConstraintLeaf implements
 	@Nonnull
 	@Override
 	public Serializable[] getArgumentsExcludingDefaults() {
-		return Arrays.stream(super.getArgumentsExcludingDefaults())
+		return Arrays.stream(getArguments())
 			.filter(it -> it != HistogramBehavior.STANDARD)
 			.toArray(Serializable[]::new);
+	}
+
+	@Override
+	public boolean isArgumentImplicit(@Nonnull Serializable serializable) {
+		return serializable == HistogramBehavior.STANDARD;
 	}
 
 	@Nonnull

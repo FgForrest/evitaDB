@@ -24,7 +24,7 @@
 package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.Constraint;
-import io.evitadb.api.query.FacetConstraint;
+import io.evitadb.api.query.ConstraintWithDefaults;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.AdditionalChild;
@@ -44,12 +44,14 @@ import java.util.Arrays;
 import java.util.Optional;
 
 /**
- * This `facetGroupsDisjunction` require constraint allows specifying facet relation among different facet groups of certain
- * primary ids. First mandatory argument specifies entity type of the facet group, secondary argument allows to define one
- * more facet group ids that should be considered disjunctive.
+ * This `facetGroupsDisjunction` require constraint allows specifying facet relation on particular level (within group
+ * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+ * group, secondary optional argument allows defining the level for which the disjunction is defined, third optional
+ * argument defines one more facet group ids which facets should be considered disjunctive with other facets either
+ * in same group or different groups (depending on level argument).
  *
- * This require constraint changes default behaviour stating that facets between two different facet groups are combined by
- * AND relation and changes it to the disjunction relation instead.
+ * This require constraint changes default behavior of the facet calculation rules.
+ * Constraint has sense only when [facet](#facet) constraint is part of the query.
  *
  * Example:
  *
@@ -66,7 +68,7 @@ import java.util.Optional;
  *       )
  *    ),
  *    require(
- *       facetGroupsDisjunction("parameterType", 1, 2)
+ *       facetGroupsDisjunction("parameterType", WITH_DIFFERENT_GROUPS, 1, 2)
  *    )
  * )
  * </pre>
@@ -97,14 +99,15 @@ import java.util.Optional;
  *
  * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-disjunction">Visit detailed user documentation</a></p>
  *
+ * @see FacetGroupRelationLevel
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "groupsDisjunction",
-	shortDescription = "Sets relation of facets in the specified groups towards facets in different groups to [logical OR](https://en.wikipedia.org/wiki/Logical_disjunction) .",
+	shortDescription = "Sets facet relation on particular level (within group or with different group facets) to [logical OR](https://en.wikipedia.org/wiki/Logical_disjunction) .",
 	userDocsLink = "/documentation/query/requirements/facet#facet-groups-disjunction"
 )
-public class FacetGroupsDisjunction extends AbstractRequireConstraintContainer implements FacetConstraint<RequireConstraint> {
+public class FacetGroupsDisjunction extends AbstractRequireConstraintContainer implements ConstraintWithDefaults<RequireConstraint>, FacetGroupsConstraint {
 	@Serial private static final long serialVersionUID = 1087282346634617160L;
 
 	private FacetGroupsDisjunction(@Nonnull Serializable[] arguments, @Nonnull Constraint<?>... additionalChildren) {
@@ -114,23 +117,46 @@ public class FacetGroupsDisjunction extends AbstractRequireConstraintContainer i
 		}
 	}
 
-	@Creator
-	public FacetGroupsDisjunction(@Nonnull @Classifier String referenceName,
-	                              @Nullable @AdditionalChild(domain = ConstraintDomain.GROUP_ENTITY) FilterBy filterBy) {
-		super(new Serializable[]{referenceName}, NO_CHILDREN, filterBy);
+	public FacetGroupsDisjunction(
+		@Nonnull String referenceName,
+		@Nullable FilterBy filterBy
+	) {
+		this(referenceName, null, filterBy);
 	}
 
-	/**
-	 * Returns name of the reference name this constraint relates to.
-	 */
+	@Creator
+	public FacetGroupsDisjunction(
+		@Nonnull @Classifier String referenceName,
+		@Nullable FacetGroupRelationLevel facetGroupRelationLevel,
+		@Nullable @AdditionalChild(domain = ConstraintDomain.GROUP_ENTITY) FilterBy filterBy
+	) {
+		super(
+			facetGroupRelationLevel == null ?
+				new Serializable[]{referenceName, FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP} :
+				new Serializable[]{referenceName, facetGroupRelationLevel},
+			NO_CHILDREN,
+			filterBy
+		);
+	}
+
+	@Override
 	@Nonnull
 	public String getReferenceName() {
 		return (String) getArguments()[0];
 	}
 
-	/**
-	 * Returns filter constraint that can be resolved to array of facet groups primary keys.
-	 */
+	@Override
+	@AliasForParameter("relation")
+	@Nonnull
+	public FacetGroupRelationLevel getFacetGroupRelationLevel() {
+		return Arrays.stream(getArguments())
+			.filter(FacetGroupRelationLevel.class::isInstance)
+			.map(FacetGroupRelationLevel.class::cast)
+			.findFirst()
+			.orElse(FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP);
+	}
+
+	@Override
 	@AliasForParameter("filterBy")
 	@Nonnull
 	public Optional<FilterBy> getFacetGroups() {
@@ -147,8 +173,20 @@ public class FacetGroupsDisjunction extends AbstractRequireConstraintContainer i
 
 	@Nonnull
 	@Override
-	public RequireConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
-		return new FacetGroupsDisjunction(newArguments, getAdditionalChildren());
+	public Serializable[] getArgumentsExcludingDefaults() {
+		if (getFacetGroupRelationLevel() == FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP) {
+			return new Serializable[]{ getReferenceName() };
+		} else {
+			return super.getArguments();
+		}
+	}
+
+	@Override
+	public boolean isArgumentImplicit(@Nonnull Serializable serializable) {
+		if (getFacetGroupRelationLevel() == FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP) {
+			return !(serializable instanceof String);
+		}
+		return false;
 	}
 
 	@Nonnull
@@ -156,5 +194,11 @@ public class FacetGroupsDisjunction extends AbstractRequireConstraintContainer i
 	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
 		Assert.isPremiseValid(ArrayUtils.isEmpty(children), "Children must be empty");
 		return new FacetGroupsDisjunction(getArguments(), additionalChildren);
+	}
+
+	@Nonnull
+	@Override
+	public RequireConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
+		return new FacetGroupsDisjunction(newArguments, getAdditionalChildren());
 	}
 }

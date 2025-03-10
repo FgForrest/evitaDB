@@ -1,6 +1,6 @@
 ---
 title: Facet filtering
-date: '29.10.2023'
+date: '14.2.2025'
 perex: |
   Faceted filtering, also known as parameterized filtering, is a user interface feature that allows users to refine
   search results by applying multiple filters based on various properties or "facets" like category, parameter, or
@@ -48,13 +48,22 @@ The visualization is organized in the same way as the facet summary itself:
 | ![Current number of results / difference when facet is selected](assets/set-right-custom.png) | Represents the current number of entities returned that match the filter constraints, next to the slash there is a difference in the number of results when this facet option is added to the user filter.             |
 | ![Total number of results with this facet selected](assets/set-all-custom.png)                | Represents the total number of entities that will be displayed in the result when this facet option is selected (i.e., the number of entities that match the facet option in the entire dataset). )                   |
 
-### Facet calculation rules
+### Default facet calculation rules
 
-1. The facet summary is calculated only for entities that are returned in the current query result (excluding the effect of `userFilter` part of the query if present)
+1. The facet summary is calculated only for entities that are returned in the current query result (excluding the effect 
+   of `userFilter` part of the query if present)
 2. The calculation respects any filter constraints placed outside the [`userFilter`](../filtering/behavioral.md#user-filter)
    container.
-3. The default relation between facets within a group is logical disjunction (logical OR).
-4. The default relation between facets in different groups / references is a logical AND.
+3. The default relation between facets within a group is logical disjunction (logical OR) unless you say otherwise.
+4. The default relation between facets in different groups / references is a logical conjuction (logical AND) unless
+   you say otherwise.
+
+<Note type="info">
+
+You can change the default facet calculation relations by using the [`facetCalculationRules`](#facet-calculation-rules) 
+in the requirement part of your query.
+
+</Note>
 
 ## Facet summary
 
@@ -242,8 +251,8 @@ Facet contains the statistics for that facet option:
 <dl>
   <dt>count</dt>
   <dd>
-    It represents the number of all entities in the current query result that match this facet (have reference to entity
-    with this primary key).
+    It represents the number of all entities in the current query result (including user filter constraints) that 
+    have this facet (have reference to entity with this primary key).
   </dd>
   <dt>requested</dt>
   <dd>
@@ -871,6 +880,7 @@ related entity schema specified by the faceted [reference schema](../../use/sche
 ```evitaql-syntax
 facetGroupsConjunction(
     argument:string!,
+    argument:enum(WITH_DIFFERENT_FACETS_IN_GROUP|WITH_DIFFERENT_GROUPS),
     filterConstraint:filterBy
 )
 ```
@@ -880,6 +890,12 @@ facetGroupsConjunction(
     <dd>
         Mandatory argument specifying the name of the [reference](../../use/schema.md#reference) to which this
         constraint refers.
+    </dd>
+    <dt>argument:enum(WITH_DIFFERENT_FACETS_IN_GROUP|WITH_DIFFERENT_GROUPS)</dt>
+    <dd>
+        <p>**Default: `WITH_DIFFERENT_FACETS_IN_GROUP`**</p>
+        <p>Optional enumeration argument specifying whether the relationship type should be applied to facets at 
+        a particular level (within the same facet group, or to facets in different facet groups/references).</p> 
     </dd>
     <dt>filterConstraint:filterBy</dt>
     <dd>
@@ -892,8 +908,9 @@ facetGroupsConjunction(
 
 The <LS to="j,e,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/FacetGroupsConjunction.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/FacetGroupsConjunction.cs</SourceClass></LS>
 changes the default behavior of the facet summary calculation for the facet groups specified in the `filterBy`
-constraint. Instead of logical disjunction (logical OR), the facet options in the facet groups are combined with logical
-conjunction (logical AND).
+constraint. Instead of the default relationship ([either system defaults](#default-facet-calculation-rules) or 
+[overridden defaults](#facet-calculation-rules)), the facet options in the facet groups at a given level are combined 
+with a logical AND.
 
 <Note type="warning">
 
@@ -917,7 +934,7 @@ behavior changes the numbers produced:
 
 Note that the `facetGroupsConjunction` in the example doesn't contain a `filterBy` constraint, so it applies to all
 the facet groups in the facet summary, or in this particular case to facets in the reference `groups` that are not
-part of any group.
+part of any group. Also we don't specify a level, so it defaults to `WITH_DIFFERENT_FACETS_IN_GROUP`.
 
 </Note>
 
@@ -959,6 +976,7 @@ reduction:
 ```evitaql-syntax
 facetGroupsDisjunction(
     argument:string!,
+    argument:enum(WITH_DIFFERENT_FACETS_IN_GROUP|WITH_DIFFERENT_GROUPS),
     filterConstraint:filterBy
 )
 ```
@@ -968,6 +986,12 @@ facetGroupsDisjunction(
     <dd>
         Mandatory argument specifying the name of the [reference](../../use/schema.md#reference) to which this
         constraint refers.
+    </dd>
+    <dt>argument:enum(WITH_DIFFERENT_FACETS_IN_GROUP|WITH_DIFFERENT_GROUPS)</dt>
+    <dd>
+        <p>**Default: `WITH_DIFFERENT_FACETS_IN_GROUP`**</p>
+        <p>Optional enumeration argument specifying whether the relationship type should be applied to facets at 
+        a particular level (within the same facet group, or to facets in different facet groups/references).</p> 
     </dd>
     <dt>filterConstraint:filterBy</dt>
     <dd>
@@ -981,8 +1005,9 @@ facetGroupsDisjunction(
 
 The <LS to="j,e,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/FacetGroupsDisjunction.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/FacetGroupsDisjunction.cs</SourceClass></LS>
 changes the default behavior of the facet summary calculation for the facet groups specified in the `filterBy` constraint.
-Instead of logical AND, the facet options in the facet groups are combined with logical OR with facets from different
-facet groups.
+Instead of the default relationship ([either system defaults](#default-facet-calculation-rules) or
+[overridden defaults](#facet-calculation-rules)), the facet options in the facet groups at a given level are combined
+with a logical OR.
 
 <Note type="warning">
 
@@ -1040,6 +1065,7 @@ expansion:
 ```evitaql-syntax
 facetGroupsNegation(
     argument:string!,
+    argument:enum(WITH_DIFFERENT_FACETS_IN_GROUP|WITH_DIFFERENT_GROUPS),
     filterConstraint:filterBy
 )
 ```
@@ -1049,6 +1075,12 @@ facetGroupsNegation(
     <dd>
         Mandatory argument specifying the name of the [reference](../../use/schema.md#reference) to which this
         constraint refers.
+    </dd>
+    <dt>argument:enum(WITH_DIFFERENT_FACETS_IN_GROUP|WITH_DIFFERENT_GROUPS)</dt>
+    <dd>
+        <p>**Default: `WITH_DIFFERENT_FACETS_IN_GROUP`**</p>
+        <p>Optional enumeration argument specifying whether the relationship type should be applied to facets at 
+        a particular level (within the same facet group, or to facets in different facet groups/references).</p>  
     </dd>
     <dt>filterConstraint:filterBy</dt>
     <dd>
@@ -1064,6 +1096,14 @@ The <LS to="j,e,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query
 changes the behavior of the facet option in all facet groups specified in the `filterBy` constraint. Instead of returning only
 those items that have a reference to that particular faceted entity, the query result will return only those items that
 don't have a reference to it.
+
+<Note type="info">
+
+As long as you leaf the other argument on system default it doesn't matter if you set NEGATION for the level within 
+the same facet group or between different groups, because by the [De Morgan's las](https://en.wikipedia.org/wiki/De_Morgan%27s_laws) 
+the result will be the same (`!a && !b` is the equivalent to `!(a || b)`).
+
+</Note>
 
 <Note type="warning">
 
@@ -1113,3 +1153,194 @@ with default behavior predicts only a dozen of them:
 </LS>
 
 </Note>
+
+## Facet groups exclusivity
+
+```evitaql-syntax
+facetGroupsExclusivity(
+    argument:string!,
+    argument:enum(WITH_DIFFERENT_FACETS_IN_GROUP|WITH_DIFFERENT_GROUPS),
+    filterConstraint:filterBy
+)
+```
+
+<dl>
+    <dt>argument:string!</dt>
+    <dd>
+        Mandatory argument specifying the name of the [reference](../../use/schema.md#reference) to which this
+        constraint refers.
+    </dd>
+    <dt>argument:enum(WITH_DIFFERENT_FACETS_IN_GROUP|WITH_DIFFERENT_GROUPS)</dt>
+    <dd>
+        <p>**Default: `WITH_DIFFERENT_FACETS_IN_GROUP`**</p>
+        <p>Optional enumeration argument specifying whether the relationship type should be applied to facets at 
+        a particular level (within the same facet group, or to facets in different facet groups/references).</p>  
+    </dd>
+    <dt>filterConstraint:filterBy</dt>
+    <dd>
+        Optional filter constraint that selects one or more facet groups whose facet options are mutually exclusive.
+
+        If the filter is not defined, the behavior applies to all groups of a particular reference in the facet summary.
+    </dd>
+</dl>
+
+The <LS to="j,e,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/FacetGroupsExclusivity.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/FacetGroupsExclusivity.cs</SourceClass></LS>
+changes the behavior of the facet option in all facet groups specified in the `filterBy` constraint. This relationship
+doesn't affect the query output. It's up to the client to ensure that only one facet is selected at a given level.
+If the client provides more than one facet at a particular level, the system will use [system defaults](#default-facet-calculation-rules)
+for the calculation (i.e. logical OR for facets within the same facet group and logical AND for facets between different groups).
+
+The [impact statistics](#3rd-tier-facet) will be calculated for the situation where only this particular facet is
+selected and no others in the same group / in different groups are selected.
+
+<Note type="info">
+
+Since this operator doesn't affect the actual result set output, it can only be used for the specific impact calculation,
+if you want to see the impact of selecting only one facet at a particular level.
+
+</Note>
+
+To demonstrate this effect, we need a query that targets some reference (let's say `parameterValues`) and makes some of
+the listed group as exclusive.
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
+[Facet groups exclusivity example](/documentation/user/en/query/requirements/examples/facet/facet-groups-exclusivity.evitaql)
+
+</SourceCodeTabs>
+
+| Default behaviour                                       | Altered behaviour                                    |
+|---------------------------------------------------------|------------------------------------------------------|
+| ![Before](assets/facet-exclusivity-before.png "Before") | ![After](assets/facet-exclusivity-after.png "After") |
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of facet summarization with exclusive facet relation behavior in the group
+
+</NoteTitle>
+
+The predicted results in the exclusive groups are different for the numbers produced by the default behaviour when there
+is an existing facet selection used for the current query. As you can see, the current selection of the option in the
+RAM facet group doesn't affect the predicted counts (they remain the same as if no selection had been made):
+
+<LS to="e,j,c">
+
+<MDInclude sourceVariable="extraResults.FacetSummary">[The result of facet summarization with exclusive facet relation behavior in the group](/documentation/user/en/query/requirements/examples/facet/facet-groups-exclusivity.evitaql.string.md)</MDInclude>
+
+</LS>
+<LS to="g">
+
+<MDInclude sourceVariable="data.queryProduct.extraResults.facetSummary">[The result of facet summarization with exclusive facet relation behavior in the group](/documentation/user/en/query/requirements/examples/facet/facet-groups-exclusivity.graphql.json.md)</MDInclude>
+
+</LS>
+<LS to="r">
+
+<MDInclude sourceVariable="extraResults.facetSummary">[The result of facet summarization with exclusive facet relation behavior in the group](/documentation/user/en/query/requirements/examples/facet/facet-groups-exclusivity.rest.json.md)</MDInclude>
+
+</LS>
+
+</Note>
+
+## Facet calculation rules
+
+```evitaql-syntax
+facetCalculationRules(
+    argument:enum(DISJUNCTION|CONJUNCTION|NEGATION|EXCLUSIVITY)!,
+    argument:enum(DISJUNCTION|CONJUNCTION|NEGATION|EXCLUSIVITY)!
+)
+```
+
+<dl>
+    <dt>argument:enum(DISJUNCTION|CONJUNCTION|NEGATION|EXCLUSIVITY)!</dt>
+    <dd>
+        Mandatory argument specifying the default relationship behaviour for facets within the same facet group. You can 
+        change the default logical disjunction (logical OR) to a different value.
+    </dd>
+    <dt>argument:enum(DISJUNCTION|CONJUNCTION|NEGATION|EXCLUSIVITY)!</dt>
+    <dd>
+        Mandatory argument specifying the default relationship behaviour for the facets between different facet groups 
+        or references. You can change the default logical operator (logical AND) to a different value.
+    </dd>
+</dl>
+
+The <LS to="j,e,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/FacetCalculationRules.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/FacetCalculationRules.cs</SourceClass></LS> requirement changes 
+the [default behavior](#default-facet-calculation-rules) of the facet summary calculation to the specified logical
+operators. The first argument specifies the default relationship behavior for facets within the same facet group, and the
+second argument specifies the default relationship behavior for the facets between different facet groups or references.
+
+**Supported logical operators:**
+
+<dl>
+    <dt>DISJUNCTION</dt>
+    <dd>
+        Logical OR operator.
+
+        Effect on [facet having behavior](../filtering/references.md#facet-having): entity will be present in the result
+        set once it has at least one of the selected facets at a particular level (within the same facet group / between different groups).
+
+        Effect on [impact statistics](#3rd-tier-facet): logical OR will likely extend the number of results in the final 
+        set.
+    </dd>
+    <dt>CONJUNCTION</dt>
+    <dd>
+        Logical AND operator.
+
+        Effect on [facet having behavior](../filtering/references.md#facet-having): entity will be present in the result
+        set once it has all the selected facets at a particular level (within the same facet group / between different groups).
+
+        Effect on [impact statistics](#3rd-tier-facet): logical AND will likely reduce the number of results in the final 
+        set.
+    </dd>
+    <dt>NEGATION</dt>
+    <dd>
+        Logical AND NOT operator.
+
+        Effect on [facet having behavior](../filtering/references.md#facet-having): entity will be present in the result
+        set once it has none the selected facets at a particular level. As long as you leaf the other argument on system 
+        default it doesn't matter if you set NEGATION for the level within the same facet group or between different groups,
+        because by the [De Morgan's las](https://en.wikipedia.org/wiki/De_Morgan%27s_laws) the result will be the same
+        (`!a && !b` is the equivalent to `!(a || b)`).
+
+        Effect on [impact statistics](#3rd-tier-facet): logical AND NOT will likely extend the number of results in the 
+        final set if the entities have only a few facets of all the possible ones on average.
+    </dd>
+    <dt>EXCLUSIVITY</dt>
+    <dd>
+        Special logical operator that says that only one facet can be selected at a given level (within the same facet 
+        group / between different groups). This is useful for facets that are mutually exclusive.
+
+        Effect on [facet having behaviour](../filtering/references.md#facet-having): none - it's up to the client to 
+        ensure that only one facet is selected at a given level. If the client provides more than one facet at 
+        a particular level, the system will use system defaults for the calculation (i.e. logical OR for facets within 
+        the same facet group and logical AND for facets between different groups).
+
+        Effect on [impact statistics](#3rd-tier-facet): The calculated match count and impact will be calculated for 
+        the situation where only this particular facet is selected and no others in the same group / in different groups 
+        are selected.
+
+        **Note**: since this operator doesn't affect the actual result set output, it can only be used for the specific 
+        impact calculation, if you want to see the impact of selecting only one facet at a particular level.
+    </dd>
+</dl>
+
+<Note type="info">
+
+Changing the default facet calculation rules is similar to configuring each individual facet group relationship using 
+requirement constraints:
+
+- [Facet groups conjunction](#facet-groups-conjunction)
+- [Facet groups disjunction](#facet-groups-disjunction)
+- [Facet groups negation](#facet-groups-negation)
+- [Facet groups exclusivity](#facet-groups-exclusivity)
+
+</Note>
+
+The sample query that changes the default calculation rules is as follows
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
+[Changing default calculation rules example](/documentation/user/en/query/requirements/examples/facet/change-default-calculation-rules.evitaql)
+
+</SourceCodeTabs>

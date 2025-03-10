@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -95,12 +95,14 @@ public class MemoizingFacetCalculator implements FacetCalculator, ImpactCalculat
 		this.facetFormulaGenerator = new FacetFormulaGenerator(
 			queryContext::isFacetGroupConjunction,
 			queryContext::isFacetGroupDisjunction,
-			queryContext::isFacetGroupNegation
+			queryContext::isFacetGroupNegation,
+			queryContext::isFacetGroupExclusive
 		);
 		this.impactFormulaGenerator = new ImpactFormulaGenerator(
 			queryContext::isFacetGroupConjunction,
 			queryContext::isFacetGroupDisjunction,
-			queryContext::isFacetGroupNegation
+			queryContext::isFacetGroupNegation,
+			queryContext::isFacetGroupExclusive
 		);
 	}
 
@@ -108,8 +110,8 @@ public class MemoizingFacetCalculator implements FacetCalculator, ImpactCalculat
 	@Override
 	public RequestImpact calculateImpact(@Nonnull ReferenceSchemaContract referenceSchema, int facetId, @Nullable Integer facetGroupId, boolean required, @Nonnull Bitmap[] facetEntityIds) {
 		// create formula that would capture the requested facet selected
-		final Formula hypotheticalFormula = impactFormulaGenerator.generateFormula(
-			baseFormula, baseFormulaWithoutUserFilter, referenceSchema, facetGroupId, facetId, facetEntityIds
+		final Formula hypotheticalFormula = this.impactFormulaGenerator.generateFormula(
+			this.baseFormula, this.baseFormulaWithoutUserFilter, referenceSchema, facetGroupId, facetId, facetEntityIds
 		);
 		// initialize the formula
 		hypotheticalFormula.initialize(this.executionContext);
@@ -121,7 +123,7 @@ public class MemoizingFacetCalculator implements FacetCalculator, ImpactCalculat
 			difference,
 			hypotheticalCount,
 			hypotheticalCount > 0 &&
-				(difference != 0 || impactFormulaGenerator.hasSenseAlone(hypotheticalFormula, referenceSchema, facetGroupId, facetId, facetEntityIds))
+				(difference != 0 || this.impactFormulaGenerator.hasSenseAlone(hypotheticalFormula, referenceSchema, facetGroupId, facetId, facetEntityIds))
 		);
 	}
 

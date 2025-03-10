@@ -178,6 +178,8 @@ class ConstraintRegistry {
 		FacetGroupsConjunction.class,
 		FacetGroupsDisjunction.class,
 		FacetGroupsNegation.class,
+		FacetGroupsExclusivity.class,
+		FacetCalculationRules.class,
 		FacetSummary.class,
 		FacetSummaryOfReference.class
 	);
