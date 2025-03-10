@@ -159,4 +159,6 @@ import static io.evitadb.api.query.require.QueryPriceMode.*;
 import static io.evitadb.api.query.require.StatisticsBase.*;
 import static io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour.*;
 import static io.evitadb.api.query.require.HistogramBehavior.*;
+import static io.evitadb.api.query.require.FacetRelationType.*;
+import static io.evitadb.api.query.require.FacetGroupRelationLevel.*;
 import static io.evitadb.dataType.Scope.*;

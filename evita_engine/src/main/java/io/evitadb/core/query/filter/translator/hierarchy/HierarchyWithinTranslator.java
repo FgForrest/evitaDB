@@ -162,7 +162,7 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 		@Nonnull int[] nodeIds,
 		@Nonnull QueryPlanningContext queryContext,
 		@Nonnull Set<Scope> scopesToLookup,
-		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull EntitySchemaContract targetEntitySchema
 	) {
 		return createFormulaFromHierarchyIndex(

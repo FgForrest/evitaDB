@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ public final class GrpcEnums {
   }
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcEvitaAssociatedDataDataType_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcEvitaAssociatedDataDataType_fieldAccessorTable;
 
@@ -181,7 +181,12 @@ public final class GrpcEnums {
       "SSIFIER_TYPE_REFERENCE\020\005\022\'\n#CLASSIFIER_T" +
       "YPE_REFERENCE_ATTRIBUTE\020\006*5\n\017GrpcEntityS" +
       "cope\022\016\n\nSCOPE_LIVE\020\000\022\022\n\016SCOPE_ARCHIVED\020\001" +
-      "B\014P\001\252\002\007EvitaDBb\006proto3"
+      "*X\n\025GrpcFacetRelationType\022\017\n\013DISJUNCTION" +
+      "\020\000\022\017\n\013CONJUNCTION\020\001\022\014\n\010NEGATION\020\002\022\017\n\013EXC" +
+      "LUSIVITY\020\003*\\\n\033GrpcFacetGroupRelationLeve" +
+      "l\022\"\n\036WITH_DIFFERENT_FACETS_IN_GROUP\020\000\022\031\n" +
+      "\025WITH_DIFFERENT_GROUPS\020\001B\014P\001\252\002\007EvitaDBb\006" +
+      "proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,

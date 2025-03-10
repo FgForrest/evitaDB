@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -55,16 +55,6 @@ public interface Constraint<T extends Constraint<T>> extends Serializable {
 	 */
 	@Nonnull
 	Serializable[] getArguments();
-
-	/**
-	 * Returns list of all query arguments excluding those that match the default (implicit) values.
-	 * This array will be used when converting constraint to string format. Excluding default parameters will
-	 * make the string representation more readable and shorter.
-	 */
-	@Nonnull
-	default Serializable[] getArgumentsExcludingDefaults() {
-		return getArguments();
-	}
 
 	/**
 	 * Returns true if query has enough data to be used in query.

@@ -181,7 +181,7 @@ public class HierarchyOfSelfTranslator
 							)
 						);
 						return new FilteringFormulaHierarchyEntityPredicate(
-							filter, baseFormula
+							queriedEntityType, scopes, filter, baseFormula
 						);
 					}
 				},

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -73,6 +73,14 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 	 */
 	@Getter @Nonnull private final FilterBy filterBy;
 	/**
+	 * The name of the target entity schema that is used to create the {@link #filteringFormula}.
+	 */
+	@Nonnull private final String targetEntitySchema;
+	/**
+	 * The scope of the target entity schema.
+	 */
+	@Nonnull private final Set<Scope> requestedScopes;
+	/**
 	 * Formula computes id of all hierarchical entities that match input filter by constraint.
 	 */
 	@Getter @Nonnull private final Formula filteringFormula;
@@ -128,6 +136,7 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 				Collections.emptyList(),
 				TargetIndexes.EMPTY
 			);
+			this.requestedScopes = requestedScopes;
 			final Formula theFormula;
 			if (referenceSchema == null) {
 				Assert.isTrue(
@@ -136,8 +145,9 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 						requestedScopes.stream().map(Enum::name).collect(Collectors.joining(", ")) + ". " +
 						"The hierarchy filter can't be resolved - hierarchy tree is maintained separately for each scope and multiple trees cannot be merged."
 				);
-				final Scope scope = requestedScopes.iterator().next();
 
+				final Scope scope = requestedScopes.iterator().next();
+				this.targetEntitySchema = queryContext.getSchema().getName();
 				theFormula = queryContext.analyse(
 					theFilterByVisitor.executeInContextAndIsolatedFormulaStack(
 						GlobalEntityIndex.class,
@@ -157,9 +167,10 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 					)
 				);
 			} else {
+				this.targetEntitySchema = referenceSchema.getReferencedEntityType();
 				theFormula = FilterByVisitor.createFormulaForTheFilter(
 					queryContext, requestedScopes, filterBy,
-					referenceSchema.getReferencedEntityType(), stepDescriptionSupplier
+					this.targetEntitySchema, stepDescriptionSupplier
 				);
 			}
 			// create a deferred formula that will log the execution time to query telemetry
@@ -190,11 +201,15 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 	 * @param filteringFormula the formula containing valid entity primary keys that should be matched by this predicate
 	 */
 	public FilteringFormulaHierarchyEntityPredicate(
+		@Nonnull String targetEntitySchema,
+		@Nonnull Set<Scope> requestedScopes,
 		@Nonnull FilterBy filterBy,
 		@Nonnull Formula filteringFormula
 	) {
 		this.parent = null;
 		this.parentResult = false;
+		this.targetEntitySchema = targetEntitySchema;
+		this.requestedScopes = requestedScopes;
 		this.filterBy = filterBy;
 		this.filteringFormula = filteringFormula;
 		this.hash = this.filteringFormula.getHash();
@@ -234,6 +249,8 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 				Collections.emptyList(),
 				TargetIndexes.EMPTY
 			);
+			this.targetEntitySchema = entitySchema.getName();
+			this.requestedScopes = Set.of(entityIndex.getIndexKey().scope());
 			// now analyze the filter by in a nested context with exchanged primary entity index
 			final Formula theFormula = queryContext.analyse(
 				theFilterByVisitor.executeInContextAndIsolatedFormulaStack(
@@ -326,7 +343,11 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 		if (o == null || getClass() != o.getClass()) return false;
 
 		FilteringFormulaHierarchyEntityPredicate that = (FilteringFormulaHierarchyEntityPredicate) o;
-		return parentResult == that.parentResult && Arrays.equals(parent, that.parent) && filterBy.equals(that.filterBy) && filteringFormula.equals(that.filteringFormula);
+		return parentResult == that.parentResult &&
+			Arrays.equals(parent, that.parent) &&
+			filterBy.equals(that.filterBy) &&
+			targetEntitySchema.equals(that.targetEntitySchema) &&
+			requestedScopes.equals(that.requestedScopes);
 	}
 
 	@Override
@@ -334,7 +355,8 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 		int result = Arrays.hashCode(parent);
 		result = 31 * result + Boolean.hashCode(parentResult);
 		result = 31 * result + filterBy.hashCode();
-		result = 31 * result + filteringFormula.hashCode();
+		result = 31 * result + targetEntitySchema.hashCode();
+		result = 31 * result + requestedScopes.hashCode();
 		return result;
 	}
 
@@ -343,7 +365,8 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 		return "HIERARCHY (" +
 			"parent=" + Arrays.toString(parent) +
 			", filterBy=" + filterBy +
-			", filteringFormula=" + filteringFormula +
+			", targetEntitySchema='" + targetEntitySchema + '\'' +
+			", requestedScopes=" + requestedScopes.stream().map(Enum::toString).collect(Collectors.joining(", ")) +
 			')';
 	}
 }

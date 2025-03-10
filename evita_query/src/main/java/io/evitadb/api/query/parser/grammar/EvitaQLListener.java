@@ -1577,6 +1577,30 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 */
 	void exitFacetGroupsNegationConstraint(EvitaQLParser.FacetGroupsNegationConstraintContext ctx);
 	/**
+	 * Enter a parse tree produced by the {@code facetGroupsExclusivityConstraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterFacetGroupsExclusivityConstraint(EvitaQLParser.FacetGroupsExclusivityConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code facetGroupsExclusivityConstraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitFacetGroupsExclusivityConstraint(EvitaQLParser.FacetGroupsExclusivityConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code facetCalculationRulesConstraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterFacetCalculationRulesConstraint(EvitaQLParser.FacetCalculationRulesConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code facetCalculationRulesConstraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitFacetCalculationRulesConstraint(EvitaQLParser.FacetCalculationRulesConstraintContext ctx);
+	/**
 	 * Enter a parse tree produced by the {@code attributeHistogramConstraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
 	 * @param ctx the parse tree
@@ -2115,15 +2139,35 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 */
 	void exitClassifierWithFilterConstraintArgs(EvitaQLParser.ClassifierWithFilterConstraintArgsContext ctx);
 	/**
-	 * Enter a parse tree produced by {@link EvitaQLParser#classifierWithOptionalFilterConstraintArgs}.
+	 * Enter a parse tree produced by {@link EvitaQLParser#classifierWithTwoFilterConstraintArgs}.
 	 * @param ctx the parse tree
 	 */
-	void enterClassifierWithOptionalFilterConstraintArgs(EvitaQLParser.ClassifierWithOptionalFilterConstraintArgsContext ctx);
+	void enterClassifierWithTwoFilterConstraintArgs(EvitaQLParser.ClassifierWithTwoFilterConstraintArgsContext ctx);
 	/**
-	 * Exit a parse tree produced by {@link EvitaQLParser#classifierWithOptionalFilterConstraintArgs}.
+	 * Exit a parse tree produced by {@link EvitaQLParser#classifierWithTwoFilterConstraintArgs}.
 	 * @param ctx the parse tree
 	 */
-	void exitClassifierWithOptionalFilterConstraintArgs(EvitaQLParser.ClassifierWithOptionalFilterConstraintArgsContext ctx);
+	void exitClassifierWithTwoFilterConstraintArgs(EvitaQLParser.ClassifierWithTwoFilterConstraintArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#facetGroupRelationArgs}.
+	 * @param ctx the parse tree
+	 */
+	void enterFacetGroupRelationArgs(EvitaQLParser.FacetGroupRelationArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#facetGroupRelationArgs}.
+	 * @param ctx the parse tree
+	 */
+	void exitFacetGroupRelationArgs(EvitaQLParser.FacetGroupRelationArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#facetCalculationRulesArgs}.
+	 * @param ctx the parse tree
+	 */
+	void enterFacetCalculationRulesArgs(EvitaQLParser.FacetCalculationRulesArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#facetCalculationRulesArgs}.
+	 * @param ctx the parse tree
+	 */
+	void exitFacetCalculationRulesArgs(EvitaQLParser.FacetCalculationRulesArgsContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link EvitaQLParser#classifierWithOrderConstraintListArgs}.
 	 * @param ctx the parse tree
@@ -2134,16 +2178,6 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitClassifierWithOrderConstraintListArgs(EvitaQLParser.ClassifierWithOrderConstraintListArgsContext ctx);
-	/**
-	 * Enter a parse tree produced by {@link EvitaQLParser#valueWithRequireConstraintListArgs}.
-	 * @param ctx the parse tree
-	 */
-	void enterValueWithRequireConstraintListArgs(EvitaQLParser.ValueWithRequireConstraintListArgsContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link EvitaQLParser#valueWithRequireConstraintListArgs}.
-	 * @param ctx the parse tree
-	 */
-	void exitValueWithRequireConstraintListArgs(EvitaQLParser.ValueWithRequireConstraintListArgsContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link EvitaQLParser#hierarchyWithinConstraintArgs}.
 	 * @param ctx the parse tree

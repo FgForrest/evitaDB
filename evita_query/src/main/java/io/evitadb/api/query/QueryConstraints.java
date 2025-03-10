@@ -61,7 +61,7 @@ import static java.util.Optional.ofNullable;
 @SuppressWarnings({"DataFlowIssue", "ConstantValue"})
 public interface QueryConstraints {
 
-	/*+
+	/*
 		HEADING
 	 */
 
@@ -154,7 +154,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/basics#filter-by">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FilterBy filterBy(@Nullable FilterConstraint... constraint) {
 		return constraint == null ? null : new FilterBy(constraint);
@@ -181,7 +181,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/basics#filter-by">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FilterGroupBy filterGroupBy(@Nullable FilterConstraint... constraint) {
 		return constraint == null ? null : new FilterGroupBy(constraint);
@@ -242,7 +242,7 @@ public interface QueryConstraints {
 	 * `entityPrimaryKeyInSet` constraints have in common.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/logical#and">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static And and(@Nullable FilterConstraint... constraints) {
 		if (constraints == null) {
@@ -306,7 +306,7 @@ public interface QueryConstraints {
 	 * constraints.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/logical#or">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static Or or(@Nullable FilterConstraint... constraints) {
 		if (constraints == null) {
@@ -369,7 +369,7 @@ public interface QueryConstraints {
 	 * ... which returns only three products that were not excluded by the following `not` constraint.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/logical#not">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static Not not(@Nullable FilterConstraint constraint) {
 		return constraint == null ? null : new Not(constraint);
@@ -406,7 +406,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/references#reference-having">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceHaving referenceHaving(@Nullable String referenceName, @Nullable FilterConstraint... constraint) {
 		return referenceName == null ? null : new ReferenceHaving(referenceName, constraint);
@@ -432,7 +432,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/behavioral#user-filter">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static UserFilter userFilter(@Nullable FilterConstraint... constraints) {
 		if (constraints == null) {
@@ -487,7 +487,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-between">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static <T extends Serializable> AttributeBetween attributeBetween(@Nullable String attributeName, @Nullable T from, @Nullable T to) {
 		if (attributeName == null || (from == null && to == null)) {
@@ -520,7 +520,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/string#attribute-contains">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static AttributeContains attributeContains(@Nullable String attributeName, @Nullable String textToSearch) {
 		return attributeName == null || textToSearch == null ? null : new AttributeContains(attributeName, textToSearch);
@@ -550,7 +550,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/string#attribute-starts-with">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static AttributeStartsWith attributeStartsWith(@Nullable String attributeName, @Nullable String textToSearch) {
 		return attributeName == null || textToSearch == null ? null : new AttributeStartsWith(attributeName, textToSearch);
@@ -580,7 +580,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/string#attribute-ends-with">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static AttributeEndsWith attributeEndsWith(@Nullable String attributeName, @Nullable String textToSearch) {
 		return attributeName == null || textToSearch == null ? null : new AttributeEndsWith(attributeName, textToSearch);
@@ -611,7 +611,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-equals">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static <T extends Serializable> AttributeEquals attributeEquals(@Nullable String attributeName, @Nullable T attributeValue) {
 		return attributeName == null || attributeValue == null ? null : new AttributeEquals(attributeName, attributeValue);
@@ -635,7 +635,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-less-than">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static <T extends Serializable> AttributeLessThan attributeLessThan(@Nullable String attributeName, @Nullable T attributeValue) {
 		return attributeName == null || attributeValue == null ? null : new AttributeLessThan(attributeName, attributeValue);
@@ -660,7 +660,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-less-than-equals">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static <T extends Serializable> AttributeLessThanEquals attributeLessThanEquals(@Nullable String attributeName, @Nullable T attributeValue) {
 		return attributeName == null || attributeValue == null ? null : new AttributeLessThanEquals(attributeName, attributeValue);
@@ -684,7 +684,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-greater-than">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static <T extends Serializable> AttributeGreaterThan attributeGreaterThan(@Nullable String attributeName, @Nullable T attributeValue) {
 		return attributeName == null || attributeValue == null ? null : new AttributeGreaterThan(attributeName, attributeValue);
@@ -709,7 +709,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-greater-than-equals">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static <T extends Serializable> AttributeGreaterThanEquals attributeGreaterThanEquals(@Nullable String attributeName, @Nullable T attributeValue) {
 		return attributeName == null || attributeValue == null ? null : new AttributeGreaterThanEquals(attributeName, attributeValue);
@@ -740,7 +740,7 @@ public interface QueryConstraints {
 	 * a product whose price is either in "CZK" or "EUR" currency at this or that time using this constraint.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/price#price-in-price-lists">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static PriceInPriceLists priceInPriceLists(@Nullable String... priceList) {
 		if (priceList == null) {
@@ -775,7 +775,7 @@ public interface QueryConstraints {
 	 * a product whose price is either in "CZK" or "EUR" currency at this or that time using this constraint.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/price#price-in-currency">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static PriceInCurrency priceInCurrency(@Nullable String currency) {
 		return currency == null ? null : new PriceInCurrency(currency);
@@ -795,7 +795,7 @@ public interface QueryConstraints {
 	 * a product whose price is either in "CZK" or "EUR" currency at this or that time using this constraint.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/price#price-in-currency">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static PriceInCurrency priceInCurrency(@Nullable Currency currency) {
 		return currency == null ? null : new PriceInCurrency(currency);
@@ -809,17 +809,17 @@ public interface QueryConstraints {
 	 * The constraint accepts following arguments:
 	 *
 	 * - optional name of the queried entity reference schema that represents the relationship to the hierarchical entity
-	 * type, your entity may target different hierarchical entities in different reference types, or it may target
-	 * the same hierarchical entity through multiple semantically different references, and that is why the reference name
-	 * is used instead of the target entity type.
+	 *   type, your entity may target different hierarchical entities in different reference types, or it may target
+	 *   the same hierarchical entity through multiple semantically different references, and that is why the reference name
+	 *   is used instead of the target entity type.
 	 * - a single mandatory filter constraint that identifies one or more hierarchy nodes that act as hierarchy roots;
-	 * multiple constraints must be enclosed in AND / OR containers
+	 *   multiple constraints must be enclosed in AND / OR containers
 	 * - optional constraints allow you to narrow the scope of the hierarchy; none or all of the constraints may be present:
 	 *
-	 * - {@link HierarchyDirectRelation}
-	 * - {@link HierarchyHaving}
-	 * - {@link HierarchyExcluding}
-	 * - {@link HierarchyExcludingRoot}
+	 *      - {@link HierarchyDirectRelation}
+	 *      - {@link HierarchyHaving}
+	 *      - {@link HierarchyExcluding}
+	 *      - {@link HierarchyExcludingRoot}
 	 *
 	 * The most straightforward usage is filtering the hierarchical entities themselves.
 	 *
@@ -863,7 +863,7 @@ public interface QueryConstraints {
 	 * (contrary to what you might expect if you have experience with SQL).
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/hierarchy#hierarchy-within">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static HierarchyWithin hierarchyWithinSelf(@Nullable FilterConstraint ofParent, @Nullable HierarchySpecificationFilterConstraint... with) {
 		if (ofParent == null) {
@@ -883,17 +883,17 @@ public interface QueryConstraints {
 	 * The constraint accepts following arguments:
 	 *
 	 * - optional name of the queried entity reference schema that represents the relationship to the hierarchical entity
-	 * type, your entity may target different hierarchical entities in different reference types, or it may target
-	 * the same hierarchical entity through multiple semantically different references, and that is why the reference name
-	 * is used instead of the target entity type.
+	 *   type, your entity may target different hierarchical entities in different reference types, or it may target
+	 *   the same hierarchical entity through multiple semantically different references, and that is why the reference name
+	 *   is used instead of the target entity type.
 	 * - a single mandatory filter constraint that identifies one or more hierarchy nodes that act as hierarchy roots;
-	 * multiple constraints must be enclosed in AND / OR containers
+	 *   multiple constraints must be enclosed in AND / OR containers
 	 * - optional constraints allow you to narrow the scope of the hierarchy; none or all of the constraints may be present:
 	 *
-	 * - {@link HierarchyDirectRelation}
-	 * - {@link HierarchyHaving}
-	 * - {@link HierarchyExcluding}
-	 * - {@link HierarchyExcludingRoot}
+	 *      - {@link HierarchyDirectRelation}
+	 *      - {@link HierarchyHaving}
+	 *      - {@link HierarchyExcluding}
+	 *      - {@link HierarchyExcludingRoot}
 	 *
 	 * The most straightforward usage is filtering the hierarchical entities themselves.
 	 *
@@ -937,7 +937,7 @@ public interface QueryConstraints {
 	 * (contrary to what you might expect if you have experience with SQL).
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/hierarchy#hierarchy-within">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static HierarchyWithin hierarchyWithin(@Nullable String referenceName, @Nullable FilterConstraint ofParent, @Nullable HierarchySpecificationFilterConstraint... with) {
 		if (ofParent == null || referenceName == null) {
@@ -961,14 +961,14 @@ public interface QueryConstraints {
 	 * - The constraint accepts following arguments:
 	 *
 	 * - optional name of the queried entity reference schema that represents the relationship to the hierarchical entity
-	 * type, your entity may target different hierarchical entities in different reference types, or it may target
-	 * the same hierarchical entity through multiple semantically different references, and that is why the reference name
-	 * is used instead of the target entity type.
+	 *   type, your entity may target different hierarchical entities in different reference types, or it may target
+	 *   the same hierarchical entity through multiple semantically different references, and that is why the reference name
+	 *   is used instead of the target entity type.
 	 * - optional constraints allow you to narrow the scope of the hierarchy; none or all of the constraints may be present:
 	 *
-	 * - {@link HierarchyDirectRelation}
-	 * - {@link HierarchyHaving}
-	 * - {@link HierarchyExcluding}
+	 *      - {@link HierarchyDirectRelation}
+	 *      - {@link HierarchyHaving}
+	 *      - {@link HierarchyExcluding}
 	 *
 	 * The `hierarchyWithinRoot`, which targets the Category collection itself, returns all categories except those that
 	 * would point to non-existent parent nodes, such hierarchy nodes are called orphans and do not satisfy any hierarchy
@@ -1009,7 +1009,7 @@ public interface QueryConstraints {
 	 * categories will only appear once in the response (contrary to what you might expect if you have experience with SQL).
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/hierarchy#hierarchy-within-root">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static HierarchyWithinRoot hierarchyWithinRootSelf(@Nullable HierarchySpecificationFilterConstraint... with) {
 		return with == null ? new HierarchyWithinRoot() : new HierarchyWithinRoot(with);
@@ -1027,14 +1027,14 @@ public interface QueryConstraints {
 	 * - The constraint accepts following arguments:
 	 *
 	 * - optional name of the queried entity reference schema that represents the relationship to the hierarchical entity
-	 * type, your entity may target different hierarchical entities in different reference types, or it may target
-	 * the same hierarchical entity through multiple semantically different references, and that is why the reference name
-	 * is used instead of the target entity type.
+	 *   type, your entity may target different hierarchical entities in different reference types, or it may target
+	 *   the same hierarchical entity through multiple semantically different references, and that is why the reference name
+	 *   is used instead of the target entity type.
 	 * - optional constraints allow you to narrow the scope of the hierarchy; none or all of the constraints may be present:
 	 *
-	 * - {@link HierarchyDirectRelation}
-	 * - {@link HierarchyHaving}
-	 * - {@link HierarchyExcluding}
+	 *      - {@link HierarchyDirectRelation}
+	 *      - {@link HierarchyHaving}
+	 *      - {@link HierarchyExcluding}
 	 *
 	 * The `hierarchyWithinRoot`, which targets the Category collection itself, returns all categories except those that
 	 * would point to non-existent parent nodes, such hierarchy nodes are called orphans and do not satisfy any hierarchy
@@ -1075,7 +1075,7 @@ public interface QueryConstraints {
 	 * categories will only appear once in the response (contrary to what you might expect if you have experience with SQL).
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/hierarchy#hierarchy-within-root">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static HierarchyWithinRoot hierarchyWithinRoot(@Nullable String referenceName, @Nullable HierarchySpecificationFilterConstraint... with) {
 		return referenceName == null || with == null ? new HierarchyWithinRoot() : new HierarchyWithinRoot(referenceName, with);
@@ -1097,7 +1097,7 @@ public interface QueryConstraints {
 	 * The constraint accepts following arguments:
 	 *
 	 * - one or more mandatory constraints that must be satisfied by all returned hierarchy nodes and that mark the visible
-	 * part of the tree, the implicit relation between constraints is logical conjunction (boolean AND)
+	 *   part of the tree, the implicit relation between constraints is logical conjunction (boolean AND)
 	 *
 	 * When the hierarchy constraint targets the hierarchy entity, the children that don't satisfy the inner constraints
 	 * (and their children, whether they satisfy them or not) are excluded from the result.
@@ -1178,7 +1178,7 @@ public interface QueryConstraints {
 	 * product reference that is part of the visible part of the tree.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/hierarchy#having">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static HierarchyHaving having(@Nullable FilterConstraint... includeChildTreeConstraints) {
 		if (ArrayUtils.isEmptyOrItsValuesNull(includeChildTreeConstraints)) {
@@ -1201,7 +1201,7 @@ public interface QueryConstraints {
 	 * The constraint accepts following arguments:
 	 *
 	 * - one or more mandatory constraints that must be satisfied by all returned hierarchy nodes and that mark the visible
-	 * part of the tree, the implicit relation between constraints is logical conjunction (boolean AND)
+	 *   part of the tree, the implicit relation between constraints is logical conjunction (boolean AND)
 	 *
 	 * When the hierarchy constraint targets the hierarchy entity, the children that satisfy the inner constraints (and
 	 * their children, whether they satisfy them or not) are excluded from the result.
@@ -1273,7 +1273,7 @@ public interface QueryConstraints {
 	 * nodes (entire subtree).
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/hierarchy#excluding">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static HierarchyExcluding excluding(@Nullable FilterConstraint... excludeChildTreeConstraints) {
 		if (ArrayUtils.isEmptyOrItsValuesNull(excludeChildTreeConstraints)) {
@@ -1337,7 +1337,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/hierarchy#direct-relation">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static HierarchyDirectRelation directRelation() {
 		return new HierarchyDirectRelation();
@@ -1407,7 +1407,7 @@ public interface QueryConstraints {
 	 * assigned to Exotic keyboards.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/hierarchy#excluding-root">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static HierarchyExcludingRoot excludingRoot() {
 		return new HierarchyExcludingRoot();
@@ -1446,7 +1446,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/locale#entity-locale-equals">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static EntityLocaleEquals entityLocaleEquals(@Nullable Locale locale) {
 		return locale == null ? null : new EntityLocaleEquals(locale);
@@ -1470,7 +1470,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/references#entity-having">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static EntityHaving entityHaving(@Nullable FilterConstraint filterConstraint) {
 		return filterConstraint == null ? null : new EntityHaving(filterConstraint);
@@ -1503,7 +1503,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/range#attribute-in-range">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static AttributeInRange attributeInRange(@Nullable String attributeName, @Nullable OffsetDateTime atTheMoment) {
 		return attributeName == null || atTheMoment == null ? null : new AttributeInRange(attributeName, atTheMoment);
@@ -1536,7 +1536,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/range#attribute-in-range">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static AttributeInRange attributeInRange(@Nullable String attributeName, @Nullable Number theValue) {
 		return attributeName == null || theValue == null ? null : new AttributeInRange(attributeName, theValue);
@@ -1569,7 +1569,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/range#attribute-in-range">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static AttributeInRange attributeInRangeNow(@Nullable String attributeName) {
 		return attributeName == null ? null : new AttributeInRange(attributeName);
@@ -1601,7 +1601,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-in-set">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@SuppressWarnings("unchecked")
 	@Nullable
 	static <T extends Serializable> AttributeInSet attributeInSet(@Nullable String attributeName, @Nullable T... set) {
@@ -1651,7 +1651,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-equals">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static AttributeEquals attributeEqualsFalse(@Nullable String attributeName) {
 		return attributeName == null ? null : new AttributeEquals(attributeName, Boolean.FALSE);
@@ -1682,7 +1682,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-equals">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static AttributeEquals attributeEqualsTrue(@Nullable String attributeName) {
 		return attributeName == null ? null : new AttributeEquals(attributeName, Boolean.TRUE);
@@ -1707,7 +1707,7 @@ public interface QueryConstraints {
 	 * Function supports attribute arrays in the same way as plain values.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-is">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static AttributeIs attributeIs(@Nullable String attributeName, @Nullable AttributeSpecialValue specialValue) {
 		if (attributeName == null || specialValue == null) {
@@ -1735,7 +1735,7 @@ public interface QueryConstraints {
 	 * Function supports attribute arrays in the same way as plain values.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-is">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static AttributeIs attributeIsNull(@Nullable String attributeName) {
 		return attributeName == null ? null : new AttributeIs(attributeName, AttributeSpecialValue.NULL);
@@ -1760,7 +1760,7 @@ public interface QueryConstraints {
 	 * Function supports attribute arrays in the same way as plain values.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-is">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static AttributeIs attributeIsNotNull(@Nullable String attributeName) {
 		return attributeName == null ? null : new AttributeIs(attributeName, AttributeSpecialValue.NOT_NULL);
@@ -1783,7 +1783,7 @@ public interface QueryConstraints {
 	 * a product whose price is either in "CZK" or "EUR" currency at this or that time using this constraint.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/price#price-between">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static PriceBetween priceBetween(@Nullable BigDecimal from, @Nullable BigDecimal to) {
 		if (from == null && to == null) {
@@ -1808,7 +1808,7 @@ public interface QueryConstraints {
 	 * a product whose price is either in "CZK" or "EUR" currency at this or that time using this constraint.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/filtering/price#price-valid-in">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static PriceValidIn priceValidIn(@Nullable OffsetDateTime theMoment) {
 		return theMoment == null ? null : new PriceValidIn(theMoment);
@@ -1829,7 +1829,7 @@ public interface QueryConstraints {
 	 * a product whose price is either in "CZK" or "EUR" currency at this or that time using this constraint.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/filtering/price#price-valid-in">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static PriceValidIn priceValidInNow() {
 		return new PriceValidIn();
@@ -1856,7 +1856,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/references#facet-having">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetHaving facetHaving(@Nullable String referenceName, @Nullable FilterConstraint... constraint) {
 		return referenceName == null || ArrayUtils.isEmptyOrItsValuesNull(constraint) ? null : new FacetHaving(referenceName, constraint);
@@ -1926,7 +1926,7 @@ public interface QueryConstraints {
 	 * the current date or the attribute is not set at all.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/references#including-children-having">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetIncludingChildren includingChildren() {
 		return new FacetIncludingChildren();
@@ -1996,7 +1996,7 @@ public interface QueryConstraints {
 	 * the current date or the attribute is not set at all.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/references#including-children-having">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetIncludingChildren includingChildrenHaving(@Nullable FilterConstraint filterConstraint) {
 		return filterConstraint == null ? new FacetIncludingChildren() : new FacetIncludingChildren(filterConstraint);
@@ -2040,7 +2040,7 @@ public interface QueryConstraints {
 	 * the category children into account when calculating the impact of category facet selection.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/references#including-children-except">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetIncludingChildrenExcept includingChildrenExcept(@Nullable FilterConstraint filterConstraint) {
 		return filterConstraint == null ? new FacetIncludingChildrenExcept() : new FacetIncludingChildrenExcept(filterConstraint);
@@ -2057,7 +2057,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/constant#entity-primary-key-in-set">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static EntityPrimaryKeyInSet entityPrimaryKeyInSet(@Nullable Integer... primaryKey) {
 		if (primaryKey == null) {
@@ -2089,7 +2089,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/constant#entity-primary-key-in-set">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static EntityPrimaryKeyInSet entityPrimaryKeyInSet(@Nullable int[] primaryKey) {
 		if (primaryKey == null) {
@@ -2105,9 +2105,9 @@ public interface QueryConstraints {
 	 *
 	 * ```
 	 * filterBy(
-	 * attributeEquals("code", "123"),
-	 * inScope(LIVE, entityLocaleEquals(Locale.ENGLISH), attributeName("name", "LED TV")),
-	 * scope(LIVE, ARCHIVED),
+	 *    attributeEquals("code", "123"),
+	 *    inScope(LIVE, entityLocaleEquals(Locale.ENGLISH), attributeName("name", "LED TV")),
+	 *    scope(LIVE, ARCHIVED),
 	 * )
 	 * ```
 	 *
@@ -2118,7 +2118,7 @@ public interface QueryConstraints {
 	 * restrictions in this example.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/behavioral#in-scope">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FilterInScope inScope(@Nullable Scope scope, @Nullable FilterConstraint... constraints) {
 		return scope == null || ArrayUtils.isEmptyOrItsValuesNull(constraints) ? null : new FilterInScope(scope, constraints);
@@ -2143,7 +2143,7 @@ public interface QueryConstraints {
 	 * ```
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/filtering/behavioral#scope">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static EntityScope scope(@Nullable Scope... scope) {
 		return ArrayUtils.isEmptyOrItsValuesNull(scope) ? null : new EntityScope(scope);
@@ -2182,7 +2182,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/basics#order-by">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static OrderBy orderBy(@Nullable OrderConstraint... constraints) {
 		if (constraints == null) {
@@ -2198,11 +2198,11 @@ public interface QueryConstraints {
 	 *
 	 * ```
 	 * filterBy(
-	 * scope(LIVE, ARCHIVED),
+	 *    scope(LIVE, ARCHIVED),
 	 * ),
 	 * orderBy(
-	 * inScope(LIVE, attributeNatural("name", ASC")),
-	 * attributeNatural("code", DESC),
+	 *    inScope(LIVE, attributeNatural("name", ASC")),
+	 *    attributeNatural("code", DESC),
 	 * )
 	 * ```
 	 *
@@ -2213,7 +2213,7 @@ public interface QueryConstraints {
 	 * restrictions in this example.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/ordering/behavioral#in-scope">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static OrderInScope inScope(@Nullable Scope scope, @Nullable OrderConstraint... constraints) {
 		return scope == null || ArrayUtils.isEmptyOrItsValuesNull(constraints) ? null : new OrderInScope(scope, constraints);
@@ -2263,7 +2263,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/basics#order-by">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static OrderGroupBy orderGroupBy(@Nullable OrderConstraint... constraints) {
 		if (constraints == null) {
@@ -2295,7 +2295,7 @@ public interface QueryConstraints {
 	 *
 	 * 1. first 3 items in result will be sorted by orderedQuantity in descending order
 	 * 2. from the rest of the result, only entities having `new` attribute set to `true` will be taken, sorted randomly
-	 * and only first 2 entities of those will be added to the final result
+	 *    and only first 2 entities of those will be added to the final result
 	 * 3. the rest of the entities will be sorted by code and create date in ascending order
 	 *
 	 * <pre>
@@ -2327,7 +2327,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/ordering/segment">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static Segments segments(@Nullable Segment... constraints) {
 		if (ArrayUtils.isEmptyOrItsValuesNull(constraints)) {
@@ -2359,7 +2359,7 @@ public interface QueryConstraints {
 	 *
 	 * 1. first 3 items in result will be sorted by orderedQuantity in descending order
 	 * 2. from the rest of the result, only entities having `new` attribute set to `true` will be taken, sorted randomly
-	 * and only first 2 entities of those will be added to the final result
+	 *    and only first 2 entities of those will be added to the final result
 	 * 3. the rest of the entities will be sorted by code and create date in ascending order
 	 *
 	 * <pre>
@@ -2391,7 +2391,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/ordering/segment">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static Segment segment(@Nonnull OrderBy orderBy) {
 		if (orderBy == null) {
@@ -2423,7 +2423,7 @@ public interface QueryConstraints {
 	 *
 	 * 1. first 3 items in result will be sorted by orderedQuantity in descending order
 	 * 2. from the rest of the result, only entities having `new` attribute set to `true` will be taken, sorted randomly
-	 * and only first 2 entities of those will be added to the final result
+	 *    and only first 2 entities of those will be added to the final result
 	 * 3. the rest of the entities will be sorted by code and create date in ascending order
 	 *
 	 * <pre>
@@ -2455,7 +2455,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/ordering/segment">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static Segment segment(
 		@Nonnull OrderBy orderBy,
@@ -2490,7 +2490,7 @@ public interface QueryConstraints {
 	 *
 	 * 1. first 3 items in result will be sorted by orderedQuantity in descending order
 	 * 2. from the rest of the result, only entities having `new` attribute set to `true` will be taken, sorted randomly
-	 * and only first 2 entities of those will be added to the final result
+	 *    and only first 2 entities of those will be added to the final result
 	 * 3. the rest of the entities will be sorted by code and create date in ascending order
 	 *
 	 * <pre>
@@ -2522,7 +2522,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/ordering/segment">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static Segment segment(
 		@Nullable EntityHaving entityHaving,
@@ -2557,7 +2557,7 @@ public interface QueryConstraints {
 	 *
 	 * 1. first 3 items in result will be sorted by orderedQuantity in descending order
 	 * 2. from the rest of the result, only entities having `new` attribute set to `true` will be taken, sorted randomly
-	 * and only first 2 entities of those will be added to the final result
+	 *    and only first 2 entities of those will be added to the final result
 	 * 3. the rest of the entities will be sorted by code and create date in ascending order
 	 *
 	 * <pre>
@@ -2589,7 +2589,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/ordering/segment">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static Segment segment(
 		@Nullable EntityHaving entityHaving,
@@ -2626,7 +2626,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/ordering/segment#limit">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static SegmentLimit limit(
 		@Nullable Integer limit
@@ -2655,7 +2655,7 @@ public interface QueryConstraints {
 	 * with {@link OrderDirection#ASC} direction.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/ordering/comparable#primary-key-natural">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static EntityPrimaryKeyNatural entityPrimaryKeyNatural(@Nullable OrderDirection direction) {
 		return new EntityPrimaryKeyNatural(direction == null ? OrderDirection.ASC : direction);
@@ -2684,7 +2684,7 @@ public interface QueryConstraints {
 	 * system which needs to be maintained (for example, it represents a relevancy of those entities).
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/ordering/constant#exact-entity-primary-key-order-used-in-filter">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static EntityPrimaryKeyInFilter entityPrimaryKeyInFilter() {
 		return new EntityPrimaryKeyInFilter();
@@ -2713,7 +2713,7 @@ public interface QueryConstraints {
 	 * additional ordering constraint in the chain).
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/ordering/constant#exact-entity-primary-key-order">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static EntityPrimaryKeyExact entityPrimaryKeyExact(@Nullable Integer... primaryKey) {
 		if (ArrayUtils.isEmptyOrItsValuesNull(primaryKey)) {
@@ -2746,7 +2746,7 @@ public interface QueryConstraints {
 	 * from an external system which needs to be maintained (for example, it represents a relevancy of those entities).
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/ordering/constant#exact-entity-attribute-value-order-used-in-filter">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static AttributeSetInFilter attributeSetInFilter(@Nullable String attributeName) {
 		if (attributeName == null || attributeName.isBlank()) {
@@ -2778,7 +2778,7 @@ public interface QueryConstraints {
 	 * sorted by additional ordering constraint in the chain).
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/ordering/constant#exact-entity-attribute-value-order">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static AttributeSetExact attributeSetExact(@Nullable String attributeName, @Nullable Serializable... attributeValues) {
 		if (attributeName == null || attributeName.isBlank() || ArrayUtils.isEmptyOrItsValuesNull(attributeValues)) {
@@ -2863,7 +2863,7 @@ public interface QueryConstraints {
 	 * maintaining the depth-first order of the category tree.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/ordering/reference#reference-property">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceProperty referenceProperty(@Nullable String referenceName, @Nullable OrderConstraint... constraints) {
 		if (referenceName == null || constraints == null) {
@@ -2908,7 +2908,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/ordering/reference#entity-property">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static EntityProperty entityProperty(@Nullable OrderConstraint... constraints) {
 		if (constraints == null) {
@@ -2987,7 +2987,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/ordering/reference#entity-group-property">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static EntityGroupProperty entityGroupProperty(@Nullable OrderConstraint... constraints) {
 		if (constraints == null) {
@@ -3036,7 +3036,7 @@ public interface QueryConstraints {
 	 * name instead of the default attribute name and achieve the expected results.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/ordering/comparable#attribute-natural">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static AttributeNatural attributeNatural(@Nullable String attributeName) {
 		return attributeName == null ? null : new AttributeNatural(attributeName);
@@ -3082,7 +3082,7 @@ public interface QueryConstraints {
 	 * name instead of the default attribute name and achieve the expected results.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/ordering/comparable#attribute-natural">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static AttributeNatural attributeNatural(@Nullable String attributeName, @Nullable OrderDirection orderDirection) {
 		return attributeName == null ? null :
@@ -3106,7 +3106,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/ordering/price#price-natural">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static PriceNatural priceNatural() {
 		return new PriceNatural();
@@ -3129,7 +3129,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/ordering/price#price-natural">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static PriceNatural priceNatural(@Nullable OrderDirection orderDirection) {
 		return new PriceNatural(orderDirection == null ? OrderDirection.ASC : orderDirection);
@@ -3160,7 +3160,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/ordering/price#price-discount">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static PriceDiscount priceDiscount(@Nonnull String... inPriceLists) {
 		return new PriceDiscount(inPriceLists);
@@ -3191,7 +3191,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/ordering/price#price-discount">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static PriceDiscount priceDiscount(@Nullable OrderDirection orderDirection, @Nonnull String... inPriceLists) {
 		return new PriceDiscount(orderDirection == null ? OrderDirection.DESC : orderDirection, inPriceLists);
@@ -3218,7 +3218,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/ordering/random#random">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static Random random() {
 		return Random.INSTANCE;
@@ -3245,7 +3245,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/ordering/random#random">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static Random randomWithSeed(long seed) {
 		return new Random(seed);
@@ -3272,7 +3272,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/basics#require">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static Require require(@Nullable RequireConstraint... constraints) {
 		if (constraints == null) {
@@ -3288,10 +3288,10 @@ public interface QueryConstraints {
 	 *
 	 * ```
 	 * filterBy(
-	 * scope(LIVE, ARCHIVED),
+	 *    scope(LIVE, ARCHIVED),
 	 * ),
 	 * require(
-	 * inScope(LIVE, facetSummary())
+	 *    inScope(LIVE, facetSummary())
 	 * )
 	 * ```
 	 *
@@ -3300,7 +3300,7 @@ public interface QueryConstraints {
 	 * scope. To avoid this problem, the `inScope` container is used to limit the require to LIVE scope only.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/require/behavioral#in-scope">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static RequireInScope inScope(@Nullable Scope scope, @Nullable RequireConstraint... constraints) {
 		return scope == null || ArrayUtils.isEmptyOrItsValuesNull(constraints) ? null : new RequireInScope(scope, constraints);
@@ -3317,8 +3317,8 @@ public interface QueryConstraints {
 	 *
 	 * 1. The number of buckets (columns) the histogram should contain.
 	 * 2. The behavior of the histogram calculation - either STANDARD (default), where the exactly requested bucket count
-	 * is returned or OPTIMIZED, where the number of columns is reduced if the data is scarce and there would be big gaps
-	 * (empty buckets) between buckets. This leads to more compact histograms, which provide better user experience.
+	 *    is returned or OPTIMIZED, where the number of columns is reduced if the data is scarce and there would be big gaps
+	 *    (empty buckets) between buckets. This leads to more compact histograms, which provide better user experience.
 	 * 3. variable number of attribute names for which the histogram should be computed.
 	 *
 	 * Example:
@@ -3329,7 +3329,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/histogram#attribute-histogram">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static AttributeHistogram attributeHistogram(int requestedBucketCount, @Nullable String... attributeName) {
 		if (ArrayUtils.isEmptyOrItsValuesNull(attributeName)) {
@@ -3349,8 +3349,8 @@ public interface QueryConstraints {
 	 *
 	 * 1. The number of buckets (columns) the histogram should contain.
 	 * 2. The behavior of the histogram calculation - either STANDARD (default), where the exactly requested bucket count
-	 * is returned or OPTIMIZED, where the number of columns is reduced if the data is scarce and there would be big gaps
-	 * (empty buckets) between buckets. This leads to more compact histograms, which provide better user experience.
+	 *    is returned or OPTIMIZED, where the number of columns is reduced if the data is scarce and there would be big gaps
+	 *    (empty buckets) between buckets. This leads to more compact histograms, which provide better user experience.
 	 * 3. variable number of attribute names for which the histogram should be computed.
 	 *
 	 * Example:
@@ -3361,7 +3361,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/histogram#attribute-histogram">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static AttributeHistogram attributeHistogram(int requestedBucketCount, @Nullable HistogramBehavior behavior, @Nullable String... attributeName) {
 		if (ArrayUtils.isEmptyOrItsValuesNull(attributeName)) {
@@ -3380,8 +3380,8 @@ public interface QueryConstraints {
 	 *
 	 * 1. The number of buckets (columns) the histogram should contain.
 	 * 2. The behavior of the histogram calculation - either STANDARD (default), where the exactly requested bucket count
-	 * is returned or OPTIMIZED, where the number of columns is reduced if the data is scarce and there would be big gaps
-	 * (empty buckets) between buckets. This leads to more compact histograms, which provide better user experience.
+	 *    is returned or OPTIMIZED, where the number of columns is reduced if the data is scarce and there would be big gaps
+	 *    (empty buckets) between buckets. This leads to more compact histograms, which provide better user experience.
 	 *
 	 * The priceType requirement the source price property for the histogram computation. If no requirement, the histogram
 	 * visualizes the price with tax.
@@ -3394,7 +3394,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/histogram#price-histogram">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static PriceHistogram priceHistogram(int requestedBucketCount) {
 		return new PriceHistogram(requestedBucketCount);
@@ -3410,8 +3410,8 @@ public interface QueryConstraints {
 	 *
 	 * 1. The number of buckets (columns) the histogram should contain.
 	 * 2. The behavior of the histogram calculation - either STANDARD (default), where the exactly requested bucket count
-	 * is returned or OPTIMIZED, where the number of columns is reduced if the data is scarce and there would be big gaps
-	 * (empty buckets) between buckets. This leads to more compact histograms, which provide better user experience.
+	 *    is returned or OPTIMIZED, where the number of columns is reduced if the data is scarce and there would be big gaps
+	 *    (empty buckets) between buckets. This leads to more compact histograms, which provide better user experience.
 	 *
 	 * The priceType requirement the source price property for the histogram computation. If no requirement, the histogram
 	 * visualizes the price with tax.
@@ -3424,19 +3424,21 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/histogram#price-histogram">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static PriceHistogram priceHistogram(int requestedBucketCount, @Nullable HistogramBehavior behavior) {
 		return new PriceHistogram(requestedBucketCount, behavior);
 	}
 
 	/**
-	 * This `facetGroupsConjunction` require allows specifying inter-facet relation inside facet groups of certain primary ids.
-	 * First mandatory argument specifies entity type of the facet group, secondary argument allows to define one more facet
-	 * group ids which inner facets should be considered conjunctive.
+	 * This `facetGroupsConjunction` require constraint allows specifying facet relation on particular level (within group
+	 * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+	 * group, secondary optional argument allows defining the level for which the conjunction is defined, third optional
+	 * argument defines one more facet group ids which facets should be considered conjunctive with other facets either
+	 * in same group or different groups (depending on level argument).
 	 *
-	 * This require constraint changes default behaviour stating that all facets inside same facet group are combined by OR
-	 * relation (eg. disjunction). Constraint has sense only when [facet](#facet) constraint is part of the query.
+	 * This require constraint changes default behavior of the facet calculation rules.
+	 * Constraint has sense only when [facet](#facet) constraint is part of the query.
 	 *
 	 * Example:
 	 *
@@ -3453,7 +3455,7 @@ public interface QueryConstraints {
 	 *       )
 	 *    ),
 	 *    require(
-	 *       facetGroupsConjunction("parameterType", 1, 8, 15)
+	 *       facetGroupsConjunction("parameterType", WITH_DIFFERENT_FACETS_IN_GROUP, 1, 8, 15)
 	 *    )
 	 * )
 	 * </pre>
@@ -3483,19 +3485,21 @@ public interface QueryConstraints {
 	 * be composed as: blue(11) AND red(12)
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-conjunction">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetGroupsConjunction facetGroupsConjunction(@Nullable String referenceName, @Nullable FilterBy filterBy) {
 		return referenceName == null ? null : new FacetGroupsConjunction(referenceName, filterBy);
 	}
 
 	/**
-	 * This `facetGroupsConjunction` require allows specifying inter-facet relation inside facet groups of certain primary ids.
-	 * First mandatory argument specifies entity type of the facet group, secondary argument allows to define one more facet
-	 * group ids which inner facets should be considered conjunctive.
+	 * This `facetGroupsConjunction` require constraint allows specifying facet relation on particular level (within group
+	 * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+	 * group, secondary optional argument allows defining the level for which the conjunction is defined, third optional
+	 * argument defines one more facet group ids which facets should be considered conjunctive with other facets either
+	 * in same group or different groups (depending on level argument).
 	 *
-	 * This require constraint changes default behaviour stating that all facets inside same facet group are combined by OR
-	 * relation (eg. disjunction). Constraint has sense only when [facet](#facet) constraint is part of the query.
+	 * This require constraint changes default behavior of the facet calculation rules.
+	 * Constraint has sense only when [facet](#facet) constraint is part of the query.
 	 *
 	 * Example:
 	 *
@@ -3512,7 +3516,7 @@ public interface QueryConstraints {
 	 *       )
 	 *    ),
 	 *    require(
-	 *       facetGroupsConjunction("parameterType", 1, 8, 15)
+	 *       facetGroupsConjunction("parameterType", WITH_DIFFERENT_FACETS_IN_GROUP, 1, 8, 15)
 	 *    )
 	 * )
 	 * </pre>
@@ -3542,19 +3546,143 @@ public interface QueryConstraints {
 	 * be composed as: blue(11) AND red(12)
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-conjunction">Visit detailed user documentation</a></p>
-	 */
+	*/
+	@Nullable
+	static FacetGroupsConjunction facetGroupsConjunction(@Nullable String referenceName, @Nullable FacetGroupRelationLevel facetGroupRelationLevel) {
+		return referenceName == null ? null : new FacetGroupsConjunction(referenceName, facetGroupRelationLevel, null);
+	}
+
+	/**
+	 * This `facetGroupsConjunction` require constraint allows specifying facet relation on particular level (within group
+	 * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+	 * group, secondary optional argument allows defining the level for which the conjunction is defined, third optional
+	 * argument defines one more facet group ids which facets should be considered conjunctive with other facets either
+	 * in same group or different groups (depending on level argument).
+	 *
+	 * This require constraint changes default behavior of the facet calculation rules.
+	 * Constraint has sense only when [facet](#facet) constraint is part of the query.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *    entities("product"),
+	 *    filterBy(
+	 *       userFilter(
+	 *          facet("group", 1, 2),
+	 *          facet(
+	 *             "parameterType",
+	 *             entityPrimaryKeyInSet(11, 12, 22)
+	 *          )
+	 *       )
+	 *    ),
+	 *    require(
+	 *       facetGroupsConjunction("parameterType", WITH_DIFFERENT_FACETS_IN_GROUP, 1, 8, 15)
+	 *    )
+	 * )
+	 * </pre>
+	 *
+	 * This statement means, that facets in `parameterType` groups `1`, `8`, `15` will be joined with boolean AND relation when
+	 * selected.
+	 *
+	 * Let's have this facet/group situation:
+	 *
+	 * Color `parameterType` (group id: 1):
+	 *
+	 * - blue (facet id: 11)
+	 * - red (facet id: 12)
+	 *
+	 * Size `parameterType` (group id: 2):
+	 *
+	 * - small (facet id: 21)
+	 * - large (facet id: 22)
+	 *
+	 * Flags `tag` (group id: 3):
+	 *
+	 * - action products (facet id: 31)
+	 * - new products (facet id: 32)
+	 *
+	 * When user selects facets: blue (11), red (12) by default relation would be: get all entities that have facet blue(11) OR
+	 * facet red(12). If require `facetGroupsConjunction('parameterType', 1)` is passed in the query filtering condition will
+	 * be composed as: blue(11) AND red(12)
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-conjunction">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static FacetGroupsConjunction facetGroupsConjunction(@Nullable String referenceName, @Nullable FacetGroupRelationLevel facetGroupRelationLevel, @Nullable FilterBy filterBy) {
+		return referenceName == null ? null : new FacetGroupsConjunction(referenceName, facetGroupRelationLevel, filterBy);
+	}
+
+	/**
+	 * This `facetGroupsConjunction` require constraint allows specifying facet relation on particular level (within group
+	 * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+	 * group, secondary optional argument allows defining the level for which the conjunction is defined, third optional
+	 * argument defines one more facet group ids which facets should be considered conjunctive with other facets either
+	 * in same group or different groups (depending on level argument).
+	 *
+	 * This require constraint changes default behavior of the facet calculation rules.
+	 * Constraint has sense only when [facet](#facet) constraint is part of the query.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *    entities("product"),
+	 *    filterBy(
+	 *       userFilter(
+	 *          facet("group", 1, 2),
+	 *          facet(
+	 *             "parameterType",
+	 *             entityPrimaryKeyInSet(11, 12, 22)
+	 *          )
+	 *       )
+	 *    ),
+	 *    require(
+	 *       facetGroupsConjunction("parameterType", WITH_DIFFERENT_FACETS_IN_GROUP, 1, 8, 15)
+	 *    )
+	 * )
+	 * </pre>
+	 *
+	 * This statement means, that facets in `parameterType` groups `1`, `8`, `15` will be joined with boolean AND relation when
+	 * selected.
+	 *
+	 * Let's have this facet/group situation:
+	 *
+	 * Color `parameterType` (group id: 1):
+	 *
+	 * - blue (facet id: 11)
+	 * - red (facet id: 12)
+	 *
+	 * Size `parameterType` (group id: 2):
+	 *
+	 * - small (facet id: 21)
+	 * - large (facet id: 22)
+	 *
+	 * Flags `tag` (group id: 3):
+	 *
+	 * - action products (facet id: 31)
+	 * - new products (facet id: 32)
+	 *
+	 * When user selects facets: blue (11), red (12) by default relation would be: get all entities that have facet blue(11) OR
+	 * facet red(12). If require `facetGroupsConjunction('parameterType', 1)` is passed in the query filtering condition will
+	 * be composed as: blue(11) AND red(12)
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-conjunction">Visit detailed user documentation</a></p>
+	*/
 	@Nullable
 	static FacetGroupsConjunction facetGroupsConjunction(@Nullable String referenceName) {
 		return referenceName == null ? null : new FacetGroupsConjunction(referenceName, null);
 	}
 
 	/**
-	 * This `facetGroupsDisjunction` require constraint allows specifying facet relation among different facet groups of certain
-	 * primary ids. First mandatory argument specifies entity type of the facet group, secondary argument allows to define one
-	 * more facet group ids that should be considered disjunctive.
+	 * This `facetGroupsDisjunction` require constraint allows specifying facet relation on particular level (within group
+	 * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+	 * group, secondary optional argument allows defining the level for which the disjunction is defined, third optional
+	 * argument defines one more facet group ids which facets should be considered disjunctive with other facets either
+	 * in same group or different groups (depending on level argument).
 	 *
-	 * This require constraint changes default behaviour stating that facets between two different facet groups are combined by
-	 * AND relation and changes it to the disjunction relation instead.
+	 * This require constraint changes default behavior of the facet calculation rules.
+	 * Constraint has sense only when [facet](#facet) constraint is part of the query.
 	 *
 	 * Example:
 	 *
@@ -3571,7 +3699,7 @@ public interface QueryConstraints {
 	 *       )
 	 *    ),
 	 *    require(
-	 *       facetGroupsDisjunction("parameterType", 1, 2)
+	 *       facetGroupsDisjunction("parameterType", WITH_DIFFERENT_GROUPS, 1, 2)
 	 *    )
 	 * )
 	 * </pre>
@@ -3601,19 +3729,21 @@ public interface QueryConstraints {
 	 * is passed in the query, filtering condition will be composed as: (`blue(11)` AND `large(22)`) OR `new products(31)`
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-disjunction">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetGroupsDisjunction facetGroupsDisjunction(@Nullable String referenceName, @Nullable FilterBy filterBy) {
 		return referenceName == null ? null : new FacetGroupsDisjunction(referenceName, filterBy);
 	}
 
 	/**
-	 * This `facetGroupsDisjunction` require constraint allows specifying facet relation among different facet groups of certain
-	 * primary ids. First mandatory argument specifies entity type of the facet group, secondary argument allows to define one
-	 * more facet group ids that should be considered disjunctive.
+	 * This `facetGroupsDisjunction` require constraint allows specifying facet relation on particular level (within group
+	 * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+	 * group, secondary optional argument allows defining the level for which the disjunction is defined, third optional
+	 * argument defines one more facet group ids which facets should be considered disjunctive with other facets either
+	 * in same group or different groups (depending on level argument).
 	 *
-	 * This require constraint changes default behaviour stating that facets between two different facet groups are combined by
-	 * AND relation and changes it to the disjunction relation instead.
+	 * This require constraint changes default behavior of the facet calculation rules.
+	 * Constraint has sense only when [facet](#facet) constraint is part of the query.
 	 *
 	 * Example:
 	 *
@@ -3630,7 +3760,7 @@ public interface QueryConstraints {
 	 *       )
 	 *    ),
 	 *    require(
-	 *       facetGroupsDisjunction("parameterType", 1, 2)
+	 *       facetGroupsDisjunction("parameterType", WITH_DIFFERENT_GROUPS, 1, 2)
 	 *    )
 	 * )
 	 * </pre>
@@ -3660,16 +3790,144 @@ public interface QueryConstraints {
 	 * is passed in the query, filtering condition will be composed as: (`blue(11)` AND `large(22)`) OR `new products(31)`
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-disjunction">Visit detailed user documentation</a></p>
-	 */
+	*/
+	@Nullable
+	static FacetGroupsDisjunction facetGroupsDisjunction(@Nullable String referenceName, @Nullable FacetGroupRelationLevel facetGroupRelationLevel) {
+		return referenceName == null ? null : new FacetGroupsDisjunction(referenceName, facetGroupRelationLevel, null);
+	}
+
+	/**
+	 * This `facetGroupsDisjunction` require constraint allows specifying facet relation on particular level (within group
+	 * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+	 * group, secondary optional argument allows defining the level for which the disjunction is defined, third optional
+	 * argument defines one more facet group ids which facets should be considered disjunctive with other facets either
+	 * in same group or different groups (depending on level argument).
+	 *
+	 * This require constraint changes default behavior of the facet calculation rules.
+	 * Constraint has sense only when [facet](#facet) constraint is part of the query.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *    entities("product"),
+	 *    filterBy(
+	 *       userFilter(
+	 *          facet("group", 1, 2),
+	 *          facet(
+	 *             "parameterType",
+	 *             entityPrimaryKeyInSet(11, 12, 22)
+	 *          )
+	 *       )
+	 *    ),
+	 *    require(
+	 *       facetGroupsDisjunction("parameterType", WITH_DIFFERENT_GROUPS, 1, 2)
+	 *    )
+	 * )
+	 * </pre>
+	 *
+	 * This statement means, that facets in `parameterType` facet groups `1`, `2` will be joined with the rest of the query by
+	 * boolean OR relation when selected.
+	 *
+	 * Let's have this facet/group situation:
+	 *
+	 * Color `parameterType` (group id: 1):
+	 *
+	 * - blue (facet id: 11)
+	 * - red (facet id: 12)
+	 *
+	 * Size `parameterType` (group id: 2):
+	 *
+	 * - small (facet id: 21)
+	 * - large (facet id: 22)
+	 *
+	 * Flags `tag` (group id: 3):
+	 *
+	 * - action products (facet id: 31)
+	 * - new products (facet id: 32)
+	 *
+	 * When user selects facets: blue (11), large (22), new products (31) - the default meaning would be: get all entities that
+	 * have facet blue as well as facet large and action products tag (AND). If require `facetGroupsDisjunction('tag', 3)`
+	 * is passed in the query, filtering condition will be composed as: (`blue(11)` AND `large(22)`) OR `new products(31)`
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-disjunction">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static FacetGroupsDisjunction facetGroupsDisjunction(@Nullable String referenceName, @Nullable FacetGroupRelationLevel facetGroupRelationLevel, @Nullable FilterBy filterBy) {
+		return referenceName == null ? null : new FacetGroupsDisjunction(referenceName, facetGroupRelationLevel, filterBy);
+	}
+
+	/**
+	 * This `facetGroupsDisjunction` require constraint allows specifying facet relation on particular level (within group
+	 * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+	 * group, secondary optional argument allows defining the level for which the disjunction is defined, third optional
+	 * argument defines one more facet group ids which facets should be considered disjunctive with other facets either
+	 * in same group or different groups (depending on level argument).
+	 *
+	 * This require constraint changes default behavior of the facet calculation rules.
+	 * Constraint has sense only when [facet](#facet) constraint is part of the query.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *    entities("product"),
+	 *    filterBy(
+	 *       userFilter(
+	 *          facet("group", 1, 2),
+	 *          facet(
+	 *             "parameterType",
+	 *             entityPrimaryKeyInSet(11, 12, 22)
+	 *          )
+	 *       )
+	 *    ),
+	 *    require(
+	 *       facetGroupsDisjunction("parameterType", WITH_DIFFERENT_GROUPS, 1, 2)
+	 *    )
+	 * )
+	 * </pre>
+	 *
+	 * This statement means, that facets in `parameterType` facet groups `1`, `2` will be joined with the rest of the query by
+	 * boolean OR relation when selected.
+	 *
+	 * Let's have this facet/group situation:
+	 *
+	 * Color `parameterType` (group id: 1):
+	 *
+	 * - blue (facet id: 11)
+	 * - red (facet id: 12)
+	 *
+	 * Size `parameterType` (group id: 2):
+	 *
+	 * - small (facet id: 21)
+	 * - large (facet id: 22)
+	 *
+	 * Flags `tag` (group id: 3):
+	 *
+	 * - action products (facet id: 31)
+	 * - new products (facet id: 32)
+	 *
+	 * When user selects facets: blue (11), large (22), new products (31) - the default meaning would be: get all entities that
+	 * have facet blue as well as facet large and action products tag (AND). If require `facetGroupsDisjunction('tag', 3)`
+	 * is passed in the query, filtering condition will be composed as: (`blue(11)` AND `large(22)`) OR `new products(31)`
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-disjunction">Visit detailed user documentation</a></p>
+	*/
 	@Nullable
 	static FacetGroupsDisjunction facetGroupsDisjunction(@Nullable String referenceName) {
 		return referenceName == null ? null : new FacetGroupsDisjunction(referenceName, null);
 	}
 
 	/**
+	 * This `facetGroupsNegation` require constraint allows specifying facet relation on particular level (within group
+	 * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+	 * group, secondary optional argument allows defining the level for which the negation is defined, third optional
+	 * argument defines one more facet group ids which facets should be considered negative with other facets either
+	 * in same group or different groups (depending on level argument).
+	 *
 	 * The `facetGroupsNegation` changes the behavior of the facet option in all facet groups specified in the filterBy
-	 * constraint. Instead of returning only those items that have a reference to that particular faceted entity, the query
-	 * result will return only those items that don't have a reference to it.
+	 * constraint (or all). Instead of returning only those items that have a reference to that particular faceted entity,
+	 * the query result will return only those items that don't have a reference to it.
 	 *
 	 * Example:
 	 *
@@ -3687,6 +3945,7 @@ public interface QueryConstraints {
 	 *         ),
 	 *         facetGroupsNegation(
 	 *             "parameterValues",
+	 *             WITH_DIFFERENT_GROUPS,
 	 *             filterBy(
 	 *               attributeInSet("code", "ram-memory")
 	 *             )
@@ -3700,16 +3959,22 @@ public interface QueryConstraints {
 	 * default behavior predicts only a dozen of them.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-negation">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetGroupsNegation facetGroupsNegation(@Nullable String referenceName, @Nullable FilterBy filterBy) {
 		return referenceName == null ? null : new FacetGroupsNegation(referenceName, filterBy);
 	}
 
 	/**
+	 * This `facetGroupsNegation` require constraint allows specifying facet relation on particular level (within group
+	 * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+	 * group, secondary optional argument allows defining the level for which the negation is defined, third optional
+	 * argument defines one more facet group ids which facets should be considered negative with other facets either
+	 * in same group or different groups (depending on level argument).
+	 *
 	 * The `facetGroupsNegation` changes the behavior of the facet option in all facet groups specified in the filterBy
-	 * constraint. Instead of returning only those items that have a reference to that particular faceted entity, the query
-	 * result will return only those items that don't have a reference to it.
+	 * constraint (or all). Instead of returning only those items that have a reference to that particular faceted entity,
+	 * the query result will return only those items that don't have a reference to it.
 	 *
 	 * Example:
 	 *
@@ -3727,6 +3992,7 @@ public interface QueryConstraints {
 	 *         ),
 	 *         facetGroupsNegation(
 	 *             "parameterValues",
+	 *             WITH_DIFFERENT_GROUPS,
 	 *             filterBy(
 	 *               attributeInSet("code", "ram-memory")
 	 *             )
@@ -3740,10 +4006,334 @@ public interface QueryConstraints {
 	 * default behavior predicts only a dozen of them.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-negation">Visit detailed user documentation</a></p>
-	 */
+	*/
+	@Nullable
+	static FacetGroupsNegation facetGroupsNegation(@Nullable String referenceName, @Nullable FacetGroupRelationLevel facetGroupRelationLevel, @Nullable FilterBy filterBy) {
+		return referenceName == null ? null : new FacetGroupsNegation(referenceName, facetGroupRelationLevel, filterBy);
+	}
+
+	/**
+	 * This `facetGroupsNegation` require constraint allows specifying facet relation on particular level (within group
+	 * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+	 * group, secondary optional argument allows defining the level for which the negation is defined, third optional
+	 * argument defines one more facet group ids which facets should be considered negative with other facets either
+	 * in same group or different groups (depending on level argument).
+	 *
+	 * The `facetGroupsNegation` changes the behavior of the facet option in all facet groups specified in the filterBy
+	 * constraint (or all). Instead of returning only those items that have a reference to that particular faceted entity,
+	 * the query result will return only those items that don't have a reference to it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     require(
+	 *         facetSummaryOfReference(
+	 *             "parameterValues",
+	 *             IMPACT,
+	 *             filterBy(attributeContains("code", "4")),
+	 *             filterGroupBy(attributeInSet("code", "ram-memory", "rom-memory")),
+	 *             entityFetch(attributeContent("code")),
+	 *             entityGroupFetch(attributeContent("code"))
+	 *         ),
+	 *         facetGroupsNegation(
+	 *             "parameterValues",
+	 *             WITH_DIFFERENT_GROUPS,
+	 *             filterBy(
+	 *               attributeInSet("code", "ram-memory")
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * The predicted results in the negated groups are far greater than the numbers produced by the default behavior.
+	 * Selecting any option in the RAM facet group predicts returning thousands of results, while the ROM facet group with
+	 * default behavior predicts only a dozen of them.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-negation">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static FacetGroupsNegation facetGroupsNegation(@Nullable String referenceName, @Nullable FacetGroupRelationLevel facetGroupRelationLevel) {
+		return referenceName == null ? null : new FacetGroupsNegation(referenceName, facetGroupRelationLevel, null);
+	}
+
+	/**
+	 * This `facetGroupsNegation` require constraint allows specifying facet relation on particular level (within group
+	 * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+	 * group, secondary optional argument allows defining the level for which the negation is defined, third optional
+	 * argument defines one more facet group ids which facets should be considered negative with other facets either
+	 * in same group or different groups (depending on level argument).
+	 *
+	 * The `facetGroupsNegation` changes the behavior of the facet option in all facet groups specified in the filterBy
+	 * constraint (or all). Instead of returning only those items that have a reference to that particular faceted entity,
+	 * the query result will return only those items that don't have a reference to it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     require(
+	 *         facetSummaryOfReference(
+	 *             "parameterValues",
+	 *             IMPACT,
+	 *             filterBy(attributeContains("code", "4")),
+	 *             filterGroupBy(attributeInSet("code", "ram-memory", "rom-memory")),
+	 *             entityFetch(attributeContent("code")),
+	 *             entityGroupFetch(attributeContent("code"))
+	 *         ),
+	 *         facetGroupsNegation(
+	 *             "parameterValues",
+	 *             WITH_DIFFERENT_GROUPS,
+	 *             filterBy(
+	 *               attributeInSet("code", "ram-memory")
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * The predicted results in the negated groups are far greater than the numbers produced by the default behavior.
+	 * Selecting any option in the RAM facet group predicts returning thousands of results, while the ROM facet group with
+	 * default behavior predicts only a dozen of them.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-negation">Visit detailed user documentation</a></p>
+	*/
 	@Nullable
 	static FacetGroupsNegation facetGroupsNegation(@Nullable String referenceName) {
 		return referenceName == null ? null : new FacetGroupsNegation(referenceName, null);
+	}
+
+	/**
+	 * This `facetGroupsExclusivity` require constraint allows specifying facet relation on particular level (within group
+	 * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+	 * group, secondary optional argument allows defining the level for which the exclusivity is defined, third optional
+	 * argument defines one more facet group ids which facets should be considered exclusive with other facets either
+	 * in same group or different groups (depending on level argument).
+	 *
+	 * The `facetGroupsExclusivity` changes the behavior of the facet option in all facet groups specified in the filterBy
+	 * constraint (or all). Query will allow selecting only single facet from either the group or facets in single group
+	 * among other groups depending on the level argument:
+	 *
+	 * - WITH_DIFFERENT_GROUPS: when facets are selected, they must always be from single group (within the relation only)
+	 * - WITH_DIFFERENT_FACETS_IN_GROUP: only single facet can be selected from each group (within the relation only)
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     require(
+	 *         facetSummaryOfReference(
+	 *             "parameterValues",
+	 *             IMPACT,
+	 *             filterBy(attributeContains("code", "4")),
+	 *             filterGroupBy(attributeInSet("code", "ram-memory", "rom-memory")),
+	 *             entityFetch(attributeContent("code")),
+	 *             entityGroupFetch(attributeContent("code"))
+	 *         ),
+	 *         facetGroupsExclusivity(
+	 *             "parameterValues",
+	 *             WITH_DIFFERENT_FACETS_IN_GROUP,
+	 *             filterBy(
+	 *               attributeInSet("code", "ram-memory")
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * In group `ram-memory` only single facet can be selected, so it should be probably rendered as radio buttons in the UI
+	 * instead of checkboxes.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-exclusivity">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static FacetGroupsExclusivity facetGroupsExclusivity(@Nullable String referenceName, @Nullable FilterBy filterBy) {
+		return referenceName == null ? null : new FacetGroupsExclusivity(referenceName, filterBy);
+	}
+
+	/**
+	 * This `facetGroupsExclusivity` require constraint allows specifying facet relation on particular level (within group
+	 * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+	 * group, secondary optional argument allows defining the level for which the exclusivity is defined, third optional
+	 * argument defines one more facet group ids which facets should be considered exclusive with other facets either
+	 * in same group or different groups (depending on level argument).
+	 *
+	 * The `facetGroupsExclusivity` changes the behavior of the facet option in all facet groups specified in the filterBy
+	 * constraint (or all). Query will allow selecting only single facet from either the group or facets in single group
+	 * among other groups depending on the level argument:
+	 *
+	 * - WITH_DIFFERENT_GROUPS: when facets are selected, they must always be from single group (within the relation only)
+	 * - WITH_DIFFERENT_FACETS_IN_GROUP: only single facet can be selected from each group (within the relation only)
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     require(
+	 *         facetSummaryOfReference(
+	 *             "parameterValues",
+	 *             IMPACT,
+	 *             filterBy(attributeContains("code", "4")),
+	 *             filterGroupBy(attributeInSet("code", "ram-memory", "rom-memory")),
+	 *             entityFetch(attributeContent("code")),
+	 *             entityGroupFetch(attributeContent("code"))
+	 *         ),
+	 *         facetGroupsExclusivity(
+	 *             "parameterValues",
+	 *             WITH_DIFFERENT_FACETS_IN_GROUP,
+	 *             filterBy(
+	 *               attributeInSet("code", "ram-memory")
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * In group `ram-memory` only single facet can be selected, so it should be probably rendered as radio buttons in the UI
+	 * instead of checkboxes.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-exclusivity">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static FacetGroupsExclusivity facetGroupsExclusivity(@Nullable String referenceName, @Nullable FacetGroupRelationLevel facetGroupRelationLevel, @Nullable FilterBy filterBy) {
+		return referenceName == null ? null : new FacetGroupsExclusivity(referenceName, facetGroupRelationLevel, filterBy);
+	}
+
+	/**
+	 * This `facetGroupsExclusivity` require constraint allows specifying facet relation on particular level (within group
+	 * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+	 * group, secondary optional argument allows defining the level for which the exclusivity is defined, third optional
+	 * argument defines one more facet group ids which facets should be considered exclusive with other facets either
+	 * in same group or different groups (depending on level argument).
+	 *
+	 * The `facetGroupsExclusivity` changes the behavior of the facet option in all facet groups specified in the filterBy
+	 * constraint (or all). Query will allow selecting only single facet from either the group or facets in single group
+	 * among other groups depending on the level argument:
+	 *
+	 * - WITH_DIFFERENT_GROUPS: when facets are selected, they must always be from single group (within the relation only)
+	 * - WITH_DIFFERENT_FACETS_IN_GROUP: only single facet can be selected from each group (within the relation only)
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     require(
+	 *         facetSummaryOfReference(
+	 *             "parameterValues",
+	 *             IMPACT,
+	 *             filterBy(attributeContains("code", "4")),
+	 *             filterGroupBy(attributeInSet("code", "ram-memory", "rom-memory")),
+	 *             entityFetch(attributeContent("code")),
+	 *             entityGroupFetch(attributeContent("code"))
+	 *         ),
+	 *         facetGroupsExclusivity(
+	 *             "parameterValues",
+	 *             WITH_DIFFERENT_FACETS_IN_GROUP,
+	 *             filterBy(
+	 *               attributeInSet("code", "ram-memory")
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * In group `ram-memory` only single facet can be selected, so it should be probably rendered as radio buttons in the UI
+	 * instead of checkboxes.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-exclusivity">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static FacetGroupsExclusivity facetGroupsExclusivity(@Nullable String referenceName, @Nullable FacetGroupRelationLevel facetGroupRelationLevel) {
+		return referenceName == null ? null : new FacetGroupsExclusivity(referenceName, facetGroupRelationLevel, null);
+	}
+
+	/**
+	 * This `facetGroupsExclusivity` require constraint allows specifying facet relation on particular level (within group
+	 * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+	 * group, secondary optional argument allows defining the level for which the exclusivity is defined, third optional
+	 * argument defines one more facet group ids which facets should be considered exclusive with other facets either
+	 * in same group or different groups (depending on level argument).
+	 *
+	 * The `facetGroupsExclusivity` changes the behavior of the facet option in all facet groups specified in the filterBy
+	 * constraint (or all). Query will allow selecting only single facet from either the group or facets in single group
+	 * among other groups depending on the level argument:
+	 *
+	 * - WITH_DIFFERENT_GROUPS: when facets are selected, they must always be from single group (within the relation only)
+	 * - WITH_DIFFERENT_FACETS_IN_GROUP: only single facet can be selected from each group (within the relation only)
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     require(
+	 *         facetSummaryOfReference(
+	 *             "parameterValues",
+	 *             IMPACT,
+	 *             filterBy(attributeContains("code", "4")),
+	 *             filterGroupBy(attributeInSet("code", "ram-memory", "rom-memory")),
+	 *             entityFetch(attributeContent("code")),
+	 *             entityGroupFetch(attributeContent("code"))
+	 *         ),
+	 *         facetGroupsExclusivity(
+	 *             "parameterValues",
+	 *             WITH_DIFFERENT_FACETS_IN_GROUP,
+	 *             filterBy(
+	 *               attributeInSet("code", "ram-memory")
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * In group `ram-memory` only single facet can be selected, so it should be probably rendered as radio buttons in the UI
+	 * instead of checkboxes.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-exclusivity">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static FacetGroupsExclusivity facetGroupsExclusivity(@Nullable String referenceName) {
+		return referenceName == null ? null : new FacetGroupsExclusivity(referenceName, null);
+	}
+
+	/**
+	 * This `facetCalculationRules` require constraint allows specifying default facet relation for each recognized level.
+	 * If this constraint is not present, the default behavior is to use the disjunction relation (logical OR) for facets
+	 * within the same group and conjunction relation (logical AND) for facets among different groups or relations.
+	 *
+	 * By using this constraint, you can change the default behavior of the facet calculation rules. The constraint accepts
+	 * two arguments:
+	 *
+	 * - `facetsWithSameGroup`: type of relation that should be applied on facets within the same group by default.
+	 * - `facetsWithDifferentGroups`: type of relation that should be applied on facets among different groups or relations by default.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     require(
+	 *         facetCalculationRules(CONJUNCTION, EXCLUSIVITY)
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * This query will change the default behavior of the facet calculation rules (only for this particular query) to use
+	 * the conjunction relation for facets within the same group and exclusivity relation for facets among different groups.
+	 * It is the equivalent for using the `facetGroupsConjunction` and `facetGroupsExclusivity` require constraints together
+	 * without specifying filter for the particular facet groups.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-calculation-rules">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static FacetCalculationRules facetCalculationRules(@Nullable FacetRelationType facetsWithSameGroup, @Nullable FacetRelationType facetsWithDifferentGroups) {
+		return new FacetCalculationRules(facetsWithSameGroup, facetsWithDifferentGroups);
 	}
 
 	/**
@@ -3755,31 +4345,31 @@ public interface QueryConstraints {
 	 * The constraint accepts following arguments:
 	 *
 	 * - specification of one or more reference names that identify the reference to the target hierarchical entity for
-	 * which the menu calculation should be performed; usually only one reference name makes sense, but to adapt
-	 * the constraint to the behavior of other similar constraints, evitaQL accepts multiple reference names for the case
-	 * that the same requirements apply to different references of the queried entity.
+	 *   which the menu calculation should be performed; usually only one reference name makes sense, but to adapt
+	 *   the constraint to the behavior of other similar constraints, evitaQL accepts multiple reference names for the case
+	 *   that the same requirements apply to different references of the queried entity.
 	 * - optional argument of type EmptyHierarchicalEntityBehaviour enum allowing you to specify whether or not to return
-	 * empty hierarchical entities (e.g., those that do not have any queried entities that satisfy the current query
-	 * filter constraint assigned to them - either directly or transitively):
+	 *   empty hierarchical entities (e.g., those that do not have any queried entities that satisfy the current query
+	 *   filter constraint assigned to them - either directly or transitively):
 	 *
-	 * - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
-	 * structures
-	 * - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
-	 * structures
+	 *      - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
+	 *        structures
+	 *      - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
+	 *        structures
 	 *
 	 * - optional ordering constraint that allows you to specify an order of Hierarchy LevelInfo elements in the result
-	 * hierarchy data structure
+	 *   hierarchy data structure
 	 * - mandatory one or more constraints allowing you to instruct evitaDB to calculate menu components; one or all of
-	 * the constraints may be present:
+	 *   the constraints may be present:
 	 *
-	 * - {@link HierarchyFromRoot}
-	 * - {@link HierarchyFromNode}
-	 * - {@link HierarchySiblings}
-	 * - {@link HierarchyChildren}
-	 * - {@link HierarchyParents}
+	 *      - {@link HierarchyFromRoot}
+	 *      - {@link HierarchyFromNode}
+	 *      - {@link HierarchySiblings}
+	 *      - {@link HierarchyChildren}
+	 *      - {@link HierarchyParents}
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#hierarchy-of-self">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static HierarchyOfSelf hierarchyOfSelf(@Nullable HierarchyRequireConstraint... requirement) {
 		return ArrayUtils.isEmptyOrItsValuesNull(requirement) ? null : new HierarchyOfSelf(null, requirement);
@@ -3794,31 +4384,31 @@ public interface QueryConstraints {
 	 * The constraint accepts following arguments:
 	 *
 	 * - specification of one or more reference names that identify the reference to the target hierarchical entity for
-	 * which the menu calculation should be performed; usually only one reference name makes sense, but to adapt
-	 * the constraint to the behavior of other similar constraints, evitaQL accepts multiple reference names for the case
-	 * that the same requirements apply to different references of the queried entity.
+	 *   which the menu calculation should be performed; usually only one reference name makes sense, but to adapt
+	 *   the constraint to the behavior of other similar constraints, evitaQL accepts multiple reference names for the case
+	 *   that the same requirements apply to different references of the queried entity.
 	 * - optional argument of type EmptyHierarchicalEntityBehaviour enum allowing you to specify whether or not to return
-	 * empty hierarchical entities (e.g., those that do not have any queried entities that satisfy the current query
-	 * filter constraint assigned to them - either directly or transitively):
+	 *   empty hierarchical entities (e.g., those that do not have any queried entities that satisfy the current query
+	 *   filter constraint assigned to them - either directly or transitively):
 	 *
-	 * - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
-	 * structures
-	 * - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
-	 * structures
+	 *      - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
+	 *        structures
+	 *      - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
+	 *        structures
 	 *
 	 * - optional ordering constraint that allows you to specify an order of Hierarchy LevelInfo elements in the result
-	 * hierarchy data structure
+	 *   hierarchy data structure
 	 * - mandatory one or more constraints allowing you to instruct evitaDB to calculate menu components; one or all of
-	 * the constraints may be present:
+	 *   the constraints may be present:
 	 *
-	 * - {@link HierarchyFromRoot}
-	 * - {@link HierarchyFromNode}
-	 * - {@link HierarchySiblings}
-	 * - {@link HierarchyChildren}
-	 * - {@link HierarchyParents}
+	 *      - {@link HierarchyFromRoot}
+	 *      - {@link HierarchyFromNode}
+	 *      - {@link HierarchySiblings}
+	 *      - {@link HierarchyChildren}
+	 *      - {@link HierarchyParents}
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#hierarchy-of-self">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static HierarchyOfSelf hierarchyOfSelf(
 		@Nullable OrderBy orderBy,
@@ -3840,31 +4430,31 @@ public interface QueryConstraints {
 	 * The constraint accepts following arguments:
 	 *
 	 * - specification of one or more reference names that identify the reference to the target hierarchical entity for
-	 * which the menu calculation should be performed; usually only one reference name makes sense, but to adapt
-	 * the constraint to the behavior of other similar constraints, evitaQL accepts multiple reference names for the case
-	 * that the same requirements apply to different references of the queried entity.
+	 *   which the menu calculation should be performed; usually only one reference name makes sense, but to adapt
+	 *   the constraint to the behavior of other similar constraints, evitaQL accepts multiple reference names for the case
+	 *   that the same requirements apply to different references of the queried entity.
 	 * - optional argument of type EmptyHierarchicalEntityBehaviour enum allowing you to specify whether or not to return
-	 * empty hierarchical entities (e.g., those that do not have any queried entities that satisfy the current query
-	 * filter constraint assigned to them - either directly or transitively):
+	 *   empty hierarchical entities (e.g., those that do not have any queried entities that satisfy the current query
+	 *   filter constraint assigned to them - either directly or transitively):
 	 *
-	 * - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
-	 * structures
-	 * - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
-	 * structures (default behavior)
+	 *      - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
+	 *        structures
+	 *      - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
+	 *        structures (default behavior)
 	 *
 	 * - optional ordering constraint that allows you to specify an order of Hierarchy LevelInfo elements in the result
-	 * hierarchy data structure
+	 *   hierarchy data structure
 	 * - mandatory one or more constraints allowing you to instruct evitaDB to calculate menu components; one or all of
-	 * the constraints may be present:
+	 *   the constraints may be present:
 	 *
-	 * - {@link HierarchyFromRoot}
-	 * - {@link HierarchyFromNode}
-	 * - {@link HierarchySiblings}
-	 * - {@link HierarchyChildren}
-	 * - {@link HierarchyParents}
+	 *      - {@link HierarchyFromRoot}
+	 *      - {@link HierarchyFromNode}
+	 *      - {@link HierarchySiblings}
+	 *      - {@link HierarchyChildren}
+	 *      - {@link HierarchyParents}
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#hierarchy-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static HierarchyOfReference hierarchyOfReference(
 		@Nullable String referenceName,
@@ -3886,31 +4476,31 @@ public interface QueryConstraints {
 	 * The constraint accepts following arguments:
 	 *
 	 * - specification of one or more reference names that identify the reference to the target hierarchical entity for
-	 * which the menu calculation should be performed; usually only one reference name makes sense, but to adapt
-	 * the constraint to the behavior of other similar constraints, evitaQL accepts multiple reference names for the case
-	 * that the same requirements apply to different references of the queried entity.
+	 *   which the menu calculation should be performed; usually only one reference name makes sense, but to adapt
+	 *   the constraint to the behavior of other similar constraints, evitaQL accepts multiple reference names for the case
+	 *   that the same requirements apply to different references of the queried entity.
 	 * - optional argument of type EmptyHierarchicalEntityBehaviour enum allowing you to specify whether or not to return
-	 * empty hierarchical entities (e.g., those that do not have any queried entities that satisfy the current query
-	 * filter constraint assigned to them - either directly or transitively):
+	 *   empty hierarchical entities (e.g., those that do not have any queried entities that satisfy the current query
+	 *   filter constraint assigned to them - either directly or transitively):
 	 *
-	 * - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
-	 * structures
-	 * - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
-	 * structures (default behavior)
+	 *      - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
+	 *        structures
+	 *      - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
+	 *        structures (default behavior)
 	 *
 	 * - optional ordering constraint that allows you to specify an order of Hierarchy LevelInfo elements in the result
-	 * hierarchy data structure
+	 *   hierarchy data structure
 	 * - mandatory one or more constraints allowing you to instruct evitaDB to calculate menu components; one or all of
-	 * the constraints may be present:
+	 *   the constraints may be present:
 	 *
-	 * - {@link HierarchyFromRoot}
-	 * - {@link HierarchyFromNode}
-	 * - {@link HierarchySiblings}
-	 * - {@link HierarchyChildren}
-	 * - {@link HierarchyParents}
+	 *      - {@link HierarchyFromRoot}
+	 *      - {@link HierarchyFromNode}
+	 *      - {@link HierarchySiblings}
+	 *      - {@link HierarchyChildren}
+	 *      - {@link HierarchyParents}
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#hierarchy-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static HierarchyOfReference hierarchyOfReference(
 		@Nullable String referenceName,
@@ -3933,31 +4523,31 @@ public interface QueryConstraints {
 	 * The constraint accepts following arguments:
 	 *
 	 * - specification of one or more reference names that identify the reference to the target hierarchical entity for
-	 * which the menu calculation should be performed; usually only one reference name makes sense, but to adapt
-	 * the constraint to the behavior of other similar constraints, evitaQL accepts multiple reference names for the case
-	 * that the same requirements apply to different references of the queried entity.
+	 *   which the menu calculation should be performed; usually only one reference name makes sense, but to adapt
+	 *   the constraint to the behavior of other similar constraints, evitaQL accepts multiple reference names for the case
+	 *   that the same requirements apply to different references of the queried entity.
 	 * - optional argument of type EmptyHierarchicalEntityBehaviour enum allowing you to specify whether or not to return
-	 * empty hierarchical entities (e.g., those that do not have any queried entities that satisfy the current query
-	 * filter constraint assigned to them - either directly or transitively):
+	 *   empty hierarchical entities (e.g., those that do not have any queried entities that satisfy the current query
+	 *   filter constraint assigned to them - either directly or transitively):
 	 *
-	 * - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
-	 * structures
-	 * - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
-	 * structures (default behavior)
+	 *      - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
+	 *        structures
+	 *      - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
+	 *        structures (default behavior)
 	 *
 	 * - optional ordering constraint that allows you to specify an order of Hierarchy LevelInfo elements in the result
-	 * hierarchy data structure
+	 *   hierarchy data structure
 	 * - mandatory one or more constraints allowing you to instruct evitaDB to calculate menu components; one or all of
-	 * the constraints may be present:
+	 *   the constraints may be present:
 	 *
-	 * - {@link HierarchyFromRoot}
-	 * - {@link HierarchyFromNode}
-	 * - {@link HierarchySiblings}
-	 * - {@link HierarchyChildren}
-	 * - {@link HierarchyParents}
+	 *      - {@link HierarchyFromRoot}
+	 *      - {@link HierarchyFromNode}
+	 *      - {@link HierarchySiblings}
+	 *      - {@link HierarchyChildren}
+	 *      - {@link HierarchyParents}
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#hierarchy-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static HierarchyOfReference hierarchyOfReference(
 		@Nullable String referenceName,
@@ -3986,31 +4576,31 @@ public interface QueryConstraints {
 	 * The constraint accepts following arguments:
 	 *
 	 * - specification of one or more reference names that identify the reference to the target hierarchical entity for
-	 * which the menu calculation should be performed; usually only one reference name makes sense, but to adapt
-	 * the constraint to the behavior of other similar constraints, evitaQL accepts multiple reference names for the case
-	 * that the same requirements apply to different references of the queried entity.
+	 *   which the menu calculation should be performed; usually only one reference name makes sense, but to adapt
+	 *   the constraint to the behavior of other similar constraints, evitaQL accepts multiple reference names for the case
+	 *   that the same requirements apply to different references of the queried entity.
 	 * - optional argument of type EmptyHierarchicalEntityBehaviour enum allowing you to specify whether or not to return
-	 * empty hierarchical entities (e.g., those that do not have any queried entities that satisfy the current query
-	 * filter constraint assigned to them - either directly or transitively):
+	 *   empty hierarchical entities (e.g., those that do not have any queried entities that satisfy the current query
+	 *   filter constraint assigned to them - either directly or transitively):
 	 *
-	 * - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
-	 * structures
-	 * - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
-	 * structures (default behavior)
+	 *      - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
+	 *        structures
+	 *      - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
+	 *        structures (default behavior)
 	 *
 	 * - optional ordering constraint that allows you to specify an order of Hierarchy LevelInfo elements in the result
-	 * hierarchy data structure
+	 *   hierarchy data structure
 	 * - mandatory one or more constraints allowing you to instruct evitaDB to calculate menu components; one or all of
-	 * the constraints may be present:
+	 *   the constraints may be present:
 	 *
-	 * - {@link HierarchyFromRoot}
-	 * - {@link HierarchyFromNode}
-	 * - {@link HierarchySiblings}
-	 * - {@link HierarchyChildren}
-	 * - {@link HierarchyParents}
+	 *      - {@link HierarchyFromRoot}
+	 *      - {@link HierarchyFromNode}
+	 *      - {@link HierarchySiblings}
+	 *      - {@link HierarchyChildren}
+	 *      - {@link HierarchyParents}
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#hierarchy-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static HierarchyOfReference hierarchyOfReference(
 		@Nullable String referenceName,
@@ -4041,31 +4631,31 @@ public interface QueryConstraints {
 	 * The constraint accepts following arguments:
 	 *
 	 * - specification of one or more reference names that identify the reference to the target hierarchical entity for
-	 * which the menu calculation should be performed; usually only one reference name makes sense, but to adapt
-	 * the constraint to the behavior of other similar constraints, evitaQL accepts multiple reference names for the case
-	 * that the same requirements apply to different references of the queried entity.
+	 *   which the menu calculation should be performed; usually only one reference name makes sense, but to adapt
+	 *   the constraint to the behavior of other similar constraints, evitaQL accepts multiple reference names for the case
+	 *   that the same requirements apply to different references of the queried entity.
 	 * - optional argument of type EmptyHierarchicalEntityBehaviour enum allowing you to specify whether or not to return
-	 * empty hierarchical entities (e.g., those that do not have any queried entities that satisfy the current query
-	 * filter constraint assigned to them - either directly or transitively):
+	 *   empty hierarchical entities (e.g., those that do not have any queried entities that satisfy the current query
+	 *   filter constraint assigned to them - either directly or transitively):
 	 *
-	 * - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
-	 * structures
-	 * - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
-	 * structures (default behavior)
+	 *      - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
+	 *        structures
+	 *      - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
+	 *        structures (default behavior)
 	 *
 	 * - optional ordering constraint that allows you to specify an order of Hierarchy LevelInfo elements in the result
-	 * hierarchy data structure
+	 *   hierarchy data structure
 	 * - mandatory one or more constraints allowing you to instruct evitaDB to calculate menu components; one or all of
-	 * the constraints may be present:
+	 *   the constraints may be present:
 	 *
-	 * - {@link HierarchyFromRoot}
-	 * - {@link HierarchyFromNode}
-	 * - {@link HierarchySiblings}
-	 * - {@link HierarchyChildren}
-	 * - {@link HierarchyParents}
+	 *      - {@link HierarchyFromRoot}
+	 *      - {@link HierarchyFromNode}
+	 *      - {@link HierarchySiblings}
+	 *      - {@link HierarchyChildren}
+	 *      - {@link HierarchyParents}
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#hierarchy-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static HierarchyOfReference hierarchyOfReference(
 		@Nullable String[] referenceName,
@@ -4087,31 +4677,31 @@ public interface QueryConstraints {
 	 * The constraint accepts following arguments:
 	 *
 	 * - specification of one or more reference names that identify the reference to the target hierarchical entity for
-	 * which the menu calculation should be performed; usually only one reference name makes sense, but to adapt
-	 * the constraint to the behavior of other similar constraints, evitaQL accepts multiple reference names for the case
-	 * that the same requirements apply to different references of the queried entity.
+	 *   which the menu calculation should be performed; usually only one reference name makes sense, but to adapt
+	 *   the constraint to the behavior of other similar constraints, evitaQL accepts multiple reference names for the case
+	 *   that the same requirements apply to different references of the queried entity.
 	 * - optional argument of type EmptyHierarchicalEntityBehaviour enum allowing you to specify whether or not to return
-	 * empty hierarchical entities (e.g., those that do not have any queried entities that satisfy the current query
-	 * filter constraint assigned to them - either directly or transitively):
+	 *   empty hierarchical entities (e.g., those that do not have any queried entities that satisfy the current query
+	 *   filter constraint assigned to them - either directly or transitively):
 	 *
-	 * - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
-	 * structures
-	 * - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
-	 * structures (default behavior)
+	 *      - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
+	 *        structures
+	 *      - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
+	 *        structures (default behavior)
 	 *
 	 * - optional ordering constraint that allows you to specify an order of Hierarchy LevelInfo elements in the result
-	 * hierarchy data structure
+	 *   hierarchy data structure
 	 * - mandatory one or more constraints allowing you to instruct evitaDB to calculate menu components; one or all of
-	 * the constraints may be present:
+	 *   the constraints may be present:
 	 *
-	 * - {@link HierarchyFromRoot}
-	 * - {@link HierarchyFromNode}
-	 * - {@link HierarchySiblings}
-	 * - {@link HierarchyChildren}
-	 * - {@link HierarchyParents}
+	 *      - {@link HierarchyFromRoot}
+	 *      - {@link HierarchyFromNode}
+	 *      - {@link HierarchySiblings}
+	 *      - {@link HierarchyChildren}
+	 *      - {@link HierarchyParents}
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#hierarchy-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static HierarchyOfReference hierarchyOfReference(
 		@Nullable String[] referenceName,
@@ -4134,31 +4724,31 @@ public interface QueryConstraints {
 	 * The constraint accepts following arguments:
 	 *
 	 * - specification of one or more reference names that identify the reference to the target hierarchical entity for
-	 * which the menu calculation should be performed; usually only one reference name makes sense, but to adapt
-	 * the constraint to the behavior of other similar constraints, evitaQL accepts multiple reference names for the case
-	 * that the same requirements apply to different references of the queried entity.
+	 *   which the menu calculation should be performed; usually only one reference name makes sense, but to adapt
+	 *   the constraint to the behavior of other similar constraints, evitaQL accepts multiple reference names for the case
+	 *   that the same requirements apply to different references of the queried entity.
 	 * - optional argument of type EmptyHierarchicalEntityBehaviour enum allowing you to specify whether or not to return
-	 * empty hierarchical entities (e.g., those that do not have any queried entities that satisfy the current query
-	 * filter constraint assigned to them - either directly or transitively):
+	 *   empty hierarchical entities (e.g., those that do not have any queried entities that satisfy the current query
+	 *   filter constraint assigned to them - either directly or transitively):
 	 *
-	 * - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
-	 * structures
-	 * - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
-	 * structures (default behavior)
+	 *      - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
+	 *        structures
+	 *      - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
+	 *        structures (default behavior)
 	 *
 	 * - optional ordering constraint that allows you to specify an order of Hierarchy LevelInfo elements in the result
-	 * hierarchy data structure
+	 *   hierarchy data structure
 	 * - mandatory one or more constraints allowing you to instruct evitaDB to calculate menu components; one or all of
-	 * the constraints may be present:
+	 *   the constraints may be present:
 	 *
-	 * - {@link HierarchyFromRoot}
-	 * - {@link HierarchyFromNode}
-	 * - {@link HierarchySiblings}
-	 * - {@link HierarchyChildren}
-	 * - {@link HierarchyParents}
+	 *      - {@link HierarchyFromRoot}
+	 *      - {@link HierarchyFromNode}
+	 *      - {@link HierarchySiblings}
+	 *      - {@link HierarchyChildren}
+	 *      - {@link HierarchyParents}
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#hierarchy-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static HierarchyOfReference hierarchyOfReference(
 		@Nullable String[] referenceName,
@@ -4191,31 +4781,31 @@ public interface QueryConstraints {
 	 * The constraint accepts following arguments:
 	 *
 	 * - specification of one or more reference names that identify the reference to the target hierarchical entity for
-	 * which the menu calculation should be performed; usually only one reference name makes sense, but to adapt
-	 * the constraint to the behavior of other similar constraints, evitaQL accepts multiple reference names for the case
-	 * that the same requirements apply to different references of the queried entity.
+	 *   which the menu calculation should be performed; usually only one reference name makes sense, but to adapt
+	 *   the constraint to the behavior of other similar constraints, evitaQL accepts multiple reference names for the case
+	 *   that the same requirements apply to different references of the queried entity.
 	 * - optional argument of type EmptyHierarchicalEntityBehaviour enum allowing you to specify whether or not to return
-	 * empty hierarchical entities (e.g., those that do not have any queried entities that satisfy the current query
-	 * filter constraint assigned to them - either directly or transitively):
+	 *   empty hierarchical entities (e.g., those that do not have any queried entities that satisfy the current query
+	 *   filter constraint assigned to them - either directly or transitively):
 	 *
-	 * - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
-	 * structures
-	 * - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
-	 * structures (default behavior)
+	 *      - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
+	 *        structures
+	 *      - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
+	 *        structures (default behavior)
 	 *
 	 * - optional ordering constraint that allows you to specify an order of Hierarchy LevelInfo elements in the result
-	 * hierarchy data structure
+	 *   hierarchy data structure
 	 * - mandatory one or more constraints allowing you to instruct evitaDB to calculate menu components; one or all of
-	 * the constraints may be present:
+	 *   the constraints may be present:
 	 *
-	 * - {@link HierarchyFromRoot}
-	 * - {@link HierarchyFromNode}
-	 * - {@link HierarchySiblings}
-	 * - {@link HierarchyChildren}
-	 * - {@link HierarchyParents}
+	 *      - {@link HierarchyFromRoot}
+	 *      - {@link HierarchyFromNode}
+	 *      - {@link HierarchySiblings}
+	 *      - {@link HierarchyChildren}
+	 *      - {@link HierarchyParents}
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#hierarchy-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static HierarchyOfReference hierarchyOfReference(
 		@Nullable String[] referenceName,
@@ -4254,12 +4844,12 @@ public interface QueryConstraints {
 	 *
 	 * - mandatory String argument specifying the output name for the calculated data structure
 	 * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope of
-	 * the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may be
-	 * present:
+	 *   the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may be
+	 *   present:
 	 *
-	 * - {@link EntityFetch}
-	 * - {@link HierarchyStopAt}
-	 * - {@link HierarchyStatistics}
+	 *      - {@link EntityFetch}
+	 *      - {@link HierarchyStopAt}
+	 *      - {@link HierarchyStatistics}
 	 *
 	 * The following query lists products in category Audio and its subcategories. Along with the returned products, it also
 	 * requires a computed megaMenu data structure that lists the top 2 levels of the Category hierarchy tree with
@@ -4299,7 +4889,7 @@ public interface QueryConstraints {
 	 * number remains consistent for the end user.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#from-root">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static HierarchyFromRoot fromRoot(
 		@Nullable String outputName,
@@ -4329,12 +4919,12 @@ public interface QueryConstraints {
 	 *
 	 * - mandatory String argument specifying the output name for the calculated data structure
 	 * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope of
-	 * the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may be
-	 * present:
+	 *   the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may be
+	 *   present:
 	 *
-	 * - {@link EntityFetch}
-	 * - {@link HierarchyStopAt}
-	 * - {@link HierarchyStatistics}
+	 *      - {@link EntityFetch}
+	 *      - {@link HierarchyStopAt}
+	 *      - {@link HierarchyStatistics}
 	 *
 	 * The following query lists products in category Audio and its subcategories. Along with the returned products, it also
 	 * requires a computed megaMenu data structure that lists the top 2 levels of the Category hierarchy tree with
@@ -4374,7 +4964,7 @@ public interface QueryConstraints {
 	 * number remains consistent for the end user.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#from-root">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static HierarchyFromRoot fromRoot(
 		@Nullable String outputName,
@@ -4402,14 +4992,14 @@ public interface QueryConstraints {
 	 *
 	 * - mandatory String argument specifying the output name for the calculated data structure
 	 * - mandatory require constraint node that must match exactly one pivot hierarchical entity that represents the root
-	 * node of the traversed hierarchy subtree.
+	 *   node of the traversed hierarchy subtree.
 	 * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope
-	 * of the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may be
-	 * present:
+	 *   of the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may be
+	 *   present:
 	 *
-	 * - {@link EntityFetch}
-	 * - {@link HierarchyStopAt}
-	 * - {@link HierarchyStatistics}
+	 *      - {@link EntityFetch}
+	 *      - {@link HierarchyStopAt}
+	 *      - {@link HierarchyStatistics}
 	 *
 	 * The following query lists products in category Audio and its subcategories. Along with the products returned, it
 	 * also returns a computed sideMenu1 and sideMenu2 data structure that lists the flat category list for the categories
@@ -4468,7 +5058,7 @@ public interface QueryConstraints {
 	 * remains consistent for the end user.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#from-node">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static HierarchyFromNode fromNode(
 		@Nullable String outputName,
@@ -4498,14 +5088,14 @@ public interface QueryConstraints {
 	 *
 	 * - mandatory String argument specifying the output name for the calculated data structure
 	 * - mandatory require constraint node that must match exactly one pivot hierarchical entity that represents the root
-	 * node of the traversed hierarchy subtree.
+	 *   node of the traversed hierarchy subtree.
 	 * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope
-	 * of the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may be
-	 * present:
+	 *   of the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may be
+	 *   present:
 	 *
-	 * - {@link EntityFetch}
-	 * - {@link HierarchyStopAt}
-	 * - {@link HierarchyStatistics}
+	 *      - {@link EntityFetch}
+	 *      - {@link HierarchyStopAt}
+	 *      - {@link HierarchyStatistics}
 	 *
 	 * The following query lists products in category Audio and its subcategories. Along with the products returned, it
 	 * also returns a computed sideMenu1 and sideMenu2 data structure that lists the flat category list for the categories
@@ -4564,7 +5154,7 @@ public interface QueryConstraints {
 	 * remains consistent for the end user.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#from-node">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static HierarchyFromNode fromNode(
 		@Nullable String outputName,
@@ -4592,12 +5182,12 @@ public interface QueryConstraints {
 	 *
 	 * - mandatory String argument specifying the output name for the calculated data structure
 	 * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope of
-	 * the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may be
-	 * present:
+	 *   the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may be
+	 *   present:
 	 *
-	 * - {@link EntityFetch}
-	 * - {@link HierarchyStopAt}
-	 * - {@link HierarchyStatistics}
+	 *      - {@link EntityFetch}
+	 *      - {@link HierarchyStopAt}
+	 *      - {@link HierarchyStatistics}
 	 *
 	 * The following query lists products in category Audio and its subcategories. Along with the products returned, it also
 	 * returns a computed subcategories data structure that lists the flat category list the currently focused category
@@ -4638,7 +5228,7 @@ public interface QueryConstraints {
 	 * user.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#children">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static HierarchyChildren children(
 		@Nullable String outputName,
@@ -4663,12 +5253,12 @@ public interface QueryConstraints {
 	 *
 	 * - mandatory String argument specifying the output name for the calculated data structure
 	 * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope of
-	 * the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may be
-	 * present:
+	 *   the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may be
+	 *   present:
 	 *
-	 * - {@link EntityFetch}
-	 * - {@link HierarchyStopAt}
-	 * - {@link HierarchyStatistics}
+	 *      - {@link EntityFetch}
+	 *      - {@link HierarchyStopAt}
+	 *      - {@link HierarchyStatistics}
 	 *
 	 * The following query lists products in category Audio and its subcategories. Along with the products returned, it also
 	 * returns a computed subcategories data structure that lists the flat category list the currently focused category
@@ -4709,7 +5299,7 @@ public interface QueryConstraints {
 	 * user.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#children">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static HierarchyChildren children(
 		@Nullable String outputName,
@@ -4735,12 +5325,12 @@ public interface QueryConstraints {
 	 *
 	 * - mandatory String argument specifying the output name for the calculated data structure
 	 * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope
-	 * of the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may
-	 * be present:
+	 *   of the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may
+	 *   be present:
 	 *
-	 * - {@link EntityFetch}
-	 * - {@link HierarchyStopAt}
-	 * - {@link HierarchyStatistics}
+	 *      - {@link EntityFetch}
+	 *      - {@link HierarchyStopAt}
+	 *      - {@link HierarchyStatistics}
 	 *
 	 * The following query lists products in category Audio and its subcategories. Along with the products returned, it also
 	 * returns a computed audioSiblings data structure that lists the flat category list the currently focused category
@@ -4787,7 +5377,7 @@ public interface QueryConstraints {
 	 * in its data structure.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#siblings">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static HierarchySiblings siblings(
 		@Nullable String outputName,
@@ -4814,12 +5404,12 @@ public interface QueryConstraints {
 	 *
 	 * - mandatory String argument specifying the output name for the calculated data structure
 	 * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope
-	 * of the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may
-	 * be present:
+	 *   of the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may
+	 *   be present:
 	 *
-	 * - {@link EntityFetch}
-	 * - {@link HierarchyStopAt}
-	 * - {@link HierarchyStatistics}
+	 *      - {@link EntityFetch}
+	 *      - {@link HierarchyStopAt}
+	 *      - {@link HierarchyStatistics}
 	 *
 	 * The following query lists products in category Audio and its subcategories. Along with the products returned, it also
 	 * returns a computed audioSiblings data structure that lists the flat category list the currently focused category
@@ -4866,7 +5456,7 @@ public interface QueryConstraints {
 	 * in its data structure.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#siblings">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static HierarchySiblings siblings(
 		@Nullable String outputName,
@@ -4892,12 +5482,12 @@ public interface QueryConstraints {
 	 *
 	 * - mandatory String argument specifying the output name for the calculated data structure
 	 * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope
-	 * of the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may
-	 * be present:
+	 *   of the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may
+	 *   be present:
 	 *
-	 * - {@link EntityFetch}
-	 * - {@link HierarchyStopAt}
-	 * - {@link HierarchyStatistics}
+	 *      - {@link EntityFetch}
+	 *      - {@link HierarchyStopAt}
+	 *      - {@link HierarchyStatistics}
 	 *
 	 * The following query lists products in category Audio and its subcategories. Along with the products returned, it also
 	 * returns a computed audioSiblings data structure that lists the flat category list the currently focused category
@@ -4944,7 +5534,7 @@ public interface QueryConstraints {
 	 * in its data structure.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#siblings">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static HierarchySiblings siblings(
 		@Nullable EntityFetch entityFetch,
@@ -4966,12 +5556,12 @@ public interface QueryConstraints {
 	 *
 	 * - mandatory String argument specifying the output name for the calculated data structure
 	 * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope
-	 * of the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may
-	 * be present:
+	 *   of the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may
+	 *   be present:
 	 *
-	 * - {@link EntityFetch}
-	 * - {@link HierarchyStopAt}
-	 * - {@link HierarchyStatistics}
+	 *      - {@link EntityFetch}
+	 *      - {@link HierarchyStopAt}
+	 *      - {@link HierarchyStatistics}
 	 *
 	 * The following query lists products in category Audio and its subcategories. Along with the products returned, it also
 	 * returns a computed audioSiblings data structure that lists the flat category list the currently focused category
@@ -5018,7 +5608,7 @@ public interface QueryConstraints {
 	 * in its data structure.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#siblings">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static HierarchySiblings siblings(@Nullable HierarchyOutputRequireConstraint... requirements) {
 		return new HierarchySiblings(null, requirements);
@@ -5035,13 +5625,13 @@ public interface QueryConstraints {
 	 *
 	 * - mandatory String argument specifying the output name for the calculated data structure
 	 * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope
-	 * of the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may be
-	 * present:
+	 *   of the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may be
+	 *   present:
 	 *
-	 * - {@link HierarchySiblings}
-	 * - {@link EntityFetch}
-	 * - {@link HierarchyStopAt}
-	 * - {@link HierarchyStatistics}
+	 *      - {@link HierarchySiblings}
+	 *      - {@link EntityFetch}
+	 *      - {@link HierarchyStopAt}
+	 *      - {@link HierarchyStatistics}
 	 *
 	 * The following query lists products in the category Audio and its subcategories. Along with the products returned,
 	 * it also returns a computed parentAxis data structure that lists all the parent nodes of the currently focused
@@ -5080,7 +5670,7 @@ public interface QueryConstraints {
 	 * apply to the {@link HierarchyWithin} so that the calculated number remains consistent for the end user.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#parents">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static HierarchyParents parents(
 		@Nullable String outputName,
@@ -5105,13 +5695,13 @@ public interface QueryConstraints {
 	 *
 	 * - mandatory String argument specifying the output name for the calculated data structure
 	 * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope
-	 * of the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may be
-	 * present:
+	 *   of the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may be
+	 *   present:
 	 *
-	 * - {@link HierarchySiblings}
-	 * - {@link EntityFetch}
-	 * - {@link HierarchyStopAt}
-	 * - {@link HierarchyStatistics}
+	 *      - {@link HierarchySiblings}
+	 *      - {@link EntityFetch}
+	 *      - {@link HierarchyStopAt}
+	 *      - {@link HierarchyStatistics}
 	 *
 	 * The following query lists products in the category Audio and its subcategories. Along with the products returned,
 	 * it also returns a computed parentAxis data structure that lists all the parent nodes of the currently focused
@@ -5150,7 +5740,7 @@ public interface QueryConstraints {
 	 * apply to the {@link HierarchyWithin} so that the calculated number remains consistent for the end user.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#parents">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static HierarchyParents parents(
 		@Nullable String outputName,
@@ -5180,13 +5770,13 @@ public interface QueryConstraints {
 	 *
 	 * - mandatory String argument specifying the output name for the calculated data structure
 	 * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope
-	 * of the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may be
-	 * present:
+	 *   of the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may be
+	 *   present:
 	 *
-	 * - {@link HierarchySiblings}
-	 * - {@link EntityFetch}
-	 * - {@link HierarchyStopAt}
-	 * - {@link HierarchyStatistics}
+	 *      - {@link HierarchySiblings}
+	 *      - {@link EntityFetch}
+	 *      - {@link HierarchyStopAt}
+	 *      - {@link HierarchyStatistics}
 	 *
 	 * The following query lists products in the category Audio and its subcategories. Along with the products returned,
 	 * it also returns a computed parentAxis data structure that lists all the parent nodes of the currently focused
@@ -5225,7 +5815,7 @@ public interface QueryConstraints {
 	 * apply to the {@link HierarchyWithin} so that the calculated number remains consistent for the end user.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#parents">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static HierarchyParents parents(
 		@Nullable String outputName,
@@ -5249,13 +5839,13 @@ public interface QueryConstraints {
 	 *
 	 * - mandatory String argument specifying the output name for the calculated data structure
 	 * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope
-	 * of the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may be
-	 * present:
+	 *   of the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may be
+	 *   present:
 	 *
-	 * - {@link HierarchySiblings}
-	 * - {@link EntityFetch}
-	 * - {@link HierarchyStopAt}
-	 * - {@link HierarchyStatistics}
+	 *      - {@link HierarchySiblings}
+	 *      - {@link EntityFetch}
+	 *      - {@link HierarchyStopAt}
+	 *      - {@link HierarchyStatistics}
 	 *
 	 * The following query lists products in the category Audio and its subcategories. Along with the products returned,
 	 * it also returns a computed parentAxis data structure that lists all the parent nodes of the currently focused
@@ -5294,7 +5884,7 @@ public interface QueryConstraints {
 	 * apply to the {@link HierarchyWithin} so that the calculated number remains consistent for the end user.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#parents">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static HierarchyParents parents(
 		@Nullable String outputName,
@@ -5324,7 +5914,7 @@ public interface QueryConstraints {
 	 * node.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#stop-at">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static HierarchyStopAt stopAt(@Nullable HierarchyStopAtRequireConstraint stopConstraint) {
 		return stopConstraint == null ? null : new HierarchyStopAt(stopConstraint);
@@ -5372,7 +5962,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#node">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static HierarchyNode node(@Nullable FilterBy filterBy) {
 		return filterBy == null ? null : new HierarchyNode(filterBy);
@@ -5411,7 +6001,7 @@ public interface QueryConstraints {
 	 * also returns a computed megaMenu data structure that lists top two levels of the entire hierarchy.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#level">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static HierarchyLevel level(@Nullable Integer level) {
 		return level == null ? null : new HierarchyLevel(level);
@@ -5457,7 +6047,7 @@ public interface QueryConstraints {
 	 * Audio.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#distance">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static HierarchyDistance distance(@Nullable Integer distance) {
 		return distance == null ? null : new HierarchyDistance(distance);
@@ -5471,20 +6061,20 @@ public interface QueryConstraints {
 	 * It requires mandatory argument of type {@link StatisticsType} enum that specifies which statistics to compute:
 	 *
 	 * - {@link StatisticsType#CHILDREN_COUNT}: triggers calculation of the count of child hierarchy nodes that exist in
-	 * the hierarchy tree below the given node; the count is correct regardless of whether the children themselves are
-	 * requested/traversed by the constraint definition, and respects hierarchyOfReference settings for automatic removal
-	 * of hierarchy nodes that would contain empty result set of queried entities ({@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY})
+	 *   the hierarchy tree below the given node; the count is correct regardless of whether the children themselves are
+	 *   requested/traversed by the constraint definition, and respects hierarchyOfReference settings for automatic removal
+	 *   of hierarchy nodes that would contain empty result set of queried entities ({@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY})
 	 * - {@link StatisticsType#QUERIED_ENTITY_COUNT}: triggers the calculation of the total number of queried entities that
-	 * will be returned if the current query is focused on this particular hierarchy node using the hierarchyWithin filter
-	 * constraint (the possible refining constraint in the form of directRelation and excluding-root is not taken into
-	 * account).
+	 *   will be returned if the current query is focused on this particular hierarchy node using the hierarchyWithin filter
+	 *   constraint (the possible refining constraint in the form of directRelation and excluding-root is not taken into
+	 *   account).
 	 *
 	 * And optional argument of type {@link StatisticsBase} enum allowing you to specify the base queried entity set that
 	 * is the source for statistics calculations:
 	 *
 	 * - {@link StatisticsBase#COMPLETE_FILTER}: complete filtering query constraint
 	 * - {@link StatisticsBase#WITHOUT_USER_FILTER}: filtering query constraint where the contents of optional userFilter
-	 * are ignored
+	 *    are ignored
 	 *
 	 * The calculation always ignores hierarchyWithin because the focused part of the hierarchy tree is defined on
 	 * the requirement constraint level, but including having/excluding constraints. The having/excluding constraints are
@@ -5506,7 +6096,7 @@ public interface QueryConstraints {
 	 * to crunch these numbers.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#statistics">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static HierarchyStatistics statistics(@Nullable StatisticsType... type) {
 		return type == null ?
@@ -5522,20 +6112,20 @@ public interface QueryConstraints {
 	 * It requires mandatory argument of type {@link StatisticsType} enum that specifies which statistics to compute:
 	 *
 	 * - {@link StatisticsType#CHILDREN_COUNT}: triggers calculation of the count of child hierarchy nodes that exist in
-	 * the hierarchy tree below the given node; the count is correct regardless of whether the children themselves are
-	 * requested/traversed by the constraint definition, and respects hierarchyOfReference settings for automatic removal
-	 * of hierarchy nodes that would contain empty result set of queried entities ({@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY})
+	 *   the hierarchy tree below the given node; the count is correct regardless of whether the children themselves are
+	 *   requested/traversed by the constraint definition, and respects hierarchyOfReference settings for automatic removal
+	 *   of hierarchy nodes that would contain empty result set of queried entities ({@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY})
 	 * - {@link StatisticsType#QUERIED_ENTITY_COUNT}: triggers the calculation of the total number of queried entities that
-	 * will be returned if the current query is focused on this particular hierarchy node using the hierarchyWithin filter
-	 * constraint (the possible refining constraint in the form of directRelation and excluding-root is not taken into
-	 * account).
+	 *   will be returned if the current query is focused on this particular hierarchy node using the hierarchyWithin filter
+	 *   constraint (the possible refining constraint in the form of directRelation and excluding-root is not taken into
+	 *   account).
 	 *
 	 * And optional argument of type {@link StatisticsBase} enum allowing you to specify the base queried entity set that
 	 * is the source for statistics calculations:
 	 *
 	 * - {@link StatisticsBase#COMPLETE_FILTER}: complete filtering query constraint
 	 * - {@link StatisticsBase#WITHOUT_USER_FILTER}: filtering query constraint where the contents of optional userFilter
-	 * are ignored
+	 *    are ignored
 	 *
 	 * The calculation always ignores hierarchyWithin because the focused part of the hierarchy tree is defined on
 	 * the requirement constraint level, but including having/excluding constraints. The having/excluding constraints are
@@ -5557,7 +6147,7 @@ public interface QueryConstraints {
 	 * to crunch these numbers.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#statistics">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static HierarchyStatistics statistics(@Nullable StatisticsBase base, @Nullable StatisticsType... type) {
 		if (base == null) {
@@ -5598,7 +6188,7 @@ public interface QueryConstraints {
 	 * - {@link ReferenceContent}
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#entity-fetch">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static EntityFetch entityFetch(@Nullable EntityContentRequire... requirements) {
 		if (requirements == null) {
@@ -5642,7 +6232,7 @@ public interface QueryConstraints {
 	 * - {@link ReferenceContent}
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#entity-group-fetch">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static EntityGroupFetch entityGroupFetch(@Nullable EntityContentRequire... requirements) {
 		if (requirements == null) {
@@ -5669,7 +6259,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#attribute-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static AttributeContent attributeContentAll() {
 		return new AttributeContent();
@@ -5693,7 +6283,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#attribute-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static AttributeContent attributeContent(@Nullable String... attributeName) {
 		if (attributeName == null) {
@@ -5718,7 +6308,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#associated-data-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static AssociatedDataContent associatedDataContentAll() {
 		return new AssociatedDataContent();
@@ -5740,7 +6330,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#associated-data-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static AssociatedDataContent associatedDataContent(@Nullable String... associatedDataName) {
 		if (associatedDataName == null) {
@@ -5775,7 +6365,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#data-in-locales">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static DataInLocales dataInLocalesAll() {
 		return new DataInLocales();
@@ -5807,7 +6397,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#data-in-locales">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static DataInLocales dataInLocales(@Nullable Locale... locale) {
 		if (locale == null) {
@@ -5932,7 +6522,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAll() {
 		return new ReferenceContent();
@@ -6054,7 +6644,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes() {
 		return new ReferenceContent(AttributeContent.ALL_ATTRIBUTES);
@@ -6176,7 +6766,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(@Nullable AttributeContent attributeContent) {
 		return new ReferenceContent(
@@ -6427,7 +7017,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable String referenceName) {
 		if (referenceName == null) {
@@ -6552,7 +7142,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable String... attributeNames) {
 		if (referenceName == null) {
@@ -6681,7 +7271,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName) {
 		return referenceName == null ? null : new ReferenceContent(referenceName, AttributeContent.ALL_ATTRIBUTES);
@@ -6804,7 +7394,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable AttributeContent attributeContent) {
 		return referenceName == null ? null : new ReferenceContent(
@@ -6930,7 +7520,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable String... referenceName) {
 		if (referenceName == null) {
@@ -7055,7 +7645,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable EntityFetch entityRequirement) {
 		if (referenceName == null && entityRequirement == null) {
@@ -7185,7 +7775,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable EntityFetch entityRequirement) {
 		return referenceName == null ? null : new ReferenceContent(
@@ -7310,7 +7900,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
 		return referenceName == null ? null : new ReferenceContent(
@@ -7436,7 +8026,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable EntityGroupFetch groupEntityRequirement) {
 		if (referenceName == null && groupEntityRequirement == null) {
@@ -7564,7 +8154,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return referenceName == null ? null : new ReferenceContent(
@@ -7689,7 +8279,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable AttributeContent attributeContent, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return referenceName == null ? null : new ReferenceContent(
@@ -7815,7 +8405,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
 		if (referenceName == null) {
@@ -7940,7 +8530,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -8069,7 +8659,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -8203,7 +8793,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable String[] referencedEntityTypes, @Nullable EntityFetch entityRequirement) {
 		if (referencedEntityTypes == null && entityRequirement == null) {
@@ -8335,7 +8925,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable String[] referencedEntityTypes, @Nullable EntityGroupFetch groupEntityRequirement) {
 		if (referencedEntityTypes == null && groupEntityRequirement == null) {
@@ -8467,7 +9057,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable String[] referencedEntityTypes, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
 		if (referencedEntityTypes != null) {
@@ -8593,7 +9183,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy) {
 		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, null, null, null, null);
@@ -8715,7 +9305,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -8845,7 +9435,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -8977,7 +9567,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable EntityFetch entityRequirement) {
 		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, null, entityRequirement, null, null);
@@ -9099,7 +9689,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -9230,7 +9820,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -9363,7 +9953,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, null, null, groupEntityRequirement, null);
@@ -9485,7 +10075,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -9616,7 +10206,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -9749,7 +10339,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, null, entityRequirement, groupEntityRequirement, null);
@@ -9871,7 +10461,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -10003,7 +10593,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -10137,7 +10727,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable OrderBy orderBy) {
 		return referenceName == null ? null : new ReferenceContent(referenceName, null, orderBy, null, null, null);
@@ -10259,7 +10849,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -10389,7 +10979,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -10521,7 +11111,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement) {
 		return referenceName == null ? null : new ReferenceContent(referenceName, null, orderBy, entityRequirement, null, null);
@@ -10643,7 +11233,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -10774,7 +11364,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -10907,7 +11497,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable OrderBy orderBy, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return referenceName == null ? null : new ReferenceContent(referenceName, null, orderBy, null, groupEntityRequirement, null);
@@ -11029,7 +11619,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -11160,7 +11750,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -11293,7 +11883,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return referenceName == null ? null : new ReferenceContent(referenceName, null, orderBy, entityRequirement, groupEntityRequirement, null);
@@ -11415,7 +12005,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -11547,7 +12137,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -11681,7 +12271,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy) {
 		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, orderBy, null, null, null);
@@ -11803,7 +12393,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -11934,7 +12524,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -12067,7 +12657,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement) {
 		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, orderBy, entityRequirement, null, null);
@@ -12189,7 +12779,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -12321,7 +12911,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -12455,7 +13045,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, orderBy, null, groupEntityRequirement, null);
@@ -12577,7 +13167,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -12709,7 +13299,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -12843,7 +13433,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, orderBy, entityRequirement, groupEntityRequirement, null);
@@ -12965,7 +13555,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -13098,7 +13688,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -13233,7 +13823,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAll(@Nullable EntityFetch entityRequirement) {
 		return new ReferenceContent(entityRequirement, null);
@@ -13355,7 +13945,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(@Nullable EntityFetch entityRequirement) {
 		return new ReferenceContent(
@@ -13481,7 +14071,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(@Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
 		return new ReferenceContent(
@@ -13607,7 +14197,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAll(@Nullable EntityGroupFetch groupEntityRequirement) {
 		return new ReferenceContent(null, groupEntityRequirement);
@@ -13729,7 +14319,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(@Nullable EntityGroupFetch groupEntityRequirement) {
 		return new ReferenceContent(
@@ -13855,7 +14445,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(@Nullable AttributeContent attributeContent, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return new ReferenceContent(
@@ -13981,7 +14571,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAll(@Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return new ReferenceContent(entityRequirement, groupEntityRequirement);
@@ -14103,7 +14693,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAll(@Nullable ChunkingRequireConstraint chunk) {
 		return new ReferenceContent(
@@ -14485,7 +15075,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(
 		@Nullable AttributeContent attributeContent,
@@ -14615,7 +15205,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAll(@Nullable ManagedReferencesBehaviour managedReferencesBehaviour) {
 		return new ReferenceContent(managedReferencesBehaviour);
@@ -14737,7 +15327,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(@Nullable ManagedReferencesBehaviour managedReferencesBehaviour) {
 		return new ReferenceContent(managedReferencesBehaviour, AttributeContent.ALL_ATTRIBUTES);
@@ -14859,7 +15449,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -14988,7 +15578,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -15116,7 +15706,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -15249,7 +15839,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -15380,7 +15970,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -15512,7 +16102,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -15640,7 +16230,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -15774,7 +16364,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -15905,7 +16495,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -16038,7 +16628,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -16172,7 +16762,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -16303,7 +16893,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -16436,7 +17026,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -16569,7 +17159,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -16701,7 +17291,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -16836,7 +17426,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -16973,7 +17563,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -17110,7 +17700,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -17241,7 +17831,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -17371,7 +17961,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -17502,7 +18092,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -17635,7 +18225,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -17766,7 +18356,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -17898,7 +18488,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -18032,7 +18622,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -18164,7 +18754,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -18296,7 +18886,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -18430,7 +19020,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -18563,7 +19153,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -18696,7 +19286,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -18831,7 +19421,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -18961,7 +19551,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -19092,7 +19682,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -19225,7 +19815,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -19356,7 +19946,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -19488,7 +20078,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -19622,7 +20212,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -19753,7 +20343,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -19885,7 +20475,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -20019,7 +20609,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -20152,7 +20742,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -20285,7 +20875,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -20420,7 +21010,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -20551,7 +21141,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -20683,7 +21273,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -20817,7 +21407,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -20949,7 +21539,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -21082,7 +21672,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -21217,7 +21807,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -21349,7 +21939,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -21482,7 +22072,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -21617,7 +22207,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -21750,7 +22340,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -21884,7 +22474,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -22020,7 +22610,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAll(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -22145,7 +22735,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -22272,7 +22862,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -22402,7 +22992,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAll(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -22527,7 +23117,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -22654,7 +23244,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -22784,7 +23374,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAll(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -22910,7 +23500,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -23038,7 +23628,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -34425,7 +35015,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#hierarchy-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static HierarchyContent hierarchyContent() {
 		return new HierarchyContent();
@@ -34455,7 +35045,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#hierarchy-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static HierarchyContent hierarchyContent(@Nullable HierarchyStopAt stopAt) {
 		return stopAt == null ? new HierarchyContent() : new HierarchyContent(stopAt);
@@ -34485,7 +35075,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#hierarchy-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static HierarchyContent hierarchyContent(@Nullable EntityFetch entityFetch) {
 		return entityFetch == null ? new HierarchyContent() : new HierarchyContent(entityFetch);
@@ -34515,7 +35105,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#hierarchy-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static HierarchyContent hierarchyContent(@Nullable HierarchyStopAt stopAt, @Nullable EntityFetch entityFetch) {
 		if (stopAt == null && entityFetch == null) {
@@ -34550,7 +35140,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#price-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static PriceContent priceContent(@Nullable PriceContentMode contentMode, @Nullable String... priceLists) {
 		if (contentMode == null) {
@@ -34586,7 +35176,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#price-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static PriceContent priceContentAll() {
 		return PriceContent.all();
@@ -34615,7 +35205,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#price-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static PriceContent priceContentRespectingFilter(@Nullable String... priceLists) {
 		return PriceContent.respectingFilter(priceLists);
@@ -34639,7 +35229,7 @@ public interface QueryConstraints {
 	 * ```
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/price#price-type">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static PriceType priceType(@Nullable QueryPriceMode priceMode) {
 		return new PriceType(priceMode == null ? QueryPriceMode.WITH_TAX : priceMode);
@@ -34679,7 +35269,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/paging#page">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static Page page(@Nullable Integer pageNumber, @Nullable Integer pageSize) {
 		return new Page(pageNumber, pageSize);
@@ -34719,7 +35309,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/paging#page">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static Page page(@Nullable Integer pageNumber, @Nullable Integer pageSize, @Nullable Spacing spacing) {
 		return new Page(pageNumber, pageSize, spacing);
@@ -34756,7 +35346,7 @@ public interface QueryConstraints {
 	 * the currently examined page number.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/paging#spacing">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static Spacing spacing(@Nullable SpacingGap... gaps) {
 		if (ArrayUtils.isEmptyOrItsValuesNull(gaps)) {
@@ -34793,7 +35383,7 @@ public interface QueryConstraints {
 	 * the currently examined page number.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/paging#spacing-gap">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static SpacingGap gap(int size, @Nullable Expression expression) {
 		if (expression == null) {
@@ -34830,7 +35420,7 @@ public interface QueryConstraints {
 	 * the currently examined page number.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/paging#spacing-gap">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static SpacingGap gap(int size, @Nullable String expression) {
 		if (expression == null) {
@@ -34858,7 +35448,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/paging#strip">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static Strip strip(@Nullable Integer offset, @Nullable Integer limit) {
 		return new Strip(offset, limit);
@@ -34945,7 +35535,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary() {
 		return new FacetSummary();
@@ -35032,7 +35622,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(@Nullable FacetStatisticsDepth statisticsDepth, @Nullable EntityFetchRequire... requirements) {
 		return statisticsDepth == null ?
@@ -35121,7 +35711,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -35213,7 +35803,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -35306,7 +35896,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -35399,7 +35989,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -35492,7 +36082,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -35585,7 +36175,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -35677,7 +36267,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -35769,7 +36359,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -35860,7 +36450,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -35951,7 +36541,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -36042,7 +36632,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -36133,7 +36723,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -36225,7 +36815,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -36317,7 +36907,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -36409,7 +36999,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -37976,7 +38566,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(@Nullable String referenceName, @Nullable EntityFetchRequire... requirements) {
 		return referenceName == null ? null : new FacetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, requirements);
@@ -38055,7 +38645,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(@Nullable String referenceName, @Nullable FacetStatisticsDepth statisticsDepth, @Nullable EntityFetchRequire... requirements) {
 		if (referenceName == null) {
@@ -38139,7 +38729,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -38225,7 +38815,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -38312,7 +38902,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -38399,7 +38989,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -38486,7 +39076,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -38573,7 +39163,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -38659,7 +39249,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -38745,7 +39335,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -38830,7 +39420,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -38915,7 +39505,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -39000,7 +39590,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -39085,7 +39675,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -39171,7 +39761,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -39257,7 +39847,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -39343,7 +39933,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -40679,7 +41269,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/debug#query-telemetry">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static QueryTelemetry queryTelemetry() {
 		return new QueryTelemetry();
@@ -40687,7 +41277,7 @@ public interface QueryConstraints {
 
 	/**
 	 * This `debug` require is targeted for internal purposes only and is not exposed in public evitaDB API.
-	 */
+	*/
 	@Nullable
 	static Debug debug(@Nullable DebugMode... debugMode) {
 		return ArrayUtils.isEmptyOrItsValuesNull(debugMode) ? null : new Debug(debugMode);
@@ -40724,7 +41314,7 @@ public interface QueryConstraints {
 	 * - {@link ReferenceContent}
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#entity-fetch">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static EntityFetch entityFetchAll() {
 		return entityFetch(
@@ -40769,7 +41359,7 @@ public interface QueryConstraints {
 	 * - {@link ReferenceContent}
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#entity-group-fetch">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static EntityGroupFetch entityGroupFetchAll() {
 		return entityGroupFetch(
@@ -40799,7 +41389,7 @@ public interface QueryConstraints {
 
 	/**
 	 * This interface marks all requirements that can be used for loading additional data to existing entity.
-	 */
+	*/
 	@Nonnull
 	static EntityContentRequire[] entityFetchAllContent() {
 		return new EntityContentRequire[]{
@@ -40809,7 +41399,7 @@ public interface QueryConstraints {
 
 	/**
 	 * This interface marks all requirements that can be used for loading additional data to existing entity.
-	 */
+	*/
 	@Nonnull
 	static EntityContentRequire[] entityFetchAllContentAnd(@Nullable EntityContentRequire... combineWith) {
 		if (ArrayUtils.isEmptyOrItsValuesNull(combineWith)) {

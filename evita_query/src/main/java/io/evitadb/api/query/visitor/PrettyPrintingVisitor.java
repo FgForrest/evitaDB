@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import io.evitadb.api.query.ConstraintContainer;
 import io.evitadb.api.query.ConstraintContainerWithSuffix;
 import io.evitadb.api.query.ConstraintLeaf;
 import io.evitadb.api.query.ConstraintVisitor;
+import io.evitadb.api.query.ConstraintWithDefaults;
 import io.evitadb.api.query.ConstraintWithSuffix;
 import io.evitadb.api.query.Query;
 
@@ -300,7 +301,9 @@ public class PrettyPrintingVisitor implements ConstraintVisitor {
 		final Constraint<?>[] additionalChildren = constraint.getExplicitAdditionalChildren();
 		final int additionalChildrenLength = additionalChildren.length;
 
-		final Serializable[] arguments = constraint.getArgumentsExcludingDefaults();
+		final Serializable[] arguments = (constraint instanceof ConstraintWithDefaults<?> constraintWithDefaults)
+			? constraintWithDefaults.getArgumentsExcludingDefaults()
+			: constraint.getArguments();
 		final int argumentsLength = arguments.length;
 
 		// print arguments
@@ -369,7 +372,9 @@ public class PrettyPrintingVisitor implements ConstraintVisitor {
 	}
 
 	private void printLeaf(Constraint<?> constraint) {
-		final Serializable[] arguments = constraint.getArgumentsExcludingDefaults();
+		final Serializable[] arguments = (constraint instanceof ConstraintWithDefaults<?> constraintWithDefaults)
+			? constraintWithDefaults.getArgumentsExcludingDefaults()
+			: constraint.getArguments();
 		for (int i = 0; i < arguments.length; i++) {
 			final Serializable argument = arguments[i];
 
