@@ -488,10 +488,20 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	public FilterConstraint visitFacetHavingConstraint(@Nonnull EvitaQLParser.FacetHavingConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new FacetHaving(
-				ctx.args.classifier.accept(stringValueTokenVisitor).asString(),
-				ctx.args.filterConstraint().accept(this)
-			)
+			() -> {
+				if (ctx.args.filter2 != null) {
+					return new FacetHaving(
+						ctx.args.classifier.accept(stringValueTokenVisitor).asString(),
+						ctx.args.filter1.accept(this),
+						ctx.args.filter2.accept(this)
+					);
+				} else {
+					return new FacetHaving(
+						ctx.args.classifier.accept(stringValueTokenVisitor).asString(),
+						ctx.args.filter1.accept(this)
+					);
+				}
+			}
 		);
 	}
 

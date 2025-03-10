@@ -72,7 +72,7 @@ filterConstraint
     | 'priceValidInNow'                     emptyArgs                                                       # priceValidInNowConstraint
     | 'priceValidIn'                        args = valueArgs                                                # priceValidInConstraint
     | 'priceBetween'                        args = betweenValuesArgs                                        # priceBetweenConstraint
-    | 'facetHaving'                         args = classifierWithFilterConstraintArgs                       # facetHavingConstraint
+    | 'facetHaving'                         args = classifierWithTwoFilterConstraintArgs                    # facetHavingConstraint
     | 'includingChildren'                   emptyArgs                                                       # facetIncludingChildrenConstraint
     | 'includingChildrenHaving'             args = filterConstraintArgs                                     # facetIncludingChildrenHavingConstraint
     | 'includingChildrenExcept'             args = filterConstraintArgs                                     # facetIncludingChildrenExceptConstraint
@@ -249,6 +249,8 @@ betweenValuesArgs :                                 argsOpening valueFrom = valu
 classifierListArgs :                                argsOpening classifiers = variadicValueTokens argsClosing ;
 
 classifierWithFilterConstraintArgs :                argsOpening classifier = valueToken ARGS_DELIMITER filter = filterConstraint argsClosing ;
+
+classifierWithTwoFilterConstraintArgs :             argsOpening classifier = valueToken ARGS_DELIMITER filter1 = filterConstraint (ARGS_DELIMITER filter2 = filterConstraint)? argsClosing ;
 
 facetGroupRelationArgs :                            argsOpening classifier = valueToken (ARGS_DELIMITER facetGroupRelationLevel = valueToken)? (ARGS_DELIMITER filter = filterConstraint)? argsClosing ;
 

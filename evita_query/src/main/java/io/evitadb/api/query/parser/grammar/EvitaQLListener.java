@@ -2139,6 +2139,16 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 */
 	void exitClassifierWithFilterConstraintArgs(EvitaQLParser.ClassifierWithFilterConstraintArgsContext ctx);
 	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#classifierWithTwoFilterConstraintArgs}.
+	 * @param ctx the parse tree
+	 */
+	void enterClassifierWithTwoFilterConstraintArgs(EvitaQLParser.ClassifierWithTwoFilterConstraintArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#classifierWithTwoFilterConstraintArgs}.
+	 * @param ctx the parse tree
+	 */
+	void exitClassifierWithTwoFilterConstraintArgs(EvitaQLParser.ClassifierWithTwoFilterConstraintArgsContext ctx);
+	/**
 	 * Enter a parse tree produced by {@link EvitaQLParser#facetGroupRelationArgs}.
 	 * @param ctx the parse tree
 	 */

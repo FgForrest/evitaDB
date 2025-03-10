@@ -232,7 +232,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	/**
 	 * This instance contains the {@link EntityIndex} set that is used to resolve passed query filter.
 	 */
-	@Nonnull
+	@Nonnull @Getter
 	private final TargetIndexes<? extends Index<?>> indexSetToUse;
 	/**
 	 * Contains the translated formula from the filtering query source tree.
