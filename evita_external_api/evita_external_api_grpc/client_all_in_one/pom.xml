@@ -26,7 +26,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<artifactId>evita_java_driver_all_in_one</artifactId>
 	<packaging>jar</packaging>
-	<name>evitaDB - Java driver (gRPC client side)</name>
+	<name>evitaDB - Java driver all-in-one (gRPC client side)</name>
 	<description>Module contains gRPC Java driver (gRPC client) for evitaDB.</description>
 	<parent>
 		<groupId>io.evitadb</groupId>
@@ -157,7 +157,7 @@
 						<filter>
 							<artifact>io.netty:netty-common</artifact>
 							<excludes>
-								<excludes>META-INF/services/reactor.blockhound.integration.BlockHoundIntegration</excludes>
+								<exclude>META-INF/services/reactor.blockhound.integration.BlockHoundIntegration</exclude>
 							</excludes>
 						</filter>
 						<filter>
