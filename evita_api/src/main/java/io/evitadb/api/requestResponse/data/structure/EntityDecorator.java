@@ -442,7 +442,7 @@ public class EntityDecorator implements SealedEntity {
 					referenceFetcher.getEntityFilter(referenceSchema),
 					index, i
 				);
-				index = i;
+				index = i - filteredOutReferences;
 				referenceSchema = entitySchema.getReference(thisReferenceName)
 					.orElseThrow(() -> new GenericEvitaInternalError("Sanity check!"));
 				entityFetcher = referenceFetcher.getEntityFetcher(referenceSchema);
@@ -450,7 +450,7 @@ public class EntityDecorator implements SealedEntity {
 				fetchedReferenceComparator = referenceFetcher.getEntityComparator(referenceSchema);
 			}
 
-			fetchedAndFilteredReferences[i] = ofNullable(
+			fetchedAndFilteredReferences[i - filteredOutReferences] = ofNullable(
 				fetchReference(
 					referenceContract, referenceSchema, entityFetcher, entityGroupFetcher
 				)
