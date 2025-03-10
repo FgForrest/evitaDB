@@ -451,7 +451,7 @@
 				<artifactId>maven-compiler-plugin</artifactId>
 				<version>${maven.compiler.version}</version>
 				<configuration>
-					<verbose>true</verbose>
+					<verbose>false</verbose>
 					<fork>true</fork>
 					<jdkToolchain>
 						<version>${java.version}</version>
@@ -489,6 +489,8 @@
 				<artifactId>maven-javadoc-plugin</artifactId>
 				<version>3.5.0</version>
 				<configuration>
+					<verbose>false</verbose>
+					<quiet>true</quiet>
 					<doclint>none</doclint>
 					<failOnError>false</failOnError>
 				</configuration>
