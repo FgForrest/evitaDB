@@ -596,15 +596,19 @@ public class ExternalApiServer implements AutoCloseable {
 						HttpService service = httpServiceDefinition.service();
 
 						// decorate the service with security decorator
-						service = service.decorate(
-							new HttpServiceSecurityDecorator(
-								apiOptions,
-								ArrayUtils.mergeArrays(
-									new AbstractApiConfiguration[]{configuration},
-									proxyConfigs
+						service = service
+							.decorate(
+								new HttpServiceSecurityDecorator(
+									apiOptions,
+									ArrayUtils.mergeArrays(
+										new AbstractApiConfiguration[]{configuration},
+										proxyConfigs
+									)
 								)
 							)
-						);
+							// and metrics decorator
+							.decorate(new HttpMetricDecorator(registeredApiProvider.getCode()));
+
 						// decorate the service with connection closing decorator if keepAlive is set to false
 						if (!configuration.isKeepAlive()) {
 							service = service.decorate(ConnectionClosingDecorator.INSTANCE);

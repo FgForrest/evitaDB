@@ -21,6 +21,8 @@
     <dd><strong>gRPC response status</strong>: State of the gRPC response (OK, ERROR, CANCELED).</dd>
     <dt>httpMethod</dt>
     <dd><strong>HTTP method</strong>: The HTTP method of the request.</dd>
+    <dt>httpStatusCode</dt>
+    <dd><strong>HTTP status code</strong>: The HTTP response status code that was sent to client.</dd>
     <dt>initiator</dt>
     <dd><strong>Initiator of the call</strong>: Initiator of the gRPC call (either client or server).</dd>
     <dt>name</dt>
@@ -48,6 +50,8 @@ duration of the probe.</dd>
     <dt>restOperationType</dt>
     <dd><strong>REST operation type</strong>: The type of operation that was executed. One of: QUERY, MUTATION.</dd>
     <dt>result</dt>
+    <dd><strong>Request result</strong>: Simplified result of the request (success, error, cancelled).</dd>
+    <dt>result</dt>
     <dd><strong>Result</strong>: The result of the readiness probe (ok, timeout, error).</dd>
     <dt>serviceName</dt>
     <dd><strong>Service name</strong>: Name of the gRPC service that was called (the name of the Java class).</dd>
@@ -65,6 +69,8 @@ duration of the probe.</dd>
   <dd>Readiness probe duration<br/><br/><strong>Labels:</strong> <Term>api</Term>, <Term>prospective</Term>, <Term>result</Term><br/></dd>
   <dt><code>io_evitadb_external_api_readiness_total</code> (COUNTER)</dt>
   <dd>Readiness probe invoked total<br/><br/><strong>Labels:</strong> <Term>api</Term>, <Term>prospective</Term>, <Term>result</Term><br/></dd>
+  <dt><code>io_evitadb_external_api_request_total</code> (COUNTER)</dt>
+  <dd>Requests invoked total<br/><br/><strong>Labels:</strong> <Term>api</Term>, <Term>httpStatusCode</Term>, <Term>result</Term><br/></dd>
 </dl>
 
 #### API / GraphQL / Instance / Schema

@@ -83,7 +83,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/header/header#head">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static Head head(@Nullable HeadConstraint... headConstraint) {
 		return ArrayUtils.isEmptyOrItsValuesNull(headConstraint) ? null : new Head(headConstraint);
@@ -100,7 +100,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/header/header#collection">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static Collection collection(@Nonnull String entityType) {
 		return new Collection(entityType);
@@ -126,7 +126,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/header/header#label">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static <T extends Comparable<T> & Serializable> Label label(@Nullable String name, @Nullable T value) {
 		return name == null || name.isBlank() || value == null ? null : new Label(name, value);
@@ -1880,7 +1880,9 @@ public interface QueryConstraints {
 	 *     filterBy(
 	 *         facetHaving(
 	 *             "categories",
-	 *             attributeEquals("code", "accessories"),
+	 *             entityHaving(
+	 *                attributeEquals("code", "accessories")
+	 *             ),
 	 *             includingChildren()
 	 *         )
 	 *     ),
@@ -1905,7 +1907,9 @@ public interface QueryConstraints {
 	 *     filterBy(
 	 *         facetHaving(
 	 *             "categories",
-	 *             attributeEquals("code", "accessories"),
+	 *             entityHaving(
+	 *                attributeEquals("code", "accessories"),
+	 *             ),
 	 *             includingChildrenHaving(
 	 *                 or(
 	 *                     attributeInRangeNow("validity"),
@@ -1950,7 +1954,9 @@ public interface QueryConstraints {
 	 *     filterBy(
 	 *         facetHaving(
 	 *             "categories",
-	 *             attributeEquals("code", "accessories"),
+	 *             entityHaving(
+	 *                attributeEquals("code", "accessories")
+	 *             ),
 	 *             includingChildren()
 	 *         )
 	 *     ),
@@ -1975,7 +1981,9 @@ public interface QueryConstraints {
 	 *     filterBy(
 	 *         facetHaving(
 	 *             "categories",
-	 *             attributeEquals("code", "accessories"),
+	 *             entityHaving(
+	 *                attributeEquals("code", "accessories"),
+	 *             ),
 	 *             includingChildrenHaving(
 	 *                 or(
 	 *                     attributeInRangeNow("validity"),
@@ -6890,7 +6898,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(@Nullable AttributeContent attributeContent, @Nullable ChunkingRequireConstraint chunk) {
 		return new ReferenceContent(
@@ -14819,7 +14827,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(@Nullable ChunkingRequireConstraint chunk) {
 		return new ReferenceContent(
@@ -14946,7 +14954,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(
 		@Nullable EntityFetch entityRequirement,
@@ -23759,7 +23767,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable ChunkingRequireConstraint chunk) {
 		if (referenceName == null) {
@@ -23884,7 +23892,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -24017,7 +24025,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -24147,7 +24155,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -24279,7 +24287,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable ChunkingRequireConstraint chunk, @Nullable String... referenceName) {
 		if (referenceName == null) {
@@ -24404,7 +24412,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable EntityFetch entityRequirement, @Nullable ChunkingRequireConstraint chunk) {
 		if (referenceName == null && entityRequirement == null) {
@@ -24532,7 +24540,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -24663,7 +24671,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -24796,7 +24804,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
 		if (referenceName == null && groupEntityRequirement == null) {
@@ -24924,7 +24932,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -25055,7 +25063,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -25188,7 +25196,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
 		if (referenceName == null) {
@@ -25313,7 +25321,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -25445,7 +25453,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -25579,7 +25587,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable String[] referencedEntityTypes, @Nullable EntityFetch entityRequirement, @Nullable ChunkingRequireConstraint chunk) {
 		if (referencedEntityTypes == null && entityRequirement == null) {
@@ -25707,7 +25715,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable String[] referencedEntityTypes, @Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
 		if (referencedEntityTypes == null && groupEntityRequirement == null) {
@@ -25835,7 +25843,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable String[] referencedEntityTypes, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
 		if (referencedEntityTypes != null) {
@@ -25961,7 +25969,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable ChunkingRequireConstraint chunk) {
 		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, null, null, null, chunk);
@@ -26083,7 +26091,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -26214,7 +26222,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -26347,7 +26355,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable EntityFetch entityRequirement, @Nullable ChunkingRequireConstraint chunk) {
 		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, null, entityRequirement, null, chunk);
@@ -26469,7 +26477,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -26601,7 +26609,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -26735,7 +26743,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
 		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, null, null, groupEntityRequirement, chunk);
@@ -26857,7 +26865,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -26989,7 +26997,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -27123,7 +27131,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
 		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, null, entityRequirement, groupEntityRequirement, chunk);
@@ -27245,7 +27253,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -27378,7 +27386,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -27513,7 +27521,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable OrderBy orderBy, @Nullable ChunkingRequireConstraint chunk) {
 		return referenceName == null ? null : new ReferenceContent(referenceName, null, orderBy, null, null, chunk);
@@ -27635,7 +27643,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -27765,7 +27773,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -27898,7 +27906,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement, @Nullable ChunkingRequireConstraint chunk) {
 		return referenceName == null ? null : new ReferenceContent(referenceName, null, orderBy, entityRequirement, null, chunk);
@@ -28020,7 +28028,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -28151,7 +28159,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -28285,7 +28293,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable OrderBy orderBy, @Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
 		return referenceName == null ? null : new ReferenceContent(referenceName, null, orderBy, null, groupEntityRequirement, chunk);
@@ -28407,7 +28415,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -28539,7 +28547,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -28673,7 +28681,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
 		return referenceName == null ? null : new ReferenceContent(referenceName, null, orderBy, entityRequirement, groupEntityRequirement, chunk);
@@ -28795,7 +28803,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -28929,7 +28937,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -29064,7 +29072,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAll(@Nullable EntityFetch entityRequirement, @Nullable ChunkingRequireConstraint chunk) {
 		return new ReferenceContent(entityRequirement, null, chunk);
@@ -29186,7 +29194,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(
 		@Nullable EntityFetch entityRequirement,
@@ -29311,7 +29319,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(
 		@Nullable AttributeContent attributeContent,
@@ -29440,7 +29448,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAll(@Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
 		return new ReferenceContent(null, groupEntityRequirement, chunk);
@@ -29562,7 +29570,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(
 		@Nullable EntityGroupFetch groupEntityRequirement,
@@ -29689,7 +29697,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(
 		@Nullable AttributeContent attributeContent,
@@ -29818,7 +29826,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAll(@Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
 		return new ReferenceContent(entityRequirement, groupEntityRequirement, chunk);
@@ -29940,7 +29948,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(
 		@Nullable EntityFetch entityRequirement,
@@ -30068,7 +30076,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(
 		@Nullable AttributeContent attributeContent,
@@ -30198,7 +30206,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAll(@Nullable ManagedReferencesBehaviour managedReferencesBehaviour, @Nullable ChunkingRequireConstraint chunk) {
 		return new ReferenceContent(managedReferencesBehaviour, chunk);
@@ -30320,7 +30328,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -30445,7 +30453,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -30575,7 +30583,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable ManagedReferencesBehaviour managedReferencesBehaviour, @Nullable String referenceName, @Nullable ChunkingRequireConstraint chunk) {
 		if (referenceName == null) {
@@ -30700,7 +30708,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -30831,7 +30839,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -30962,7 +30970,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -31095,7 +31103,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable ManagedReferencesBehaviour managedReferencesBehaviour, @Nullable ChunkingRequireConstraint chunk, @Nullable String... referenceName) {
 		if (referenceName == null) {
@@ -31220,7 +31228,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable ManagedReferencesBehaviour managedReferencesBehaviour, @Nullable String referenceName, @Nullable EntityFetch entityRequirement, @Nullable ChunkingRequireConstraint chunk) {
 		if (referenceName == null && entityRequirement == null) {
@@ -31348,7 +31356,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -31480,7 +31488,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -31614,7 +31622,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable ManagedReferencesBehaviour managedReferencesBehaviour, @Nullable String referenceName, @Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
 		if (referenceName == null && groupEntityRequirement == null) {
@@ -31742,7 +31750,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
@@ -31875,7 +31883,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -32008,7 +32016,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable ManagedReferencesBehaviour managedReferencesBehaviour, @Nullable String referenceName, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
 		if (referenceName == null) {
@@ -32133,7 +32141,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -32266,7 +32274,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -32401,7 +32409,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable ChunkingRequireConstraint chunk) {
 		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, orderBy, null, null, chunk);
@@ -32523,7 +32531,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -32655,7 +32663,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -32789,7 +32797,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement, @Nullable ChunkingRequireConstraint chunk) {
 		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, orderBy, entityRequirement, null, chunk);
@@ -32911,7 +32919,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -33044,7 +33052,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -33178,7 +33186,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
 		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, orderBy, null, groupEntityRequirement, chunk);
@@ -33300,7 +33308,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -33432,7 +33440,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -33567,7 +33575,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
 		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, orderBy, entityRequirement, groupEntityRequirement, chunk);
@@ -33689,7 +33697,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -33823,7 +33831,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable String referenceName,
@@ -33959,7 +33967,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAll(@Nullable ManagedReferencesBehaviour managedReferencesBehaviour, @Nullable EntityFetch entityRequirement, @Nullable ChunkingRequireConstraint chunk) {
 		return new ReferenceContent(managedReferencesBehaviour, entityRequirement, null, chunk);
@@ -34081,7 +34089,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -34210,7 +34218,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -34341,7 +34349,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAll(@Nullable ManagedReferencesBehaviour managedReferencesBehaviour, @Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
 		return new ReferenceContent(managedReferencesBehaviour, null, groupEntityRequirement, chunk);
@@ -34463,7 +34471,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -34592,7 +34600,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -34723,7 +34731,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAll(@Nullable ManagedReferencesBehaviour managedReferencesBehaviour, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
 		return new ReferenceContent(managedReferencesBehaviour, entityRequirement, groupEntityRequirement, chunk);
@@ -34845,7 +34853,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -34975,7 +34983,7 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
@@ -37108,7 +37116,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(@Nullable EntityFetchRequire... requirements) {
 		return new FacetSummary(FacetStatisticsDepth.COUNTS, requirements);
@@ -37195,7 +37203,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FilterBy facetFilterBy,
@@ -37286,7 +37294,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FilterBy filterBy,
@@ -37378,7 +37386,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FilterGroupBy facetGroupFilterBy,
@@ -37470,7 +37478,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FilterBy filterBy,
@@ -37562,7 +37570,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FilterBy filterBy,
@@ -37654,7 +37662,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FilterBy filterBy,
@@ -37745,7 +37753,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable OrderBy orderBy,
@@ -37836,7 +37844,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FilterBy filterBy,
@@ -37926,7 +37934,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable OrderBy orderBy,
@@ -38016,7 +38024,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FilterGroupBy facetGroupFilterBy,
@@ -38106,7 +38114,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable OrderGroupBy facetGroupOrderBy,
@@ -38196,7 +38204,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FilterGroupBy facetGroupFilterBy,
@@ -38287,7 +38295,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FilterBy filterBy,
@@ -38378,7 +38386,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FilterGroupBy facetGroupFilterBy,
@@ -38469,7 +38477,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FilterBy facetFilterBy,
@@ -40039,7 +40047,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -40124,7 +40132,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -40210,7 +40218,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -40296,7 +40304,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -40382,7 +40390,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -40468,7 +40476,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -40553,7 +40561,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -40638,7 +40646,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -40722,7 +40730,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -40806,7 +40814,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -40890,7 +40898,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -40974,7 +40982,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -41059,7 +41067,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -41144,7 +41152,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,
@@ -41229,7 +41237,7 @@ public interface QueryConstraints {
 	 * the source entity that are specific to a relationship with the target entity.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
 		@Nullable String referenceName,

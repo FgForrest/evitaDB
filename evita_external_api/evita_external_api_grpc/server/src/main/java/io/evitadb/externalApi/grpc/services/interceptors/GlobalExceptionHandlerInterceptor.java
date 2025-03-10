@@ -64,7 +64,7 @@ public class GlobalExceptionHandlerInterceptor implements ServerInterceptor {
 		final com.google.rpc.Status errorStatus = createErrorStatus(exception);
 		final StatusRuntimeException statusRuntimeException = StatusProto.toStatusRuntimeException(errorStatus);
 		final Metadata newHeaders = statusRuntimeException.getTrailers();
-		final Status newStatus = Status.fromThrowable(statusRuntimeException);
+		final Status newStatus = Status.fromThrowable(statusRuntimeException).withCause(exception);
 		responseObserver.onError(newStatus.asRuntimeException(newHeaders));
 	}
 
@@ -155,7 +155,7 @@ public class GlobalExceptionHandlerInterceptor implements ServerInterceptor {
 
 				final StatusRuntimeException statusRuntimeException = StatusProto.toStatusRuntimeException(rpcStatus);
 				final Metadata newHeaders = statusRuntimeException.getTrailers();
-				final Status newStatus = Status.fromThrowable(statusRuntimeException);
+				final Status newStatus = Status.fromThrowable(statusRuntimeException).withCause(exception);
 				serverCall.close(newStatus, newHeaders);
 			}
 		}

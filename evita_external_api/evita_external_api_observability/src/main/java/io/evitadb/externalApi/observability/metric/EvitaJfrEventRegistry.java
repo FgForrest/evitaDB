@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -41,6 +41,7 @@ import io.evitadb.core.metric.event.system.BackgroundTaskTimedOutEvent;
 import io.evitadb.core.metric.event.system.EvitaStartedEvent;
 import io.evitadb.core.metric.event.transaction.*;
 import io.evitadb.externalApi.event.ReadinessEvent;
+import io.evitadb.externalApi.event.RequestEvent;
 import io.evitadb.externalApi.grpc.metric.event.EvitaProcedureCalledEvent;
 import io.evitadb.externalApi.grpc.metric.event.SessionProcedureCalledEvent;
 import io.evitadb.store.traffic.event.TrafficRecorderStatisticsEvent;
@@ -127,6 +128,7 @@ public class EvitaJfrEventRegistry {
 
 		// api
 		ReadinessEvent.class,
+		RequestEvent.class,
 
 		// api - gRPC
 		EvitaProcedureCalledEvent.class,
