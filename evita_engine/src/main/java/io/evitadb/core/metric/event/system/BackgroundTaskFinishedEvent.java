@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import jdk.jfr.Label;
 import jdk.jfr.Name;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * Event that is fired when a background task is finished.
@@ -39,7 +40,7 @@ import javax.annotation.Nonnull;
 @Label("Background task finished")
 public class BackgroundTaskFinishedEvent extends AbstractBackgroundTaskEvent {
 
-	public BackgroundTaskFinishedEvent(@Nonnull String catalogName, @Nonnull String taskName) {
+	public BackgroundTaskFinishedEvent(@Nullable String catalogName, @Nonnull String taskName) {
 		super(catalogName, taskName);
 		this.begin();
 	}

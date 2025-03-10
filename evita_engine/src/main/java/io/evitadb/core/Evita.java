@@ -55,6 +55,7 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchem
 import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveCatalogSchemaMutation;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.core.async.ClientRunnableTask;
+import io.evitadb.core.async.EmptySettings;
 import io.evitadb.core.async.ObservableExecutorServiceWithHardDeadline;
 import io.evitadb.core.async.ObservableThreadExecutor;
 import io.evitadb.core.async.Scheduler;
@@ -620,12 +621,12 @@ public final class Evita implements EvitaContract {
 	 * @param catalogName name of the catalog
 	 */
 	@Nonnull
-	ServerTask<Void, Void> createLoadCatalogTask(@Nonnull String catalogName) {
+	ServerTask<EmptySettings, Void> createLoadCatalogTask(@Nonnull String catalogName) {
 		return new ClientRunnableTask<>(
 			catalogName,
 			"LoadCatalogTask",
 			"Loading catalog " + catalogName + " from disk...",
-			null,
+			EmptySettings.INSTANCE,
 			() -> {
 				final long start = System.nanoTime();
 				final Catalog theCatalog = new Catalog(
