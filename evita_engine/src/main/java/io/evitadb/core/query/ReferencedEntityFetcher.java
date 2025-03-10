@@ -1875,7 +1875,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		/**
 		 * Contains cache of groups indexed by entity primary key.
 		 */
-		private Map<Integer, int[]> groupsForEntity;
+		private Map<Integer, int[]> groupsForEntity = Collections.emptyMap();
 
 		public BitmapSlicer(
 			@Nonnull Map<Scope, int[]> entityPrimaryKey,
