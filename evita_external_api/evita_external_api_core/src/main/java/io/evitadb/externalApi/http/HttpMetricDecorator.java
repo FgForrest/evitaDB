@@ -33,7 +33,6 @@ import com.linecorp.armeria.server.DecoratingHttpServiceFunction;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.RequestTimeoutException;
 import com.linecorp.armeria.server.ServiceRequestContext;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.event.RequestEvent;
 import io.evitadb.externalApi.event.RequestEvent.Result;
 import lombok.RequiredArgsConstructor;
@@ -68,12 +67,6 @@ public class HttpMetricDecorator implements DecoratingHttpServiceFunction {
 						result = Result.CANCELLED;
 					} else if (causeIs(error, RequestTimeoutException.class)) {
 						result = Result.TIMED_OUT;
-					} else if (causeIs(error, EvitaInvalidUsageException.class) && httpStatus.code() == HttpStatus.OK.code()) {
-						httpStatus = HttpStatus.BAD_REQUEST;
-						result = Result.ERROR;
-					} else if (httpStatus.code() == HttpStatus.OK.code()) {
-						httpStatus = HttpStatus.INTERNAL_SERVER_ERROR;
-						result = Result.ERROR;
 					} else {
 						result = Result.ERROR;
 					}
@@ -86,7 +79,12 @@ public class HttpMetricDecorator implements DecoratingHttpServiceFunction {
 						result = Result.ERROR;
 					}
 				}
-				new RequestEvent(this.apiCode, result, httpStatus.code()).commit();
+				// publish the event
+				new RequestEvent(
+					this.apiCode,
+					result,
+					httpStatus.code()
+				).commit();
 			});
 		return delegate.serve(ctx, req);
 	}
