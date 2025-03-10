@@ -39,6 +39,8 @@ import io.evitadb.api.exception.UnexpectedResultException;
 import io.evitadb.api.exception.UniqueValueViolationException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.mock.MockCatalogStructuralChangeObserver;
+import io.evitadb.api.mock.ProductInterface;
+import io.evitadb.api.mock.ProductParameterInterface;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.requestResponse.EvitaResponse;
@@ -2469,6 +2471,90 @@ class EvitaTest implements EvitaTestSupport {
 				// the brand with PK=2 is not (yet) present in the evita storage
 				assertEquals(2, shortEntity.getReferences(Entities.BRAND).size());
 				assertEquals(1, shortEntity.getReferences(Entities.PARAMETER).size());
+			}
+		);
+	}
+
+	@Test
+	void shouldNotReturnGroupOfNonMatchingLocale() {
+		shouldCreateReflectedReference();
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session
+					.defineEntitySchema(Entities.PARAMETER_GROUP)
+					.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized())
+					.updateVia(session);
+
+				session
+					.defineEntitySchema(Entities.PARAMETER)
+					.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized())
+					.withReferenceToEntity(Entities.PARAMETER_GROUP, Entities.PARAMETER_GROUP, Cardinality.ZERO_OR_ONE)
+					.updateVia(session);
+
+				session
+					.defineEntitySchema(Entities.PRODUCT)
+					.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized())
+					.withReferenceToEntity(Entities.PARAMETER, Entities.PARAMETER, Cardinality.ZERO_OR_MORE, whichIs -> whichIs.withGroupTypeRelatedToEntity(Entities.PARAMETER_GROUP))
+					.updateVia(session);
+
+				session.createNewEntity(Entities.PARAMETER_GROUP, 1)
+					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Group")
+					.upsertVia(session);
+
+				session.createNewEntity(Entities.PARAMETER, 1)
+					.setAttribute(ATTRIBUTE_NAME, LOCALE_CZ, "Parametr")
+					.setReference(Entities.PARAMETER_GROUP, 1)
+					.upsertVia(session);
+
+				session.createNewEntity(Entities.PRODUCT, 1)
+					.setAttribute(ATTRIBUTE_NAME, LOCALE_CZ, "Produkt")
+					.setReference(Entities.PARAMETER, 1, whichIs -> whichIs.setGroup(1))
+					.upsertVia(session);
+
+				final SealedEntity product = session.queryOneSealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(1),
+							entityLocaleEquals(LOCALE_CZ)
+						),
+						require(
+							entityFetch(
+								entityFetchAllContentAnd(
+									referenceContent(Entities.PARAMETER, entityFetchAll(), entityGroupFetchAll())
+								)
+							)
+						)
+					)
+				).orElseThrow();
+
+				assertNotNull(product.getReference(Entities.PARAMETER, 1).orElse(null));
+				assertNotNull(product.getReference(Entities.PARAMETER, 1).orElseThrow().getGroup().orElse(null));
+				assertNull(product.getReference(Entities.PARAMETER, 1).orElseThrow().getGroupEntity().orElse(null));
+
+				final ProductInterface productAsCustomClass = session.queryOne(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(1),
+							entityLocaleEquals(LOCALE_CZ)
+						),
+						require(
+							entityFetch(
+								entityFetchAllContentAnd(
+									referenceContent(Entities.PARAMETER, entityFetchAll(), entityGroupFetchAll())
+								)
+							)
+						)
+					),
+					ProductInterface.class
+				).orElseThrow();
+
+				final ProductParameterInterface parameter = productAsCustomClass.getParameterById(1);
+				assertNotNull(parameter);
+				assertNotNull(parameter.getParameterGroup());
+				assertNull(parameter.getParameterGroupEntity());
 			}
 		);
 	}
