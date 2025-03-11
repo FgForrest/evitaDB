@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ package io.evitadb.api.query.parser.visitor;
 
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.order.ReferenceProperty;
+import io.evitadb.api.query.order.TraverseByEntityProperty;
 import io.evitadb.api.query.parser.ParseContext;
 import io.evitadb.api.query.parser.ParseMode;
 import io.evitadb.api.query.parser.ParserExecutor;
@@ -334,6 +335,70 @@ class EvitaQLOrderConstraintVisitorTest {
         assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("referenceProperty('a')"));
         assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("referenceProperty('a',1)"));
         assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraint("referenceProperty('a',attributeNatural('b'))"));
+    }
+
+    @Test
+    void shouldParseTraverseByEntityPropertyConstraint() {
+        final OrderConstraint constraint1 = parseOrderConstraint("traverseByEntityProperty(attributeNatural(?))", "a");
+        assertEquals(
+            traverseByEntityProperty(
+                attributeNatural("a")
+            ),
+            constraint1
+        );
+
+        final OrderConstraint constraint2 = parseOrderConstraintUnsafe("traverseByEntityProperty(attributeNatural('b'),attributeNatural('c',DESC))");
+        assertEquals(
+            traverseByEntityProperty(
+                attributeNatural("b"),
+                attributeNatural("c", DESC)
+            ),
+            constraint2
+        );
+
+        final OrderConstraint constraint3 = parseOrderConstraintUnsafe("traverseByEntityProperty ( attributeNatural('b')  , attributeNatural('c',  DESC) )");
+        assertEquals(
+            traverseByEntityProperty(
+                attributeNatural("b"),
+                attributeNatural("c", DESC)
+            ),
+            constraint3
+        );
+
+        final OrderConstraint constraint4 = parseOrderConstraintUnsafe("traverseByEntityProperty(attributeNatural('b'))");
+        assertEquals(
+            new TraverseByEntityProperty(
+                attributeNatural("b")
+            ),
+            constraint4
+        );
+
+        final OrderConstraint constraint5 = parseOrderConstraint("traverseByEntityProperty(attributeNatural(?))", "b");
+        assertEquals(
+            traverseByEntityProperty(
+                attributeNatural("b")
+            ),
+            constraint5
+        );
+
+        final OrderConstraint constraint6 = parseOrderConstraint("traverseByEntityProperty(attributeNatural(@b))", Map.of("b", "b"));
+        assertEquals(
+            traverseByEntityProperty(
+                attributeNatural("b")
+            ),
+            constraint6
+        );
+    }
+
+    @Test
+    void shouldNotParseTraverseByEntityPropertyConstraint() {
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("traverseByEntityProperty(attributeNatural(?))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("traverseByEntityProperty(attributeNatural(@a))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("traverseByEntityProperty"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("traverseByEntityProperty()"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("traverseByEntityProperty('a')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("traverseByEntityProperty('a',1)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraint("traverseByEntityProperty(attributeNatural('b'))"));
     }
 
     @Test

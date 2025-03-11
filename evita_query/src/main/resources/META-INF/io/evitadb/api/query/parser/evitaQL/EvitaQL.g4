@@ -101,6 +101,7 @@ orderConstraint
     | 'random'                              emptyArgs                                                       # randomConstraint
     | 'randomWithSeed'                      args = valueArgs                                                # randomWithSeedConstraint
     | 'referenceProperty'                   args = classifierWithOrderConstraintListArgs                    # referencePropertyConstraint
+    | 'traverseByEntityProperty'            args = orderConstraintListArgs                                  # traverseByEntityPropertyConstraint
     | 'entityPrimaryKeyNatural'             (emptyArgs | args = valueArgs)                                  # entityPrimaryKeyExactNatural
     | 'entityPrimaryKeyExact'               args = valueListArgs                                            # entityPrimaryKeyExactConstraint
     | 'entityPrimaryKeyInFilter'            emptyArgs                                                       # entityPrimaryKeyInFilterConstraint

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -230,6 +230,19 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 			() -> new ReferenceProperty(
 				ctx.args.classifier.accept(stringValueTokenVisitor).asString(),
 				ctx.args.constrains
+					.stream()
+					.map(c -> visitChildConstraint(c, OrderConstraint.class))
+					.toArray(OrderConstraint[]::new)
+			)
+		);
+	}
+
+	@Override
+	public OrderConstraint visitTraverseByEntityPropertyConstraint(TraverseByEntityPropertyConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new TraverseByEntityProperty(
+				ctx.args.constraints
 					.stream()
 					.map(c -> visitChildConstraint(c, OrderConstraint.class))
 					.toArray(OrderConstraint[]::new)

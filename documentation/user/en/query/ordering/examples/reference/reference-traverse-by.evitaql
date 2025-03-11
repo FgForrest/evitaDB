@@ -10,9 +10,7 @@ query(
          referenceProperty(
              "categories",
              traverseByEntityProperty(
-                 entityProperty(
-                     attributeNatural("order", ASC),
-                 ),
+                 attributeNatural("order", ASC)
              ),
              attributeNatural("orderInCategory", ASC)
          )
