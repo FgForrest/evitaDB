@@ -1,0 +1,29 @@
+query(
+    collection("Product"),
+    filterBy(
+        hierarchyWithin(
+            "categories",
+            attributeEquals("code", "accessories")
+        )
+    ),
+     orderBy(
+         referenceProperty(
+             "categories",
+             traverseByEntityProperty(
+                 entityProperty(
+                     attributeNatural("order", ASC),
+                 ),
+             ),
+             attributeNatural("orderInCategory", ASC)
+         )
+     ),
+     require(
+         entityFetch(
+             attributeContent("code"),
+             referenceContentWithAttributes(
+                "categories",
+                attributeContent("orderInCategory")
+             )
+         )
+     )
+)

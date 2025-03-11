@@ -15,6 +15,7 @@ preferredLang: 'evitaql'
 ```evitaql-syntax
 referenceProperty(
     argument:string!
+    constraint:traverseBy?,
     constraint:orderingConstraint+
 )
 ```
@@ -23,6 +24,11 @@ referenceProperty(
     <dt>argument:string!</dt>
     <dd>
         a mandatory name of the reference whose attribute is to be used for the ordering
+    </dd>
+    <dt>constraint:traverseBy?</dt>
+    <dd>
+        optional constraint that specifies the traversal of the references if there is more than single reference
+        of the same name referenced by the entity, see [`traverseBy`](#traverse-by) constraint for more details
     </dd>
     <dt>constraint:orderingConstraint+</dt>
     <dd>
@@ -101,6 +107,17 @@ If the referenced entity is **non-hierarchical**, and the returned entity refere
 the reference with the lowest primary key of the referenced entity, while also having the order property set, will be
 used for ordering.
 
+<Note type="info">
+
+<NoteTitle toggles="false">
+##### You can use the `traverseBy` constraint to specify which reference to use for ordering
+</NoteTitle>
+
+If you want to pick another reference to order, you can use the [`traverseByEntityProperty`](#traverse-by-entity-property) 
+constraint to specify an order to be applied to the references before picking the first one with the order property set.
+
+</Note>
+
 Let's extend our previous example so that it returns products that refer not only to the group "sale", but also to the
 group "new":
 
@@ -150,6 +167,18 @@ order them by a property `orderInCategory` set on the reference to the category,
 directly related to the category, ordered by `orderInCategory`, followed by the products of the first child category,
 and so on, maintaining the depth-first order of the category tree.
 
+<Note type="info">
+
+<NoteTitle toggles="false">
+##### You can use the `traverseBy` constraint to specify the order of child categories traversal
+</NoteTitle>
+
+If you want subcategories to be traversed in an order other than by their primary key in ascending order, you can use 
+the [`traverseByEntityProperty`](#traverse-by-entity-property) constraint to specify a different order that will be used
+before depth-first traversal of the hierarchy.
+
+</Note>
+
 This behaviour is best illustrated by a following example. Let's list products in the *Accessories* category ordered
 by the `orderInCategory` attribute on the reference to the category:
 
@@ -193,15 +222,74 @@ image:
 
 </Note>
 
-<Note type="warning">
+## Traverse by entity property
+
+```evitaql-syntax
+traverseByEntityProperty(
+    constraint:orderingConstraint+
+)
+```
+
+<dl>
+    <dt>constraint:orderingConstraint+</dt>
+    <dd>
+        one or more [ordering constraints](./natural.md) that change the traversal order of the 1:N references of
+        the ordered entity before the `referenceProperty` ordering constraint is applied, see chapter 
+        [Behaviour of zero or one to many references ordering](#behaviour-of-zero-or-one-to-many-references-ordering) 
+        for more details
+    </dd>
+</dl>
+
+The `traverseByEntityProperty` ordering constraint can only be used within the [`referenceProperty`](#reference-property) 
+ordering constraint, which targets a reference of cardinality 1:N. It allows ordering rules to be defined for traversing 
+multiple references before the [`referenceProperty`](#reference-property) ordering constraint is applied. The behaviour
+is different for hierarchical and non-hierarchical entities - see the chapter 
+[Behaviour of zero or one to many references ordering](#behaviour-of-zero-or-one-to-manyreferences-ordering) for more 
+details.
+
+<Note type="info">
+
+The cardinality of the reference is not checked by the query engine, so this constraint can be used for references of 
+any cardinality, although it only makes sense for 1:N references. It helps to prevent queries from breaking if 
+the cardinality of the reference is changed in the database schema.
+
+</Note>
+
+Consider the following example where we want to list products in the *Accessories* category ordered by the `orderInCategory` 
+attribute on the reference to the category, but the products could either directly reference the *Accessories* category
+or one of its child categories. The order will first list products directly related to the *Accessories* category in
+a particular order, then it will start listing products in the child categories in depth-first order. To specify which 
+order to use when traversing the child categories, we can use the `traverseByEntityProperty` ordering constraint:
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
+[List products by order in category in category order](/documentation/user/en/query/ordering/examples/reference/reference-traverse-by.evitaql)
+</SourceCodeTabs>
+
+<Note type="info">
 
 <NoteTitle toggles="true">
 
-##### Both rules order the sorted groups by primary key in ascending order. Do you need different behaviour?
+##### Result of listing products by order in category in category order
 </NoteTitle>
 
-If so, please vote for the [issue #160](https://github.com/FgForrest/evitaDB/issues/160) on GitHub. This issue won't
-be resolved until there is a demand for it.
+<LS to="e,j">
+
+<MDInclude sourceVariable="recordData.0">[Result of listing products by order in category in category order](/documentation/user/en/query/ordering/examples/reference/reference-traverse-by.evitaql.json.md)</MDInclude>
+
+</LS>
+
+<LS to="g">
+
+<MDInclude>[Result of listing products by order in category in category order](/documentation/user/en/query/ordering/examples/reference/reference-traverse-by.graphql.json.md)</MDInclude>
+
+</LS>
+
+<LS to="r">
+
+<MDInclude>[Result of listing products by order in category in category order](/documentation/user/en/query/ordering/examples/reference/reference-traverse-by.rest.json.md)</MDInclude>
+
+</LS>
 
 </Note>
 
