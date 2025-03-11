@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -83,7 +83,12 @@ public class VersionUtils {
 		int minor,
 		@Nullable String patch,
 		boolean snapshot
-	) {
+	) implements Comparable<SemVer> {
+
+		@Override
+		public int compareTo(@Nonnull SemVer o) {
+			return compare(this, o);
+		}
 
 		/**
 		 * Constructs a SemVer object from a string version.
@@ -132,7 +137,7 @@ public class VersionUtils {
 		 *        -1 if v1 has a lesser major or minor version than v2
 		 */
 		public static int compare(@Nonnull SemVer v1, @Nonnull SemVer v2) {
-			if (v1.major() > v2.major() || v1.minor() > v2.minor()) {
+			if (v1.major() > v2.major() || (v1.major() == v2.major() && v1.minor() > v2.minor())) {
 				return 1;
 			} else if (v1.major() < v2.major() || v1.minor() < v2.minor()) {
 				return -1;
