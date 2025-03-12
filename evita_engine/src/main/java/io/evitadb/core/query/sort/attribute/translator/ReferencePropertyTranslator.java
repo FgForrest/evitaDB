@@ -232,8 +232,8 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 	private static Comparator<EntityIndex> getHierarchyComparator(@Nonnull GlobalEntityIndex entityIndex) {
 		final Comparator<Integer> comparator = entityIndex.getHierarchyComparator();
 		return (o1, o2) -> comparator.compare(
-			((ReferenceKey) o1.getIndexKey().discriminator()).primaryKey(),
-			((ReferenceKey) o2.getIndexKey().discriminator()).primaryKey()
+			Objects.requireNonNull((ReferenceKey) o1.getIndexKey().discriminator()).primaryKey(),
+			Objects.requireNonNull((ReferenceKey) o2.getIndexKey().discriminator()).primaryKey()
 		);
 	}
 
@@ -266,7 +266,6 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 			referenceSchema,
 			null,
 			processingScope.withReferenceSchemaAccessor(referenceName),
-			new EntityReferenceAttributeExtractor(referenceName),
 			() -> {
 				for (OrderConstraint innerConstraint : referenceProperty.getOrderConstraints()) {
 					// explicit support for `entityProperty(entityPrimaryKeyNatural())` - other variants

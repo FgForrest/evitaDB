@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,16 +23,19 @@
 
 package io.evitadb.core.query.sort.attribute.translator;
 
-import com.carrotsearch.hppc.IntHashSet;
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
-import io.evitadb.api.requestResponse.data.structure.ReferenceComparator;
-import io.evitadb.api.requestResponse.data.structure.ReferenceDecorator;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.core.query.sort.EntityComparator;
+import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.Locale;
 import java.util.Optional;
@@ -44,107 +47,139 @@ import static io.evitadb.index.attribute.SortIndex.createNormalizerFor;
 import static java.util.Optional.ofNullable;
 
 /**
- * Reference attribute comparator sorts {@link ReferenceDecorator} according to a specified reference attribute value.
- * It needs to provide a function for accessing the entity attribute value and the simple {@link Comparable} comparator
- * implementation.
+ * Attribute comparator sorts entities according to a specified attribute value. It needs to provide a function for
+ * accessing the entity attribute value and the simple {@link Comparable} comparator implementation.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @SuppressWarnings("ComparatorNotSerializable")
-public class ReferenceAttributeComparator implements ReferenceComparator {
-	@Nullable private final ReferenceComparator nextComparator;
-	@Nonnull private final Function<ReferenceContract, Comparable<?>> attributeValueFetcher;
-	@Nonnull private final Comparator<Comparable<?>> comparator;
-	private IntHashSet nonSortedReferences;
+public class ReferenceAttributeComparator implements EntityComparator {
+	/**
+	 * Optional reference to reference schema, if the attribute is a reference attribute.
+	 */
+	@Nonnull private final ReferenceSchemaContract referenceSchema;
+	/**
+	 * Optional reference to entity schema, the reference is targeting (null if the reference is null, or targets
+	 * non-managed entity type).
+	 */
+	@Nullable private final EntitySchemaContract referencedEntitySchema;
+	/**
+	 * Function to fetch the value of the attribute being sorted for a given entity.
+	 */
+	@Nonnull private final Function<EntityContract, ReferenceAttributeValue> attributeValueFetcher;
+	/**
+	 * Comparator for comparing entities by their primary key as a fallback.
+	 */
+	@Nonnull private final Comparator<EntityContract> pkComparator;
+	/**
+	 * Internal storage for entities that could not be fully sorted due to missing attributes.
+	 */
+	private CompositeObjectArray<EntityContract> nonSortedEntities;
 
 	public ReferenceAttributeComparator(
 		@Nonnull String attributeName,
 		@Nonnull Class<?> type,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nullable EntitySchemaContract referencedEntitySchema,
 		@Nullable Locale locale,
 		@Nonnull OrderDirection orderDirection
 	) {
-		this(attributeName, type, locale, orderDirection, null);
-	}
-
-	public ReferenceAttributeComparator(
-		@Nonnull String attributeName,
-		@Nonnull Class<?> type,
-		@Nullable Locale locale,
-		@Nonnull OrderDirection orderDirection,
-		@Nullable ReferenceComparator nextComparator
-	) {
+		this.referenceSchema = referenceSchema;
+		this.referencedEntitySchema = referencedEntitySchema;
 		final ComparatorSource comparatorSource = new ComparatorSource(
 			type, orderDirection, OrderBehaviour.NULLS_LAST
 		);
-		final Optional<UnaryOperator<Comparable<?>>> normalizerFor = createNormalizerFor(comparatorSource);
-		final UnaryOperator<Comparable<?>> normalizer = normalizerFor.orElseGet(UnaryOperator::identity);
+		final Optional<UnaryOperator<Object>> normalizerFor = createNormalizerFor(comparatorSource);
+		final UnaryOperator<Object> normalizer = normalizerFor.orElseGet(UnaryOperator::identity);
+		this.pkComparator = orderDirection == OrderDirection.ASC ?
+			Comparator.comparingInt(EntityContract::getPrimaryKeyOrThrowException) :
+			Comparator.comparingInt(EntityContract::getPrimaryKeyOrThrowException).reversed();
+		//noinspection rawtypes
+		final Comparator valueComparator = createComparatorFor(locale, comparatorSource);
+		final String referenceName = this.referenceSchema.getName();
+		final Function<ReferenceContract, Comparable<?>> attributeExtractor = locale == null ?
+			referenceContract -> referenceContract.getAttribute(attributeName) :
+			referenceContract -> referenceContract.getAttribute(attributeName, locale);
 		//noinspection unchecked
-		this.comparator = createComparatorFor(locale, comparatorSource);
-		this.attributeValueFetcher = locale == null ?
-			referenceContract -> normalizer.apply(referenceContract.getAttribute(attributeName)) :
-			referenceContract -> normalizer.apply(referenceContract.getAttribute(attributeName, locale));
-		this.nextComparator = nextComparator;
-	}
-
-	private ReferenceAttributeComparator(
-		@Nonnull ReferenceComparator nextComparator,
-		@Nonnull Function<ReferenceContract, Comparable<?>> attributeValueFetcher,
-		@Nonnull Comparator<Comparable<?>> comparator
-	) {
-		this.nextComparator = nextComparator;
-		this.attributeValueFetcher = attributeValueFetcher;
-		this.comparator = comparator;
+		this.attributeValueFetcher = entityContract -> entityContract.getReferences(referenceName)
+				.stream()
+				.filter(it -> attributeExtractor.apply(it) != null)
+				.map(
+					it -> new ReferenceAttributeValue(
+						it.getReferencedPrimaryKey(),
+						(Comparable<?>) normalizer.apply(it.getAttribute(attributeName)),
+						valueComparator
+					)
+				)
+				.findFirst()
+				.orElse(null);
 	}
 
 	@Nonnull
 	@Override
-	public ReferenceComparator andThen(@Nonnull ReferenceComparator comparatorForUnknownRecords) {
-		return new ReferenceAttributeComparator(comparatorForUnknownRecords, attributeValueFetcher, comparator);
-	}
-
-	@Nullable
-	@Override
-	public ReferenceComparator getNextComparator() {
-		return nextComparator;
+	public Iterable<EntityContract> getNonSortedEntities() {
+		return ofNullable((Iterable<EntityContract>) this.nonSortedEntities)
+			.orElse(Collections.emptyList());
 	}
 
 	@Override
-	public int getNonSortedReferenceCount() {
-		return ofNullable(nonSortedReferences)
-			.map(IntHashSet::size)
-			.orElse(0);
-	}
-
-	@Override
-	public int compare(ReferenceContract o1, ReferenceContract o2) {
-		final Comparable<?> attribute1 = o1 == null ? null : attributeValueFetcher.apply(o1);
-		final Comparable<?> attribute2 = o2 == null ? null : attributeValueFetcher.apply(o2);
+	public int compare(EntityContract o1, EntityContract o2) {
+		final ReferenceAttributeValue attribute1 = this.attributeValueFetcher.apply(o1);
+		final ReferenceAttributeValue attribute2 = this.attributeValueFetcher.apply(o2);
 		if (attribute1 != null && attribute2 != null) {
-			return comparator.compare(attribute1, attribute2);
-		} else if (attribute1 == null && attribute2 != null) {
-			this.nonSortedReferences = ofNullable(this.nonSortedReferences)
-				.orElseGet(IntHashSet::new);
-			if (o1 != null) {
-				this.nonSortedReferences.add(o1.getReferencedPrimaryKey());
+			final int result = attribute1.compareTo(attribute2);
+			if (result == 0) {
+				return this.pkComparator.compare(o1, o2);
+			} else {
+				return result;
 			}
+		} else if (attribute1 == null && attribute2 != null) {
+			//noinspection ObjectInstantiationInEqualsHashCode
+			this.nonSortedEntities = ofNullable(this.nonSortedEntities)
+				.orElseGet(() -> new CompositeObjectArray<>(EntityContract.class));
+			this.nonSortedEntities.add(o1);
 			return 1;
 		} else if (attribute1 != null) {
-			this.nonSortedReferences = ofNullable(this.nonSortedReferences)
-				.orElseGet(IntHashSet::new);
-			if (o2 != null) {
-				this.nonSortedReferences.add(o2.getReferencedPrimaryKey());
-			}
+			//noinspection ObjectInstantiationInEqualsHashCode
+			this.nonSortedEntities = ofNullable(this.nonSortedEntities)
+				.orElseGet(() -> new CompositeObjectArray<>(EntityContract.class));
+			this.nonSortedEntities.add(o2);
 			return -1;
 		} else {
-			this.nonSortedReferences = ofNullable(this.nonSortedReferences)
-				.orElseGet(IntHashSet::new);
-			if (o1 != null) {
-				this.nonSortedReferences.add(o1.getReferencedPrimaryKey());
-			}
-			if (o2 != null) {
-				this.nonSortedReferences.add(o2.getReferencedPrimaryKey());
-			}
+			//noinspection ObjectInstantiationInEqualsHashCode
+			this.nonSortedEntities = ofNullable(this.nonSortedEntities)
+				.orElseGet(() -> new CompositeObjectArray<>(EntityContract.class));
+			this.nonSortedEntities.add(o1);
+			this.nonSortedEntities.add(o2);
 			return 0;
 		}
 	}
+
+	/**
+	 * Represents a data structure that encapsulates a reference key and its associated attribute value.
+	 * This record is primarily intended for use in sorting operations, where entities are sorted based
+	 * on associated reference attribute values.
+	 *
+	 * The {@code referenceKey} uniquely identifies a reference schema and optionally its referenced entity.
+	 * The {@code attributeValue} represents a comparable value associated with the reference key for the purposes
+	 * of comparison and sorting.
+	 */
+	private record ReferenceAttributeValue(
+		int referencedEntityPrimaryKey,
+		@Nonnull Comparable<?> attributeValue,
+		@Nonnull Comparator<Comparable<?>> comparator
+	) implements Comparable<ReferenceAttributeValue> {
+
+		@Override
+		public int compareTo(@Nonnull ReferenceAttributeValue o) {
+			final int pkComparison = Integer.compare(this.referencedEntityPrimaryKey, o.referencedEntityPrimaryKey);
+			if (pkComparison == 0) {
+				return this.comparator.compare(this.attributeValue, o.attributeValue);
+			} else {
+				return pkComparison;
+			}
+		}
+
+	}
+
 }

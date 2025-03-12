@@ -124,12 +124,14 @@ public class PredecessorAttributeComparator implements EntityComparator {
 
 		// scan all providers
 		if (this.cache == null) {
+			//noinspection ObjectInstantiationInEqualsHashCode
 			this.cache = new IntIntMap[sortedRecordsProviders.length];
 		}
 		for (int i = 0; i < sortedRecordsProviders.length; i++) {
 			final SortedRecordsProvider sortedRecordsProvider = sortedRecordsProviders[i];
 			if (this.cache[i] == null) {
 				// let's create the cache with estimated size multiply 5 expected steps for binary search
+				//noinspection ObjectAllocationInLoop,ObjectInstantiationInEqualsHashCode
 				this.cache[i] = new IntIntHashMap(this.estimatedCount * 5);
 			}
 			// and try to find primary keys of both entities in each provider
@@ -161,6 +163,7 @@ public class PredecessorAttributeComparator implements EntityComparator {
 		}
 		if (o1FoundInProvider == -1 || o2FoundInProvider == -1 && this.nonSortedEntities == null) {
 			// if any of the entities is not found, and we don't have the container to store them, create it
+			//noinspection ObjectInstantiationInEqualsHashCode
 			this.nonSortedEntities = new CompositeObjectArray<>(EntityContract.class);
 		}
 		// if any of the entities is not found, store it in the container

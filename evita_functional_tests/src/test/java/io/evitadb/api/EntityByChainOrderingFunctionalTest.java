@@ -201,7 +201,7 @@ public class EntityByChainOrderingFunctionalTest {
 	 * @param referenceName          the name of the reference to sort by (non-null).
 	 * @param referenceAttributeName the name of the attribute to sort by (non-null).
 	 */
-	private static void sortProductsInByReferenceAttribute(
+	private static void sortProductsInByReferenceAttributeOfChainableType(
 		@Nonnull Map<Integer, List<SealedEntity>> productsInCategory,
 		@Nonnull String referenceName,
 		@Nonnull String referenceAttributeName
@@ -224,6 +224,46 @@ public class EntityByChainOrderingFunctionalTest {
 						final int aPos = ArrayUtils.indexOf(a.getPrimaryKeyOrThrowException(), sortedRecordIds);
 						final int bPos = ArrayUtils.indexOf(b.getPrimaryKeyOrThrowException(), sortedRecordIds);
 						return Integer.compare(aPos, bPos);
+					}
+				);
+			}
+		});
+	}
+
+	/**
+	 * Sorts the products in a category based on the reference order attribute.
+	 *
+	 * @param productsInCategory     a map where the key is the referenced entity ID (non-null) and the value is a list of sealed entities (nullable).
+	 * @param referenceName          the name of the reference to sort by (non-null).
+	 * @param referenceAttributeName the name of the attribute to sort by (non-null).
+	 */
+	private static void sortProductsInByReferenceAttribute(
+		@Nonnull Map<Integer, List<SealedEntity>> productsInCategory,
+		@Nonnull String referenceName,
+		@Nonnull String referenceAttributeName,
+		@SuppressWarnings("rawtypes") @Nonnull Comparator comparator
+	) {
+		productsInCategory.forEach((key, value) -> {
+			if (value != null) {
+				value.sort(
+					(a, b) -> {
+						final Comparable<?> attribute1 = (Comparable<?>) a.getReference(referenceName, key).map(it -> it.getAttribute(referenceAttributeName)).orElse(null);
+						final Comparable<?> attribute2 = (Comparable<?>) b.getReference(referenceName, key).map(it -> it.getAttribute(referenceAttributeName)).orElse(null);
+						if (attribute1 != null && attribute2 != null) {
+							//noinspection unchecked
+							final int result = comparator.compare(attribute1, attribute2);
+							if (result == 0) {
+								return Integer.compare(a.getPrimaryKeyOrThrowException(), b.getPrimaryKeyOrThrowException());
+							} else {
+								return result;
+							}
+						} else if (attribute1 == null && attribute2 != null) {
+							return 1;
+						} else if (attribute1 != null) {
+							return -1;
+						} else {
+							return 0;
+						}
 					}
 				);
 			}
@@ -322,12 +362,38 @@ public class EntityByChainOrderingFunctionalTest {
 		@Nonnull Map<Integer, SealedEntity> products,
 		@Nonnull Map<Integer, List<SealedEntity>> productsInBrand
 	) {
+		return createExpectedOrderOfProductsInBrand(products, productsInBrand, null);
+	}
+
+	/**
+	 * Creates the expected order of product primary keys grouped and sorted by their associated brands.
+	 * Products are grouped by the primary key of the first referenced brand and then sorted according
+	 * to the order of products within each brand group as specified in the input maps.
+	 *
+	 * @param products        a map where the key is the product primary key, and the value is a {@link SealedEntity}
+	 *                        representing the product along with its references, including brand references.
+	 * @param productsInBrand a map where the key is the brand primary key, and the value is a list of
+	 *                        {@link SealedEntity} objects representing all products belonging to that brand,
+	 *                        already sorted as needed.
+	 * @param attributeName   optional attribute name to be used for sorting the products in the brand group
+	 *                        otherwise entity primary key will be  used
+	 * @return an array of product primary keys arranged in the expected order grouped and sorted by brand.
+	 */
+	@Nonnull
+	private static Map<Integer, int[]> createExpectedOrderOfProductsInBrand(
+		@Nonnull Map<Integer, SealedEntity> products,
+		@Nonnull Map<Integer, List<SealedEntity>> productsInBrand,
+		@Nullable String attributeName
+	) {
 		// collect and group products by FIRST referenced brand
 		final Map<Integer, List<Integer>> productsGroupedByBrand = CollectionUtils.createHashMap(BRAND_COUNT);
 		for (int i = 1; i <= PRODUCT_COUNT; i++) {
 			int productPk = i;
 			products.get(i).getReferences(Entities.BRAND)
-				.stream().findFirst().ifPresent(
+				.stream()
+				.filter(ref -> attributeName == null || ref.getAttribute(attributeName) != null)
+				.findFirst()
+				.ifPresent(
 					it -> productsGroupedByBrand
 						.computeIfAbsent(it.getReferencedPrimaryKey(), __ -> new ArrayList<>())
 						.add(productPk)
@@ -589,18 +655,41 @@ public class EntityByChainOrderingFunctionalTest {
 						)
 					)
 				);
+			final Map<Integer, List<SealedEntity>> productsInBrandByInceptionYear = makeCopy(productsInBrand);
 
 			// now we need to sort the products in the category
-			sortProductsInByReferenceAttribute(productsInCategory, Entities.CATEGORY, ATTRIBUTE_CATEGORY_ORDER);
+			sortProductsInByReferenceAttributeOfChainableType(productsInCategory, Entities.CATEGORY, ATTRIBUTE_CATEGORY_ORDER);
 			// now we need to sort the products in the brand
-			sortProductsInByReferenceAttribute(productsInBrand, Entities.BRAND, ATTRIBUTE_BRAND_ORDER);
+			sortProductsInByReferenceAttributeOfChainableType(productsInBrand, Entities.BRAND, ATTRIBUTE_BRAND_ORDER);
+			sortProductsInByReferenceAttribute(
+				productsInBrandByInceptionYear, Entities.BRAND, ATTRIBUTE_INCEPTION_YEAR, Comparator.naturalOrder()
+			);
 
 			return new DataCarrier(
 				"products", products,
 				"productsInCategory", productsInCategory,
-				"productsInBrand", productsInBrand
+				"productsInBrand", productsInBrand,
+				"productsInBrandByInceptionYear", productsInBrandByInceptionYear
 			);
 		});
+	}
+
+	/**
+	 * Creates a deep copy of the given map where the keys remain the same, and the values,
+	 * which are lists, are copied into new list instances.
+	 *
+	 * @param original the original map with integer keys and lists of SealedEntity values to be copied
+	 * @return a new map with the same keys and new list instances containing the same elements as the original map
+	 */
+	@Nonnull
+	private static Map<Integer, List<SealedEntity>> makeCopy(@Nonnull Map<Integer, List<SealedEntity>> original) {
+		return original.entrySet().stream()
+			.collect(
+				Collectors.toMap(
+					Map.Entry::getKey,
+					entry -> new ArrayList<>(entry.getValue())
+				)
+			);
 	}
 
 	@Nullable
@@ -699,7 +788,7 @@ public class EntityByChainOrderingFunctionalTest {
 				);
 
 			// now we need to sort the products in the category
-			sortProductsInByReferenceAttribute(productsInCategory, Entities.CATEGORY, ATTRIBUTE_CATEGORY_ORDER);
+			sortProductsInByReferenceAttributeOfChainableType(productsInCategory, Entities.CATEGORY, ATTRIBUTE_CATEGORY_ORDER);
 
 			return new DataCarrier(
 				REFERENCE_CATEGORY_PRODUCTS, products,
@@ -1767,8 +1856,6 @@ public class EntityByChainOrderingFunctionalTest {
 		);
 	}
 
-	/* TODO JNO - add prefetch variant */
-
 	@DisplayName("The product should be returned in descending order by first brand order via referenced predecessor (prefetch)")
 	@UseDataSet(CHAINED_ELEMENTS)
 	@Test
@@ -1829,6 +1916,268 @@ public class EntityByChainOrderingFunctionalTest {
 			}
 		);
 	}
+
+	@DisplayName("The product should be returned in ascending order by first brand order via attribute")
+	@UseDataSet(CHAINED_ELEMENTS)
+	@Test
+	void shouldSortProductsByFirstBrandReferencedEntityAttributeInAscendingOrder(
+		Evita evita,
+		Map<Integer, SealedEntity> products,
+		Map<Integer, List<SealedEntity>> productsInBrandByInceptionYear
+	) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						orderBy(
+							referenceProperty(
+								Entities.BRAND,
+								attributeNatural(ATTRIBUTE_INCEPTION_YEAR, OrderDirection.ASC)
+							)
+						),
+						require(
+							page(1, 60),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Map<Integer, int[]> sortedProductsGroupedByBrand = createExpectedOrderOfProductsInBrand(
+					products, productsInBrandByInceptionYear, ATTRIBUTE_INCEPTION_YEAR
+				);
+
+				// create expected order of products
+				final IntSet sortedProducts = new IntHashSet(products.size());
+				final int[] expectedOrder = new int[products.size()];
+				int index = 0;
+				for (int i = 1; i <= BRAND_COUNT; i++) {
+					final int[] sortedProductsInBrand = sortedProductsGroupedByBrand.get(i);
+					if (sortedProductsInBrand != null) {
+						for (int productPk : sortedProductsInBrand) {
+							expectedOrder[index++] = productPk;
+							sortedProducts.add(productPk);
+						}
+					}
+				}
+				for (int i = 1; i <= PRODUCT_COUNT; i++) {
+					if (!sortedProducts.contains(i)) {
+						expectedOrder[index++] = i;
+					}
+				}
+
+				assertSortedResultEquals(
+					result.getRecordData().stream().map(EntityReference::getPrimaryKey).toList(),
+					Arrays.stream(expectedOrder).limit(60).toArray()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("The product should be returned in descending order by first brand order via attribute")
+	@UseDataSet(CHAINED_ELEMENTS)
+	@Test
+	void shouldSortProductsByFirstBrandReferencedEntityAttributeInDescendingOrder(
+		Evita evita,
+		Map<Integer, SealedEntity> products,
+		Map<Integer, List<SealedEntity>> productsInBrandByInceptionYear
+	) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						orderBy(
+							referenceProperty(
+								Entities.BRAND,
+								attributeNatural(ATTRIBUTE_INCEPTION_YEAR, OrderDirection.DESC)
+							)
+						),
+						require(
+							page(1, 60),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Map<Integer, int[]> sortedProductsGroupedByBrand = createExpectedOrderOfProductsInBrand(
+					products, productsInBrandByInceptionYear, ATTRIBUTE_INCEPTION_YEAR
+				);
+
+				// create expected order of products
+				final IntSet sortedProducts = new IntHashSet(products.size());
+				final int[] expectedOrder = new int[products.size()];
+				int index = 0;
+				for (int i = 1; i <= BRAND_COUNT; i++) {
+					final int[] sortedProductsInBrand = sortedProductsGroupedByBrand.get(i);
+					if (sortedProductsInBrand != null) {
+						for (int j = sortedProductsInBrand.length - 1; j >= 0; j--) {
+							int productPk = sortedProductsInBrand[j];
+							expectedOrder[index++] = productPk;
+							sortedProducts.add(productPk);
+						}
+					}
+				}
+				for (int i = 1; i <= PRODUCT_COUNT; i++) {
+					if (!sortedProducts.contains(i)) {
+						expectedOrder[index++] = i;
+					}
+				}
+
+				assertSortedResultEquals(
+					result.getRecordData().stream().map(EntityReference::getPrimaryKey).toList(),
+					Arrays.stream(expectedOrder).limit(60).toArray()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("The product should be returned in ascending order by first brand order via attribute using prefetch")
+	@UseDataSet(CHAINED_ELEMENTS)
+	@Test
+	void shouldSortProductsByFirstBrandReferencedEntityAttributeInAscendingOrderUsingPrefetch(
+		Evita evita,
+		Map<Integer, SealedEntity> products,
+		Map<Integer, List<SealedEntity>> productsInBrandByInceptionYear
+	) {
+		final IntSet selectedProducts = new IntHashSet(PRODUCT_COUNT / 2);
+		for (int i = 1; i <= PRODUCT_COUNT; i = i + 2) {
+			selectedProducts.add(i);
+		}
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(selectedProducts.toArray())
+						),
+						orderBy(
+							referenceProperty(
+								Entities.BRAND,
+								attributeNatural(ATTRIBUTE_INCEPTION_YEAR, OrderDirection.ASC)
+							)
+						),
+						require(
+							page(1, 60),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.PREFER_PREFETCHING)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Map<Integer, int[]> sortedProductsGroupedByBrand = createExpectedOrderOfProductsInBrand(
+					products, productsInBrandByInceptionYear, ATTRIBUTE_INCEPTION_YEAR
+				);
+
+				// create expected order of products
+				final IntSet sortedProducts = new IntHashSet(selectedProducts.size());
+				final int[] expectedOrder = new int[selectedProducts.size()];
+				int index = 0;
+				for (int i = 1; i <= BRAND_COUNT; i++) {
+					final int[] sortedProductsInBrand = sortedProductsGroupedByBrand.get(i);
+					if (sortedProductsInBrand != null) {
+						for (int productPk : sortedProductsInBrand) {
+							if (selectedProducts.contains(productPk)) {
+								expectedOrder[index++] = productPk;
+								sortedProducts.add(productPk);
+							}
+						}
+					}
+				}
+				for (int i = 1; i <= PRODUCT_COUNT; i++) {
+					if (!sortedProducts.contains(i) && selectedProducts.contains(i)) {
+						expectedOrder[index++] = i;
+					}
+				}
+
+				assertSortedResultEquals(
+					result.getRecordData().stream().map(EntityReference::getPrimaryKey).toList(),
+					Arrays.stream(expectedOrder).limit(60).toArray()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("The product should be returned in descending order by first brand order via attribute using prefetch")
+	@UseDataSet(CHAINED_ELEMENTS)
+	@Test
+	void shouldSortProductsByFirstBrandReferencedEntityAttributeInDescendingOrderUsingPrefetch(
+		Evita evita,
+		Map<Integer, SealedEntity> products,
+		Map<Integer, List<SealedEntity>> productsInBrandByInceptionYear
+	) {
+		final IntSet selectedProducts = new IntHashSet(PRODUCT_COUNT / 2);
+		for (int i = 1; i <= PRODUCT_COUNT; i = i + 2) {
+			selectedProducts.add(i);
+		}
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(selectedProducts.toArray())
+						),
+						orderBy(
+							referenceProperty(
+								Entities.BRAND,
+								attributeNatural(ATTRIBUTE_INCEPTION_YEAR, OrderDirection.DESC)
+							)
+						),
+						require(
+							page(1, 60),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.PREFER_PREFETCHING)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Map<Integer, int[]> sortedProductsGroupedByBrand = createExpectedOrderOfProductsInBrand(
+					products, productsInBrandByInceptionYear, ATTRIBUTE_INCEPTION_YEAR
+				);
+
+				// create expected order of products
+				final IntSet sortedProducts = new IntHashSet(selectedProducts.size());
+				final int[] expectedOrder = new int[selectedProducts.size()];
+				int index = 0;
+				for (int i = 1; i <= BRAND_COUNT; i++) {
+					final int[] sortedProductsInBrand = sortedProductsGroupedByBrand.get(i);
+					if (sortedProductsInBrand != null) {
+						for (int j = sortedProductsInBrand.length - 1; j >= 0; j--) {
+							int productPk = sortedProductsInBrand[j];
+							if (selectedProducts.contains(productPk)) {
+								expectedOrder[index++] = productPk;
+								sortedProducts.add(productPk);
+							}
+						}
+					}
+				}
+				for (int i = 1; i <= PRODUCT_COUNT; i++) {
+					if (!sortedProducts.contains(i) && selectedProducts.contains(i)) {
+						expectedOrder[index++] = i;
+					}
+				}
+
+				assertSortedResultEquals(
+					result.getRecordData().stream().map(EntityReference::getPrimaryKey).toList(),
+					Arrays.stream(expectedOrder).limit(60).toArray()
+				);
+				return null;
+			}
+		);
+	}
+
+	/* TODO JNO - add tests for attribute compounds */
 
 	/**
 	 * EntityReference is a record that encapsulates a reference to an entity along with a contract for referencing.

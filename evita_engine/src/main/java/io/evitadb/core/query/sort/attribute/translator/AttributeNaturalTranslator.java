@@ -62,6 +62,7 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.attributeContent;
+import static io.evitadb.api.query.QueryConstraints.referenceContentWithAttributes;
 import static io.evitadb.api.query.order.OrderDirection.ASC;
 
 /**
@@ -79,7 +80,6 @@ public class AttributeNaturalTranslator
 		final OrderDirection orderDirection = attributeNatural.getOrderDirection();
 		final Locale locale = orderByVisitor.getLocale();
 		final ProcessingScope processingScope = orderByVisitor.getProcessingScope();
-		final AttributeExtractor attributeSchemaEntityAccessor = processingScope.attributeEntityAccessor();
 
 		final Supplier<SortedRecordsProvider[]> sortedRecordsSupplier;
 		final EntityIndex[] indexesForSort = orderByVisitor.getIndexesForSort();
@@ -134,33 +134,83 @@ public class AttributeNaturalTranslator
 				sortedRecordsSupplier
 			);
 		} else if (attributeOrCompoundSchema instanceof SortableAttributeCompoundSchemaContract compoundSchemaContract) {
-			/* TODO JNO - přidat úpravy kvůli 1:N referencím */
-			entityComparator = new CompoundAttributeComparator(
-				compoundSchemaContract, locale,
-				attributeName -> processingScope.getAttributeSchema(attributeName, AttributeTrait.SORTABLE),
-				attributeSchemaEntityAccessor,
-				orderDirection
-			);
+			if (referenceSchema == null) {
+				entityComparator = new CompoundAttributeComparator(
+					compoundSchemaContract,
+					locale,
+					attributeName -> processingScope.getAttributeSchema(attributeName, AttributeTrait.SORTABLE),
+					orderDirection
+				);
+			} else {
+				entityComparator = new ReferenceCompoundAttributeComparator(
+					compoundSchemaContract,
+					referenceSchema,
+					referencedEntitySchema,
+					locale,
+					attributeName -> processingScope.getAttributeSchema(attributeName, AttributeTrait.SORTABLE),
+					orderDirection
+				);
+			}
 		} else if (attributeOrCompoundSchema instanceof AttributeSchemaContract attributeSchema) {
-			/* TODO JNO - přidat úpravy kvůli 1:N referencím */
-			entityComparator = new AttributeComparator(
-				attributeOrCompoundName,
-				attributeSchema.getPlainType(),
-				locale,
-				attributeSchemaEntityAccessor,
-				orderDirection
-			);
+			if (referenceSchema == null) {
+				entityComparator = new AttributeComparator(
+					attributeOrCompoundName,
+					attributeSchema.getPlainType(),
+					locale,
+					orderDirection
+				);
+			} else {
+				entityComparator = new ReferenceAttributeComparator(
+					attributeOrCompoundName,
+					attributeSchema.getPlainType(),
+					referenceSchema,
+					referencedEntitySchema,
+					locale,
+					orderDirection
+				);
+			}
 		} else {
 			throw new GenericEvitaInternalError("Unsupported attribute schema type: " + attributeOrCompoundSchema);
 		}
 
 		// if prefetch happens we need to prefetch attributes so that the attribute comparator can work
-		orderByVisitor.addRequirementToPrefetch(attributeSchemaEntityAccessor.getRequirements());
+		orderByVisitor.addRequirementToPrefetch(
+				attributeOrCompoundSchema instanceof SortableAttributeCompoundSchemaContract sacsc ?
+					(referenceSchema == null ?
+						attributeContent(combineCompoundWithReferencedAttributes(attributeOrCompoundName, sacsc)) :
+						referenceContentWithAttributes(referenceSchema.getName(), combineCompoundWithReferencedAttributes(attributeOrCompoundName, sacsc))
+					) :
+					(referenceSchema == null ? attributeContent(attributeOrCompoundName) : referenceContentWithAttributes(referenceSchema.getName(), attributeOrCompoundName))
+		);
 
 		return Stream.of(
 			new PrefetchedRecordsSorter(entityComparator),
 			new PreSortedRecordsSorter(sortedRecordsSupplier)
 		);
+	}
+
+	/**
+	 * Combines a given attribute or compound name with the attribute names derived from the
+	 * provided SortableAttributeCompoundSchemaContract. This method concatenates the initial
+	 * attribute or compound name with all of the attribute names defined in the compound's
+	 * attribute elements.
+	 *
+	 * @param attributeOrCompoundName the primary attribute or compound name to be combined.
+	 * @param sacsc an instance of SortableAttributeCompoundSchemaContract containing attribute elements
+	 *              whose names should be included in the result.
+	 * @return an array of strings containing the combined attribute or compound name and the names
+	 *         of all the attributes from the compound schema.
+	 */
+	@Nonnull
+	private static String[] combineCompoundWithReferencedAttributes(
+		@Nonnull String attributeOrCompoundName,
+		@Nonnull SortableAttributeCompoundSchemaContract sacsc
+	) {
+		return Stream.concat(
+			Stream.of(attributeOrCompoundName),
+			sacsc.getAttributeElements().stream().map(AttributeElement::attributeName)
+		)
+			.toArray(String[]::new);
 	}
 
 	@Override
@@ -219,14 +269,14 @@ public class AttributeNaturalTranslator
 				);
 			}
 		} else if (attributeOrCompoundSchema instanceof SortableAttributeCompoundSchema compoundSchemaContract) {
-			comparator = new ReferenceCompoundAttributeComparator(
+			comparator = new ReferenceCompoundAttributeReferenceComparator(
 				compoundSchemaContract,
 				compoundSchemaContract.isLocalized(orderByVisitor::getAttributeSchema) ? locale : null,
 				orderByVisitor::getAttributeSchema,
 				orderDirection
 			);
 		} else if (attributeOrCompoundSchema instanceof AttributeSchemaContract attributeSchema) {
-			comparator = new ReferenceAttributeComparator(
+			comparator = new ReferenceAttributeReferenceComparator(
 				attributeOrCompoundName,
 				attributeSchema.getPlainType(),
 				attributeSchema.isLocalized() ? locale : null,

@@ -82,7 +82,6 @@ import io.evitadb.core.query.sort.NestedContextSorter;
 import io.evitadb.core.query.sort.NoSorter;
 import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.Sorter;
-import io.evitadb.core.query.sort.attribute.translator.EntityAttributeExtractor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
@@ -384,7 +383,6 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 					entityType,
 					locale,
 					new AttributeSchemaAccessor(nestedQueryContext.getCatalogSchema(), entityCollection.getSchema()),
-					EntityAttributeExtractor.INSTANCE,
 					() -> {
 						for (OrderConstraint innerConstraint : orderBy.getChildren()) {
 							innerConstraint.accept(orderByVisitor);

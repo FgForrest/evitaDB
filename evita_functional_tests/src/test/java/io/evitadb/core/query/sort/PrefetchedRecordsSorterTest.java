@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,7 +32,6 @@ import io.evitadb.core.query.SharedBufferPool;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.query.sort.attribute.translator.AttributeComparator;
-import io.evitadb.core.query.sort.attribute.translator.EntityAttributeExtractor;
 import io.evitadb.core.query.sort.generic.PrefetchedRecordsSorter;
 import io.evitadb.index.bitmap.BaseBitmap;
 import org.junit.jupiter.api.BeforeEach;
@@ -62,13 +61,11 @@ class PrefetchedRecordsSorterTest {
 	private static final String ATTRIBUTE_NAME_FIRST = "first";
 	private static final String ATTRIBUTE_NAME_SECOND = "second";
 
-	@SuppressWarnings({"unchecked", "rawtypes"})
 	private final EntityComparator TEST_COMPARATOR_FIRST = new AttributeComparator(
-		ATTRIBUTE_NAME_FIRST, Integer.class, null, EntityAttributeExtractor.INSTANCE, OrderDirection.ASC
+		ATTRIBUTE_NAME_FIRST, Integer.class, null, OrderDirection.ASC
 	);
-	@SuppressWarnings({"unchecked", "rawtypes"})
 	private final EntityComparator TEST_COMPARATOR_SECOND = new AttributeComparator(
-		ATTRIBUTE_NAME_SECOND, Integer.class, null, EntityAttributeExtractor.INSTANCE, OrderDirection.ASC
+		ATTRIBUTE_NAME_SECOND, Integer.class, null, OrderDirection.ASC
 	);
 	private PrefetchedRecordsSorterWithContext entitySorter;
 

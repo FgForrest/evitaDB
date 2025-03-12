@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -51,62 +51,76 @@ import static java.util.Optional.ofNullable;
  */
 @SuppressWarnings("ComparatorNotSerializable")
 public class AttributeComparator implements EntityComparator {
+	/**
+	 * Function to fetch the value of the attribute being sorted for a given entity.
+	 */
 	@Nonnull private final Function<EntityContract, Comparable<?>> attributeValueFetcher;
+	/**
+	 * Comparator for comparing entities by their primary key as a fallback.
+	 */
 	@Nonnull private final Comparator<EntityContract> pkComparator;
+	/**
+	 * Comparator for comparing the values of the specified attribute.
+	 */
 	@Nonnull private final Comparator<Comparable<?>> comparator;
+	/**
+	 * Internal storage for entities that could not be fully sorted due to missing attributes.
+	 */
 	private CompositeObjectArray<EntityContract> nonSortedEntities;
 
 	public AttributeComparator(
 		@Nonnull String attributeName,
 		@Nonnull Class<?> type,
 		@Nullable Locale locale,
-		@Nonnull AttributeExtractor attributeExtractor,
 		@Nonnull OrderDirection orderDirection
-		) {
+	) {
 		final ComparatorSource comparatorSource = new ComparatorSource(
 			type, orderDirection, OrderBehaviour.NULLS_LAST
 		);
 		final Optional<UnaryOperator<Object>> normalizerFor = createNormalizerFor(comparatorSource);
 		final UnaryOperator<Object> normalizer = normalizerFor.orElseGet(UnaryOperator::identity);
 		this.pkComparator = orderDirection == OrderDirection.ASC ?
-			Comparator.comparingInt(EntityContract::getPrimaryKey) :
-			Comparator.comparingInt(EntityContract::getPrimaryKey).reversed();
+			Comparator.comparingInt(EntityContract::getPrimaryKeyOrThrowException) :
+			Comparator.comparingInt(EntityContract::getPrimaryKeyOrThrowException).reversed();
 		//noinspection unchecked
 		this.comparator = createComparatorFor(locale, comparatorSource);
 		this.attributeValueFetcher = locale == null ?
-			entityContract -> (Comparable<?>) normalizer.apply(attributeExtractor.extract(entityContract, attributeName)) :
-			entityContract -> (Comparable<?>) normalizer.apply(attributeExtractor.extract(entityContract, attributeName, locale));
+			entityContract -> (Comparable<?>) normalizer.apply(entityContract.getAttribute(attributeName)) :
+			entityContract -> (Comparable<?>) normalizer.apply(entityContract.getAttribute(attributeName, locale));
 	}
 
 	@Nonnull
 	@Override
 	public Iterable<EntityContract> getNonSortedEntities() {
-		return ofNullable((Iterable<EntityContract>) nonSortedEntities)
+		return ofNullable((Iterable<EntityContract>) this.nonSortedEntities)
 			.orElse(Collections.emptyList());
 	}
 
 	@Override
 	public int compare(EntityContract o1, EntityContract o2) {
-		final Comparable<?> attribute1 = attributeValueFetcher.apply(o1);
-		final Comparable<?> attribute2 = attributeValueFetcher.apply(o2);
+		final Comparable<?> attribute1 = this.attributeValueFetcher.apply(o1);
+		final Comparable<?> attribute2 = this.attributeValueFetcher.apply(o2);
 		if (attribute1 != null && attribute2 != null) {
-			final int result = comparator.compare(attribute1, attribute2);
+			final int result = this.comparator.compare(attribute1, attribute2);
 			if (result == 0) {
-				return pkComparator.compare(o1, o2);
+				return this.pkComparator.compare(o1, o2);
 			} else {
 				return result;
 			}
 		} else if (attribute1 == null && attribute2 != null) {
+			//noinspection ObjectInstantiationInEqualsHashCode
 			this.nonSortedEntities = ofNullable(this.nonSortedEntities)
 				.orElseGet(() -> new CompositeObjectArray<>(EntityContract.class));
 			this.nonSortedEntities.add(o1);
 			return 1;
 		} else if (attribute1 != null) {
+			//noinspection ObjectInstantiationInEqualsHashCode
 			this.nonSortedEntities = ofNullable(this.nonSortedEntities)
 				.orElseGet(() -> new CompositeObjectArray<>(EntityContract.class));
 			this.nonSortedEntities.add(o2);
 			return -1;
 		} else {
+			//noinspection ObjectInstantiationInEqualsHashCode
 			this.nonSortedEntities = ofNullable(this.nonSortedEntities)
 				.orElseGet(() -> new CompositeObjectArray<>(EntityContract.class));
 			this.nonSortedEntities.add(o1);

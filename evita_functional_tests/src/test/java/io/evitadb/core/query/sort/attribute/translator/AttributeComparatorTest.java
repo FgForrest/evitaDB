@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -39,13 +39,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 class AttributeComparatorTest {
 	public static final String ATTRIBUTE_NAME = "test";
-	@SuppressWarnings({"unchecked", "rawtypes"})
 	private final AttributeComparator comparator = new AttributeComparator(
-		ATTRIBUTE_NAME, Integer.class, null, EntityAttributeExtractor.INSTANCE, OrderDirection.ASC
+		ATTRIBUTE_NAME, Integer.class, null, OrderDirection.ASC
 	);
-	@SuppressWarnings({"unchecked", "rawtypes"})
 	private final AttributeComparator reverseComparator = new AttributeComparator(
-		ATTRIBUTE_NAME, Integer.class, null, EntityAttributeExtractor.INSTANCE, OrderDirection.DESC
+		ATTRIBUTE_NAME, Integer.class, null, OrderDirection.DESC
 	);
 
 	@Test

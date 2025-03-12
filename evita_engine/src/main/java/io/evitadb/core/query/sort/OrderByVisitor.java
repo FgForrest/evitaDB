@@ -28,10 +28,9 @@ import io.evitadb.api.query.ConstraintContainer;
 import io.evitadb.api.query.ConstraintLeaf;
 import io.evitadb.api.query.ConstraintVisitor;
 import io.evitadb.api.query.OrderConstraint;
-import io.evitadb.api.query.order.Random;
 import io.evitadb.api.query.order.*;
+import io.evitadb.api.query.order.Random;
 import io.evitadb.api.query.require.DebugMode;
-import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -44,11 +43,9 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
-import io.evitadb.core.query.sort.attribute.translator.AttributeExtractor;
 import io.evitadb.core.query.sort.attribute.translator.AttributeNaturalTranslator;
 import io.evitadb.core.query.sort.attribute.translator.AttributeSetExactTranslator;
 import io.evitadb.core.query.sort.attribute.translator.AttributeSetInFilterTranslator;
-import io.evitadb.core.query.sort.attribute.translator.EntityAttributeExtractor;
 import io.evitadb.core.query.sort.attribute.translator.ReferencePropertyTranslator;
 import io.evitadb.core.query.sort.price.translator.PriceDiscountTranslator;
 import io.evitadb.core.query.sort.price.translator.PriceNaturalTranslator;
@@ -170,7 +167,6 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 				null,
 				null,
 				attributeSchemaAccessor,
-				EntityAttributeExtractor.INSTANCE,
 				new ArrayDeque<>(16)
 			)
 		);
@@ -230,7 +226,6 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 					currentScope.referenceSchema(),
 					currentScope.locale(),
 					currentScope.attributeSchemaAccessor(),
-					currentScope.attributeEntityAccessor(),
 					new ArrayDeque<>(16)
 				)
 			);
@@ -249,7 +244,6 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 		@Nullable String entityType,
 		@Nullable Locale locale,
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
-		@Nonnull AttributeExtractor attributeSchemaEntityAccessor,
 		@Nonnull Supplier<T> lambda
 	) {
 		try {
@@ -264,7 +258,6 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 					null,
 					locale,
 					attributeSchemaAccessor,
-					attributeSchemaEntityAccessor,
 					processingScope.sorters()
 				)
 			);
@@ -282,7 +275,6 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nullable Locale locale,
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
-		@Nonnull AttributeExtractor attributeSchemaEntityAccessor,
 		@Nonnull Supplier<T> lambda
 	) {
 		try {
@@ -297,7 +289,6 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 					referenceSchema,
 					locale,
 					attributeSchemaAccessor,
-					attributeSchemaEntityAccessor,
 					processingScope.sorters()
 				)
 			);
@@ -384,7 +375,6 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	 * @param referenceSchema         contains reference schema the scope relates to
 	 * @param locale                  contains locale the context refers to
 	 * @param attributeSchemaAccessor consumer verifies prerequisites in attribute schema via {@link AttributeSchemaContract}
-	 * @param attributeEntityAccessor function provides access to the attribute content via {@link EntityContract}
 	 * @param sorters                 contains the stack of sorters that are being composed on particular level of the query
 	 */
 	public record ProcessingScope(
@@ -394,7 +384,6 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nullable Locale locale,
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
-		@Nonnull AttributeExtractor attributeEntityAccessor,
 		@Nonnull Deque<Sorter> sorters
 	) {
 
