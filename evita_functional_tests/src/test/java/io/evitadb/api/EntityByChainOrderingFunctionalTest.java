@@ -103,7 +103,7 @@ public class EntityByChainOrderingFunctionalTest {
 	private static final String REFERENCE_BRAND_PRODUCTS = "products";
 	private static final String CHAINED_ELEMENTS = "chained-elements";
 	private static final String CHAINED_ELEMENTS_MINIMAL = "chained-elements-minimal";
-	private static final String ATTRIBUTE_CATEGORY_MARKET = "market";
+	private static final String ATTRIBUTE_MARKET = "market";
 	private static final String ATTRIBUTE_INCEPTION_YEAR = "inceptionYear";
 	private static final String ATTRIBUTE_MARKET_INCEPTION_YEAR = "marketInceptionYear";
 	private static final int SEED = 40;
@@ -169,8 +169,8 @@ public class EntityByChainOrderingFunctionalTest {
 	private static int compareMarketInceptionYear(@Nonnull SealedEntity o1, @Nonnull SealedEntity o2, int categoryId) {
 		final ReferenceContract o1Ref = o1.getReference(Entities.CATEGORY, categoryId).orElseThrow();
 		final ReferenceContract o2Ref = o2.getReference(Entities.CATEGORY, categoryId).orElseThrow();
-		final String o1Market = o1Ref.getAttribute(ATTRIBUTE_CATEGORY_MARKET);
-		final String o2Market = o2Ref.getAttribute(ATTRIBUTE_CATEGORY_MARKET);
+		final String o1Market = o1Ref.getAttribute(ATTRIBUTE_MARKET);
+		final String o2Market = o2Ref.getAttribute(ATTRIBUTE_MARKET);
 		if (Objects.equals(o1Market, o2Market)) {
 			final Integer o1Year = o1Ref.getAttribute(ATTRIBUTE_INCEPTION_YEAR);
 			final Integer o2Year = o2Ref.getAttribute(ATTRIBUTE_INCEPTION_YEAR);
@@ -459,11 +459,11 @@ public class EntityByChainOrderingFunctionalTest {
 							Cardinality.EXACTLY_ONE,
 							whichIs -> whichIs.indexed()
 								.withAttribute(ATTRIBUTE_CATEGORY_ORDER, Predecessor.class, AttributeSchemaEditor::sortable)
-								.withAttribute(ATTRIBUTE_CATEGORY_MARKET, String.class, thatIs -> thatIs.nullable().sortable())
+								.withAttribute(ATTRIBUTE_MARKET, String.class, thatIs -> thatIs.nullable().sortable())
 								.withAttribute(ATTRIBUTE_INCEPTION_YEAR, Integer.class, thatIs -> thatIs.nullable().sortable())
 								.withSortableAttributeCompound(
 									ATTRIBUTE_MARKET_INCEPTION_YEAR,
-									new AttributeElement(ATTRIBUTE_CATEGORY_MARKET, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
+									new AttributeElement(ATTRIBUTE_MARKET, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
 									new AttributeElement(ATTRIBUTE_INCEPTION_YEAR, OrderDirection.DESC, OrderBehaviour.NULLS_LAST)
 								)
 						)
@@ -476,6 +476,13 @@ public class EntityByChainOrderingFunctionalTest {
 								.indexed()
 								.faceted()
 								.withAttribute(ATTRIBUTE_BRAND_ORDER, Predecessor.class, AttributeSchemaEditor::sortable)
+								.withAttribute(ATTRIBUTE_MARKET, String.class, thatIs -> thatIs.nullable().sortable())
+								.withAttribute(ATTRIBUTE_INCEPTION_YEAR, Integer.class, thatIs -> thatIs.nullable().sortable())
+								.withSortableAttributeCompound(
+									ATTRIBUTE_MARKET_INCEPTION_YEAR,
+									new AttributeElement(ATTRIBUTE_MARKET, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
+									new AttributeElement(ATTRIBUTE_INCEPTION_YEAR, OrderDirection.DESC, OrderBehaviour.NULLS_LAST)
+								)
 						);
 					// we need only category + brand references in this test
 					for (String referenceName : schemaBuilder.getReferences().keySet()) {
