@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -75,14 +75,10 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 	private static EntityIndex[] selectFullEntityIndexSet(
 		@Nonnull OrderByVisitor orderByVisitor,
 		@Nonnull String referenceName,
-		@Nonnull ReferenceSchemaContract referenceSchema,
-		boolean referencedEntityHierarchical
+		@Nonnull Comparator<EntityIndex> indexComparator
 	) {
 		final EntityIndexKey entityIndexKey = new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, referenceName);
 		final Optional<Index<EntityIndexKey>> referencedEntityTypeIndex = orderByVisitor.getIndex(entityIndexKey);
-
-		final Comparator<EntityIndex> indexComparator = referencedEntityHierarchical ?
-			getHierarchyComparator(orderByVisitor, referenceSchema) : DEFAULT_COMPARATOR;
 
 		return referencedEntityTypeIndex.map(
 				it -> ((ReferencedTypeEntityIndex) it).getAllPrimaryKeys()
@@ -120,6 +116,73 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 		@Nonnull OrderByVisitor orderByVisitor,
 		@Nonnull ReferenceSchemaContract referenceSchema
 	) {
+		/* TODO JNO - tady se asi nekoná to procházení do hloubky, co je dokumentované */
+		final Set<Scope> allowedScopes = orderByVisitor.getProcessingScope().getScopes();
+		Comparator<EntityIndex> comparator = null;
+		for (Scope scope : Scope.values()) {
+			if (allowedScopes.contains(scope)) {
+				final Optional<GlobalEntityIndex> globalEntityIndex = orderByVisitor.getGlobalEntityIndexIfExists(referenceSchema.getReferencedEntityType(), scope);
+				if (globalEntityIndex.isPresent()) {
+					comparator = comparator == null ?
+						ReferencePropertyTranslator.getHierarchyComparator(globalEntityIndex.get()) :
+						comparator.thenComparing(ReferencePropertyTranslator.getHierarchyComparator(globalEntityIndex.get()));
+				}
+			}
+		}
+		return comparator == null ? DEFAULT_COMPARATOR : comparator;
+	}
+
+	/**
+	 * This method generates a hierarchy-aware comparator for entity indices based on the provided
+	 * {@link OrderByVisitor} and {@link ReferenceSchemaContract}. It iterates through the scopes
+	 * provided by the OrderByVisitor and retrieves corresponding global entity indices to build
+	 * a comparator that sorts entity indices according to their hierarchical relationships.
+	 *
+	 * @param orderByVisitor  The visitor containing the order by constraints and scopes used to retrieve
+	 *                        global entity indices.
+	 * @param referenceSchema The schema contract defining the referenced entity types and relationships.
+	 * @return A {@link Comparator} for {@link EntityIndex} objects that sorts them based on hierarchical
+	 * relationships, or a default comparator if no hierarchical relationships are found.
+	 */
+	private static Comparator<EntityIndex> getNonHierarchyComparator(
+		@Nonnull OrderByVisitor orderByVisitor,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull OrderConstraint[] traverseByEntityProperty
+	) {
+		/* TODO JNO - implementovat odlišné traverzování */
+		final Set<Scope> allowedScopes = orderByVisitor.getProcessingScope().getScopes();
+		Comparator<EntityIndex> comparator = null;
+		for (Scope scope : Scope.values()) {
+			if (allowedScopes.contains(scope)) {
+				final Optional<GlobalEntityIndex> globalEntityIndex = orderByVisitor.getGlobalEntityIndexIfExists(referenceSchema.getReferencedEntityType(), scope);
+				if (globalEntityIndex.isPresent()) {
+					comparator = comparator == null ?
+						ReferencePropertyTranslator.getHierarchyComparator(globalEntityIndex.get()) :
+						comparator.thenComparing(ReferencePropertyTranslator.getHierarchyComparator(globalEntityIndex.get()));
+				}
+			}
+		}
+		return comparator == null ? DEFAULT_COMPARATOR : comparator;
+	}
+
+	/**
+	 * This method generates a hierarchy-aware comparator for entity indices based on the provided
+	 * {@link OrderByVisitor} and {@link ReferenceSchemaContract}. It iterates through the scopes
+	 * provided by the OrderByVisitor and retrieves corresponding global entity indices to build
+	 * a comparator that sorts entity indices according to their hierarchical relationships.
+	 *
+	 * @param orderByVisitor  The visitor containing the order by constraints and scopes used to retrieve
+	 *                        global entity indices.
+	 * @param referenceSchema The schema contract defining the referenced entity types and relationships.
+	 * @return A {@link Comparator} for {@link EntityIndex} objects that sorts them based on hierarchical
+	 * relationships, or a default comparator if no hierarchical relationships are found.
+	 */
+	private static Comparator<EntityIndex> getHierarchyComparator(
+		@Nonnull OrderByVisitor orderByVisitor,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull OrderConstraint[] traverseByEntityProperty
+	) {
+		/* TODO JNO - implementovat odlišné traverzování */
 		final Set<Scope> allowedScopes = orderByVisitor.getProcessingScope().getScopes();
 		Comparator<EntityIndex> comparator = null;
 		for (Scope scope : Scope.values()) {
@@ -138,17 +201,14 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 	/**
 	 * Method locates all {@link EntityIndex} from the resolved list of {@link TargetIndexes} which were identified
 	 * by the {@link IndexSelectionVisitor}. The list is expected to be much smaller than the full list computed
-	 * in {@link #selectFullEntityIndexSet(OrderByVisitor, String, ReferenceSchemaContract, boolean)}.
+	 * in {@link #selectFullEntityIndexSet(OrderByVisitor, String, Comparator)}.
 	 */
 	@Nonnull
 	private static EntityIndex[] selectReducedEntityIndexSet(
 		@Nonnull OrderByVisitor orderByVisitor,
 		@Nonnull String referenceName,
-		@Nonnull ReferenceSchemaContract referenceSchema,
-		boolean referencedEntityHierarchical
+		@Nonnull Comparator<EntityIndex> indexComparator
 	) {
-		final Comparator<EntityIndex> indexComparator = referencedEntityHierarchical ?
-			getHierarchyComparator(orderByVisitor, referenceSchema) : DEFAULT_COMPARATOR;
 
 		return orderByVisitor.getTargetIndexes()
 			.stream()
@@ -179,8 +239,8 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 
 	@Nonnull
 	@Override
-	public Stream<Sorter> createSorter(@Nonnull ReferenceProperty orderConstraint, @Nonnull OrderByVisitor orderByVisitor) {
-		final String referenceName = orderConstraint.getReferenceName();
+	public Stream<Sorter> createSorter(@Nonnull ReferenceProperty referenceProperty, @Nonnull OrderByVisitor orderByVisitor) {
+		final String referenceName = referenceProperty.getReferenceName();
 		final EntitySchemaContract entitySchema = orderByVisitor.getSchema();
 		final ReferenceSchemaContract referenceSchema = entitySchema.getReferenceOrThrowException(referenceName);
 		final ProcessingScope processingScope = orderByVisitor.getProcessingScope();
@@ -192,9 +252,13 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 		final boolean referencedEntityHierarchical = referenceSchema.isReferencedEntityTypeManaged() &&
 			orderByVisitor.getSchema(referenceSchema.getReferencedEntityType()).isWithHierarchy();
 
-		final EntityIndex[] reducedEntityIndexSet = selectReducedEntityIndexSet(orderByVisitor, referenceName, referenceSchema, referencedEntityHierarchical);
+		final Comparator<EntityIndex> indexComparator = referenceProperty.getTraverseByEntityProperty()
+			.map(tbep -> referencedEntityHierarchical ? getHierarchyComparator(orderByVisitor, referenceSchema, tbep.getChildren()) : getNonHierarchyComparator(orderByVisitor, referenceSchema, tbep.getChildren()))
+			.orElseGet(() -> referencedEntityHierarchical ? getHierarchyComparator(orderByVisitor, referenceSchema) : DEFAULT_COMPARATOR);
+
+		final EntityIndex[] reducedEntityIndexSet = selectReducedEntityIndexSet(orderByVisitor, referenceName, indexComparator);
 		final EntityIndex[] referenceIndexes = ArrayUtils.isEmpty(reducedEntityIndexSet) ?
-			selectFullEntityIndexSet(orderByVisitor, referenceName, referenceSchema, referencedEntityHierarchical) :
+			selectFullEntityIndexSet(orderByVisitor, referenceName, indexComparator) :
 			reducedEntityIndexSet;
 
 		orderByVisitor.executeInContext(
@@ -204,7 +268,7 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 			processingScope.withReferenceSchemaAccessor(referenceName),
 			new EntityReferenceAttributeExtractor(referenceName),
 			() -> {
-				for (OrderConstraint innerConstraint : orderConstraint.getChildren()) {
+				for (OrderConstraint innerConstraint : referenceProperty.getOrderConstraints()) {
 					// explicit support for `entityProperty(entityPrimaryKeyNatural())` - other variants
 					// of `entityProperty` doesn't make sense in this context
 					if (innerConstraint instanceof EntityProperty entityProperty) {

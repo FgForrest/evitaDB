@@ -27,7 +27,9 @@ import io.evitadb.api.query.order.AttributeNatural;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.structure.ReferenceComparator;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
@@ -82,6 +84,9 @@ public class AttributeNaturalTranslator
 		final Supplier<SortedRecordsProvider[]> sortedRecordsSupplier;
 		final EntityIndex[] indexesForSort = orderByVisitor.getIndexesForSort();
 		final NamedSchemaContract attributeOrCompoundSchema = processingScope.getAttributeSchemaOrSortableAttributeCompound(attributeOrCompoundName);
+		final ReferenceSchemaContract referenceSchema = processingScope.referenceSchema();
+		final EntitySchemaContract referencedEntitySchema = referenceSchema != null && referenceSchema.isReferencedEntityTypeManaged() ?
+			orderByVisitor.getSchema(referenceSchema.getReferencedEntityType()) : null;
 
 		if (attributeOrCompoundSchema instanceof AttributeSchemaContract attributeSchema && attributeSchema.isLocalized()) {
 			Assert.notNull(
@@ -122,8 +127,14 @@ public class AttributeNaturalTranslator
 		if (attributeOrCompoundSchema instanceof AttributeSchemaContract attributeSchema &&
 			(Predecessor.class.equals(attributeSchema.getPlainType()) || ReferencedEntityPredecessor.class.equals(attributeSchema.getPlainType()))) {
 			// we cannot use attribute comparator for predecessor attributes, we always need index here
-			entityComparator = new PredecessorAttributeComparator(sortedRecordsSupplier);
+			entityComparator = new PredecessorAttributeComparator(
+				attributeOrCompoundName,
+				referenceSchema,
+				referencedEntitySchema,
+				sortedRecordsSupplier
+			);
 		} else if (attributeOrCompoundSchema instanceof SortableAttributeCompoundSchemaContract compoundSchemaContract) {
+			/* TODO JNO - přidat úpravy kvůli 1:N referencím */
 			entityComparator = new CompoundAttributeComparator(
 				compoundSchemaContract, locale,
 				attributeName -> processingScope.getAttributeSchema(attributeName, AttributeTrait.SORTABLE),
@@ -131,8 +142,13 @@ public class AttributeNaturalTranslator
 				orderDirection
 			);
 		} else if (attributeOrCompoundSchema instanceof AttributeSchemaContract attributeSchema) {
+			/* TODO JNO - přidat úpravy kvůli 1:N referencím */
 			entityComparator = new AttributeComparator(
-				attributeOrCompoundName, attributeSchema.getPlainType(), locale, attributeSchemaEntityAccessor, orderDirection
+				attributeOrCompoundName,
+				attributeSchema.getPlainType(),
+				locale,
+				attributeSchemaEntityAccessor,
+				orderDirection
 			);
 		} else {
 			throw new GenericEvitaInternalError("Unsupported attribute schema type: " + attributeOrCompoundSchema);
@@ -239,25 +255,25 @@ public class AttributeNaturalTranslator
 		@Override
 		public SortedRecordsProvider[] get() {
 			final SortedRecordsProvider[] sortedRecordsProvider;
-			if (attributeOrCompoundSchema instanceof AttributeSchemaContract attributeSchemaContract &&
+			if (this.attributeOrCompoundSchema instanceof AttributeSchemaContract attributeSchemaContract &&
 				Predecessor.class.equals(attributeSchemaContract.getPlainType())) {
-				sortedRecordsProvider = Arrays.stream(targetIndex)
-					.map(it -> it.getChainIndex(attributeOrCompoundSchema.getName(), locale))
+				sortedRecordsProvider = Arrays.stream(this.targetIndex)
+					.map(it -> it.getChainIndex(this.attributeOrCompoundSchema.getName(), this.locale))
 					.filter(Objects::nonNull)
-					.map(chainIndexExtractor)
+					.map(this.chainIndexExtractor)
 					.toArray(SortedRecordsProvider[]::new);
-			} else if (attributeOrCompoundSchema instanceof AttributeSchemaContract attributeSchemaContract &&
+			} else if (this.attributeOrCompoundSchema instanceof AttributeSchemaContract attributeSchemaContract &&
 				ReferencedEntityPredecessor.class.equals(attributeSchemaContract.getPlainType())) {
-				sortedRecordsProvider = Arrays.stream(targetIndex)
-					.map(it -> it.getChainIndex(attributeOrCompoundSchema.getName(), locale))
+				sortedRecordsProvider = Arrays.stream(this.targetIndex)
+					.map(it -> it.getChainIndex(this.attributeOrCompoundSchema.getName(), this.locale))
 					.filter(Objects::nonNull)
-					.map(chainIndexExtractor)
+					.map(this.chainIndexExtractor)
 					.toArray(SortedRecordsProvider[]::new);
 			} else {
-				sortedRecordsProvider = Arrays.stream(targetIndex)
-					.map(it -> it.getSortIndex(attributeOrCompoundSchema.getName(), locale))
+				sortedRecordsProvider = Arrays.stream(this.targetIndex)
+					.map(it -> it.getSortIndex(this.attributeOrCompoundSchema.getName(), this.locale))
 					.filter(Objects::nonNull)
-					.map(sortIndexExtractor)
+					.map(this.sortIndexExtractor)
 					.toArray(SortedRecordsProvider[]::new);
 			}
 

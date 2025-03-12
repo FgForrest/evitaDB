@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
@@ -71,12 +72,19 @@ public class SortIndexChanges implements Serializable {
 	 * Cached aggregation of "sorted" results in ascending order - computed as plain aggregation or all record ids
 	 * in the histogram from left to right.
 	 */
-	private SortedRecordsSupplier recordIdToPositions;
+	@Nullable private SortedRecordsSupplier recordIdToPositions;
 	/**
 	 * Cached aggregation of "sorted" results in descending order - computed as plain aggregation or all record ids
 	 * in the histogram from right to left.
 	 */
-	private SortedRecordsSupplier recordIdToPositionsReversed;
+	@Nullable private SortedRecordsSupplier recordIdToPositionsReversed;
+
+	/**
+	 * Verifies that value is not present in value index.
+	 */
+	private static void assertNotPresent(boolean present, @Nonnull Comparable<?> value) {
+		Assert.isTrue(present, "Value `" + StringUtils.unknownToString(value) + "` unexpectedly found in value start index!");
+	}
 
 	public SortIndexChanges(@Nonnull SortIndex sortIndex) {
 		this.sortIndex = sortIndex;
@@ -89,12 +97,24 @@ public class SortIndexChanges implements Serializable {
 	@Nonnull
 	public SortedRecordsSupplier getAscendingOrderRecordsSupplier() {
 		return ofNullable(this.recordIdToPositions).orElseGet(() -> {
-			this.recordIdToPositions = new SortedRecordsSupplier(
-				this.sortIndex.sortedRecords.getId(),
-				this.sortIndex.sortedRecords.getArray(),
-				this.sortIndex.sortedRecords.getPositions(),
-				this.sortIndex.sortedRecords.getRecordIds()
-			);
+			this.recordIdToPositions = ofNullable(this.sortIndex.getReferenceKey())
+				.map(
+					referenceKey -> (SortedRecordsSupplier) new ReferenceSortedRecordsSupplier(
+						this.sortIndex.sortedRecords.getId(),
+						this.sortIndex.sortedRecords.getArray(),
+						this.sortIndex.sortedRecords.getPositions(),
+						this.sortIndex.sortedRecords.getRecordIds(),
+						referenceKey
+					)
+				)
+				.orElseGet(
+					() -> new SortedRecordsSupplier(
+						this.sortIndex.sortedRecords.getId(),
+						this.sortIndex.sortedRecords.getArray(),
+						this.sortIndex.sortedRecords.getPositions(),
+						this.sortIndex.sortedRecords.getRecordIds()
+					)
+				);
 			return this.recordIdToPositions;
 		});
 	}
@@ -106,12 +126,24 @@ public class SortIndexChanges implements Serializable {
 	@Nonnull
 	public SortedRecordsSupplier getDescendingOrderRecordsSupplier() {
 		return ofNullable(this.recordIdToPositionsReversed).orElseGet(() -> {
-			this.recordIdToPositionsReversed = new SortedRecordsSupplier(
-				this.sortIndex.getId(),
-				ArrayUtils.reverse(this.sortIndex.sortedRecords.getArray()),
-				invert(this.sortIndex.sortedRecords.getPositions()),
-				this.sortIndex.sortedRecords.getRecordIds()
-			);
+			this.recordIdToPositionsReversed = ofNullable(this.sortIndex.getReferenceKey())
+				.map(
+					referenceKey -> (SortedRecordsSupplier) new ReferenceSortedRecordsSupplier(
+						this.sortIndex.getId(),
+						ArrayUtils.reverse(this.sortIndex.sortedRecords.getArray()),
+						invert(this.sortIndex.sortedRecords.getPositions()),
+						this.sortIndex.sortedRecords.getRecordIds(),
+						referenceKey
+					)
+				)
+				.orElseGet(
+					() -> new SortedRecordsSupplier(
+						this.sortIndex.getId(),
+						ArrayUtils.reverse(this.sortIndex.sortedRecords.getArray()),
+						invert(this.sortIndex.sortedRecords.getPositions()),
+						this.sortIndex.sortedRecords.getRecordIds()
+					)
+				);
 			return this.recordIdToPositionsReversed;
 		});
 	}
@@ -124,10 +156,9 @@ public class SortIndexChanges implements Serializable {
 	public int computePreviousRecord(@Nonnull Comparable<?> value, int recordId, @Nonnull Comparator<?> comparator) {
 		final ValueStartIndex[] valueIndex = getValueIndex(sortIndex.sortedRecordsValues, sortIndex.valueCardinalities);
 		// compute index of the value in the value index
-		@SuppressWarnings({"unchecked", "rawtypes"})
-		final InsertionPosition valueInsertionPosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
+		@SuppressWarnings({"unchecked", "rawtypes"}) final InsertionPosition valueInsertionPosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
 			new ValueStartIndex(value, -1), valueIndex,
-			(o1, o2) -> ((Comparator)comparator).compare(o1.getValue(), o2.getValue())
+			(o1, o2) -> ((Comparator) comparator).compare(o1.getValue(), o2.getValue())
 		);
 		final int position = valueInsertionPosition.position();
 		// if the value is already part of the index
@@ -166,10 +197,9 @@ public class SortIndexChanges implements Serializable {
 		this.recordIdToPositionsReversed = null;
 		final ValueStartIndex[] valueIndex = getValueIndex(sortIndex.sortedRecordsValues, sortIndex.valueCardinalities);
 		// compute the insertion position in value index
-		@SuppressWarnings({"unchecked", "rawtypes"})
-		final InsertionPosition insertionPosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
+		@SuppressWarnings({"unchecked", "rawtypes"}) final InsertionPosition insertionPosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
 			new ValueStartIndex(value, -1), valueIndex,
-			(o1, o2) -> ((Comparator)comparator).compare(o1.getValue(), o2.getValue())
+			(o1, o2) -> ((Comparator) comparator).compare(o1.getValue(), o2.getValue())
 		);
 		assertNotPresent(!insertionPosition.alreadyPresent(), value);
 		// nod place the value in the value index with start position as previous block start + previous value cardinality
@@ -189,10 +219,9 @@ public class SortIndexChanges implements Serializable {
 		this.recordIdToPositionsReversed = null;
 		final ValueStartIndex[] valueIndex = getValueIndex(sortIndex.sortedRecordsValues, sortIndex.valueCardinalities);
 		// find the value in the index
-		@SuppressWarnings({"unchecked", "rawtypes"})
-		final int position = Arrays.binarySearch(
+		@SuppressWarnings({"unchecked", "rawtypes"}) final int position = Arrays.binarySearch(
 			valueIndex, new ValueStartIndex(value, -1),
-			(o1, o2) -> ((Comparator)comparator).compare(o1.getValue(), o2.getValue())
+			(o1, o2) -> ((Comparator) comparator).compare(o1.getValue(), o2.getValue())
 		);
 		assertNotPresent(position >= 0, value);
 		// update this and all values after it - their index should be greater by exactly one inserted record
@@ -218,10 +247,9 @@ public class SortIndexChanges implements Serializable {
 		this.recordIdToPositionsReversed = null;
 		final ValueStartIndex[] valueIndex = getValueIndex(sortIndex.sortedRecordsValues, sortIndex.valueCardinalities);
 		// find the value in the index
-		@SuppressWarnings({"unchecked", "rawtypes"})
-		final int position = Arrays.binarySearch(
+		@SuppressWarnings({"unchecked", "rawtypes"}) final int position = Arrays.binarySearch(
 			valueIndex, new ValueStartIndex(value, -1),
-			(o1, o2) -> ((Comparator)comparator).compare(o1.getValue(), o2.getValue())
+			(o1, o2) -> ((Comparator) comparator).compare(o1.getValue(), o2.getValue())
 		);
 		assertNotPresent(position >= 0, value);
 		// remove it from the value location index
@@ -240,10 +268,9 @@ public class SortIndexChanges implements Serializable {
 		this.recordIdToPositionsReversed = null;
 		final ValueStartIndex[] valueIndex = getValueIndex(sortIndex.sortedRecordsValues, sortIndex.valueCardinalities);
 		// find the value in the index
-		@SuppressWarnings({"unchecked", "rawtypes"})
-		final int position = Arrays.binarySearch(
+		@SuppressWarnings({"unchecked", "rawtypes"}) final int position = Arrays.binarySearch(
 			valueIndex, new ValueStartIndex(value, -1),
-			(o1, o2) -> ((Comparator)comparator).compare(o1.getValue(), o2.getValue())
+			(o1, o2) -> ((Comparator) comparator).compare(o1.getValue(), o2.getValue())
 		);
 		assertNotPresent(position >= 0, value);
 		// update it and all values after it - their index should be lesser by exactly one inserted record
@@ -251,6 +278,10 @@ public class SortIndexChanges implements Serializable {
 			valueIndex[i].decrement();
 		}
 	}
+
+	/*
+		PRIVATE METHODS
+	 */
 
 	/**
 	 * Computes value index if it hasn't exist yet. Result of this method is memoized. Method computes starting index
@@ -278,10 +309,6 @@ public class SortIndexChanges implements Serializable {
 		return this.valueLocationIndex;
 	}
 
-	/*
-		PRIVATE METHODS
-	 */
-
 	/**
 	 * Computes start position for value at specified position in value index. The position is computed from previous
 	 * value start position and previous value cardinality.
@@ -295,13 +322,6 @@ public class SortIndexChanges implements Serializable {
 			final Integer cardinality = ofNullable(this.sortIndex.valueCardinalities.get(previousPosition.getValue())).orElse(1);
 			return previousPositionStart + cardinality;
 		}
-	}
-
-	/**
-	 * Verifies that value is not present in value index.
-	 */
-	private static void assertNotPresent(boolean present, @Nonnull Comparable<?> value) {
-		Assert.isTrue(present, "Value `" + StringUtils.unknownToString(value) + "` unexpectedly found in value start index!");
 	}
 
 	/**
@@ -338,7 +358,12 @@ public class SortIndexChanges implements Serializable {
 		@SuppressWarnings({"rawtypes", "unchecked"})
 		@Override
 		public int compareTo(ValueStartIndex o) {
-			return ((Comparable) value).compareTo(o.value);
+			return ((Comparable) this.value).compareTo(o.value);
+		}
+
+		@Override
+		public int hashCode() {
+			return Objects.hash(this.value);
 		}
 
 		@Override
@@ -346,17 +371,12 @@ public class SortIndexChanges implements Serializable {
 			if (this == o) return true;
 			if (o == null || getClass() != o.getClass()) return false;
 			ValueStartIndex that = (ValueStartIndex) o;
-			return value.equals(that.value);
-		}
-
-		@Override
-		public int hashCode() {
-			return Objects.hash(value);
+			return this.value.equals(that.value);
 		}
 
 		@Override
 		public String toString() {
-			return value + ", " + index + '+';
+			return this.value + ", " + this.index + '+';
 		}
 
 	}

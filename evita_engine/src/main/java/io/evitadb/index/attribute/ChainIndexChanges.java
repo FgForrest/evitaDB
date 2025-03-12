@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.ArrayUtils;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
@@ -55,20 +56,20 @@ public class ChainIndexChanges implements Serializable {
 	 * Cached aggregation of "chained" results in ascending order - computed as plain aggregation or all record ids
 	 * in the histogram from left to right.
 	 */
-	private SortedRecordsSupplier recordIdToPositions;
+	@Nullable private SortedRecordsSupplier recordIdToPositions;
 	/**
 	 * Cached aggregation of "chained" results in descending order - computed as plain aggregation or all record ids
 	 * in the histogram from right to left.
 	 */
-	private SortedRecordsSupplier recordIdToPositionsReversed;
+	@Nullable private SortedRecordsSupplier recordIdToPositionsReversed;
 	/**
 	 * Cached {@link UnorderedLookup} that contains all data related to sort along this index.
 	 */
-	private UnorderedLookup unorderedLookup;
+	@Nullable private UnorderedLookup unorderedLookup;
 	/**
 	 * Cached {@link Bitmap} that contains all record ids in ascending order.
 	 */
-	private Bitmap recordIds;
+	@Nullable private Bitmap recordIds;
 
 	public ChainIndexChanges(@Nonnull ChainIndex chainIndex) {
 		this.chainIndex = chainIndex;
@@ -95,12 +96,24 @@ public class ChainIndexChanges implements Serializable {
 				.orElseGet(this.chainIndex::getUnorderedLookup);
 			final Bitmap recordIds = ofNullable(this.recordIds)
 				.orElseGet(() -> new BaseBitmap(unorderedLookup.getRecordIds()));
-			this.recordIdToPositions = new SortedRecordsSupplier(
-				this.chainIndex.elementStates.getId(),
-				unorderedLookup.getArray(),
-				unorderedLookup.getPositions(),
-				recordIds
-			);
+			this.recordIdToPositions = ofNullable(this.chainIndex.getReferenceKey())
+				.map(
+					referenceKey -> (SortedRecordsSupplier) new ReferenceSortedRecordsSupplier(
+						this.chainIndex.elementStates.getId(),
+						unorderedLookup.getArray(),
+						unorderedLookup.getPositions(),
+						recordIds,
+						referenceKey
+					)
+				)
+				.orElseGet(
+					() -> new SortedRecordsSupplier(
+						this.chainIndex.elementStates.getId(),
+						unorderedLookup.getArray(),
+						unorderedLookup.getPositions(),
+						recordIds
+					)
+				);
 			return this.recordIdToPositions;
 		});
 	}
@@ -116,12 +129,24 @@ public class ChainIndexChanges implements Serializable {
 				.orElseGet(this.chainIndex::getUnorderedLookup);
 			final Bitmap recordIds = ofNullable(this.recordIds)
 				.orElseGet(() -> new BaseBitmap(unorderedLookup.getRecordIds()));
-			this.recordIdToPositionsReversed = new SortedRecordsSupplier(
-				this.chainIndex.getId(),
-				ArrayUtils.reverse(unorderedLookup.getArray()),
-				invert(unorderedLookup.getPositions()),
-				recordIds
-			);
+			this.recordIdToPositionsReversed = ofNullable(this.chainIndex.getReferenceKey())
+				.map(
+					referenceKey -> (SortedRecordsSupplier) new ReferenceSortedRecordsSupplier(
+						this.chainIndex.getId(),
+						ArrayUtils.reverse(unorderedLookup.getArray()),
+						invert(unorderedLookup.getPositions()),
+						recordIds,
+						referenceKey
+					)
+				)
+				.orElseGet(
+					() -> new SortedRecordsSupplier(
+						this.chainIndex.getId(),
+						ArrayUtils.reverse(unorderedLookup.getArray()),
+						invert(unorderedLookup.getPositions()),
+						recordIds
+					)
+				);
 			return this.recordIdToPositionsReversed;
 		});
 	}

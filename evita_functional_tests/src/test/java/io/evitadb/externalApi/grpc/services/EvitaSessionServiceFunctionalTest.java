@@ -44,6 +44,7 @@ import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedData
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
+import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -2338,11 +2339,14 @@ class EvitaSessionServiceFunctionalTest {
 
 		final int removeReferenceId = 6;
 		final SealedEntity existingEntity = entities.stream().filter(entity ->
-				entity.getReferences().stream().filter(reference ->
-					reference.getReferenceName().equals(referenceEntityType) &&
-						(reference.getReferencedPrimaryKey() != referencePrimaryKey ||
-							reference.getReferencedPrimaryKey() == removeReferenceId)
-				).count() == 2
+				{
+					final Collection<ReferenceContract> references = entity.getReferences();
+					return references.stream().filter(reference ->
+						reference.getReferenceName().equals(referenceEntityType) &&
+							(reference.getReferencedPrimaryKey() != referencePrimaryKey ||
+								reference.getReferencedPrimaryKey() == removeReferenceId)
+					).count() == 2 && references.size() == 3;
+				}
 			).findFirst()
 			.orElseThrow(() -> new IllegalArgumentException("Suitable reference not found!"));
 

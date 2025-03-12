@@ -71,11 +71,10 @@ public class ReadinessEvent extends AbstractExternalApiEvent {
 	/**
 	 * The result of the readiness probe.
 	 */
-	@Label("Result")
-	@Name("result")
+	@Label("Probe result")
 	@Description("The result of the readiness probe (ok, timeout, error).")
 	@ExportMetricLabel
-	String result;
+	String probeResult;
 
 	public ReadinessEvent(@Nonnull String api, @Nonnull Prospective prospective) {
 		this.api = api;
@@ -89,7 +88,7 @@ public class ReadinessEvent extends AbstractExternalApiEvent {
 	 * @param result The result of the readiness probe, which can be either READY, TIMEOUT, or ERROR.
 	 */
 	public void finish(@Nonnull Result result) {
-		this.result = result.name();
+		this.probeResult = result.name();
 		super.end();
 		this.commit();
 	}

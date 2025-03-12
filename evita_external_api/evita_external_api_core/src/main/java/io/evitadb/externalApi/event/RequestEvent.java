@@ -56,7 +56,7 @@ public class RequestEvent extends AbstractExternalApiEvent {
 	@Label("Request result")
 	@Description("Simplified result of the request (success, error, cancelled).")
 	@ExportMetricLabel
-	final String result;
+	final String requestResult;
 
 	/**
 	 * The name of the catalog the transaction relates to.
@@ -67,9 +67,9 @@ public class RequestEvent extends AbstractExternalApiEvent {
 	@ExportMetricLabel
 	final String api;
 
-	public RequestEvent(@Nonnull String api, @Nonnull Result result, int httpStatusCode) {
+	public RequestEvent(@Nonnull String api, @Nonnull Result requestResult, int httpStatusCode) {
 		this.httpStatusCode = String.valueOf(httpStatusCode);
-		this.result = result.name();
+		this.requestResult = requestResult.name();
 		this.api = api;
 	}
 

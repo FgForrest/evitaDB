@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ package io.evitadb.index.attribute;
 
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.comparator.LocalizedStringComparator;
@@ -39,7 +40,9 @@ import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.dataType.ComparableCurrency;
 import io.evitadb.dataType.ComparableLocale;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.IndexDataStructure;
+import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.array.TransactionalObjArray;
 import io.evitadb.index.array.TransactionalUnorderedIntArray;
 import io.evitadb.index.attribute.SortIndexChanges.ValueStartIndex;
@@ -112,6 +115,11 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	 */
 	@Nonnull final ComparatorSource[] comparatorBase;
 	/**
+	 * Reference key (discriminator) of the {@link ReducedEntityIndex} this index belongs to. Or null if this index
+	 * is part of the global {@link GlobalEntityIndex}.
+	 */
+	@Getter @Nullable private final ReferenceKey referenceKey;
+	/**
 	 * Contains key identifying the attribute.
 	 */
 	@Getter private final AttributeKey attributeKey;
@@ -137,7 +145,7 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	 * Temporary data structure that should be NULL and should exist only when {@link Catalog} is in
 	 * bulk insertion or read only state where transaction are not used.
 	 */
-	private SortIndexChanges sortIndexChanges;
+	@Nullable private SortIndexChanges sortIndexChanges;
 
 	/**
 	 * Method creates a comparator that compares {@link ComparableArray} respecting the comparator base requirements
@@ -267,6 +275,15 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 		@Nonnull Class<?> attributeType,
 		@Nonnull AttributeKey attributeKey
 	) {
+		this(attributeType, null, attributeKey);
+	}
+
+	@SuppressWarnings("unchecked")
+	public <T extends Comparable<T>> SortIndex(
+		@Nonnull Class<?> attributeType,
+		@Nullable ReferenceKey referenceKey,
+		@Nonnull AttributeKey attributeKey
+	) {
 		final Class<?> normalizedAttributeType = assertComparable(attributeType);
 		this.dirty = new TransactionalBoolean();
 		this.comparatorBase = new ComparatorSource[]{
@@ -276,6 +293,7 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 				OrderBehaviour.NULLS_LAST
 			)
 		};
+		this.referenceKey = referenceKey;
 		this.attributeKey = attributeKey;
 		this.normalizer = createNormalizerFor(this.comparatorBase[0]).orElseGet(UnaryOperator::identity);
 		this.comparator = createComparatorFor(this.attributeKey.locale(), this.comparatorBase[0]);
@@ -290,12 +308,22 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 		@Nonnull ComparatorSource[] comparatorSources,
 		@Nonnull AttributeKey attributeKey
 	) {
+		this(comparatorSources, null, attributeKey);
+	}
+
+	@SuppressWarnings("unchecked")
+	public SortIndex(
+		@Nonnull ComparatorSource[] comparatorSources,
+		@Nullable ReferenceKey referenceKey,
+		@Nonnull AttributeKey attributeKey
+	) {
 		isTrue(
 			comparatorSources.length > 1,
 			"At least two comparators are required to create a SortIndex by this constructor!"
 		);
 		this.dirty = new TransactionalBoolean();
 		this.comparatorBase = comparatorSources;
+		this.referenceKey = referenceKey;
 		this.attributeKey = attributeKey;
 		this.normalizer = createNormalizerFor(this.comparatorBase);
 		this.comparator = createCombinedComparatorFor(this.attributeKey.locale(), this.comparatorBase);
@@ -308,6 +336,7 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	@SuppressWarnings({"unchecked", "rawtypes"})
 	public SortIndex(
 		@Nonnull ComparatorSource[] comparatorBase,
+		@Nullable ReferenceKey referenceKey,
 		@Nonnull AttributeKey attributeKey,
 		@Nonnull int[] sortedRecords,
 		@Nonnull Comparable<?>[] sortedRecordValues,
@@ -318,6 +347,7 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 		for (ComparatorSource comparatorSource : comparatorBase) {
 			assertComparable(comparatorSource.type());
 		}
+		this.referenceKey = referenceKey;
 		this.attributeKey = attributeKey;
 		if (this.comparatorBase.length == 1) {
 			this.normalizer = createNormalizerFor(this.comparatorBase[0]).orElseGet(UnaryOperator::identity);
@@ -519,6 +549,7 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 		if (isDirty) {
 			return new SortIndex(
 				this.comparatorBase,
+				this.referenceKey,
 				this.attributeKey,
 				transactionalLayer.getStateCopyWithCommittedChanges(this.sortedRecords),
 				transactionalLayer.getStateCopyWithCommittedChanges(this.sortedRecordsValues),

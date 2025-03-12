@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.sort;
 
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.utils.ArrayUtils;
@@ -63,16 +64,19 @@ public interface SortedRecordsSupplierFactory {
 				return 0;
 			}
 
+			@Nonnull
 			@Override
 			public Bitmap getAllRecords() {
 				return EmptyBitmap.INSTANCE;
 			}
 
+			@Nonnull
 			@Override
 			public int[] getRecordPositions() {
 				return ArrayUtils.EMPTY_INT_ARRAY;
 			}
 
+			@Nonnull
 			@Override
 			public int[] getSortedRecordIds() {
 				return ArrayUtils.EMPTY_INT_ARRAY;
@@ -88,19 +92,39 @@ public interface SortedRecordsSupplierFactory {
 		 * Returns bitmap of all record ids present in the sort supplier in distinct ascending order.
 		 * Example: 1, 3, 4, 6, 8, 12
 		 */
+		@Nonnull
 		Bitmap getAllRecords();
 
 		/**
 		 * Contains index of record from {@link #getAllRecords()} in {@link #getSortedRecordIds()} array.
 		 * Example: 1, 4, 5, 0, 3, 2
 		 */
+		@Nonnull
 		int[] getRecordPositions();
 
 		/**
 		 * Returns array of records in "sorted" order - i.e. order that conforms to the referring {@link Comparable} order.
 		 * Example: 6, 1, 12, 8, 3, 4
 		 */
+		@Nonnull
 		int[] getSortedRecordIds();
+
+	}
+
+	/**
+	 * Provides access to sorted records array and {@link ReferenceKey} discriminator of the index producing the sorted
+	 * records.
+	 */
+	interface ReferenceSortedRecordsProvider extends SortedRecordsProvider {
+
+		/**
+		 * Retrieves the {@link ReferenceKey}, which uniquely identifies the reference schema and the corresponding
+		 * entity or external resource associated with it.
+		 *
+		 * @return the unique {@link ReferenceKey} identifier for the reference schema and entity or resource.
+		 */
+		@Nonnull
+		ReferenceKey getReferenceKey();
 
 	}
 

@@ -24,6 +24,7 @@
 package io.evitadb.index.attribute;
 
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.Transaction;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory;
@@ -34,7 +35,9 @@ import io.evitadb.dataType.ChainableType;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.IndexDataStructure;
+import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.array.TransactionalUnorderedIntArray;
 import io.evitadb.index.array.UnorderedLookup;
 import io.evitadb.index.bool.TransactionalBoolean;
@@ -53,6 +56,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.PrimitiveIterator.OfInt;
@@ -86,7 +90,8 @@ public class ChainIndex implements
 	ConsistencySensitiveDataStructure,
 	SortedRecordsSupplierFactory,
 	TransactionalLayerProducer<ChainIndexChanges, ChainIndex>,
-	Serializable {
+	Serializable
+{
 	@Serial private static final long serialVersionUID = 6633952268102524794L;
 	/**
 	 * Index contains tuples of entity primary key and its predecessor primary key. The conflicting primary key is
@@ -111,6 +116,11 @@ public class ChainIndex implements
 	 */
 	@Nonnull private final TransactionalBoolean dirty;
 	/**
+	 * Reference key (discriminator) of the {@link ReducedEntityIndex} this index belongs to. Or null if this index
+	 * is part of the global {@link GlobalEntityIndex}.
+	 */
+	@Getter @Nullable private final ReferenceKey referenceKey;
+	/**
 	 * Contains key identifying the attribute.
 	 */
 	@Getter private final AttributeKey attributeKey;
@@ -118,9 +128,14 @@ public class ChainIndex implements
 	 * Temporary data structure that should be NULL and should exist only when {@link Catalog} is in
 	 * bulk insertion or read only state where transaction are not used.
 	 */
-	private ChainIndexChanges chainIndexChanges;
+	@Nullable private ChainIndexChanges chainIndexChanges;
 
 	public ChainIndex(@Nonnull AttributeKey attributeKey) {
+		this(null, attributeKey);
+	}
+
+	public ChainIndex(@Nullable ReferenceKey referenceKey, @Nonnull AttributeKey attributeKey) {
+		this.referenceKey = referenceKey;
 		this.attributeKey = attributeKey;
 		this.dirty = new TransactionalBoolean();
 		this.chains = new TransactionalMap<>(new HashMap<>(), TransactionalUnorderedIntArray.class, TransactionalUnorderedIntArray::new);
@@ -132,6 +147,16 @@ public class ChainIndex implements
 		@Nonnull int[][] chains,
 		@Nonnull Map<Integer, ChainElementState> elementStates
 	) {
+		this(null, attributeKey, chains, elementStates);
+	}
+
+	public ChainIndex(
+		@Nullable ReferenceKey referenceKey,
+		@Nonnull AttributeKey attributeKey,
+		@Nonnull int[][] chains,
+		@Nonnull Map<Integer, ChainElementState> elementStates
+	) {
+		this.referenceKey = referenceKey;
 		this.attributeKey = attributeKey;
 		this.dirty = new TransactionalBoolean();
 		this.chains = new TransactionalMap<>(
@@ -150,10 +175,12 @@ public class ChainIndex implements
 	}
 
 	private ChainIndex(
+		@Nullable ReferenceKey referenceKey,
 		@Nonnull AttributeKey attributeKey,
 		@Nonnull Map<Integer, TransactionalUnorderedIntArray> chains,
 		@Nonnull Map<Integer, ChainElementState> elementStates
 	) {
+		this.referenceKey = referenceKey;
 		this.attributeKey = attributeKey;
 		this.dirty = new TransactionalBoolean();
 		this.chains = new TransactionalMap<>(chains, TransactionalUnorderedIntArray.class, TransactionalUnorderedIntArray::new);
@@ -308,8 +335,7 @@ public class ChainIndex implements
 					errors.append("\nThe element `")
 						.append(elementId)
 						.append("` is not present in the element states!");
-				}
-				if (i > 0) {
+				} else if (i > 0) {
 					if (state.state() == ElementState.HEAD) {
 						errors.append("\nThe element `")
 							.append(elementId)
@@ -480,7 +506,8 @@ public class ChainIndex implements
 	) {
 		transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
 		return new ChainIndex(
-			attributeKey,
+			this.referenceKey,
+			this.attributeKey,
 			transactionalLayer.getStateCopyWithCommittedChanges(this.chains),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.elementStates)
 		);
@@ -488,7 +515,7 @@ public class ChainIndex implements
 
 	@Override
 	public String toString() {
-		return "ChainIndex:\n" +
+		return "ChainIndex" + (this.referenceKey == null ? "" : " (refKey: " + this.referenceKey + ")") + ":\n" +
 			"   - chains:\n" + chains.values().stream().map(it -> "      - " + it.toString()).collect(Collectors.joining("\n")) + "\n" +
 			"   - elementStates:\n" + elementStates.entrySet().stream().map(it -> "      - " + it.getKey() + ": " + it.getValue()).collect(Collectors.joining("\n"));
 	}
@@ -932,7 +959,10 @@ public class ChainIndex implements
 				// the circular dependency was broken - the chain is now part of another chain
 				this.elementStates.compute(
 					primaryKeyOfHeadState,
-					(k, existingState) -> new ChainElementState(existingState, ElementState.SUCCESSOR)
+					(k, existingState) -> new ChainElementState(
+						Objects.requireNonNull(existingState),
+						ElementState.SUCCESSOR
+					)
 				);
 			}
 		}
@@ -947,7 +977,10 @@ public class ChainIndex implements
 		for (int splitPk : primaryKeys) {
 			this.elementStates.compute(
 				splitPk,
-				(key, movedPkState) -> new ChainElementState(inChainOfHeadWithPrimaryKey, movedPkState)
+				(key, movedPkState) -> new ChainElementState(
+					inChainOfHeadWithPrimaryKey,
+					Objects.requireNonNull(movedPkState)
+				)
 			);
 		}
 	}

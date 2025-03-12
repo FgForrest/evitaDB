@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -35,6 +35,10 @@ import io.evitadb.api.query.descriptor.annotation.Creator;
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * Sorting by reference attribute is not as common as sorting by entity attributes, but it allows you to sort entities
@@ -140,6 +144,33 @@ public class ReferenceProperty extends AbstractOrderConstraintContainer implemen
 	@Nonnull
 	public String getReferenceName() {
 		return (String) getArguments()[0];
+	}
+
+	/**
+	 * Returns the {@link TraverseByEntityProperty} constraint that is used to traverse the reference entities before
+	 * the ordering is applied.
+	 *
+	 * @return the {@link TraverseByEntityProperty} constraint or an empty optional if not present.
+	 */
+	@Nonnull
+	public Optional<TraverseByEntityProperty> getTraverseByEntityProperty() {
+		return Arrays.stream(getChildren())
+			.filter(TraverseByEntityProperty.class::isInstance)
+			.map(TraverseByEntityProperty.class::cast)
+			.findFirst();
+	}
+
+	/**
+	 * Returns the list of {@link OrderConstraint} constraints that are used to order the entities or references
+	 * by the specified reference.
+	 *
+	 * @return the list of {@link OrderConstraint} constraints.
+	 */
+	@Nonnull
+	public List<OrderConstraint> getOrderConstraints() {
+		return Arrays.stream(getChildren())
+			.filter(it -> !(it instanceof TraverseByEntityProperty))
+			.collect(Collectors.toList());
 	}
 
 	@Nonnull
