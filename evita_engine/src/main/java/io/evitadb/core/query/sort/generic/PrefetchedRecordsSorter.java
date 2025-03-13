@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -114,12 +114,12 @@ public class PrefetchedRecordsSorter extends AbstractRecordsSorter implements Co
 			entities.add(queryContext.translateToEntity(id));
 		}
 
-		entityComparator.prepareFor(endIndex - startIndex);
-		entities.sort(entityComparator);
+		this.entityComparator.prepareFor(endIndex - startIndex);
+		entities.sort(this.entityComparator);
 
 		int notFoundRecordsCnt = 0;
 		final RoaringBitmap notFoundRecords = new RoaringBitmap();
-		for (EntityContract entityContract : entityComparator.getNonSortedEntities()) {
+		for (EntityContract entityContract : this.entityComparator.getNonSortedEntities()) {
 			if (notFoundRecords.checkedAdd(queryContext.translateEntity(entityContract))) {
 				notFoundRecordsCnt++;
 			}

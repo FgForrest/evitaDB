@@ -23,6 +23,8 @@
 
 package io.evitadb.core.query.sort.attribute.translator;
 
+import com.carrotsearch.hppc.IntObjectHashMap;
+import com.carrotsearch.hppc.IntObjectMap;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
@@ -30,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.sort.EntityComparator;
+import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
 
@@ -75,6 +78,10 @@ public class ReferenceAttributeComparator implements EntityComparator {
 	 * Internal storage for entities that could not be fully sorted due to missing attributes.
 	 */
 	private CompositeObjectArray<EntityContract> nonSortedEntities;
+	/**
+	 * Cache for storing attribute values of entities to avoid redundant calculations.
+	 */
+	private IntObjectMap<ReferenceAttributeValue> cache;
 
 	public ReferenceAttributeComparator(
 		@Nonnull String attributeName,
@@ -100,19 +107,41 @@ public class ReferenceAttributeComparator implements EntityComparator {
 		final Function<ReferenceContract, Comparable<?>> attributeExtractor = locale == null ?
 			referenceContract -> referenceContract.getAttribute(attributeName) :
 			referenceContract -> referenceContract.getAttribute(attributeName, locale);
-		//noinspection unchecked
-		this.attributeValueFetcher = entityContract -> entityContract.getReferences(referenceName)
-				.stream()
-				.filter(it -> attributeExtractor.apply(it) != null)
-				.map(
-					it -> new ReferenceAttributeValue(
-						it.getReferencedPrimaryKey(),
-						(Comparable<?>) normalizer.apply(it.getAttribute(attributeName)),
-						valueComparator
+
+		this.attributeValueFetcher = entityContract -> {
+			final ReferenceAttributeValue cachedValue = this.cache.get(entityContract.getPrimaryKeyOrThrowException());
+			if (cachedValue == null) {
+				final ReferenceAttributeValue calculatedValue = entityContract.getReferences(referenceName)
+					.stream()
+					.filter(it -> attributeExtractor.apply(it) != null)
+					.map(
+						it -> new ReferenceAttributeValue(
+							it.getReferencedPrimaryKey(),
+							(Comparable<?>) normalizer.apply(it.getAttribute(attributeName)),
+							valueComparator
+						)
 					)
-				)
-				.findFirst()
-				.orElse(null);
+					.findFirst()
+					.orElse(ReferenceAttributeValue.MISSING_VALUE);
+
+				this.cache.put(entityContract.getPrimaryKeyOrThrowException(), calculatedValue);
+				if (calculatedValue == ReferenceAttributeValue.MISSING_VALUE) {
+					this.nonSortedEntities = ofNullable(this.nonSortedEntities)
+						.orElseGet(() -> new CompositeObjectArray<>(EntityContract.class));
+					this.nonSortedEntities.add(entityContract);
+					return null;
+				} else {
+					return calculatedValue;
+				}
+			} else {
+				return cachedValue == ReferenceAttributeValue.MISSING_VALUE ? null : cachedValue;
+			}
+		};
+	}
+
+	@Override
+	public void prepareFor(int entityCount) {
+		this.cache = new IntObjectHashMap<>(entityCount);
 	}
 
 	@Nonnull
@@ -134,23 +163,10 @@ public class ReferenceAttributeComparator implements EntityComparator {
 				return result;
 			}
 		} else if (attribute1 == null && attribute2 != null) {
-			//noinspection ObjectInstantiationInEqualsHashCode
-			this.nonSortedEntities = ofNullable(this.nonSortedEntities)
-				.orElseGet(() -> new CompositeObjectArray<>(EntityContract.class));
-			this.nonSortedEntities.add(o1);
 			return 1;
 		} else if (attribute1 != null) {
-			//noinspection ObjectInstantiationInEqualsHashCode
-			this.nonSortedEntities = ofNullable(this.nonSortedEntities)
-				.orElseGet(() -> new CompositeObjectArray<>(EntityContract.class));
-			this.nonSortedEntities.add(o2);
 			return -1;
 		} else {
-			//noinspection ObjectInstantiationInEqualsHashCode
-			this.nonSortedEntities = ofNullable(this.nonSortedEntities)
-				.orElseGet(() -> new CompositeObjectArray<>(EntityContract.class));
-			this.nonSortedEntities.add(o1);
-			this.nonSortedEntities.add(o2);
 			return 0;
 		}
 	}
@@ -164,19 +180,22 @@ public class ReferenceAttributeComparator implements EntityComparator {
 	 * The {@code attributeValue} represents a comparable value associated with the reference key for the purposes
 	 * of comparison and sorting.
 	 */
+	@SuppressWarnings("rawtypes")
 	private record ReferenceAttributeValue(
 		int referencedEntityPrimaryKey,
 		@Nonnull Comparable<?> attributeValue,
-		@Nonnull Comparator<Comparable<?>> comparator
+		@Nonnull Comparator comparator
 	) implements Comparable<ReferenceAttributeValue> {
+		public static final ReferenceAttributeValue MISSING_VALUE = new ReferenceAttributeValue(-1, ClassifierType.ENTITY, Comparator.naturalOrder());
 
 		@Override
 		public int compareTo(@Nonnull ReferenceAttributeValue o) {
-			final int pkComparison = Integer.compare(this.referencedEntityPrimaryKey, o.referencedEntityPrimaryKey);
-			if (pkComparison == 0) {
-				return this.comparator.compare(this.attributeValue, o.attributeValue);
+			//noinspection unchecked
+			final int result = this.comparator.compare(this.attributeValue, o.attributeValue);
+			if (result == 0) {
+				return Integer.compare(this.referencedEntityPrimaryKey, o.referencedEntityPrimaryKey);
 			} else {
-				return pkComparison;
+				return result;
 			}
 		}
 

@@ -2398,9 +2398,12 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					assertNotNull(globalIndex);
 
 					final SortIndex sortIndex = globalIndex.getSortIndex(new AttributeKey(attributeCodeEan));
-					assertNotNull(sortIndex);
-
-					assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(expected).getArray());
+					if (ArrayUtils.isEmptyOrItsValuesNull(expected)) {
+						assertNull(sortIndex);
+					} else {
+						assertNotNull(sortIndex);
+						assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(expected).getArray());
+					}
 				};
 
 				verifyIndexContents.accept(new Comparable<?>[]{null, null});
@@ -2790,9 +2793,12 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					assertNotNull(entityIndex);
 
 					final SortIndex sortIndex = entityIndex.getSortIndex(new AttributeKey(attributeCodeEan));
-					assertNotNull(sortIndex);
-
-					assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(expected).getArray());
+					if (ArrayUtils.isEmptyOrItsValuesNull(expected)) {
+						assertNull(sortIndex);
+					} else {
+						assertNotNull(sortIndex);
+						assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(expected).getArray());
+					}
 				};
 
 				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10), new Comparable<?>[]{null, null});
@@ -2913,9 +2919,12 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					assertNotNull(entityIndex);
 
 					final SortIndex sortIndex = entityIndex.getSortIndex(new AttributeKey(attributeCodeEan, locale));
-					assertNotNull(sortIndex);
-
-					assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(expected).getArray());
+					if (ArrayUtils.isEmptyOrItsValuesNull(expected)) {
+						assertNull(sortIndex);
+					} else {
+						assertNotNull(sortIndex);
+						assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(expected).getArray());
+					}
 				};
 
 				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), referenceContentAll(), dataInLocalesAll())

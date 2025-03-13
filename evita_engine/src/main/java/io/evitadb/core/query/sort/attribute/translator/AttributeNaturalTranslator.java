@@ -73,6 +73,30 @@ import static io.evitadb.api.query.order.OrderDirection.ASC;
 public class AttributeNaturalTranslator
 	implements OrderingConstraintTranslator<AttributeNatural>, ReferenceOrderingConstraintTranslator<AttributeNatural> {
 
+	/**
+	 * Combines a given attribute or compound name with the attribute names derived from the
+	 * provided SortableAttributeCompoundSchemaContract. This method concatenates the initial
+	 * attribute or compound name with all of the attribute names defined in the compound's
+	 * attribute elements.
+	 *
+	 * @param attributeOrCompoundName the primary attribute or compound name to be combined.
+	 * @param sacsc                   an instance of SortableAttributeCompoundSchemaContract containing attribute elements
+	 *                                whose names should be included in the result.
+	 * @return an array of strings containing the combined attribute or compound name and the names
+	 * of all the attributes from the compound schema.
+	 */
+	@Nonnull
+	private static String[] combineCompoundWithReferencedAttributes(
+		@Nonnull String attributeOrCompoundName,
+		@Nonnull SortableAttributeCompoundSchemaContract sacsc
+	) {
+		return Stream.concat(
+				Stream.of(attributeOrCompoundName),
+				sacsc.getAttributeElements().stream().map(AttributeElement::attributeName)
+			)
+			.toArray(String[]::new);
+	}
+
 	@Nonnull
 	@Override
 	public Stream<Sorter> createSorter(@Nonnull AttributeNatural attributeNatural, @Nonnull OrderByVisitor orderByVisitor) {
@@ -175,42 +199,18 @@ public class AttributeNaturalTranslator
 
 		// if prefetch happens we need to prefetch attributes so that the attribute comparator can work
 		orderByVisitor.addRequirementToPrefetch(
-				attributeOrCompoundSchema instanceof SortableAttributeCompoundSchemaContract sacsc ?
-					(referenceSchema == null ?
-						attributeContent(combineCompoundWithReferencedAttributes(attributeOrCompoundName, sacsc)) :
-						referenceContentWithAttributes(referenceSchema.getName(), combineCompoundWithReferencedAttributes(attributeOrCompoundName, sacsc))
-					) :
-					(referenceSchema == null ? attributeContent(attributeOrCompoundName) : referenceContentWithAttributes(referenceSchema.getName(), attributeOrCompoundName))
+			attributeOrCompoundSchema instanceof SortableAttributeCompoundSchemaContract sacsc ?
+				(referenceSchema == null ?
+					attributeContent(combineCompoundWithReferencedAttributes(attributeOrCompoundName, sacsc)) :
+					referenceContentWithAttributes(referenceSchema.getName(), combineCompoundWithReferencedAttributes(attributeOrCompoundName, sacsc))
+				) :
+				(referenceSchema == null ? attributeContent(attributeOrCompoundName) : referenceContentWithAttributes(referenceSchema.getName(), attributeOrCompoundName))
 		);
 
 		return Stream.of(
 			new PrefetchedRecordsSorter(entityComparator),
 			new PreSortedRecordsSorter(sortedRecordsSupplier)
 		);
-	}
-
-	/**
-	 * Combines a given attribute or compound name with the attribute names derived from the
-	 * provided SortableAttributeCompoundSchemaContract. This method concatenates the initial
-	 * attribute or compound name with all of the attribute names defined in the compound's
-	 * attribute elements.
-	 *
-	 * @param attributeOrCompoundName the primary attribute or compound name to be combined.
-	 * @param sacsc an instance of SortableAttributeCompoundSchemaContract containing attribute elements
-	 *              whose names should be included in the result.
-	 * @return an array of strings containing the combined attribute or compound name and the names
-	 *         of all the attributes from the compound schema.
-	 */
-	@Nonnull
-	private static String[] combineCompoundWithReferencedAttributes(
-		@Nonnull String attributeOrCompoundName,
-		@Nonnull SortableAttributeCompoundSchemaContract sacsc
-	) {
-		return Stream.concat(
-			Stream.of(attributeOrCompoundName),
-			sacsc.getAttributeElements().stream().map(AttributeElement::attributeName)
-		)
-			.toArray(String[]::new);
 	}
 
 	@Override
@@ -292,6 +292,19 @@ public class AttributeNaturalTranslator
 		orderByVisitor.addComparator(comparator);
 	}
 
+	/**
+	 * A specialized record that supplies an array of {@link SortedRecordsProvider} objects based on the
+	 * configuration of attribute or compound schema and associated logic. Implements the {@link Supplier} interface
+	 * to dynamically provide sorted record providers tailored to the given schema and indexing setup.
+	 *
+	 * This supplier evaluates the type of the schema provided and extracts the relevant {@link SortedRecordsProvider}
+	 * instances from the target indexes for further operations such as sorting. It supports both plain attribute schemas
+	 * and compound schemas, handling different index types such as chain indexes and sort indexes.
+	 *
+	 * The behavior is influenced by the specific schema type (e.g., {@link AttributeSchemaContract}), and it
+	 * applies extraction and filtering logic to produce the sorted record providers. Additionally, it supports an
+	 * optional locale parameter to target locale-specific indexes.
+	 */
 	private record AttributeSortedRecordsProviderSupplier(
 		@Nonnull Function<SortIndex, SortedRecordsProvider> sortIndexExtractor,
 		@Nonnull Function<ChainIndex, SortedRecordsProvider> chainIndexExtractor,
@@ -299,7 +312,7 @@ public class AttributeNaturalTranslator
 		@Nonnull EntityIndex[] targetIndex,
 		@Nonnull OrderByVisitor orderByVisitor,
 		@Nullable Locale locale
-		) implements Supplier<SortedRecordsProvider[]> {
+	) implements Supplier<SortedRecordsProvider[]> {
 		private static final SortedRecordsProvider[] EMPTY_PROVIDERS = {SortedRecordsProvider.EMPTY};
 
 		@Override

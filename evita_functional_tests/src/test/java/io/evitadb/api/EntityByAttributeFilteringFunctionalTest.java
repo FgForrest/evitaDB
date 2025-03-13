@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -124,11 +124,11 @@ public class EntityByAttributeFilteringFunctionalTest {
 
 	static void assertSortedAndPagedResultIs(List<SealedEntity> originalProductEntities, List<EntityReference> records, Predicate<SealedEntity> predicate, Comparator<SealedEntity> comparator, int skip, int limit) {
 		assertSortedResultEquals(
-			records.stream().map(EntityReference::getPrimaryKey).collect(Collectors.toList()),
+			records.stream().map(EntityReference::getPrimaryKeyOrThrowException).collect(Collectors.toList()),
 			originalProductEntities.stream()
 				.filter(predicate)
 				.sorted(comparator)
-				.mapToInt(EntityContract::getPrimaryKey)
+				.mapToInt(EntityContract::getPrimaryKeyOrThrowException)
 				.skip(Math.max(skip, 0))
 				.limit(skip >= 0 ? limit : limit + skip)
 				.toArray()
@@ -162,8 +162,8 @@ public class EntityByAttributeFilteringFunctionalTest {
 			.toList();
 
 		assertSortedResultEquals(
-			records.stream().map(EntityReference::getPrimaryKey).collect(Collectors.toList()),
-			expectedSortedRecords.stream().mapToInt(EntityContract::getPrimaryKey).toArray()
+			records.stream().map(EntityReference::getPrimaryKeyOrThrowException).collect(Collectors.toList()),
+			expectedSortedRecords.stream().mapToInt(EntityContract::getPrimaryKeyOrThrowException).toArray()
 		);
 	}
 
@@ -372,11 +372,11 @@ public class EntityByAttributeFilteringFunctionalTest {
 			return new DataCarrier(
 				"originalProductEntities",
 				storedProducts.stream()
-					.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), entityFetchAllContent()).orElseThrow())
+					.map(it -> session.getEntity(it.getType(), it.getPrimaryKeyOrThrowException(), entityFetchAllContent()).orElseThrow())
 					.collect(Collectors.toList()),
 				"originalBrandEntities",
 				storedBrands.stream()
-					.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), entityFetchAllContent()).orElseThrow())
+					.map(it -> session.getEntity(it.getType(), it.getPrimaryKeyOrThrowException(), entityFetchAllContent()).orElseThrow())
 					.collect(Collectors.toList())
 			);
 		});
@@ -581,7 +581,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 				);
 				assertResultIs(
 					originalProductEntities,
-					sealedEntity -> Objects.equals(selectedEntity.getPrimaryKey(), sealedEntity.getPrimaryKey()),
+					sealedEntity -> Objects.equals(selectedEntity.getPrimaryKeyOrThrowException(), sealedEntity.getPrimaryKeyOrThrowException()),
 					result.getRecordData()
 				);
 				return null;
@@ -634,7 +634,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 				);
 				assertResultIs(
 					originalProductEntities,
-					sealedEntity -> Objects.equals(selectedEntity.getPrimaryKey(), sealedEntity.getPrimaryKey()),
+					sealedEntity -> Objects.equals(selectedEntity.getPrimaryKeyOrThrowException(), sealedEntity.getPrimaryKeyOrThrowException()),
 					result.getRecordData()
 				);
 				return null;
@@ -777,15 +777,28 @@ public class EntityByAttributeFilteringFunctionalTest {
 
 				assertResultIs(
 					originalProductEntities,
-					sealedEntity -> selectedEntities.stream().anyMatch(it -> Objects.equals(sealedEntity.getPrimaryKey(), it.getPrimaryKey())),
+					sealedEntity -> selectedEntities.stream().anyMatch(it -> Objects.equals(sealedEntity.getPrimaryKeyOrThrowException(), it.getPrimaryKeyOrThrowException())),
 					result.getRecordData()
 				);
 
 				assertSortedAndPagedResultIs(
 					originalProductEntities,
 					result.getRecordData(),
-					sealedEntity -> selectedEntities.stream().anyMatch(it -> Objects.equals(sealedEntity.getPrimaryKey(), it.getPrimaryKey())),
-					Comparator.comparing((SealedEntity o) -> (BigDecimal) o.getReferences(Entities.BRAND).stream().findFirst().get().getAttribute(ATTRIBUTE_MARKET_SHARE)),
+					sealedEntity -> selectedEntities.stream().anyMatch(it -> Objects.equals(sealedEntity.getPrimaryKeyOrThrowException(), it.getPrimaryKeyOrThrowException())),
+					new Comparator<SealedEntity>() {
+						@Override
+						public int compare(SealedEntity o1, SealedEntity o2) {
+							final BigDecimal a1 = o1.getReferences(Entities.BRAND).stream().map(it -> it.getAttribute(ATTRIBUTE_MARKET_SHARE, BigDecimal.class)).findFirst().orElse(null);
+							final BigDecimal a2 = o2.getReferences(Entities.BRAND).stream().map(it -> it.getAttribute(ATTRIBUTE_MARKET_SHARE, BigDecimal.class)).findFirst().orElse(null);
+							if (a1 != null && a2 != null) {
+								return a1.compareTo(a2);
+							} else if (a1 != null) {
+								return -1;
+							} else {
+								return 1;
+							}
+						}
+					},
 					0, Integer.MAX_VALUE
 				);
 
@@ -907,7 +920,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 						final Currency c1 = o1.getAttribute(ATTRIBUTE_CURRENCY);
 						final Currency c2 = o2.getAttribute(ATTRIBUTE_CURRENCY);
 						final int cmpResult = c1.getCurrencyCode().compareTo(c2.getCurrencyCode());
-						return cmpResult == 0 ? o1.getPrimaryKey().compareTo(o2.getPrimaryKey()) : cmpResult;
+						return cmpResult == 0 ? o1.getPrimaryKey().compareTo(o2.getPrimaryKeyOrThrowException()) : cmpResult;
 					}
 				);
 				return null;
@@ -921,7 +934,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 	void shouldFilterAndSortByCurrencyAttributeInPrefetch(Evita evita, List<SealedEntity> originalProductEntities) {
 		final int[] pks = originalProductEntities.stream()
 			.filter(it -> CURRENCY_EUR.equals(it.getAttribute(ATTRIBUTE_CURRENCY)) || CURRENCY_CZK.equals(it.getAttribute(ATTRIBUTE_CURRENCY)))
-			.mapToInt(EntityContract::getPrimaryKey)
+			.mapToInt(EntityContract::getPrimaryKeyOrThrowException)
 			.limit(10)
 			.toArray();
 
@@ -950,7 +963,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 				assertSortedResultIs(
 					originalProductEntities,
 					result.getRecordData(),
-					sealedEntity -> pksAsSet.contains(sealedEntity.getPrimaryKey()) && (
+					sealedEntity -> pksAsSet.contains(sealedEntity.getPrimaryKeyOrThrowException()) && (
 						CURRENCY_CZK.equals(sealedEntity.getAttribute(ATTRIBUTE_CURRENCY)) ||
 							CURRENCY_EUR.equals(sealedEntity.getAttribute(ATTRIBUTE_CURRENCY))
 					),
@@ -958,7 +971,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 						final Currency c1 = o1.getAttribute(ATTRIBUTE_CURRENCY);
 						final Currency c2 = o2.getAttribute(ATTRIBUTE_CURRENCY);
 						final int cmpResult = c1.getCurrencyCode().compareTo(c2.getCurrencyCode());
-						return cmpResult == 0 ? o1.getPrimaryKey().compareTo(o2.getPrimaryKey()) : cmpResult;
+						return cmpResult == 0 ? o1.getPrimaryKey().compareTo(o2.getPrimaryKeyOrThrowException()) : cmpResult;
 					}
 				);
 				return null;
@@ -1002,7 +1015,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 	void shouldFilterByCurrencyGreaterThanAttributeInPrefetch(Evita evita, List<SealedEntity> originalProductEntities) {
 		final int[] pks = originalProductEntities.stream()
 			.filter(it -> CURRENCY_EUR.equals(it.getAttribute(ATTRIBUTE_CURRENCY)) || CURRENCY_CZK.equals(it.getAttribute(ATTRIBUTE_CURRENCY)))
-			.mapToInt(EntityContract::getPrimaryKey)
+			.mapToInt(EntityContract::getPrimaryKeyOrThrowException)
 			.limit(10)
 			.toArray();
 
@@ -1030,7 +1043,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 				Set<Integer> pksAsSet = Arrays.stream(pks).boxed().collect(Collectors.toSet());
 				assertResultIs(
 					originalProductEntities,
-					sealedEntity -> pksAsSet.contains(sealedEntity.getPrimaryKey()) && (
+					sealedEntity -> pksAsSet.contains(sealedEntity.getPrimaryKeyOrThrowException()) && (
 						!CURRENCY_CZK.equals(sealedEntity.getAttribute(ATTRIBUTE_CURRENCY))
 					),
 					result.getRecordData()
@@ -1046,7 +1059,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 	void shouldFilterByGreaterThanCurrencyAttributeInPrefetch(Evita evita, List<SealedEntity> originalProductEntities) {
 		final int[] pks = originalProductEntities.stream()
 			.filter(it -> CURRENCY_EUR.equals(it.getAttribute(ATTRIBUTE_CURRENCY)) || CURRENCY_USD.equals(it.getAttribute(ATTRIBUTE_CURRENCY)))
-			.mapToInt(EntityContract::getPrimaryKey)
+			.mapToInt(EntityContract::getPrimaryKeyOrThrowException)
 			.limit(10)
 			.toArray();
 
@@ -1071,7 +1084,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 				Set<Integer> pksAsSet = Arrays.stream(pks).boxed().collect(Collectors.toSet());
 				assertResultIs(
 					originalProductEntities,
-					sealedEntity -> pksAsSet.contains(sealedEntity.getPrimaryKey()) &&
+					sealedEntity -> pksAsSet.contains(sealedEntity.getPrimaryKeyOrThrowException()) &&
 						!CURRENCY_CZK.equals(sealedEntity.getAttribute(ATTRIBUTE_CURRENCY)),
 					result.getRecordData()
 				);
@@ -1112,7 +1125,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 						final Locale l1 = o1.getAttribute(ATTRIBUTE_LOCALE);
 						final Locale l2 = o2.getAttribute(ATTRIBUTE_LOCALE);
 						final int cmpResult = l1.toLanguageTag().compareTo(l2.toLanguageTag());
-						return cmpResult == 0 ? o1.getPrimaryKey().compareTo(o2.getPrimaryKey()) : cmpResult;
+						return cmpResult == 0 ? o1.getPrimaryKey().compareTo(o2.getPrimaryKeyOrThrowException()) : cmpResult;
 					}
 				);
 				return null;
@@ -1126,7 +1139,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 	void shouldFilterAndSortByLocaleAttributeInPrefetch(Evita evita, List<SealedEntity> originalProductEntities) {
 		final int[] pks = originalProductEntities.stream()
 			.filter(it -> CZECH_LOCALE.equals(it.getAttribute(ATTRIBUTE_LOCALE)) || Locale.ENGLISH.equals(it.getAttribute(ATTRIBUTE_LOCALE)))
-			.mapToInt(EntityContract::getPrimaryKey)
+			.mapToInt(EntityContract::getPrimaryKeyOrThrowException)
 			.limit(10)
 			.toArray();
 
@@ -1155,7 +1168,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 				assertSortedResultIs(
 					originalProductEntities,
 					result.getRecordData(),
-					sealedEntity -> pksAsSet.contains(sealedEntity.getPrimaryKey()) && (
+					sealedEntity -> pksAsSet.contains(sealedEntity.getPrimaryKeyOrThrowException()) && (
 						Locale.ENGLISH.equals(sealedEntity.getAttribute(ATTRIBUTE_LOCALE)) ||
 							CZECH_LOCALE.equals(sealedEntity.getAttribute(ATTRIBUTE_LOCALE))
 					),
@@ -1163,7 +1176,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 						final Locale l1 = o1.getAttribute(ATTRIBUTE_LOCALE);
 						final Locale l2 = o2.getAttribute(ATTRIBUTE_LOCALE);
 						final int cmpResult = l1.toLanguageTag().compareTo(l2.toLanguageTag());
-						return cmpResult == 0 ? o1.getPrimaryKey().compareTo(o2.getPrimaryKey()) : cmpResult;
+						return cmpResult == 0 ? o1.getPrimaryKey().compareTo(o2.getPrimaryKeyOrThrowException()) : cmpResult;
 					}
 				);
 				return null;
@@ -1208,7 +1221,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 	void shouldFilterByLocaleGreaterThanAttributeInPrefetch(Evita evita, List<SealedEntity> originalProductEntities) {
 		final int[] pks = originalProductEntities.stream()
 			.filter(it -> CZECH_LOCALE.equals(it.getAttribute(ATTRIBUTE_LOCALE)) || Locale.ENGLISH.equals(it.getAttribute(ATTRIBUTE_LOCALE)))
-			.mapToInt(EntityContract::getPrimaryKey)
+			.mapToInt(EntityContract::getPrimaryKeyOrThrowException)
 			.limit(10)
 			.toArray();
 
@@ -1233,7 +1246,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 				Set<Integer> pksAsSet = Arrays.stream(pks).boxed().collect(Collectors.toSet());
 				assertResultIs(
 					originalProductEntities,
-					sealedEntity -> pksAsSet.contains(sealedEntity.getPrimaryKey()) &&
+					sealedEntity -> pksAsSet.contains(sealedEntity.getPrimaryKeyOrThrowException()) &&
 						(Locale.ENGLISH.equals(sealedEntity.getAttribute(ATTRIBUTE_LOCALE))
 							|| Locale.FRENCH.equals(sealedEntity.getAttribute(ATTRIBUTE_LOCALE))),
 					result.getRecordData()
@@ -3372,7 +3385,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 						.findFirst()
 						.orElseThrow();
 					formerAttribute.set(alteredProduct.getAttributeArray(ATTRIBUTE_SIZE));
-					updatedProductId.set(alteredProduct.getPrimaryKey());
+					updatedProductId.set(alteredProduct.getPrimaryKeyOrThrowException());
 					session.upsertEntity(
 						alteredProduct.openForWrite().setAttribute(
 							ATTRIBUTE_SIZE,
@@ -3389,11 +3402,11 @@ public class EntityByAttributeFilteringFunctionalTest {
 				session -> {
 					final EvitaResponse<EntityReference> result = getByAttributeSize(session, 900);
 					assertEquals(1, result.getTotalRecordCount());
-					assertEquals(updatedProductId.get(), result.getRecordData().get(0).getPrimaryKey());
+					assertEquals(updatedProductId.get(), result.getRecordData().get(0).getPrimaryKeyOrThrowException());
 
 					final EvitaResponse<EntityReference> anotherResult = getByAttributeSize(session, 1400);
 					assertEquals(1, anotherResult.getTotalRecordCount());
-					assertEquals(updatedProductId.get(), anotherResult.getRecordData().get(0).getPrimaryKey());
+					assertEquals(updatedProductId.get(), anotherResult.getRecordData().get(0).getPrimaryKeyOrThrowException());
 					return null;
 				}
 			);
@@ -3405,7 +3418,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 				TEST_CATALOG,
 				session -> {
 					final SealedEntity alteredProduct = originalProductEntities.get(0);
-					updatedProductId.set(alteredProduct.getPrimaryKey());
+					updatedProductId.set(alteredProduct.getPrimaryKeyOrThrowException());
 					session.upsertEntity(
 						alteredProduct.openForWrite().setAttribute(
 							ATTRIBUTE_SIZE,
@@ -3633,7 +3646,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 			session -> {
 				final SealedEntity brand = originalBrandEntities
 					.stream()
-					.filter(it -> it.getPrimaryKey() == 1)
+					.filter(it -> it.getPrimaryKeyOrThrowException() == 1)
 					.findFirst()
 					.orElseThrow();
 				final int referencedProduct = brand.getReferences(REFERENCE_BRAND_PRODUCTS)
@@ -3693,7 +3706,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 						collection(Entities.PRODUCT),
 						filterBy(
 							and(
-								entityPrimaryKeyInSet(lookedUpProduct.getPrimaryKey()),
+								entityPrimaryKeyInSet(lookedUpProduct.getPrimaryKeyOrThrowException()),
 								referenceHaving(
 									Entities.BRAND,
 									attributeIsNotNull(ATTRIBUTE_FOUNDED)
@@ -3742,7 +3755,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 						collection(Entities.BRAND),
 						filterBy(
 							and(
-								entityPrimaryKeyInSet(lookedUpProduct.getPrimaryKey()),
+								entityPrimaryKeyInSet(lookedUpProduct.getPrimaryKeyOrThrowException()),
 								referenceHaving(
 									REFERENCE_BRAND_PRODUCTS,
 									attributeIsNotNull(ATTRIBUTE_FOUNDED)
@@ -4223,7 +4236,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 					return result
 						.getRecordData()
 						.stream()
-						.mapToInt(EntityReference::getPrimaryKey)
+						.mapToInt(EntityReference::getPrimaryKeyOrThrowException)
 						.toArray();
 				}
 			);
@@ -4259,7 +4272,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 					return result
 						.getRecordData()
 						.stream()
-						.mapToInt(EntityReference::getPrimaryKey)
+						.mapToInt(EntityReference::getPrimaryKeyOrThrowException)
 						.toArray();
 				}
 			);
@@ -4626,7 +4639,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 					.stream()
 					.filter(it -> random.nextInt(10) == 1)
 					.map(it -> new AttributeTuple(
-						it.getPrimaryKey(),
+						it.getPrimaryKeyOrThrowException(),
 						it.getAttribute(ATTRIBUTE_CODE, String.class)
 					))
 					.toArray(AttributeTuple[]::new);
@@ -4682,7 +4695,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 					.stream()
 					.filter(it -> random.nextInt(10) == 1)
 					.map(it -> new AttributeTuple(
-						it.getPrimaryKey(),
+						it.getPrimaryKeyOrThrowException(),
 						it.getAttribute(ATTRIBUTE_CODE, String.class)
 					))
 					.toArray(AttributeTuple[]::new);
@@ -4726,7 +4739,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 				assertArrayEquals(
 					randomSortedProductIds,
 					products.getRecordData().stream()
-						.map(EntityContract::getPrimaryKey)
+						.map(EntityContract::getPrimaryKeyOrThrowException)
 						.toArray(Integer[]::new)
 				);
 				return null;
@@ -4744,7 +4757,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 				final AttributeTuple[] randomData = originalProductEntities
 					.stream()
 					.map(it -> new AttributeTuple(
-						it.getPrimaryKey(),
+						it.getPrimaryKeyOrThrowException(),
 						it.getAttribute(ATTRIBUTE_CODE, String.class)
 					))
 					.toArray(AttributeTuple[]::new);
@@ -4796,7 +4809,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 						exactOrder, theRest
 					),
 					products.getRecordData().stream()
-						.map(EntityContract::getPrimaryKey)
+						.map(EntityContract::getPrimaryKeyOrThrowException)
 						.toArray(Integer[]::new)
 				);
 				return null;
@@ -4816,7 +4829,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 					.stream()
 					.filter(it -> random.nextInt(10) == 1)
 					.map(it -> new AttributeTuple(
-						it.getPrimaryKey(),
+						it.getPrimaryKeyOrThrowException(),
 						it.getAttribute(ATTRIBUTE_CODE, String.class)
 					))
 					.toArray(AttributeTuple[]::new);
@@ -4867,7 +4880,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 				assertArrayEquals(
 					randomSortedProductIds,
 					products.getRecordData().stream()
-						.map(EntityContract::getPrimaryKey)
+						.map(EntityContract::getPrimaryKeyOrThrowException)
 						.toArray(Integer[]::new)
 				);
 				return null;

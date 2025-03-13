@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -42,6 +42,7 @@ import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.IndexType;
 import io.evitadb.index.mutation.index.dataAccess.ExistingAttributeValueSupplier;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NumberUtils;
 
@@ -638,18 +639,20 @@ public interface AttributeIndexMutator {
 			)
 			.toArray();
 
-		entityIndex.insertSortAttributeCompound(
-			compound,
-			theAttributeName -> attributeSchemaProvider.apply(theAttributeName).getPlainType(),
-			locale,
-			newCompoundValues, entityPrimaryKey
-		);
-		if (undoActionConsumer != null) {
-			undoActionConsumer.accept(
-				() -> entityIndex.removeSortAttributeCompound(
-					compound, locale, newCompoundValues, entityPrimaryKey
-				)
+		if (!ArrayUtils.isEmptyOrItsValuesNull(newCompoundValues)) {
+			entityIndex.insertSortAttributeCompound(
+				compound,
+				theAttributeName -> attributeSchemaProvider.apply(theAttributeName).getPlainType(),
+				locale,
+				newCompoundValues, entityPrimaryKey
 			);
+			if (undoActionConsumer != null) {
+				undoActionConsumer.accept(
+					() -> entityIndex.removeSortAttributeCompound(
+						compound, locale, newCompoundValues, entityPrimaryKey
+					)
+				);
+			}
 		}
 	}
 
@@ -674,18 +677,20 @@ public interface AttributeIndexMutator {
 			)
 			.toArray();
 
-		entityIndex.removeSortAttributeCompound(
-			compound, locale, oldCompoundValues, entityPrimaryKey
-		);
-		if (undoActionConsumer != null) {
-			undoActionConsumer.accept(
-				() -> entityIndex.insertSortAttributeCompound(
-					compound,
-					theAttributeName -> attributeSchemaProvider.apply(theAttributeName).getPlainType(),
-					locale,
-					oldCompoundValues, entityPrimaryKey
-				)
+		if (!ArrayUtils.isEmptyOrItsValuesNull(oldCompoundValues)) {
+			entityIndex.removeSortAttributeCompound(
+				compound, locale, oldCompoundValues, entityPrimaryKey
 			);
+			if (undoActionConsumer != null) {
+				undoActionConsumer.accept(
+					() -> entityIndex.insertSortAttributeCompound(
+						compound,
+						theAttributeName -> attributeSchemaProvider.apply(theAttributeName).getPlainType(),
+						locale,
+						oldCompoundValues, entityPrimaryKey
+					)
+				);
+			}
 		}
 	}
 

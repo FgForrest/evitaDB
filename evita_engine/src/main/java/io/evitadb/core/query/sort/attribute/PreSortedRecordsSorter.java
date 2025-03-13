@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -139,8 +139,8 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter implements Cac
 	@Override
 	public Sorter cloneInstance() {
 		return new PreSortedRecordsSorter(
-			computationCallback,
-			sortedRecordsSupplier,
+			this.computationCallback,
+			this.sortedRecordsSupplier,
 			null
 		);
 	}
@@ -149,8 +149,8 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter implements Cac
 	@Override
 	public Sorter andThen(Sorter sorterForUnknownRecords) {
 		return new PreSortedRecordsSorter(
-			computationCallback,
-			sortedRecordsSupplier,
+			this.computationCallback,
+			this.sortedRecordsSupplier,
 			sorterForUnknownRecords
 		);
 	}
@@ -158,7 +158,7 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter implements Cac
 	@Nullable
 	@Override
 	public Sorter getNextSorter() {
-		return unknownRecordIdsSorter;
+		return this.unknownRecordIdsSorter;
 	}
 
 	@Override
@@ -239,8 +239,8 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter implements Cac
 	public CacheableSorter getCloneWithComputationCallback(@Nonnull Consumer<CacheableSorter> selfOperator) {
 		return new PreSortedRecordsSorter(
 			selfOperator,
-			sortedRecordsSupplier,
-			unknownRecordIdsSorter
+			this.sortedRecordsSupplier,
+			this.unknownRecordIdsSorter
 		);
 	}
 
@@ -251,24 +251,24 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter implements Cac
 
 	@Nonnull
 	public MergedSortedRecordsSupplier getMemoizedResult() {
-		if (memoizedResult == null) {
+		if (this.memoizedResult == null) {
 			final SortedRecordsProvider[] sortedRecordsProviders = getSortedRecordsProviders();
-			memoizedResult = new MergedSortedRecordsSupplier(
+			this.memoizedResult = new MergedSortedRecordsSupplier(
 				sortedRecordsProviders,
-				unknownRecordIdsSorter
+				this.unknownRecordIdsSorter
 			);
-			if (computationCallback != null) {
-				computationCallback.accept(this);
+			if (this.computationCallback != null) {
+				this.computationCallback.accept(this);
 			}
 		}
-		return memoizedResult;
+		return this.memoizedResult;
 	}
 
 	@Nonnull
 	private SortedRecordsProvider[] getSortedRecordsProviders() {
-		if (memoizedSortedRecordsProviders == null) {
-			memoizedSortedRecordsProviders = sortedRecordsSupplier.get();
+		if (this.memoizedSortedRecordsProviders == null) {
+			this.memoizedSortedRecordsProviders = this.sortedRecordsSupplier.get();
 		}
-		return memoizedSortedRecordsProviders;
+		return this.memoizedSortedRecordsProviders;
 	}
 }

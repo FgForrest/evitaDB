@@ -143,21 +143,10 @@ public class ReferenceCompoundAttributeComparator implements EntityComparator, S
 		if (valueToCompare1 != ReferenceAttributeValue.MISSING && valueToCompare2 != ReferenceAttributeValue.MISSING) {
 			return valueToCompare1.compareTo(valueToCompare2);
 		} else {
-			// if any of the entities is not found, and we don't have the container to store them, create it
-			//noinspection ObjectInstantiationInEqualsHashCode
-			this.nonSortedEntities = new CompositeObjectArray<>(EntityContract.class);
-			// if any of the entities is not found, store it in the container
-			if (valueToCompare1 == ReferenceAttributeValue.MISSING) {
-				this.nonSortedEntities.add(o1);
-			}
-			if (valueToCompare2 == ReferenceAttributeValue.MISSING) {
-				this.nonSortedEntities.add(o2);
-			}
-
 			if (valueToCompare1 != ReferenceAttributeValue.MISSING) {
-				return 1;
-			} else if (valueToCompare2 != ReferenceAttributeValue.MISSING) {
 				return -1;
+			} else if (valueToCompare2 != ReferenceAttributeValue.MISSING) {
+				return 1;
 			} else {
 				return 0;
 			}
@@ -200,6 +189,13 @@ public class ReferenceCompoundAttributeComparator implements EntityComparator, S
 				);
 			}
 			this.memoizedValues.put(entity.getPrimaryKeyOrThrowException(), calculatedValue);
+			// if the value is missing, we need to add the entity to the non-sorted entities
+			if (calculatedValue == ReferenceAttributeValue.MISSING) {
+				if (this.nonSortedEntities == null) {
+					this.nonSortedEntities = new CompositeObjectArray<>(EntityContract.class);
+				}
+				this.nonSortedEntities.add(entity);
+			}
 			return calculatedValue;
 		} else {
 			return memoizedValue;
@@ -224,11 +220,11 @@ public class ReferenceCompoundAttributeComparator implements EntityComparator, S
 
 		@Override
 		public int compareTo(@Nonnull ReferenceAttributeValue o) {
-			final int pkComparison = Integer.compare(this.referencedEntityPrimaryKey, o.referencedEntityPrimaryKey);
-			if (pkComparison == 0) {
-				return this.comparator.compare(this.attributeValues, o.attributeValues);
+			final int result = this.comparator.compare(this.attributeValues, o.attributeValues);
+			if (result == 0) {
+				return Integer.compare(this.referencedEntityPrimaryKey, o.referencedEntityPrimaryKey);
 			} else {
-				return pkComparison;
+				return result;
 			}
 		}
 

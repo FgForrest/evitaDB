@@ -23,12 +23,17 @@
 
 package io.evitadb.core.query.sort.attribute.translator;
 
+import com.carrotsearch.hppc.IntObjectHashMap;
+import com.carrotsearch.hppc.IntObjectMap;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.core.query.sort.EntityComparator;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
+import lombok.AccessLevel;
+import lombok.EqualsAndHashCode;
+import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -67,6 +72,10 @@ public class AttributeComparator implements EntityComparator {
 	 * Internal storage for entities that could not be fully sorted due to missing attributes.
 	 */
 	private CompositeObjectArray<EntityContract> nonSortedEntities;
+	/**
+	 * Cache for storing attribute values of entities to avoid redundant calculations.
+	 */
+	private IntObjectMap<Comparable<?>> cache;
 
 	public AttributeComparator(
 		@Nonnull String attributeName,
@@ -84,9 +93,34 @@ public class AttributeComparator implements EntityComparator {
 			Comparator.comparingInt(EntityContract::getPrimaryKeyOrThrowException).reversed();
 		//noinspection unchecked
 		this.comparator = createComparatorFor(locale, comparatorSource);
-		this.attributeValueFetcher = locale == null ?
+		final Function<EntityContract, Comparable<?>> attributeFetcher = locale == null ?
 			entityContract -> (Comparable<?>) normalizer.apply(entityContract.getAttribute(attributeName)) :
 			entityContract -> (Comparable<?>) normalizer.apply(entityContract.getAttribute(attributeName, locale));
+		this.attributeValueFetcher = entityContract -> {
+			//noinspection rawtypes
+			final Comparable cachedValue = this.cache.get(entityContract.getPrimaryKeyOrThrowException());
+			if (cachedValue == null) {
+				//noinspection unchecked,rawtypes
+				final Comparable calculatedValue = ofNullable(attributeFetcher.apply(entityContract))
+					.orElseGet(() -> (Comparable)MissingComparableValue.INSTANCE);
+				this.cache.put(entityContract.getPrimaryKeyOrThrowException(), calculatedValue);
+				if (calculatedValue == MissingComparableValue.INSTANCE) {
+					this.nonSortedEntities = ofNullable(this.nonSortedEntities)
+						.orElseGet(() -> new CompositeObjectArray<>(EntityContract.class));
+					this.nonSortedEntities.add(entityContract);
+					return null;
+				} else {
+					return calculatedValue;
+				}
+			} else {
+				return cachedValue == MissingComparableValue.INSTANCE ? null : cachedValue;
+			}
+		};
+	}
+
+	@Override
+	public void prepareFor(int entityCount) {
+		this.cache = new IntObjectHashMap<>(entityCount);
 	}
 
 	@Nonnull
@@ -108,24 +142,27 @@ public class AttributeComparator implements EntityComparator {
 				return result;
 			}
 		} else if (attribute1 == null && attribute2 != null) {
-			//noinspection ObjectInstantiationInEqualsHashCode
-			this.nonSortedEntities = ofNullable(this.nonSortedEntities)
-				.orElseGet(() -> new CompositeObjectArray<>(EntityContract.class));
-			this.nonSortedEntities.add(o1);
 			return 1;
 		} else if (attribute1 != null) {
-			//noinspection ObjectInstantiationInEqualsHashCode
-			this.nonSortedEntities = ofNullable(this.nonSortedEntities)
-				.orElseGet(() -> new CompositeObjectArray<>(EntityContract.class));
-			this.nonSortedEntities.add(o2);
 			return -1;
 		} else {
-			//noinspection ObjectInstantiationInEqualsHashCode
-			this.nonSortedEntities = ofNullable(this.nonSortedEntities)
-				.orElseGet(() -> new CompositeObjectArray<>(EntityContract.class));
-			this.nonSortedEntities.add(o1);
-			this.nonSortedEntities.add(o2);
 			return 0;
 		}
 	}
+
+	/**
+	 * Stub for non-existent value.
+	 */
+	@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+	@EqualsAndHashCode
+	private static class MissingComparableValue implements Comparable<MissingComparableValue> {
+		public static final MissingComparableValue INSTANCE = new MissingComparableValue();
+
+		@Override
+		public int compareTo(@Nonnull MissingComparableValue o) {
+			return 0;
+		}
+
+	}
+
 }
