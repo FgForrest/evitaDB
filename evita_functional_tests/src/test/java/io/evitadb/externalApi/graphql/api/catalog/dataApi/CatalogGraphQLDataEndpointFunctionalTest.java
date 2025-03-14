@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -402,6 +402,8 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 			}
 		);
 		assertTrue(prices.isPresent());
+		assertTrue(prices.get().accompanyingPrices().get(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name()).isPresent());
+		assertTrue(prices.get().accompanyingPrices().get(vipPrice).isPresent());
 
 		return map()
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
