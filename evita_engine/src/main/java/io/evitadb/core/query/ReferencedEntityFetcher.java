@@ -581,6 +581,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 								final Formula epkFormula = entityPrimaryKeyFormula.get(indexKey.scope());
 								if (epkFormula != null) {
 									lastIndexFormula = FormulaFactory.or(
+										lastIndexFormula,
 										resultFormula,
 										epkFormula
 									);
