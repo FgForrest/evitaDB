@@ -23,6 +23,7 @@
 
 package io.evitadb.index.attribute;
 
+import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedComparableForwardSeeker;
 import io.evitadb.index.array.UnorderedLookup;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -48,6 +49,13 @@ import static java.util.Optional.ofNullable;
 public class ChainIndexChanges implements Serializable {
 
 	@Serial private static final long serialVersionUID = -1108329020855413122L;
+	/**
+	 * Default implementation of {@link SortedComparableForwardSeeker} for chainable types. It makes no sense to
+	 * attempt to compare two chainable types, so this implementation throws an exception.
+	 */
+	private static final SortedComparableForwardSeeker THROWING_COMPARABLE_SEEKER = position -> {
+		throw new UnsupportedOperationException("Chainable types are not comparable one with another!");
+	};
 	/**
 	 * Reference to the {@link ChainIndex} this data structure is linked to.
 	 */
@@ -103,6 +111,7 @@ public class ChainIndexChanges implements Serializable {
 						unorderedLookup.getArray(),
 						unorderedLookup.getPositions(),
 						recordIds,
+						THROWING_COMPARABLE_SEEKER,
 						referenceKey
 					)
 				)
@@ -111,7 +120,8 @@ public class ChainIndexChanges implements Serializable {
 						this.chainIndex.elementStates.getId(),
 						unorderedLookup.getArray(),
 						unorderedLookup.getPositions(),
-						recordIds
+						recordIds,
+						THROWING_COMPARABLE_SEEKER
 					)
 				);
 			return this.recordIdToPositions;
@@ -136,6 +146,7 @@ public class ChainIndexChanges implements Serializable {
 						ArrayUtils.reverse(unorderedLookup.getArray()),
 						invert(unorderedLookup.getPositions()),
 						recordIds,
+						THROWING_COMPARABLE_SEEKER,
 						referenceKey
 					)
 				)
@@ -144,7 +155,8 @@ public class ChainIndexChanges implements Serializable {
 						this.chainIndex.getId(),
 						ArrayUtils.reverse(unorderedLookup.getArray()),
 						invert(unorderedLookup.getPositions()),
-						recordIds
+						recordIds,
+						THROWING_COMPARABLE_SEEKER
 					)
 				);
 			return this.recordIdToPositionsReversed;

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -803,6 +803,20 @@ public class ArrayUtils {
 	@Nonnull
 	public static <T extends Comparable<T>> InsertionPosition computeInsertPositionOfObjInOrderedArray(@Nonnull T recId, @Nonnull T[] recordIds, @Nonnull Comparator<T> comparator) {
 		final int index = Arrays.binarySearch(recordIds, recId, comparator);
+		if (index >= 0) {
+			return new InsertionPosition(index, true);
+		} else {
+			return new InsertionPosition(-1 * (index) - 1, false);
+		}
+	}
+
+	/**
+	 * Method computes insertion point of an arbitrary record into the ordered array.
+	 * Result object contains information about the position and whether the record is already in the array.
+	 */
+	@Nonnull
+	public static <T extends Comparable<T>> InsertionPosition computeInsertPositionOfObjInOrderedArray(@Nonnull T recId, @Nonnull T[] recordIds, int fromIndex, int toIndex, @Nonnull Comparator<T> comparator) {
+		final int index = Arrays.binarySearch(recordIds, fromIndex, toIndex, recId, comparator);
 		if (index >= 0) {
 			return new InsertionPosition(index, true);
 		} else {

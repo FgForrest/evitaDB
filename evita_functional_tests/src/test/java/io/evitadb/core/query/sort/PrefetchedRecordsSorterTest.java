@@ -62,10 +62,10 @@ class PrefetchedRecordsSorterTest {
 	private static final String ATTRIBUTE_NAME_SECOND = "second";
 
 	private final EntityComparator TEST_COMPARATOR_FIRST = new AttributeComparator(
-		ATTRIBUTE_NAME_FIRST, Integer.class, null, OrderDirection.ASC
+		ATTRIBUTE_NAME_FIRST, String.class, null, OrderDirection.ASC
 	);
 	private final EntityComparator TEST_COMPARATOR_SECOND = new AttributeComparator(
-		ATTRIBUTE_NAME_SECOND, Integer.class, null, OrderDirection.ASC
+		ATTRIBUTE_NAME_SECOND, String.class, null, OrderDirection.ASC
 	);
 	private PrefetchedRecordsSorterWithContext entitySorter;
 
@@ -139,6 +139,7 @@ class PrefetchedRecordsSorterTest {
 		final List<ServerEntityDecorator> result = new ArrayList<>(expectedOrder.length);
 		for (int i = 0; i < expectedOrder.length; i++) {
 			final ServerEntityDecorator mock = mock(ServerEntityDecorator.class);
+			when(mock.getPrimaryKeyOrThrowException()).thenReturn(expectedOrder[i]);
 			when(mock.getPrimaryKey()).thenReturn(expectedOrder[i]);
 			when(mock.getAttribute(ATTRIBUTE_NAME_FIRST)).thenReturn(String.valueOf(Character.valueOf((char) (64 + i))));
 			when(mock.getAttribute(ATTRIBUTE_NAME_SECOND)).thenReturn(null);
@@ -148,12 +149,13 @@ class PrefetchedRecordsSorterTest {
 		final AtomicInteger index = new AtomicInteger();
 		Stream.of(13, 0, 12).forEach(pk -> {
 			final ServerEntityDecorator mock = mock(ServerEntityDecorator.class);
+			when(mock.getPrimaryKeyOrThrowException()).thenReturn(pk);
 			when(mock.getPrimaryKey()).thenReturn(pk);
 			when(mock.getAttribute(ATTRIBUTE_NAME_FIRST)).thenReturn(null);
 			when(mock.getAttribute(ATTRIBUTE_NAME_SECOND)).thenReturn(String.valueOf(Character.valueOf((char) (64 + index.getAndIncrement()))));
 			result.add(mock);
 		});
-		result.sort(Comparator.comparing(EntityContract::getPrimaryKey));
+		result.sort(Comparator.comparing(EntityContract::getPrimaryKeyOrThrowException));
 		return result;
 	}
 

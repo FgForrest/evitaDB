@@ -50,6 +50,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.attribute.ChainIndex;
 import io.evitadb.index.attribute.SortIndex;
+import io.evitadb.index.attribute.SortIndex.ComparableArray;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -148,8 +149,10 @@ public class AttributeNaturalTranslator
 		}
 
 		final EntityComparator entityComparator;
+		final Class<?> baseType;
 		if (attributeOrCompoundSchema instanceof AttributeSchemaContract attributeSchema &&
 			(Predecessor.class.equals(attributeSchema.getPlainType()) || ReferencedEntityPredecessor.class.equals(attributeSchema.getPlainType()))) {
+			baseType = attributeSchema.getPlainType();
 			// we cannot use attribute comparator for predecessor attributes, we always need index here
 			entityComparator = new PredecessorAttributeComparator(
 				attributeOrCompoundName,
@@ -158,6 +161,7 @@ public class AttributeNaturalTranslator
 				sortedRecordsSupplier
 			);
 		} else if (attributeOrCompoundSchema instanceof SortableAttributeCompoundSchemaContract compoundSchemaContract) {
+			baseType = ComparableArray.class;
 			if (referenceSchema == null) {
 				entityComparator = new CompoundAttributeComparator(
 					compoundSchemaContract,
@@ -176,6 +180,7 @@ public class AttributeNaturalTranslator
 				);
 			}
 		} else if (attributeOrCompoundSchema instanceof AttributeSchemaContract attributeSchema) {
+			baseType = attributeSchema.getPlainType();
 			if (referenceSchema == null) {
 				entityComparator = new AttributeComparator(
 					attributeOrCompoundName,
@@ -209,7 +214,7 @@ public class AttributeNaturalTranslator
 
 		return Stream.of(
 			new PrefetchedRecordsSorter(entityComparator),
-			new PreSortedRecordsSorter(sortedRecordsSupplier)
+			new PreSortedRecordsSorter(baseType, orderDirection, sortedRecordsSupplier)
 		);
 	}
 

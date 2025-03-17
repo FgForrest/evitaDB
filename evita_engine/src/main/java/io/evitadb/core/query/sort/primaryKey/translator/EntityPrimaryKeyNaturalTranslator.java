@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -95,12 +95,18 @@ public class EntityPrimaryKeyNaturalTranslator implements OrderingConstraintTran
 			final String referenceSchemaName = referenceSchema.getName();
 			return Stream.of(
 				new PreSortedRecordsSorter(
+					Integer.class,
+					orderDirection,
 					() -> Arrays.stream(pkBitmaps)
 						.filter(Objects::nonNull)
 						.map(
-							bitmap -> new SortedRecordsSupplier(
-								bitmap.getId(), bitmap.getArray(), createPositionArray(bitmap.size()), bitmap
-							)
+							bitmap -> {
+								final int[] pkArray = bitmap.getArray();
+								return new SortedRecordsSupplier(
+									bitmap.getId(), pkArray, createPositionArray(bitmap.size()), bitmap,
+									position -> pkArray[position]
+								);
+							}
 						)
 						.toArray(SortedRecordsSupplier[]::new)
 				),

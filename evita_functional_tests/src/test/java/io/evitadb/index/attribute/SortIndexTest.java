@@ -26,6 +26,7 @@ package io.evitadb.index.attribute;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
+import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedComparableForwardSeeker;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.index.attribute.SortIndex.ComparableArray;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
@@ -224,6 +225,36 @@ class SortIndexTest implements TimeBoundedTestSupport {
 	void shouldIndexCompoundRecordsAndReturnInDescendingOrder() {
 		final SortIndex sortIndex = createCompoundIndexWithBaseCardinalities();
 		assertArrayEquals(new int[]{9, 2, 3, 7, 1, 5, 4, 6, 8}, sortIndex.getDescendingOrderRecordsSupplier().getSortedRecordIds());
+	}
+
+	@Test
+	void shouldTraverseAllComparableValuesInForwardFashion() {
+		final SortIndex sortIndex = createIndexWithBaseCardinalities();
+		final SortedRecordsProvider sortedRecordsSupplier = sortIndex.getAscendingOrderRecordsSupplier();
+		final SortedComparableForwardSeeker seeker = sortedRecordsSupplier.getSortedComparableForwardSeeker();
+		final String[] values = new String[sortIndex.size()];
+		for (int i = 0; i < sortIndex.size(); i++) {
+			values[i] = (String) seeker.getComparableValueOn(i);
+		}
+		assertArrayEquals(
+			new String[] { "A", "B", "B", "C", "C", "C", "C", "E" },
+			values
+		);
+	}
+
+	@Test
+	void shouldTraverseAllComparableValuesInReverseFashion() {
+		final SortIndex sortIndex = createIndexWithBaseCardinalities();
+		final SortedRecordsProvider sortedRecordsSupplier = sortIndex.getDescendingOrderRecordsSupplier();
+		final SortedComparableForwardSeeker seeker = sortedRecordsSupplier.getSortedComparableForwardSeeker();
+		final String[] values = new String[sortIndex.size()];
+		for (int i = 0; i < sortIndex.size(); i++) {
+			values[i] = (String) seeker.getComparableValueOn(i);
+		}
+		assertArrayEquals(
+			new String[] { "E", "C", "C", "C", "C", "B", "B", "A" },
+			values
+		);
 	}
 
 	@Test

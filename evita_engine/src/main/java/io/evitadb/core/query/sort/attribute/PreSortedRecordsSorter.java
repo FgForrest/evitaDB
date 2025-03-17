@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.sort.attribute;
 
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.sort.CacheableSorter;
@@ -31,6 +32,7 @@ import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProv
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.attribute.cache.FlattenedMergedSortedRecordsProvider;
 import io.evitadb.core.query.sort.generic.AbstractRecordsSorter;
+import io.evitadb.dataType.ChainableType;
 import io.evitadb.index.attribute.SortedRecordsSupplier;
 import io.evitadb.utils.Assert;
 import net.openhft.hashing.LongHashFunction;
@@ -59,6 +61,15 @@ import java.util.stream.Stream;
  */
 public class PreSortedRecordsSorter extends AbstractRecordsSorter implements CacheableSorter, ConditionalSorter {
 	private static final long CLASS_ID = 795011057191754417L;
+	/**
+	 * Contains the type of the data this sorter is sorting. Chainable types require using {@link MergedComparableSortedRecordsSupplier}
+	 * while comparable types can use {@link MergedComparableSortedRecordsSupplier}.
+	 */
+	private final Class<?> baseType;
+	/**
+	 * Contains the direction of sorting.
+	 */
+	private final OrderDirection orderDirection;
 	/**
 	 * This callback will be called when this sorter is computed.
 	 */
@@ -94,19 +105,25 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter implements Cac
 	/**
 	 * Contains memoized value of {@link #getSortedRecordsProviders()} method.
 	 */
-	private MergedSortedRecordsSupplier memoizedResult;
+	private MergedSortedRecordsSupplierContract memoizedResult;
 
 	public PreSortedRecordsSorter(
+		@Nonnull Class<?> baseType,
+		@Nonnull OrderDirection orderDirection,
 		@Nonnull Supplier<SortedRecordsProvider[]> sortedRecordsSupplier
 	) {
-		this(null, sortedRecordsSupplier, null);
+		this(baseType, orderDirection, null, sortedRecordsSupplier, null);
 	}
 
 	private PreSortedRecordsSorter(
+		@Nonnull Class<?> baseType,
+		@Nonnull OrderDirection orderDirection,
 		@Nullable Consumer<CacheableSorter> computationCallback,
 		@Nonnull Supplier<SortedRecordsProvider[]> sortedRecordsSupplier,
 		@Nullable Sorter unknownRecordIdsSorter
 	) {
+		this.baseType = baseType;
+		this.orderDirection = orderDirection;
 		this.computationCallback = computationCallback;
 		this.sortedRecordsSupplier = sortedRecordsSupplier;
 		this.unknownRecordIdsSorter = unknownRecordIdsSorter;
@@ -139,6 +156,8 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter implements Cac
 	@Override
 	public Sorter cloneInstance() {
 		return new PreSortedRecordsSorter(
+			this.baseType,
+			this.orderDirection,
 			this.computationCallback,
 			this.sortedRecordsSupplier,
 			null
@@ -149,6 +168,8 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter implements Cac
 	@Override
 	public Sorter andThen(Sorter sorterForUnknownRecords) {
 		return new PreSortedRecordsSorter(
+			this.baseType,
+			this.orderDirection,
 			this.computationCallback,
 			this.sortedRecordsSupplier,
 			sorterForUnknownRecords
@@ -238,6 +259,8 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter implements Cac
 	@Override
 	public CacheableSorter getCloneWithComputationCallback(@Nonnull Consumer<CacheableSorter> selfOperator) {
 		return new PreSortedRecordsSorter(
+			this.baseType,
+			this.orderDirection,
 			selfOperator,
 			this.sortedRecordsSupplier,
 			this.unknownRecordIdsSorter
@@ -250,13 +273,19 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter implements Cac
 	}
 
 	@Nonnull
-	public MergedSortedRecordsSupplier getMemoizedResult() {
+	public MergedSortedRecordsSupplierContract getMemoizedResult() {
 		if (this.memoizedResult == null) {
 			final SortedRecordsProvider[] sortedRecordsProviders = getSortedRecordsProviders();
-			this.memoizedResult = new MergedSortedRecordsSupplier(
-				sortedRecordsProviders,
-				this.unknownRecordIdsSorter
-			);
+			this.memoizedResult = ChainableType.class.isAssignableFrom(this.baseType) ?
+				new MergedSortedRecordsSupplier(
+					sortedRecordsProviders,
+					this.unknownRecordIdsSorter
+				) :
+				new MergedComparableSortedRecordsSupplier(
+					this.orderDirection,
+					sortedRecordsProviders,
+					this.unknownRecordIdsSorter
+				);
 			if (this.computationCallback != null) {
 				this.computationCallback.accept(this);
 			}

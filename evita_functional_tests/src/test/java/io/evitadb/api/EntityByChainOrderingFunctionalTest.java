@@ -1997,10 +1997,12 @@ public class EntityByChainOrderingFunctionalTest {
 				final int[] expectedOrder = new int[products.size()];
 				int index = 0;
 
+				final Comparator<SealedEntity> attributeComparator = Comparator.comparing(entity -> entity.getReferences(Entities.BRAND).stream().map(it -> it.getAttribute(ATTRIBUTE_INCEPTION_YEAR, Integer.class)).filter(Objects::nonNull).findFirst().orElseThrow());
+				final Comparator<SealedEntity> pkComparator = attributeComparator.thenComparingInt(EntityClassifier::getPrimaryKeyOrThrowException);
 				final int[] sortedValues = products.values()
 					.stream()
 					.filter(entity -> entity.getReferences(Entities.BRAND).stream().anyMatch(it -> it.getAttribute(ATTRIBUTE_INCEPTION_YEAR) != null))
-					.sorted(Comparator.comparing(entity -> entity.getReferences(Entities.BRAND).stream().map(it -> it.getAttribute(ATTRIBUTE_INCEPTION_YEAR, Integer.class)).filter(Objects::nonNull).findFirst().orElseThrow()))
+					.sorted(pkComparator)
 					.mapToInt(EntityClassifier::getPrimaryKeyOrThrowException)
 					.toArray();
 				final IntSet sortedProducts = new IntHashSet(sortedValues.length);
@@ -2055,10 +2057,12 @@ public class EntityByChainOrderingFunctionalTest {
 				final int[] expectedOrder = new int[products.size()];
 				int index = 0;
 
+				final Comparator<SealedEntity> attributeComparator = Comparator.comparing(entity -> entity.getReferences(Entities.BRAND).stream().map(it -> it.getAttribute(ATTRIBUTE_INCEPTION_YEAR, Integer.class)).filter(Objects::nonNull).findFirst().orElseThrow());
+				final Comparator<SealedEntity> pkComparator = attributeComparator.thenComparingInt(EntityClassifier::getPrimaryKeyOrThrowException);
 				final int[] sortedValues = products.values()
 					.stream()
 					.filter(entity -> entity.getReferences(Entities.BRAND).stream().anyMatch(it -> it.getAttribute(ATTRIBUTE_INCEPTION_YEAR) != null))
-					.sorted(Comparator.comparing(entity -> entity.getReferences(Entities.BRAND).stream().map(it -> it.getAttribute(ATTRIBUTE_INCEPTION_YEAR, Integer.class)).filter(Objects::nonNull).findFirst().orElseThrow()))
+					.sorted(pkComparator)
 					.mapToInt(EntityClassifier::getPrimaryKeyOrThrowException)
 					.toArray();
 				final IntSet sortedProducts = new IntHashSet(sortedValues.length);
@@ -2121,10 +2125,12 @@ public class EntityByChainOrderingFunctionalTest {
 				final int[] expectedOrder = new int[selectedProducts.size()];
 				int index = 0;
 
+				final Comparator<SealedEntity> attributeComparator = Comparator.comparing(entity -> entity.getReferences(Entities.BRAND).stream().map(it -> it.getAttribute(ATTRIBUTE_INCEPTION_YEAR, Integer.class)).filter(Objects::nonNull).findFirst().orElseThrow());
+				final Comparator<SealedEntity> pkComparator = attributeComparator.thenComparingInt(EntityClassifier::getPrimaryKeyOrThrowException);
 				final int[] sortedValues = products.values()
 					.stream()
 					.filter(entity -> entity.getReferences(Entities.BRAND).stream().anyMatch(it -> it.getAttribute(ATTRIBUTE_INCEPTION_YEAR) != null))
-					.sorted(Comparator.comparing(entity -> entity.getReferences(Entities.BRAND).stream().map(it -> it.getAttribute(ATTRIBUTE_INCEPTION_YEAR, Integer.class)).filter(Objects::nonNull).findFirst().orElseThrow()))
+					.sorted(pkComparator)
 					.mapToInt(EntityClassifier::getPrimaryKeyOrThrowException)
 					.toArray();
 				final IntSet sortedProducts = new IntHashSet(sortedValues.length);
@@ -2188,10 +2194,12 @@ public class EntityByChainOrderingFunctionalTest {
 				final int[] expectedOrder = new int[selectedProducts.size()];
 				int index = 0;
 
+				final Comparator<SealedEntity> attributeComparator = Comparator.comparing(entity -> entity.getReferences(Entities.BRAND).stream().map(it -> it.getAttribute(ATTRIBUTE_INCEPTION_YEAR, Integer.class)).filter(Objects::nonNull).findFirst().orElseThrow());
+				final Comparator<SealedEntity> pkComparator = attributeComparator.thenComparingInt(EntityClassifier::getPrimaryKeyOrThrowException);
 				final int[] sortedValues = products.values()
 					.stream()
 					.filter(entity -> entity.getReferences(Entities.BRAND).stream().anyMatch(it -> it.getAttribute(ATTRIBUTE_INCEPTION_YEAR) != null))
-					.sorted(Comparator.comparing(entity -> entity.getReferences(Entities.BRAND).stream().map(it -> it.getAttribute(ATTRIBUTE_INCEPTION_YEAR, Integer.class)).filter(Objects::nonNull).findFirst().orElseThrow()))
+					.sorted(pkComparator)
 					.mapToInt(EntityClassifier::getPrimaryKeyOrThrowException)
 					.toArray();
 				final IntSet sortedProducts = new IntHashSet(sortedValues.length);
@@ -2249,22 +2257,32 @@ public class EntityByChainOrderingFunctionalTest {
 				final int[] expectedOrder = new int[products.size()];
 				int index = 0;
 
+				final Predicate<ReferenceContract> referencePredicate = ref -> ref.getAttribute(ATTRIBUTE_INCEPTION_YEAR) != null || ref.getAttribute(ATTRIBUTE_MARKET) != null;
+				final Comparator<SealedEntity> attributeComparator = Comparator.comparing(entity -> {
+					final ReferenceContract ref = entity.getReferences(Entities.BRAND)
+						.stream()
+						.filter(referencePredicate)
+						.findFirst()
+						.orElseThrow();
+					return new ComparableArray(
+						new Comparable[]{
+							ref.getAttribute(ATTRIBUTE_MARKET, String.class),
+							ref.getAttribute(ATTRIBUTE_INCEPTION_YEAR, Integer.class)
+						}
+					);
+				});
+				final Comparator<SealedEntity> pkComparator = attributeComparator.thenComparingInt(EntityClassifier::getPrimaryKeyOrThrowException);
 				final int[] sortedValues = products.values()
 					.stream()
-					.filter(entity -> entity.getReferences(Entities.BRAND).stream().anyMatch(it -> it.getAttribute(ATTRIBUTE_INCEPTION_YEAR) != null))
-					.sorted(Comparator.comparing(entity -> entity.getReferences(Entities.BRAND).stream().map(it -> it.getAttribute(ATTRIBUTE_INCEPTION_YEAR, Integer.class)).filter(Objects::nonNull).findFirst().orElseThrow()))
+					.filter(entity -> entity.getReferences(Entities.BRAND).stream().anyMatch(referencePredicate))
+					.sorted(pkComparator)
 					.mapToInt(EntityClassifier::getPrimaryKeyOrThrowException)
 					.toArray();
+
 				final IntSet sortedProducts = new IntHashSet(sortedValues.length);
 				for (int epk : sortedValues) {
 					expectedOrder[index++] = epk;
 					sortedProducts.add(epk);
-				}
-
-				for (int i = 1; i <= PRODUCT_COUNT; i++) {
-					if (!sortedProducts.contains(i)) {
-						expectedOrder[index++] = i;
-					}
 				}
 
 				for (int i = 1; i <= PRODUCT_COUNT; i++) {
@@ -2313,12 +2331,28 @@ public class EntityByChainOrderingFunctionalTest {
 				final int[] expectedOrder = new int[products.size()];
 				int index = 0;
 
+				final Predicate<ReferenceContract> referencePredicate = ref -> ref.getAttribute(ATTRIBUTE_INCEPTION_YEAR) != null || ref.getAttribute(ATTRIBUTE_MARKET) != null;
+				final Comparator<SealedEntity> attributeComparator = Comparator.comparing(entity -> {
+					final ReferenceContract ref = entity.getReferences(Entities.BRAND)
+						.stream()
+						.filter(referencePredicate)
+						.findFirst()
+						.orElseThrow();
+					return new ComparableArray(
+						new Comparable[]{
+							ref.getAttribute(ATTRIBUTE_MARKET, String.class),
+							ref.getAttribute(ATTRIBUTE_INCEPTION_YEAR, Integer.class)
+						}
+					);
+				});
+				final Comparator<SealedEntity> pkComparator = attributeComparator.thenComparingInt(EntityClassifier::getPrimaryKeyOrThrowException);
 				final int[] sortedValues = products.values()
 					.stream()
-					.filter(entity -> entity.getReferences(Entities.BRAND).stream().anyMatch(it -> it.getAttribute(ATTRIBUTE_INCEPTION_YEAR) != null))
-					.sorted(Comparator.comparing(entity -> entity.getReferences(Entities.BRAND).stream().map(it -> it.getAttribute(ATTRIBUTE_INCEPTION_YEAR, Integer.class)).filter(Objects::nonNull).findFirst().orElseThrow()))
+					.filter(entity -> entity.getReferences(Entities.BRAND).stream().anyMatch(referencePredicate))
+					.sorted(pkComparator)
 					.mapToInt(EntityClassifier::getPrimaryKeyOrThrowException)
 					.toArray();
+
 				final IntSet sortedProducts = new IntHashSet(sortedValues.length);
 				for (int i = sortedValues.length - 1; i >= 0; i--) {
 					int epk = sortedValues[i];
@@ -2379,21 +2413,28 @@ public class EntityByChainOrderingFunctionalTest {
 				final int[] expectedOrder = new int[selectedProducts.size()];
 				int index = 0;
 
-				final Predicate<ReferenceContract> hasAnyAttributeCompound = it -> it.getAttribute(ATTRIBUTE_INCEPTION_YEAR) != null || it.getAttribute(ATTRIBUTE_MARKET) != null;
+				final Predicate<ReferenceContract> referencePredicate = ref -> ref.getAttribute(ATTRIBUTE_INCEPTION_YEAR) != null || ref.getAttribute(ATTRIBUTE_MARKET) != null;
+				final Comparator<SealedEntity> attributeComparator = Comparator.comparing(entity -> {
+					final ReferenceContract ref = entity.getReferences(Entities.BRAND)
+						.stream()
+						.filter(referencePredicate)
+						.findFirst()
+						.orElseThrow();
+					return new ComparableArray(
+						new Comparable[]{
+							ref.getAttribute(ATTRIBUTE_MARKET, String.class),
+							ref.getAttribute(ATTRIBUTE_INCEPTION_YEAR, Integer.class)
+						}
+					);
+				});
+				final Comparator<SealedEntity> pkComparator = attributeComparator.thenComparingInt(EntityClassifier::getPrimaryKeyOrThrowException);
 				final int[] sortedValues = products.values()
 					.stream()
-					.filter(entity -> entity.getReferences(Entities.BRAND).stream().anyMatch(hasAnyAttributeCompound))
-					.sorted(Comparator.comparing(entity -> {
-						final ReferenceContract reference = entity.getReferences(Entities.BRAND).stream().filter(hasAnyAttributeCompound).findFirst().orElseThrow();
-						return new ComparableArray(
-							new Comparable[] {
-								reference.getAttribute(ATTRIBUTE_MARKET, String.class),
-								reference.getAttribute(ATTRIBUTE_INCEPTION_YEAR, Integer.class)
-							}
-						);
-					}))
+					.filter(entity -> entity.getReferences(Entities.BRAND).stream().anyMatch(referencePredicate))
+					.sorted(pkComparator)
 					.mapToInt(EntityClassifier::getPrimaryKeyOrThrowException)
 					.toArray();
+
 				final IntSet sortedProducts = new IntHashSet(sortedValues.length);
 				for (int epk : sortedValues) {
 					if (selectedProducts.contains(epk)) {
@@ -2456,21 +2497,28 @@ public class EntityByChainOrderingFunctionalTest {
 				final int[] expectedOrder = new int[selectedProducts.size()];
 				int index = 0;
 
-				final Predicate<ReferenceContract> hasAnyAttributeCompound = it -> it.getAttribute(ATTRIBUTE_INCEPTION_YEAR) != null || it.getAttribute(ATTRIBUTE_MARKET) != null;
+				final Predicate<ReferenceContract> referencePredicate = ref -> ref.getAttribute(ATTRIBUTE_INCEPTION_YEAR) != null || ref.getAttribute(ATTRIBUTE_MARKET) != null;
+				final Comparator<SealedEntity> attributeComparator = Comparator.comparing(entity -> {
+					final ReferenceContract ref = entity.getReferences(Entities.BRAND)
+						.stream()
+						.filter(referencePredicate)
+						.findFirst()
+						.orElseThrow();
+					return new ComparableArray(
+						new Comparable[]{
+							ref.getAttribute(ATTRIBUTE_MARKET, String.class),
+							ref.getAttribute(ATTRIBUTE_INCEPTION_YEAR, Integer.class)
+						}
+					);
+				});
+				final Comparator<SealedEntity> pkComparator = attributeComparator.thenComparingInt(EntityClassifier::getPrimaryKeyOrThrowException);
 				final int[] sortedValues = products.values()
 					.stream()
-					.filter(entity -> entity.getReferences(Entities.BRAND).stream().anyMatch(hasAnyAttributeCompound))
-					.sorted(Comparator.comparing(entity -> {
-						final ReferenceContract reference = entity.getReferences(Entities.BRAND).stream().filter(hasAnyAttributeCompound).findFirst().orElseThrow();
-						return new ComparableArray(
-							new Comparable[] {
-								reference.getAttribute(ATTRIBUTE_MARKET, String.class),
-								reference.getAttribute(ATTRIBUTE_INCEPTION_YEAR, Integer.class)
-							}
-						);
-					}))
+					.filter(entity -> entity.getReferences(Entities.BRAND).stream().anyMatch(referencePredicate))
+					.sorted(pkComparator)
 					.mapToInt(EntityClassifier::getPrimaryKeyOrThrowException)
 					.toArray();
+
 				final IntSet sortedProducts = new IntHashSet(sortedValues.length);
 				for (int i = sortedValues.length - 1; i >= 0; i--) {
 					int epk = sortedValues[i];
@@ -2494,6 +2542,13 @@ public class EntityByChainOrderingFunctionalTest {
 			}
 		);
 	}
+
+	/* TODO JNO - add hierarchy tests */
+	/* TODO JNO - consider behavior:
+	     - when traverseBy is used, we first iterate over reference keys, then reference attribute values
+	     - when new pickFirstBy, we iterate over reference attribute values and the order is used only to pick the correct reference (cannot be used on Chainable types)
+     */
+	/* TODO JNO - add paging + filtering + spacing test using sort by indexes to test MergedSortedRecordsSupplier */
 
 	/**
 	 * EntityReference is a record that encapsulates a reference to an entity along with a contract for referencing.

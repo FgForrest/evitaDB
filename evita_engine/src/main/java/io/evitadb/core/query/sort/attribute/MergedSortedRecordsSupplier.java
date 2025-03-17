@@ -52,7 +52,7 @@ import java.util.function.IntConsumer;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public class MergedSortedRecordsSupplier extends AbstractRecordsSorter implements ConditionalSorter, Serializable {
+public final class MergedSortedRecordsSupplier extends AbstractRecordsSorter implements ConditionalSorter, Serializable, MergedSortedRecordsSupplierContract {
 	@Serial private static final long serialVersionUID = 6709519064291586499L;
 	/**
 	 * Contains the {@link SortedRecordsProvider} implementation with merged pre-sorted records.

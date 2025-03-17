@@ -33,7 +33,6 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
@@ -58,26 +57,17 @@ public class SortIndexChanges implements Serializable {
 
 	/**
 	 * Reference to the {@link SortIndex} this data structure is linked to.
+	 * It provides the foundational data on which sorting and modifications are based.
 	 */
 	private final SortIndex sortIndex;
+
 	/**
 	 * Contains information about indexes of the record chunks that belong to {@link SortIndex#sortedRecordsValues}.
-	 * This intermediate structure is used only when contents of the {@link SortIndex} are modified. Sort index itself
-	 * doesn't contain this information in order to safe precious memory. Even the {@link SortIndex#valueCardinalities}
-	 * hold only cardinalities bigger that one so the required space is minimized. This field contains computed data
-	 * from {@link SortIndex#sortedRecordsValues} and {@link SortIndex#valueCardinalities} together in an unfolded form.
+	 * This intermediate structure is used only when contents of the {@link SortIndex} are modified.
+	 * The sort index itself avoids holding this data for memory optimization. The {@link SortIndex#valueCardinalities}
+	 * only hold cardinalities larger than one, and this field expands that data into a full form.
 	 */
 	private ValueStartIndex[] valueLocationIndex;
-	/**
-	 * Cached aggregation of "sorted" results in ascending order - computed as plain aggregation or all record ids
-	 * in the histogram from left to right.
-	 */
-	@Nullable private SortedRecordsSupplier recordIdToPositions;
-	/**
-	 * Cached aggregation of "sorted" results in descending order - computed as plain aggregation or all record ids
-	 * in the histogram from right to left.
-	 */
-	@Nullable private SortedRecordsSupplier recordIdToPositionsReversed;
 
 	/**
 	 * Verifies that value is not present in value index.
@@ -96,27 +86,26 @@ public class SortIndexChanges implements Serializable {
 	 */
 	@Nonnull
 	public SortedRecordsSupplier getAscendingOrderRecordsSupplier() {
-		return ofNullable(this.recordIdToPositions).orElseGet(() -> {
-			this.recordIdToPositions = ofNullable(this.sortIndex.getReferenceKey())
-				.map(
-					referenceKey -> (SortedRecordsSupplier) new ReferenceSortedRecordsSupplier(
-						this.sortIndex.sortedRecords.getId(),
-						this.sortIndex.sortedRecords.getArray(),
-						this.sortIndex.sortedRecords.getPositions(),
-						this.sortIndex.sortedRecords.getRecordIds(),
-						referenceKey
-					)
+		return ofNullable(this.sortIndex.getReferenceKey())
+			.map(
+				referenceKey -> (SortedRecordsSupplier) new ReferenceSortedRecordsSupplier(
+					this.sortIndex.sortedRecords.getId(),
+					this.sortIndex.sortedRecords.getArray(),
+					this.sortIndex.sortedRecords.getPositions(),
+					this.sortIndex.sortedRecords.getRecordIds(),
+					this.sortIndex.createSortedComparableForwardSeeker(),
+					referenceKey
 				)
-				.orElseGet(
-					() -> new SortedRecordsSupplier(
-						this.sortIndex.sortedRecords.getId(),
-						this.sortIndex.sortedRecords.getArray(),
-						this.sortIndex.sortedRecords.getPositions(),
-						this.sortIndex.sortedRecords.getRecordIds()
-					)
-				);
-			return this.recordIdToPositions;
-		});
+			)
+			.orElseGet(
+				() -> new SortedRecordsSupplier(
+					this.sortIndex.sortedRecords.getId(),
+					this.sortIndex.sortedRecords.getArray(),
+					this.sortIndex.sortedRecords.getPositions(),
+					this.sortIndex.sortedRecords.getRecordIds(),
+					this.sortIndex.createSortedComparableForwardSeeker()
+				)
+			);
 	}
 
 	/**
@@ -125,27 +114,26 @@ public class SortIndexChanges implements Serializable {
 	 */
 	@Nonnull
 	public SortedRecordsSupplier getDescendingOrderRecordsSupplier() {
-		return ofNullable(this.recordIdToPositionsReversed).orElseGet(() -> {
-			this.recordIdToPositionsReversed = ofNullable(this.sortIndex.getReferenceKey())
-				.map(
-					referenceKey -> (SortedRecordsSupplier) new ReferenceSortedRecordsSupplier(
-						this.sortIndex.getId(),
-						ArrayUtils.reverse(this.sortIndex.sortedRecords.getArray()),
-						invert(this.sortIndex.sortedRecords.getPositions()),
-						this.sortIndex.sortedRecords.getRecordIds(),
-						referenceKey
-					)
+		return ofNullable(this.sortIndex.getReferenceKey())
+			.map(
+				referenceKey -> (SortedRecordsSupplier) new ReferenceSortedRecordsSupplier(
+					this.sortIndex.getId(),
+					ArrayUtils.reverse(this.sortIndex.sortedRecords.getArray()),
+					invert(this.sortIndex.sortedRecords.getPositions()),
+					this.sortIndex.sortedRecords.getRecordIds(),
+					this.sortIndex.createReversedSortedComparableForwardSeeker(),
+					referenceKey
 				)
-				.orElseGet(
-					() -> new SortedRecordsSupplier(
-						this.sortIndex.getId(),
-						ArrayUtils.reverse(this.sortIndex.sortedRecords.getArray()),
-						invert(this.sortIndex.sortedRecords.getPositions()),
-						this.sortIndex.sortedRecords.getRecordIds()
-					)
-				);
-			return this.recordIdToPositionsReversed;
-		});
+			)
+			.orElseGet(
+				() -> new SortedRecordsSupplier(
+					this.sortIndex.getId(),
+					ArrayUtils.reverse(this.sortIndex.sortedRecords.getArray()),
+					invert(this.sortIndex.sortedRecords.getPositions()),
+					this.sortIndex.sortedRecords.getRecordIds(),
+					this.sortIndex.createReversedSortedComparableForwardSeeker()
+				)
+			);
 	}
 
 	/**
@@ -193,9 +181,7 @@ public class SortIndexChanges implements Serializable {
 	 * Method alters internal data structures when new value (that was not present before) is inserted in the {@link SortIndex}.
 	 */
 	public void valueAdded(@Nonnull Comparable<?> value, @Nonnull Comparator<?> comparator) {
-		this.recordIdToPositions = null;
-		this.recordIdToPositionsReversed = null;
-		final ValueStartIndex[] valueIndex = getValueIndex(sortIndex.sortedRecordsValues, sortIndex.valueCardinalities);
+		final ValueStartIndex[] valueIndex = getValueIndex(this.sortIndex.sortedRecordsValues, this.sortIndex.valueCardinalities);
 		// compute the insertion position in value index
 		@SuppressWarnings({"unchecked", "rawtypes"}) final InsertionPosition insertionPosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
 			new ValueStartIndex(value, -1), valueIndex,
@@ -215,9 +201,7 @@ public class SortIndexChanges implements Serializable {
 	 * Method alters internal data structures when existing value cardinality is incremented in the {@link SortIndex}.
 	 */
 	public void valueCardinalityIncreased(@Nonnull Comparable<?> value, @Nonnull Comparator<?> comparator) {
-		this.recordIdToPositions = null;
-		this.recordIdToPositionsReversed = null;
-		final ValueStartIndex[] valueIndex = getValueIndex(sortIndex.sortedRecordsValues, sortIndex.valueCardinalities);
+		final ValueStartIndex[] valueIndex = getValueIndex(this.sortIndex.sortedRecordsValues, this.sortIndex.valueCardinalities);
 		// find the value in the index
 		@SuppressWarnings({"unchecked", "rawtypes"}) final int position = Arrays.binarySearch(
 			valueIndex, new ValueStartIndex(value, -1),
@@ -243,9 +227,7 @@ public class SortIndexChanges implements Serializable {
 	 * Method alters internal data structures when existing value is removed entirely from the {@link SortIndex}.
 	 */
 	public void valueRemoved(@Nonnull Comparable<?> value, @Nonnull Comparator<?> comparator) {
-		this.recordIdToPositions = null;
-		this.recordIdToPositionsReversed = null;
-		final ValueStartIndex[] valueIndex = getValueIndex(sortIndex.sortedRecordsValues, sortIndex.valueCardinalities);
+		final ValueStartIndex[] valueIndex = getValueIndex(this.sortIndex.sortedRecordsValues, this.sortIndex.valueCardinalities);
 		// find the value in the index
 		@SuppressWarnings({"unchecked", "rawtypes"}) final int position = Arrays.binarySearch(
 			valueIndex, new ValueStartIndex(value, -1),
@@ -264,9 +246,7 @@ public class SortIndexChanges implements Serializable {
 	 * Method alters internal data structures when existing value cardinality is decremented in the {@link SortIndex}.
 	 */
 	public void valueCardinalityDecreased(@Nonnull Comparable<?> value, @Nonnull Comparator<?> comparator) {
-		this.recordIdToPositions = null;
-		this.recordIdToPositionsReversed = null;
-		final ValueStartIndex[] valueIndex = getValueIndex(sortIndex.sortedRecordsValues, sortIndex.valueCardinalities);
+		final ValueStartIndex[] valueIndex = getValueIndex(this.sortIndex.sortedRecordsValues, this.sortIndex.valueCardinalities);
 		// find the value in the index
 		@SuppressWarnings({"unchecked", "rawtypes"}) final int position = Arrays.binarySearch(
 			valueIndex, new ValueStartIndex(value, -1),
@@ -332,11 +312,14 @@ public class SortIndexChanges implements Serializable {
 		@Serial private static final long serialVersionUID = -4953895484396265436L;
 
 		/**
-		 * The comparable value.
+		 * The comparable value representing the sort key.
+		 * This could be an attribute, timestamp, or any value used to determine ordering.
 		 */
 		@Getter private final Comparable<?> value;
+
 		/**
-		 * Start index of the record id block in the {@link SortIndex#sortedRecords} for this value.
+		 * Start index of the block of record IDs in the {@link SortIndex#sortedRecords} that belong to this value.
+		 * This index points to where the records associated with the value begin in the sorted sequence.
 		 */
 		@Getter private int index;
 

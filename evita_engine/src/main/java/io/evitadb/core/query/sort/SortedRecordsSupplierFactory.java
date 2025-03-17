@@ -81,6 +81,12 @@ public interface SortedRecordsSupplierFactory {
 			public int[] getSortedRecordIds() {
 				return ArrayUtils.EMPTY_INT_ARRAY;
 			}
+
+			@Nonnull
+			@Override
+			public SortedComparableForwardSeeker getSortedComparableForwardSeeker() {
+				return SortedComparableForwardSeeker.EMPTY;
+			}
 		};
 
 		/**
@@ -109,11 +115,63 @@ public interface SortedRecordsSupplierFactory {
 		@Nonnull
 		int[] getSortedRecordIds();
 
+		/**
+		 * Returns the {@link SortedComparableForwardSeeker} that can be used to retrieve the sorted comparable value
+		 * for a given position in the sorted records.
+		 *
+		 * @return the {@link SortedComparableForwardSeeker} instance.
+		 */
+		@Nonnull
+		SortedComparableForwardSeeker getSortedComparableForwardSeeker();
+
+	}
+
+	/**
+	 * Interface representing a forward seeker specifically for sorted collections of comparable records.
+	 * Allows retrieval of a comparable value at a specific position in a sorted collection.
+	 * The returned value should be consistent with the defined sorting order of the underlying records.
+	 *
+	 * Forward seeker is a design pattern that allows for efficient traversal of a collection in a forward direction.
+	 */
+	interface SortedComparableForwardSeeker {
+
+		/**
+		 * Empty sorted comparable forward seeker behaves as if the sort index was empty.
+		 */
+		SortedComparableForwardSeeker EMPTY = new SortedComparableForwardSeeker() {
+
+			@Nonnull
+			@Override
+			public Comparable<?> getComparableValueOn(int position) throws ArrayIndexOutOfBoundsException {
+				throw new ArrayIndexOutOfBoundsException("No comparable value available for the given position.");
+			}
+		};
+
+		/**
+		 * Resets the forward seeker to its initial state, allowing it to be reused for a new traversal.
+		 */
+		default void reset() {
+			// No-op by default, can be overridden by subclasses if needed.
+		}
+
+		/**
+		 * Retrieves a comparable value at the specified position within the sorted collection.
+		 *
+		 * @param position The position within the sorted collection from which the comparable
+		 *                 value will be retrieved. Must be a valid index within the collection.
+		 * @return The comparable value located at the specified position in the sorted collection.
+		 * @throws ArrayIndexOutOfBoundsException If the provided position exceeds the bounds of the collection.
+		 */
+		@Nonnull
+		Comparable<?> getComparableValueOn(int position)
+			throws ArrayIndexOutOfBoundsException;
 	}
 
 	/**
 	 * Provides access to sorted records array and {@link ReferenceKey} discriminator of the index producing the sorted
 	 * records.
+	 *
+	 * TODO JNO - toto se použije v rámci hierarchického třídění
 	 */
 	interface ReferenceSortedRecordsProvider extends SortedRecordsProvider {
 

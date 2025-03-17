@@ -54,6 +54,7 @@ import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.storageParts.index.SortIndexStoragePart;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.NumberUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -560,6 +561,36 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 		}
 	}
 
+	/**
+	 * Creates and returns an instance of {@link SortedRecordsSupplierFactory.SortedComparableForwardSeeker}.
+	 * The created seeker facilitates efficient forward traversal of sorted comparable records,
+	 * ensuring alignment with the inherent sorting order.
+	 *
+	 * @return an instance of {@link SortedRecordsSupplierFactory.SortedComparableForwardSeeker}, initialized with the
+	 *         necessary record values and cardinalities for efficient forward traversal.
+	 */
+	@Nonnull
+	public SortedRecordsSupplierFactory.SortedComparableForwardSeeker createSortedComparableForwardSeeker() {
+		return new SortedComparableForwardSeeker(
+			this.sortedRecordsValues, this.valueCardinalities, this.size()
+		);
+	}
+
+	/**
+	 * Creates and returns an instance of {@link SortedRecordsSupplierFactory.SortedComparableForwardSeeker}.
+	 * The created seeker facilitates efficient reverse traversal of sorted comparable records,
+	 * ensuring alignment with the inherent sorting order.
+	 *
+	 * @return an instance of {@link SortedRecordsSupplierFactory.SortedComparableForwardSeeker}, initialized with the
+	 *         necessary record values and cardinalities for efficient reverse traversal.
+	 */
+	@Nonnull
+	public SortedRecordsSupplierFactory.SortedComparableForwardSeeker createReversedSortedComparableForwardSeeker() {
+		return new ReversedSortedComparableForwardSeeker(
+			this.sortedRecordsValues, this.valueCardinalities, this.size()
+		);
+	}
+
 	/*
 		Implementation of TransactionalLayerProducer
 	 */
@@ -819,4 +850,193 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 			return (T) array;
 		}
 	}
+
+	/**
+	 * A helper class that operates as a forward seeker for sorted comparable records.
+	 * This implementation is designed to efficiently retrieve comparable values stored
+	 * across multiple ranges in a sorted collection. It supports traversing the collection
+	 * in a forward direction while maintaining consistent behavior with the sorting order.
+	 *
+	 * The seeker uses an array of {@code ValueStartIndex} objects where each index defines
+	 * the starting position and associated value, along with the total number of records
+	 * to manage bounds validation during traversal.
+	 */
+	/* TOBEDONE JNO #760 - this should be handled by optimized B+Tree key iterator that is tied to the value count! */
+	private static class SortedComparableForwardSeeker implements SortedRecordsSupplierFactory.SortedComparableForwardSeeker {
+		/**
+		 * Contains comparable values sorted naturally by their {@link Comparable} characteristics.
+		 */
+		private final TransactionalObjArray<? extends Comparable<?>> sortedRecordsValues;
+		/**
+		 * Map contains only values with cardinalities greater than one. It is expected that records will have scarce values
+		 * with low cardinality so this should save a lot of memory.
+		 */
+		private final TransactionalMap<Comparable<?>, Integer> valueCardinalities;
+		/**
+		 * The total count of all records in the sorted collection.
+		 */
+		private final int totalCount;
+		/**
+		 * The current index in the {@code valueLocationIndex} array used for traversing forward.
+		 */
+		private int index = -1;
+		/**
+		 * Last position the comparable was retrieved for (and that match the {@link #index}).
+		 */
+		private int lastPosition = -1;
+		/**
+		 * Contains peak of the current index including cardinality.
+		 */
+		private int indexPeak = 0;
+
+		public SortedComparableForwardSeeker(
+			@Nonnull TransactionalObjArray<? extends Comparable<?>> sortedRecordsValues,
+			@Nonnull TransactionalMap<Comparable<?>, Integer> valueCardinalities,
+			int totalCount
+		) {
+			this.sortedRecordsValues = sortedRecordsValues;
+			this.valueCardinalities = valueCardinalities;
+			this.totalCount = totalCount;
+		}
+
+		@Override
+		public void reset() {
+			this.index = -1;
+			this.indexPeak = 0;
+			this.lastPosition = -1;
+		}
+
+		@Nonnull
+		@Override
+		public Comparable<?> getComparableValueOn(int position) throws ArrayIndexOutOfBoundsException {
+			if (position < 0 || position > this.totalCount) {
+				throw new ArrayIndexOutOfBoundsException("Position " + position + " is out of bounds for value index!");
+			}
+			Assert.isPremiseValid(
+				position >= this.lastPosition,
+				"Position " + position + " must be greater than or equal to the last position " + this.lastPosition + "!"
+			);
+
+			boolean exhausted = false;
+			if (this.indexPeak <= position) {
+				int currentIndexCardinality = this.valueCardinalities.getOrDefault(this.sortedRecordsValues.get(this.index + 1), 1);
+				while (this.indexPeak <= position && this.indexPeak < this.totalCount) {
+					this.indexPeak += currentIndexCardinality;
+					this.index++;
+					if (this.index + 1 < this.sortedRecordsValues.getLength()) {
+						currentIndexCardinality = this.valueCardinalities.getOrDefault(this.sortedRecordsValues.get(this.index + 1), 1);
+					} else {
+						exhausted = true;
+						break;
+					}
+				}
+				if (exhausted && position > this.indexPeak) {
+					throw new ArrayIndexOutOfBoundsException("Position " + position + " is out of bounds for value index!");
+				}
+			}
+
+			this.lastPosition = position;
+			return this.sortedRecordsValues.get(this.index);
+		}
+	}
+
+	/**
+	 * ReversedSortedComparableForwardSeeker provides an implementation of
+	 * SortedRecordsSupplierFactory.SortedComparableForwardSeeker that enables
+	 * forward traversal of a collection of comparable values in reversed sorted order.
+	 * This implementation operates on an array of ValueStartIndex objects and retrieves
+	 * the Comparable value for a specified position.
+	 *
+	 * The seeker's index is initialized to the last position in the valueLocationIndex array,
+	 * and it moves backwards through the array as values are requested. Each value can be
+	 * fetched using its position in the sorted collection, with validation to ensure the
+	 * position is within bounds.
+	 *
+	 * This class is specifically designed to support sorted collections where the elements
+	 * are traversed from the end towards the beginning, following reverse sorted order.
+	 */
+	/* TOBEDONE JNO #760 - this should be handled by optimized B+Tree key iterator that is tied to the value count! */
+	private static class ReversedSortedComparableForwardSeeker implements SortedRecordsSupplierFactory.SortedComparableForwardSeeker {
+		/**
+		 * Contains comparable values sorted naturally by their {@link Comparable} characteristics.
+		 */
+		private final TransactionalObjArray<? extends Comparable<?>> sortedRecordsValues;
+		/**
+		 * Map contains only values with cardinalities greater than one. It is expected that records will have scarce values
+		 * with low cardinality so this should save a lot of memory.
+		 */
+		private final TransactionalMap<Comparable<?>, Integer> valueCardinalities;
+		/**
+		 * The total count of all records in the sorted collection.
+		 */
+		private final int totalCount;
+		/**
+		 * The current index of the ValueStartIndex array used while traversing backward.
+		 */
+		private int index;
+		/**
+		 * Last position the comparable was retrieved for (and that match the {@link #index}).
+		 */
+		private int lastPosition;
+		/**
+		 * Contains peak of the current index including cardinality.
+		 */
+		private int indexPeak = 0;
+
+		public ReversedSortedComparableForwardSeeker(
+			@Nonnull TransactionalObjArray<? extends Comparable<?>> sortedRecordsValues,
+			@Nonnull TransactionalMap<Comparable<?>, Integer> valueCardinalities,
+			int totalCount
+		) {
+			this.sortedRecordsValues = sortedRecordsValues;
+			this.valueCardinalities = valueCardinalities;
+			this.totalCount = totalCount;
+			this.lastPosition = totalCount;
+			this.index = this.sortedRecordsValues.getLength();
+			this.indexPeak = totalCount;
+		}
+
+		@Override
+		public void reset() {
+			this.lastPosition = this.totalCount;
+			this.indexPeak = this.totalCount;
+			this.index = this.sortedRecordsValues.getLength();
+		}
+
+		@Nonnull
+		@Override
+		public Comparable<?> getComparableValueOn(int invertedPosition) throws ArrayIndexOutOfBoundsException {
+			int position = this.totalCount - invertedPosition - 1;
+			if (position < 0 || position > this.totalCount) {
+				throw new ArrayIndexOutOfBoundsException("Position " + position + " is out of bounds for value index!");
+			}
+
+			Assert.isPremiseValid(
+				position <= this.lastPosition,
+				"Position " + position + " must be lesser than or equal to the last position " + this.lastPosition + "!"
+			);
+
+			boolean exhausted = false;
+			if (this.indexPeak > position) {
+				int currentIndexCardinality = this.valueCardinalities.getOrDefault(this.sortedRecordsValues.get(this.index - 1), 1);
+				while (this.indexPeak > position) {
+					this.indexPeak -= currentIndexCardinality;
+					this.index--;
+					if (this.index > 0) {
+						currentIndexCardinality = this.valueCardinalities.getOrDefault(this.sortedRecordsValues.get(this.index - 1), 1);
+					} else {
+						exhausted = true;
+						break;
+					}
+				}
+				if (exhausted && position > this.indexPeak) {
+					throw new ArrayIndexOutOfBoundsException("Position " + position + " is out of bounds for value index!");
+				}
+			}
+
+			this.lastPosition = position;
+			return this.sortedRecordsValues.get(this.index);
+		}
+	}
+
 }
