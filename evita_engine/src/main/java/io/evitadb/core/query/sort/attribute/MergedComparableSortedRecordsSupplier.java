@@ -23,7 +23,6 @@
 
 package io.evitadb.core.query.sort.attribute;
 
-import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.sort.ConditionalSorter;
@@ -61,9 +60,9 @@ import java.util.function.IntConsumer;
 public final class MergedComparableSortedRecordsSupplier extends AbstractRecordsSorter implements ConditionalSorter, Serializable, MergedSortedRecordsSupplierContract {
 	@Serial private static final long serialVersionUID = -2455704501031260272L;
 	/**
-	 * Contains the {@link OrderDirection} of the sorting.
+	 * Contains the {@link Comparator} for the sorting execution.
 	 */
-	private final OrderDirection orderDirection;
+	@SuppressWarnings("rawtypes") private final Comparator comparator;
 	/**
 	 * Contains the {@link SortedRecordsProvider} implementation with merged pre-sorted records.
 	 */
@@ -135,11 +134,11 @@ public final class MergedComparableSortedRecordsSupplier extends AbstractRecords
 	}
 
 	public MergedComparableSortedRecordsSupplier(
-		@Nonnull OrderDirection orderDirection,
+		@SuppressWarnings("rawtypes") @Nonnull Comparator comparator,
 		@Nonnull SortedRecordsProvider[] sortedRecordsProviders,
 		@Nullable Sorter unknownRecordIdsSorter
 	) {
-		this.orderDirection = orderDirection;
+		this.comparator = comparator;
 		Assert.isPremiseValid(sortedRecordsProviders.length > 0, "At least one sorted records provider must be present!");
 		this.sortedRecordsProviders = sortedRecordsProviders;
 		this.unknownRecordIdsSorter = unknownRecordIdsSorter;
@@ -149,7 +148,7 @@ public final class MergedComparableSortedRecordsSupplier extends AbstractRecords
 	@Override
 	public Sorter cloneInstance() {
 		return new MergedComparableSortedRecordsSupplier(
-			this.orderDirection, this.sortedRecordsProviders, null
+			this.comparator, this.sortedRecordsProviders, null
 		);
 	}
 
@@ -157,7 +156,7 @@ public final class MergedComparableSortedRecordsSupplier extends AbstractRecords
 	@Override
 	public Sorter andThen(Sorter sorterForUnknownRecords) {
 		return new MergedComparableSortedRecordsSupplier(
-			this.orderDirection, this.sortedRecordsProviders, sorterForUnknownRecords
+			this.comparator, this.sortedRecordsProviders, sorterForUnknownRecords
 		);
 	}
 
@@ -263,7 +262,7 @@ public final class MergedComparableSortedRecordsSupplier extends AbstractRecords
 			final MaskResult maskResult = maskResults[i];
 			final SortedRecordsProvider sortedRecordsProvider = this.sortedRecordsProviders[i];
 			final SortedRecordsProviderBuffer sortedRecordsProviderBuffer = new SortedRecordsProviderBuffer(
-				sortedRecordsProvider, maskResult.mask(), queryContext
+				this.comparator, sortedRecordsProvider, maskResult.mask(), queryContext
 			);
 			if (sortedRecordsProviderBuffer.fetchNext()) {
 				sortedRecordsProviderBuffers[sortedRecordsProviderBufferPeak++] = sortedRecordsProviderBuffer;
@@ -273,9 +272,7 @@ public final class MergedComparableSortedRecordsSupplier extends AbstractRecords
 		}
 
 		// sort buffers
-		final Comparator<SortedRecordsProviderBuffer> comparator = this.orderDirection == OrderDirection.ASC ?
-			Comparator.naturalOrder() : Comparator.reverseOrder();
-		Arrays.sort(sortedRecordsProviderBuffers, 0, sortedRecordsProviderBufferPeak, comparator);
+		Arrays.sort(sortedRecordsProviderBuffers, 0, sortedRecordsProviderBufferPeak);
 
 		do {
 			SortedRecordsProviderBuffer sortedPk = sortedRecordsProviderBuffers[0];
@@ -292,7 +289,7 @@ public final class MergedComparableSortedRecordsSupplier extends AbstractRecords
 			if (sortedPk.fetchNext()) {
 				if (sortedRecordsProviderBufferPeak > 1) {
 					final InsertionPosition insertionPosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
-						sortedPk, sortedRecordsProviderBuffers, 1, sortedRecordsProviderBufferPeak, comparator
+						sortedPk, sortedRecordsProviderBuffers, 1, sortedRecordsProviderBufferPeak
 					);
 					// when the position is zero, we don't need to do anything and the sortedPk is already in the right place
 					// it will produce next sorted PK in the next iteration
@@ -398,6 +395,10 @@ public final class MergedComparableSortedRecordsSupplier extends AbstractRecords
 	 */
 	private static class SortedRecordsProviderBuffer implements Comparable<SortedRecordsProviderBuffer>, AutoCloseable {
 		/**
+		 * The comparator used for sorting and comparing records in the buffer.
+		 */
+		@SuppressWarnings("rawtypes") private final Comparator comparator;
+		/**
 		 * An iterator over batches of integers in the mask bitmap.
 		 * Used to access the indices of relevant sorted records.
 		 */
@@ -445,10 +446,12 @@ public final class MergedComparableSortedRecordsSupplier extends AbstractRecords
 		private Comparable comparableValue;
 
 		public SortedRecordsProviderBuffer(
+			@SuppressWarnings("rawtypes") @Nonnull Comparator comparator,
 			@Nonnull SortedRecordsProvider sortedRecordsProvider,
 			@Nonnull RoaringBitmap mask,
 			@Nonnull QueryExecutionContext queryContext
 		) {
+			this.comparator = comparator;
 			this.maskIterator = mask.getBatchIterator();
 			this.sortedRecordIds = sortedRecordsProvider.getSortedRecordIds();
 			this.sortedComparableForwardSeeker = sortedRecordsProvider.getSortedComparableForwardSeeker();
@@ -502,9 +505,10 @@ public final class MergedComparableSortedRecordsSupplier extends AbstractRecords
 			// this is ok, we'll be always comparing values of same type and the sorting will never modify contents
 			// of the comparable value, we use non-final fields to make the algorithm faster
 			//noinspection unchecked,CompareToUsesNonFinalVariable
-			final int comparisonResult = this.comparableValue.compareTo(o.comparableValue);
+			final int comparisonResult = this.comparator.compare(this.comparableValue, o.comparableValue);
 			if (comparisonResult == 0) {
 				// then compare primary keys
+				//noinspection CompareToUsesNonFinalVariable
 				return Integer.compare(this.primaryKey, o.primaryKey);
 			} else {
 				return comparisonResult;

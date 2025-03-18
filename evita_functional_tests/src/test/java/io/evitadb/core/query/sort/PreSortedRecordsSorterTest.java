@@ -23,13 +23,13 @@
 
 package io.evitadb.core.query.sort;
 
-import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.SharedBufferPool;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.core.query.sort.attribute.PreSortedRecordsSorter;
+import io.evitadb.core.query.sort.attribute.PreSortedRecordsSorter.MergeMode;
 import io.evitadb.core.query.sort.utils.MockSortedRecordsSupplier;
 import io.evitadb.core.query.sort.utils.SortUtilsTest;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -39,6 +39,7 @@ import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Random;
 import java.util.Set;
@@ -123,8 +124,8 @@ class PreSortedRecordsSorterTest {
 		Mockito.doNothing().when(executionContext).returnBuffer(any());
 		bitmapSorter = new PreSortedRecordsSorterWithContext(
 			new PreSortedRecordsSorter(
-				Integer.class,
-				OrderDirection.ASC,
+				MergeMode.APPEND_FIRST,
+				Comparator.naturalOrder(),
 				() -> new SortedRecordsProvider[]{new MockSortedRecordsSupplier(7, 2, 4, 1, 3, 8, 5, 9, 6)}
 			),
 			planningContext
@@ -162,8 +163,8 @@ class PreSortedRecordsSorterTest {
 	void shouldReturnSortedResultEvenForMissingDataWithAdditionalSorter() {
 		final Sorter updatedSorter = bitmapSorter.sorter().andThen(
 			new PreSortedRecordsSorter(
-				Integer.class,
-				OrderDirection.ASC,
+				MergeMode.APPEND_FIRST,
+				Comparator.naturalOrder(),
 				() -> new SortedRecordsProvider[]{new MockSortedRecordsSupplier(13, 0, 12)}
 			)
 		);
@@ -187,8 +188,8 @@ class PreSortedRecordsSorterTest {
 		);
 
 		final PreSortedRecordsSorter sorter = new PreSortedRecordsSorter(
-			Integer.class,
-			OrderDirection.ASC,
+			MergeMode.APPEND_FIRST,
+			Comparator.naturalOrder(),
 			() -> new SortedRecordsProvider[]{sortedRecordsSupplier}
 		);
 		final QueryExecutionContext queryContext = Mockito.mock(QueryExecutionContext.class);

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.index.hierarchy;
 
+import io.evitadb.api.query.order.TraversalMode;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -31,6 +32,7 @@ import io.evitadb.index.hierarchy.predicate.MatchNodeIdHierarchyFilteringPredica
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -39,10 +41,18 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
-import org.roaringbitmap.RoaringBitmap;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
@@ -62,6 +72,8 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 	 *
 	 * 6/
 	 * ├─ 3/
+	 * │  ├─ 1/
+	 * │  ├─ 2/
 	 * ├─ 8/
 	 * │  ├─ 9/
 	 * │  │  ├─ 10/
@@ -100,23 +112,34 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 	}
 
 	@Test
-	void shouldCreateDepthFirstComparator() {
-		final StringBuilder nodeIds = new StringBuilder("|");
-		final RoaringBitmap allIds = new RoaringBitmap();
-		hierarchyIndex.traverseHierarchy(
-			(node, level, distance, childrenTraverser) -> {
-				nodeIds.append(node.entityPrimaryKey()).append("|");
-				allIds.add(node.entityPrimaryKey());
-				childrenTraverser.run();
-			}
+	void shouldReturnBreadthFirstArray() {
+		assertArrayEquals(
+			new int[] {6, 7, 3, 8, 4, 5, 1, 2, 9, 0, 10, 11, 12},
+			hierarchyIndex.listHierarchyNodesFromRoot(TraversalMode.BREADTH_FIRST, UnaryOperator.identity()).getArray()
 		);
+	}
 
-		assertEquals(
-			nodeIds.toString(),
-			"|" + allIds.stream()
-				.boxed()
-				.sorted(hierarchyIndex.getHierarchyComparator()).map(Objects::toString)
-				.collect(Collectors.joining("|")) + "|"
+	@Test
+	void shouldReturnDepthFirstArray() {
+		assertArrayEquals(
+			new int[] {6, 3, 1, 2, 8, 9, 10, 11, 12, 7, 4, 5, 0},
+			hierarchyIndex.listHierarchyNodesFromRoot(TraversalMode.DEPTH_FIRST, UnaryOperator.identity()).getArray()
+		);
+	}
+
+	@Test
+	void shouldReturnBreadthFirstArrayReversed() {
+		assertArrayEquals(
+			new int[] {7, 6, 8, 3, 5, 4, 9, 2, 1, 0, 12, 11, 10},
+			hierarchyIndex.listHierarchyNodesFromRoot(TraversalMode.BREADTH_FIRST, ArrayUtils::reverse).getArray()
+		);
+	}
+
+	@Test
+	void shouldReturnDepthFirstArrayReversed() {
+		assertArrayEquals(
+			new int[] {7, 5, 0, 4, 6, 8, 9, 12, 11, 10, 3, 2, 1},
+			hierarchyIndex.listHierarchyNodesFromRoot(TraversalMode.DEPTH_FIRST, ArrayUtils::reverse).getArray()
 		);
 	}
 
@@ -461,14 +484,6 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 			new int[]{9, 10, 11, 12},
 			children.getArray()
 		);
-	}
-
-	@Test
-	void shouldReturnPathToTheRoot() {
-		assertArrayEquals(new Integer[]{6, 8, 9}, hierarchyIndex.listHierarchyNodesFromRootToTheNode(11));
-		assertArrayEquals(new Integer[]{7, 5}, hierarchyIndex.listHierarchyNodesFromRootToTheNode(0));
-		assertArrayEquals(new Integer[]{7}, hierarchyIndex.listHierarchyNodesFromRootToTheNode(4));
-		assertArrayEquals(new Integer[0], hierarchyIndex.listHierarchyNodesFromRootToTheNode(7));
 	}
 
 	@Test

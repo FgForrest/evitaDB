@@ -31,9 +31,11 @@ import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.order.*;
 import io.evitadb.api.query.order.Random;
 import io.evitadb.api.query.require.DebugMode;
+import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.core.EntityCollection;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
@@ -43,6 +45,7 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
+import io.evitadb.core.query.sort.attribute.PreSortedRecordsSorter.MergeMode;
 import io.evitadb.core.query.sort.attribute.translator.AttributeNaturalTranslator;
 import io.evitadb.core.query.sort.attribute.translator.AttributeSetExactTranslator;
 import io.evitadb.core.query.sort.attribute.translator.AttributeSetInFilterTranslator;
@@ -58,8 +61,12 @@ import io.evitadb.core.query.sort.translator.OrderByTranslator;
 import io.evitadb.core.query.sort.translator.OrderInScopeTranslator;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
+import io.evitadb.index.EntityIndexKey;
+import io.evitadb.index.EntityIndexType;
+import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
@@ -117,16 +124,100 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	/**
 	 * Filter by visitor used for creating filtering formula.
 	 */
-	@Getter private final FilterByVisitor filterByVisitor;
+	private final FilterByVisitor filterByVisitor;
 	/**
 	 * Contains filtering formula tree that was used to produce results so that computed sub-results can be used for
 	 * sorting.
 	 */
-	@Getter private final Formula filteringFormula;
+	private final Formula filteringFormula;
 	/**
 	 * Contemporary stack for auxiliary data resolved for each level of the query.
 	 */
 	private final Deque<ProcessingScope> scope = new ArrayDeque<>(16);
+
+	/**
+	 * Method creates the {@link Sorter} implementation that could be used for sorting primary keys of entities
+	 * in (referenced not queried) `entityCollection` in specified scopes.
+	 */
+	@Nonnull
+	public static NestedContextSorter createSorter(
+		@Nonnull ConstraintContainer<OrderConstraint> orderBy,
+		@Nullable Locale locale,
+		@Nonnull EntityCollection entityCollection,
+		@Nonnull Supplier<String> stepDescriptionSupplier,
+		@Nonnull QueryPlanningContext queryContext,
+		@Nonnull Set<Scope> scopes
+	) {
+		final String entityType = entityCollection.getEntityType();
+		try {
+			queryContext.pushStep(
+				QueryPhase.PLANNING_SORT,
+				stepDescriptionSupplier
+			);
+			// we have to create and trap the nested query context here to carry it along with the sorter
+			// otherwise the sorter will target and use the incorrectly originally queried (prefetched) entities
+			final QueryPlanningContext nestedQueryContext = entityCollection.createQueryContext(
+				queryContext,
+				queryContext.getEvitaRequest().deriveCopyWith(
+					entityType,
+					null,
+					new OrderBy(orderBy.getChildren()),
+					queryContext.getLocale(),
+					scopes
+				),
+				queryContext.getEvitaSession()
+			);
+
+			final GlobalEntityIndex[] entityIndexes = scopes.stream()
+				.map(scope -> entityCollection.getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL, scope)))
+				.map(GlobalEntityIndex.class::cast)
+				.filter(Objects::nonNull)
+				.toArray(GlobalEntityIndex[]::new);
+			final Sorter sorter;
+			if (entityIndexes.length == 0) {
+				sorter = NoSorter.INSTANCE;
+			} else {
+				// create a visitor
+				final OrderByVisitor orderByVisitor = new OrderByVisitor(nestedQueryContext);
+				// now analyze the filter by in a nested context with exchanged primary entity index
+				sorter = orderByVisitor.executeInContext(
+					entityIndexes,
+					entityType,
+					locale,
+					new AttributeSchemaAccessor(nestedQueryContext.getCatalogSchema(), entityCollection.getSchema()),
+					() -> {
+						for (OrderConstraint innerConstraint : orderBy.getChildren()) {
+							innerConstraint.accept(orderByVisitor);
+						}
+						// create a deferred sorter that will log the execution time to query telemetry
+						return new DeferredSorter(
+							orderByVisitor.getSorter(),
+							theSorter -> {
+								try {
+									nestedQueryContext.pushStep(QueryPhase.EXECUTION_SORT_AND_SLICE, stepDescriptionSupplier);
+									return theSorter.getAsInt();
+								} finally {
+									nestedQueryContext.popStep();
+								}
+							}
+						);
+					}
+				);
+			}
+			return new NestedContextSorter(
+				nestedQueryContext.createExecutionContext(), sorter
+			);
+		} finally {
+			queryContext.popStep();
+		}
+	}
+
+	public OrderByVisitor(@Nonnull QueryPlanningContext queryContext) {
+		this(
+			queryContext, Collections.emptyList(), null, null,
+			new AttributeSchemaAccessor(queryContext)
+		);
+	}
 
 	public OrderByVisitor(
 		@Nonnull QueryPlanningContext queryContext,
@@ -143,9 +234,10 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	public OrderByVisitor(
 		@Nonnull QueryPlanningContext queryContext,
 		@Nonnull List<? extends TargetIndexes<?>> targetIndexes,
-		@Nonnull FilterByVisitor filterByVisitor,
-		@Nonnull Formula filteringFormula,
-		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor) {
+		@Nullable FilterByVisitor filterByVisitor,
+		@Nullable Formula filteringFormula,
+		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor
+	) {
 		this.queryContext = queryContext;
 		this.targetIndexes = targetIndexes;
 		this.filterByVisitor = filterByVisitor;
@@ -167,7 +259,8 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 				null,
 				null,
 				attributeSchemaAccessor,
-				new ArrayDeque<>(16)
+				new ArrayDeque<>(16),
+				null
 			)
 		);
 	}
@@ -226,7 +319,8 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 					currentScope.referenceSchema(),
 					currentScope.locale(),
 					currentScope.attributeSchemaAccessor(),
-					new ArrayDeque<>(16)
+					new ArrayDeque<>(16),
+					null
 				)
 			);
 			lambda.run();
@@ -258,7 +352,8 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 					null,
 					locale,
 					attributeSchemaAccessor,
-					processingScope.sorters()
+					processingScope.sorters(),
+					null
 				)
 			);
 			return lambda.get();
@@ -275,6 +370,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nullable Locale locale,
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
+		@Nullable MergeModeDefinition mergeMode,
 		@Nonnull Supplier<T> lambda
 	) {
 		try {
@@ -289,7 +385,8 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 					referenceSchema,
 					locale,
 					attributeSchemaAccessor,
-					processingScope.sorters()
+					processingScope.sorters(),
+					mergeMode
 				)
 			);
 			return lambda.get();
@@ -365,6 +462,39 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	}
 
 	/**
+	 * Returns the filtering formula that was used to produce results so that computed sub-results can be used for
+	 * sorting. This formula could be looked up for additional information related to queried entity type.
+	 * @return the filtering formula
+	 */
+	@Nonnull
+	public Formula getFilteringFormula() {
+		if (this.filteringFormula == null) {
+			throw new EvitaInvalidUsageException(
+				"Accessing this kind of information is available only from the main query context. " +
+					"Current ordering context relates to `" + this.queryContext.getEntityType() + "`!"
+			);
+		} else {
+			return this.filteringFormula;
+		}
+	}
+
+	/**
+	 * Returns the filter by visitor used for creating filtering formula.
+	 * @return the filter by visitor
+	 */
+	@Nonnull
+	public FilterByVisitor getFilterByVisitor() {
+		if (this.filterByVisitor == null) {
+			throw new EvitaInvalidUsageException(
+				"Accessing this kind of information is available only from the main query context. " +
+					"Current ordering context relates to `" + this.queryContext.getEntityType() + "`!"
+			);
+		} else {
+			return this.filterByVisitor;
+		}
+	}
+
+	/**
 	 * Processing scope contains contextual information that could be overridden in {@link OrderingConstraintTranslator}
 	 * implementations to exchange indexes that are being used, suppressing certain query evaluation or accessing
 	 * attribute schema information.
@@ -384,7 +514,8 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nullable Locale locale,
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
-		@Nonnull Deque<Sorter> sorters
+		@Nonnull Deque<Sorter> sorters,
+		@Nullable MergeModeDefinition mergeModeDefinition
 	) {
 
 		/**
@@ -439,6 +570,18 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 				this.requiredScopes.pop();
 			}
 		}
+
+	}
+
+	/**
+	 * Enum {@link MergeMode} wrapped with information whether it was declared explicitly or inferred implicitly.
+	 * @param mergeMode contains the merge mode
+	 * @param implicit contains information whether the merge mode was inferred implicitly
+	 */
+	public record MergeModeDefinition(
+		@Nonnull MergeMode mergeMode,
+		boolean implicit
+	) {
 
 	}
 

@@ -102,7 +102,7 @@ public class EntityByReferenceAttributeOrderingFunctionalTest {
 			} else if (o2 == null && o1 != null) {
 				return -1;
 			} else if (o1 == null) {
-				return Integer.compare(sealedEntityA.getPrimaryKey(), sealedEntityB.getPrimaryKey());
+				return Integer.compare(sealedEntityA.getPrimaryKeyOrThrowException(), sealedEntityB.getPrimaryKeyOrThrowException());
 			} else {
 				return Integer.compare(o2.getReferencedPrimaryKey(), o1.getReferencedPrimaryKey());
 			}
@@ -468,14 +468,16 @@ public class EntityByReferenceAttributeOrderingFunctionalTest {
 							.min(Comparator.comparingInt(ReferenceContract::getReferencedPrimaryKey))
 							.orElse(null);
 
-						if (o1.getReferencedPrimaryKey() < o2.getReferencedPrimaryKey()) {
-							return -1;
-						} else if (o1.getReferencedPrimaryKey() > o2.getReferencedPrimaryKey()) {
-							return 1;
-						} else {
+						if (o1 != null && o2 != null) {
 							final Long o1priority = o1.getAttribute(ATTRIBUTE_STORE_PRIORITY, Long.class);
 							final Long o2priority = o2.getAttribute(ATTRIBUTE_STORE_PRIORITY, Long.class);
 							return Long.compare(o2priority, o1priority);
+						} else if (o1 == null && o2 != null) {
+							return 1;
+						} else if (o1 != null) {
+							return -1;
+						} else {
+							return Integer.compare(sealedEntityA.getPrimaryKeyOrThrowException(), sealedEntityB.getPrimaryKeyOrThrowException());
 						}
 					}
 				);

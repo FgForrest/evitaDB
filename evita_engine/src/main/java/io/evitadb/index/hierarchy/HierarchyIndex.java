@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.index.hierarchy;
 
+import io.evitadb.api.query.order.TraversalMode;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
@@ -31,10 +32,10 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.dataType.array.CompositeIntArray;
-import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.array.TransactionalIntArray;
+import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
@@ -60,9 +61,18 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.PrimitiveIterator.OfInt;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -121,11 +131,7 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	/**
 	 * Contains cached result of {@link #getAllHierarchyNodesFormula()} call.
 	 */
-	private Formula memoizedAllNodeFormula;
-	/**
-	 * Contains cached result of {@link #getHierarchyComparator()} call.
-	 */
-	private Comparator<Integer> hierarchyComparator;
+	@Nullable private Formula memoizedAllNodeFormula;
 
 	public HierarchyIndex() {
 		this.dirty = new TransactionalBoolean();
@@ -220,6 +226,30 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 			resetMemoizedValues();
 		}
 		return removedNode.parentEntityPrimaryKey();
+	}
+
+	@Nonnull
+	@Override
+	public Bitmap listHierarchyNodesFromRoot(
+		@Nonnull TraversalMode traversalMode,
+		@Nonnull UnaryOperator<int[]> levelSorter
+	) {
+		final CompositeIntArray result = new CompositeIntArray();
+		final int[] rootNodeIds = this.roots.getArray();
+		final int[] currentLevel = levelSorter.apply(rootNodeIds);
+
+		// now execute the traversal
+		if (traversalMode == TraversalMode.DEPTH_FIRST) {
+			for (int rootNodeId : currentLevel) {
+				result.add(rootNodeId);
+				depthFirstTraversal(rootNodeId, levelSorter, result);
+			}
+		} else {
+			result.addAll(currentLevel, 0, currentLevel.length);
+			breadthFirstTraversal(rootNodeIds, levelSorter, result);
+		}
+		return result.isEmpty() ?
+			EmptyBitmap.INSTANCE : new ArrayBitmap(result.toArray());
 	}
 
 	@Override
@@ -345,25 +375,6 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 			}
 		}
 		return new BaseBitmap(result.toArray());
-	}
-
-	@Nonnull
-	@Override
-	public Integer[] listHierarchyNodesFromRootToTheNode(int theNode) {
-		HierarchyNode hierarchyNode = getHierarchyNodeOrThrowException(theNode);
-		final CompositeObjectArray<Integer> result = new CompositeObjectArray<>(Integer.class);
-		while (hierarchyNode.parentEntityPrimaryKey() != null) {
-			result.add(hierarchyNode.parentEntityPrimaryKey());
-			final Optional<HierarchyNode> parentNode = getParentNodeOrThrowException(hierarchyNode);
-			if (parentNode.isPresent()) {
-				hierarchyNode = parentNode.get();
-			} else {
-				return new Integer[0];
-			}
-		}
-		final Integer[] theResult = result.toArray();
-		ArrayUtils.reverse(theResult);
-		return theResult;
 	}
 
 	@Nonnull
@@ -507,20 +518,6 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 		return this.itemIndex.isEmpty();
 	}
 
-	@Nonnull
-	@Override
-	public Comparator<Integer> getHierarchyComparator() {
-		// if there is transaction open, and there are changes in the hierarchy data, we can't use the cache
-		if (isTransactionAvailable() && this.dirty.isTrue()) {
-			return createHierarchyComparator();
-		} else {
-			if (hierarchyComparator == null) {
-				hierarchyComparator = createHierarchyComparator();
-			}
-			return hierarchyComparator;
-		}
-	}
-
 	/**
 	 * Method returns formula that contains all nodes attached to the tree (i.e. except {@link #orphans}.
 	 */
@@ -645,14 +642,14 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 		}
 	}
 
+	/*
+		TransactionalLayerCreator implementation
+	 */
+
 	@Override
 	public void resetDirty() {
 		this.dirty.reset();
 	}
-
-	/*
-		TransactionalLayerCreator implementation
-	 */
 
 	@Nonnull
 	@Override
@@ -735,7 +732,7 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 
 	@Nonnull
 	private Optional<HierarchyNode> getParentNodeOrThrowException(@Nonnull HierarchyNode hierarchyNode) {
-		if (orphans.contains(hierarchyNode.parentEntityPrimaryKey())) {
+		if (hierarchyNode.parentEntityPrimaryKey() == null || this.orphans.contains(hierarchyNode.parentEntityPrimaryKey())) {
 			return empty();
 		} else {
 			final HierarchyNode parentNode = this.itemIndex.get(hierarchyNode.parentEntityPrimaryKey());
@@ -753,8 +750,8 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 				this.orphans.add(removedNodeChild);
 				makeOrphansRecursively(removedNodeChild);
 			}
+			removedNodeChildren.removeLayer();
 		}
-		removedNodeChildren.removeLayer();
 	}
 
 	private void createChildrenSetFromOrphansRecursively(int entityPrimaryKey) {
@@ -943,44 +940,66 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	}
 
 	/**
-	 * Creates a comparator that compares hierarchy entity primary keys according to their position in the hierarchy
-	 * depth first search order.
-	 */
-	@Nonnull
-	private Comparator<Integer> createHierarchyComparator() {
-		final ListingHierarchyVisitor visitor = new ListingHierarchyVisitor();
-		traverseHierarchy(visitor);
-		final int[] depthFirstOrder = visitor.getNodes();
-		final int[] order = new int[depthFirstOrder.length];
-		for(int i = 0; i < depthFirstOrder.length; i++) {
-			order[i] = i;
-		}
-		ArrayUtils.sortSecondAlongFirstArray(depthFirstOrder, order);
-		final int[] sortedDepthFirstOrder = new int[depthFirstOrder.length];
-		System.arraycopy(depthFirstOrder, 0, sortedDepthFirstOrder, 0, depthFirstOrder.length);
-		Arrays.sort(sortedDepthFirstOrder);
-
-		return (o1, o2) -> {
-			final int index1 = Arrays.binarySearch(sortedDepthFirstOrder, o1);
-			final int index2 = Arrays.binarySearch(sortedDepthFirstOrder, o2);
-			if (index1 < 0 && index2 < 0) {
-				return 0;
-			} else if (index1 < 0) {
-				return 1;
-			} else if (index2 < 0) {
-				return -1;
-			} else {
-				return Integer.compare(order[index1], order[index2]);
-			}
-		};
-	}
-
-	/**
 	 * Method resets all memoized values.
 	 */
 	private void resetMemoizedValues() {
 		this.memoizedAllNodeFormula = null;
-		this.hierarchyComparator = null;
+	}
+
+	/**
+	 * Performs a breadth-first traversal of a hierarchy tree starting from the specified root node.
+	 * Traverses the tree level by level, applying a sorter to children at each level, and stores the traversal result.
+	 *
+	 * @param rootNodeIds  the ID of the root nodes from which to start the traversal
+	 * @param levelSorter a {@link UnaryOperator} to sort the children nodes at each level during the traversal
+	 * @param result      a {@link CompositeIntArray} to store the result of the traversal
+	 */
+	private void breadthFirstTraversal(
+		@Nonnull int[] rootNodeIds,
+		@Nonnull UnaryOperator<int[]> levelSorter,
+		@Nonnull CompositeIntArray result
+	) {
+		final int initialSize = result.getSize();
+		for (int rootNodeId : rootNodeIds) {
+			final TransactionalIntArray children = this.levelIndex.get(rootNodeId);
+			if (children != null) {
+				final int[] childrenIds = children.getArray();
+				final int[] currentLevel = levelSorter.apply(childrenIds);
+				result.addAll(currentLevel, 0, currentLevel.length);
+			}
+		}
+		if (result.getSize() > initialSize) {
+			final int[] childrenOnThisLevel = new int[result.getSize() - initialSize];
+			final OfInt it = result.iteratorFrom(initialSize);
+			for (int i = 0; i < childrenOnThisLevel.length; i++) {
+				childrenOnThisLevel[i] = it.nextInt();
+			}
+			breadthFirstTraversal(childrenOnThisLevel, levelSorter, result);
+		}
+	}
+
+	/**
+	 * Performs a depth-first traversal of a hierarchy tree starting from the specified root node.
+	 * Traverses the tree recursively, applying a sorter to children at each level, and stores the traversal result.
+	 *
+	 * @param rootNodeId  the ID of the root node from which to start the traversal
+	 * @param levelSorter a {@link UnaryOperator} to sort the children nodes at each level during the traversal
+	 * @param result      a {@link CompositeIntArray} to store the result of the traversal
+	 */
+	private void depthFirstTraversal(
+		int rootNodeId,
+		@Nonnull UnaryOperator<int[]> levelSorter,
+		@Nonnull CompositeIntArray result
+	) {
+		final TransactionalIntArray children = this.levelIndex.get(rootNodeId);
+		if (children != null) {
+			final int[] childrenIds = children.getArray();
+			final int[] currentLevel = levelSorter.apply(childrenIds);
+			for (int nodeId : currentLevel) {
+				result.add(nodeId);
+				depthFirstTraversal(nodeId, levelSorter, result);
+			}
+		}
 	}
 
 	/**
@@ -998,18 +1017,4 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 
 	}
 
-	private class ListingHierarchyVisitor implements HierarchyVisitor {
-		private final int[] nodes = new int[HierarchyIndex.this.getHierarchySize()];
-		private int index = 0;
-
-		public int[] getNodes() {
-			return nodes;
-		}
-
-		@Override
-		public void visit(@Nonnull HierarchyNode node, int level, int distance, @Nonnull Runnable traverser) {
-			nodes[index++] = node.entityPrimaryKey();
-			traverser.run();
-		}
-	}
 }

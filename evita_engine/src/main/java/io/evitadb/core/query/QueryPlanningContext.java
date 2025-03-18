@@ -953,7 +953,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	@Nonnull
 	public Bitmap getRootHierarchyNodes() {
-		return ofNullable(rootHierarchyNodesFormula)
+		return ofNullable(this.rootHierarchyNodesFormula)
 			.map(Formula::compute)
 			.orElse(EmptyBitmap.INSTANCE);
 	}

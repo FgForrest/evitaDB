@@ -66,6 +66,7 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 		Long.class
 	);
 	protected final EvitaQLValueTokenVisitor orderDirectionValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(OrderDirection.class);
+	protected final EvitaQLValueTokenVisitor traversalModeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(TraversalMode.class);
 	protected final EvitaQLValueTokenVisitor stringValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(String.class);
 	protected final EvitaQLValueTokenVisitor orderDirectionOrStringTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
 		OrderDirection.class,
@@ -242,6 +243,21 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 		return parse(
 			ctx,
 			() -> new TraverseByEntityProperty(
+				ctx.args.traversalMode == null ?
+					null : ctx.args.traversalMode.accept(this.traversalModeValueTokenVisitor).asEnum(TraversalMode.class),
+				ctx.args.constraints
+					.stream()
+					.map(c -> visitChildConstraint(c, OrderConstraint.class))
+					.toArray(OrderConstraint[]::new)
+			)
+		);
+	}
+
+	@Override
+	public OrderConstraint visitPickFirstByByEntityPropertyConstraint(PickFirstByByEntityPropertyConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new PickFirstByEntityProperty(
 				ctx.args.constraints
 					.stream()
 					.map(c -> visitChildConstraint(c, OrderConstraint.class))

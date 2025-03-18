@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.data.structure.ReferenceComparator;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
+import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
@@ -36,11 +37,13 @@ import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.sort.EntityComparator;
 import io.evitadb.core.query.sort.OrderByVisitor;
+import io.evitadb.core.query.sort.OrderByVisitor.MergeModeDefinition;
 import io.evitadb.core.query.sort.OrderByVisitor.ProcessingScope;
 import io.evitadb.core.query.sort.ReferenceOrderByVisitor;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.attribute.PreSortedRecordsSorter;
+import io.evitadb.core.query.sort.attribute.PreSortedRecordsSorter.MergeMode;
 import io.evitadb.core.query.sort.generic.PrefetchedRecordsSorter;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
 import io.evitadb.core.query.sort.translator.ReferenceOrderingConstraintTranslator;
@@ -51,11 +54,13 @@ import io.evitadb.index.EntityIndex;
 import io.evitadb.index.attribute.ChainIndex;
 import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.attribute.SortIndex.ComparableArray;
+import io.evitadb.index.attribute.SortIndex.ComparatorSource;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Function;
@@ -65,6 +70,8 @@ import java.util.stream.Stream;
 import static io.evitadb.api.query.QueryConstraints.attributeContent;
 import static io.evitadb.api.query.QueryConstraints.referenceContentWithAttributes;
 import static io.evitadb.api.query.order.OrderDirection.ASC;
+import static io.evitadb.index.attribute.SortIndex.createCombinedComparatorFor;
+import static io.evitadb.index.attribute.SortIndex.createComparatorFor;
 
 /**
  * This implementation of {@link OrderingConstraintTranslator} converts {@link AttributeNatural} to {@link Sorter}.
@@ -148,11 +155,13 @@ public class AttributeNaturalTranslator
 			);
 		}
 
+		//noinspection rawtypes
+		final Comparator valueComparator;
 		final EntityComparator entityComparator;
-		final Class<?> baseType;
+		final MergeModeDefinition mergeModeDefinition = processingScope.mergeModeDefinition();
+		final MergeMode mergeMode;
 		if (attributeOrCompoundSchema instanceof AttributeSchemaContract attributeSchema &&
 			(Predecessor.class.equals(attributeSchema.getPlainType()) || ReferencedEntityPredecessor.class.equals(attributeSchema.getPlainType()))) {
-			baseType = attributeSchema.getPlainType();
 			// we cannot use attribute comparator for predecessor attributes, we always need index here
 			entityComparator = new PredecessorAttributeComparator(
 				attributeOrCompoundName,
@@ -160,8 +169,28 @@ public class AttributeNaturalTranslator
 				referencedEntitySchema,
 				sortedRecordsSupplier
 			);
+			Assert.isTrue(
+				mergeModeDefinition == null || mergeModeDefinition.mergeMode() == MergeMode.APPEND_ALL || mergeModeDefinition.implicit(),
+				attributeSchema.getPlainType() + " attribute `" + attributeOrCompoundName + "` " +
+					"is not comparable one with another and must use `traverseBy` approach for sorting!"
+			);
+			mergeMode = MergeMode.APPEND_ALL;
+			valueComparator = null;
 		} else if (attributeOrCompoundSchema instanceof SortableAttributeCompoundSchemaContract compoundSchemaContract) {
-			baseType = ComparableArray.class;
+			final Comparator<ComparableArray> naturalComparator = createCombinedComparatorFor(
+				locale,
+				compoundSchemaContract.getAttributeElements()
+					.stream()
+					.map(attributeElement -> new ComparatorSource(
+						processingScope.getAttributeSchema(attributeElement.attributeName()).getPlainType(),
+						attributeElement.direction(),
+						attributeElement.behaviour()
+					))
+					.toArray(ComparatorSource[]::new)
+			);
+			// the order direction is not resolved within createCombinedComparatorFor() method
+			valueComparator = orderDirection == ASC ? naturalComparator : naturalComparator.reversed();
+			mergeMode = mergeModeDefinition == null ? MergeMode.APPEND_FIRST : mergeModeDefinition.mergeMode();
 			if (referenceSchema == null) {
 				entityComparator = new CompoundAttributeComparator(
 					compoundSchemaContract,
@@ -180,7 +209,15 @@ public class AttributeNaturalTranslator
 				);
 			}
 		} else if (attributeOrCompoundSchema instanceof AttributeSchemaContract attributeSchema) {
-			baseType = attributeSchema.getPlainType();
+			valueComparator = createComparatorFor(
+				locale,
+				new ComparatorSource(
+					attributeSchema.getPlainType(),
+					orderDirection,
+					OrderBehaviour.NULLS_LAST
+				)
+			);
+			mergeMode = mergeModeDefinition == null ? MergeMode.APPEND_FIRST : mergeModeDefinition.mergeMode();
 			if (referenceSchema == null) {
 				entityComparator = new AttributeComparator(
 					attributeOrCompoundName,
@@ -214,7 +251,7 @@ public class AttributeNaturalTranslator
 
 		return Stream.of(
 			new PrefetchedRecordsSorter(entityComparator),
-			new PreSortedRecordsSorter(baseType, orderDirection, sortedRecordsSupplier)
+			new PreSortedRecordsSorter(mergeMode, valueComparator, sortedRecordsSupplier)
 		);
 	}
 
@@ -293,7 +330,6 @@ public class AttributeNaturalTranslator
 
 		// if prefetch happens we need to prefetch attributes so that the attribute comparator can work
 		orderByVisitor.addRequirementsToPrefetch(attributeContent(attributeOrCompoundSchema.getName()));
-
 		orderByVisitor.addComparator(comparator);
 	}
 

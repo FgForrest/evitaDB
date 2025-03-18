@@ -40,29 +40,47 @@ public class TraverseByEntityPropertyTest {
 
 	@Test
 	void shouldCreateViaFactoryClassWorkAsExpected() {
-		final TraverseByEntityProperty traverseByEntityProperty = traverseByEntityProperty(attributeNatural("code"));
-		assertArrayEquals(new OrderConstraint[] { attributeNatural("code") }, traverseByEntityProperty.getChildren());
+		final TraverseByEntityProperty traverseByEntityProperty1 = traverseByEntityProperty(attributeNatural("code"));
+		assertEquals(TraversalMode.DEPTH_FIRST, traverseByEntityProperty1.getTraversalMode());
+		assertArrayEquals(new OrderConstraint[] { attributeNatural("code") }, traverseByEntityProperty1.getChildren());
+
+		final TraverseByEntityProperty traverseByEntityProperty2 = traverseByEntityProperty(TraversalMode.BREADTH_FIRST, attributeNatural("code"));
+		assertEquals(TraversalMode.BREADTH_FIRST, traverseByEntityProperty2.getTraversalMode());
+		assertArrayEquals(new OrderConstraint[] { attributeNatural("code") }, traverseByEntityProperty2.getChildren());
+
+		final TraverseByEntityProperty traverseByEntityProperty3 = traverseByEntityProperty(TraversalMode.DEPTH_FIRST, attributeNatural("code"));
+		assertEquals(TraversalMode.DEPTH_FIRST, traverseByEntityProperty3.getTraversalMode());
+		assertArrayEquals(new OrderConstraint[] { attributeNatural("code") }, traverseByEntityProperty3.getChildren());
+
 		assertNull(traverseByEntityProperty());
 	}
 
 	@Test
 	void shouldRecognizeApplicability() {
 		assertTrue(traverseByEntityProperty(attributeNatural("code")).isApplicable());
-		assertFalse(new TraverseByEntityProperty().isApplicable());
+		assertTrue(traverseByEntityProperty(TraversalMode.DEPTH_FIRST, attributeNatural("code")).isApplicable());
+		assertFalse(new TraverseByEntityProperty(null).isApplicable());
 	}
 
 	@Test
 	void shouldToStringReturnExpectedFormat() {
 		final TraverseByEntityProperty traverseByEntityProperty1 = traverseByEntityProperty(attributeNatural("code"));
 		assertEquals("traverseByEntityProperty(attributeNatural('code',ASC))", traverseByEntityProperty1.toString());
+
+		final TraverseByEntityProperty traverseByEntityProperty2 = traverseByEntityProperty(TraversalMode.BREADTH_FIRST, attributeNatural("code"));
+		assertEquals("traverseByEntityProperty(BREADTH_FIRST,attributeNatural('code',ASC))", traverseByEntityProperty2.toString());
 	}
 
 	@Test
 	void shouldConformToEqualsAndHashContract() {
 		assertNotSame(traverseByEntityProperty(attributeNatural("code")), traverseByEntityProperty(attributeNatural("code")));
+		assertNotSame(traverseByEntityProperty(TraversalMode.DEPTH_FIRST, attributeNatural("code")), traverseByEntityProperty(TraversalMode.DEPTH_FIRST, attributeNatural("code")));
 		assertEquals(traverseByEntityProperty(attributeNatural("code")), traverseByEntityProperty(attributeNatural("code")));
+		assertEquals(traverseByEntityProperty(TraversalMode.DEPTH_FIRST, attributeNatural("code")), traverseByEntityProperty(attributeNatural("code")));
+		assertNotEquals(traverseByEntityProperty(TraversalMode.BREADTH_FIRST, attributeNatural("code")), traverseByEntityProperty(attributeNatural("code")));
+		assertNotEquals(traverseByEntityProperty(TraversalMode.DEPTH_FIRST, attributeNatural("code")), traverseByEntityProperty(TraversalMode.BREADTH_FIRST, attributeNatural("code")));
 		assertNotEquals(traverseByEntityProperty(attributeNatural("code")), traverseByEntityProperty(attributeNatural("order")));
-		assertNotEquals(traverseByEntityProperty(attributeNatural("code")), new TraverseByEntityProperty());
+		assertNotEquals(traverseByEntityProperty(attributeNatural("code")), new TraverseByEntityProperty(null));
 		assertEquals(traverseByEntityProperty(attributeNatural("code")).hashCode(), traverseByEntityProperty(attributeNatural("code")).hashCode());
 		assertNotEquals(traverseByEntityProperty(attributeNatural("code")).hashCode(), traverseByEntityProperty(attributeNatural("order")).hashCode());
 	}

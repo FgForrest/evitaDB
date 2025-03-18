@@ -24,6 +24,7 @@
 package io.evitadb.api.query.order;
 
 import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.ConstraintWithDefaults;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.ReferenceConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
@@ -33,14 +34,16 @@ import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Arrays;
 
 /**
  * The `traverseByEntityProperty` ordering constraint can only be used within the {@link ReferenceProperty} ordering
- * constraint, which targets a reference of cardinality 1:N. It allows ordering rules to be defined for traversing
- * multiple references before the {@link ReferenceProperty}  ordering constraint is applied. The behaviour is different
- * for hierarchical and non-hierarchical entities.
+ * constraint. It changes the behaviour of the ordering rules in a way that first the result is ordered by the referenced
+ * entity property and within same referenced entity the main entity is ordered by the reference property. This constraint
+ * is particularly useful when the reference is one-to-many and the referenced entity is hierarchical.
  *
  * Consider the following example where we want to list products in the *Accessories* category ordered by the `orderInCategory`
  * attribute on the reference to the category, but the products could either directly reference the *Accessories* category
@@ -80,30 +83,18 @@ import java.io.Serializable;
  * )
  * </pre>
  *
- * ## Behaviour of zero or one to many references ordering
+ * You can also change the depth-first traversal to breadth-first traversal by declaring optional first argument as
+ * follows:
  *
- * The situation is more complicated when the reference is one-to-many. What is the expected result of a query that
- * involves ordering by a property on a reference attribute? Is it wise to allow such ordering query in this case?
- *
- * We decided to allow it and bind it with the following rules:
- *
- * ### Non-hierarchical entity
- *
- * If the referenced entity is **non-hierarchical**, and the returned entity references multiple entities, only
- * the first reference according to `traverseByEntityProperty` ordering, while also having the order property set,
- * will be used for ordering.
- *
- * ### Hierarchical entity
- *
- * If the referenced entity is **hierarchical** and the returned entity references multiple entities, the reference used
- * for ordering is the one that contains the order property and is the closest hierarchy node to the root of the filtered
- * hierarchy node.
- *
- * It sounds complicated, but it's really quite simple. If you list products of a certain category and at the same time
- * order them by a property "priority" set on the reference to the category, the first products will be those directly
- * related to the category, ordered by "priority", followed by the products of the first child category, and so on,
- * maintaining the depth-first order of the category tree. The order of the child categories is determined by the
- * `traverseByEntityProperty` ordering constraint.
+ * <pre>
+ * referenceProperty(
+ *     "categories",
+ *     traverseByEntityProperty(
+ *         BREADTH_FIRST, attributeNatural("order", ASC)
+ *     ),
+ *     attributeNatural("orderInCategory", ASC)
+ * )
+ * </pre>
  *
  * <p><a href="https://evitadb.io/documentation/query/ordering/reference#traverse-by-entity-property">Visit detailed user documentation</a></p>
  *
@@ -115,25 +106,57 @@ import java.io.Serializable;
 	userDocsLink = "/documentation/query/ordering/reference#traverse-by-entity-property",
 	supportedIn = { ConstraintDomain.REFERENCE }
 )
-public class TraverseByEntityProperty extends AbstractOrderConstraintContainer implements ReferenceConstraint<OrderConstraint> {
+public class TraverseByEntityProperty extends AbstractOrderConstraintContainer
+	implements ConstraintWithDefaults<OrderConstraint>,
+	ReferenceConstraint<OrderConstraint>,
+	ReferenceOrderingSpecification
+{
 	@Serial private static final long serialVersionUID = -4940847050046564050L;
 
+	private TraverseByEntityProperty(@Nonnull Serializable[] arguments, @Nonnull OrderConstraint[] children) {
+		super(arguments, children);
+	}
+
 	@Creator
-	public TraverseByEntityProperty(@Nonnull @Child OrderConstraint... children) {
-		super(children);
+	public TraverseByEntityProperty(@Nullable TraversalMode traverseMode, @Nonnull @Child OrderConstraint... children) {
+		super(new Serializable[] { traverseMode == null ? TraversalMode.DEPTH_FIRST : traverseMode }, children);
+	}
+
+	/**
+	 * Returns the {@link OrderConstraint} that defines the order of the 1:N references traversal before the ordering
+	 * is applied.
+	 *
+	 * @return the {@link OrderConstraint} that defines the order of the 1:N references traversal before the ordering
+	 * is applied.
+	 * @see TraversalMode
+	 */
+	@Nonnull
+	public TraversalMode getTraversalMode() {
+		return (TraversalMode) getArguments()[0];
+	}
+
+	@Nonnull
+	@Override
+	public Serializable[] getArgumentsExcludingDefaults() {
+		return Arrays.stream(getArguments())
+			.filter(it -> it != TraversalMode.DEPTH_FIRST)
+			.toArray(Serializable[]::new);
+	}
+
+	@Override
+	public boolean isArgumentImplicit(@Nonnull Serializable serializable) {
+		return serializable == TraversalMode.DEPTH_FIRST;
 	}
 
 	@Nonnull
 	@Override
 	public OrderConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
-		throw new UnsupportedOperationException(
-			"TraverseByEntityProperty does not support cloning with new arguments!"
-		);
+		return new TraverseByEntityProperty(newArguments, getChildren());
 	}
 
 	@Override
 	public boolean isNecessary() {
-		return getChildren().length >= 1;
+		return getArguments().length == 1 && getChildren().length >= 1;
 	}
 
 	@Nonnull
@@ -143,6 +166,6 @@ public class TraverseByEntityProperty extends AbstractOrderConstraintContainer i
 			additionalChildren.length == 0,
 			"TraverseByEntityProperty does not support additional children!"
 		);
-		return new TraverseByEntityProperty(children);
+		return new TraverseByEntityProperty(getArguments(), children);
 	}
 }

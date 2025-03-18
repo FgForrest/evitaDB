@@ -2544,10 +2544,6 @@ public class EntityByChainOrderingFunctionalTest {
 	}
 
 	/* TODO JNO - add hierarchy tests */
-	/* TODO JNO - consider behavior:
-	     - when traverseBy is used, we first iterate over reference keys, then reference attribute values
-	     - when new pickFirstBy, we iterate over reference attribute values and the order is used only to pick the correct reference (cannot be used on Chainable types)
-     */
 	/* TODO JNO - add paging + filtering + spacing test using sort by indexes to test MergedSortedRecordsSupplier */
 
 	/**

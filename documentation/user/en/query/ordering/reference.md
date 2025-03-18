@@ -94,6 +94,8 @@ entity). The response will only return the products that have a reference to the
 `orderInGroup` attribute (since it's marked as a non-nullable attribute). Because the example is so simple, the returned
 result can be anticipated.
 
+TODO JNO - REWRITE THIS PART OF DOCUMENTATION
+
 ### Behaviour of zero or one to many references ordering
 
 The situation is more complicated when the reference is one-to-many. What is the expected result of a query that

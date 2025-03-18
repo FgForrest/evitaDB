@@ -37,12 +37,10 @@ import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.filter.HierarchyWithinRoot;
 import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.query.filter.UserFilter;
-import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.*;
 import io.evitadb.api.query.visitor.ConstraintCloneVisitor;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
-import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.EntityCollection;
@@ -77,17 +75,12 @@ import io.evitadb.core.query.extraResult.translator.reference.PriceContentTransl
 import io.evitadb.core.query.extraResult.translator.reference.ReferenceContentTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
-import io.evitadb.core.query.sort.DeferredSorter;
 import io.evitadb.core.query.sort.NestedContextSorter;
-import io.evitadb.core.query.sort.NoSorter;
 import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
-import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.EntityIndexType;
-import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
@@ -338,76 +331,12 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 		@Nonnull ConstraintContainer<OrderConstraint> orderBy,
 		@Nullable Locale locale,
 		@Nonnull EntityCollection entityCollection,
-		@Nonnull String entityType,
 		@Nonnull Supplier<String> stepDescriptionSupplier
 	) {
-		try {
-			this.queryContext.pushStep(
-				QueryPhase.PLANNING_SORT,
-				stepDescriptionSupplier
-			);
-			final Set<Scope> scopes = getProcessingScope().getScopes();
-			// we have to create and trap the nested query context here to carry it along with the sorter
-			// otherwise the sorter will target and use the incorrectly originally queried (prefetched) entities
-			final QueryPlanningContext nestedQueryContext = entityCollection.createQueryContext(
-				this.queryContext,
-				this.queryContext.getEvitaRequest().deriveCopyWith(
-					entityType,
-					null,
-					new OrderBy(orderBy.getChildren()),
-					this.queryContext.getLocale(),
-					scopes
-				),
-				this.queryContext.getEvitaSession()
-			);
-
-			final GlobalEntityIndex[] entityIndexes = scopes.stream()
-				.map(scope -> entityCollection.getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL, scope)))
-				.map(GlobalEntityIndex.class::cast)
-				.filter(Objects::nonNull)
-				.toArray(GlobalEntityIndex[]::new);
-			final Sorter sorter;
-			if (entityIndexes.length == 0) {
-				sorter = NoSorter.INSTANCE;
-			} else {
-				// create a visitor
-				final OrderByVisitor orderByVisitor = new OrderByVisitor(
-					nestedQueryContext,
-					Collections.emptyList(),
-					this.filterByVisitor,
-					this.filteringFormula
-				);
-				// now analyze the filter by in a nested context with exchanged primary entity index
-				sorter = orderByVisitor.executeInContext(
-					entityIndexes,
-					entityType,
-					locale,
-					new AttributeSchemaAccessor(nestedQueryContext.getCatalogSchema(), entityCollection.getSchema()),
-					() -> {
-						for (OrderConstraint innerConstraint : orderBy.getChildren()) {
-							innerConstraint.accept(orderByVisitor);
-						}
-						// create a deferred sorter that will log the execution time to query telemetry
-						return new DeferredSorter(
-							orderByVisitor.getSorter(),
-							theSorter -> {
-								try {
-									nestedQueryContext.pushStep(QueryPhase.EXECUTION_SORT_AND_SLICE, stepDescriptionSupplier);
-									return theSorter.getAsInt();
-								} finally {
-									nestedQueryContext.popStep();
-								}
-							}
-						);
-					}
-				);
-			}
-			return new NestedContextSorter(
-				nestedQueryContext.createExecutionContext(), sorter
-			);
-		} finally {
-			queryContext.popStep();
-		}
+		return OrderByVisitor.createSorter(
+			orderBy, locale, entityCollection, stepDescriptionSupplier,
+			this.queryContext, getProcessingScope().getScopes()
+		);
 	}
 
 	/**

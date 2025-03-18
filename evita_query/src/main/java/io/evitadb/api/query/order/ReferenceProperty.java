@@ -31,6 +31,7 @@ import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.Classifier;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -123,7 +124,7 @@ import java.util.stream.Collectors;
 	name = "property",
 	shortDescription = "The constraint sorts returned entities or references by attribute specified on its reference in natural order.",
 	userDocsLink = "/documentation/query/ordering/reference#reference-property",
-	supportedIn = { ConstraintDomain.ENTITY }
+	supportedIn = {ConstraintDomain.ENTITY}
 )
 public class ReferenceProperty extends AbstractOrderConstraintContainer implements ReferenceConstraint<OrderConstraint> {
 	@Serial private static final long serialVersionUID = -8564699361608364992L;
@@ -133,9 +134,11 @@ public class ReferenceProperty extends AbstractOrderConstraintContainer implemen
 	}
 
 	@Creator
-	public ReferenceProperty(@Nonnull @Classifier String referenceName,
-	                         @Nonnull @Child OrderConstraint... children) {
-		super(new Serializable[] {referenceName}, children);
+	public ReferenceProperty(
+		@Nonnull @Classifier String referenceName,
+		@Nonnull @Child OrderConstraint... children
+	) {
+		super(new Serializable[]{referenceName}, children);
 	}
 
 	/**
@@ -147,17 +150,23 @@ public class ReferenceProperty extends AbstractOrderConstraintContainer implemen
 	}
 
 	/**
-	 * Returns the {@link TraverseByEntityProperty} constraint that is used to traverse the reference entities before
-	 * the ordering is applied.
+	 * Returns either the {@link TraverseByEntityProperty} or {@link PickFirstByEntityProperty} constraint that is used
+	 * to define sorting order for 1:N references.
 	 *
-	 * @return the {@link TraverseByEntityProperty} constraint or an empty optional if not present.
+	 * @return the {@link TraverseByEntityProperty} or {@link PickFirstByEntityProperty} constraint that is used
+	 * to define sorting order for 1:N references.
 	 */
 	@Nonnull
-	public Optional<TraverseByEntityProperty> getTraverseByEntityProperty() {
+	public Optional<ReferenceOrderingSpecification> getReferenceOrderingSpecification() {
 		return Arrays.stream(getChildren())
-			.filter(TraverseByEntityProperty.class::isInstance)
-			.map(TraverseByEntityProperty.class::cast)
-			.findFirst();
+			.filter(ReferenceOrderingSpecification.class::isInstance)
+			.map(ReferenceOrderingSpecification.class::cast)
+			.reduce((spec1, spec2) -> {
+				throw new EvitaInvalidUsageException(
+					"Duplicate one to many ordering specification found: " + spec1 + " and " + spec2 +
+						". These definitions are mutually exclusive and cannot be used together."
+				);
+			});
 	}
 
 	/**
