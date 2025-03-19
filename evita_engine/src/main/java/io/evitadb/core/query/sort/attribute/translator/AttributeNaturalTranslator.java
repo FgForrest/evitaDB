@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.sort.attribute.translator;
 
+import com.carrotsearch.hppc.IntIntHashMap;
 import io.evitadb.api.query.order.AttributeNatural;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.structure.ReferenceComparator;
@@ -52,6 +53,7 @@ import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.attribute.ChainIndex;
+import io.evitadb.index.attribute.ReferenceSortedRecordsSupplier;
 import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.attribute.SortIndex.ComparableArray;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
@@ -198,14 +200,23 @@ public class AttributeNaturalTranslator
 					attributeName -> processingScope.getAttributeSchema(attributeName, AttributeTrait.SORTABLE),
 					orderDirection
 				);
-			} else {
-				entityComparator = new ReferenceCompoundAttributeComparator(
+			} else if (mergeMode == MergeMode.APPEND_FIRST) {
+				entityComparator = new PickFirstReferenceCompoundAttributeComparator(
 					compoundSchemaContract,
 					referenceSchema,
-					referencedEntitySchema,
 					locale,
 					attributeName -> processingScope.getAttributeSchema(attributeName, AttributeTrait.SORTABLE),
-					orderDirection
+					orderDirection,
+					() -> createReferenceSortedRecordsProviderPositionIndex(sortedRecordsSupplier)
+				);
+			} else {
+				entityComparator = new TraverseReferenceCompoundAttributeComparator(
+					compoundSchemaContract,
+					referenceSchema,
+					locale,
+					attributeName -> processingScope.getAttributeSchema(attributeName, AttributeTrait.SORTABLE),
+					orderDirection,
+					() -> createReferenceSortedRecordsProviderPositionIndex(sortedRecordsSupplier)
 				);
 			}
 		} else if (attributeOrCompoundSchema instanceof AttributeSchemaContract attributeSchema) {
@@ -225,14 +236,23 @@ public class AttributeNaturalTranslator
 					locale,
 					orderDirection
 				);
-			} else {
-				entityComparator = new ReferenceAttributeComparator(
+			} else if (mergeMode == MergeMode.APPEND_FIRST) {
+				entityComparator = new PickFirstReferenceAttributeComparator(
 					attributeOrCompoundName,
 					attributeSchema.getPlainType(),
 					referenceSchema,
-					referencedEntitySchema,
 					locale,
-					orderDirection
+					orderDirection,
+					() -> createReferenceSortedRecordsProviderPositionIndex(sortedRecordsSupplier)
+				);
+			} else {
+				entityComparator = new TraverseReferenceAttributeComparator(
+					attributeOrCompoundName,
+					attributeSchema.getPlainType(),
+					referenceSchema,
+					locale,
+					orderDirection,
+					() -> createReferenceSortedRecordsProviderPositionIndex(sortedRecordsSupplier)
 				);
 			}
 		} else {
@@ -253,6 +273,37 @@ public class AttributeNaturalTranslator
 			new PrefetchedRecordsSorter(entityComparator),
 			new PreSortedRecordsSorter(mergeMode, valueComparator, sortedRecordsSupplier)
 		);
+	}
+
+	/**
+	 * Creates a mapping between the primary keys of reference-sorted records and their indices
+	 * in the order they are sorted. This method processes the sorted records provided by the
+	 * {@link SortedRecordsProvider} suppliers, filtering out those that are implementations of
+	 * {@link ReferenceSortedRecordsSupplier}. For each instance, the primary key of its reference key
+	 * is associated with its zero-based position in the sorted array. The mapping is returned as an
+	 * {@link IntIntHashMap}.
+	 *
+	 * @param sortedRecordsSupplier a supplier that provides an array of {@link SortedRecordsProvider}
+	 *                               instances, which may include {@link ReferenceSortedRecordsSupplier}
+	 *                               implementations containing reference-based sorting information.
+	 * @return an {@link IntIntHashMap} that maps each reference primary key to its position in the
+	 *         sorted array.
+	 */
+	@Nonnull
+	private static IntIntHashMap createReferenceSortedRecordsProviderPositionIndex(
+		@Nonnull Supplier<SortedRecordsProvider[]> sortedRecordsSupplier
+	) {
+		final int[] sortedReferencePks = Arrays.stream(sortedRecordsSupplier.get())
+			.filter(ReferenceSortedRecordsSupplier.class::isInstance)
+			.map(ReferenceSortedRecordsSupplier.class::cast)
+			.mapToInt(it -> it.getReferenceKey().primaryKey())
+			.toArray();
+		final IntIntHashMap result = new IntIntHashMap();
+		for (int i = 0; i < sortedReferencePks.length; i++) {
+			int sortedReferencePk = sortedReferencePks[i];
+			result.put(sortedReferencePk, i);
+		}
+		return result;
 	}
 
 	@Override

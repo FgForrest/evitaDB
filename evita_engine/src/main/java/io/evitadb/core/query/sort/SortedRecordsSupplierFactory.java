@@ -29,6 +29,7 @@ import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.utils.ArrayUtils;
 
 import javax.annotation.Nonnull;
+import java.io.Serializable;
 
 /**
  * Provides access to presorted arrays of records according to certain attribute or other data value.
@@ -142,7 +143,7 @@ public interface SortedRecordsSupplierFactory {
 
 			@Nonnull
 			@Override
-			public Comparable<?> getComparableValueOn(int position) throws ArrayIndexOutOfBoundsException {
+			public Serializable getValueToCompareOn(int position) throws ArrayIndexOutOfBoundsException {
 				throw new ArrayIndexOutOfBoundsException("No comparable value available for the given position.");
 			}
 		};
@@ -163,7 +164,7 @@ public interface SortedRecordsSupplierFactory {
 		 * @throws ArrayIndexOutOfBoundsException If the provided position exceeds the bounds of the collection.
 		 */
 		@Nonnull
-		Comparable<?> getComparableValueOn(int position)
+		Serializable getValueToCompareOn(int position)
 			throws ArrayIndexOutOfBoundsException;
 	}
 
@@ -172,6 +173,7 @@ public interface SortedRecordsSupplierFactory {
 	 * records.
 	 *
 	 * TODO JNO - toto se použije v rámci hierarchického třídění
+	 * TODO JNO - a nebo ne ... možná jsme současnou implementaci udělali jinak ... pak tedy toto smazat
 	 */
 	interface ReferenceSortedRecordsProvider extends SortedRecordsProvider {
 

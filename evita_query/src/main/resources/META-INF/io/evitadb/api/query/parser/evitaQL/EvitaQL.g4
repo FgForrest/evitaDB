@@ -224,7 +224,10 @@ filterConstraintListArgs :                          argsOpening constraints += f
 
 filterConstraintArgs :                              argsOpening filter = filterConstraint argsClosing ;
 
-traverseOrderConstraintListArgs :                   argsOpening (traversalMode = valueToken ARGS_DELIMITER)? constraints += orderConstraint (ARGS_DELIMITER constraints += orderConstraint)* argsClosing ;
+traverseOrderConstraintListArgs :                   argsOpening(
+                                                        (traversalMode = valueToken) |
+                                                        ((traversalMode = valueToken ARGS_DELIMITER)? constraints += orderConstraint (ARGS_DELIMITER constraints += orderConstraint)*)
+                                                    ) argsClosing ;
 
 orderConstraintListArgs :                           argsOpening constraints += orderConstraint (ARGS_DELIMITER constraints += orderConstraint)* argsClosing ;
 

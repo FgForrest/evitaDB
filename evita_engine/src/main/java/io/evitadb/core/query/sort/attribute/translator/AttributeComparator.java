@@ -37,6 +37,7 @@ import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Locale;
@@ -86,8 +87,8 @@ public class AttributeComparator implements EntityComparator {
 		final ComparatorSource comparatorSource = new ComparatorSource(
 			type, orderDirection, OrderBehaviour.NULLS_LAST
 		);
-		final Optional<UnaryOperator<Object>> normalizerFor = createNormalizerFor(comparatorSource);
-		final UnaryOperator<Object> normalizer = normalizerFor.orElseGet(UnaryOperator::identity);
+		final Optional<UnaryOperator<Serializable>> normalizerFor = createNormalizerFor(comparatorSource);
+		final UnaryOperator<Serializable> normalizer = normalizerFor.orElseGet(UnaryOperator::identity);
 		this.pkComparator = orderDirection == OrderDirection.ASC ?
 			Comparator.comparingInt(EntityContract::getPrimaryKeyOrThrowException) :
 			Comparator.comparingInt(EntityContract::getPrimaryKeyOrThrowException).reversed();

@@ -33,6 +33,7 @@ import io.evitadb.index.attribute.SortIndex.ComparatorSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.util.Comparator;
 import java.util.Locale;
 import java.util.Optional;
@@ -60,11 +61,11 @@ public class ReferenceAttributeReferenceComparator implements ReferenceComparato
 	/**
 	 * Functional interface used to retrieve the specific attribute value from a given {@link ReferenceContract}.
 	 */
-	@Nonnull private final Function<ReferenceContract, Comparable<?>> attributeValueFetcher;
+	@Nonnull private final Function<ReferenceContract, Serializable> attributeValueFetcher;
 	/**
 	 * Comparator for directly comparing the fetched attribute values between two {@link ReferenceContract} instances.
 	 */
-	@Nonnull private final Comparator<Comparable<?>> comparator;
+	@Nonnull private final Comparator<Serializable> comparator;
 	/**
 	 * Set containing the primary keys of references that were not sorted due to missing or null attribute values.
 	 */
@@ -89,8 +90,8 @@ public class ReferenceAttributeReferenceComparator implements ReferenceComparato
 		final ComparatorSource comparatorSource = new ComparatorSource(
 			type, orderDirection, OrderBehaviour.NULLS_LAST
 		);
-		final Optional<UnaryOperator<Comparable<?>>> normalizerFor = createNormalizerFor(comparatorSource);
-		final UnaryOperator<Comparable<?>> normalizer = normalizerFor.orElseGet(UnaryOperator::identity);
+		final Optional<UnaryOperator<Serializable>> normalizerFor = createNormalizerFor(comparatorSource);
+		final UnaryOperator<Serializable> normalizer = normalizerFor.orElseGet(UnaryOperator::identity);
 		//noinspection unchecked
 		this.comparator = createComparatorFor(locale, comparatorSource);
 		this.attributeValueFetcher = locale == null ?
@@ -101,8 +102,8 @@ public class ReferenceAttributeReferenceComparator implements ReferenceComparato
 
 	private ReferenceAttributeReferenceComparator(
 		@Nonnull ReferenceComparator nextComparator,
-		@Nonnull Function<ReferenceContract, Comparable<?>> attributeValueFetcher,
-		@Nonnull Comparator<Comparable<?>> comparator
+		@Nonnull Function<ReferenceContract, Serializable> attributeValueFetcher,
+		@Nonnull Comparator<Serializable> comparator
 	) {
 		this.nextComparator = nextComparator;
 		this.attributeValueFetcher = attributeValueFetcher;
@@ -130,8 +131,8 @@ public class ReferenceAttributeReferenceComparator implements ReferenceComparato
 
 	@Override
 	public int compare(ReferenceContract o1, ReferenceContract o2) {
-		final Comparable<?> attribute1 = o1 == null ? null : attributeValueFetcher.apply(o1);
-		final Comparable<?> attribute2 = o2 == null ? null : attributeValueFetcher.apply(o2);
+		final Serializable attribute1 = o1 == null ? null : this.attributeValueFetcher.apply(o1);
+		final Serializable attribute2 = o2 == null ? null : this.attributeValueFetcher.apply(o2);
 		if (attribute1 != null && attribute2 != null) {
 			return comparator.compare(attribute1, attribute2);
 		} else if (attribute1 == null && attribute2 != null) {

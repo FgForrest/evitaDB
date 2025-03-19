@@ -31,6 +31,7 @@ import io.evitadb.utils.ArrayUtils;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import java.io.Serializable;
 
 /**
  * Mock implementation of {@link SortedRecordsProvider} for testing purposes.
@@ -63,7 +64,7 @@ public class MockSortedRecordsSupplier implements SortedRecordsProvider {
 		return new SortedComparableForwardSeeker() {
 			@Nonnull
 			@Override
-			public Comparable<?> getComparableValueOn(int position) throws ArrayIndexOutOfBoundsException {
+			public Serializable getValueToCompareOn(int position) throws ArrayIndexOutOfBoundsException {
 				return recordPositions[position];
 			}
 		};

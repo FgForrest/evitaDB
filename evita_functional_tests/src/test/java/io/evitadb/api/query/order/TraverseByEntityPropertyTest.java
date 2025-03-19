@@ -28,6 +28,7 @@ import io.evitadb.api.query.OrderConstraint;
 import org.junit.jupiter.api.Test;
 
 import static io.evitadb.api.query.QueryConstraints.attributeNatural;
+import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyNatural;
 import static io.evitadb.api.query.QueryConstraints.traverseByEntityProperty;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -52,7 +53,7 @@ public class TraverseByEntityPropertyTest {
 		assertEquals(TraversalMode.DEPTH_FIRST, traverseByEntityProperty3.getTraversalMode());
 		assertArrayEquals(new OrderConstraint[] { attributeNatural("code") }, traverseByEntityProperty3.getChildren());
 
-		assertNull(traverseByEntityProperty());
+		assertEquals(traverseByEntityProperty(TraversalMode.DEPTH_FIRST, entityPrimaryKeyNatural(OrderDirection.ASC)), traverseByEntityProperty());
 	}
 
 	@Test

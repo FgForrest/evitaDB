@@ -76,6 +76,7 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -454,7 +455,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	}
 
 	/**
-	 * This method delegates call to {@link EntityIndex#insertFilterAttribute(AttributeSchemaContract, Set, Locale, Object, int)}
+	 * This method delegates call to {@link EntityIndex#insertFilterAttribute(AttributeSchemaContract, Set, Locale, Serializable, int)}
 	 * but tracks the cardinality of the referenced primary key in {@link #cardinalityIndexes}.
 	 */
 	@Override
@@ -462,7 +463,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
-		@Nonnull Object value,
+		@Nonnull Serializable value,
 		int recordId
 	) {
 		// first retrieve or create the cardinality index for given attribute
@@ -475,17 +476,17 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 				return newCardinalityIndex;
 			}
 		);
-		if (value instanceof Object[] valueArray) {
+		if (value instanceof Serializable[] valueArray) {
 			// for array values we need to add only new items to the index (their former cardinality was zero)
-			final Object[] onlyNewItemsValueArray = (Object[]) Array.newInstance(valueArray.getClass().getComponentType(), valueArray.length);
+			final Serializable[] onlyNewItemsValueArray = (Serializable[]) Array.newInstance(valueArray.getClass().getComponentType(), valueArray.length);
 			int onlyNewItemsValueArrayIndex = 0;
-			for (Object valueItem : valueArray) {
-				if (theCardinalityIndex.addRecord((Serializable) valueItem, recordId)) {
+			for (Serializable valueItem : valueArray) {
+				if (theCardinalityIndex.addRecord(valueItem, recordId)) {
 					onlyNewItemsValueArray[onlyNewItemsValueArrayIndex++] = valueItem;
 				}
 			}
 			if (onlyNewItemsValueArrayIndex > 0) {
-				final Object[] delta = Arrays.copyOfRange(onlyNewItemsValueArray, 0, onlyNewItemsValueArrayIndex);
+				final Serializable[] delta = Arrays.copyOfRange(onlyNewItemsValueArray, 0, onlyNewItemsValueArrayIndex);
 				super.addDeltaFilterAttribute(
 					attributeSchema, allowedLocales, locale,
 					delta,
@@ -494,7 +495,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 			}
 		} else {
 			// for non-array values we need to call super method only if cardinality was zero
-			if (theCardinalityIndex.addRecord((Serializable) value, recordId)) {
+			if (theCardinalityIndex.addRecord(value, recordId)) {
 				super.insertFilterAttribute(attributeSchema, allowedLocales, locale, value, recordId);
 			}
 		}
@@ -505,7 +506,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
-		@Nonnull Object value,
+		@Nonnull Serializable value,
 		int recordId
 	) {
 		// first retrieve or create the cardinality index for given attribute
@@ -516,17 +517,17 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 			theCardinalityIndex != null,
 			() -> "Cardinality index for attribute " + attributeSchema.getName() + " not found."
 		);
-		if (value instanceof Object[] valueArray) {
+		if (value instanceof Serializable[] valueArray) {
 			// for array values we need to remove only items which cardinality reaches zero
-			final Object[] onlyRemovedItemsValueArray = (Object[]) Array.newInstance(valueArray.getClass().getComponentType(), valueArray.length);
+			final Serializable[] onlyRemovedItemsValueArray = (Serializable[]) Array.newInstance(valueArray.getClass().getComponentType(), valueArray.length);
 			int onlyRemovedItemsValueArrayIndex = 0;
-			for (Object valueItem : valueArray) {
-				if (theCardinalityIndex.removeRecord((Serializable) valueItem, recordId)) {
+			for (Serializable valueItem : valueArray) {
+				if (theCardinalityIndex.removeRecord(valueItem, recordId)) {
 					onlyRemovedItemsValueArray[onlyRemovedItemsValueArrayIndex++] = valueItem;
 				}
 			}
 			if (onlyRemovedItemsValueArrayIndex > 0) {
-				final Object[] delta = Arrays.copyOfRange(onlyRemovedItemsValueArray, 0, onlyRemovedItemsValueArrayIndex);
+				final Serializable[] delta = Arrays.copyOfRange(onlyRemovedItemsValueArray, 0, onlyRemovedItemsValueArrayIndex);
 				super.removeDeltaFilterAttribute(
 					attributeSchema, allowedLocales, locale,
 					delta,
@@ -535,7 +536,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 			}
 		} else {
 			// for non-array values we need to call super method only if cardinality reaches zero
-			if (theCardinalityIndex.removeRecord((Serializable) value, recordId)) {
+			if (theCardinalityIndex.removeRecord(value, recordId)) {
 				super.removeFilterAttribute(attributeSchema, allowedLocales, locale, value, recordId);
 			}
 		}
@@ -548,25 +549,48 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	}
 
 	@Override
-	public void insertSortAttribute(AttributeSchemaContract attributeSchema, Set<Locale> allowedLocales, Locale locale, Object value, int recordId) {
+	public void insertSortAttribute(
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nullable Locale locale,
+		@Nonnull Serializable value,
+		int recordId
+	) {
 		// the sort index of reference type index is not maintained, because the entity might reference multiple
 		// entities and the sort index couldn't handle multiple values
 	}
 
 	@Override
-	public void removeSortAttribute(AttributeSchemaContract attributeSchema, Set<Locale> allowedLocales, Locale locale, Object value, int recordId) {
+	public void removeSortAttribute(
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nullable Locale locale,
+		@Nonnull Serializable value,
+		int recordId
+	) {
 		// the sort index of reference type index is not maintained, because the entity might reference multiple
 		// entities and the sort index couldn't handle multiple values
 	}
 
 	@Override
-	public void insertSortAttributeCompound(SortableAttributeCompoundSchemaContract compoundSchemaContract, Function<String, Class<?>> attributeTypeProvider, Locale locale, Object[] value, int recordId) {
+	public void insertSortAttributeCompound(
+		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
+		@Nonnull Function<String, Class<?>> attributeTypeProvider,
+		@Nullable Locale locale,
+		@Nonnull Serializable[] value,
+		int recordId
+	) {
 		// the sort index of reference type index is not maintained, because the entity might reference multiple
 		// entities and the sort index couldn't handle multiple values
 	}
 
 	@Override
-	public void removeSortAttributeCompound(SortableAttributeCompoundSchemaContract compoundSchemaContract, Locale locale, Object[] value, int recordId) {
+	public void removeSortAttributeCompound(
+		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
+		@Nullable Locale locale,
+		@Nonnull Serializable[] value,
+		int recordId
+	) {
 		// the sort index of reference type index is not maintained, because the entity might reference multiple
 		// entities and the sort index couldn't handle multiple values
 	}
@@ -722,22 +746,22 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	@RequiredArgsConstructor
 	private static class ReferencedTypeEntityIndexProxyStateThrowing implements ReferencedTypeEntityIndexProxyStateContract {
 		@Serial private static final long serialVersionUID = 5594003658214725555L;
-		@Getter private final @Nonnull EntitySchemaContract entitySchema;
+		@Getter @Nonnull private final EntitySchemaContract entitySchema;
 
 		@Nonnull
 		@Override
 		public Bitmap getSuperSetOfPrimaryKeysBitmap(@Nonnull ReferencedTypeEntityIndex entityIndex) {
 			final EntityIndexKey theIndexKey = entityIndex.getIndexKey();
-			final String referenceName = (String) theIndexKey.discriminator();
-			throw new ReferenceNotIndexedException(referenceName, entitySchema, theIndexKey.scope());
+			final String referenceName = Objects.requireNonNull((String) theIndexKey.discriminator());
+			throw new ReferenceNotIndexedException(referenceName, this.entitySchema, theIndexKey.scope());
 		}
 
 		@Nonnull
 		@Override
 		public Formula getSuperSetOfPrimaryKeysFormula(@Nonnull ReferencedTypeEntityIndex entityIndex) {
 			final EntityIndexKey theIndexKey = entityIndex.getIndexKey();
-			final String referenceName = (String) theIndexKey.discriminator();
-			throw new ReferenceNotIndexedException(referenceName, entitySchema, theIndexKey.scope());
+			final String referenceName = Objects.requireNonNull((String) theIndexKey.discriminator());
+			throw new ReferenceNotIndexedException(referenceName, this.entitySchema, theIndexKey.scope());
 		}
 
 	}

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.core.query.sort.attribute.translator;
 
 
+import com.carrotsearch.hppc.IntIntMap;
 import com.carrotsearch.hppc.IntObjectHashMap;
 import com.carrotsearch.hppc.IntObjectMap;
 import io.evitadb.api.query.order.OrderDirection;
@@ -31,7 +32,6 @@ import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
@@ -52,6 +52,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 import static io.evitadb.index.attribute.SortIndex.createCombinedComparatorFor;
 import static io.evitadb.index.attribute.SortIndex.createNormalizerFor;
@@ -60,58 +62,65 @@ import static io.evitadb.index.attribute.SortIndex.createNormalizerFor;
  * Comparator for sorting entities according to a sortable compound attribute value. It combines multiple attribute
  * comparators into one.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-public class ReferenceCompoundAttributeComparator implements EntityComparator, Serializable {
+public abstract class AbstractReferenceCompoundAttributeComparator implements EntityComparator, Serializable {
 	@Serial private static final long serialVersionUID = -5754681102504086372L;
 	/**
-	 * Optional reference to reference schema, if the attribute is a reference attribute.
+	 * Comparator sources for each attribute element.
 	 */
-	@Nonnull private final ReferenceSchemaContract referenceSchema;
-	/**
-	 * Optional reference to entity schema, the reference is targeting (null if the reference is null, or targets
-	 * non-managed entity type).
-	 */
-	@Nullable private final EntitySchemaContract referencedEntitySchema;
-	/**
-	 * Function for fetching the attribute value from the entity.
-	 */
-	@Nonnull private final BiFunction<ReferenceContract, String, Object> attributeValueFetcher;
-	/**
-	 * Function for normalizing the attribute values (such as string values or BigDecimals).
-	 */
-	@Nonnull private final Function<Object, Object> normalizer;
-	/**
-	 * Comparator for comparing the normalized attribute values.
-	 */
-	@Nonnull private final Comparator<ComparableArray> comparator;
+	@Nonnull private final ComparatorSource[] comparatorSource;
 	/**
 	 * Array of attribute elements that are to be compared.
 	 */
-	@Nonnull private final AttributeElement[] attributeElements;
+	@Nonnull protected final AttributeElement[] attributeElements;
+	/**
+	 * Function for fetching the attribute value from the entity.
+	 */
+	@Nonnull protected final BiFunction<ReferenceContract, String, Serializable> attributeValueFetcher;
+	/**
+	 * Comparator for comparing the normalized attribute values.
+	 */
+	@Nonnull protected final Comparator<ComparableArray> comparator;
+	/**
+	 * Function for normalizing the attribute values (such as string values or BigDecimals).
+	 */
+	@Nonnull protected final UnaryOperator<Serializable> normalizer;
+	/**
+	 * Supplier of the index of the referenced id positions in the main ordering.
+	 */
+	@Nonnull protected final Supplier<IntIntMap> referencePositionMapSupplier;
+	/**
+	 * Mandatory reference to reference schema, if the attribute is a reference attribute.
+	 */
+	@Nonnull protected final ReferenceSchemaContract referenceSchema;
 	/**
 	 * Memoized normalized value arrays for the entities. Memoization is used because the very same entity may occur
 	 * in compare method multiple times.
 	 */
 	@Nonnull private final IntObjectMap<ReferenceAttributeValue> memoizedValues = new IntObjectHashMap<>(128);
 	/**
+	 * Memoized result from {@link #referencePositionMapSupplier} supplier.
+	 */
+	protected IntIntMap referencePositionMap;
+	/**
 	 * Container for entities that cannot be sorted using the resolved {@link SortedRecordsProvider}.
 	 */
 	private CompositeObjectArray<EntityContract> nonSortedEntities;
 
-	public ReferenceCompoundAttributeComparator(
+	public AbstractReferenceCompoundAttributeComparator(
 		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
 		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nullable EntitySchemaContract referencedEntitySchema,
 		@Nullable Locale locale,
 		@Nonnull Function<String, AttributeSchemaContract> attributeSchemaExtractor,
-		@Nonnull OrderDirection orderDirection
+		@Nonnull OrderDirection orderDirection,
+		@Nonnull Supplier<IntIntMap> referencePositionMapSupplier
 	) {
 		this.referenceSchema = referenceSchema;
-		this.referencedEntitySchema = referencedEntitySchema;
+		this.referencePositionMapSupplier = referencePositionMapSupplier;
 		final List<AttributeElement> attributeElements = compoundSchemaContract
 			.getAttributeElements();
-		final ComparatorSource[] comparatorSource = attributeElements
+		this.comparatorSource = attributeElements
 			.stream()
 			.map(attributeElement -> new ComparatorSource(
 				attributeSchemaExtractor.apply(attributeElement.attributeName()).getPlainType(),
@@ -121,8 +130,8 @@ public class ReferenceCompoundAttributeComparator implements EntityComparator, S
 			.toArray(ComparatorSource[]::new);
 
 		// initialize normalizers
-		this.normalizer = createNormalizerFor(comparatorSource);
-		final Comparator<ComparableArray> baseComparator = createCombinedComparatorFor(locale, comparatorSource);
+		this.normalizer = createNormalizerFor(this.comparatorSource);
+		final Comparator<ComparableArray> baseComparator = createCombinedComparatorFor(locale, this.comparatorSource);
 		this.comparator = orderDirection == OrderDirection.ASC ? baseComparator : baseComparator.reversed();
 		this.attributeValueFetcher = locale == null ?
 			AttributesContract::getAttribute :
@@ -137,21 +146,7 @@ public class ReferenceCompoundAttributeComparator implements EntityComparator, S
 	}
 
 	@Override
-	public int compare(EntityContract o1, EntityContract o2) {
-		final ReferenceAttributeValue valueToCompare1 = getAndMemoizeValue(o1);
-		final ReferenceAttributeValue valueToCompare2 = getAndMemoizeValue(o2);
-		if (valueToCompare1 != ReferenceAttributeValue.MISSING && valueToCompare2 != ReferenceAttributeValue.MISSING) {
-			return valueToCompare1.compareTo(valueToCompare2);
-		} else {
-			if (valueToCompare1 != ReferenceAttributeValue.MISSING) {
-				return -1;
-			} else if (valueToCompare2 != ReferenceAttributeValue.MISSING) {
-				return 1;
-			} else {
-				return 0;
-			}
-		}
-	}
+	public abstract int compare(EntityContract o1, EntityContract o2);
 
 	/**
 	 * Retrieves and memoizes the comparable value array for the given entity.
@@ -162,20 +157,25 @@ public class ReferenceCompoundAttributeComparator implements EntityComparator, S
 	 * @return the memoized comparable array value for the entity, never null.
 	 */
 	@Nonnull
-	private ReferenceAttributeValue getAndMemoizeValue(@Nonnull EntityContract entity) {
+	protected ReferenceAttributeValue getAndMemoizeValue(@Nonnull EntityContract entity) {
 		final ReferenceAttributeValue memoizedValue = this.memoizedValues.get(entity.getPrimaryKeyOrThrowException());
 		if (memoizedValue == null) {
+			// initialize the reference position map if it hasn't been initialized yet
+			if (this.referencePositionMap == null) {
+				this.referencePositionMap = this.referencePositionMapSupplier.get();
+			}
+			// find the reference contract that has the attribute we are looking for
 			final ReferenceContract referenceContract = entity.getReferences(this.referenceSchema.getName())
 				.stream()
 				.filter(it -> Arrays.stream(this.attributeElements).anyMatch(ae -> it.getAttribute(ae.attributeName()) != null))
-				.findFirst()
+				.min(Comparator.comparingInt(it -> this.referencePositionMap.get(it.getReferencedPrimaryKey())))
 				.orElse(null);
 
 			final ReferenceAttributeValue calculatedValue;
 			if (referenceContract == null) {
 				calculatedValue = ReferenceAttributeValue.MISSING;
 			} else {
-				final Object[] valueArray = new Comparable<?>[this.attributeElements.length];
+				final Serializable[] valueArray = new Serializable[this.attributeElements.length];
 				for (int i = 0; i < this.attributeElements.length; i++) {
 					final AttributeElement attributeElement = this.attributeElements[i];
 					valueArray[i] = this.attributeValueFetcher.apply(referenceContract, attributeElement.attributeName());
@@ -183,7 +183,8 @@ public class ReferenceCompoundAttributeComparator implements EntityComparator, S
 				calculatedValue = new ReferenceAttributeValue(
 					referenceContract.getReferencedPrimaryKey(),
 					new ComparableArray(
-						(Comparable<?>[]) this.normalizer.apply(valueArray)
+						this.comparatorSource,
+						(Serializable[]) this.normalizer.apply(valueArray)
 					),
 					this.comparator
 				);
@@ -211,12 +212,18 @@ public class ReferenceCompoundAttributeComparator implements EntityComparator, S
 	 * The {@code attributeValue} represents a comparable value associated with the reference key for the purposes
 	 * of comparison and sorting.
 	 */
-	private record ReferenceAttributeValue(
+	protected record ReferenceAttributeValue(
 		int referencedEntityPrimaryKey,
 		@Nonnull ComparableArray attributeValues,
 		@Nonnull Comparator<ComparableArray> comparator
 	) implements Comparable<ReferenceAttributeValue> {
-		public static final ReferenceAttributeValue MISSING = new ReferenceAttributeValue(-1, new ComparableArray(new Comparable[0]), Comparator.naturalOrder());
+		public static final ReferenceAttributeValue MISSING = new ReferenceAttributeValue(
+			-1,
+			new ComparableArray(new ComparatorSource[0], new Serializable[0]),
+			(o1, o2) -> {
+				throw new UnsupportedOperationException("Cannot compare missing values");
+			}
+		);
 
 		@Override
 		public int compareTo(@Nonnull ReferenceAttributeValue o) {
@@ -229,5 +236,4 @@ public class ReferenceCompoundAttributeComparator implements EntityComparator, S
 		}
 
 	}
-
 }

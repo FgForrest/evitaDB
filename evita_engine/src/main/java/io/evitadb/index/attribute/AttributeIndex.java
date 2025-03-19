@@ -231,7 +231,14 @@ public class AttributeIndex implements AttributeIndexContract,
 	}
 
 	@Override
-	public void insertUniqueAttribute(@Nonnull AttributeSchemaContract attributeSchema, @Nonnull Set<Locale> allowedLocales, @Nonnull Scope scope, @Nullable Locale locale, @Nonnull Object value, int recordId) {
+	public void insertUniqueAttribute(
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nonnull Scope scope,
+		@Nullable Locale locale,
+		@Nonnull Serializable value,
+		int recordId
+	) {
 		final UniqueIndex theUniqueIndex = this.uniqueIndex.computeIfAbsent(
 			createUniqueAttributeKey(attributeSchema, allowedLocales, scope, locale, value),
 			lookupKey -> {
@@ -254,7 +261,7 @@ public class AttributeIndex implements AttributeIndexContract,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nonnull Scope scope,
 		@Nullable Locale locale,
-		@Nonnull Object value,
+		@Nonnull Serializable value,
 		int recordId
 	) {
 		final AttributeKey lookupKey = createUniqueAttributeKey(attributeSchema, allowedLocales, scope, locale, value);
@@ -274,7 +281,7 @@ public class AttributeIndex implements AttributeIndexContract,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
-		@Nonnull Object value,
+		@Nonnull Serializable value,
 		int recordId
 	) {
 		final FilterIndex theFilterIndex = this.filterIndex.computeIfAbsent(
@@ -294,7 +301,7 @@ public class AttributeIndex implements AttributeIndexContract,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
-		@Nonnull Object value,
+		@Nonnull Serializable value,
 		int recordId
 	) {
 		final AttributeKey lookupKey = createAttributeKey(attributeSchema, allowedLocales, locale, value);
@@ -314,7 +321,7 @@ public class AttributeIndex implements AttributeIndexContract,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
-		@Nonnull Object[] value,
+		@Nonnull Serializable[] value,
 		int recordId
 	) {
 		final FilterIndex theFilterIndex = this.filterIndex.computeIfAbsent(
@@ -334,7 +341,7 @@ public class AttributeIndex implements AttributeIndexContract,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
-		@Nonnull Object[] value,
+		@Nonnull Serializable[] value,
 		int recordId
 	) {
 		final AttributeKey lookupKey = createAttributeKey(attributeSchema, allowedLocales, locale, value);
@@ -354,7 +361,7 @@ public class AttributeIndex implements AttributeIndexContract,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
-		@Nonnull Object value,
+		@Nonnull Serializable value,
 		int recordId
 	) {
 		final AttributeKey attributeKey = createAttributeKey(attributeSchema, allowedLocales, locale, value);
@@ -379,7 +386,13 @@ public class AttributeIndex implements AttributeIndexContract,
 	}
 
 	@Override
-	public void removeSortAttribute(@Nonnull AttributeSchemaContract attributeSchema, @Nonnull Set<Locale> allowedLocales, @Nullable Locale locale, @Nonnull Object value, int recordId) {
+	public void removeSortAttribute(
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nullable Locale locale,
+		@Nonnull Serializable value,
+		int recordId
+	) {
 		final AttributeKey lookupKey = createAttributeKey(attributeSchema, allowedLocales, locale, value);
 
 		if (Predecessor.class.equals(attributeSchema.getType()) || ReferencedEntityPredecessor.class.equals(attributeSchema.getType())) {
@@ -410,7 +423,7 @@ public class AttributeIndex implements AttributeIndexContract,
 		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
 		@Nonnull Function<String, Class<?>> attributeTypeProvider,
 		@Nullable Locale locale,
-		@Nonnull Object[] value,
+		@Nonnull Serializable[] value,
 		int recordId
 	) {
 		final AttributeKey attributeKey = locale == null ?
@@ -443,7 +456,7 @@ public class AttributeIndex implements AttributeIndexContract,
 	public void removeSortAttributeCompound(
 		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
 		@Nullable Locale locale,
-		@Nonnull Object[] value,
+		@Nonnull Serializable[] value,
 		int recordId
 	) {
 		final AttributeKey lookupKey = locale == null ?

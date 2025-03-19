@@ -40,6 +40,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import javax.annotation.Nonnull;
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -81,19 +82,19 @@ class SortIndexTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldCreateCompoundIndexWithDifferentCardinalities() {
 		final SortIndex sortIndex = createCompoundIndexWithBaseCardinalities();
-		assertNull(sortIndex.valueCardinalities.get(new ComparableArray(new Comparable<?>[]{"Z", 1})));
-		assertNull(sortIndex.valueCardinalities.get(new ComparableArray(new Comparable<?>[]{"A", 2})));
-		assertEquals(2, sortIndex.valueCardinalities.get(new ComparableArray(new Comparable<?>[]{"B", 1})));
-		assertEquals(2, sortIndex.valueCardinalities.get(new ComparableArray(new Comparable<?>[]{"C", 9})));
+		assertNull(sortIndex.valueCardinalities.get(new ComparableArray(new Serializable[]{"Z", 1})));
+		assertNull(sortIndex.valueCardinalities.get(new ComparableArray(new Serializable[]{"A", 2})));
+		assertEquals(2, sortIndex.valueCardinalities.get(new ComparableArray(new Serializable[]{"B", 1})));
+		assertEquals(2, sortIndex.valueCardinalities.get(new ComparableArray(new Serializable[]{"C", 9})));
 		assertArrayEquals(
 			new ComparableArray[]{
-				new ComparableArray(new Comparable<?>[]{null, 3}),
-				new ComparableArray(new Comparable<?>[]{"A", 4}),
-				new ComparableArray(new Comparable<?>[]{"B", 1}),
-				new ComparableArray(new Comparable<?>[]{"C", 9}),
-				new ComparableArray(new Comparable<?>[]{"C", 6}),
-				new ComparableArray(new Comparable<?>[]{"C", null}),
-				new ComparableArray(new Comparable<?>[]{"E", null})
+				new ComparableArray(new Serializable[]{null, 3}),
+				new ComparableArray(new Serializable[]{"A", 4}),
+				new ComparableArray(new Serializable[]{"B", 1}),
+				new ComparableArray(new Serializable[]{"C", 9}),
+				new ComparableArray(new Serializable[]{"C", 6}),
+				new ComparableArray(new Serializable[]{"C", null}),
+				new ComparableArray(new Serializable[]{"E", null})
 			},
 			sortIndex.sortedRecordsValues.getArray()
 		);
@@ -109,8 +110,8 @@ class SortIndexTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldReturnCorrectBitmapForCardinalityOneAndCompoundIndex() {
 		final SortIndex sortIndex = createCompoundIndexWithBaseCardinalities();
-		assertEquals(new BaseBitmap(9), sortIndex.getRecordsEqualTo(new Object[]{"E", null}));
-		assertTrue(sortIndex.getRecordsEqualTo(new Object[]{"E", 1}).isEmpty());
+		assertEquals(new BaseBitmap(9), sortIndex.getRecordsEqualTo(new Serializable[]{"E", null}));
+		assertTrue(sortIndex.getRecordsEqualTo(new Serializable[]{"E", 1}).isEmpty());
 	}
 
 	@Test
@@ -122,7 +123,7 @@ class SortIndexTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldReturnCorrectBitmapForCardinalityMoreThanOneAndCompoundIndex() {
 		final SortIndex sortIndex = createCompoundIndexWithBaseCardinalities();
-		assertEquals(new BaseBitmap(1, 7), sortIndex.getRecordsEqualTo(new Object[]{"C", 9}));
+		assertEquals(new BaseBitmap(1, 7), sortIndex.getRecordsEqualTo(new Serializable[]{"C", 9}));
 	}
 
 	@Test
@@ -234,7 +235,7 @@ class SortIndexTest implements TimeBoundedTestSupport {
 		final SortedComparableForwardSeeker seeker = sortedRecordsSupplier.getSortedComparableForwardSeeker();
 		final String[] values = new String[sortIndex.size()];
 		for (int i = 0; i < sortIndex.size(); i++) {
-			values[i] = (String) seeker.getComparableValueOn(i);
+			values[i] = (String) seeker.getValueToCompareOn(i);
 		}
 		assertArrayEquals(
 			new String[] { "A", "B", "B", "C", "C", "C", "C", "E" },
@@ -249,7 +250,7 @@ class SortIndexTest implements TimeBoundedTestSupport {
 		final SortedComparableForwardSeeker seeker = sortedRecordsSupplier.getSortedComparableForwardSeeker();
 		final String[] values = new String[sortIndex.size()];
 		for (int i = 0; i < sortIndex.size(); i++) {
-			values[i] = (String) seeker.getComparableValueOn(i);
+			values[i] = (String) seeker.getValueToCompareOn(i);
 		}
 		assertArrayEquals(
 			new String[] { "E", "C", "C", "C", "C", "B", "B", "A" },
@@ -421,15 +422,15 @@ class SortIndexTest implements TimeBoundedTestSupport {
 			new AttributeKey("a", Locale.ENGLISH)
 		);
 
-		sortIndex.addRecord(new Object[]{"B", 1}, 5);
-		sortIndex.addRecord(new Object[]{"A", 4}, 6);
-		sortIndex.addRecord(new Object[]{"C", 6}, 3);
-		sortIndex.addRecord(new Object[]{"C", null}, 2);
-		sortIndex.addRecord(new Object[]{"B", 1}, 4);
-		sortIndex.addRecord(new Object[]{"C", 9}, 1);
-		sortIndex.addRecord(new Object[]{"E", null}, 9);
-		sortIndex.addRecord(new Object[]{"C", 9}, 7);
-		sortIndex.addRecord(new Object[]{null, 3}, 8);
+		sortIndex.addRecord(new Serializable[]{"B", 1}, 5);
+		sortIndex.addRecord(new Serializable[]{"A", 4}, 6);
+		sortIndex.addRecord(new Serializable[]{"C", 6}, 3);
+		sortIndex.addRecord(new Serializable[]{"C", null}, 2);
+		sortIndex.addRecord(new Serializable[]{"B", 1}, 4);
+		sortIndex.addRecord(new Serializable[]{"C", 9}, 1);
+		sortIndex.addRecord(new Serializable[]{"E", null}, 9);
+		sortIndex.addRecord(new Serializable[]{"C", 9}, 7);
+		sortIndex.addRecord(new Serializable[]{null, 3}, 8);
 		return sortIndex;
 	}
 

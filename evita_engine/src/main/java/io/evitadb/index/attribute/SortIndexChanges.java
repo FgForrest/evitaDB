@@ -62,6 +62,11 @@ public class SortIndexChanges implements Serializable {
 	private final SortIndex sortIndex;
 
 	/**
+	 * The comparator used to compare values in the sort index.
+	 */
+	@SuppressWarnings("rawtypes") private final Comparator valueComparator;
+
+	/**
 	 * Contains information about indexes of the record chunks that belong to {@link SortIndex#sortedRecordsValues}.
 	 * This intermediate structure is used only when contents of the {@link SortIndex} are modified.
 	 * The sort index itself avoids holding this data for memory optimization. The {@link SortIndex#valueCardinalities}
@@ -72,12 +77,13 @@ public class SortIndexChanges implements Serializable {
 	/**
 	 * Verifies that value is not present in value index.
 	 */
-	private static void assertNotPresent(boolean present, @Nonnull Comparable<?> value) {
+	private static void assertNotPresent(boolean present, @Nonnull Serializable value) {
 		Assert.isTrue(present, "Value `" + StringUtils.unknownToString(value) + "` unexpectedly found in value start index!");
 	}
 
-	public SortIndexChanges(@Nonnull SortIndex sortIndex) {
+	public SortIndexChanges(@Nonnull SortIndex sortIndex, @SuppressWarnings("rawtypes") @Nonnull Comparator valueComparator) {
 		this.sortIndex = sortIndex;
+		this.valueComparator = valueComparator;
 	}
 
 	/**
@@ -141,12 +147,12 @@ public class SortIndexChanges implements Serializable {
 	 * `value`. When record id should be placed on the first index {@link Integer#MIN_VALUE} is returned. This aligns
 	 * with {@link io.evitadb.index.array.TransactionalUnorderedIntArray#add(int, int)} contract.
 	 */
-	public int computePreviousRecord(@Nonnull Comparable<?> value, int recordId, @Nonnull Comparator<?> comparator) {
+	public int computePreviousRecord(@Nonnull Serializable value, int recordId) {
 		final ValueStartIndex[] valueIndex = getValueIndex(sortIndex.sortedRecordsValues, sortIndex.valueCardinalities);
 		// compute index of the value in the value index
-		@SuppressWarnings({"unchecked", "rawtypes"}) final InsertionPosition valueInsertionPosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
-			new ValueStartIndex(value, -1), valueIndex,
-			(o1, o2) -> ((Comparator) comparator).compare(o1.getValue(), o2.getValue())
+		@SuppressWarnings({"unchecked"}) final InsertionPosition valueInsertionPosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
+			new ValueStartIndex(value, this.valueComparator, -1), valueIndex,
+			(o1, o2) -> this.valueComparator.compare(o1.getValue(), o2.getValue())
 		);
 		final int position = valueInsertionPosition.position();
 		// if the value is already part of the index
@@ -180,16 +186,16 @@ public class SortIndexChanges implements Serializable {
 	/**
 	 * Method alters internal data structures when new value (that was not present before) is inserted in the {@link SortIndex}.
 	 */
-	public void valueAdded(@Nonnull Comparable<?> value, @Nonnull Comparator<?> comparator) {
+	public void valueAdded(@Nonnull Serializable value) {
 		final ValueStartIndex[] valueIndex = getValueIndex(this.sortIndex.sortedRecordsValues, this.sortIndex.valueCardinalities);
 		// compute the insertion position in value index
-		@SuppressWarnings({"unchecked", "rawtypes"}) final InsertionPosition insertionPosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
-			new ValueStartIndex(value, -1), valueIndex,
-			(o1, o2) -> ((Comparator) comparator).compare(o1.getValue(), o2.getValue())
+		@SuppressWarnings({"unchecked"}) final InsertionPosition insertionPosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
+			new ValueStartIndex(value, this.valueComparator, -1), valueIndex,
+			(o1, o2) -> this.valueComparator.compare(o1.getValue(), o2.getValue())
 		);
 		assertNotPresent(!insertionPosition.alreadyPresent(), value);
 		// nod place the value in the value index with start position as previous block start + previous value cardinality
-		final ValueStartIndex newValue = new ValueStartIndex(value, getStartPositionFor(valueIndex, insertionPosition.position()));
+		final ValueStartIndex newValue = new ValueStartIndex(value, this.valueComparator, getStartPositionFor(valueIndex, insertionPosition.position()));
 		this.valueLocationIndex = ArrayUtils.insertRecordIntoArrayOnIndex(newValue, valueIndex, insertionPosition.position());
 		// update all values after the inserted one - their index should be greater by exactly one inserted record
 		for (int i = insertionPosition.position() + 1; i < this.valueLocationIndex.length; i++) {
@@ -200,12 +206,12 @@ public class SortIndexChanges implements Serializable {
 	/**
 	 * Method alters internal data structures when existing value cardinality is incremented in the {@link SortIndex}.
 	 */
-	public void valueCardinalityIncreased(@Nonnull Comparable<?> value, @Nonnull Comparator<?> comparator) {
+	public void valueCardinalityIncreased(@Nonnull Serializable value) {
 		final ValueStartIndex[] valueIndex = getValueIndex(this.sortIndex.sortedRecordsValues, this.sortIndex.valueCardinalities);
 		// find the value in the index
-		@SuppressWarnings({"unchecked", "rawtypes"}) final int position = Arrays.binarySearch(
-			valueIndex, new ValueStartIndex(value, -1),
-			(o1, o2) -> ((Comparator) comparator).compare(o1.getValue(), o2.getValue())
+		@SuppressWarnings({"unchecked"}) final int position = Arrays.binarySearch(
+			valueIndex, new ValueStartIndex(value, this.valueComparator, -1),
+			(o1, o2) -> this.valueComparator.compare(o1.getValue(), o2.getValue())
 		);
 		assertNotPresent(position >= 0, value);
 		// update this and all values after it - their index should be greater by exactly one inserted record
@@ -226,12 +232,12 @@ public class SortIndexChanges implements Serializable {
 	/**
 	 * Method alters internal data structures when existing value is removed entirely from the {@link SortIndex}.
 	 */
-	public void valueRemoved(@Nonnull Comparable<?> value, @Nonnull Comparator<?> comparator) {
+	public void valueRemoved(@Nonnull Serializable value) {
 		final ValueStartIndex[] valueIndex = getValueIndex(this.sortIndex.sortedRecordsValues, this.sortIndex.valueCardinalities);
 		// find the value in the index
-		@SuppressWarnings({"unchecked", "rawtypes"}) final int position = Arrays.binarySearch(
-			valueIndex, new ValueStartIndex(value, -1),
-			(o1, o2) -> ((Comparator) comparator).compare(o1.getValue(), o2.getValue())
+		@SuppressWarnings({"unchecked"}) final int position = Arrays.binarySearch(
+			valueIndex, new ValueStartIndex(value, this.valueComparator, -1),
+			(o1, o2) -> this.valueComparator.compare(o1.getValue(), o2.getValue())
 		);
 		assertNotPresent(position >= 0, value);
 		// remove it from the value location index
@@ -245,12 +251,12 @@ public class SortIndexChanges implements Serializable {
 	/**
 	 * Method alters internal data structures when existing value cardinality is decremented in the {@link SortIndex}.
 	 */
-	public void valueCardinalityDecreased(@Nonnull Comparable<?> value, @Nonnull Comparator<?> comparator) {
+	public void valueCardinalityDecreased(@Nonnull Serializable value) {
 		final ValueStartIndex[] valueIndex = getValueIndex(this.sortIndex.sortedRecordsValues, this.sortIndex.valueCardinalities);
 		// find the value in the index
-		@SuppressWarnings({"unchecked", "rawtypes"}) final int position = Arrays.binarySearch(
-			valueIndex, new ValueStartIndex(value, -1),
-			(o1, o2) -> ((Comparator) comparator).compare(o1.getValue(), o2.getValue())
+		@SuppressWarnings({"unchecked"}) final int position = Arrays.binarySearch(
+			valueIndex, new ValueStartIndex(value, this.valueComparator, -1),
+			(o1, o2) -> this.valueComparator.compare(o1.getValue(), o2.getValue())
 		);
 		assertNotPresent(position >= 0, value);
 		// update it and all values after it - their index should be lesser by exactly one inserted record
@@ -270,18 +276,18 @@ public class SortIndexChanges implements Serializable {
 	 */
 	@Nonnull
 	ValueStartIndex[] getValueIndex(
-		@Nonnull TransactionalObjArray<? extends Comparable<?>> sortedRecordsValues,
-		@Nonnull TransactionalMap<? extends Comparable<?>, Integer> valueCardinalities
+		@Nonnull TransactionalObjArray<? extends Serializable> sortedRecordsValues,
+		@Nonnull TransactionalMap<?, Integer> valueCardinalities
 	) {
 		if (this.valueLocationIndex == null) {
 			final int valueCount = sortedRecordsValues.getLength();
 			final ValueStartIndex[] theValueLocationIndex = new ValueStartIndex[valueCount];
-			final Iterator<? extends Comparable<?>> it = sortedRecordsValues.iterator();
+			final Iterator<? extends Serializable> it = sortedRecordsValues.iterator();
 			int index = 0;
 			int accumulator = 0;
 			while (it.hasNext()) {
-				final Comparable<?> value = it.next();
-				theValueLocationIndex[index++] = new ValueStartIndex(value, accumulator);
+				final Serializable value = it.next();
+				theValueLocationIndex[index++] = new ValueStartIndex(value, this.valueComparator, accumulator);
 				accumulator += ofNullable(valueCardinalities.get(value)).orElse(1);
 			}
 			this.valueLocationIndex = theValueLocationIndex;
@@ -307,6 +313,7 @@ public class SortIndexChanges implements Serializable {
 	/**
 	 * Class that maintains information about record id block for certain value.
 	 */
+	@SuppressWarnings("rawtypes")
 	@AllArgsConstructor
 	static class ValueStartIndex implements Comparable<ValueStartIndex>, Serializable {
 		@Serial private static final long serialVersionUID = -4953895484396265436L;
@@ -315,8 +322,11 @@ public class SortIndexChanges implements Serializable {
 		 * The comparable value representing the sort key.
 		 * This could be an attribute, timestamp, or any value used to determine ordering.
 		 */
-		@Getter private final Comparable<?> value;
-
+		@Getter private final Serializable value;
+		/**
+		 * The comparator used to compare the value with other values.
+		 */
+		private final Comparator valueComparator;
 		/**
 		 * Start index of the block of record IDs in the {@link SortIndex#sortedRecords} that belong to this value.
 		 * This index points to where the records associated with the value begin in the sorted sequence.
@@ -338,10 +348,10 @@ public class SortIndexChanges implements Serializable {
 			this.index--;
 		}
 
-		@SuppressWarnings({"rawtypes", "unchecked"})
+		@SuppressWarnings({"unchecked"})
 		@Override
 		public int compareTo(ValueStartIndex o) {
-			return ((Comparable) this.value).compareTo(o.value);
+			return this.valueComparator.compare(this.value, o.value);
 		}
 
 		@Override

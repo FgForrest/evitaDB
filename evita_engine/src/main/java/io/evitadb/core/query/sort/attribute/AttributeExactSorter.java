@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -75,23 +75,29 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 	/**
 	 * The attribute values whose order must be maintained in the sorted result.
 	 */
-	@SuppressWarnings("rawtypes")
-	private final Comparable[] exactOrder;
+	private final Serializable[] exactOrder;
 	/**
 	 * This sorter instance will be used for sorting entities, that cannot be sorted by this sorter.
 	 */
 	private final Sorter unknownRecordIdsSorter;
 
-	@SuppressWarnings("rawtypes")
-	public AttributeExactSorter(@Nonnull String attributeName, @Nonnull Comparable[] exactOrder, @Nonnull SortIndex sortIndex) {
+	public AttributeExactSorter(
+		@Nonnull String attributeName,
+		@Nonnull Serializable[] exactOrder,
+		@Nonnull SortIndex sortIndex
+	) {
 		this.attributeName = attributeName;
 		this.exactOrder = exactOrder;
 		this.sortIndex = sortIndex;
 		this.unknownRecordIdsSorter = NoSorter.INSTANCE;
 	}
 
-	@SuppressWarnings("rawtypes")
-	public AttributeExactSorter(@Nonnull String attributeName, @Nonnull Comparable[] exactOrder, @Nonnull SortIndex sortIndex, @Nonnull Sorter unknownRecordIdsSorter) {
+	public AttributeExactSorter(
+		@Nonnull String attributeName,
+		@Nonnull Serializable[] exactOrder,
+		@Nonnull SortIndex sortIndex,
+		@Nonnull Sorter unknownRecordIdsSorter
+	) {
 		this.attributeName = attributeName;
 		this.exactOrder = exactOrder;
 		this.sortIndex = sortIndex;
@@ -112,9 +118,9 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 	@Override
 	public Sorter andThen(Sorter sorterForUnknownRecords) {
 		return new AttributeExactSorter(
-			attributeName,
-			exactOrder,
-			sortIndex,
+			this.attributeName,
+			this.exactOrder,
+			this.sortIndex,
 			sorterForUnknownRecords
 		);
 	}
@@ -122,7 +128,7 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 	@Nullable
 	@Override
 	public Sorter getNextSorter() {
-		return unknownRecordIdsSorter;
+		return this.unknownRecordIdsSorter;
 	}
 
 	@Override
@@ -161,8 +167,8 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 		}
 
 		// retrieve array of "sorted" primary keys based on data from index
-		@SuppressWarnings({"unchecked"}) final int[] exactPkOrder = Arrays.stream(this.exactOrder)
-			.map(sortIndex::getRecordsEqualTo)
+		final int[] exactPkOrder = Arrays.stream(this.exactOrder)
+			.map(this.sortIndex::getRecordsEqualTo)
 			.flatMapToInt(Bitmap::stream)
 			.toArray();
 
@@ -211,7 +217,7 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 
 		// create the comparator instance
 		final AttributePositionComparator entityComparator = new AttributePositionComparator(
-			attributeName, exactOrder
+			this.attributeName, this.exactOrder
 		);
 
 		// sort the entities by the comparator
@@ -259,11 +265,11 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 	 * The {@link EntityComparator} implementation that compares two attributes of the {@link EntityContract}, but
 	 * tracks the entities that miss the attribute whatsoever.
 	 */
-	@SuppressWarnings({"rawtypes", "ObjectInstantiationInEqualsHashCode", "ComparatorNotSerializable"})
+	@SuppressWarnings({"ObjectInstantiationInEqualsHashCode", "ComparatorNotSerializable"})
 	@RequiredArgsConstructor
 	private static class AttributePositionComparator implements EntityComparator {
 		private final String attributeName;
-		private final Comparable[] attributeValues;
+		private final Serializable[] attributeValues;
 		private int estimatedCount = 100;
 		private ObjectIntMap<Serializable> cache;
 		private CompositeObjectArray<EntityContract> nonSortedEntities;

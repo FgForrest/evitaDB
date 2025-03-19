@@ -442,8 +442,7 @@ public final class MergedComparableSortedRecordsSupplier extends AbstractRecords
 		 * The comparable value of the currently processed record.
 		 * Used for sorting and comparisons.
 		 */
-		@SuppressWarnings("rawtypes")
-		private Comparable comparableValue;
+		private Serializable valueToCompare;
 
 		public SortedRecordsProviderBuffer(
 			@SuppressWarnings("rawtypes") @Nonnull Comparator comparator,
@@ -481,7 +480,7 @@ public final class MergedComparableSortedRecordsSupplier extends AbstractRecords
 			if (this.usable) {
 				final int position = this.buffer[this.maskBufferIndex++];
 				this.primaryKey = this.sortedRecordIds[position];
-				this.comparableValue = this.sortedComparableForwardSeeker.getComparableValueOn(position);
+				this.valueToCompare = this.sortedComparableForwardSeeker.getValueToCompareOn(position);
 				return true;
 			} else {
 				return false;
@@ -505,7 +504,7 @@ public final class MergedComparableSortedRecordsSupplier extends AbstractRecords
 			// this is ok, we'll be always comparing values of same type and the sorting will never modify contents
 			// of the comparable value, we use non-final fields to make the algorithm faster
 			//noinspection unchecked,CompareToUsesNonFinalVariable
-			final int comparisonResult = this.comparator.compare(this.comparableValue, o.comparableValue);
+			final int comparisonResult = this.comparator.compare(this.valueToCompare, o.valueToCompare);
 			if (comparisonResult == 0) {
 				// then compare primary keys
 				//noinspection CompareToUsesNonFinalVariable
@@ -528,7 +527,7 @@ public final class MergedComparableSortedRecordsSupplier extends AbstractRecords
 		@Override
 		public int hashCode() {
 			int result = this.primaryKey;
-			result = 31 * result + Objects.hashCode(this.comparableValue);
+			result = 31 * result + Objects.hashCode(this.valueToCompare);
 			return result;
 		}
 
@@ -537,13 +536,13 @@ public final class MergedComparableSortedRecordsSupplier extends AbstractRecords
 		public final boolean equals(Object o) {
 			if (!(o instanceof SortedRecordsProviderBuffer that)) return false;
 
-			return this.primaryKey == that.primaryKey && Objects.equals(this.comparableValue, that.comparableValue);
+			return this.primaryKey == that.primaryKey && Objects.equals(this.valueToCompare, that.valueToCompare);
 		}
 
 		@Override
 		public String toString() {
 			return this.usable ?
-				"SortedRecordsProviderBuffer: " + this.comparableValue + " [" + this.primaryKey + "]" :
+				"SortedRecordsProviderBuffer: " + this.valueToCompare + " [" + this.primaryKey + "]" :
 				"SortedRecordsProviderBuffer: ❌";
 		}
 

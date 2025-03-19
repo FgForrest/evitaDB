@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,12 +23,13 @@
 
 package io.evitadb.core.query.sort.attribute.translator;
 
+
+import com.carrotsearch.hppc.IntIntMap;
 import com.carrotsearch.hppc.IntObjectHashMap;
 import com.carrotsearch.hppc.IntObjectMap;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.sort.EntityComparator;
@@ -38,72 +39,72 @@ import io.evitadb.index.attribute.SortIndex.ComparatorSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serial;
+import java.io.Serializable;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 import static io.evitadb.index.attribute.SortIndex.createComparatorFor;
 import static io.evitadb.index.attribute.SortIndex.createNormalizerFor;
 import static java.util.Optional.ofNullable;
-
 /**
  * Attribute comparator sorts entities according to a specified attribute value. It needs to provide a function for
  * accessing the entity attribute value and the simple {@link Comparable} comparator implementation.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-@SuppressWarnings("ComparatorNotSerializable")
-public class ReferenceAttributeComparator implements EntityComparator {
-	/**
-	 * Optional reference to reference schema, if the attribute is a reference attribute.
-	 */
-	@Nonnull private final ReferenceSchemaContract referenceSchema;
-	/**
-	 * Optional reference to entity schema, the reference is targeting (null if the reference is null, or targets
-	 * non-managed entity type).
-	 */
-	@Nullable private final EntitySchemaContract referencedEntitySchema;
+public abstract class AbstractReferenceAttributeComparator implements EntityComparator, Serializable {
+	@Serial private static final long serialVersionUID = -2934397896189324016L;
 	/**
 	 * Function to fetch the value of the attribute being sorted for a given entity.
 	 */
-	@Nonnull private final Function<EntityContract, ReferenceAttributeValue> attributeValueFetcher;
+	@Nonnull protected final Function<EntityContract, ReferenceAttributeValue> attributeValueFetcher;
 	/**
 	 * Comparator for comparing entities by their primary key as a fallback.
 	 */
-	@Nonnull private final Comparator<EntityContract> pkComparator;
+	@Nonnull protected final Comparator<EntityContract> pkComparator;
+	/**
+	 * Supplier of the index of the referenced id positions in the main ordering.
+	 */
+	@Nonnull protected final Supplier<IntIntMap> referencePositionMapSupplier;
 	/**
 	 * Internal storage for entities that could not be fully sorted due to missing attributes.
 	 */
-	private CompositeObjectArray<EntityContract> nonSortedEntities;
+	protected CompositeObjectArray<EntityContract> nonSortedEntities;
+	/**
+	 * Memoized result from {@link #referencePositionMapSupplier} supplier.
+	 */
+	protected IntIntMap referencePositionMap;
 	/**
 	 * Cache for storing attribute values of entities to avoid redundant calculations.
 	 */
-	private IntObjectMap<ReferenceAttributeValue> cache;
+	protected IntObjectMap<ReferenceAttributeValue> cache;
 
-	public ReferenceAttributeComparator(
+	public AbstractReferenceAttributeComparator(
 		@Nonnull String attributeName,
 		@Nonnull Class<?> type,
 		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nullable EntitySchemaContract referencedEntitySchema,
 		@Nullable Locale locale,
-		@Nonnull OrderDirection orderDirection
+		@Nonnull OrderDirection orderDirection,
+		@Nonnull Supplier<IntIntMap> referencePositionMapSupplier
 	) {
-		this.referenceSchema = referenceSchema;
-		this.referencedEntitySchema = referencedEntitySchema;
-		final ComparatorSource comparatorSource = new ComparatorSource(
-			type, orderDirection, OrderBehaviour.NULLS_LAST
-		);
-		final Optional<UnaryOperator<Object>> normalizerFor = createNormalizerFor(comparatorSource);
-		final UnaryOperator<Object> normalizer = normalizerFor.orElseGet(UnaryOperator::identity);
+		this.referencePositionMapSupplier = referencePositionMapSupplier;
 		this.pkComparator = orderDirection == OrderDirection.ASC ?
 			Comparator.comparingInt(EntityContract::getPrimaryKeyOrThrowException) :
 			Comparator.comparingInt(EntityContract::getPrimaryKeyOrThrowException).reversed();
+		final ComparatorSource comparatorSource = new ComparatorSource(
+			type, orderDirection, OrderBehaviour.NULLS_LAST
+		);
+		final Optional<UnaryOperator<Serializable>> normalizerFor = createNormalizerFor(comparatorSource);
+		final UnaryOperator<Serializable> normalizer = normalizerFor.orElseGet(UnaryOperator::identity);
 		//noinspection rawtypes
 		final Comparator valueComparator = createComparatorFor(locale, comparatorSource);
-		final String referenceName = this.referenceSchema.getName();
+		final String referenceName = referenceSchema.getName();
 		final Function<ReferenceContract, Comparable<?>> attributeExtractor = locale == null ?
 			referenceContract -> referenceContract.getAttribute(attributeName) :
 			referenceContract -> referenceContract.getAttribute(attributeName, locale);
@@ -111,9 +112,15 @@ public class ReferenceAttributeComparator implements EntityComparator {
 		this.attributeValueFetcher = entityContract -> {
 			final ReferenceAttributeValue cachedValue = this.cache.get(entityContract.getPrimaryKeyOrThrowException());
 			if (cachedValue == null) {
+				// initialize the reference position map if it hasn't been initialized yet
+				if (this.referencePositionMap == null) {
+					this.referencePositionMap = this.referencePositionMapSupplier.get();
+				}
+				// find the reference contract that has the attribute we are looking for
 				final ReferenceAttributeValue calculatedValue = entityContract.getReferences(referenceName)
 					.stream()
 					.filter(it -> attributeExtractor.apply(it) != null)
+					.min(Comparator.comparingInt(it -> this.referencePositionMap.get(it.getReferencedPrimaryKey())))
 					.map(
 						it -> new ReferenceAttributeValue(
 							it.getReferencedPrimaryKey(),
@@ -121,7 +128,6 @@ public class ReferenceAttributeComparator implements EntityComparator {
 							valueComparator
 						)
 					)
-					.findFirst()
 					.orElse(ReferenceAttributeValue.MISSING_VALUE);
 
 				this.cache.put(entityContract.getPrimaryKeyOrThrowException(), calculatedValue);
@@ -152,24 +158,7 @@ public class ReferenceAttributeComparator implements EntityComparator {
 	}
 
 	@Override
-	public int compare(EntityContract o1, EntityContract o2) {
-		final ReferenceAttributeValue attribute1 = this.attributeValueFetcher.apply(o1);
-		final ReferenceAttributeValue attribute2 = this.attributeValueFetcher.apply(o2);
-		if (attribute1 != null && attribute2 != null) {
-			final int result = attribute1.compareTo(attribute2);
-			if (result == 0) {
-				return this.pkComparator.compare(o1, o2);
-			} else {
-				return result;
-			}
-		} else if (attribute1 == null && attribute2 != null) {
-			return 1;
-		} else if (attribute1 != null) {
-			return -1;
-		} else {
-			return 0;
-		}
-	}
+	public abstract int compare(EntityContract o1, EntityContract o2);
 
 	/**
 	 * Represents a data structure that encapsulates a reference key and its associated attribute value.
@@ -181,7 +170,7 @@ public class ReferenceAttributeComparator implements EntityComparator {
 	 * of comparison and sorting.
 	 */
 	@SuppressWarnings("rawtypes")
-	private record ReferenceAttributeValue(
+	protected record ReferenceAttributeValue(
 		int referencedEntityPrimaryKey,
 		@Nonnull Comparable<?> attributeValue,
 		@Nonnull Comparator comparator
@@ -200,5 +189,4 @@ public class ReferenceAttributeComparator implements EntityComparator {
 		}
 
 	}
-
 }

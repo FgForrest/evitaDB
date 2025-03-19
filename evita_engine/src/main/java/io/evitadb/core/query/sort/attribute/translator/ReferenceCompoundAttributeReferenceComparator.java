@@ -62,15 +62,19 @@ public class ReferenceCompoundAttributeReferenceComparator implements ReferenceC
 	/**
 	 * Function for fetching the attribute value from the entity.
 	 */
-	@Nonnull private final BiFunction<ReferenceContract, String, Comparable<?>> attributeValueFetcher;
+	@Nonnull private final BiFunction<ReferenceContract, String, Serializable> attributeValueFetcher;
 	/**
 	 * Function for normalizing the attribute values (such as string values or BigDecimals).
 	 */
-	@Nonnull private final UnaryOperator<Object> normalizer;
+	@Nonnull private final UnaryOperator<Serializable> normalizer;
 	/**
 	 * Comparator for comparing the normalized attribute values.
 	 */
-	@Nonnull private final Comparator<Object> comparator;
+	@Nonnull private final Comparator<Serializable> comparator;
+	/**
+	 * Comparator sources for each attribute element.
+	 */
+	@Nonnull private final ComparatorSource[] comparatorSource;
 	/**
 	 * Comparator for comparing the normalized attribute values.
 	 */
@@ -89,7 +93,7 @@ public class ReferenceCompoundAttributeReferenceComparator implements ReferenceC
 	) {
 		final List<AttributeElement> attributeElements = compoundSchemaContract
 			.getAttributeElements();
-		final ComparatorSource[] comparatorSource = attributeElements
+		this.comparatorSource = attributeElements
 			.stream()
 			.map(attributeElement -> new ComparatorSource(
 				attributeSchemaExtractor.apply(attributeElement.attributeName()).getPlainType(),
@@ -152,13 +156,14 @@ public class ReferenceCompoundAttributeReferenceComparator implements ReferenceC
 	private ComparableArray getAndMemoizeValue(@Nonnull ReferenceContract reference) {
 		ComparableArray value = this.memoizedValues.get(reference.getReferenceKey());
 		if (value == null) {
-			final Comparable<?>[] valueArray = new Comparable<?>[this.attributeElements.length];
+			final Serializable[] valueArray = new Serializable[this.attributeElements.length];
 			for (int i = 0; i < this.attributeElements.length; i++) {
 				final AttributeElement attributeElement = this.attributeElements[i];
 				valueArray[i] = this.attributeValueFetcher.apply(reference, attributeElement.attributeName());
 			}
 			value = new ComparableArray(
-				(Comparable<?>[]) this.normalizer.apply(valueArray)
+				this.comparatorSource,
+				(Serializable[]) this.normalizer.apply(valueArray)
 			);
 			this.memoizedValues.put(reference.getReferenceKey(), value);
 		}

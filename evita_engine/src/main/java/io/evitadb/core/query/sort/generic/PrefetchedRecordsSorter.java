@@ -81,7 +81,7 @@ public class PrefetchedRecordsSorter extends AbstractRecordsSorter implements Co
 	@Override
 	public Sorter cloneInstance() {
 		return new PrefetchedRecordsSorter(
-			entityComparator, null
+			this.entityComparator, null
 		);
 	}
 

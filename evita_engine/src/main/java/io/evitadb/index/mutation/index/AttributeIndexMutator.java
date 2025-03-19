@@ -89,7 +89,7 @@ public interface AttributeIndexMutator {
 		final AttributeSchemaContract attributeDefinition = attributeSchemaProvider.apply(attributeKey.attributeName());
 		Assert.notNull(attributeDefinition, "Attribute `" + attributeKey.attributeName() + "` not defined in schema!");
 
-		final Object valueToInsert = Objects.requireNonNull(
+		final Serializable valueToInsert = Objects.requireNonNull(
 			EvitaDataTypes.toTargetType(attributeValue, attributeDefinition.getType(), attributeDefinition.getIndexedDecimalPlaces())
 		);
 
@@ -535,7 +535,7 @@ public interface AttributeIndexMutator {
 		@Nonnull Function<String, Stream<SortableAttributeCompoundSchema>> compoundsSchemaProvider,
 		@Nonnull ExistingAttributeValueSupplier existingValueSupplier,
 		@Nonnull EntityIndex entityIndex,
-		@Nullable Object valueToUpdate,
+		@Nullable Serializable valueToUpdate,
 		@Nullable Locale locale,
 		@Nonnull String updatedAttributeName,
 		@Nullable Consumer<Runnable> undoActionConsumer
@@ -591,7 +591,7 @@ public interface AttributeIndexMutator {
 		@Nonnull Set<Locale> availableAttributeLocales,
 		@Nullable Locale locale,
 		@Nullable String updatedAttributeName,
-		@Nullable Object valueToUpdate,
+		@Nullable Serializable valueToUpdate,
 		int entityPrimaryKey,
 		@Nonnull Function<String, AttributeSchema> attributeSchemaProvider,
 		@Nonnull Function<AttributeKey, AttributeValue> existingAttributeValueProvider,
@@ -622,13 +622,13 @@ public interface AttributeIndexMutator {
 		@Nonnull EntityIndex entityIndex,
 		@Nonnull SortableAttributeCompoundSchema compound,
 		@Nullable String updatedAttributeName,
-		@Nullable Object valueToUpdate,
+		@Nullable Serializable valueToUpdate,
 		@Nullable Locale locale,
 		@Nonnull Function<String, AttributeSchema> attributeSchemaProvider,
 		@Nonnull Function<AttributeElement, AttributeValue> attributeElementValueProvider,
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
-		final Object[] newCompoundValues = compound.getAttributeElements()
+		final Serializable[] newCompoundValues = compound.getAttributeElements()
 			.stream()
 			.map(
 				it -> Objects.equals(it.attributeName(), updatedAttributeName) ?
@@ -637,7 +637,7 @@ public interface AttributeIndexMutator {
 						.map(AttributeValue::value)
 						.orElse(null)
 			)
-			.toArray();
+			.toArray(Serializable[]::new);
 
 		if (!ArrayUtils.isEmptyOrItsValuesNull(newCompoundValues)) {
 			entityIndex.insertSortAttributeCompound(
@@ -668,14 +668,14 @@ public interface AttributeIndexMutator {
 		@Nonnull Function<AttributeElement, AttributeValue> attributeElementValueProvider,
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
-		final Object[] oldCompoundValues = compound.getAttributeElements()
+		final Serializable[] oldCompoundValues = compound.getAttributeElements()
 			.stream()
 			.map(
 				it -> ofNullable(attributeElementValueProvider.apply(it))
 					.map(AttributeValue::value)
 					.orElse(null)
 			)
-			.toArray();
+			.toArray(Serializable[]::new);
 
 		if (!ArrayUtils.isEmptyOrItsValuesNull(oldCompoundValues)) {
 			entityIndex.removeSortAttributeCompound(

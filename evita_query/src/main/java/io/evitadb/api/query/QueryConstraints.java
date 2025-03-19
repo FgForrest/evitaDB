@@ -2951,12 +2951,13 @@ public interface QueryConstraints {
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/ordering/reference#traverse-by-entity-property">Visit detailed user documentation</a></p>
 	 */
-	@Nullable
+	@Nonnull
 	static TraverseByEntityProperty traverseByEntityProperty(@Nullable OrderConstraint... constraints) {
 		if (ArrayUtils.isEmptyOrItsValuesNull(constraints)) {
-			return null;
+			return new TraverseByEntityProperty(null, entityPrimaryKeyNatural(OrderDirection.ASC));
+		} else {
+			return new TraverseByEntityProperty(null, constraints);
 		}
-		return new TraverseByEntityProperty(null, constraints);
 	}
 
 	/**
@@ -3030,12 +3031,13 @@ public interface QueryConstraints {
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/ordering/reference#traverse-by-entity-property">Visit detailed user documentation</a></p>
 	*/
-	@Nullable
+	@Nonnull
 	static TraverseByEntityProperty traverseByEntityProperty(@Nullable TraversalMode traversalMode, @Nullable OrderConstraint... constraints) {
 		if (ArrayUtils.isEmptyOrItsValuesNull(constraints)) {
-			return null;
+			return new TraverseByEntityProperty(traversalMode, entityPrimaryKeyNatural(OrderDirection.ASC));
+		} else {
+			return new TraverseByEntityProperty(traversalMode, constraints);
 		}
-		return new TraverseByEntityProperty(traversalMode, constraints);
 	}
 
 	/**

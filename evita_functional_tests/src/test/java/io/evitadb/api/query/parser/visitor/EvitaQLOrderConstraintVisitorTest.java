@@ -390,60 +390,87 @@ class EvitaQLOrderConstraintVisitorTest {
             constraint6
         );
 
-        final OrderConstraint constraint11 = parseOrderConstraint("traverseByEntityProperty(?, attributeNatural(?))", TraversalMode.DEPTH_FIRST, "a");
+        final OrderConstraint constraint11 = parseOrderConstraint("traverseByEntityProperty(?, attributeNatural(?))", TraversalMode.BREADTH_FIRST, "a");
         assertEquals(
             traverseByEntityProperty(
-                TraversalMode.DEPTH_FIRST,
+                TraversalMode.BREADTH_FIRST,
                 attributeNatural("a")
             ),
             constraint11
         );
 
-        final OrderConstraint constraint12 = parseOrderConstraintUnsafe("traverseByEntityProperty(DEPTH_FIRST, attributeNatural('b'),attributeNatural('c',DESC))");
+        final OrderConstraint constraint12 = parseOrderConstraintUnsafe("traverseByEntityProperty(BREADTH_FIRST, attributeNatural('b'),attributeNatural('c',DESC))");
         assertEquals(
             traverseByEntityProperty(
-                TraversalMode.DEPTH_FIRST,
+                TraversalMode.BREADTH_FIRST,
                 attributeNatural("b"),
                 attributeNatural("c", DESC)
             ),
             constraint12
         );
 
-        final OrderConstraint constraint13 = parseOrderConstraintUnsafe("traverseByEntityProperty ( DEPTH_FIRST,  attributeNatural('b')  , attributeNatural('c',  DESC) )");
+        final OrderConstraint constraint13 = parseOrderConstraintUnsafe("traverseByEntityProperty ( BREADTH_FIRST,  attributeNatural('b')  , attributeNatural('c',  DESC) )");
         assertEquals(
             traverseByEntityProperty(
-                TraversalMode.DEPTH_FIRST,
+                TraversalMode.BREADTH_FIRST,
                 attributeNatural("b"),
                 attributeNatural("c", DESC)
             ),
             constraint13
         );
 
-        final OrderConstraint constraint14 = parseOrderConstraintUnsafe("traverseByEntityProperty(DEPTH_FIRST, attributeNatural('b'))");
-        assertEquals(
-            traverseByEntityProperty(
-                TraversalMode.DEPTH_FIRST,
-                attributeNatural("b")
-            ),
-            constraint14
-        );
-
-        final OrderConstraint constraint15 = parseOrderConstraint("traverseByEntityProperty(?, attributeNatural(?))", TraversalMode.BREADTH_FIRST, "b");
+        final OrderConstraint constraint14 = parseOrderConstraintUnsafe("traverseByEntityProperty(BREADTH_FIRST, attributeNatural('b'))");
         assertEquals(
             traverseByEntityProperty(
                 TraversalMode.BREADTH_FIRST,
                 attributeNatural("b")
             ),
-            constraint15
+            constraint14
         );
 
-        final OrderConstraint constraint16 = parseOrderConstraint("traverseByEntityProperty(@a, attributeNatural(@b))", Map.of("a", TraversalMode.DEPTH_FIRST, "b", "b"));
+        final OrderConstraint constraint15 = parseOrderConstraint("traverseByEntityProperty(?, attributeNatural(?))", TraversalMode.DEPTH_FIRST, "b");
         assertEquals(
             traverseByEntityProperty(
                 TraversalMode.DEPTH_FIRST,
                 attributeNatural("b")
             ),
+            constraint15
+        );
+
+        final OrderConstraint constraint16 = parseOrderConstraint("traverseByEntityProperty(@a, attributeNatural(@b))", Map.of("a", TraversalMode.BREADTH_FIRST, "b", "b"));
+        assertEquals(
+            traverseByEntityProperty(
+                TraversalMode.BREADTH_FIRST,
+                attributeNatural("b")
+            ),
             constraint16
+        );
+
+        final OrderConstraint constraint17 = parseOrderConstraintUnsafe("traverseByEntityProperty(BREADTH_FIRST)");
+        assertEquals(
+            traverseByEntityProperty(
+                TraversalMode.BREADTH_FIRST,
+                entityPrimaryKeyNatural(ASC)
+            ),
+            constraint17
+        );
+
+        final OrderConstraint constraint18 = parseOrderConstraint("traverseByEntityProperty(?)", TraversalMode.BREADTH_FIRST);
+        assertEquals(
+            traverseByEntityProperty(
+                TraversalMode.BREADTH_FIRST,
+                entityPrimaryKeyNatural(ASC)
+            ),
+            constraint18
+        );
+
+        final OrderConstraint constraint19 = parseOrderConstraint("traverseByEntityProperty(@a)", Map.of("a", TraversalMode.BREADTH_FIRST));
+        assertEquals(
+            traverseByEntityProperty(
+                TraversalMode.BREADTH_FIRST,
+                entityPrimaryKeyNatural(ASC)
+            ),
+            constraint19
         );
     }
 

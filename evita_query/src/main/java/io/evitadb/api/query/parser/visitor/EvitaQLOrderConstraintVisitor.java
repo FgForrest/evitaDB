@@ -245,10 +245,12 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 			() -> new TraverseByEntityProperty(
 				ctx.args.traversalMode == null ?
 					null : ctx.args.traversalMode.accept(this.traversalModeValueTokenVisitor).asEnum(TraversalMode.class),
-				ctx.args.constraints
-					.stream()
-					.map(c -> visitChildConstraint(c, OrderConstraint.class))
-					.toArray(OrderConstraint[]::new)
+				ctx.args.constraints == null || ctx.args.constraints.isEmpty() ?
+					new OrderConstraint[] { new EntityPrimaryKeyNatural(OrderDirection.ASC) } :
+					ctx.args.constraints
+						.stream()
+						.map(c -> visitChildConstraint(c, OrderConstraint.class))
+						.toArray(OrderConstraint[]::new)
 			)
 		);
 	}

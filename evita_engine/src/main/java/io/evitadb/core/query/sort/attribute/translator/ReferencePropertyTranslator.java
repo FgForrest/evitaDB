@@ -353,6 +353,9 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 								primaryKeyNatural.accept(orderByVisitor);
 								continue;
 							}
+						} else if (innerConstraint instanceof TraverseByEntityProperty || innerConstraint instanceof PickFirstByEntityProperty) {
+							// skip this constraint as it is already handled by this translator
+							continue;
 						}
 						innerConstraint.accept(orderByVisitor);
 					}
