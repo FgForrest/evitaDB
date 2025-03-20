@@ -140,15 +140,15 @@ public class PrefetchedRecordsSorter extends AbstractRecordsSorter implements Co
 		}
 
 		// pass them to another sorter
-		final int recomputedStartIndex = Math.max(0, startIndex - index.get());
-		final int recomputedEndIndex = Math.max(0, endIndex - index.get());
+		final int recomputedStartIndex = Math.max(0, startIndex - (index.get() + skippedItems));
+		final int recomputedEndIndex = Math.max(0, endIndex - (index.get() + skippedItems));
 
 		final int[] buffer = queryContext.borrowBuffer();
 		try {
 			return returnResultAppendingUnknown(
 				queryContext,
 				notFoundRecords,
-				unknownRecordIdsSorter,
+				this.unknownRecordIdsSorter,
 				recomputedStartIndex, recomputedEndIndex,
 				result, peak + index.get(),
 				buffer

@@ -110,6 +110,7 @@ public class PredecessorAttributeComparator implements EntityComparator {
 	public void prepareFor(int entityCount) {
 		this.estimatedCount = entityCount;
 		this.entityPredicateCache = new IntObjectHashMap<>(entityCount);
+		this.nonSortedEntities = null;
 	}
 
 	@Override

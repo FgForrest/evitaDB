@@ -122,6 +122,7 @@ public class AttributeComparator implements EntityComparator {
 	@Override
 	public void prepareFor(int entityCount) {
 		this.cache = new IntObjectHashMap<>(Math.min(entityCount, 1024));
+		this.nonSortedEntities = null;
 	}
 
 	@Nonnull

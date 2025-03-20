@@ -277,6 +277,7 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 		@Override
 		public void prepareFor(int entityCount) {
 			this.estimatedCount = entityCount;
+			this.nonSortedEntities = null;
 		}
 
 		@Nonnull
