@@ -130,7 +130,7 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldReturnBreadthFirstArrayReversed() {
 		assertArrayEquals(
-			new int[] {7, 6, 8, 3, 5, 4, 9, 2, 1, 0, 12, 11, 10},
+			new int[] {7, 6, 5, 4, 8, 3, 0, 9, 2, 1, 12, 11, 10},
 			hierarchyIndex.listHierarchyNodesFromRoot(TraversalMode.BREADTH_FIRST, ArrayUtils::reverse).getArray()
 		);
 	}

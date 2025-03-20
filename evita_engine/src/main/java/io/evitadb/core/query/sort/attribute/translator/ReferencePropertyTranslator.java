@@ -40,6 +40,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
+import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.indexSelection.IndexSelectionVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
@@ -218,10 +219,17 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 		} else {
 			final NestedContextSorter sorter = createNestedContextSorter(orderByVisitor, referenceSchema, traverseByEntityProperty);
 			levelSorter = input -> {
-				final int[] output = new int[input.length];
-				final int sortedPeak = sorter.sortAndSlice(referenceIndexIds, 0, input.length, output, 0);
-				Assert.isPremiseValid(sortedPeak == input.length, "Unexpected number of sorted output: " + sortedPeak);
-				return output;
+				if (input.length == 0) {
+					return ArrayUtils.EMPTY_INT_ARRAY;
+				} else {
+					final int[] output = new int[input.length];
+					final int sortedPeak = sorter.sortAndSlice(
+						FormulaFactory.and(referenceIndexIds, new ConstantFormula(new BaseBitmap(input))),
+						0, input.length, output, 0
+					);
+					Assert.isPremiseValid(sortedPeak == input.length, "Unexpected number of sorted output: " + sortedPeak);
+					return output;
+				}
 			};
 		}
 

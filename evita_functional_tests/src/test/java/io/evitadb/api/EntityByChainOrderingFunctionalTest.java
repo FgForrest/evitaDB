@@ -73,15 +73,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.NoSuchElementException;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Random;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -123,7 +115,6 @@ public class EntityByChainOrderingFunctionalTest {
 	private final static int PRODUCT_COUNT = 100;
 	private final static int CATEGORY_COUNT = 10;
 	private final static int BRAND_COUNT = 10;
-	private final static int[] CATEGORY_ORDER;
 	private final static int[] BRAND_ORDER;
 	private final static int[] PRODUCT_ORDER;
 
@@ -134,13 +125,6 @@ public class EntityByChainOrderingFunctionalTest {
 		}
 
 		ArrayUtils.shuffleArray(new Random(SEED), PRODUCT_ORDER, PRODUCT_COUNT);
-
-		CATEGORY_ORDER = new int[CATEGORY_COUNT];
-		for (int i = 1; i <= CATEGORY_COUNT; i++) {
-			CATEGORY_ORDER[i - 1] = i;
-		}
-
-		ArrayUtils.shuffleArray(new Random(SEED), CATEGORY_ORDER, CATEGORY_COUNT);
 
 		BRAND_ORDER = new int[BRAND_COUNT];
 		for (int i = 1; i <= BRAND_COUNT; i++) {
@@ -366,6 +350,50 @@ public class EntityByChainOrderingFunctionalTest {
 	}
 
 	/**
+	 * Updates the order attribute for categories based on their parent-child relationships.
+	 * This method uses the given session to query categories and determines the order of each category
+	 * within its parent's list of children, updating their order attribute accordingly.
+	 *
+	 * @param session the Evita session to interact with the database.
+	 * @param categoryOrdering a map where the key is the parent category's primary key
+	 *                         and the value is an array of child categories' primary keys
+	 *                         defining their order as they relate to the parent.
+	 */
+	private static void updateOrderAttributeInCategory(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull Map<Integer, int[]> categoryOrdering
+	) {
+		session.queryList(
+				query(
+					collection(Entities.CATEGORY),
+					require(
+						page(1, 100),
+						entityFetch(
+							hierarchyContent(),
+							attributeContentAll()
+						)
+					)
+				),
+				SealedEntity.class
+			)
+			.forEach(theEntity -> {
+				final Integer parent = theEntity.getParentEntity()
+					.map(EntityClassifier::getPrimaryKeyOrThrowException)
+					.orElse(null);
+
+				final int[] childOrder = categoryOrdering.get(parent);
+				final int index = ArrayUtils.indexOf(theEntity.getPrimaryKeyOrThrowException(), childOrder);
+
+				assertTrue(index >= 0, "Category " + theEntity.getPrimaryKeyOrThrowException() + " is unexpectedly not found!");
+				if (index > 0) {
+					theEntity.openForWrite()
+						.setAttribute(ATTRIBUTE_ORDER, new Predecessor(childOrder[index - 1]))
+						.upsertVia(session);
+				}
+			});
+	}
+
+	/**
 	 * Updates the order of the products within a category in the Evita session.
 	 *
 	 * @param session                the session to execute the update operations
@@ -513,12 +541,34 @@ public class EntityByChainOrderingFunctionalTest {
 	 * @return an array of integers containing primary keys of items in depth-first order. Never null.
 	 */
 	@Nonnull
-	private static int[] getDepthFirstOrderedPks(@Nonnull Hierarchy categoryHierarchy) {
+	private static int[] getDepthFirstOrderedPks(
+		@Nonnull Hierarchy categoryHierarchy,
+		@Nonnull Map<Integer, SealedEntity> categoryIndex
+	) {
+		return getDepthFirstOrderedPks(
+			categoryHierarchy,
+			Comparator.comparingInt(EntityClassifier::getPrimaryKeyOrThrowException),
+			categoryIndex
+		);
+	}
+
+	/**
+	 * Returns the primary keys (PKs) of items in depth-first order from the given category hierarchy.
+	 *
+	 * @param categoryHierarchy the hierarchy structure containing categories to traverse. Must not be null.
+	 * @return an array of integers containing primary keys of items in depth-first order. Never null.
+	 */
+	@Nonnull
+	private static int[] getDepthFirstOrderedPks(
+		@Nonnull Hierarchy categoryHierarchy,
+		@Nonnull Comparator<SealedEntity> entityComparator,
+		@Nonnull Map<Integer, SealedEntity> categoryIndex
+	) {
 		final List<Integer> orderedCategoryIds = new ArrayList<>();
-		final List<HierarchyItem> rootItems = categoryHierarchy.getRootItems();
-		for (HierarchyItem rootItem : rootItems) {
-			traverseDepthFirst(rootItem, categoryHierarchy, orderedCategoryIds);
-		}
+		categoryHierarchy.getRootItems()
+			.stream()
+			.sorted((cat1, cat2) -> entityComparator.compare(categoryIndex.get(Integer.parseInt(cat1.getCode())), categoryIndex.get(Integer.parseInt(cat2.getCode()))))
+			.forEach(childItem -> traverseDepthFirst(childItem, categoryHierarchy, orderedCategoryIds, entityComparator, categoryIndex));
 		return orderedCategoryIds.stream()
 			.mapToInt(Integer::intValue)
 			.toArray();
@@ -535,11 +585,15 @@ public class EntityByChainOrderingFunctionalTest {
 	private static void traverseDepthFirst(
 		@Nonnull HierarchyItem item,
 		@Nonnull Hierarchy categoryHierarchy,
-		@Nonnull List<Integer> orderedCategoryIds
+		@Nonnull List<Integer> orderedCategoryIds,
+		@Nonnull Comparator<SealedEntity> entityComparator,
+		@Nonnull Map<Integer, SealedEntity> categoryIndex
 	) {
 		orderedCategoryIds.add(Integer.parseInt(item.getCode()));
 		categoryHierarchy.getChildItems(item.getCode())
-			.forEach(childItem -> traverseDepthFirst(childItem, categoryHierarchy, orderedCategoryIds));
+			.stream()
+			.sorted((cat1, cat2) -> entityComparator.compare(categoryIndex.get(Integer.parseInt(cat1.getCode())), categoryIndex.get(Integer.parseInt(cat2.getCode()))))
+			.forEach(childItem -> traverseDepthFirst(childItem, categoryHierarchy, orderedCategoryIds, entityComparator, categoryIndex));
 	}
 
 	/**
@@ -549,9 +603,40 @@ public class EntityByChainOrderingFunctionalTest {
 	 * @return an array of integers containing primary keys of items in breadth-first order. Never null.
 	 */
 	@Nonnull
-	private static int[] getBreadthFirstOrderedPks(@Nonnull Hierarchy categoryHierarchy) {
+	private static int[] getBreadthFirstOrderedPks(
+		@Nonnull Hierarchy categoryHierarchy,
+		@Nonnull Map<Integer, SealedEntity> categoryIndex
+	) {
+		return getBreadthFirstOrderedPks(
+			categoryHierarchy,
+			Comparator.comparingInt(EntityClassifier::getPrimaryKeyOrThrowException),
+			categoryIndex
+		);
+	}
+
+	/**
+	 * Returns the primary keys (PKs) of items in breadth-first order from the given category hierarchy.
+	 *
+	 * @param categoryHierarchy the hierarchy structure containing categories to traverse. Must not be null.
+	 * @return an array of integers containing primary keys of items in breadth-first order. Never null.
+	 */
+	@Nonnull
+	private static int[] getBreadthFirstOrderedPks(
+		@Nonnull Hierarchy categoryHierarchy,
+		@Nonnull Comparator<SealedEntity> entityComparator,
+		@Nonnull Map<Integer, SealedEntity> categoryIndex
+	) {
 		final List<Integer> orderedCategoryIds = new ArrayList<>();
-		traverseBreadthFirst(categoryHierarchy.getRootItems(), categoryHierarchy, orderedCategoryIds);
+		traverseBreadthFirst(
+			categoryHierarchy.getRootItems()
+				.stream()
+				.sorted((cat1, cat2) -> entityComparator.compare(categoryIndex.get(Integer.parseInt(cat1.getCode())), categoryIndex.get(Integer.parseInt(cat2.getCode()))))
+				.toList(),
+			categoryHierarchy,
+			orderedCategoryIds,
+			entityComparator,
+			categoryIndex
+		);
 		return orderedCategoryIds.stream()
 			.mapToInt(Integer::intValue)
 			.toArray();
@@ -568,18 +653,26 @@ public class EntityByChainOrderingFunctionalTest {
 	private static void traverseBreadthFirst(
 		@Nonnull List<HierarchyItem> items,
 		@Nonnull Hierarchy categoryHierarchy,
-		@Nonnull List<Integer> orderedCategoryIds
+		@Nonnull List<Integer> orderedCategoryIds,
+		@Nonnull Comparator<SealedEntity> entityComparator,
+		@Nonnull Map<Integer, SealedEntity> categoryIndex
 	) {
 		items.stream().map(item -> Integer.parseInt(item.getCode())).forEach(orderedCategoryIds::add);
 		final List<HierarchyItem> children = items.stream()
-			.flatMap(it -> categoryHierarchy.getChildItems(it.getCode()).stream())
+			.flatMap(
+				it -> categoryHierarchy
+					.getChildItems(it.getCode())
+					.stream()
+					.sorted((cat1, cat2) -> entityComparator.compare(categoryIndex.get(Integer.parseInt(cat1.getCode())), categoryIndex.get(Integer.parseInt(cat2.getCode()))))
+			)
 			.toList();
 		if (!children.isEmpty()) {
 			traverseBreadthFirst(
 				children,
 				categoryHierarchy,
-				orderedCategoryIds
-			);
+				orderedCategoryIds,
+				entityComparator,
+				categoryIndex);
 		}
 	}
 
@@ -594,7 +687,6 @@ public class EntityByChainOrderingFunctionalTest {
 					.withAttribute(ATTRIBUTE_URL, String.class, whichIs -> whichIs.localized().uniqueGlobally().nullable())
 			);
 
-			final AtomicInteger categoryIndex = new AtomicInteger();
 			final AtomicInteger brandIndex = new AtomicInteger();
 			final AtomicInteger productIndex = new AtomicInteger();
 			final DataGenerator dataGenerator = new DataGenerator.Builder()
@@ -619,11 +711,7 @@ public class EntityByChainOrderingFunctionalTest {
 				// generate order attribute for category
 				.registerValueGenerator(
 					Entities.CATEGORY, ATTRIBUTE_ORDER,
-					faker -> {
-						final int ix = categoryIndex.incrementAndGet();
-						final int position = ArrayUtils.indexOf(ix, CATEGORY_ORDER);
-						return position == 0 ? Predecessor.HEAD : new Predecessor(CATEGORY_ORDER[position - 1]);
-					}
+					faker -> Predecessor.HEAD
 				)
 				// generate order attribute for category
 				.registerValueGenerator(
@@ -726,13 +814,28 @@ public class EntityByChainOrderingFunctionalTest {
 			);
 
 			// and now data for both of them (since they are intertwined via reflected reference)
-			dataGenerator.generateEntities(
+			final Map<Integer, SealedEntity> categoryIndexByPk = dataGenerator.generateEntities(
 					categorySchema,
 					randomEntityPicker,
 					SEED
 				)
 				.limit(CATEGORY_COUNT)
-				.forEach(session::upsertEntity);
+				.map(it -> session.upsertAndFetchEntity(it, entityFetchAllContent()))
+				.collect(
+					Collectors.toMap(
+						it -> (Integer) it.getPrimaryKeyOrThrowException(),
+						Function.identity()
+					)
+				);
+
+			// generate category sequences and update the order respecting the hierarchy
+			final Hierarchy categoryHierarchy = dataGenerator.getHierarchy(Entities.CATEGORY);
+			final Map<Integer, int[]> categoryOrdering = new HashMap<>();
+			final Random rnd = new Random(SEED);
+			generateOrder(null, categoryHierarchy.getRootItems(), categoryHierarchy, rnd, categoryOrdering);
+
+			// second pass - update the order of the categories
+			updateOrderAttributeInCategory(session, categoryOrdering);
 
 			dataGenerator.generateEntities(
 					brandSchema,
@@ -833,19 +936,58 @@ public class EntityByChainOrderingFunctionalTest {
 			}
 
 			final IntIntMap categoryPositionIndex = new IntIntHashMap();
-			for (int i = 0; i < CATEGORY_ORDER.length; i++) {
-				categoryPositionIndex.put(CATEGORY_ORDER[i], i);
+			for (int[] order : categoryOrdering.values()) {
+				for (int i = 0; i < order.length; i++) {
+					categoryPositionIndex.put(order[i], i);
+				}
 			}
 
 			return new DataCarrier(
 				new Tuple("products", products),
 				new Tuple("productsInCategory", productsInCategory),
 				new Tuple("productsInBrand", productsInBrand),
-				new Tuple("categoryHierarchy", dataGenerator.getHierarchy(Entities.CATEGORY)),
+				new Tuple("categoryHierarchy", categoryHierarchy),
 				new Tuple("brandPositionIndex", brandPositionIndex),
-				new Tuple("categoryPositionIndex", categoryPositionIndex)
+				new Tuple("categoryPositionIndex", categoryPositionIndex),
+				new Tuple("categoryIndex", categoryIndexByPk)
 			);
 		});
+	}
+
+	/**
+	 * Generates an order array for the items in a hierarchy and populates a given mapping
+	 * with the order array for a specific parent identifier.
+	 *
+	 * @param parent The ID of the parent node for which the order is being generated, must not be null.
+	 * @param items The list of hierarchical items under the parent node, must not be null.
+	 * @param categoryHierarchy The hierarchy structure containing the relationships of items, must not be null.
+	 * @param rnd A Random instance used for shuffling the order array, must not be null.
+	 * @param categoryPositionIndex A mapping where the generated order arrays are stored with the parent node ID as the key, must not be null.
+	 */
+	private static void generateOrder(
+		@Nullable Integer parent,
+		@Nonnull List<HierarchyItem> items,
+		@Nonnull Hierarchy categoryHierarchy,
+		@Nonnull Random rnd,
+		@Nonnull Map<Integer, int[]> categoryPositionIndex
+	) {
+		if (!items.isEmpty()) {
+			final int[] order = new int[items.size()];
+			for (int i = 0; i < items.size(); i++) {
+				final String itemIdAsString = items.get(i).getCode();
+				final int itemId = Integer.parseInt(itemIdAsString);
+				order[i] = itemId;
+				generateOrder(
+					itemId,
+					categoryHierarchy.getChildItems(itemIdAsString),
+					categoryHierarchy,
+					rnd,
+					categoryPositionIndex
+				);
+			}
+			ArrayUtils.shuffleArray(rnd, order, order.length);
+			categoryPositionIndex.put(parent, order);
+		}
 	}
 
 	@Nullable
@@ -2668,7 +2810,8 @@ public class EntityByChainOrderingFunctionalTest {
 		Evita evita,
 		Map<Integer, SealedEntity> products,
 		Hierarchy categoryHierarchy,
-		Map<Integer, List<SealedEntity>> productsInCategory
+		Map<Integer, List<SealedEntity>> productsInCategory,
+		Map<Integer, SealedEntity> categoryIndex
 	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
@@ -2691,7 +2834,7 @@ public class EntityByChainOrderingFunctionalTest {
 					EntityReference.class
 				);
 
-				final int[] orderedCategoryIds = getDepthFirstOrderedPks(categoryHierarchy);
+				final int[] orderedCategoryIds = getDepthFirstOrderedPks(categoryHierarchy, categoryIndex);
 
 				// create expected order of products
 				final int[] expectedOrder = new int[products.size()];
@@ -2754,7 +2897,8 @@ public class EntityByChainOrderingFunctionalTest {
 		Evita evita,
 		Map<Integer, SealedEntity> products,
 		Hierarchy categoryHierarchy,
-		Map<Integer, List<SealedEntity>> productsInCategory
+		Map<Integer, List<SealedEntity>> productsInCategory,
+		Map<Integer, SealedEntity> categoryIndex
 	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
@@ -2777,7 +2921,7 @@ public class EntityByChainOrderingFunctionalTest {
 					EntityReference.class
 				);
 
-				final int[] orderedCategoryIds = getDepthFirstOrderedPks(categoryHierarchy);
+				final int[] orderedCategoryIds = getDepthFirstOrderedPks(categoryHierarchy, categoryIndex);
 
 				// create expected order of products
 				final int[] expectedOrder = new int[products.size()];
@@ -2841,7 +2985,8 @@ public class EntityByChainOrderingFunctionalTest {
 		Evita evita,
 		Map<Integer, SealedEntity> products,
 		Hierarchy categoryHierarchy,
-		Map<Integer, List<SealedEntity>> productsInCategory
+		Map<Integer, List<SealedEntity>> productsInCategory,
+		Map<Integer, SealedEntity> categoryIndex
 	) {
 		final IntSet selectedProducts = new IntHashSet(PRODUCT_COUNT / 2);
 		for (int i = 1; i <= PRODUCT_COUNT; i = i + 2) {
@@ -2871,7 +3016,7 @@ public class EntityByChainOrderingFunctionalTest {
 					EntityReference.class
 				);
 
-				final int[] orderedCategoryIds = getDepthFirstOrderedPks(categoryHierarchy);
+				final int[] orderedCategoryIds = getDepthFirstOrderedPks(categoryHierarchy, categoryIndex);
 
 				// create expected order of products
 				final int[] expectedOrder = new int[selectedProducts.size()];
@@ -2939,7 +3084,8 @@ public class EntityByChainOrderingFunctionalTest {
 		Evita evita,
 		Map<Integer, SealedEntity> products,
 		Hierarchy categoryHierarchy,
-		Map<Integer, List<SealedEntity>> productsInCategory
+		Map<Integer, List<SealedEntity>> productsInCategory,
+		Map<Integer, SealedEntity> categoryIndex
 	) {
 		final IntSet selectedProducts = new IntHashSet(PRODUCT_COUNT / 2);
 		for (int i = 1; i <= PRODUCT_COUNT; i = i + 2) {
@@ -2969,7 +3115,7 @@ public class EntityByChainOrderingFunctionalTest {
 					EntityReference.class
 				);
 
-				final int[] orderedCategoryIds = getDepthFirstOrderedPks(categoryHierarchy);
+				final int[] orderedCategoryIds = getDepthFirstOrderedPks(categoryHierarchy, categoryIndex);
 
 				// create expected order of products
 				final int[] expectedOrder = new int[selectedProducts.size()];
@@ -3037,7 +3183,8 @@ public class EntityByChainOrderingFunctionalTest {
 	void shouldSortProductsByCategoryDepthFirstTraversalReferencedEntityAttributeInAscendingOrder(
 		Evita evita,
 		Map<Integer, SealedEntity> products,
-		Hierarchy categoryHierarchy
+		Hierarchy categoryHierarchy,
+		Map<Integer, SealedEntity> categoryIndex
 	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
@@ -3060,7 +3207,7 @@ public class EntityByChainOrderingFunctionalTest {
 					EntityReference.class
 				);
 
-				final int[] orderedCategoryIds = getDepthFirstOrderedPks(categoryHierarchy);
+				final int[] orderedCategoryIds = getDepthFirstOrderedPks(categoryHierarchy, categoryIndex);
 
 				// create expected order of products
 				final int[] expectedOrder = new int[products.size()];
@@ -3122,7 +3269,8 @@ public class EntityByChainOrderingFunctionalTest {
 	void shouldSortProductsByCategoryDepthFirstTraversalReferencedEntityAttributeDescendingOrder(
 		Evita evita,
 		Map<Integer, SealedEntity> products,
-		Hierarchy categoryHierarchy
+		Hierarchy categoryHierarchy,
+		Map<Integer, SealedEntity> categoryIndex
 	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
@@ -3145,7 +3293,7 @@ public class EntityByChainOrderingFunctionalTest {
 					EntityReference.class
 				);
 
-				final int[] orderedCategoryIds = getDepthFirstOrderedPks(categoryHierarchy);
+				final int[] orderedCategoryIds = getDepthFirstOrderedPks(categoryHierarchy, categoryIndex);
 
 				// create expected order of products
 				final int[] expectedOrder = new int[products.size()];
@@ -3208,7 +3356,8 @@ public class EntityByChainOrderingFunctionalTest {
 	void shouldSortProductsByCategoryDepthFirstTraversalReferencedEntityAttributeInAscendingOrderUsingPrefetch(
 		Evita evita,
 		Map<Integer, SealedEntity> products,
-		Hierarchy categoryHierarchy
+		Hierarchy categoryHierarchy,
+		Map<Integer, SealedEntity> categoryIndex
 	) {
 		final IntSet selectedProducts = new IntHashSet(PRODUCT_COUNT / 2);
 		for (int i = 1; i <= PRODUCT_COUNT; i = i + 2) {
@@ -3238,7 +3387,7 @@ public class EntityByChainOrderingFunctionalTest {
 					EntityReference.class
 				);
 
-				final int[] orderedCategoryIds = getDepthFirstOrderedPks(categoryHierarchy);
+				final int[] orderedCategoryIds = getDepthFirstOrderedPks(categoryHierarchy, categoryIndex);
 
 				// create expected order of products
 				final int[] expectedOrder = new int[selectedProducts.size()];
@@ -3305,7 +3454,8 @@ public class EntityByChainOrderingFunctionalTest {
 	void shouldSortProductsByCategoryDepthFirstTraversalReferencedEntityAttributeInDescendingOrderUsingPrefetch(
 		Evita evita,
 		Map<Integer, SealedEntity> products,
-		Hierarchy categoryHierarchy
+		Hierarchy categoryHierarchy,
+		Map<Integer, SealedEntity> categoryIndex
 	) {
 		final IntSet selectedProducts = new IntHashSet(PRODUCT_COUNT / 2);
 		for (int i = 1; i <= PRODUCT_COUNT; i = i + 2) {
@@ -3335,7 +3485,7 @@ public class EntityByChainOrderingFunctionalTest {
 					EntityReference.class
 				);
 
-				final int[] orderedCategoryIds = getDepthFirstOrderedPks(categoryHierarchy);
+				final int[] orderedCategoryIds = getDepthFirstOrderedPks(categoryHierarchy, categoryIndex);
 
 				// create expected order of products
 				final int[] expectedOrder = new int[selectedProducts.size()];
@@ -3403,7 +3553,8 @@ public class EntityByChainOrderingFunctionalTest {
 	void shouldSortProductsByCategoryBreadthFirstTraversalReferencedEntityAttributeInAscendingOrder(
 		Evita evita,
 		Map<Integer, SealedEntity> products,
-		Hierarchy categoryHierarchy
+		Hierarchy categoryHierarchy,
+		Map<Integer, SealedEntity> categoryIndex
 	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
@@ -3426,7 +3577,7 @@ public class EntityByChainOrderingFunctionalTest {
 					EntityReference.class
 				);
 
-				final int[] orderedCategoryIds = getBreadthFirstOrderedPks(categoryHierarchy);
+				final int[] orderedCategoryIds = getBreadthFirstOrderedPks(categoryHierarchy, categoryIndex);
 
 				// create expected order of products
 				final int[] expectedOrder = new int[products.size()];
@@ -3488,7 +3639,8 @@ public class EntityByChainOrderingFunctionalTest {
 	void shouldSortProductsByCategoryBreadthFirstTraversalReferencedEntityAttributeDescendingOrder(
 		Evita evita,
 		Map<Integer, SealedEntity> products,
-		Hierarchy categoryHierarchy
+		Hierarchy categoryHierarchy,
+		Map<Integer, SealedEntity> categoryIndex
 	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
@@ -3511,7 +3663,7 @@ public class EntityByChainOrderingFunctionalTest {
 					EntityReference.class
 				);
 
-				final int[] orderedCategoryIds = getBreadthFirstOrderedPks(categoryHierarchy);
+				final int[] orderedCategoryIds = getBreadthFirstOrderedPks(categoryHierarchy, categoryIndex);
 
 				// create expected order of products
 				final int[] expectedOrder = new int[products.size()];
@@ -3574,7 +3726,8 @@ public class EntityByChainOrderingFunctionalTest {
 	void shouldSortProductsByCategoryBreadthFirstTraversalReferencedEntityAttributeInAscendingOrderUsingPrefetch(
 		Evita evita,
 		Map<Integer, SealedEntity> products,
-		Hierarchy categoryHierarchy
+		Hierarchy categoryHierarchy,
+		Map<Integer, SealedEntity> categoryIndex
 	) {
 		final IntSet selectedProducts = new IntHashSet(PRODUCT_COUNT / 2);
 		for (int i = 1; i <= PRODUCT_COUNT; i = i + 2) {
@@ -3604,7 +3757,7 @@ public class EntityByChainOrderingFunctionalTest {
 					EntityReference.class
 				);
 
-				final int[] orderedCategoryIds = getBreadthFirstOrderedPks(categoryHierarchy);
+				final int[] orderedCategoryIds = getBreadthFirstOrderedPks(categoryHierarchy, categoryIndex);
 
 				// create expected order of products
 				final int[] expectedOrder = new int[selectedProducts.size()];
@@ -3671,7 +3824,8 @@ public class EntityByChainOrderingFunctionalTest {
 	void shouldSortProductsByCategoryBreadthFirstTraversalReferencedEntityAttributeInDescendingOrderUsingPrefetch(
 		Evita evita,
 		Map<Integer, SealedEntity> products,
-		Hierarchy categoryHierarchy
+		Hierarchy categoryHierarchy,
+		Map<Integer, SealedEntity> categoryIndex
 	) {
 		final IntSet selectedProducts = new IntHashSet(PRODUCT_COUNT / 2);
 		for (int i = 1; i <= PRODUCT_COUNT; i = i + 2) {
@@ -3701,7 +3855,7 @@ public class EntityByChainOrderingFunctionalTest {
 					EntityReference.class
 				);
 
-				final int[] orderedCategoryIds = getBreadthFirstOrderedPks(categoryHierarchy);
+				final int[] orderedCategoryIds = getBreadthFirstOrderedPks(categoryHierarchy, categoryIndex);
 
 				// create expected order of products
 				final int[] expectedOrder = new int[selectedProducts.size()];
@@ -3769,7 +3923,8 @@ public class EntityByChainOrderingFunctionalTest {
 	void shouldSortProductsByTraversedCategoryReferencedEntitySortableAttributeCompoundInAscendingOrder(
 		Evita evita,
 		Map<Integer, SealedEntity> products,
-		Hierarchy categoryHierarchy
+		Hierarchy categoryHierarchy,
+		Map<Integer, SealedEntity> categoryIndex
 	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
@@ -3792,7 +3947,7 @@ public class EntityByChainOrderingFunctionalTest {
 					EntityReference.class
 				);
 
-				final int[] orderedCategoryIds = getDepthFirstOrderedPks(categoryHierarchy);
+				final int[] orderedCategoryIds = getDepthFirstOrderedPks(categoryHierarchy, categoryIndex);
 
 				// create expected order of products
 				final int[] expectedOrder = new int[products.size()];
@@ -4432,7 +4587,818 @@ public class EntityByChainOrderingFunctionalTest {
 		);
 	}
 
-	/* TODO JNO - test different traversal / pick ordering */
+	@DisplayName("The product should be returned in ascending order by breadth first category traversal custom order via reference attribute")
+	@UseDataSet(CHAINED_ELEMENTS)
+	@Test
+	void shouldSortProductsByCategoryBreadthFirstTraversalByAttributeReferencedEntityAttributeInAscendingOrder(
+		Evita evita,
+		Map<Integer, SealedEntity> products,
+		Hierarchy categoryHierarchy,
+		Map<Integer, SealedEntity> categoryIndex,
+		IntIntMap categoryPositionIndex
+	) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						orderBy(
+							referenceProperty(
+								Entities.CATEGORY,
+								traverseByEntityProperty(TraversalMode.BREADTH_FIRST, attributeNatural(ATTRIBUTE_ORDER, OrderDirection.DESC)),
+								attributeNatural(ATTRIBUTE_INCEPTION_YEAR, OrderDirection.ASC)
+							)
+						),
+						require(
+							page(1, 60),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+
+				final int[] orderedCategoryIds = getBreadthFirstOrderedPks(
+					categoryHierarchy,
+					(o1, o2) -> {
+						int pos1 = categoryPositionIndex.get(o1.getPrimaryKeyOrThrowException());
+						int pos2 = categoryPositionIndex.get(o2.getPrimaryKeyOrThrowException());
+						return Integer.compare(pos2, pos1);
+					},
+					categoryIndex
+				);
+
+				// create expected order of products
+				final int[] expectedOrder = new int[products.size()];
+				int index = 0;
+
+				final Predicate<ReferenceContract> referencePredicate = ref -> ref.getAttribute(ATTRIBUTE_INCEPTION_YEAR) != null;
+				final Comparator<SealedEntity> categoryComparator = Comparator
+					.comparing(
+						entity -> entity.getReferences(Entities.CATEGORY)
+							.stream()
+							.filter(referencePredicate)
+							.findFirst()
+							.map(ref -> ArrayUtils.indexOf(ref.getReferencedPrimaryKey(), orderedCategoryIds))
+							.orElseThrow()
+					);
+				final Comparator<SealedEntity> attributeComparator = categoryComparator.thenComparing(
+					entity -> entity.getReferences(Entities.CATEGORY)
+						.stream()
+						.filter(referencePredicate)
+						.findFirst()
+						.map(ref -> ref.getAttribute(ATTRIBUTE_INCEPTION_YEAR, Integer.class))
+						.orElseThrow()
+				);
+				final Comparator<SealedEntity> pkComparator = attributeComparator.thenComparingInt(
+					EntityClassifier::getPrimaryKeyOrThrowException
+				);
+
+				final int[] sortedValues = products.values()
+					.stream()
+					.filter(entity -> entity.getReferences(Entities.CATEGORY).stream().anyMatch(referencePredicate))
+					.sorted(pkComparator)
+					.mapToInt(EntityClassifier::getPrimaryKeyOrThrowException)
+					.toArray();
+
+				final IntSet sortedProducts = new IntHashSet(sortedValues.length);
+				for (int epk : sortedValues) {
+					expectedOrder[index++] = epk;
+					sortedProducts.add(epk);
+				}
+
+				for (int i = 1; i <= PRODUCT_COUNT; i++) {
+					if (!sortedProducts.contains(i)) {
+						expectedOrder[index++] = i;
+					}
+				}
+
+				assertSortedResultEquals(
+					result.getRecordData().stream().map(EntityReference::getPrimaryKey).toList(),
+					Arrays.stream(expectedOrder).limit(60).toArray()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("The product should be returned in ascending order by breadth first category traversal custom order via reference attribute (desc)")
+	@UseDataSet(CHAINED_ELEMENTS)
+	@Test
+	void shouldSortProductsByCategoryBreadthFirstTraversalByAttributeReferencedEntityAttributeDescendingOrder(
+		Evita evita,
+		Map<Integer, SealedEntity> products,
+		Hierarchy categoryHierarchy,
+		Map<Integer, SealedEntity> categoryIndex,
+		IntIntMap categoryPositionIndex
+	) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						orderBy(
+							referenceProperty(
+								Entities.CATEGORY,
+								traverseByEntityProperty(TraversalMode.BREADTH_FIRST, attributeNatural(ATTRIBUTE_ORDER, OrderDirection.DESC)),
+								attributeNatural(ATTRIBUTE_INCEPTION_YEAR, OrderDirection.DESC)
+							)
+						),
+						require(
+							page(1, 60),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+
+				final int[] orderedCategoryIds = getBreadthFirstOrderedPks(
+					categoryHierarchy,
+					(o1, o2) -> {
+						int pos1 = categoryPositionIndex.get(o1.getPrimaryKeyOrThrowException());
+						int pos2 = categoryPositionIndex.get(o2.getPrimaryKeyOrThrowException());
+						return Integer.compare(pos2, pos1);
+					},
+					categoryIndex
+				);
+
+				// create expected order of products
+				final int[] expectedOrder = new int[products.size()];
+				int index = 0;
+
+				final Predicate<ReferenceContract> referencePredicate = ref -> ref.getAttribute(ATTRIBUTE_INCEPTION_YEAR) != null;
+				final Comparator<SealedEntity> categoryComparator = Comparator
+					.comparing(
+						entity -> entity.getReferences(Entities.CATEGORY)
+							.stream()
+							.filter(referencePredicate)
+							.findFirst()
+							.map(ref -> ArrayUtils.indexOf(ref.getReferencedPrimaryKey(), orderedCategoryIds))
+							.orElseThrow()
+					);
+				final Comparator<SealedEntity> attributeComparator = categoryComparator.thenComparing(
+					entity -> entity.getReferences(Entities.CATEGORY)
+						.stream()
+						.filter(referencePredicate)
+						.findFirst()
+						.map(ref -> ref.getAttribute(ATTRIBUTE_INCEPTION_YEAR, Integer.class))
+						.orElseThrow(),
+					Comparator.reverseOrder()
+				);
+				final Comparator<SealedEntity> pkComparator = attributeComparator.thenComparingInt(
+					EntityClassifier::getPrimaryKeyOrThrowException
+				);
+
+				final int[] sortedValues = products.values()
+					.stream()
+					.filter(entity -> entity.getReferences(Entities.CATEGORY).stream().anyMatch(referencePredicate))
+					.sorted(pkComparator)
+					.mapToInt(EntityClassifier::getPrimaryKeyOrThrowException)
+					.toArray();
+
+				final IntSet sortedProducts = new IntHashSet(sortedValues.length);
+				for (int epk : sortedValues) {
+					expectedOrder[index++] = epk;
+					sortedProducts.add(epk);
+				}
+
+				for (int i = 1; i <= PRODUCT_COUNT; i++) {
+					if (!sortedProducts.contains(i)) {
+						expectedOrder[index++] = i;
+					}
+				}
+
+				assertSortedResultEquals(
+					result.getRecordData().stream().map(EntityReference::getPrimaryKey).toList(),
+					Arrays.stream(expectedOrder).limit(60).toArray()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("The product should be returned in ascending order by breadth first category traversal custom order via reference attribute (prefetch)")
+	@UseDataSet(CHAINED_ELEMENTS)
+	@Test
+	void shouldSortProductsByCategoryBreadthFirstTraversalByAttributeReferencedEntityAttributeInAscendingOrderUsingPrefetch(
+		Evita evita,
+		Map<Integer, SealedEntity> products,
+		Hierarchy categoryHierarchy,
+		Map<Integer, SealedEntity> categoryIndex,
+		IntIntMap categoryPositionIndex
+	) {
+		final IntSet selectedProducts = new IntHashSet(PRODUCT_COUNT / 2);
+		for (int i = 1; i <= PRODUCT_COUNT; i = i + 2) {
+			selectedProducts.add(i);
+		}
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(selectedProducts.toArray())
+						),
+						orderBy(
+							referenceProperty(
+								Entities.CATEGORY,
+								traverseByEntityProperty(TraversalMode.BREADTH_FIRST, attributeNatural(ATTRIBUTE_ORDER, OrderDirection.DESC)),
+								attributeNatural(ATTRIBUTE_INCEPTION_YEAR, OrderDirection.ASC)
+							)
+						),
+						require(
+							page(1, 60),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.PREFER_PREFETCHING)
+						)
+					),
+					EntityReference.class
+				);
+
+				final int[] orderedCategoryIds = getBreadthFirstOrderedPks(
+					categoryHierarchy,
+					(o1, o2) -> {
+						int pos1 = categoryPositionIndex.get(o1.getPrimaryKeyOrThrowException());
+						int pos2 = categoryPositionIndex.get(o2.getPrimaryKeyOrThrowException());
+						return Integer.compare(pos2, pos1);
+					},
+					categoryIndex
+				);
+
+				// create expected order of products
+				final int[] expectedOrder = new int[selectedProducts.size()];
+				int index = 0;
+
+				final Predicate<ReferenceContract> referencePredicate = ref -> ref.getAttribute(ATTRIBUTE_INCEPTION_YEAR) != null;
+				final Comparator<SealedEntity> categoryComparator = Comparator
+					.comparing(
+						entity -> entity.getReferences(Entities.CATEGORY)
+							.stream()
+							.filter(referencePredicate)
+							.findFirst()
+							.map(ref -> ArrayUtils.indexOf(ref.getReferencedPrimaryKey(), orderedCategoryIds))
+							.orElseThrow()
+					);
+				final Comparator<SealedEntity> attributeComparator = categoryComparator.thenComparing(
+					entity -> entity.getReferences(Entities.CATEGORY)
+						.stream()
+						.filter(referencePredicate)
+						.findFirst()
+						.map(ref -> ref.getAttribute(ATTRIBUTE_INCEPTION_YEAR, Integer.class))
+						.orElseThrow()
+				);
+				final Comparator<SealedEntity> pkComparator = attributeComparator.thenComparingInt(
+					EntityClassifier::getPrimaryKeyOrThrowException
+				);
+
+				final int[] sortedValues = products.values()
+					.stream()
+					.filter(entity -> selectedProducts.contains(entity.getPrimaryKeyOrThrowException()))
+					.filter(entity -> entity.getReferences(Entities.CATEGORY).stream().anyMatch(referencePredicate))
+					.sorted(pkComparator)
+					.mapToInt(EntityClassifier::getPrimaryKeyOrThrowException)
+					.toArray();
+
+				final IntSet sortedProducts = new IntHashSet(sortedValues.length);
+				for (int epk : sortedValues) {
+					if (selectedProducts.contains(epk)) {
+						expectedOrder[index++] = epk;
+						sortedProducts.add(epk);
+					}
+				}
+
+				for (int i = 1; i <= PRODUCT_COUNT; i++) {
+					if (!sortedProducts.contains(i)) {
+						if (selectedProducts.contains(i)) {
+							expectedOrder[index++] = i;
+						}
+					}
+				}
+
+				assertSortedResultEquals(
+					result.getRecordData().stream().map(EntityReference::getPrimaryKey).toList(),
+					Arrays.stream(expectedOrder).limit(60).toArray()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("The product should be returned in ascending order by breadth first category traversal custom order via reference attribute (descending prefetch)")
+	@UseDataSet(CHAINED_ELEMENTS)
+	@Test
+	void shouldSortProductsByCategoryBreadthFirstTraversalByAttributeReferencedEntityAttributeInDescendingOrderUsingPrefetch(
+		Evita evita,
+		Map<Integer, SealedEntity> products,
+		Hierarchy categoryHierarchy,
+		Map<Integer, SealedEntity> categoryIndex,
+		IntIntMap categoryPositionIndex
+	) {
+		final IntSet selectedProducts = new IntHashSet(PRODUCT_COUNT / 2);
+		for (int i = 1; i <= PRODUCT_COUNT; i = i + 2) {
+			selectedProducts.add(i);
+		}
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(selectedProducts.toArray())
+						),
+						orderBy(
+							referenceProperty(
+								Entities.CATEGORY,
+								traverseByEntityProperty(TraversalMode.BREADTH_FIRST, attributeNatural(ATTRIBUTE_ORDER, OrderDirection.DESC)),
+								attributeNatural(ATTRIBUTE_INCEPTION_YEAR, OrderDirection.DESC)
+							)
+						),
+						require(
+							page(1, 60),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.PREFER_PREFETCHING)
+						)
+					),
+					EntityReference.class
+				);
+
+				final int[] orderedCategoryIds = getBreadthFirstOrderedPks(
+					categoryHierarchy,
+					(o1, o2) -> {
+						int pos1 = categoryPositionIndex.get(o1.getPrimaryKeyOrThrowException());
+						int pos2 = categoryPositionIndex.get(o2.getPrimaryKeyOrThrowException());
+						return Integer.compare(pos2, pos1);
+					},
+					categoryIndex
+				);
+
+				// create expected order of products
+				final int[] expectedOrder = new int[selectedProducts.size()];
+				int index = 0;
+
+				final Predicate<ReferenceContract> referencePredicate = ref -> ref.getAttribute(ATTRIBUTE_INCEPTION_YEAR) != null;
+				final Comparator<SealedEntity> categoryComparator = Comparator
+					.comparing(
+						entity -> entity.getReferences(Entities.CATEGORY)
+							.stream()
+							.filter(referencePredicate)
+							.findFirst()
+							.map(ref -> ArrayUtils.indexOf(ref.getReferencedPrimaryKey(), orderedCategoryIds))
+							.orElseThrow()
+					);
+				final Comparator<SealedEntity> attributeComparator = categoryComparator.thenComparing(
+					entity -> entity.getReferences(Entities.CATEGORY)
+						.stream()
+						.filter(referencePredicate)
+						.findFirst()
+						.map(ref -> ref.getAttribute(ATTRIBUTE_INCEPTION_YEAR, Integer.class))
+						.orElseThrow(),
+					Comparator.reverseOrder()
+				);
+				final Comparator<SealedEntity> pkComparator = attributeComparator.thenComparingInt(
+					EntityClassifier::getPrimaryKeyOrThrowException
+				);
+
+				final int[] sortedValues = products.values()
+					.stream()
+					.filter(entity -> selectedProducts.contains(entity.getPrimaryKeyOrThrowException()))
+					.filter(entity -> entity.getReferences(Entities.CATEGORY).stream().anyMatch(referencePredicate))
+					.sorted(pkComparator)
+					.mapToInt(EntityClassifier::getPrimaryKeyOrThrowException)
+					.toArray();
+
+				final IntSet sortedProducts = new IntHashSet(sortedValues.length);
+				for (int epk : sortedValues) {
+					if (selectedProducts.contains(epk)) {
+						expectedOrder[index++] = epk;
+						sortedProducts.add(epk);
+					}
+				}
+
+				for (int i = 1; i <= PRODUCT_COUNT; i++) {
+					if (!sortedProducts.contains(i)) {
+						if (selectedProducts.contains(i)) {
+							expectedOrder[index++] = i;
+						}
+					}
+				}
+
+				assertSortedResultEquals(
+					result.getRecordData().stream().map(EntityReference::getPrimaryKey).toList(),
+					Arrays.stream(expectedOrder).limit(60).toArray()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("The product should be returned in ascending order by depth first category traversal custom order via reference attribute")
+	@UseDataSet(CHAINED_ELEMENTS)
+	@Test
+	void shouldSortProductsByCategoryDepthFirstTraversalByAttributeReferencedEntityAttributeInAscendingOrder(
+		Evita evita,
+		Map<Integer, SealedEntity> products,
+		Hierarchy categoryHierarchy,
+		Map<Integer, SealedEntity> categoryIndex,
+		IntIntMap categoryPositionIndex
+	) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						orderBy(
+							referenceProperty(
+								Entities.CATEGORY,
+								traverseByEntityProperty(TraversalMode.DEPTH_FIRST, attributeNatural(ATTRIBUTE_ORDER, OrderDirection.DESC)),
+								attributeNatural(ATTRIBUTE_INCEPTION_YEAR, OrderDirection.ASC)
+							)
+						),
+						require(
+							page(1, 60),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+
+				final int[] orderedCategoryIds = getDepthFirstOrderedPks(
+					categoryHierarchy,
+					(o1, o2) -> {
+						int pos1 = categoryPositionIndex.get(o1.getPrimaryKeyOrThrowException());
+						int pos2 = categoryPositionIndex.get(o2.getPrimaryKeyOrThrowException());
+						return Integer.compare(pos2, pos1);
+					},
+					categoryIndex
+				);
+
+				// create expected order of products
+				final int[] expectedOrder = new int[products.size()];
+				int index = 0;
+
+				final Predicate<ReferenceContract> referencePredicate = ref -> ref.getAttribute(ATTRIBUTE_INCEPTION_YEAR) != null;
+				final Comparator<SealedEntity> categoryComparator = Comparator
+					.comparing(
+						entity -> entity.getReferences(Entities.CATEGORY)
+							.stream()
+							.filter(referencePredicate)
+							.findFirst()
+							.map(ref -> ArrayUtils.indexOf(ref.getReferencedPrimaryKey(), orderedCategoryIds))
+							.orElseThrow()
+					);
+				final Comparator<SealedEntity> attributeComparator = categoryComparator.thenComparing(
+					entity -> entity.getReferences(Entities.CATEGORY)
+						.stream()
+						.filter(referencePredicate)
+						.findFirst()
+						.map(ref -> ref.getAttribute(ATTRIBUTE_INCEPTION_YEAR, Integer.class))
+						.orElseThrow()
+				);
+				final Comparator<SealedEntity> pkComparator = attributeComparator.thenComparingInt(
+					EntityClassifier::getPrimaryKeyOrThrowException
+				);
+
+				final int[] sortedValues = products.values()
+					.stream()
+					.filter(entity -> entity.getReferences(Entities.CATEGORY).stream().anyMatch(referencePredicate))
+					.sorted(pkComparator)
+					.mapToInt(EntityClassifier::getPrimaryKeyOrThrowException)
+					.toArray();
+
+				final IntSet sortedProducts = new IntHashSet(sortedValues.length);
+				for (int epk : sortedValues) {
+					expectedOrder[index++] = epk;
+					sortedProducts.add(epk);
+				}
+
+				for (int i = 1; i <= PRODUCT_COUNT; i++) {
+					if (!sortedProducts.contains(i)) {
+						expectedOrder[index++] = i;
+					}
+				}
+
+				assertSortedResultEquals(
+					result.getRecordData().stream().map(EntityReference::getPrimaryKey).toList(),
+					Arrays.stream(expectedOrder).limit(60).toArray()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("The product should be returned in ascending order by depth first category traversal custom order via reference attribute (desc)")
+	@UseDataSet(CHAINED_ELEMENTS)
+	@Test
+	void shouldSortProductsByCategoryDepthFirstTraversalByAttributeReferencedEntityAttributeDescendingOrder(
+		Evita evita,
+		Map<Integer, SealedEntity> products,
+		Hierarchy categoryHierarchy,
+		Map<Integer, SealedEntity> categoryIndex,
+		IntIntMap categoryPositionIndex
+	) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						orderBy(
+							referenceProperty(
+								Entities.CATEGORY,
+								traverseByEntityProperty(TraversalMode.DEPTH_FIRST, attributeNatural(ATTRIBUTE_ORDER, OrderDirection.DESC)),
+								attributeNatural(ATTRIBUTE_INCEPTION_YEAR, OrderDirection.DESC)
+							)
+						),
+						require(
+							page(1, 60),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+
+				final int[] orderedCategoryIds = getDepthFirstOrderedPks(
+					categoryHierarchy,
+					(o1, o2) -> {
+						int pos1 = categoryPositionIndex.get(o1.getPrimaryKeyOrThrowException());
+						int pos2 = categoryPositionIndex.get(o2.getPrimaryKeyOrThrowException());
+						return Integer.compare(pos2, pos1);
+					},
+					categoryIndex
+				);
+
+				// create expected order of products
+				final int[] expectedOrder = new int[products.size()];
+				int index = 0;
+
+				final Predicate<ReferenceContract> referencePredicate = ref -> ref.getAttribute(ATTRIBUTE_INCEPTION_YEAR) != null;
+				final Comparator<SealedEntity> categoryComparator = Comparator
+					.comparing(
+						entity -> entity.getReferences(Entities.CATEGORY)
+							.stream()
+							.filter(referencePredicate)
+							.findFirst()
+							.map(ref -> ArrayUtils.indexOf(ref.getReferencedPrimaryKey(), orderedCategoryIds))
+							.orElseThrow()
+					);
+				final Comparator<SealedEntity> attributeComparator = categoryComparator.thenComparing(
+					entity -> entity.getReferences(Entities.CATEGORY)
+						.stream()
+						.filter(referencePredicate)
+						.findFirst()
+						.map(ref -> ref.getAttribute(ATTRIBUTE_INCEPTION_YEAR, Integer.class))
+						.orElseThrow(),
+					Comparator.reverseOrder()
+				);
+				final Comparator<SealedEntity> pkComparator = attributeComparator.thenComparingInt(
+					EntityClassifier::getPrimaryKeyOrThrowException
+				);
+
+				final int[] sortedValues = products.values()
+					.stream()
+					.filter(entity -> entity.getReferences(Entities.CATEGORY).stream().anyMatch(referencePredicate))
+					.sorted(pkComparator)
+					.mapToInt(EntityClassifier::getPrimaryKeyOrThrowException)
+					.toArray();
+
+				final IntSet sortedProducts = new IntHashSet(sortedValues.length);
+				for (int epk : sortedValues) {
+					expectedOrder[index++] = epk;
+					sortedProducts.add(epk);
+				}
+
+				for (int i = 1; i <= PRODUCT_COUNT; i++) {
+					if (!sortedProducts.contains(i)) {
+						expectedOrder[index++] = i;
+					}
+				}
+
+				assertSortedResultEquals(
+					result.getRecordData().stream().map(EntityReference::getPrimaryKey).toList(),
+					Arrays.stream(expectedOrder).limit(60).toArray()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("The product should be returned in ascending order by depth first category traversal custom order via reference attribute (prefetch)")
+	@UseDataSet(CHAINED_ELEMENTS)
+	@Test
+	void shouldSortProductsByCategoryDepthFirstTraversalByAttributeReferencedEntityAttributeInAscendingOrderUsingPrefetch(
+		Evita evita,
+		Map<Integer, SealedEntity> products,
+		Hierarchy categoryHierarchy,
+		Map<Integer, SealedEntity> categoryIndex,
+		IntIntMap categoryPositionIndex
+	) {
+		final IntSet selectedProducts = new IntHashSet(PRODUCT_COUNT / 2);
+		for (int i = 1; i <= PRODUCT_COUNT; i = i + 2) {
+			selectedProducts.add(i);
+		}
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(selectedProducts.toArray())
+						),
+						orderBy(
+							referenceProperty(
+								Entities.CATEGORY,
+								traverseByEntityProperty(TraversalMode.DEPTH_FIRST, attributeNatural(ATTRIBUTE_ORDER, OrderDirection.DESC)),
+								attributeNatural(ATTRIBUTE_INCEPTION_YEAR, OrderDirection.ASC)
+							)
+						),
+						require(
+							page(1, 60),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.PREFER_PREFETCHING)
+						)
+					),
+					EntityReference.class
+				);
+
+				final int[] orderedCategoryIds = getDepthFirstOrderedPks(
+					categoryHierarchy,
+					(o1, o2) -> {
+						int pos1 = categoryPositionIndex.get(o1.getPrimaryKeyOrThrowException());
+						int pos2 = categoryPositionIndex.get(o2.getPrimaryKeyOrThrowException());
+						return Integer.compare(pos2, pos1);
+					},
+					categoryIndex
+				);
+
+				// create expected order of products
+				final int[] expectedOrder = new int[selectedProducts.size()];
+				int index = 0;
+
+				final Predicate<ReferenceContract> referencePredicate = ref -> ref.getAttribute(ATTRIBUTE_INCEPTION_YEAR) != null;
+				final Comparator<SealedEntity> categoryComparator = Comparator
+					.comparing(
+						entity -> entity.getReferences(Entities.CATEGORY)
+							.stream()
+							.filter(referencePredicate)
+							.findFirst()
+							.map(ref -> ArrayUtils.indexOf(ref.getReferencedPrimaryKey(), orderedCategoryIds))
+							.orElseThrow()
+					);
+				final Comparator<SealedEntity> attributeComparator = categoryComparator.thenComparing(
+					entity -> entity.getReferences(Entities.CATEGORY)
+						.stream()
+						.filter(referencePredicate)
+						.findFirst()
+						.map(ref -> ref.getAttribute(ATTRIBUTE_INCEPTION_YEAR, Integer.class))
+						.orElseThrow()
+				);
+				final Comparator<SealedEntity> pkComparator = attributeComparator.thenComparingInt(
+					EntityClassifier::getPrimaryKeyOrThrowException
+				);
+
+				final int[] sortedValues = products.values()
+					.stream()
+					.filter(entity -> selectedProducts.contains(entity.getPrimaryKeyOrThrowException()))
+					.filter(entity -> entity.getReferences(Entities.CATEGORY).stream().anyMatch(referencePredicate))
+					.sorted(pkComparator)
+					.mapToInt(EntityClassifier::getPrimaryKeyOrThrowException)
+					.toArray();
+
+				final IntSet sortedProducts = new IntHashSet(sortedValues.length);
+				for (int epk : sortedValues) {
+					if (selectedProducts.contains(epk)) {
+						expectedOrder[index++] = epk;
+						sortedProducts.add(epk);
+					}
+				}
+
+				for (int i = 1; i <= PRODUCT_COUNT; i++) {
+					if (!sortedProducts.contains(i)) {
+						if (selectedProducts.contains(i)) {
+							expectedOrder[index++] = i;
+						}
+					}
+				}
+
+				assertSortedResultEquals(
+					result.getRecordData().stream().map(EntityReference::getPrimaryKey).toList(),
+					Arrays.stream(expectedOrder).limit(60).toArray()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("The product should be returned in ascending order by depth first category traversal custom order via reference attribute (descending prefetch)")
+	@UseDataSet(CHAINED_ELEMENTS)
+	@Test
+	void shouldSortProductsByCategoryDepthFirstTraversalByAttributeReferencedEntityAttributeInDescendingOrderUsingPrefetch(
+		Evita evita,
+		Map<Integer, SealedEntity> products,
+		Hierarchy categoryHierarchy,
+		Map<Integer, SealedEntity> categoryIndex,
+		IntIntMap categoryPositionIndex
+	) {
+		final IntSet selectedProducts = new IntHashSet(PRODUCT_COUNT / 2);
+		for (int i = 1; i <= PRODUCT_COUNT; i = i + 2) {
+			selectedProducts.add(i);
+		}
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(selectedProducts.toArray())
+						),
+						orderBy(
+							referenceProperty(
+								Entities.CATEGORY,
+								traverseByEntityProperty(TraversalMode.DEPTH_FIRST, attributeNatural(ATTRIBUTE_ORDER, OrderDirection.DESC)),
+								attributeNatural(ATTRIBUTE_INCEPTION_YEAR, OrderDirection.DESC)
+							)
+						),
+						require(
+							page(1, 60),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.PREFER_PREFETCHING)
+						)
+					),
+					EntityReference.class
+				);
+
+				final int[] orderedCategoryIds = getDepthFirstOrderedPks(
+					categoryHierarchy,
+					(o1, o2) -> {
+						int pos1 = categoryPositionIndex.get(o1.getPrimaryKeyOrThrowException());
+						int pos2 = categoryPositionIndex.get(o2.getPrimaryKeyOrThrowException());
+						return Integer.compare(pos2, pos1);
+					},
+					categoryIndex
+				);
+
+				// create expected order of products
+				final int[] expectedOrder = new int[selectedProducts.size()];
+				int index = 0;
+
+				final Predicate<ReferenceContract> referencePredicate = ref -> ref.getAttribute(ATTRIBUTE_INCEPTION_YEAR) != null;
+				final Comparator<SealedEntity> categoryComparator = Comparator
+					.comparing(
+						entity -> entity.getReferences(Entities.CATEGORY)
+							.stream()
+							.filter(referencePredicate)
+							.findFirst()
+							.map(ref -> ArrayUtils.indexOf(ref.getReferencedPrimaryKey(), orderedCategoryIds))
+							.orElseThrow()
+					);
+				final Comparator<SealedEntity> attributeComparator = categoryComparator.thenComparing(
+					entity -> entity.getReferences(Entities.CATEGORY)
+						.stream()
+						.filter(referencePredicate)
+						.findFirst()
+						.map(ref -> ref.getAttribute(ATTRIBUTE_INCEPTION_YEAR, Integer.class))
+						.orElseThrow(),
+					Comparator.reverseOrder()
+				);
+				final Comparator<SealedEntity> pkComparator = attributeComparator.thenComparingInt(
+					EntityClassifier::getPrimaryKeyOrThrowException
+				);
+
+				final int[] sortedValues = products.values()
+					.stream()
+					.filter(entity -> selectedProducts.contains(entity.getPrimaryKeyOrThrowException()))
+					.filter(entity -> entity.getReferences(Entities.CATEGORY).stream().anyMatch(referencePredicate))
+					.sorted(pkComparator)
+					.mapToInt(EntityClassifier::getPrimaryKeyOrThrowException)
+					.toArray();
+
+				final IntSet sortedProducts = new IntHashSet(sortedValues.length);
+				for (int epk : sortedValues) {
+					if (selectedProducts.contains(epk)) {
+						expectedOrder[index++] = epk;
+						sortedProducts.add(epk);
+					}
+				}
+
+				for (int i = 1; i <= PRODUCT_COUNT; i++) {
+					if (!sortedProducts.contains(i)) {
+						if (selectedProducts.contains(i)) {
+							expectedOrder[index++] = i;
+						}
+					}
+				}
+
+				assertSortedResultEquals(
+					result.getRecordData().stream().map(EntityReference::getPrimaryKey).toList(),
+					Arrays.stream(expectedOrder).limit(60).toArray()
+				);
+				return null;
+			}
+		);
+	}
+
 	/* TODO JNO - add paging + filtering + spacing test using sort by indexes to test MergedSortedRecordsSupplier */
 
 	/**

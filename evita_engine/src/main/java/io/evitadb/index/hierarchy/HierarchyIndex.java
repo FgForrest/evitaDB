@@ -246,7 +246,7 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 			}
 		} else {
 			result.addAll(currentLevel, 0, currentLevel.length);
-			breadthFirstTraversal(rootNodeIds, levelSorter, result);
+			breadthFirstTraversal(0, levelSorter, result);
 		}
 		return result.isEmpty() ?
 			EmptyBitmap.INSTANCE : new ArrayBitmap(result.toArray());
@@ -950,31 +950,32 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	 * Performs a breadth-first traversal of a hierarchy tree starting from the specified root node.
 	 * Traverses the tree level by level, applying a sorter to children at each level, and stores the traversal result.
 	 *
-	 * @param rootNodeIds  the ID of the root nodes from which to start the traversal
-	 * @param levelSorter a {@link UnaryOperator} to sort the children nodes at each level during the traversal
-	 * @param result      a {@link CompositeIntArray} to store the result of the traversal
+	 * @param previousLevelStart index of the first parent node in the result array
+	 * @param levelSorter        a {@link UnaryOperator} to sort the children nodes at each level during the traversal
+	 * @param result             a {@link CompositeIntArray} to store the result of the traversal
 	 */
 	private void breadthFirstTraversal(
-		@Nonnull int[] rootNodeIds,
+		int previousLevelStart,
 		@Nonnull UnaryOperator<int[]> levelSorter,
 		@Nonnull CompositeIntArray result
 	) {
 		final int initialSize = result.getSize();
-		for (int rootNodeId : rootNodeIds) {
+		int cnt = 0;
+		final OfInt it = result.iteratorFrom(previousLevelStart);
+		final int terminalCnt = initialSize - previousLevelStart;
+		while (it.hasNext() && cnt++ < terminalCnt) {
+			int rootNodeId = it.next();
 			final TransactionalIntArray children = this.levelIndex.get(rootNodeId);
 			if (children != null) {
 				final int[] childrenIds = children.getArray();
-				final int[] currentLevel = levelSorter.apply(childrenIds);
-				result.addAll(currentLevel, 0, currentLevel.length);
+				if (childrenIds.length > 0) {
+					final int[] currentLevel = levelSorter.apply(childrenIds);
+					result.addAll(currentLevel, 0, currentLevel.length);
+				}
 			}
 		}
 		if (result.getSize() > initialSize) {
-			final int[] childrenOnThisLevel = new int[result.getSize() - initialSize];
-			final OfInt it = result.iteratorFrom(initialSize);
-			for (int i = 0; i < childrenOnThisLevel.length; i++) {
-				childrenOnThisLevel[i] = it.nextInt();
-			}
-			breadthFirstTraversal(childrenOnThisLevel, levelSorter, result);
+			breadthFirstTraversal(initialSize, levelSorter, result);
 		}
 	}
 
