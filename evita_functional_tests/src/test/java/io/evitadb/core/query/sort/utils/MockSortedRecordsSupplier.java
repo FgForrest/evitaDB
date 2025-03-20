@@ -65,7 +65,7 @@ public class MockSortedRecordsSupplier implements SortedRecordsProvider {
 			@Nonnull
 			@Override
 			public Serializable getValueToCompareOn(int position) throws ArrayIndexOutOfBoundsException {
-				return recordPositions[position];
+				return MockSortedRecordsSupplier.this.recordPositions[position];
 			}
 		};
 	}

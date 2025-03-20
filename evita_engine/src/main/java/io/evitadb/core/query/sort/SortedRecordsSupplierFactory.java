@@ -23,7 +23,6 @@
 
 package io.evitadb.core.query.sort;
 
-import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.utils.ArrayUtils;
@@ -166,26 +165,6 @@ public interface SortedRecordsSupplierFactory {
 		@Nonnull
 		Serializable getValueToCompareOn(int position)
 			throws ArrayIndexOutOfBoundsException;
-	}
-
-	/**
-	 * Provides access to sorted records array and {@link ReferenceKey} discriminator of the index producing the sorted
-	 * records.
-	 *
-	 * TODO JNO - toto se použije v rámci hierarchického třídění
-	 * TODO JNO - a nebo ne ... možná jsme současnou implementaci udělali jinak ... pak tedy toto smazat
-	 */
-	interface ReferenceSortedRecordsProvider extends SortedRecordsProvider {
-
-		/**
-		 * Retrieves the {@link ReferenceKey}, which uniquely identifies the reference schema and the corresponding
-		 * entity or external resource associated with it.
-		 *
-		 * @return the unique {@link ReferenceKey} identifier for the reference schema and entity or resource.
-		 */
-		@Nonnull
-		ReferenceKey getReferenceKey();
-
 	}
 
 
