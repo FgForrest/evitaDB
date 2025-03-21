@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -2779,6 +2779,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				assertEquals(2, removedCategories.size());
 				assertTrue(removedCategories.stream().anyMatch(it -> it.getPrimaryKey() == categoryId1));
 				assertTrue(removedCategories.stream().anyMatch(it -> it.getPrimaryKey() == categoryId2));
+				assertTrue(product1.getCategories().isEmpty());
 
 				final Optional<EntityMutation> mutation = product1.toMutation();
 				assertTrue(mutation.isPresent());
@@ -2796,6 +2797,55 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				assertNotNull(product1SE.getReference(Entities.PARAMETER, parameterId).orElse(null));
 				assertNull(product1SE.getReference(Entities.CATEGORY, categoryId2).orElse(null));
 				assertNull(product1SE.getReference(Entities.CATEGORY, categoryId1).orElse(null));
+			}
+		);
+	}
+
+	@DisplayName("Should repeatedly remove all references")
+	@Order(45)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldRepeatedlyRemoveAllReferencesAndReturnTheirBodies(EvitaContract evita) {
+		final int categoryId1 = createCategoryEntityIfMissing(evita, 1);
+		final int categoryId2 = createCategoryEntityIfMissing(evita, 2);
+		final int categoryId3 = createCategoryEntityIfMissing(evita, 3);
+		final int categoryId4 = createCategoryEntityIfMissing(evita, 4);
+
+		getProductByCode(evita, "product-1")
+			.ifPresent(it -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.deleteEntity(it.getType(), it.getPrimaryKey());
+				}
+			));
+		shouldCreateNewCustomProductWithPricesAndReferences(evita);
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				final EntityReference product1Ref = getProductByCode(evita, "product-1").orElseThrow();
+				final ProductInterfaceEditor product1 = evitaSession.getEntity(
+					ProductInterfaceEditor.class, product1Ref.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				product1.removeAllProductCategoriesAndReturnTheirBodies();
+				product1.addProductCategory(3, catEd -> { catEd.setLabel(CZECH_LOCALE, "a"); catEd.setShadow(false); });
+				assertEquals(1, product1.getProductCategoriesAsList().size());
+				assertEquals(3, product1.getProductCategoriesAsList().get(0).getPrimaryKey());
+
+				product1.removeAllProductCategoriesAndReturnTheirIds();
+				product1.addProductCategory(4, catEd -> { catEd.setLabel(CZECH_LOCALE, "a"); catEd.setShadow(false); });
+				assertEquals(1, product1.getProductCategoriesAsList().size());
+				assertEquals(4, product1.getProductCategoriesAsList().get(0).getPrimaryKey());
+
+				evitaSession.upsertEntity(product1);
+
+				final ProductInterfaceEditor product1Again = evitaSession.getEntity(
+					ProductInterfaceEditor.class, product1Ref.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				assertEquals(1, product1Again.getProductCategoriesAsList().size());
+				assertEquals(4, product1Again.getProductCategoriesAsList().get(0).getPrimaryKey());
 			}
 		);
 	}
