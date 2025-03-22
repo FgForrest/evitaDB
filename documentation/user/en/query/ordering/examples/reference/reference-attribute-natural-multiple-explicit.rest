@@ -4,7 +4,7 @@ POST /rest/evita/Product/query
   "filterBy" : {
     "hierarchyCategoriesWithin" : {
       "ofParent" : {
-        "attributeCodeEquals" : "accessories"
+        "attributeCodeEquals" : "e-readers"
       }
     }
   },
@@ -12,17 +12,14 @@ POST /rest/evita/Product/query
     {
       "referenceCategoriesProperty" : [
         {
-          "traverseByEntityProperty" : {
-            "traversalMode" : "BREADTH_FIRST",
-            "orderBy" : [
-              {
-                "entityPrimaryKeyNatural" : "ASC"
-              }
-            ]
-          }
+          "pickFirstByEntityProperty" : [
+            {
+              "attributeOrderNatural" : "DESC"
+            }
+          ]
         },
         {
-          "attributeOrderInCategoryNatural" : "ASC"
+          "attributeCategoryPriorityNatural" : "DESC"
         }
       ]
     }
@@ -34,7 +31,7 @@ POST /rest/evita/Product/query
       ],
       "referenceCategoriesContentWithAttributes" : {
         "attributeContent" : [
-          "orderInCategory"
+          "categoryPriority"
         ]
       }
     }

@@ -30,17 +30,16 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 				filterBy(
 					hierarchyWithin(
 						"categories",
-						attributeEquals("code", "accessories")
+						attributeEquals("code", "e-readers")
 					)
 				),
 				orderBy(
 					referenceProperty(
 						"categories",
-						traverseByEntityProperty(
-							BREADTH_FIRST,
-							entityPrimaryKeyNatural(ASC)
+						pickFirstByEntityProperty(
+							attributeNatural("order", DESC)
 						),
-						attributeNatural("orderInCategory", ASC)
+						attributeNatural("categoryPriority", DESC)
 					)
 				),
 				require(
@@ -48,7 +47,7 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 						attributeContent("code"),
 						referenceContentWithAttributes(
 							"categories",
-							attributeContent("orderInCategory")
+							attributeContent("categoryPriority")
 						)
 					)
 				)

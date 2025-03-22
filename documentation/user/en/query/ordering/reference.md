@@ -15,7 +15,7 @@ preferredLang: 'evitaql'
 ```evitaql-syntax
 referenceProperty(
     argument:string!
-    constraint:traverseBy?,
+    constraint:(traverseByEntityProperty|pickFirstByEntityProperty)?,
     constraint:orderingConstraint+
 )
 ```
@@ -25,10 +25,10 @@ referenceProperty(
     <dd>
         a mandatory name of the reference whose attribute is to be used for the ordering
     </dd>
-    <dt>constraint:traverseBy?</dt>
+    <dt>constraint:(traverseByEntityProperty|pickFirstByEntityProperty)?</dt>
     <dd>
-        optional constraint that specifies the traversal of the references if there is more than single reference
-        of the same name referenced by the entity, see [`traverseBy`](#traverse-by) constraint for more details
+        optional constraint that specifies the way entities are sorted, see [`pickFirstByEntityProperty`](#pick-first-by-entity-property)
+        and [`traverseByEntityProperty`](#traverse-by-entity-property) constraint documentation for more details
     </dd>
     <dt>constraint:orderingConstraint+</dt>
     <dd>
@@ -41,6 +41,7 @@ referenceProperty(
 <NoteTitle toggles="false">
 
 ##### The `referenceProperty` is implicit in requirement `referenceContent`
+
 </NoteTitle>
 
 In the `orderBy` clause within the [`referenceContent`](../requirements/fetching.md#reference-content) requirement,
@@ -69,6 +70,11 @@ following query:
 ##### List of products in "sale" ordered by predecessor chain
 </NoteTitle>
 
+The example is based on a simple one-to-zero-or-one reference (a product can have at most one reference to a group
+entity). The response will only return the products that have a reference to the "sale" group, all of which contain the
+`orderInGroup` attribute (since it's marked as a non-nullable attribute). Because the example is so simple, the returned
+result can be anticipated:
+
 <LS to="e,j,c">
 
 <MDInclude>[List of products in "sale" ordered by predecessor chain](/documentation/user/en/query/ordering/examples/reference/reference-attribute-natural.evitaql.md)</MDInclude>
@@ -89,36 +95,81 @@ following query:
 
 </Note>
 
-The example is based on a simple one-to-zero-or-one reference (a product can have at most one reference to a group
-entity). The response will only return the products that have a reference to the "sale" group, all of which contain the
-`orderInGroup` attribute (since it's marked as a non-nullable attribute). Because the example is so simple, the returned
-result can be anticipated.
+<Note type="warning">
 
-TODO JNO - REWRITE THIS PART OF DOCUMENTATION
+<NoteTitle toggles="false">
 
-### Behaviour of zero or one to many references ordering
+##### Ordering of 1:N references
 
-The situation is more complicated when the reference is one-to-many. What is the expected result of a query that
+</NoteTitle>
+
+The situation can be more complicated when the reference is one-to-many. What is the expected result of a query that
 involves ordering by a property on a reference attribute? Is it wise to allow such ordering query in this case?
 
 We decided to allow it and bind it with the following rules:
 
-#### Non-hierarchical entity
+**Non-hierarchical entity**
 
 If the referenced entity is **non-hierarchical**, and the returned entity references multiple entities, only
 the reference with the lowest primary key of the referenced entity, while also having the order property set, will be
-used for ordering.
+used for ordering. This behavior is equivalent as if you used the [`pickFirstByEntityProperty`](#pick-first-by-entity-property)
+constraint in your `referenceProperty` container:
 
-<Note type="info">
+```evitaql
+pickFirstByEntityProperty(   
+    primaryKeyNatural(ASC),   
+)
+```
 
-<NoteTitle toggles="false">
-##### You can use the `traverseBy` constraint to specify which reference to use for ordering
-</NoteTitle>
+**Hierarchical entity**
 
-If you want to pick another reference to order, you can use the [`traverseByEntityProperty`](#traverse-by-entity-property) 
-constraint to specify an order to be applied to the references before picking the first one with the order property set.
+If the referenced entity is **hierarchical** and the returned entity references multiple entities, the reference used
+for ordering is the one that contains the order property and is the closest hierarchy node to the root of the filtered
+hierarchy node.
+
+It sounds complicated, but it's really quite simple. If you list products of a certain category and at the same time
+order them by a property `orderInCategory` set on the reference to the category, the first products will be those
+directly related to the category, ordered by `orderInCategory`, followed by the products of the first child category,
+and so on, maintaining the depth-first order of the category tree. This behavior is equivalent as if you used the
+[`traverseByEntityProperty`](#traverse-by-entity-property) constraint in your `referenceProperty` container:
+
+```evitaql
+traverseByEntityProperty(  
+    DEPTH_FIRST,  
+    primaryKeyNatural(ASC),    
+)
+```
+
+**Note:**
+
+You can control the behavior if you explicitly use the `pickFirstByEntityProperty` or `traverseByEntityProperty`
+constraints in your `referenceProperty` container. The `traverseByEntityProperty` can be used also for non-hierarchical
+entities and makes sense also for 1:1 references. It changes the ordering so that the entities are sorted by the target
+referenced entity property first, and then by the reference property itself. For more information, see the examples and
+detailed documentation of the [`traverseByEntityProperty`](#traverse-by-entity-property) constraint.
 
 </Note>
+
+## Pick first by entity property
+
+```evitaql-syntax
+pickFirstByEntityProperty(
+    constraint:orderingConstraint+
+)
+```
+
+<dl>
+    <dt>constraint:orderingConstraint+</dt>
+    <dd>
+        one or more [ordering constraints](./natural.md) that specify the ordering of the references to pick the first
+        one from the list of references to the same entity to be used for ordering by `referenceProperty`
+    </dd>
+</dl>
+
+The `pickFirstByEntityProperty` ordering constraint can only be used within the [`referenceProperty`](#reference-property)
+ordering constraint, and makes sense only in case the cardinality of such reference is 1:N (although it's not actively
+checked by the query engine). This constraint allows you specify the order of the references to pick the first one from
+the list of references to the same entity to be used for ordering by `referenceProperty`.
 
 Let's extend our previous example so that it returns products that refer not only to the group "sale", but also to the
 group "new":
@@ -153,33 +204,78 @@ group "new":
 
 </LS>
 
-The result will contain first products referring to a "new" group which has the lowest primary key, and then products
-referring to a "sale" group. The order of products within each group will be determined by the `orderInGroup` attribute.
-
 </Note>
 
-#### Hierarchical entity
+The result will contain first products referring to a "new" group which has the lowest primary key, and then products
+referring to a "sale" group. The order of products within each group will be determined by the `orderInGroup` attribute.
+This is default behavior for references targeting non-hierarchical entities.
 
-If the referenced entity is **hierarchical** and the returned entity references multiple entities, the reference used
-for ordering is the one that contains the order property and is the closest hierarchy node to the root of the filtered
-hierarchy node.
+If we want to change the order of the groups, we can use the `pickFirstByEntityProperty` ordering constraint to explicitly
+specify the order of the groups. For example, if we want to list products in the "sale" group first, we can use the
+following query:
 
-It sounds complicated, but it's really quite simple. If you list products of a certain category and at the same time
-order them by a property `orderInCategory` set on the reference to the category, the first products will be those
-directly related to the category, ordered by `orderInCategory`, followed by the products of the first child category,
-and so on, maintaining the depth-first order of the category tree.
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
+[Query products in groups "sale" or "new" ordered by predecessor chain with explicit ordering](/documentation/user/en/query/ordering/examples/reference/reference-attribute-natural-multiple-explicit.evitaql)
+</SourceCodeTabs>
 
 <Note type="info">
 
-<NoteTitle toggles="false">
-##### You can use the `traverseBy` constraint to specify the order of child categories traversal
+<NoteTitle toggles="true">
+
+##### List of products in groups "sale" or "new" ordered by predecessor chain with explicit group ordering
 </NoteTitle>
 
-If you want subcategories to be traversed in an order other than by their primary key in ascending order, you can use 
-the [`traverseByEntityProperty`](#traverse-by-entity-property) constraint to specify a different order that will be used
-before depth-first traversal of the hierarchy.
+<LS to="e,j,c">
+
+<MDInclude>[List of products in groups "sale" or "new" ordered by predecessor chain with explicit group ordering](/documentation/user/en/query/ordering/examples/reference/reference-attribute-natural-multiple-explicit.evitaql.md)</MDInclude>
+
+</LS>
+
+<LS to="g">
+
+<MDInclude>[List of products in groups "sale" or "new" ordered by predecessor chain with explicit group ordering](/documentation/user/en/query/ordering/examples/reference/reference-attribute-natural-multiple-explicit.graphql.json.md)</MDInclude>
+
+</LS>
+
+<LS to="r">
+
+<MDInclude>[List of products in groups "sale" or "new" ordered by predecessor chain with explicit group ordering](/documentation/user/en/query/ordering/examples/reference/reference-attribute-natural-multiple-explicit.rest.json.md)</MDInclude>
+
+</LS>
+
+As you can see when the product is related to both groups, the assignment to the "sale" group takes precedence and is
+used for ordering. You can use all sorts of ordering constraints and tune the ordering to your needs.
 
 </Note>
+
+## Traverse by entity property
+
+```evitaql-syntax
+traverseByEntityProperty(
+    argument:enum(DEPTH_FIRST|BREADTH_FIRST)?,
+    constraint:orderingConstraint+
+)
+```
+
+<dl>
+    <dt>argument:enum(DEPTH_FIRST|BREADTH_FIRST)?</dt>
+    <dd>
+        optional argument that specifies the mode of the reference traversal, the default value is `DEPTH_FIRST`
+    </dd>
+    <dt>constraint:orderingConstraint+</dt>
+    <dd>
+        one or more [ordering constraints](./natural.md) that change the traversal order of the references of
+        the ordered entity before the `referenceProperty` ordering constraint is applied
+    </dd>
+</dl>
+
+The `traverseByEntityProperty` ordering constraint can only be used within the [`referenceProperty`](#reference-property) 
+ordering constraint. This constraint defines that the entities should be sorted first by the referenced entity property,
+and if such entity is hierarchical, it allows to specify whether the hierarchy should be traversed in depth-first or 
+breadth-first order. When the order of the referenced entities is resolved, the `referenceProperty` ordering itself
+is applied on the references to the referenced entities. If there are multiple references only the first one that can
+be evaluated is used for ordering.
 
 This behaviour is best illustrated by a following example. Let's list products in the *Accessories* category ordered
 by the `orderInCategory` attribute on the reference to the category:
@@ -187,6 +283,7 @@ by the `orderInCategory` attribute on the reference to the category:
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Query products in "Accessories" category ordered by predecessor chain](/documentation/user/en/query/ordering/examples/reference/reference-attribute-natural-hierarchy.evitaql)
+
 </SourceCodeTabs>
 
 <Note type="info">
@@ -194,6 +291,7 @@ by the `orderInCategory` attribute on the reference to the category:
 <NoteTitle toggles="true">
 
 ##### List products in "Accessories" category ordered by predecessor chain
+
 </NoteTitle>
 
 <LS to="e,j,c">
@@ -222,76 +320,49 @@ image:
 
 ![dynamic-tree.png](../requirements/assets/dynamic-tree.png)
 
-</Note>
-
-## Traverse by entity property
-
-```evitaql-syntax
-traverseByEntityProperty(
-    constraint:orderingConstraint+
-)
-```
-
-<dl>
-    <dt>constraint:orderingConstraint+</dt>
-    <dd>
-        one or more [ordering constraints](./natural.md) that change the traversal order of the 1:N references of
-        the ordered entity before the `referenceProperty` ordering constraint is applied, see chapter 
-        [Behaviour of zero or one to many references ordering](#behaviour-of-zero-or-one-to-many-references-ordering) 
-        for more details
-    </dd>
-</dl>
-
-The `traverseByEntityProperty` ordering constraint can only be used within the [`referenceProperty`](#reference-property) 
-ordering constraint, which targets a reference of cardinality 1:N. It allows ordering rules to be defined for traversing 
-multiple references before the [`referenceProperty`](#reference-property) ordering constraint is applied. The behaviour
-is different for hierarchical and non-hierarchical entities - see the chapter 
-[Behaviour of zero or one to many references ordering](#behaviour-of-zero-or-one-to-manyreferences-ordering) for more 
-details.
-
-<Note type="info">
-
-The cardinality of the reference is not checked by the query engine, so this constraint can be used for references of 
-any cardinality, although it only makes sense for 1:N references. It helps to prevent queries from breaking if 
-the cardinality of the reference is changed in the database schema.
+If the product was related to both **Christmas electronics** and **Smart wearable** categories, the product would be
+listed only once as if it would be related only to the **Christmas electronics** category, because in this query
+primary key of the category is used for the hierarchy traversal.
 
 </Note>
 
-Consider the following example where we want to list products in the *Accessories* category ordered by the `orderInCategory` 
-attribute on the reference to the category, but the products could either directly reference the *Accessories* category
-or one of its child categories. The order will first list products directly related to the *Accessories* category in
-a particular order, then it will start listing products in the child categories in depth-first order. To specify which 
-order to use when traversing the child categories, we can use the `traverseByEntityProperty` ordering constraint:
+Consider the another example where we want to list products in the *Accessories* category ordered by the `orderInCategory` 
+attribute on the reference to the category, but we want to traverse the hierarchy in breadth-first order and the categories
+themselves should be sorted by their `order` attribute first:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[List products by order in category in category order](/documentation/user/en/query/ordering/examples/reference/reference-traverse-by.evitaql)
+[List products breadth first by order in category in category order](/documentation/user/en/query/ordering/examples/reference/reference-traverse-by.evitaql)
+
 </SourceCodeTabs>
 
 <Note type="info">
 
 <NoteTitle toggles="true">
 
-##### Result of listing products by order in category in category order
+##### Result of listing products by order in category in breadth first category order
 </NoteTitle>
 
 <LS to="e,j">
 
-<MDInclude sourceVariable="recordData.0">[Result of listing products by order in category in category order](/documentation/user/en/query/ordering/examples/reference/reference-traverse-by.evitaql.json.md)</MDInclude>
+<MDInclude sourceVariable="recordData.0">[Result of listing products by order in category in breadth first category order](/documentation/user/en/query/ordering/examples/reference/reference-traverse-by.evitaql.json.md)</MDInclude>
 
 </LS>
 
 <LS to="g">
 
-<MDInclude>[Result of listing products by order in category in category order](/documentation/user/en/query/ordering/examples/reference/reference-traverse-by.graphql.json.md)</MDInclude>
+<MDInclude>[Result of listing products by order in category in breadth first category order](/documentation/user/en/query/ordering/examples/reference/reference-traverse-by.graphql.json.md)</MDInclude>
 
 </LS>
 
 <LS to="r">
 
-<MDInclude>[Result of listing products by order in category in category order](/documentation/user/en/query/ordering/examples/reference/reference-traverse-by.rest.json.md)</MDInclude>
+<MDInclude>[Result of listing products by order in category in breadth first category order](/documentation/user/en/query/ordering/examples/reference/reference-traverse-by.rest.json.md)</MDInclude>
 
 </LS>
+
+As you can see you have full control over the the ordering of the entities and the order of the references within the
+hierarchy.
 
 </Note>
 

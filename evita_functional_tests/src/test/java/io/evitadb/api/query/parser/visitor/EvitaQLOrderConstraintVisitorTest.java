@@ -325,6 +325,26 @@ class EvitaQLOrderConstraintVisitorTest {
             ),
             constraint6
         );
+
+        final OrderConstraint constraint7 = parseOrderConstraintUnsafe("referenceProperty('a',pickFirstByEntityProperty(attributeNatural('c', DESC)),attributeNatural('b'))");
+        assertEquals(
+            referenceProperty(
+                "a",
+                pickFirstByEntityProperty(attributeNatural("c", DESC)),
+                attributeNatural("b")
+            ),
+            constraint7
+        );
+
+        final OrderConstraint constraint8 = parseOrderConstraintUnsafe("referenceProperty('a',traverseByEntityProperty(BREADTH_FIRST,attributeNatural('c', DESC)),attributeNatural('b'))");
+        assertEquals(
+            referenceProperty(
+                "a",
+                traverseByEntityProperty(TraversalMode.BREADTH_FIRST, attributeNatural("c", DESC)),
+                attributeNatural("b")
+            ),
+            constraint8
+        );
     }
 
     @Test

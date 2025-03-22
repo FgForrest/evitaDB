@@ -223,11 +223,15 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 					return ArrayUtils.EMPTY_INT_ARRAY;
 				} else {
 					final int[] output = new int[input.length];
+					final Formula filteringFormula = FormulaFactory.and(referenceIndexIds, new ConstantFormula(new BaseBitmap(input)));
 					final int sortedPeak = sorter.sortAndSlice(
-						FormulaFactory.and(referenceIndexIds, new ConstantFormula(new BaseBitmap(input))),
+						filteringFormula,
 						0, input.length, output, 0
 					);
-					Assert.isPremiseValid(sortedPeak == input.length, "Unexpected number of sorted output: " + sortedPeak);
+					Assert.isPremiseValid(
+						sortedPeak == filteringFormula.compute().size(),
+						"Unexpected number of sorted output: " + sortedPeak
+					);
 					return output;
 				}
 			};

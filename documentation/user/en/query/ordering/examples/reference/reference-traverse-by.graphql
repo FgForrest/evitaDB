@@ -15,7 +15,7 @@
               traversalMode: BREADTH_FIRST,
               orderBy: [
                 {
-                  entityPrimaryKeyNatural: ASC
+                  attributeOrderNatural: ASC
                 }
               ]
             }

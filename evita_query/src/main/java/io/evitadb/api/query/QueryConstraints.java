@@ -2882,9 +2882,9 @@ public interface QueryConstraints {
 
 	/**
 	 * The `traverseByEntityProperty` ordering constraint can only be used within the {@link ReferenceProperty} ordering
-	 * constraint, which targets a reference of cardinality 1:N. It allows ordering rules to be defined for traversing
-	 * multiple references before the {@link ReferenceProperty}  ordering constraint is applied. The behaviour is different
-	 * for hierarchical and non-hierarchical entities.
+	 * constraint. It changes the behaviour of the ordering rules in a way that first the result is ordered by the referenced
+	 * entity property and within same referenced entity the main entity is ordered by the reference property. This constraint
+	 * is particularly useful when the reference is one-to-many and the referenced entity is hierarchical.
 	 *
 	 * Consider the following example where we want to list products in the *Accessories* category ordered by the `orderInCategory`
 	 * attribute on the reference to the category, but the products could either directly reference the *Accessories* category
@@ -2924,33 +2924,21 @@ public interface QueryConstraints {
 	 * )
 	 * </pre>
 	 *
-	 * ## Behaviour of zero or one to many references ordering
+	 * You can also change the depth-first traversal to breadth-first traversal by declaring optional first argument as
+	 * follows:
 	 *
-	 * The situation is more complicated when the reference is one-to-many. What is the expected result of a query that
-	 * involves ordering by a property on a reference attribute? Is it wise to allow such ordering query in this case?
-	 *
-	 * We decided to allow it and bind it with the following rules:
-	 *
-	 * ### Non-hierarchical entity
-	 *
-	 * If the referenced entity is **non-hierarchical**, and the returned entity references multiple entities, only
-	 * the first reference according to `traverseByEntityProperty` ordering, while also having the order property set,
-	 * will be used for ordering.
-	 *
-	 * ### Hierarchical entity
-	 *
-	 * If the referenced entity is **hierarchical** and the returned entity references multiple entities, the reference used
-	 * for ordering is the one that contains the order property and is the closest hierarchy node to the root of the filtered
-	 * hierarchy node.
-	 *
-	 * It sounds complicated, but it's really quite simple. If you list products of a certain category and at the same time
-	 * order them by a property "priority" set on the reference to the category, the first products will be those directly
-	 * related to the category, ordered by "priority", followed by the products of the first child category, and so on,
-	 * maintaining the depth-first order of the category tree. The order of the child categories is determined by the
-	 * `traverseByEntityProperty` ordering constraint.
+	 * <pre>
+	 * referenceProperty(
+	 *     "categories",
+	 *     traverseByEntityProperty(
+	 *         BREADTH_FIRST, attributeNatural("order", ASC)
+	 *     ),
+	 *     attributeNatural("orderInCategory", ASC)
+	 * )
+	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/ordering/reference#traverse-by-entity-property">Visit detailed user documentation</a></p>
-	 */
+	*/
 	@Nonnull
 	static TraverseByEntityProperty traverseByEntityProperty(@Nullable OrderConstraint... constraints) {
 		if (ArrayUtils.isEmptyOrItsValuesNull(constraints)) {
@@ -2962,9 +2950,9 @@ public interface QueryConstraints {
 
 	/**
 	 * The `traverseByEntityProperty` ordering constraint can only be used within the {@link ReferenceProperty} ordering
-	 * constraint, which targets a reference of cardinality 1:N. It allows ordering rules to be defined for traversing
-	 * multiple references before the {@link ReferenceProperty}  ordering constraint is applied. The behaviour is different
-	 * for hierarchical and non-hierarchical entities.
+	 * constraint. It changes the behaviour of the ordering rules in a way that first the result is ordered by the referenced
+	 * entity property and within same referenced entity the main entity is ordered by the reference property. This constraint
+	 * is particularly useful when the reference is one-to-many and the referenced entity is hierarchical.
 	 *
 	 * Consider the following example where we want to list products in the *Accessories* category ordered by the `orderInCategory`
 	 * attribute on the reference to the category, but the products could either directly reference the *Accessories* category
@@ -3004,30 +2992,18 @@ public interface QueryConstraints {
 	 * )
 	 * </pre>
 	 *
-	 * ## Behaviour of zero or one to many references ordering
+	 * You can also change the depth-first traversal to breadth-first traversal by declaring optional first argument as
+	 * follows:
 	 *
-	 * The situation is more complicated when the reference is one-to-many. What is the expected result of a query that
-	 * involves ordering by a property on a reference attribute? Is it wise to allow such ordering query in this case?
-	 *
-	 * We decided to allow it and bind it with the following rules:
-	 *
-	 * ### Non-hierarchical entity
-	 *
-	 * If the referenced entity is **non-hierarchical**, and the returned entity references multiple entities, only
-	 * the first reference according to `traverseByEntityProperty` ordering, while also having the order property set,
-	 * will be used for ordering.
-	 *
-	 * ### Hierarchical entity
-	 *
-	 * If the referenced entity is **hierarchical** and the returned entity references multiple entities, the reference used
-	 * for ordering is the one that contains the order property and is the closest hierarchy node to the root of the filtered
-	 * hierarchy node.
-	 *
-	 * It sounds complicated, but it's really quite simple. If you list products of a certain category and at the same time
-	 * order them by a property "priority" set on the reference to the category, the first products will be those directly
-	 * related to the category, ordered by "priority", followed by the products of the first child category, and so on,
-	 * maintaining the depth-first order of the category tree. The order of the child categories is determined by the
-	 * `traverseByEntityProperty` ordering constraint.
+	 * <pre>
+	 * referenceProperty(
+	 *     "categories",
+	 *     traverseByEntityProperty(
+	 *         BREADTH_FIRST, attributeNatural("order", ASC)
+	 *     ),
+	 *     attributeNatural("orderInCategory", ASC)
+	 * )
+	 * </pre>
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/ordering/reference#traverse-by-entity-property">Visit detailed user documentation</a></p>
 	*/
@@ -3041,16 +3017,14 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * The `traverseByEntityProperty` ordering constraint can only be used within the {@link ReferenceProperty} ordering
-	 * constraint, which targets a reference of cardinality 1:N. It allows ordering rules to be defined for traversing
-	 * multiple references before the {@link ReferenceProperty}  ordering constraint is applied. The behaviour is different
-	 * for hierarchical and non-hierarchical entities.
+	 * The `pickFirstByEntityProperty` ordering constraint can only be used within the {@link ReferenceProperty} ordering
+	 * constraint and makes sense only if the reference has cardinality 1:N. It allows to define which of the multiple
+	 * references will be picked and examined for a property that will be used for ordering.
 	 *
-	 * Consider the following example where we want to list products in the *Accessories* category ordered by the `orderInCategory`
-	 * attribute on the reference to the category, but the products could either directly reference the *Accessories* category
-	 * or one of its child categories. The order will first list products directly related to the *Accessories* category in
-	 * a particular order, then it will start listing products in the child categories in depth-first order. To specify which
-	 * order to use when traversing the child categories, we can use the `traverseByEntityProperty` ordering constraint:
+	 * Consider the following example where we want to list products of with reference to "main" stock and sort them by
+	 * the `quantityOnStock` attribute on the reference to the stock. The products may have multiple references to different
+	 * stocks, but we want to use only the one that is referenced by the `main` reference. This query will return products
+	 * for this situation:
 	 *
 	 * Example:
 	 *
@@ -3058,59 +3032,40 @@ public interface QueryConstraints {
 	 * query(
 	 *     collection("Product"),
 	 *     filterBy(
-	 *         hierarchyWithin(
-	 *             "categories",
-	 *             attributeEquals("code", "accessories")
+	 *         referenceHaving(
+	 *             "stocks",
+	 *             attributeEquals("code", "main")
 	 *         )
 	 *     ),
-	 *      orderBy(
+	 *     orderBy(
 	 *          referenceProperty(
-	 *              "categories",
-	 *              traverseByEntityProperty(
-	 *                  attributeNatural("order", ASC)
+	 *              "stocks",
+	 *              pickFirstByEntityProperty(
+	 *                  attributeSetExact("code", "main")
 	 *              ),
-	 *              attributeNatural("orderInCategory", ASC)
+	 *              attributeNatural("quantityOnStock", DESC)
 	 *          )
-	 *      ),
-	 *      require(
-	 *          entityFetch(
-	 *              attributeContent("code"),
-	 *              referenceContentWithAttributes(
-	 *                 "categories",
-	 *                 attributeContent("orderInCategory")
-	 *              )
-	 *          )
-	 *      )
+	 *     ),
+	 *     require(
+	 *         entityFetch(
+	 *             attributeContent("code"),
+	 *             referenceContentWithAttributes(
+	 *                "stocks",
+	 *                attributeContent("quantityOnStock")
+	 *             )
+	 *         )
+	 *     )
 	 * )
 	 * </pre>
 	 *
-	 * ## Behaviour of zero or one to many references ordering
+	 * Constraint `pickFirstByEntityProperty` accepts ordering constraints as its arguments, orders the entity references by
+	 * them and picks the first reference whose attribute `quantityOnStock` will be used for ordering the main entity. In
+	 * this case it uses the explicit ordering where the `main` reference is ordered first and the other references are
+	 * ordered by their primary key in ascending order. Since only the first reference matters, the other entity references
+	 * are ignored.
 	 *
-	 * The situation is more complicated when the reference is one-to-many. What is the expected result of a query that
-	 * involves ordering by a property on a reference attribute? Is it wise to allow such ordering query in this case?
-	 *
-	 * We decided to allow it and bind it with the following rules:
-	 *
-	 * ### Non-hierarchical entity
-	 *
-	 * If the referenced entity is **non-hierarchical**, and the returned entity references multiple entities, only
-	 * the first reference according to `traverseByEntityProperty` ordering, while also having the order property set,
-	 * will be used for ordering.
-	 *
-	 * ### Hierarchical entity
-	 *
-	 * If the referenced entity is **hierarchical** and the returned entity references multiple entities, the reference used
-	 * for ordering is the one that contains the order property and is the closest hierarchy node to the root of the filtered
-	 * hierarchy node.
-	 *
-	 * It sounds complicated, but it's really quite simple. If you list products of a certain category and at the same time
-	 * order them by a property "priority" set on the reference to the category, the first products will be those directly
-	 * related to the category, ordered by "priority", followed by the products of the first child category, and so on,
-	 * maintaining the depth-first order of the category tree. The order of the child categories is determined by the
-	 * `traverseByEntityProperty` ordering constraint.
-	 *
-	 * <p><a href="https://evitadb.io/documentation/query/ordering/reference#traverse-by-entity-property">Visit detailed user documentation</a></p>
-	 */
+	 * <p><a href="https://evitadb.io/documentation/query/ordering/reference#pick-first-by-entity-property">Visit detailed user documentation</a></p>
+	*/
 	@Nullable
 	static PickFirstByEntityProperty pickFirstByEntityProperty(@Nullable OrderConstraint... constraints) {
 		if (ArrayUtils.isEmptyOrItsValuesNull(constraints)) {

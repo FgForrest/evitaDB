@@ -97,6 +97,8 @@ class ConstraintRegistry {
 		PriceValidIn.class,
 		// reference
 		ReferenceHaving.class,
+		PickFirstByEntityProperty.class,
+		TraverseByEntityProperty.class,
 		// hierarchy
 		HierarchyDirectRelation.class,
 		HierarchyExcluding.class,

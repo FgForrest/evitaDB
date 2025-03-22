@@ -721,3 +721,16 @@ enum GrpcFacetGroupRelationLevel {
   WITH_DIFFERENT_GROUPS = 1;
 
 }
+
+// Enum defines the two modes of traversing a hierarchy when using the `traverseByEntityProperty` ordering constraint.
+enum GrpcTraversalMode {
+
+  // The depth-first traversal mode traverses the hierarchy in a depth-first manner, meaning it will
+  // explore as far as possible along each branch before backtracking.
+  DEPTH_FIRST = 0;
+
+  // The breadth-first traversal mode traverses the hierarchy in a breadth-first manner, meaning it will
+  // explore all the nodes at the present depth level before moving on to the nodes at the next depth level.
+  BREADTH_FIRST = 1;
+
+}

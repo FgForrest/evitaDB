@@ -101,7 +101,7 @@ import java.util.Arrays;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
-	name = "property",
+	name = "traverseByEntityProperty",
 	shortDescription = "The constraint defines order of the 1:N references traversal before the ordering is applied.",
 	userDocsLink = "/documentation/query/ordering/reference#traverse-by-entity-property",
 	supportedIn = { ConstraintDomain.REFERENCE }
@@ -118,8 +118,11 @@ public class TraverseByEntityProperty extends AbstractOrderConstraintContainer
 	}
 
 	@Creator
-	public TraverseByEntityProperty(@Nullable TraversalMode traverseMode, @Nonnull @Child OrderConstraint... children) {
-		super(new Serializable[] { traverseMode == null ? TraversalMode.DEPTH_FIRST : traverseMode }, children);
+	public TraverseByEntityProperty(
+		@Nullable TraversalMode traversalMode,
+		@Nonnull @Child(domain = ConstraintDomain.ENTITY) OrderConstraint... orderBy
+	) {
+		super(new Serializable[] { traversalMode == null ? TraversalMode.DEPTH_FIRST : traversalMode }, orderBy);
 	}
 
 	/**
@@ -133,6 +136,16 @@ public class TraverseByEntityProperty extends AbstractOrderConstraintContainer
 	@Nonnull
 	public TraversalMode getTraversalMode() {
 		return (TraversalMode) getArguments()[0];
+	}
+
+	/**
+	 * Returns the array of {@link OrderConstraint} elements used to define ordering constraints.
+	 *
+	 * @return an array of {@link OrderConstraint} elements.
+	 */
+	@Nonnull
+	public OrderConstraint[] getOrderBy() {
+		return super.getChildren();
 	}
 
 	@Nonnull

@@ -3,7 +3,7 @@
     filterBy: {
       hierarchyCategoriesWithin: {
         ofParent: {
-          attributeCodeEquals: "accessories"
+          attributeCodeEquals: "e-readers"
         }
       }
     },
@@ -11,17 +11,14 @@
       {
         referenceCategoriesProperty: [
           {
-            traverseByEntityProperty: {
-              traversalMode: BREADTH_FIRST,
-              orderBy: [
-                {
-                  entityPrimaryKeyNatural: ASC
-                }
-              ]
-            }
+            pickFirstByEntityProperty: [
+              {
+                attributeOrderNatural: DESC
+              }
+            ]
           },
           {
-            attributeOrderInCategoryNatural: ASC
+            attributeCategoryPriorityNatural: DESC
           }
         ]
       }
@@ -36,7 +33,7 @@
         categories {
           referencedPrimaryKey
           attributes {
-            orderInCategory
+            categoryPriority
           }
         }
       }

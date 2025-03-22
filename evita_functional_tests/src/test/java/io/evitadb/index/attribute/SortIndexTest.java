@@ -244,6 +244,21 @@ class SortIndexTest implements TimeBoundedTestSupport {
 	}
 
 	@Test
+	void shouldTraverseAllComparableValuesInForwardFashionWithSingleCardinalityIndex() {
+		final SortIndex sortIndex = createIndexWithSingleCardinality();
+		final SortedRecordsProvider sortedRecordsSupplier = sortIndex.getAscendingOrderRecordsSupplier();
+		final SortedComparableForwardSeeker seeker = sortedRecordsSupplier.getSortedComparableForwardSeeker();
+		final String[] values = new String[sortIndex.size()];
+		for (int i = 0; i < sortIndex.size(); i++) {
+			values[i] = (String) seeker.getValueToCompareOn(i);
+		}
+		assertArrayEquals(
+			new String[] { "A", "A", "A", "A", "A", "A", "A", "A" },
+			values
+		);
+	}
+
+	@Test
 	void shouldTraverseAllComparableValuesInReverseFashion() {
 		final SortIndex sortIndex = createIndexWithBaseCardinalities();
 		final SortedRecordsProvider sortedRecordsSupplier = sortIndex.getDescendingOrderRecordsSupplier();
@@ -254,6 +269,21 @@ class SortIndexTest implements TimeBoundedTestSupport {
 		}
 		assertArrayEquals(
 			new String[] { "E", "C", "C", "C", "C", "B", "B", "A" },
+			values
+		);
+	}
+
+	@Test
+	void shouldTraverseAllComparableValuesInReverseFashionWithSingleCardinalityIndex() {
+		final SortIndex sortIndex = createIndexWithSingleCardinality();
+		final SortedRecordsProvider sortedRecordsSupplier = sortIndex.getDescendingOrderRecordsSupplier();
+		final SortedComparableForwardSeeker seeker = sortedRecordsSupplier.getSortedComparableForwardSeeker();
+		final String[] values = new String[sortIndex.size()];
+		for (int i = 0; i < sortIndex.size(); i++) {
+			values[i] = (String) seeker.getValueToCompareOn(i);
+		}
+		assertArrayEquals(
+			new String[] { "A", "A", "A", "A", "A", "A", "A", "A" },
 			values
 		);
 	}
@@ -409,6 +439,20 @@ class SortIndexTest implements TimeBoundedTestSupport {
 		sortIndex.addRecord("C", 1);
 		sortIndex.addRecord("E", 9);
 		sortIndex.addRecord("C", 7);
+		return sortIndex;
+	}
+
+	@Nonnull
+	private static SortIndex createIndexWithSingleCardinality() {
+		final SortIndex sortIndex = new SortIndex(String.class, new AttributeKey("a", Locale.ENGLISH));
+		sortIndex.addRecord("A", 5);
+		sortIndex.addRecord("A", 6);
+		sortIndex.addRecord("A", 3);
+		sortIndex.addRecord("A", 2);
+		sortIndex.addRecord("A", 4);
+		sortIndex.addRecord("A", 1);
+		sortIndex.addRecord("A", 9);
+		sortIndex.addRecord("A", 7);
 		return sortIndex;
 	}
 

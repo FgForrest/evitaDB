@@ -136,9 +136,19 @@ public class ReferenceProperty extends AbstractOrderConstraintContainer implemen
 	@Creator
 	public ReferenceProperty(
 		@Nonnull @Classifier String referenceName,
-		@Nonnull @Child OrderConstraint... children
+		@Nonnull @Child OrderConstraint... orderBy
 	) {
-		super(new Serializable[]{referenceName}, children);
+		super(new Serializable[]{referenceName}, orderBy);
+	}
+
+	/**
+	 * Returns the array of {@link OrderConstraint} elements used to define ordering constraints.
+	 *
+	 * @return an array of {@link OrderConstraint} elements.
+	 */
+	@Nonnull
+	public OrderConstraint[] getOrderBy() {
+		return super.getChildren();
 	}
 
 	/**

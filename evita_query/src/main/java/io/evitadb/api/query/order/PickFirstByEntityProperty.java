@@ -89,7 +89,7 @@ import java.io.Serializable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
-	name = "property",
+	name = "pickFirstByEntityProperty",
 	shortDescription = "The constraint defines which one of one to many references of certain name should be used for ordering.",
 	userDocsLink = "/documentation/query/ordering/reference#pick-first-by-entity-property",
 	supportedIn = { ConstraintDomain.REFERENCE }
@@ -101,8 +101,18 @@ public class PickFirstByEntityProperty extends AbstractOrderConstraintContainer
 	@Serial private static final long serialVersionUID = 6947885672916582291L;
 
 	@Creator
-	public PickFirstByEntityProperty(@Nonnull @Child OrderConstraint... children) {
-		super(children);
+	public PickFirstByEntityProperty(@Nonnull @Child(domain = ConstraintDomain.ENTITY) OrderConstraint... orderBy) {
+		super(orderBy);
+	}
+
+	/**
+	 * Returns the array of {@link OrderConstraint} elements used to define ordering constraints.
+	 *
+	 * @return an array of {@link OrderConstraint} elements.
+	 */
+	@Nonnull
+	public OrderConstraint[] getOrderBy() {
+		return super.getChildren();
 	}
 
 	@Nonnull

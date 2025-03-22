@@ -38,7 +38,7 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 						"categories",
 						traverseByEntityProperty(
 							BREADTH_FIRST,
-							entityPrimaryKeyNatural(ASC)
+							attributeNatural("order", ASC)
 						),
 						attributeNatural("orderInCategory", ASC)
 					)

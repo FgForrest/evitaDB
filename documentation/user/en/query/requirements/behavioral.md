@@ -92,7 +92,7 @@ As you can see, the result contains calculations for the data that the engine ca
 </LS>
 <LS to="g">
 
-<Note type="warn">
+<Note type="warning">
 
 Using `inScope` constraint container is not supported by the GraphQL API yet. You can check the status of the implementation
 in the issue [#752](https://github.com/FgForrest/evitaDB/issues/752). Otherwise, you can check out other languages/APIs.

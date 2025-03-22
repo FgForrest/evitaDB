@@ -994,7 +994,7 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 						break;
 					}
 				}
-				if (exhausted && position > this.indexPeak) {
+				if (exhausted && position > this.indexPeak + currentIndexCardinality) {
 					throw new ArrayIndexOutOfBoundsException("Position " + position + " is out of bounds for value index!");
 				}
 			}
