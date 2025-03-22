@@ -103,17 +103,19 @@ result can be anticipated:
 
 </NoteTitle>
 
-The situation can be more complicated when the reference is one-to-many. What is the expected result of a query that
-involves ordering by a property on a reference attribute? Is it wise to allow such ordering query in this case?
+Things can get more complicated when the reference is one-to-many. What should you expect when you run a query that 
+involves sorting by a property on a reference attribute? Relational databases allow this, but you need to deal with 
+the problem of row multiplication. With evitaDB, you work with an entity model, so you don't have to worry about 
+the multiplication problem. It's possible, but there are some specifics because evitaDB supports hierarchical entities.
 
-We decided to allow it and bind it with the following rules:
+Let's break it down into two cases:
 
 **Non-hierarchical entity**
 
-If the referenced entity is **non-hierarchical**, and the returned entity references multiple entities, only
-the reference with the lowest primary key of the referenced entity, while also having the order property set, will be
-used for ordering. This behavior is equivalent as if you used the [`pickFirstByEntityProperty`](#pick-first-by-entity-property)
-constraint in your `referenceProperty` container:
+If the referenced entity is non-hierarchical and the returned entity references multiple entities, only the reference 
+with the lowest primary key of the referenced entity, while also having the order property set, will be used for ordering.
+This is the same as if you had used the [`pickFirstByEntityProperty`](#pick-first-by-entity-property) constraint in 
+your `referenceProperty` container:
 
 ```evitaql
 pickFirstByEntityProperty(   
@@ -127,11 +129,11 @@ If the referenced entity is **hierarchical** and the returned entity references 
 for ordering is the one that contains the order property and is the closest hierarchy node to the root of the filtered
 hierarchy node.
 
-It sounds complicated, but it's really quite simple. If you list products of a certain category and at the same time
-order them by a property `orderInCategory` set on the reference to the category, the first products will be those
-directly related to the category, ordered by `orderInCategory`, followed by the products of the first child category,
-and so on, maintaining the depth-first order of the category tree. This behavior is equivalent as if you used the
-[`traverseByEntityProperty`](#traverse-by-entity-property) constraint in your `referenceProperty` container:
+It sounds complicated, but it's really quite simple. Imagine you're listing products from a category and also sorting 
+them by a property called `orderInCategory` on the category reference. The first products you get are the ones directly 
+related to the category, in order of `orderInCategory`. Then you get the products from the first child category, and so
+on, keeping the category tree's order. This is the same as using the [`traverseByEntityProperty`](#traverse-by-entity-property) 
+constraint in your `referenceProperty` container:
 
 ```evitaql
 traverseByEntityProperty(  
@@ -142,11 +144,11 @@ traverseByEntityProperty(
 
 **Note:**
 
-You can control the behavior if you explicitly use the `pickFirstByEntityProperty` or `traverseByEntityProperty`
-constraints in your `referenceProperty` container. The `traverseByEntityProperty` can be used also for non-hierarchical
-entities and makes sense also for 1:1 references. It changes the ordering so that the entities are sorted by the target
-referenced entity property first, and then by the reference property itself. For more information, see the examples and
-detailed documentation of the [`traverseByEntityProperty`](#traverse-by-entity-property) constraint.
+You can control the behaviour by using the `pickFirstByEntityProperty` or `traverseByEntityProperty` constraints in your
+`referenceProperty` container. You can also use the `traverseByEntityProperty` for non-hierarchical entities and for 1:1
+references. It changes the order so that the entities are first sorted by the property of the thing they're referring to,
+and then by the reference property itself. For more information, check out the examples and the detailed documentation 
+of the [`traverseByEntityProperty`] constraint.
 
 </Note>
 
