@@ -12,6 +12,16 @@ POST /rest/evita/Product/query
     {
       "referenceCategoriesProperty" : [
         {
+          "traverseByEntityProperty" : {
+            "traversalMode" : "BREADTH_FIRST",
+            "orderBy" : [
+              {
+                "entityPrimaryKeyNatural" : "ASC"
+              }
+            ]
+          }
+        },
+        {
           "attributeOrderInCategoryNatural" : "ASC"
         }
       ]

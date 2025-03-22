@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ import io.evitadb.core.cache.payload.CachePayloadHeader;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.core.query.sort.Sorter;
-import io.evitadb.core.query.sort.attribute.MergedSortedRecordsSupplier;
+import io.evitadb.core.query.sort.attribute.MergedSortedRecordsSupplierContract;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.MemoryMeasuringConstants;
 import lombok.experimental.Delegate;
@@ -46,13 +46,13 @@ public class FlattenedMergedSortedRecordsProvider extends CachePayloadHeader imp
 	/**
 	 * Contains originally created sorted records provider.
 	 */
-	@Delegate private final MergedSortedRecordsSupplier sortedRecordsSupplier;
+	@Delegate private final MergedSortedRecordsSupplierContract sortedRecordsSupplier;
 
 	/**
 	 * Method returns gross estimation of the in-memory size of this instance. The estimation is expected not to be
 	 * a precise one. Please use constants from {@link MemoryMeasuringConstants} for size computation.
 	 */
-	public static int estimateSize(@Nonnull long[] transactionalIds, @Nonnull MergedSortedRecordsSupplier sortedRecordsSupplier) {
+	public static int estimateSize(@Nonnull long[] transactionalIds, @Nonnull MergedSortedRecordsSupplierContract sortedRecordsSupplier) {
 		return 2 * MemoryMeasuringConstants.LONG_SIZE +
 			CachePayloadHeader.estimateSize(transactionalIds) +
 			Arrays.stream(sortedRecordsSupplier.getSortedRecordsProviders())
@@ -66,7 +66,7 @@ public class FlattenedMergedSortedRecordsProvider extends CachePayloadHeader imp
 		long recordHash,
 		long transactionalIdHash,
 		@Nonnull long[] transactionalIds,
-		@Nonnull MergedSortedRecordsSupplier sortedRecordsSupplier
+		@Nonnull MergedSortedRecordsSupplierContract sortedRecordsSupplier
 	) {
 		super(recordHash, transactionalIdHash, transactionalIds);
 		this.sortedRecordsSupplier = sortedRecordsSupplier;

@@ -36,11 +36,13 @@ import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
+import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.IndexType;
+import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.mutation.index.dataAccess.ExistingAttributeValueSupplier;
 import io.evitadb.index.mutation.index.dataAccess.ExistingDataSupplierFactory;
@@ -125,15 +127,31 @@ public interface ReferenceIndexMutator {
 
 		if (referenceIndex != null) {
 			// we need to index entity primary key into the referenced entity index for all attributes
-			executor.updateAttribute(
-				attributeMutation,
-				attributeSchemaProvider,
-				compoundSchemaProvider,
-				existingValueAccessorFactory,
-				referenceIndex,
-				false,
-				true
-			);
+			final AttributeSchema attributeSchema = attributeSchemaProvider.apply(attributeMutation.getAttributeKey().attributeName());
+			if (ReferencedEntityPredecessor.class.isAssignableFrom(attributeSchema.getPlainType())) {
+				executor.executeWithDifferentPrimaryKeyToIndex(
+					indexType -> referenceKey.primaryKey(),
+					() -> executor.updateAttribute(
+						attributeMutation,
+						attributeSchemaProvider,
+						compoundSchemaProvider,
+						existingValueAccessorFactory,
+						referenceIndex,
+						false,
+						true
+					)
+				);
+			} else {
+				executor.updateAttribute(
+					attributeMutation,
+					attributeSchemaProvider,
+					compoundSchemaProvider,
+					existingValueAccessorFactory,
+					referenceIndex,
+					false,
+					true
+				);
+			}
 		}
 	}
 
@@ -271,16 +289,14 @@ public interface ReferenceIndexMutator {
 	 * {@link EntityIndexType#REFERENCED_ENTITY} index.
 	 */
 	@Nonnull
-	static EntityIndex getOrCreateReferencedEntityIndex(
+	static ReducedEntityIndex getOrCreateReferencedEntityIndex(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull ReferenceKey referenceKey,
 		@Nonnull Scope scope
 	) {
-		final String referenceName = referenceKey.referenceName();
-		final ReferenceSchemaContract referenceSchema = executor.getEntitySchema().getReferenceOrThrowException(referenceName);
 		// in order to save memory the data are indexed either to hierarchical or referenced entity index
 		final EntityIndexKey entityIndexKey = new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, scope, referenceKey);
-		return executor.getOrCreateIndex(entityIndexKey);
+		return (ReducedEntityIndex) executor.getOrCreateIndex(entityIndexKey);
 	}
 
 	/**

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -39,6 +39,7 @@ import io.evitadb.index.EntityIndex;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import java.io.Serializable;
 import java.util.Arrays;
 import java.util.stream.Stream;
 
@@ -85,7 +86,7 @@ public class AttributeSetInFilterTranslator implements OrderingConstraintTransla
 				attributeName,
 				Arrays.stream(attributeInSet.getAttributeValues())
 					.map(it -> EvitaDataTypes.toTargetType(it, attributeSchema.getPlainType()))
-					.toArray(Comparable[]::new),
+					.toArray(Serializable[]::new),
 				indexForSort[0].getSortIndex(attributeName, orderByVisitor.getLocale())
 			)
 		);

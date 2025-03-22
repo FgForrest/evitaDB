@@ -599,6 +599,76 @@ public class CatalogWriteAheadLog implements Closeable {
 	}
 
 	/**
+	 * Constructor for internal use only. It is used to create a new WAL file with the given parameters.
+	 */
+	public CatalogWriteAheadLog(
+		long catalogVersion,
+		@Nonnull String catalogName,
+		@Nonnull Path catalogStoragePath,
+		@Nonnull Pool<Kryo> catalogKryoPool,
+		@Nonnull StorageOptions storageOptions,
+		@Nonnull TransactionOptions transactionOptions,
+		@Nonnull Scheduler scheduler,
+		int walFileIndex
+	) {
+		this.catalogName = catalogName;
+		this.catalogStoragePath = catalogStoragePath;
+		this.catalogKryoPool = catalogKryoPool;
+		this.processedCatalogVersion = new AtomicLong(catalogVersion);
+		this.cutWalCacheTask = new DelayedAsyncTask(
+			catalogName, "WAL cache cutter",
+			scheduler,
+			this::cutWalCache,
+			CUT_WAL_CACHE_AFTER_INACTIVITY_MS, TimeUnit.MILLISECONDS
+		);
+		this.removeWalFileTask = new DelayedAsyncTask(
+			catalogName, "WAL file remover",
+			scheduler,
+			this::removeWalFiles,
+			0, TimeUnit.MILLISECONDS
+		);
+		this.maxWalFileSizeBytes = transactionOptions.walFileSizeBytes();
+		this.walFileCountKept = transactionOptions.walFileCountKept();
+		this.computeCRC32C = storageOptions.computeCRC32C();
+		this.bootstrapFileTrimmer = null;
+		this.onWalPurgeCallback = null;
+
+		try {
+			final Path walFilePath = catalogStoragePath.resolve(getWalFileName(catalogName, walFileIndex));
+			final FileChannel walFileChannel = FileChannel.open(
+				walFilePath,
+				StandardOpenOption.WRITE, StandardOpenOption.APPEND, StandardOpenOption.DSYNC
+			);
+
+			//noinspection IOResourceOpenedButNotSafelyClosed
+			final ObservableOutput<ByteArrayOutputStream> theOutput = new ObservableOutput<>(
+				transactionMutationOutputStream,
+				TRANSACTION_MUTATION_SIZE_WITH_RESERVE,
+				TRANSACTION_MUTATION_SIZE_WITH_RESERVE,
+				TRANSACTION_MUTATION_SIZE_WITH_RESERVE
+			);
+
+			this.currentWalFile.set(
+				new CurrentWalFile(
+					walFileIndex,
+					-1,
+					-1,
+					walFilePath,
+					walFileChannel,
+					computeCRC32C ? theOutput.computeCRC32() : theOutput,
+					walFileChannel.size()
+				)
+			);
+		} catch (IOException e) {
+			throw new WriteAheadLogCorruptedException(
+				"Failed to open WAL file `" + getWalFileName(catalogName, walFileIndex) + "`!",
+				"Failed to open WAL file!",
+				e
+			);
+		}
+	}
+
+	/**
 	 * Returns index of the current WAL file.
 	 *
 	 * @return index of the current WAL file

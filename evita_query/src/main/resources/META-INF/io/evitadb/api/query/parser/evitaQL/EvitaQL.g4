@@ -101,6 +101,8 @@ orderConstraint
     | 'random'                              emptyArgs                                                       # randomConstraint
     | 'randomWithSeed'                      args = valueArgs                                                # randomWithSeedConstraint
     | 'referenceProperty'                   args = classifierWithOrderConstraintListArgs                    # referencePropertyConstraint
+    | 'traverseByEntityProperty'            args = traverseOrderConstraintListArgs                          # traverseByEntityPropertyConstraint
+    | 'pickFirstByEntityProperty'           args = orderConstraintListArgs                                  # pickFirstByByEntityPropertyConstraint
     | 'entityPrimaryKeyNatural'             (emptyArgs | args = valueArgs)                                  # entityPrimaryKeyExactNatural
     | 'entityPrimaryKeyExact'               args = valueListArgs                                            # entityPrimaryKeyExactConstraint
     | 'entityPrimaryKeyInFilter'            emptyArgs                                                       # entityPrimaryKeyInFilterConstraint
@@ -221,6 +223,11 @@ headConstraintListArgs :                            argsOpening constraints += h
 filterConstraintListArgs :                          argsOpening constraints += filterConstraint (ARGS_DELIMITER constraints += filterConstraint)* argsClosing ;
 
 filterConstraintArgs :                              argsOpening filter = filterConstraint argsClosing ;
+
+traverseOrderConstraintListArgs :                   argsOpening(
+                                                        (traversalMode = valueToken) |
+                                                        ((traversalMode = valueToken ARGS_DELIMITER)? constraints += orderConstraint (ARGS_DELIMITER constraints += orderConstraint)*)
+                                                    ) argsClosing ;
 
 orderConstraintListArgs :                           argsOpening constraints += orderConstraint (ARGS_DELIMITER constraints += orderConstraint)* argsClosing ;
 

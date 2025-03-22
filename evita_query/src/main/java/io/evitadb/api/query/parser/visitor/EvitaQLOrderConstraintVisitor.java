@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -66,6 +66,7 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 		Long.class
 	);
 	protected final EvitaQLValueTokenVisitor orderDirectionValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(OrderDirection.class);
+	protected final EvitaQLValueTokenVisitor traversalModeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(TraversalMode.class);
 	protected final EvitaQLValueTokenVisitor stringValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(String.class);
 	protected final EvitaQLValueTokenVisitor orderDirectionOrStringTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
 		OrderDirection.class,
@@ -230,6 +231,36 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 			() -> new ReferenceProperty(
 				ctx.args.classifier.accept(stringValueTokenVisitor).asString(),
 				ctx.args.constrains
+					.stream()
+					.map(c -> visitChildConstraint(c, OrderConstraint.class))
+					.toArray(OrderConstraint[]::new)
+			)
+		);
+	}
+
+	@Override
+	public OrderConstraint visitTraverseByEntityPropertyConstraint(TraverseByEntityPropertyConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new TraverseByEntityProperty(
+				ctx.args.traversalMode == null ?
+					null : ctx.args.traversalMode.accept(this.traversalModeValueTokenVisitor).asEnum(TraversalMode.class),
+				ctx.args.constraints == null || ctx.args.constraints.isEmpty() ?
+					new OrderConstraint[] { new EntityPrimaryKeyNatural(OrderDirection.ASC) } :
+					ctx.args.constraints
+						.stream()
+						.map(c -> visitChildConstraint(c, OrderConstraint.class))
+						.toArray(OrderConstraint[]::new)
+			)
+		);
+	}
+
+	@Override
+	public OrderConstraint visitPickFirstByByEntityPropertyConstraint(PickFirstByByEntityPropertyConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new PickFirstByEntityProperty(
+				ctx.args.constraints
 					.stream()
 					.map(c -> visitChildConstraint(c, OrderConstraint.class))
 					.toArray(OrderConstraint[]::new)

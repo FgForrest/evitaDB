@@ -33,6 +33,8 @@
     <dd><strong>GraphQL operation</strong>: The name of the operation specified in the GQL request.</dd>
     <dt>prefetched</dt>
     <dd><strong>Prefetched vs. non-prefetched query</strong>: Whether or not the query used a prefetch plan. Prefetch plan optimistically fetches queried entities in advance and executes directly on them (without accessing the indexes).</dd>
+    <dt>probeResult</dt>
+    <dd><strong>Probe result</strong>: The result of the readiness probe (ok, timeout, error).</dd>
     <dt>procedureName</dt>
     <dd><strong>Procedure name</strong>: Name of the gRPC procedure that was called (the method name).</dd>
     <dt>prospective</dt>
@@ -41,6 +43,8 @@ Client view is the duration viewed from the HTTP client side affected by timeout
 duration of the probe.</dd>
     <dt>recordType</dt>
     <dd><strong>Record type</strong>: Type of records that changed in the OffsetIndex.</dd>
+    <dt>requestResult</dt>
+    <dd><strong>Request result</strong>: Simplified result of the request (success, error, cancelled).</dd>
     <dt>resolution</dt>
     <dd><strong>Transaction resolution</strong>: The resolution of the transaction (either commit or rollback).</dd>
     <dt>responseStatus</dt>
@@ -49,10 +53,6 @@ duration of the probe.</dd>
     <dd><strong>REST instance type</strong>: Domain of the REST API used in connection with this event/metric: SYSTEM, or CATALOG</dd>
     <dt>restOperationType</dt>
     <dd><strong>REST operation type</strong>: The type of operation that was executed. One of: QUERY, MUTATION.</dd>
-    <dt>result</dt>
-    <dd><strong>Request result</strong>: Simplified result of the request (success, error, cancelled).</dd>
-    <dt>result</dt>
-    <dd><strong>Result</strong>: The result of the readiness probe (ok, timeout, error).</dd>
     <dt>serviceName</dt>
     <dd><strong>Service name</strong>: Name of the gRPC service that was called (the name of the Java class).</dd>
     <dt>stage</dt>
@@ -66,11 +66,11 @@ duration of the probe.</dd>
 
 <dl>
   <dt><code>io_evitadb_external_api_readiness_duration_milliseconds</code> (HISTOGRAM)</dt>
-  <dd>Readiness probe duration<br/><br/><strong>Labels:</strong> <Term>api</Term>, <Term>prospective</Term>, <Term>result</Term><br/></dd>
+  <dd>Readiness probe duration<br/><br/><strong>Labels:</strong> <Term>api</Term>, <Term>probeResult</Term>, <Term>prospective</Term><br/></dd>
   <dt><code>io_evitadb_external_api_readiness_total</code> (COUNTER)</dt>
-  <dd>Readiness probe invoked total<br/><br/><strong>Labels:</strong> <Term>api</Term>, <Term>prospective</Term>, <Term>result</Term><br/></dd>
+  <dd>Readiness probe invoked total<br/><br/><strong>Labels:</strong> <Term>api</Term>, <Term>probeResult</Term>, <Term>prospective</Term><br/></dd>
   <dt><code>io_evitadb_external_api_request_total</code> (COUNTER)</dt>
-  <dd>Requests invoked total<br/><br/><strong>Labels:</strong> <Term>api</Term>, <Term>httpStatusCode</Term>, <Term>result</Term><br/></dd>
+  <dd>Requests invoked total<br/><br/><strong>Labels:</strong> <Term>api</Term>, <Term>httpStatusCode</Term>, <Term>requestResult</Term><br/></dd>
 </dl>
 
 #### API / GraphQL / Instance / Schema

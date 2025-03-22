@@ -126,10 +126,7 @@ public class HierarchyOfReferenceTranslator
 				final NestedContextSorter sorter = hierarchyOfReference.getOrderBy()
 					.map(
 						it -> extraResultPlanner.createSorter(
-							it,
-							null,
-							targetCollectionRef.get(),
-							entityType,
+							it, null, targetCollectionRef.get(),
 							() -> "Hierarchy statistics of `" + referencedEntitySchema.getName() + "`: " + it
 						)
 					)

@@ -4132,7 +4132,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				final SealedEntity referencedCategory = categoryReference.getReferencedEntity().orElseThrow();
 				assertEquals(theParentPk, referencedCategory.getParentEntity().orElseThrow().getPrimaryKey());
 				assertEquals(
-					createParentChain(categoryHierarchy, theChildPk, 4, null),
+					createParentChain(categoryHierarchy, theChildPk, theChild.getLevel() - 1, null),
 					referencedCategory.getParentEntity().orElseThrow()
 				);
 				return null;

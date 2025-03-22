@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -374,7 +374,7 @@ public class InvertedIndex implements
 	 * @return an array of values associated with the record ID
 	 */
 	@Nonnull
-	public <S> S[] getValuesForRecord(int recordId, @Nonnull Class<S> type) {
+	public <S extends Serializable> S[] getValuesForRecord(int recordId, @Nonnull Class<S> type) {
 		final Iterator<ValueToRecordBitmap> it = this.valueToRecordBitmap.iterator();
 		final CompositeObjectArray<S> result = new CompositeObjectArray<>(type);
 		while (it.hasNext()) {

@@ -29,6 +29,7 @@ import io.evitadb.api.observability.HealthProblem;
 import io.evitadb.api.observability.ReadinessState;
 import io.evitadb.api.query.filter.AttributeSpecialValue;
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.query.order.TraversalMode;
 import io.evitadb.api.query.require.*;
 import io.evitadb.api.requestResponse.cdc.CaptureArea;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
@@ -468,7 +469,6 @@ public class EvitaEnumConverter {
 	    };
 	}
 
-
 	/**
 	 * Converts {@link FacetGroupRelationLevel} to {@link GrpcFacetGroupRelationLevel}.
 	 *
@@ -509,6 +509,35 @@ public class EvitaEnumConverter {
 		return switch (facetStatisticsDepth) {
 			case COUNTS -> GrpcFacetStatisticsDepth.COUNTS;
 			case IMPACT -> GrpcFacetStatisticsDepth.IMPACT;
+		};
+	}
+
+	/**
+	 * Converts {@link TraversalMode} to {@link GrpcTraversalMode}.
+	 *
+	 * @param traversalMode the {@link TraversalMode} to be converted
+	 * @return the converted {@link GrpcTraversalMode}
+	 */
+	@Nonnull
+	public static GrpcTraversalMode toGrpcTraversalMode(@Nonnull TraversalMode traversalMode) {
+		return switch (traversalMode) {
+			case DEPTH_FIRST -> GrpcTraversalMode.DEPTH_FIRST;
+			case BREADTH_FIRST -> GrpcTraversalMode.BREADTH_FIRST;
+		};
+	}
+
+	/**
+	 * Converts {@link GrpcTraversalMode} to {@link TraversalMode}.
+	 *
+	 * @param grpcTraversalMode the {@link GrpcTraversalMode} to be converted
+	 * @return the converted {@link TraversalMode}
+	 */
+	@Nonnull
+	public static TraversalMode toTraversalMode(@Nonnull GrpcTraversalMode grpcTraversalMode) {
+		return switch (grpcTraversalMode) {
+			case DEPTH_FIRST -> TraversalMode.DEPTH_FIRST;
+			case BREADTH_FIRST -> TraversalMode.BREADTH_FIRST;
+			default -> throw new GenericEvitaInternalError("Unrecognized remote traversal mode: " + grpcTraversalMode);
 		};
 	}
 

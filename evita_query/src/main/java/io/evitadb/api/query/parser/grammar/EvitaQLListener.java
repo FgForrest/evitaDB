@@ -821,6 +821,30 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 */
 	void exitReferencePropertyConstraint(EvitaQLParser.ReferencePropertyConstraintContext ctx);
 	/**
+	 * Enter a parse tree produced by the {@code traverseByEntityPropertyConstraint}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterTraverseByEntityPropertyConstraint(EvitaQLParser.TraverseByEntityPropertyConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code traverseByEntityPropertyConstraint}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitTraverseByEntityPropertyConstraint(EvitaQLParser.TraverseByEntityPropertyConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code pickFirstByByEntityPropertyConstraint}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterPickFirstByByEntityPropertyConstraint(EvitaQLParser.PickFirstByByEntityPropertyConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code pickFirstByByEntityPropertyConstraint}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitPickFirstByByEntityPropertyConstraint(EvitaQLParser.PickFirstByByEntityPropertyConstraintContext ctx);
+	/**
 	 * Enter a parse tree produced by the {@code entityPrimaryKeyExactNatural}
 	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
 	 * @param ctx the parse tree
@@ -1998,6 +2022,16 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitFilterConstraintArgs(EvitaQLParser.FilterConstraintArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#traverseOrderConstraintListArgs}.
+	 * @param ctx the parse tree
+	 */
+	void enterTraverseOrderConstraintListArgs(EvitaQLParser.TraverseOrderConstraintListArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#traverseOrderConstraintListArgs}.
+	 * @param ctx the parse tree
+	 */
+	void exitTraverseOrderConstraintListArgs(EvitaQLParser.TraverseOrderConstraintListArgsContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link EvitaQLParser#orderConstraintListArgs}.
 	 * @param ctx the parse tree

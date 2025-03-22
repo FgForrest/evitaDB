@@ -185,8 +185,9 @@ public final class GrpcEnums {
       "\020\000\022\017\n\013CONJUNCTION\020\001\022\014\n\010NEGATION\020\002\022\017\n\013EXC" +
       "LUSIVITY\020\003*\\\n\033GrpcFacetGroupRelationLeve" +
       "l\022\"\n\036WITH_DIFFERENT_FACETS_IN_GROUP\020\000\022\031\n" +
-      "\025WITH_DIFFERENT_GROUPS\020\001B\014P\001\252\002\007EvitaDBb\006" +
-      "proto3"
+      "\025WITH_DIFFERENT_GROUPS\020\001*7\n\021GrpcTraversa" +
+      "lMode\022\017\n\013DEPTH_FIRST\020\000\022\021\n\rBREADTH_FIRST\020" +
+      "\001B\014P\001\252\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,

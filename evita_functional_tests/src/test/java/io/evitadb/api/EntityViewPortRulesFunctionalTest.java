@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -263,15 +263,15 @@ public class EntityViewPortRulesFunctionalTest {
 							)
 						)
 						.limit(segment.getLimit().orElse(Integer.MAX_VALUE))
-						.mapToInt(SealedEntity::getPrimaryKey)
+						.mapToInt(SealedEntity::getPrimaryKeyOrThrowException)
 						.peek(drainedPks::add)
 						.forEach(orderedPks::add);
 				}
 				// finally append all remaining entities sorted by PK in ascending order
 				originalProductEntities.stream()
 					.filter(it -> !drainedPks.contains(it.getPrimaryKey()))
-					.sorted(Comparator.comparing(EntityContract::getPrimaryKey))
-					.mapToInt(SealedEntity::getPrimaryKey)
+					.sorted(Comparator.comparing(EntityContract::getPrimaryKeyOrThrowException))
+					.mapToInt(SealedEntity::getPrimaryKeyOrThrowException)
 					.forEach(orderedPks::add);
 
 				// now go through entire product set and verify contents page by page
@@ -287,7 +287,7 @@ public class EntityViewPortRulesFunctionalTest {
 						queryResponse
 							.getRecordData()
 							.stream()
-							.map(EntityReference::getPrimaryKey)
+							.map(EntityReference::getPrimaryKeyOrThrowException)
 							.collect(Collectors.toList()),
 						orderedPks.subList(i, i + pageSize)
 							.stream()
@@ -337,14 +337,14 @@ public class EntityViewPortRulesFunctionalTest {
 							fabricateSegmentedQuery(1, 5, segments),
 							EntityReference.class
 						)
-						.getRecordData().stream().map(EntityReference::getPrimaryKey).collect(Collectors.toList()),
+						.getRecordData().stream().map(EntityReference::getPrimaryKeyOrThrowException).collect(Collectors.toList()),
 					originalProductEntities.stream()
 						.sorted(
 							(o1, o2) -> o2.getAttribute(ATTRIBUTE_NAME, String.class)
 								.compareTo(o1.getAttribute(ATTRIBUTE_NAME, String.class))
 						)
 						.limit(5)
-						.mapToInt(SealedEntity::getPrimaryKey)
+						.mapToInt(SealedEntity::getPrimaryKeyOrThrowException)
 						.peek(nameDrainedPks::add)
 						.toArray()
 				);
@@ -354,7 +354,7 @@ public class EntityViewPortRulesFunctionalTest {
 							fabricateSegmentedQuery(2, 5, segments),
 							EntityReference.class
 						)
-						.getRecordData().stream().map(EntityReference::getPrimaryKey).collect(Collectors.toList()),
+						.getRecordData().stream().map(EntityReference::getPrimaryKeyOrThrowException).collect(Collectors.toList()),
 					originalProductEntities.stream()
 						.sorted(
 							(o1, o2) -> o2.getAttribute(ATTRIBUTE_NAME, String.class)
@@ -362,7 +362,7 @@ public class EntityViewPortRulesFunctionalTest {
 						)
 						.skip(5)
 						.limit(5)
-						.mapToInt(SealedEntity::getPrimaryKey)
+						.mapToInt(SealedEntity::getPrimaryKeyOrThrowException)
 						.peek(nameDrainedPks::add)
 						.toArray()
 				);
@@ -373,7 +373,7 @@ public class EntityViewPortRulesFunctionalTest {
 							fabricateSegmentedQuery(3, 5, segments),
 							EntityReference.class
 						)
-						.getRecordData().stream().map(EntityReference::getPrimaryKey).collect(Collectors.toList()),
+						.getRecordData().stream().map(EntityReference::getPrimaryKeyOrThrowException).collect(Collectors.toList()),
 					originalProductEntities.stream()
 						.filter(it -> !nameDrainedPks.contains(it.getPrimaryKey()))
 						.sorted(
@@ -381,7 +381,7 @@ public class EntityViewPortRulesFunctionalTest {
 								.compareTo(o1.getAttribute(ATTRIBUTE_EAN, String.class))
 						)
 						.limit(5)
-						.mapToInt(SealedEntity::getPrimaryKey)
+						.mapToInt(SealedEntity::getPrimaryKeyOrThrowException)
 						.peek(eanDrainedPks::add)
 						.toArray()
 				);
@@ -390,7 +390,7 @@ public class EntityViewPortRulesFunctionalTest {
 						fabricateSegmentedQuery(4, 5, segments),
 						EntityReference.class
 					)
-					.getRecordData().stream().map(EntityReference::getPrimaryKey).collect(Collectors.toList());
+					.getRecordData().stream().map(EntityReference::getPrimaryKeyOrThrowException).collect(Collectors.toList());
 				assertSortedResultEquals(
 					"Fourth page contains 3 entities sorted according to EAN in descending order.",
 					fourthPage.subList(0, 3),
@@ -402,7 +402,7 @@ public class EntityViewPortRulesFunctionalTest {
 						)
 						.skip(5)
 						.limit(3)
-						.mapToInt(SealedEntity::getPrimaryKey)
+						.mapToInt(SealedEntity::getPrimaryKeyOrThrowException)
 						.peek(eanDrainedPks::add)
 						.toArray()
 				);
@@ -416,7 +416,7 @@ public class EntityViewPortRulesFunctionalTest {
 							Comparator.comparing(o -> o.getAttribute(ATTRIBUTE_QUANTITY, BigDecimal.class))
 						)
 						.limit(2)
-						.mapToInt(SealedEntity::getPrimaryKey)
+						.mapToInt(SealedEntity::getPrimaryKeyOrThrowException)
 						.peek(quantityDrainedPks::add)
 						.toArray()
 				);
@@ -425,18 +425,19 @@ public class EntityViewPortRulesFunctionalTest {
 						fabricateSegmentedQuery(5, 5, segments),
 						EntityReference.class
 					)
-					.getRecordData().stream().map(EntityReference::getPrimaryKey).collect(Collectors.toList());
+					.getRecordData().stream().map(EntityReference::getPrimaryKeyOrThrowException).collect(Collectors.toList());
 				assertSortedResultEquals(
 					"Fifth page must have only 4 entities be sorted by quantity in ascending order.",
 					fifthPage.subList(0, 4),
 					originalProductEntities.stream()
 						.filter(it -> !nameDrainedPks.contains(it.getPrimaryKey()) && !eanDrainedPks.contains(it.getPrimaryKey()))
+						.filter(o -> o.getAttribute(ATTRIBUTE_QUANTITY, BigDecimal.class) != null)
 						.sorted(
 							Comparator.comparing(o -> o.getAttribute(ATTRIBUTE_QUANTITY, BigDecimal.class))
 						)
 						.skip(2)
 						.limit(4)
-						.mapToInt(SealedEntity::getPrimaryKey)
+						.mapToInt(SealedEntity::getPrimaryKeyOrThrowException)
 						.peek(quantityDrainedPks::add)
 						.toArray()
 				);
@@ -446,9 +447,9 @@ public class EntityViewPortRulesFunctionalTest {
 					fifthPage.subList(4, 5),
 					originalProductEntities.stream()
 						.filter(it -> !nameDrainedPks.contains(it.getPrimaryKey()) && !eanDrainedPks.contains(it.getPrimaryKey()) && !quantityDrainedPks.contains(it.getPrimaryKey()))
-						.sorted(Comparator.comparing(EntityContract::getPrimaryKey))
+						.sorted(Comparator.comparing(EntityContract::getPrimaryKeyOrThrowException))
 						.limit(1)
-						.mapToInt(SealedEntity::getPrimaryKey)
+						.mapToInt(SealedEntity::getPrimaryKeyOrThrowException)
 						.toArray()
 				);
 
@@ -458,13 +459,13 @@ public class EntityViewPortRulesFunctionalTest {
 							fabricateSegmentedQuery(6, 5, segments),
 							EntityReference.class
 						)
-						.getRecordData().stream().map(EntityReference::getPrimaryKey).collect(Collectors.toList()),
+						.getRecordData().stream().map(EntityReference::getPrimaryKeyOrThrowException).collect(Collectors.toList()),
 					originalProductEntities.stream()
 						.filter(it -> !nameDrainedPks.contains(it.getPrimaryKey()) && !eanDrainedPks.contains(it.getPrimaryKey()) && !quantityDrainedPks.contains(it.getPrimaryKey()))
-						.sorted(Comparator.comparing(EntityContract::getPrimaryKey))
+						.sorted(Comparator.comparing(EntityContract::getPrimaryKeyOrThrowException))
 						.skip(1)
 						.limit(5)
-						.mapToInt(SealedEntity::getPrimaryKey)
+						.mapToInt(SealedEntity::getPrimaryKeyOrThrowException)
 						.toArray()
 				);
 
@@ -474,13 +475,13 @@ public class EntityViewPortRulesFunctionalTest {
 							fabricateSegmentedQuery(7, 5, segments),
 							EntityReference.class
 						)
-						.getRecordData().stream().map(EntityReference::getPrimaryKey).collect(Collectors.toList()),
+						.getRecordData().stream().map(EntityReference::getPrimaryKeyOrThrowException).collect(Collectors.toList()),
 					originalProductEntities.stream()
 						.filter(it -> !nameDrainedPks.contains(it.getPrimaryKey()) && !eanDrainedPks.contains(it.getPrimaryKey()) && !quantityDrainedPks.contains(it.getPrimaryKey()))
-						.sorted(Comparator.comparing(EntityContract::getPrimaryKey))
+						.sorted(Comparator.comparing(EntityContract::getPrimaryKeyOrThrowException))
 						.skip(6)
 						.limit(5)
-						.mapToInt(SealedEntity::getPrimaryKey)
+						.mapToInt(SealedEntity::getPrimaryKeyOrThrowException)
 						.toArray()
 				);
 
@@ -536,7 +537,7 @@ public class EntityViewPortRulesFunctionalTest {
 							fabricateSegmentedQuery(1, 5, segments),
 							EntityReference.class
 						)
-						.getRecordData().stream().map(EntityReference::getPrimaryKey).collect(Collectors.toList()),
+						.getRecordData().stream().map(EntityReference::getPrimaryKeyOrThrowException).collect(Collectors.toList()),
 					originalProductEntities.stream()
 						.filter(it -> it.getAttribute(ATTRIBUTE_NAME, String.class).compareTo("L") <= 0)
 						.sorted(
@@ -544,7 +545,7 @@ public class EntityViewPortRulesFunctionalTest {
 								.compareTo(o1.getAttribute(ATTRIBUTE_NAME, String.class))
 						)
 						.limit(5)
-						.mapToInt(SealedEntity::getPrimaryKey)
+						.mapToInt(SealedEntity::getPrimaryKeyOrThrowException)
 						.peek(nameDrainedPks::add)
 						.toArray()
 				);
@@ -554,7 +555,7 @@ public class EntityViewPortRulesFunctionalTest {
 							fabricateSegmentedQuery(2, 5, segments),
 							EntityReference.class
 						)
-						.getRecordData().stream().map(EntityReference::getPrimaryKey).collect(Collectors.toList()),
+						.getRecordData().stream().map(EntityReference::getPrimaryKeyOrThrowException).collect(Collectors.toList()),
 					originalProductEntities.stream()
 						.filter(it -> it.getAttribute(ATTRIBUTE_NAME, String.class).compareTo("L") <= 0)
 						.sorted(
@@ -563,7 +564,7 @@ public class EntityViewPortRulesFunctionalTest {
 						)
 						.skip(5)
 						.limit(5)
-						.mapToInt(SealedEntity::getPrimaryKey)
+						.mapToInt(SealedEntity::getPrimaryKeyOrThrowException)
 						.peek(nameDrainedPks::add)
 						.toArray()
 				);
@@ -574,7 +575,7 @@ public class EntityViewPortRulesFunctionalTest {
 							fabricateSegmentedQuery(3, 5, segments),
 							EntityReference.class
 						)
-						.getRecordData().stream().map(EntityReference::getPrimaryKey).collect(Collectors.toList()),
+						.getRecordData().stream().map(EntityReference::getPrimaryKeyOrThrowException).collect(Collectors.toList()),
 					originalProductEntities.stream()
 						.filter(it -> it.getAttribute(ATTRIBUTE_NAME, String.class).compareTo("P") <= 0)
 						.filter(it -> !nameDrainedPks.contains(it.getPrimaryKey()))
@@ -583,7 +584,7 @@ public class EntityViewPortRulesFunctionalTest {
 								.compareTo(o1.getAttribute(ATTRIBUTE_EAN, String.class))
 						)
 						.limit(5)
-						.mapToInt(SealedEntity::getPrimaryKey)
+						.mapToInt(SealedEntity::getPrimaryKeyOrThrowException)
 						.peek(eanDrainedPks::add)
 						.toArray()
 				);
@@ -592,7 +593,7 @@ public class EntityViewPortRulesFunctionalTest {
 						fabricateSegmentedQuery(4, 5, segments),
 						EntityReference.class
 					)
-					.getRecordData().stream().map(EntityReference::getPrimaryKey).collect(Collectors.toList());
+					.getRecordData().stream().map(EntityReference::getPrimaryKeyOrThrowException).collect(Collectors.toList());
 				assertSortedResultEquals(
 					"Fourth page contains 3 entities sorted according to EAN in descending order.",
 					fourthPage.subList(0, 3),
@@ -605,7 +606,7 @@ public class EntityViewPortRulesFunctionalTest {
 						)
 						.skip(5)
 						.limit(3)
-						.mapToInt(SealedEntity::getPrimaryKey)
+						.mapToInt(SealedEntity::getPrimaryKeyOrThrowException)
 						.peek(eanDrainedPks::add)
 						.toArray()
 				);
@@ -620,7 +621,7 @@ public class EntityViewPortRulesFunctionalTest {
 							Comparator.comparing(o -> o.getAttribute(ATTRIBUTE_QUANTITY, BigDecimal.class))
 						)
 						.limit(2)
-						.mapToInt(SealedEntity::getPrimaryKey)
+						.mapToInt(SealedEntity::getPrimaryKeyOrThrowException)
 						.peek(quantityDrainedPks::add)
 						.toArray()
 				);
@@ -629,7 +630,7 @@ public class EntityViewPortRulesFunctionalTest {
 						fabricateSegmentedQuery(5, 5, segments),
 						EntityReference.class
 					)
-					.getRecordData().stream().map(EntityReference::getPrimaryKey).collect(Collectors.toList());
+					.getRecordData().stream().map(EntityReference::getPrimaryKeyOrThrowException).collect(Collectors.toList());
 				assertSortedResultEquals(
 					"Fifth page must have only 4 entities be sorted by quantity in ascending order.",
 					fifthPage.subList(0, 4),
@@ -641,7 +642,7 @@ public class EntityViewPortRulesFunctionalTest {
 						)
 						.skip(2)
 						.limit(4)
-						.mapToInt(SealedEntity::getPrimaryKey)
+						.mapToInt(SealedEntity::getPrimaryKeyOrThrowException)
 						.peek(quantityDrainedPks::add)
 						.toArray()
 				);
@@ -651,9 +652,9 @@ public class EntityViewPortRulesFunctionalTest {
 					fifthPage.subList(4, 5),
 					originalProductEntities.stream()
 						.filter(it -> !nameDrainedPks.contains(it.getPrimaryKey()) && !eanDrainedPks.contains(it.getPrimaryKey()) && !quantityDrainedPks.contains(it.getPrimaryKey()))
-						.sorted(Comparator.comparing(EntityContract::getPrimaryKey))
+						.sorted(Comparator.comparing(EntityContract::getPrimaryKeyOrThrowException))
 						.limit(1)
-						.mapToInt(SealedEntity::getPrimaryKey)
+						.mapToInt(SealedEntity::getPrimaryKeyOrThrowException)
 						.toArray()
 				);
 
@@ -663,13 +664,13 @@ public class EntityViewPortRulesFunctionalTest {
 							fabricateSegmentedQuery(6, 5, segments),
 							EntityReference.class
 						)
-						.getRecordData().stream().map(EntityReference::getPrimaryKey).collect(Collectors.toList()),
+						.getRecordData().stream().map(EntityReference::getPrimaryKeyOrThrowException).collect(Collectors.toList()),
 					originalProductEntities.stream()
 						.filter(it -> !nameDrainedPks.contains(it.getPrimaryKey()) && !eanDrainedPks.contains(it.getPrimaryKey()) && !quantityDrainedPks.contains(it.getPrimaryKey()))
-						.sorted(Comparator.comparing(EntityContract::getPrimaryKey))
+						.sorted(Comparator.comparing(EntityContract::getPrimaryKeyOrThrowException))
 						.skip(1)
 						.limit(5)
-						.mapToInt(SealedEntity::getPrimaryKey)
+						.mapToInt(SealedEntity::getPrimaryKeyOrThrowException)
 						.toArray()
 				);
 
@@ -679,13 +680,13 @@ public class EntityViewPortRulesFunctionalTest {
 							fabricateSegmentedQuery(7, 5, segments),
 							EntityReference.class
 						)
-						.getRecordData().stream().map(EntityReference::getPrimaryKey).collect(Collectors.toList()),
+						.getRecordData().stream().map(EntityReference::getPrimaryKeyOrThrowException).collect(Collectors.toList()),
 					originalProductEntities.stream()
 						.filter(it -> !nameDrainedPks.contains(it.getPrimaryKey()) && !eanDrainedPks.contains(it.getPrimaryKey()) && !quantityDrainedPks.contains(it.getPrimaryKey()))
-						.sorted(Comparator.comparing(EntityContract::getPrimaryKey))
+						.sorted(Comparator.comparing(EntityContract::getPrimaryKeyOrThrowException))
 						.skip(6)
 						.limit(5)
-						.mapToInt(SealedEntity::getPrimaryKey)
+						.mapToInt(SealedEntity::getPrimaryKeyOrThrowException)
 						.toArray()
 				);
 
@@ -708,14 +709,14 @@ public class EntityViewPortRulesFunctionalTest {
 					.filter(it -> it.hasPriceInInterval(BigDecimal.ZERO, firstThreshold, QueryPriceMode.WITH_TAX, CURRENCY_CZK, null, PRICE_LIST_VIP, PRICE_LIST_BASIC))
 					.sorted((o1, o2) -> o2.getPriceForSale(CURRENCY_CZK, null, PRICE_LIST_VIP, PRICE_LIST_BASIC).orElseThrow().priceWithTax()
 						.compareTo(o1.getPriceForSale(CURRENCY_CZK, null, PRICE_LIST_VIP, PRICE_LIST_BASIC).orElseThrow().priceWithTax()))
-					.mapToInt(SealedEntity::getPrimaryKey)
+					.mapToInt(SealedEntity::getPrimaryKeyOrThrowException)
 					.findFirst()
 					.orElseThrow();
 				// find product between thresholds
 				final int secondSegmentProduct = originalProductEntities.stream()
 					.filter(it -> it.hasPriceInInterval(firstThreshold, secondThreshold, QueryPriceMode.WITH_TAX, CURRENCY_CZK, null, PRICE_LIST_VIP, PRICE_LIST_BASIC))
 					.sorted(Comparator.comparing(o -> o.getPriceForSale(CURRENCY_CZK, null, PRICE_LIST_VIP, PRICE_LIST_BASIC).orElseThrow().priceWithTax()))
-					.mapToInt(SealedEntity::getPrimaryKey)
+					.mapToInt(SealedEntity::getPrimaryKeyOrThrowException)
 					.findFirst()
 					.orElseThrow();
 
@@ -760,7 +761,7 @@ public class EntityViewPortRulesFunctionalTest {
 						)
 						.getRecordData()
 						.stream()
-						.map(EntityReference::getPrimaryKey)
+						.map(EntityReference::getPrimaryKeyOrThrowException)
 						.collect(Collectors.toList()),
 					Stream.of(
 						// first insert segmented products
@@ -772,7 +773,7 @@ public class EntityViewPortRulesFunctionalTest {
 						originalProductEntities
 							.stream()
 							.filter(it -> it.getPriceForSale(CURRENCY_CZK, null, PRICE_LIST_VIP, PRICE_LIST_BASIC).isPresent())
-							.mapToInt(SealedEntity::getPrimaryKey)
+							.mapToInt(SealedEntity::getPrimaryKeyOrThrowException)
 							.filter(it -> !segmentedProducts.contains(it))
 						)
 						.flatMapToInt(it -> it)
