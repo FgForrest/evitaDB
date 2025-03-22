@@ -148,7 +148,7 @@ You can control the behaviour by using the `pickFirstByEntityProperty` or `trave
 `referenceProperty` container. You can also use the `traverseByEntityProperty` for non-hierarchical entities and for 1:1
 references. It changes the order so that the entities are first sorted by the property of the thing they're referring to,
 and then by the reference property itself. For more information, check out the examples and the detailed documentation 
-of the [`traverseByEntityProperty`] constraint.
+of the [`traverseByEntityProperty`](#traverse-by-entity-property) constraint.
 
 </Note>
 
@@ -168,13 +168,12 @@ pickFirstByEntityProperty(
     </dd>
 </dl>
 
-The `pickFirstByEntityProperty` ordering constraint can only be used within the [`referenceProperty`](#reference-property)
-ordering constraint, and makes sense only in case the cardinality of such reference is 1:N (although it's not actively
-checked by the query engine). This constraint allows you specify the order of the references to pick the first one from
-the list of references to the same entity to be used for ordering by `referenceProperty`.
+The `pickFirstByEntityProperty` ordering constraint can only be used within the [`referenceProperty`](#reference-property) ordering constraint.
+It makes sense only in case the cardinality of the reference is 1:N (although this isn't actively checked by the query 
+engine). This constraint lets you specify the order of the references to pick the first one from the list of references 
+to the same entity to be used for ordering by `referenceProperty`.
 
-Let's extend our previous example so that it returns products that refer not only to the group "sale", but also to the
-group "new":
+Let's expand our previous example to include products that refer to both the "sale" and "new" groups:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -208,13 +207,13 @@ group "new":
 
 </Note>
 
-The result will contain first products referring to a "new" group which has the lowest primary key, and then products
-referring to a "sale" group. The order of products within each group will be determined by the `orderInGroup` attribute.
-This is default behavior for references targeting non-hierarchical entities.
+The result will contain the first products from the "new" group, which has the lowest primary key. Then it will contain
+the products from the "sale" group. The order of products within each group will be determined by the `orderInGroup` 
+attribute. This is the usual way things are done for references that target non-hierarchical entities.
 
 If we want to change the order of the groups, we can use the `pickFirstByEntityProperty` ordering constraint to explicitly
-specify the order of the groups. For example, if we want to list products in the "sale" group first, we can use the
-following query:
+specify the order of the groups. For example, if we want to list products in the "sale" group first, we can use
+the following query:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -246,8 +245,8 @@ following query:
 
 </LS>
 
-As you can see when the product is related to both groups, the assignment to the "sale" group takes precedence and is
-used for ordering. You can use all sorts of ordering constraints and tune the ordering to your needs.
+If a product is in both groups, the "sale" group takes priority and is used for ordering. You can use all sorts of 
+ordering constraints and adjust the ordering to suit your needs.
 
 </Note>
 
@@ -272,15 +271,16 @@ traverseByEntityProperty(
     </dd>
 </dl>
 
-The `traverseByEntityProperty` ordering constraint can only be used within the [`referenceProperty`](#reference-property) 
-ordering constraint. This constraint defines that the entities should be sorted first by the referenced entity property,
-and if such entity is hierarchical, it allows to specify whether the hierarchy should be traversed in depth-first or 
-breadth-first order. When the order of the referenced entities is resolved, the `referenceProperty` ordering itself
-is applied on the references to the referenced entities. If there are multiple references only the first one that can
-be evaluated is used for ordering.
+The `traverseByEntityProperty` ordering constraint can only be used with the [`referenceProperty`](#reference-property)
+ordering constraint. This means that entities should be sorted first by the referenced entity property. If the entity is 
+hierarchical, you can specify whether the hierarchy should be traversed in 
+[depth-first](https://en.wikipedia.org/wiki/Depth-first_search) or [breadth-first](https://en.wikipedia.org/wiki/Breadth-first_search) order.
 
-This behaviour is best illustrated by a following example. Let's list products in the *Accessories* category ordered
-by the `orderInCategory` attribute on the reference to the category:
+Once the referenced entities are sorted, the order of the referenced entities is applied to the references to 
+the referenced entities. If there are multiple references, only the first one that can be evaluated is used for ordering.
+
+This behaviour is best illustrated by the following example. Let's list products in the 'Accessories' category in order
+of the `orderInCategory` attribute on the category reference:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -314,23 +314,23 @@ by the `orderInCategory` attribute on the reference to the category:
 
 </LS>
 
-The result will first contain products directly related to the *Accessories* category, ordered by `orderInCategory` in
-ascending order, then products *Christmas electronics* (which is the first child of the *Accessories* category with
-the least primary key), then *Smart wearable* (which has no directly related products), then *Bands* (which is the first
-child of the *Smart wearable* category), and so on. The order follows the order of the categories in the following
-image:
+The result will first contain products in the *Accessories* category, ordered by `orderInCategory` from most to least, 
+then products in the *Christmas electronics* category (which is the first child of the *Accessories* category with 
+the least primary key), then products in the *Smart wearable* category (which has no directly related products), 
+then products in the *Bands* category (which is the first child of the *Smart wearable* category), and so on.
+The order follows the order of the categories in the following image:
 
 ![dynamic-tree.png](../requirements/assets/dynamic-tree.png)
 
-If the product was related to both **Christmas electronics** and **Smart wearable** categories, the product would be
-listed only once as if it would be related only to the **Christmas electronics** category, because in this query
-primary key of the category is used for the hierarchy traversal.
+If a product falls into both the **Christmas** electronics and **Smart wearable** categories, it will only be listed 
+once. This is because, in this query, the category's primary key is used to traverse the hierarchy.
 
 </Note>
 
-Consider the another example where we want to list products in the *Accessories* category ordered by the `orderInCategory` 
-attribute on the reference to the category, but we want to traverse the hierarchy in breadth-first order and the categories
-themselves should be sorted by their `order` attribute first:
+Here's another example: we want to list products in the *Accessories* category in a certain order. This order is based
+on the `orderInCategory` attribute on the reference to the category. But we want to go through the hierarchy using
+[breadth first manner](https://en.wikipedia.org/wiki/Breadth-first_search), where each hierarchy level should be sorted
+by category `order` attribute first:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -363,8 +363,7 @@ themselves should be sorted by their `order` attribute first:
 
 </LS>
 
-As you can see you have full control over the the ordering of the entities and the order of the references within the
-hierarchy.
+As you can see, you can arrange the order of the entities and the references within the hierarchy however you want.
 
 </Note>
 
