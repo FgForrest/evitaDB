@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -41,12 +41,20 @@ public class FilterBySerializer extends Serializer<FilterBy> {
 
 	@Override
 	public void write(Kryo kryo, Output output, FilterBy object) {
-		kryo.writeClassAndObject(output, object.getChildren()[0]);
+		final FilterConstraint[] children = object.getChildren();
+		output.writeVarInt(children.length, true);
+		for (FilterConstraint child : children) {
+			kryo.writeClassAndObject(output, child);
+		}
 	}
 
 	@Override
 	public FilterBy read(Kryo kryo, Input input, Class<? extends FilterBy> type) {
-		return new FilterBy((FilterConstraint) kryo.readClassAndObject(input));
+		final FilterConstraint[] children = new FilterConstraint[input.readVarInt(true)];
+		for (int i = 0; i < children.length; i++) {
+			children[i] = (FilterConstraint) kryo.readClassAndObject(input);
+		}
+		return new FilterBy(children);
 	}
 
 }

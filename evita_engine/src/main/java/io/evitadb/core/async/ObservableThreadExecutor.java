@@ -512,7 +512,15 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 
 		public ObservableRunnable(@Nonnull Runnable delegate, long timeoutInMilliseconds) {
 			final StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
-			this.name = stackTrace.length > 1 ? stackTrace[1].toString() : "Unknown";
+			// pick first name that doesn't contain Observable in the class name
+			String name = "Unknown";
+			for (StackTraceElement element : stackTrace) {
+				if (!element.getClassName().contains("Observable")) {
+					name = element.toString();
+					break;
+				}
+			}
+			this.name = name;
 			this.delegate = delegate;
 			this.timedOutAt = System.currentTimeMillis() + timeoutInMilliseconds;
 		}
@@ -586,7 +594,15 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 
 		public ObservableCallable(@Nonnull Callable<V> delegate, long timeout) {
 			final StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
-			this.name = stackTrace.length > 1 ? stackTrace[1].toString() : "Unknown";
+			// pick first name that doesn't contain Observable in the class name
+			String name = "Unknown";
+			for (StackTraceElement element : stackTrace) {
+				if (!element.getClassName().contains("Observable")) {
+					name = element.toString();
+					break;
+				}
+			}
+			this.name = name;
 			this.delegate = delegate;
 			this.timedOutAt = System.currentTimeMillis() + timeout;
 		}

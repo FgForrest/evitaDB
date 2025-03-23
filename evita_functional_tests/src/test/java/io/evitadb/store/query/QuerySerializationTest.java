@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -69,8 +69,16 @@ public class QuerySerializationTest {
 	}
 
 	@Test
+	void shouldSerializeHeadConstraints() {
+		assertSerializationRound(collection("a"));
+		assertSerializationRound(label("a", "b"));
+		assertSerializationRound(head(collection("a"), label("a", "b"), label("c", "d")));
+	}
+
+	@Test
 	void shouldSerializeFilteringConstraints() {
 		assertSerializationRound(filterBy(attributeEquals("a", "b")));
+		assertSerializationRound(filterBy(attributeEquals("a", "b"), attributeIs("d", AttributeSpecialValue.NULL)));
 		assertSerializationRound(and(attributeEquals("a", "b"), attributeEquals("c", "d")));
 		assertSerializationRound(or(attributeEquals("a", "b"), attributeEquals("c", "d")));
 		assertSerializationRound(not(attributeEquals("a", "b")));

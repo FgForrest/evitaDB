@@ -96,7 +96,7 @@ public class EvitaQLQueryVisitor extends EvitaQLBaseVisitor<Query> {
         if (headConstraints.isEmpty()) {
             return null;
         }
-        if ((headConstraints.size() > 1) || !(headConstraints.get(0) instanceof Collection)) {
+        if ((headConstraints.size() > 1) || !(headConstraints.get(0) instanceof HeadConstraint || headConstraints.get(0) instanceof Collection)) {
             throw new EvitaSyntaxException(
                 ctx,
                 "Query can have only one top level head constraint."

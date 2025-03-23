@@ -1,0 +1,26 @@
+# This job notifies internal Mattermost channel about the release
+
+name: Notify Mattermost on Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  notify:
+    # Ensure we only have read access to the repo
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send message to Mattermost
+        uses: mattermost/action-mattermost-notify@b7d118e440bf2749cd18a4a8c88e7092e696257a # v2.0.0
+        with:
+          MATTERMOST_WEBHOOK_URL: ${{ secrets.MM_WEBHOOK_URL }}
+          PAYLOAD: |-
+            {
+              "text": "## 🎉 evitaDB ${{ github.event.release.tag_name }} released!\n\n**Release Notes**:\\n${{ github.event.release.body }}",
+              "color":"#31bf2c",
+              "username": "${{ github.triggering_actor }}",
+              "icon": "https://raw.githubusercontent.com/FgForrest/evitaDB/dev/documentation/assets/img/evita.png"
+            }

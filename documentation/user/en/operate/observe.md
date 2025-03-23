@@ -528,6 +528,36 @@ in [Logback](https://logback.qos.ch/index.html) this can be done using `%X{trace
 </encoder>
 ```
 
+## Traffic recording
+
+In addition to the observability tools mentioned above, evitaDB also offers the ability to record all incoming traffic 
+to the server. This feature is useful for debugging and development purposes, as it allows you to play back the recorded
+traffic and analyse the behaviour of the server in detail. The traffic recording feature is disabled by default and must
+be enabled in the server [configuration](../operate/configure.md#traffic-recording-configuration).
+
+These settings are recommended for local development:
+
+```yaml
+  trafficRecording:
+    enabled: true
+    sourceQueryTracking: true      
+    trafficFlushIntervalInMilliseconds: 0
+```
+
+For test/staging environments, omit `trafficFlushIntervalInMilliseconds` and leave it at the default. If you enable
+traffic logging in production, disable `sourceQueryTracking` as you won't normally need to access the query source code 
+in production. In production you'll probably want to set a sampling rate using `trafficSamplingPercentage`.
+
+Besides having access to the `Active Traffic Recording` tab in evitaLab, where you can list through all sessions, 
+queries, mutations and entity fetches, you can also issue a traffic reporting task that will save the traffic data in 
+a ZIP file and make it available for download. This file can be used for further analysis or to replay the traffic on 
+different evitaDB instances.
+
+The recorded traffic can be browsed and filtered in evitaLab and any query can be easily executed in the corresponding 
+query console on the current dataset. Records can also be filtered by custom [labels](../query/header/header.md#label), 
+traceIds or protocol types. You can easily isolate sets of traffic records that relate to a single business case, such 
+as a single page rendering or a single API call.
+
 ## Reference documentation
 
 <MDInclude>[Java Flight Recorder events](/documentation/user/en/operate/reference/jfr-events.md)</MDInclude>

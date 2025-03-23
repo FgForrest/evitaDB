@@ -63,7 +63,7 @@ To integrate evitaDB into your project, use the following steps:
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_db</artifactId>
-    <version>2024.10.0</version>
+    <version>2025.1.0</version>
     <type>pom</type>
 </dependency>
 ```
@@ -108,7 +108,7 @@ exception when you enable the corresponding API in evitaDB's configuration.
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_external_api_grpc</artifactId>
-    <version>2024.10.0</version>
+    <version>2025.1.0</version>
     <type>pom</type>
 </dependency>
 ```
@@ -128,7 +128,7 @@ implementation 'io.evitadb:evita_external_api_grpc:2024.10.0'
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_external_api_graphql</artifactId>
-    <version>2024.10.0</version>
+    <version>2025.1.0</version>
     <type>pom</type>
 </dependency>
 ```
@@ -148,7 +148,7 @@ implementation 'io.evitadb:evita_external_api_graphql:2024.10.0'
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_external_api_rest</artifactId>
-    <version>2024.10.0</version>
+    <version>2025.1.0</version>
     <type>pom</type>
 </dependency>
 ```

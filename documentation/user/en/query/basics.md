@@ -64,14 +64,14 @@ The grammar of a query is as follows:
 The grammar of a full query is as follows:
 </LS>
 
-<SourceCodeTabs langSpecificTabOnly>
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Example of grammar of a query](/documentation/user/en/query/examples/grammar.evitaql)
 </SourceCodeTabs>
 
 Or more complex one:
 
-<SourceCodeTabs langSpecificTabOnly>
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Example of grammar of a complex query](/documentation/user/en/query/examples/complexGrammar.evitaql)
 </SourceCodeTabs>
@@ -134,7 +134,7 @@ I.e. the following query is still a valid query and represents the simplest quer
 
 </LS>
 
-<SourceCodeTabs langSpecificTabOnly>
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Example of the simplest query](/documentation/user/en/query/examples/simplestQuery.evitaql)
 </SourceCodeTabs>
@@ -142,7 +142,7 @@ I.e. the following query is still a valid query and represents the simplest quer
 ... or even this one (although it is recommended to keep the order for better readability:
 `head`, `filterBy`, `orderBy`, `require`):
 
-<SourceCodeTabs langSpecificTabOnly>
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Example random order of query parts](/documentation/user/en/query/examples/randomOrderQuery.evitaql)
 </SourceCodeTabs>
