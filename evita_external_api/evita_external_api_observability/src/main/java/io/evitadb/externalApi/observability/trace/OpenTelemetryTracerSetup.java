@@ -29,6 +29,7 @@ import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.evitadb.utils.Assert;
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.baggage.propagation.W3CBaggagePropagator;
+import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
 import io.opentelemetry.context.ContextKey;
@@ -41,7 +42,6 @@ import io.opentelemetry.sdk.resources.Resource;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.SpanProcessor;
 import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
-import io.opentelemetry.semconv.ResourceAttributes;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -90,7 +90,9 @@ public class OpenTelemetryTracerSetup {
 	 */
 	@Nonnull
 	private static OpenTelemetry initializeOpenTelemetry(@Nonnull TracingConfig tracingConfig) {
-		final Resource resource = Resource.getDefault().toBuilder().put(ResourceAttributes.SERVICE_NAME, tracingConfig.serviceName()).build();
+		final Resource resource = Resource.getDefault().toBuilder()
+			.put(AttributeKey.stringKey("service.name"), tracingConfig.serviceName())
+			.build();
 
 		final SdkTracerProvider sdkTracerProvider = SdkTracerProvider.builder()
 			.addSpanProcessor(getSpanProcessor(tracingConfig))
