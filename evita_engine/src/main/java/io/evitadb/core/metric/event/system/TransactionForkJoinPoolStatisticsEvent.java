@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,7 +21,8 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.metric.event.cache;
+package io.evitadb.core.metric.event.system;
+
 
 import jdk.jfr.Description;
 import jdk.jfr.Label;
@@ -29,20 +30,17 @@ import jdk.jfr.Name;
 import jdk.jfr.Period;
 
 /**
- * Event that is fired when a transaction is started.
+ * Event related to request thread pool statistics.
+ *
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-@Name(AbstractCacheEvent.PACKAGE_NAME + ".CacheStatisticsUpdated")
-@Description("Event that is fired periodically to update cache statistics.")
-@Label("Cache statistics updated")
+@Name(AbstractSystemEvent.PACKAGE_NAME + ".TransactionExecutor")
+@Description("Event that is fired on regular intervals to track transaction executor statistics.")
+@Label("Transaction executor statistics")
 @Period("1m")
-public class CacheStatisticsUpdatedEvent extends AbstractCacheStatisticsRelatedEvent {
+public class TransactionForkJoinPoolStatisticsEvent extends AbstractForkJoinPoolStatisticsEvent {
 
-	public CacheStatisticsUpdatedEvent(
-		long cacheHitsTotal,
-		long cacheMissesTotal,
-		long cacheEnrichmentsTotal,
-		long cacheInitializationsTotal
-	) {
-		super(cacheHitsTotal, cacheMissesTotal, cacheEnrichmentsTotal, cacheInitializationsTotal);
+	public TransactionForkJoinPoolStatisticsEvent(long steals, long queued, int active, int running) {
+		super(steals, queued, active, running);
 	}
 }

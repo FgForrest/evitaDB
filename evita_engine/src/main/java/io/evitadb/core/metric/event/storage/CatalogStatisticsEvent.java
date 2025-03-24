@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import io.evitadb.api.observability.annotation.ExportMetric;
 import jdk.jfr.Description;
 import jdk.jfr.Label;
 import jdk.jfr.Name;
+import jdk.jfr.Period;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -43,6 +44,7 @@ import java.time.OffsetDateTime;
 @Description("Event that is fired when a new catalog version is flushed.")
 @Label("Catalog flushed")
 @Getter
+@Period
 public class CatalogStatisticsEvent extends AbstractStorageEvent {
 
 	@Label("Entity collection count")
