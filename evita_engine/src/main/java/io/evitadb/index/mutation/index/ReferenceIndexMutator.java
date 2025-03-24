@@ -126,23 +126,11 @@ public interface ReferenceIndexMutator {
 		);
 
 		if (referenceIndex != null) {
-			// we need to index entity primary key into the referenced entity index for all attributes
-			final AttributeSchema attributeSchema = attributeSchemaProvider.apply(attributeMutation.getAttributeKey().attributeName());
-			if (ReferencedEntityPredecessor.class.isAssignableFrom(attributeSchema.getPlainType())) {
-				executor.executeWithDifferentPrimaryKeyToIndex(
-					indexType -> referenceKey.primaryKey(),
-					() -> executor.updateAttribute(
-						attributeMutation,
-						attributeSchemaProvider,
-						compoundSchemaProvider,
-						existingValueAccessorFactory,
-						referenceIndex,
-						false,
-						true
-					)
-				);
-			} else {
-				executor.updateAttribute(
+			executeWithProperPrimaryKey(
+				executor, referenceKey,
+				attributeMutation.getAttributeKey().attributeName(),
+				attributeSchemaProvider,
+				() -> executor.updateAttribute(
 					attributeMutation,
 					attributeSchemaProvider,
 					compoundSchemaProvider,
@@ -150,8 +138,8 @@ public interface ReferenceIndexMutator {
 					referenceIndex,
 					false,
 					true
-				);
-			}
+				)
+			);
 		}
 	}
 
@@ -567,6 +555,36 @@ public interface ReferenceIndexMutator {
 	}
 
 	/**
+	 * Executes a given action with the correct primary key for indexing, based on the attribute schema type.
+	 * If the attribute schema represents a type assignable from {@code ReferencedEntityPredecessor},
+	 * the execution is performed under a different primary key derived from the reference key.
+	 * Otherwise, the supplied action is executed as is.
+	 *
+	 * @param executor                The {@link EntityIndexLocalMutationExecutor} used to manage and execute mutations.
+	 * @param referenceKey            The {@link ReferenceKey} representing the reference entity and its primary key.
+	 * @param attributeName           The name of the attribute being processed.
+	 * @param attributeSchemaProvider A function that provides the {@link AttributeSchema} for a given attribute name.
+	 * @param lambda                  The action to execute, typically an indexing operation or similar procedure.
+	 */
+	private static void executeWithProperPrimaryKey(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ReferenceKey referenceKey,
+		@Nonnull String attributeName,
+		@Nonnull Function<String, AttributeSchema> attributeSchemaProvider,
+		@Nonnull Runnable lambda
+	) {
+		// we need to index entity primary key into the referenced entity index for all attributes
+		final AttributeSchema attributeSchema = attributeSchemaProvider.apply(attributeName);
+		if (ReferencedEntityPredecessor.class.isAssignableFrom(attributeSchema.getPlainType())) {
+			executor.executeWithDifferentPrimaryKeyToIndex(
+				indexType -> referenceKey.primaryKey(), lambda
+			);
+		} else {
+			lambda.run();
+		}
+	}
+
+	/**
 	 * Method indexes all existing indexable data for passed entity / referenced entity combination in passed indexes.
 	 */
 	private static void indexAllExistingData(
@@ -698,17 +716,21 @@ public interface ReferenceIndexMutator {
 			existingDataSupplierFactory.getReferenceAttributeValueSupplier(referenceKey)
 				.getAttributeValues()
 				.forEach(attribute ->
-					AttributeIndexMutator.executeAttributeUpsert(
-						executor,
+					executeWithProperPrimaryKey(
+						executor, referenceKey, attribute.key().attributeName(),
 						referenceAttributeSchemaProvider,
-						referenceCompoundsSchemaProvider,
-						NO_EXISTING_VALUE_SUPPLIER,
-						targetIndex,
-						attribute.key(),
-						Objects.requireNonNull(attribute.value()),
-						false,
-						false,
-						undoActionConsumer
+						() -> AttributeIndexMutator.executeAttributeUpsert(
+							executor,
+							referenceAttributeSchemaProvider,
+							referenceCompoundsSchemaProvider,
+							NO_EXISTING_VALUE_SUPPLIER,
+							targetIndex,
+							attribute.key(),
+							Objects.requireNonNull(attribute.value()),
+							false,
+							false,
+							undoActionConsumer
+						)
 					)
 				);
 		}
@@ -838,16 +860,20 @@ public interface ReferenceIndexMutator {
 			referenceAttributeValueSupplier
 				.getAttributeValues()
 				.forEach(attribute ->
-					AttributeIndexMutator.executeAttributeRemoval(
-						executor,
+					executeWithProperPrimaryKey(
+						executor, referenceKey, attribute.key().attributeName(),
 						referenceAttributeSchemaProvider,
-						referenceCompoundsSchemaProvider,
-						referenceAttributeValueSupplier,
-						targetIndex,
-						attribute.key(),
-						false,
-						false,
-						undoActionConsumer
+						() -> AttributeIndexMutator.executeAttributeRemoval(
+							executor,
+							referenceAttributeSchemaProvider,
+							referenceCompoundsSchemaProvider,
+							referenceAttributeValueSupplier,
+							targetIndex,
+							attribute.key(),
+							false,
+							false,
+							undoActionConsumer
+						)
 					)
 				);
 		}
