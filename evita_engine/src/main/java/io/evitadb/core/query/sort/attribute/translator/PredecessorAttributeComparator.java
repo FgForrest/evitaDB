@@ -221,7 +221,7 @@ public class PredecessorAttributeComparator implements EntityComparator {
 									final ReferenceKey theRefKey = rsrp.getReferenceKey();
 									return entity.getReference(theRefKey.referenceName(), theRefKey.primaryKey())
 										.map(it -> it.getAttribute(this.attributeName) != null)
-										.orElse(null);
+										.orElse(false);
 								})
 							.findFirst()
 							.map(ReferenceSortedRecordsSupplier::getReferenceKey)
