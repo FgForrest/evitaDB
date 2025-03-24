@@ -50,7 +50,63 @@ jobs:
         minor-identifier: '/feat(?:\\([^)]+\\))?:/'
         hotfix-branch-pattern: 'release_.*'
 
+    - name: Determine release branch name
+      id: release_branch
+      if: github.ref == 'refs/heads/master'
+      run: |
+        # Extract version without 'v' prefix and remove patch version
+        VERSION="${{ steps.release_version.outputs.version }}"
+        VERSION_WITHOUT_PREFIX="${VERSION#v}"
+        MAJOR_MINOR=$(echo "$VERSION_WITHOUT_PREFIX" | awk -F. '{print $1"."$2}')
+        RELEASE_BRANCH="release_${MAJOR_MINOR//./-}"
+        echo "branch=$RELEASE_BRANCH" >> $GITHUB_OUTPUT
+        echo "Release branch: $RELEASE_BRANCH"
+
+    - name: Check if release branch exists
+      id: check_branch
+      if: github.ref == 'refs/heads/master'
+      run: |
+        RELEASE_BRANCH="${{ steps.release_branch.outputs.branch }}"
+        git fetch origin
+        if git ls-remote --heads origin $RELEASE_BRANCH | grep -q $RELEASE_BRANCH; then
+          echo "exists=true" >> $GITHUB_OUTPUT
+          echo "Release branch $RELEASE_BRANCH exists"
+        else
+          echo "exists=false" >> $GITHUB_OUTPUT
+          echo "Release branch $RELEASE_BRANCH does not exist"
+        fi
+
+    - name: Create release branch
+      if: github.ref == 'refs/heads/master' && steps.check_branch.outputs.exists == 'false'
+      run: |
+        RELEASE_BRANCH="${{ steps.release_branch.outputs.branch }}"
+        git checkout -b $RELEASE_BRANCH
+        git push origin $RELEASE_BRANCH
+        echo "Created new release branch: $RELEASE_BRANCH"
+
+    - name: Update release branch
+      if: github.ref == 'refs/heads/master' && steps.check_branch.outputs.exists == 'true'
+      run: |
+        RELEASE_BRANCH="${{ steps.release_branch.outputs.branch }}"
+        git fetch origin
+        git checkout $RELEASE_BRANCH
+        if ! git merge --ff-only origin/master; then
+          echo "Error: Cannot fast-forward release branch $RELEASE_BRANCH to match master branch."
+          echo "The release branch may have commits that are not in the master branch."
+          exit 1
+        fi
+        git push origin $RELEASE_BRANCH
+        echo "Fast-forwarded release branch: $RELEASE_BRANCH"
+
+    # Skip the rest of the workflow if we're on master branch
+    - name: Skip build on master branch
+      if: github.ref == 'refs/heads/master'
+      run: |
+        echo "Skipping build on master branch. The build will run on the release branch."
+        exit 0
+
     - name: Setup Java JDK
+      if: startsWith(github.ref, 'refs/heads/release_')
       uses: actions/setup-java@7a6d8a8234af8eb26422e24e3006232cccaa061b # v4.6.0 setup JDK 17 for building
       with:
         distribution: 'temurin'
@@ -63,6 +119,7 @@ jobs:
         gpg-passphrase: MAVEN_GPG_PASSPHRASE
 
     - name: Build with Maven       # run Maven without tests (tests must pass in dev branch)
+      if: startsWith(github.ref, 'refs/heads/release_')
       run: |      
         export SANITIZED_VERSION=$(echo "$EVITA_BUILD_VERSION" | tr -d '\r\n')
         export NEW_VERSION="$( echo "${SANITIZED_VERSION}" | sed 's/^v//; s/-.*//')"
@@ -77,6 +134,7 @@ jobs:
         MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
 
     - name: Create distribution directory
+      if: startsWith(github.ref, 'refs/heads/release_')
       run: |
         mkdir -p ./dist
         cp LICENSE ./dist
@@ -85,6 +143,7 @@ jobs:
         cp 'evita_server/dist/logback.xml' './dist'
 
     - name: Create .zip of dist
+      if: startsWith(github.ref, 'refs/heads/release_')
       uses: thedoctor0/zip-release@b57d897cb5d60cb78b51a507f63fa184cfe35554 # v0.7.6
       with:
         type: 'zip'
@@ -92,6 +151,7 @@ jobs:
         path: './dist'
 
     - name: Create .tar.gz of dist
+      if: startsWith(github.ref, 'refs/heads/release_')
       uses: thedoctor0/zip-release@b57d897cb5d60cb78b51a507f63fa184cfe35554 # v0.7.6
       with:
         type: 'tar'
@@ -99,6 +159,7 @@ jobs:
         path: './dist'
 
     - name: Create release
+      if: startsWith(github.ref, 'refs/heads/release_')
       id: create_release
       uses: release-drafter/release-drafter@b1476f6e6eb133afa41ed8589daba6dc69b4d3f5 # v6.1.0
       with:
@@ -108,7 +169,7 @@ jobs:
 
     - name: Upload dist.zip to release
       uses: actions/upload-release-asset@64e5e85fc528f162d7ba7ce2d15a3bb67efb3d80 # v1.0.1
-      if: success()
+      if: startsWith(github.ref, 'refs/heads/release_') && success()
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
         asset_path: ./dist.zip
@@ -117,7 +178,7 @@ jobs:
 
     - name: Upload dist.tar.gz to release
       uses: actions/upload-release-asset@64e5e85fc528f162d7ba7ce2d15a3bb67efb3d80 # v1.0.1
-      if: success()
+      if: startsWith(github.ref, 'refs/heads/release_') && success()
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
         asset_path: ./dist.tar.gz
@@ -126,14 +187,14 @@ jobs:
 
     - name: Upload evitaDB server artifact   # upload `evita-server.jar` for `docker-latest.yml` to deploy to DockerHub
       uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
-      if: success()
+      if: startsWith(github.ref, 'refs/heads/release_') && success()
       with:
         name: evita-server.jar
         path: 'evita_server/target/evita-server.jar'
 
     - name: Upload evitaDB version.txt      # upload `version.txt` for `docker-latest.yml` to deploy to DockerHub
       uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
-      if: success()
+      if: startsWith(github.ref, 'refs/heads/release_') && success()
       with:
         name: version.txt
         path: 'version.txt'
