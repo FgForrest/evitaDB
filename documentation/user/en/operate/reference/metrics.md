@@ -25,6 +25,8 @@
     <dd><strong>HTTP status code</strong>: The HTTP response status code that was sent to client.</dd>
     <dt>initiator</dt>
     <dd><strong>Initiator of the call</strong>: Initiator of the gRPC call (either client or server).</dd>
+    <dt>instanceId</dt>
+    <dd><strong>Server instance id</strong>: Unique server name taken from the configuration file.</dd>
     <dt>name</dt>
     <dd><strong>Logical file name</strong>: The logical name of the file that was flushed. Identifies the file more precisely.</dd>
     <dt>operationId</dt>
@@ -53,6 +55,8 @@ duration of the probe.</dd>
     <dd><strong>REST instance type</strong>: Domain of the REST API used in connection with this event/metric: SYSTEM, or CATALOG</dd>
     <dt>restOperationType</dt>
     <dd><strong>REST operation type</strong>: The type of operation that was executed. One of: QUERY, MUTATION.</dd>
+    <dt>serverVersion</dt>
+    <dd><strong>Server version</strong>: Precise version of the evitaDB server.</dd>
     <dt>serviceName</dt>
     <dd><strong>Service name</strong>: Name of the gRPC service that was called (the name of the Java class).</dd>
     <dt>stage</dt>
@@ -254,10 +258,6 @@ duration of the probe.</dd>
   <dd>Duration of OffsetIndex compaction.<br/><br/><strong>Labels:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
   <dt><code>io_evitadb_storage_data_file_compact_total</code> (COUNTER)</dt>
   <dd>OffsetIndex compaction.<br/><br/><strong>Labels:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
-  <dt><code>io_evitadb_storage_evita_dbcomposition_changed_catalogs</code> (GAUGE)</dt>
-  <dd><strong>Catalog count</strong>: Number of accessible catalogs managed by this instance of evitaDB.</dd>
-  <dt><code>io_evitadb_storage_evita_dbcomposition_changed_corrupted_catalogs</code> (GAUGE)</dt>
-  <dd><strong>Corrupted catalog count</strong>: Number of corrupted catalogs that evitaDB could not load.</dd>
   <dt><code>io_evitadb_storage_observable_output_change_occupied_memory_bytes</code> (GAUGE)</dt>
   <dd><strong>Memory occupied by opened output buffers in Bytes</strong>: The amount of memory in bytes occupied by open OffsetIndex output buffers.</dd>
   <dt><code>io_evitadb_storage_observable_output_change_opened_buffers</code> (GAUGE)</dt>
@@ -305,46 +305,88 @@ duration of the probe.</dd>
   <dd>Background tasks started<br/><br/><strong>Labels:</strong> <Term>taskName</Term><br/></dd>
   <dt><code>io_evitadb_system_background_task_timed_out_timed_out_tasks</code> (COUNTER)</dt>
   <dd><strong>Timed out tasks</strong>: Number of timed out and canceled tasks.<br/><br/><strong>Labels:</strong> <Term>taskName</Term><br/></dd>
-  <dt><code>io_evitadb_system_evita_started_cache_anteroom_record_limit</code> (GAUGE)</dt>
-  <dd><strong>Maximum number of records in the cache anteroom</strong>: Configured threshold for the maximum number of records in the cache anteroom (`cache.anteroomRecordCount`).</dd>
-  <dt><code>io_evitadb_system_evita_started_cache_reevaluation_seconds</code> (GAUGE)</dt>
-  <dd><strong>Cache reevaluation interval in seconds</strong>: Configured threshold for the cache reevaluation interval in seconds (`cache.reevaluateEachSeconds`).</dd>
-  <dt><code>io_evitadb_system_evita_started_cache_size_in_bytes</code> (GAUGE)</dt>
-  <dd><strong>Maximum cache size in Bytes</strong>: Configured threshold for the maximum cache size in Bytes (`cache.cacheSizeInBytes`).</dd>
-  <dt><code>io_evitadb_system_evita_started_compaction_file_size_threshold_bytes</code> (GAUGE)</dt>
-  <dd><strong>Minimum file size threshold to start compression in bytes</strong>: Configured threshold for the minimum file size threshold to start compression in bytes (`storage.fileSizeCompactionThresholdBytes`).</dd>
-  <dt><code>io_evitadb_system_evita_started_compaction_minimal_active_record_share_percent</code> (GAUGE)</dt>
-  <dd><strong>Minimum percentage of active records in the file to start compacting in %.</strong>: Configured threshold for the minimum percentage of active records in the file to start compacting in % (`storage.minimalActiveRecordShare`).</dd>
-  <dt><code>io_evitadb_system_evita_started_query_timeout_seconds</code> (GAUGE)</dt>
-  <dd><strong>Read-only request timeout in seconds</strong>: Configured threshold for the read-only request timeout in seconds (`server.queryTimeoutInMilliseconds`).</dd>
-  <dt><code>io_evitadb_system_evita_started_read_only_handles_limit</code> (GAUGE)</dt>
-  <dd><strong>Maximum number of open read-only handles</strong>: Configured threshold for the maximum number of open read-only handles (`storage.maxOpenedReadHandles`).</dd>
-  <dt><code>io_evitadb_system_evita_started_request_max_threads</code> (GAUGE)</dt>
-  <dd><strong>Maximum number of threads to handle read-only requests</strong>: Configured threshold for the maximum number of threads to handle read-only requests (`server.requestThreadPool.maxThreadCount`).</dd>
-  <dt><code>io_evitadb_system_evita_started_request_max_threads_queue_size</code> (GAUGE)</dt>
-  <dd><strong>Maximum queue size for read-only request handling</strong>: Configured threshold for the maximum queue size for read-only request handling (`server.requestThreadPool.queueSize`).</dd>
-  <dt><code>io_evitadb_system_evita_started_service_max_threads</code> (GAUGE)</dt>
-  <dd><strong>Maximum number of threads for service tasks</strong>: Configured threshold for the maximum number of threads for service tasks (`server.serviceThreadPool.maxThreadCount`).</dd>
-  <dt><code>io_evitadb_system_evita_started_service_max_threads_queue_size</code> (GAUGE)</dt>
-  <dd><strong>Maximum queue size for service tasks</strong>: Configured threshold for the maximum queue size for service tasks (`server.serviceThreadPool.queueSize`).</dd>
-  <dt><code>io_evitadb_system_evita_started_session_max_inactive_age_seconds</code> (GAUGE)</dt>
-  <dd><strong>Maximum session inactivity time in seconds</strong>: Configured threshold for the maximum session inactivity time in seconds (`server.closeSessionsAfterSecondsOfInactivity`).</dd>
-  <dt><code>io_evitadb_system_evita_started_total</code> (COUNTER)</dt>
-  <dd>Evita started total</dd>
-  <dt><code>io_evitadb_system_evita_started_transaction_max_threads</code> (GAUGE)</dt>
-  <dd><strong>Maximum number of threads for read/write requests</strong>: Configured threshold for the maximum number of threads for read/write requests (`server.transactionThreadPool.maxThreadCount`).</dd>
-  <dt><code>io_evitadb_system_evita_started_transaction_max_threads_queue_size</code> (GAUGE)</dt>
-  <dd><strong>Maximum queue size for read/write requests</strong>: Configured threshold for the maximum queue size for read/write requests (`server.transactionThreadPool.queueSize`).</dd>
-  <dt><code>io_evitadb_system_evita_started_transaction_memory_buffer_limit_size_bytes</code> (GAUGE)</dt>
-  <dd><strong>Off-heap memory buffer size for transactions in Bytes</strong>: Configured threshold for the off-heap memory buffer size for transactions in Bytes (`transaction.transactionMemoryBufferLimitSizeBytes`).</dd>
-  <dt><code>io_evitadb_system_evita_started_transaction_memory_regions</code> (GAUGE)</dt>
-  <dd><strong>Number of off-heap memory regions for transactions</strong>: Configured threshold for the number of off-heap memory regions for transactions (`transaction.transactionMemoryRegionCount`).</dd>
-  <dt><code>io_evitadb_system_evita_started_transaction_timeout_seconds</code> (GAUGE)</dt>
-  <dd><strong>Read/write request timeout in seconds</strong>: Configured threshold for the read/write request timeout in seconds (`server.transactionTimeoutInMilliseconds`).</dd>
-  <dt><code>io_evitadb_system_evita_started_wal_max_file_count_kept</code> (GAUGE)</dt>
-  <dd><strong>Maximum number of write-ahead log files to keep</strong>: Configured threshold for the maximum number of write-ahead log files to keep (`transaction.walFileCountKept`).</dd>
-  <dt><code>io_evitadb_system_evita_started_wal_max_file_size_bytes</code> (GAUGE)</dt>
-  <dd><strong>Maximum write-ahead log file size in Bytes</strong>: Configured threshold for the maximum write-ahead log file size in Bytes (`transaction.walFileSizeBytes`).</dd>
+  <dt><code>io_evitadb_system_evita_statistics_cache_anteroom_record_limit</code> (GAUGE)</dt>
+  <dd><strong>Maximum number of records in the cache anteroom</strong>: Configured threshold for the maximum number of records in the cache anteroom (`cache.anteroomRecordCount`).<br/><br/><strong>Labels:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dt><code>io_evitadb_system_evita_statistics_cache_reevaluation_seconds</code> (GAUGE)</dt>
+  <dd><strong>Cache reevaluation interval in seconds</strong>: Configured threshold for the cache reevaluation interval in seconds (`cache.reevaluateEachSeconds`).<br/><br/><strong>Labels:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dt><code>io_evitadb_system_evita_statistics_cache_size_in_bytes</code> (GAUGE)</dt>
+  <dd><strong>Maximum cache size in Bytes</strong>: Configured threshold for the maximum cache size in Bytes (`cache.cacheSizeInBytes`).<br/><br/><strong>Labels:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dt><code>io_evitadb_system_evita_statistics_catalogs</code> (GAUGE)</dt>
+  <dd><strong>Catalog count</strong>: Number of accessible catalogs managed by this instance of evitaDB.<br/><br/><strong>Labels:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dt><code>io_evitadb_system_evita_statistics_close_sessions_after_seconds_of_inactivity</code> (GAUGE)</dt>
+  <dd><strong>Close sessions after inactivity</strong>: Number of seconds after which the session is closed if it is inactive.<br/><br/><strong>Labels:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dt><code>io_evitadb_system_evita_statistics_compaction_file_size_threshold_bytes</code> (GAUGE)</dt>
+  <dd><strong>Minimum file size threshold to start compression in bytes</strong>: Configured threshold for the minimum file size threshold to start compression in bytes (`storage.fileSizeCompactionThresholdBytes`).<br/><br/><strong>Labels:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dt><code>io_evitadb_system_evita_statistics_compaction_minimal_active_record_share_percent</code> (GAUGE)</dt>
+  <dd><strong>Minimum percentage of active records in the file to start compacting in %.</strong>: Configured threshold for the minimum percentage of active records in the file to start compacting in % (`storage.minimalActiveRecordShare`).<br/><br/><strong>Labels:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dt><code>io_evitadb_system_evita_statistics_corrupted_catalogs</code> (GAUGE)</dt>
+  <dd><strong>Corrupted catalog count</strong>: Number of corrupted catalogs that evitaDB could not load.<br/><br/><strong>Labels:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dt><code>io_evitadb_system_evita_statistics_query_timeout_seconds</code> (GAUGE)</dt>
+  <dd><strong>Read-only request timeout in seconds</strong>: Configured threshold for the read-only request timeout in seconds (`server.queryTimeoutInMilliseconds`).<br/><br/><strong>Labels:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dt><code>io_evitadb_system_evita_statistics_read_only_handles_limit</code> (GAUGE)</dt>
+  <dd><strong>Maximum number of open read-only handles</strong>: Configured threshold for the maximum number of open read-only handles (`storage.maxOpenedReadHandles`).<br/><br/><strong>Labels:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dt><code>io_evitadb_system_evita_statistics_request_max_threads</code> (GAUGE)</dt>
+  <dd><strong>Maximum number of threads to handle read-only requests</strong>: Configured threshold for the maximum number of threads to handle read-only requests (`server.requestThreadPool.maxThreadCount`).<br/><br/><strong>Labels:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dt><code>io_evitadb_system_evita_statistics_request_max_threads_queue_size</code> (GAUGE)</dt>
+  <dd><strong>Maximum queue size for read-only request handling</strong>: Configured threshold for the maximum queue size for read-only request handling (`server.requestThreadPool.queueSize`).<br/><br/><strong>Labels:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dt><code>io_evitadb_system_evita_statistics_service_max_threads</code> (GAUGE)</dt>
+  <dd><strong>Maximum number of threads for service tasks</strong>: Configured threshold for the maximum number of threads for service tasks (`server.serviceThreadPool.maxThreadCount`).<br/><br/><strong>Labels:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dt><code>io_evitadb_system_evita_statistics_service_max_threads_queue_size</code> (GAUGE)</dt>
+  <dd><strong>Maximum queue size for service tasks</strong>: Configured threshold for the maximum queue size for service tasks (`server.serviceThreadPool.queueSize`).<br/><br/><strong>Labels:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dt><code>io_evitadb_system_evita_statistics_session_max_inactive_age_seconds</code> (GAUGE)</dt>
+  <dd><strong>Maximum session inactivity time in seconds</strong>: Configured threshold for the maximum session inactivity time in seconds (`server.closeSessionsAfterSecondsOfInactivity`).<br/><br/><strong>Labels:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dt><code>io_evitadb_system_evita_statistics_time_travel_enabled</code> (GAUGE)</dt>
+  <dd><strong>Time travel enabled</strong>: Flag indicating whether the time travel is enabled.<br/><br/><strong>Labels:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dt><code>io_evitadb_system_evita_statistics_total</code> (COUNTER)</dt>
+  <dd>Evita started total<br/><br/><strong>Labels:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dt><code>io_evitadb_system_evita_statistics_traffic_recording_enabled</code> (GAUGE)</dt>
+  <dd><strong>Traffic recording enabled</strong>: Flag indicating whether the traffic recording is enabled.<br/><br/><strong>Labels:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dt><code>io_evitadb_system_evita_statistics_transaction_flush_frequency_in_millis</code> (GAUGE)</dt>
+  <dd><strong>Transaction flush frequency</strong>: Frequency of transaction flush in milliseconds.<br/><br/><strong>Labels:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dt><code>io_evitadb_system_evita_statistics_transaction_max_threads</code> (GAUGE)</dt>
+  <dd><strong>Maximum number of threads for read/write requests</strong>: Configured threshold for the maximum number of threads for read/write requests (`server.transactionThreadPool.maxThreadCount`).<br/><br/><strong>Labels:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dt><code>io_evitadb_system_evita_statistics_transaction_max_threads_queue_size</code> (GAUGE)</dt>
+  <dd><strong>Maximum queue size for read/write requests</strong>: Configured threshold for the maximum queue size for read/write requests (`server.transactionThreadPool.queueSize`).<br/><br/><strong>Labels:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dt><code>io_evitadb_system_evita_statistics_transaction_memory_buffer_limit_size_bytes</code> (GAUGE)</dt>
+  <dd><strong>Off-heap memory buffer size for transactions in Bytes</strong>: Configured threshold for the off-heap memory buffer size for transactions in Bytes (`transaction.transactionMemoryBufferLimitSizeBytes`).<br/><br/><strong>Labels:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dt><code>io_evitadb_system_evita_statistics_transaction_memory_regions</code> (GAUGE)</dt>
+  <dd><strong>Number of off-heap memory regions for transactions</strong>: Configured threshold for the number of off-heap memory regions for transactions (`transaction.transactionMemoryRegionCount`).<br/><br/><strong>Labels:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dt><code>io_evitadb_system_evita_statistics_transaction_timeout_seconds</code> (GAUGE)</dt>
+  <dd><strong>Read/write request timeout in seconds</strong>: Configured threshold for the read/write request timeout in seconds (`server.transactionTimeoutInMilliseconds`).<br/><br/><strong>Labels:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dt><code>io_evitadb_system_evita_statistics_wal_max_file_count_kept</code> (GAUGE)</dt>
+  <dd><strong>Maximum number of write-ahead log files to keep</strong>: Configured threshold for the maximum number of write-ahead log files to keep (`transaction.walFileCountKept`).<br/><br/><strong>Labels:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dt><code>io_evitadb_system_evita_statistics_wal_max_file_size_bytes</code> (GAUGE)</dt>
+  <dd><strong>Maximum write-ahead log file size in Bytes</strong>: Configured threshold for the maximum write-ahead log file size in Bytes (`transaction.walFileSizeBytes`).<br/><br/><strong>Labels:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dt><code>io_evitadb_system_request_fork_join_pool_statistics_active</code> (GAUGE)</dt>
+  <dd><strong>Workers active</strong>: An estimate of the number of threads that are currently stealing or executing tasks</dd>
+  <dt><code>io_evitadb_system_request_fork_join_pool_statistics_queued</code> (GAUGE)</dt>
+  <dd><strong>Tasks queued</strong>: An estimate of the total number of tasks currently held in queues by worker threads</dd>
+  <dt><code>io_evitadb_system_request_fork_join_pool_statistics_running</code> (GAUGE)</dt>
+  <dd><strong>Workers running</strong>: An estimate of the number of worker threads that are not blocked waiting to join tasks or for other managed synchronization threads</dd>
+  <dt><code>io_evitadb_system_request_fork_join_pool_statistics_steals</code> (COUNTER)</dt>
+  <dd><strong>Tasks stolen</strong>: Estimate of the total number of tasks stolen from one thread's work queue by another. The reported value underestimates the actual total number of steals when the pool is not quiescent</dd>
+  <dt><code>io_evitadb_system_scheduled_executor_statistics_active</code> (GAUGE)</dt>
+  <dd><strong>Tasks active</strong>: The approximate number of threads that are actively executing tasks</dd>
+  <dt><code>io_evitadb_system_scheduled_executor_statistics_completed</code> (COUNTER)</dt>
+  <dd><strong>Tasks completed</strong>: The approximate total number of tasks that have completed execution</dd>
+  <dt><code>io_evitadb_system_scheduled_executor_statistics_pool_core</code> (GAUGE)</dt>
+  <dd><strong>Minimal worker count</strong>: The core number of threads for the pool</dd>
+  <dt><code>io_evitadb_system_scheduled_executor_statistics_pool_max</code> (GAUGE)</dt>
+  <dd><strong>Max worker count</strong>: The maximum allowed number of threads in the pool</dd>
+  <dt><code>io_evitadb_system_scheduled_executor_statistics_pool_size</code> (GAUGE)</dt>
+  <dd><strong>Current worker count</strong>: The current number of threads in the pool</dd>
+  <dt><code>io_evitadb_system_scheduled_executor_statistics_queue_remaining</code> (GAUGE)</dt>
+  <dd><strong>Queue remaining</strong>: The number of additional elements that this queue can ideally accept without blocking</dd>
+  <dt><code>io_evitadb_system_scheduled_executor_statistics_queued</code> (GAUGE)</dt>
+  <dd><strong>Tasks queued</strong>: The approximate number of queued tasks that are waiting to be executed</dd>
+  <dt><code>io_evitadb_system_transaction_fork_join_pool_statistics_active</code> (GAUGE)</dt>
+  <dd><strong>Workers active</strong>: An estimate of the number of threads that are currently stealing or executing tasks</dd>
+  <dt><code>io_evitadb_system_transaction_fork_join_pool_statistics_queued</code> (GAUGE)</dt>
+  <dd><strong>Tasks queued</strong>: An estimate of the total number of tasks currently held in queues by worker threads</dd>
+  <dt><code>io_evitadb_system_transaction_fork_join_pool_statistics_running</code> (GAUGE)</dt>
+  <dd><strong>Workers running</strong>: An estimate of the number of worker threads that are not blocked waiting to join tasks or for other managed synchronization threads</dd>
+  <dt><code>io_evitadb_system_transaction_fork_join_pool_statistics_steals</code> (COUNTER)</dt>
+  <dd><strong>Tasks stolen</strong>: Estimate of the total number of tasks stolen from one thread's work queue by another. The reported value underestimates the actual total number of steals when the pool is not quiescent</dd>
 </dl>
 
 #### Transaction

@@ -86,8 +86,6 @@
   <dd>Event that is fired when a new catalog version is flushed.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/storage/DataFileCompactEvent.java</SourceClass> OffsetIndex compaction</dt>
   <dd>Event that is fired when an OffsetIndex file is compacted.</dd>
-  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/storage/EvitaDBCompositionChangedEvent.java</SourceClass> Evita composition changed</dt>
-  <dd>Event that is fired when the evitaDB composition changes.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/storage/ObservableOutputChangeEvent.java</SourceClass> ObservableOutput buffers</dt>
   <dd>Event that is fired when an ObservableOutput buffer count changes.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/storage/OffsetIndexFlushEvent.java</SourceClass> OffsetIndex flushed to disk</dt>
@@ -115,8 +113,14 @@
   <dd>Event that is fired when a background task is started.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/system/BackgroundTaskTimedOutEvent.java</SourceClass> Background task timed out</dt>
   <dd>Event that is raised when a background task has timed out and has been canceled.</dd>
-  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/system/EvitaStartedEvent.java</SourceClass> Evita started</dt>
+  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/system/EvitaStatisticsEvent.java</SourceClass> Evita started</dt>
   <dd>Event that is triggered when the evitaDB instance is started.</dd>
+  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/system/RequestForkJoinPoolStatisticsEvent.java</SourceClass> Request executor statistics</dt>
+  <dd>Event that is fired on regular intervals to track request executor statistics.</dd>
+  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/system/ScheduledExecutorStatisticsEvent.java</SourceClass> Scheduled executor statistics</dt>
+  <dd>Event that is fired on regular intervals to track scheduled executor statistics.</dd>
+  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/system/TransactionForkJoinPoolStatisticsEvent.java</SourceClass> Transaction executor statistics</dt>
+  <dd>Event that is fired on regular intervals to track transaction executor statistics.</dd>
 </dl>
 
 #### Transaction

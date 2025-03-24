@@ -656,17 +656,7 @@
 					<useResultFile>true</useResultFile>
 					<resultFileMinClasspathCount>2</resultFileMinClasspathCount>
 					<resultFile>${project.build.directory}/duplicate-finder-result.xml</resultFile>
-
 					<useDefaultResourceIgnoreList>true</useDefaultResourceIgnoreList>
-					<!-- TODO JNO - maybe remove? -->
-					<ignoredResourcePatterns>
-						<ignoredResourcePattern>^checkstyle\.xml$</ignoredResourcePattern>
-						<!-- com.github.java-json-tools:json-schema-validator -->
-						<ignoredResourcePattern>^draftv4\/schema$</ignoredResourcePattern>
-						<!-- jasperReports font extension  -->
-						<ignoredResourcePattern>^jasperreports_extension.properties$</ignoredResourcePattern>
-						<ignoredResourcePattern>^readme.html$</ignoredResourcePattern>
-					</ignoredResourcePatterns>
 				</configuration>
 			</plugin>
 			<plugin>
