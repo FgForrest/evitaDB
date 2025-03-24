@@ -41,6 +41,37 @@ jobs:
         ref: ${{ github.head_ref }}
         fetch-depth: 0
 
+    - name: Setup Java JDK
+      uses: actions/setup-java@7a6d8a8234af8eb26422e24e3006232cccaa061b # v4.6.0 setup JDK 17 for building
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+        cache: 'maven'
+        server-id: ossrh
+        server-username: MAVEN_USERNAME
+        server-password: MAVEN_CENTRAL_TOKEN
+        gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+        gpg-passphrase: MAVEN_GPG_PASSPHRASE
+
+    - name: Compilation Check
+      if: github.ref == 'refs/heads/master'
+      run: |
+        mvn -T 1C -B -Dmaven.test.skip=true compile --file pom.xml
+      env:
+        MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
+        MAVEN_CENTRAL_TOKEN: ${{ secrets.MAVEN_CENTRAL_TOKEN }}
+        MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+
+    - name: PGP Keys Check
+      if: github.ref == 'refs/heads/master'
+      run: |
+        mvn org.simplify4u.plugins:pgpverify-maven-plugin:check
+
+    - name: Duplicate Classes Check
+      if: github.ref == 'refs/heads/master'
+      run: |
+        mvn duplicate-finder:check
+
     - name: Resolve new release version
       id: release_version
       uses: lukashornych/semantic-calendar-version@bb0a07cf0ca71a0b2b4fed52114e28092e5cac81 #v1.2.0
@@ -104,19 +135,6 @@ jobs:
       run: |
         echo "Skipping build on master branch. The build will run on the release branch."
         exit 0
-
-    - name: Setup Java JDK
-      if: startsWith(github.ref, 'refs/heads/release_')
-      uses: actions/setup-java@7a6d8a8234af8eb26422e24e3006232cccaa061b # v4.6.0 setup JDK 17 for building
-      with:
-        distribution: 'temurin'
-        java-version: '17'
-        cache: 'maven'
-        server-id: ossrh
-        server-username: MAVEN_USERNAME
-        server-password: MAVEN_CENTRAL_TOKEN
-        gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
-        gpg-passphrase: MAVEN_GPG_PASSPHRASE
 
     - name: Build with Maven       # run Maven without tests (tests must pass in dev branch)
       if: startsWith(github.ref, 'refs/heads/release_')
