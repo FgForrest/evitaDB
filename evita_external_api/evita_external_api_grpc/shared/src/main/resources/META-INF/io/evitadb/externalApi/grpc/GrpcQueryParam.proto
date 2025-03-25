@@ -63,6 +63,8 @@ message GrpcQueryParam {
     GrpcFacetRelationType facetRelationType = 25;
     // The facetGroupRelationLevel enum value.
     GrpcFacetGroupRelationLevel facetGroupRelationLevel = 26;
+    // The facet traversal mode enum value.
+    GrpcTraversalMode traversalMode = 27;
 
     // The string array value.
     GrpcStringArray stringArrayValue = 101;
@@ -100,6 +102,7 @@ message GrpcQueryParam {
     GrpcOrderDirectionArray orderDirectionArrayValue = 117;
     // The empty hierarchical entity behaviour array value.
     GrpcEmptyHierarchicalEntityBehaviourArray emptyHierarchicalEntityBehaviourArrayValue = 118;
+    // The statistics base array value.
     GrpcStatisticsBaseArray statisticsBaseArrayValue = 119;
     // The statistics type array value.
     GrpcStatisticsTypeArray statisticsTypeArrayValue = 120;

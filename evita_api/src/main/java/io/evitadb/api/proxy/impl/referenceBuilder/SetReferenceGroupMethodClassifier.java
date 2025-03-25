@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -56,6 +56,7 @@ import java.io.Serializable;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
 
@@ -507,7 +508,7 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final ReferenceBuilder referenceBuilder = theState.getReferenceBuilder();
-			final int referencedGroupId = EvitaDataTypes.toTargetType((Serializable) args[0], int.class);
+			final int referencedGroupId = Objects.requireNonNull(EvitaDataTypes.toTargetType((Serializable) args[0], int.class));
 			final Object referencedEntityInstance = theState.getOrCreateReferencedEntityProxy(
 				theState.getEntitySchema(),
 				expectedType,

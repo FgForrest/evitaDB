@@ -26,6 +26,7 @@ package io.evitadb.externalApi.grpc.query;
 import io.evitadb.api.query.QueryParser;
 import io.evitadb.api.query.filter.AttributeSpecialValue;
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.query.order.TraversalMode;
 import io.evitadb.api.query.require.*;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ByteNumberRange;
@@ -162,6 +163,8 @@ public final class QueryConverter {
 			return toFacetRelationType(GrpcQueryParam.getFacetRelationType());
 		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.FACETGROUPRELATIONLEVEL) {
 			return toFacetGroupRelationLevel(GrpcQueryParam.getFacetGroupRelationLevel());
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.TRAVERSALMODE) {
+			return toTraversalMode(GrpcQueryParam.getTraversalMode());
 		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.EXPRESSIONVALUE) {
 			return GrpcQueryParam.getExpressionValue();
 		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.STRINGARRAYVALUE) {
@@ -321,6 +324,8 @@ public final class QueryConverter {
 			builder.setFacetRelationType(EvitaEnumConverter.toGrpcFacetRelationType(facetRelationType));
 		} else if (parameter instanceof final FacetGroupRelationLevel facetGroupRelationLevel) {
 			builder.setFacetGroupRelationLevel(EvitaEnumConverter.toGrpcFacetGroupRelationLevel(facetGroupRelationLevel));
+		} else if (parameter instanceof final TraversalMode traversalMode) {
+			builder.setTraversalMode(EvitaEnumConverter.toGrpcTraversalMode(traversalMode));
 		} else if (parameter instanceof Expression expression) {
 			builder.setExpressionValue(expression.toString());
 		} else if (parameter instanceof final String[] stringArrayValue) {

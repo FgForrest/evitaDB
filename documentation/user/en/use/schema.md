@@ -471,6 +471,10 @@ the behavior for NULL values (first/last) if the attribute is completely missing
 compound is then used in the `orderBy` clause of the query instead of specifying the multiple individual attributes to
 achieve the expected sorting behavior while maintaining the speed of the "pre-sorted" indexes.
 
+A sortable attribute compound is only created if at least one of its attributes is present in the entity. This fact is 
+crucial for the standard sorting mechanism of evitaDB, where such entities are passed to the next sorter defined in 
+the query (or sorted by the primary key in ascending order if no other sorter is defined).
+
 Sortable attribute compound schema can be made *deprecated*, which will be propagated to generated web API documentation.
 
 <Note type="info">

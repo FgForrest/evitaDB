@@ -33,6 +33,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import io.evitadb.api.query.filter.AttributeSpecialValue;
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.query.order.TraversalMode;
 import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
 import io.evitadb.api.query.require.FacetGroupRelationLevel;
 import io.evitadb.api.query.require.FacetRelationType;
@@ -70,7 +71,8 @@ public class GraphQLInputJsonPrinter {
 		StatisticsType.class,
 		Scope.class,
 		FacetGroupRelationLevel.class,
-		FacetRelationType.class
+		FacetRelationType.class,
+		TraversalMode.class
 	);
 
 	@Nonnull private final ObjectWriter constraintWriter;

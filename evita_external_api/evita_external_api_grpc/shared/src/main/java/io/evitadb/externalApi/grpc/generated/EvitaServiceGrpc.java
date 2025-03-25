@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -427,6 +427,21 @@ public final class EvitaServiceGrpc {
   }
 
   /**
+   * Creates a new blocking-style stub that supports all types of calls on the service
+   */
+  public static EvitaServiceBlockingV2Stub newBlockingV2Stub(
+      io.grpc.Channel channel) {
+    io.grpc.stub.AbstractStub.StubFactory<EvitaServiceBlockingV2Stub> factory =
+      new io.grpc.stub.AbstractStub.StubFactory<EvitaServiceBlockingV2Stub>() {
+        @java.lang.Override
+        public EvitaServiceBlockingV2Stub newStub(io.grpc.Channel channel, io.grpc.CallOptions callOptions) {
+          return new EvitaServiceBlockingV2Stub(channel, callOptions);
+        }
+      };
+    return EvitaServiceBlockingV2Stub.newStub(factory, channel);
+  }
+
+  /**
    * Creates a new blocking-style stub that supports unary and streaming output calls on the service
    */
   public static EvitaServiceBlockingStub newBlockingStub(
@@ -755,6 +770,147 @@ public final class EvitaServiceGrpc {
 
   /**
    * A stub to allow clients to do synchronous rpc calls to service EvitaService.
+   * <pre>
+   * This service contains RPCs that could be called by gRPC clients on evitaDB. Main purpose of this service is to provide
+   * a way to create sessions and catalogs, and to update the catalog.
+   * </pre>
+   */
+  public static final class EvitaServiceBlockingV2Stub
+      extends io.grpc.stub.AbstractBlockingStub<EvitaServiceBlockingV2Stub> {
+    private EvitaServiceBlockingV2Stub(
+        io.grpc.Channel channel, io.grpc.CallOptions callOptions) {
+      super(channel, callOptions);
+    }
+
+    @java.lang.Override
+    protected EvitaServiceBlockingV2Stub build(
+        io.grpc.Channel channel, io.grpc.CallOptions callOptions) {
+      return new EvitaServiceBlockingV2Stub(channel, callOptions);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to check readiness of the API
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcReadyResponse isReady(com.google.protobuf.Empty request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+          getChannel(), getIsReadyMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to create read only sessions.
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse createReadOnlySession(io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+          getChannel(), getCreateReadOnlySessionMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to create read write sessions.
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse createReadWriteSession(io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+          getChannel(), getCreateReadWriteSessionMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to create read-only session which will return data in binary format. Part of the Private API.
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse createBinaryReadOnlySession(io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+          getChannel(), getCreateBinaryReadOnlySessionMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to create read-write session which will return data in binary format. Part of the Private API.
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse createBinaryReadWriteSession(io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+          getChannel(), getCreateBinaryReadWriteSessionMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to terminate existing session.
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionTerminationResponse terminateSession(io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionTerminationRequest request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+          getChannel(), getTerminateSessionMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to get names of all existing catalogs.
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcCatalogNamesResponse getCatalogNames(com.google.protobuf.Empty request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+          getChannel(), getGetCatalogNamesMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to define a new catalog.
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcDefineCatalogResponse defineCatalog(io.evitadb.externalApi.grpc.generated.GrpcDefineCatalogRequest request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+          getChannel(), getDefineCatalogMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to delete an existing catalog.
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcDeleteCatalogIfExistsResponse deleteCatalogIfExists(io.evitadb.externalApi.grpc.generated.GrpcDeleteCatalogIfExistsRequest request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+          getChannel(), getDeleteCatalogIfExistsMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to update the catalog with a set of mutations.
+     * </pre>
+     */
+    public com.google.protobuf.Empty update(io.evitadb.externalApi.grpc.generated.GrpcUpdateEvitaRequest request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+          getChannel(), getUpdateMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to rename an existing catalog.
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogResponse renameCatalog(io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogRequest request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+          getChannel(), getRenameCatalogMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to replace an existing catalog.
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogResponse replaceCatalog(io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+          getChannel(), getReplaceCatalogMethod(), getCallOptions(), request);
+    }
+  }
+
+  /**
+   * A stub to allow clients to do limited synchronous rpc calls to service EvitaService.
    * <pre>
    * This service contains RPCs that could be called by gRPC clients on evitaDB. Main purpose of this service is to provide
    * a way to create sessions and catalogs, and to update the catalog.

@@ -145,13 +145,13 @@
             ]
           },
           {
-            "primaryKey" : 107891,
+            "primaryKey" : 113221,
             "attributes" : {
-              "code" : "amazfit-bip-3"
+              "code" : "24p3qw"
             },
             "categories" : [
               {
-                "referencedPrimaryKey" : 66486,
+                "referencedPrimaryKey" : 66483,
                 "attributes" : {
                   "orderInCategory" : -1
                 }
@@ -159,127 +159,127 @@
             ]
           },
           {
-            "primaryKey" : 107899,
+            "primaryKey" : 113230,
             "attributes" : {
-              "code" : "amazfit-bip-3-pro"
+              "code" : "q27p3qw"
             },
             "categories" : [
               {
-                "referencedPrimaryKey" : 66486,
+                "referencedPrimaryKey" : 66483,
                 "attributes" : {
-                  "orderInCategory" : 107891
+                  "orderInCategory" : 113221
                 }
               }
             ]
           },
           {
-            "primaryKey" : 107911,
+            "primaryKey" : 113237,
             "attributes" : {
-              "code" : "amazfit-bip-s"
+              "code" : "27e3um-bk"
             },
             "categories" : [
               {
-                "referencedPrimaryKey" : 66486,
+                "referencedPrimaryKey" : 66483,
                 "attributes" : {
-                  "orderInCategory" : 107899
+                  "orderInCategory" : 113230
                 }
               }
             ]
           },
           {
-            "primaryKey" : 107923,
+            "primaryKey" : 113242,
             "attributes" : {
-              "code" : "amazfit-bip-s-lite"
+              "code" : "24e3um-bk"
             },
             "categories" : [
               {
-                "referencedPrimaryKey" : 66486,
+                "referencedPrimaryKey" : 66483,
                 "attributes" : {
-                  "orderInCategory" : 107911
+                  "orderInCategory" : 113237
                 }
               }
             ]
           },
           {
-            "primaryKey" : 107933,
+            "primaryKey" : 113248,
             "attributes" : {
-              "code" : "amazfit-bip-u"
+              "code" : "24p2qm"
             },
             "categories" : [
               {
-                "referencedPrimaryKey" : 66486,
+                "referencedPrimaryKey" : 66483,
                 "attributes" : {
-                  "orderInCategory" : 107923
+                  "orderInCategory" : 113242
                 }
               }
             ]
           },
           {
-            "primaryKey" : 107938,
+            "primaryKey" : 113258,
             "attributes" : {
-              "code" : "amazfit-bip-u-pro"
+              "code" : "u34e2m-bk"
             },
             "categories" : [
               {
-                "referencedPrimaryKey" : 66486,
+                "referencedPrimaryKey" : 66483,
                 "attributes" : {
-                  "orderInCategory" : 107933
+                  "orderInCategory" : 113248
                 }
               }
             ]
           },
           {
-            "primaryKey" : 107952,
+            "primaryKey" : 113265,
             "attributes" : {
-              "code" : "amazfit-falcon"
+              "code" : "q27b3ma"
             },
             "categories" : [
               {
-                "referencedPrimaryKey" : 66486,
+                "referencedPrimaryKey" : 66483,
                 "attributes" : {
-                  "orderInCategory" : 107938
+                  "orderInCategory" : 113258
                 }
               }
             ]
           },
           {
-            "primaryKey" : 107961,
+            "primaryKey" : 113271,
             "attributes" : {
-              "code" : "amazfit-gtr"
+              "code" : "cu34v5cw"
             },
             "categories" : [
               {
-                "referencedPrimaryKey" : 66486,
+                "referencedPrimaryKey" : 66483,
                 "attributes" : {
-                  "orderInCategory" : 107952
+                  "orderInCategory" : 113265
                 }
               }
             ]
           },
           {
-            "primaryKey" : 107973,
+            "primaryKey" : 113276,
             "attributes" : {
-              "code" : "amazfit-gtr-2"
+              "code" : "24v5cw"
             },
             "categories" : [
               {
-                "referencedPrimaryKey" : 66486,
+                "referencedPrimaryKey" : 66483,
                 "attributes" : {
-                  "orderInCategory" : 107961
+                  "orderInCategory" : 113271
                 }
               }
             ]
           },
           {
-            "primaryKey" : 107981,
+            "primaryKey" : 113279,
             "attributes" : {
-              "code" : "amazfit-gtr-2-2022"
+              "code" : "q27v5cw"
             },
             "categories" : [
               {
-                "referencedPrimaryKey" : 66486,
+                "referencedPrimaryKey" : 66483,
                 "attributes" : {
-                  "orderInCategory" : 107973
+                  "orderInCategory" : 113276
                 }
               }
             ]

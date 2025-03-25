@@ -33,12 +33,23 @@ import io.evitadb.core.metric.event.query.FinishedEvent;
 import io.evitadb.core.metric.event.session.ClosedEvent;
 import io.evitadb.core.metric.event.session.KilledEvent;
 import io.evitadb.core.metric.event.session.OpenedEvent;
-import io.evitadb.core.metric.event.storage.*;
+import io.evitadb.core.metric.event.storage.CatalogStatisticsEvent;
+import io.evitadb.core.metric.event.storage.DataFileCompactEvent;
+import io.evitadb.core.metric.event.storage.ObservableOutputChangeEvent;
+import io.evitadb.core.metric.event.storage.OffsetIndexFlushEvent;
+import io.evitadb.core.metric.event.storage.OffsetIndexHistoryKeptEvent;
+import io.evitadb.core.metric.event.storage.OffsetIndexNonFlushedEvent;
+import io.evitadb.core.metric.event.storage.OffsetIndexRecordTypeCountChangedEvent;
+import io.evitadb.core.metric.event.storage.ReadOnlyHandleClosedEvent;
+import io.evitadb.core.metric.event.storage.ReadOnlyHandleOpenedEvent;
 import io.evitadb.core.metric.event.system.BackgroundTaskFinishedEvent;
 import io.evitadb.core.metric.event.system.BackgroundTaskRejectedEvent;
 import io.evitadb.core.metric.event.system.BackgroundTaskStartedEvent;
 import io.evitadb.core.metric.event.system.BackgroundTaskTimedOutEvent;
-import io.evitadb.core.metric.event.system.EvitaStartedEvent;
+import io.evitadb.core.metric.event.system.EvitaStatisticsEvent;
+import io.evitadb.core.metric.event.system.RequestForkJoinPoolStatisticsEvent;
+import io.evitadb.core.metric.event.system.ScheduledExecutorStatisticsEvent;
+import io.evitadb.core.metric.event.system.TransactionForkJoinPoolStatisticsEvent;
 import io.evitadb.core.metric.event.transaction.*;
 import io.evitadb.externalApi.event.ReadinessEvent;
 import io.evitadb.externalApi.event.RequestEvent;
@@ -102,7 +113,6 @@ public class EvitaJfrEventRegistry {
 		ReadOnlyHandleOpenedEvent.class,
 		ReadOnlyHandleClosedEvent.class,
 		CatalogStatisticsEvent.class,
-		EvitaDBCompositionChangedEvent.class,
 		TrafficRecorderStatisticsEvent.class,
 
 		// query events
@@ -116,11 +126,14 @@ public class EvitaJfrEventRegistry {
 		KilledEvent.class,
 
 		// system events
-		EvitaStartedEvent.class,
+		EvitaStatisticsEvent.class,
 		BackgroundTaskStartedEvent.class,
 		BackgroundTaskRejectedEvent.class,
 		BackgroundTaskTimedOutEvent.class,
 		BackgroundTaskFinishedEvent.class,
+		RequestForkJoinPoolStatisticsEvent.class,
+		TransactionForkJoinPoolStatisticsEvent.class,
+		ScheduledExecutorStatisticsEvent.class,
 
 		//cache
 		AnteroomRecordStatisticsUpdatedEvent.class,

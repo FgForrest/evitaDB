@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -239,6 +239,30 @@ class CompositeIntArrayTest {
 		}
 
 		assertEquals(limit - 1, index);
+	}
+
+	@Test
+	void shouldCorrectlyFetchItemsByIteratorFromIndex() {
+		final CompositeIntArray array = new CompositeIntArray();
+
+		final int limit = 2_048;
+		for (int i = 0; i < limit; i++) {
+			array.add(i);
+		}
+
+		assertEquals(limit, array.getSize());
+
+		for (int i = 0; i < 7; i++) {
+			final int startIndex = i * (limit / 7);
+			final OfInt it = array.iteratorFrom(startIndex);
+			int index = startIndex - 1;
+			while (it.hasNext()) {
+				int next = it.nextInt();
+				assertEquals(++index, next);
+			}
+
+			assertEquals(limit - 1, index);
+		}
 	}
 
 	@Test

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -42,6 +42,7 @@ import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.IndexType;
 import io.evitadb.index.mutation.index.dataAccess.ExistingAttributeValueSupplier;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NumberUtils;
 
@@ -88,7 +89,7 @@ public interface AttributeIndexMutator {
 		final AttributeSchemaContract attributeDefinition = attributeSchemaProvider.apply(attributeKey.attributeName());
 		Assert.notNull(attributeDefinition, "Attribute `" + attributeKey.attributeName() + "` not defined in schema!");
 
-		final Object valueToInsert = Objects.requireNonNull(
+		final Serializable valueToInsert = Objects.requireNonNull(
 			EvitaDataTypes.toTargetType(attributeValue, attributeDefinition.getType(), attributeDefinition.getIndexedDecimalPlaces())
 		);
 
@@ -534,7 +535,7 @@ public interface AttributeIndexMutator {
 		@Nonnull Function<String, Stream<SortableAttributeCompoundSchema>> compoundsSchemaProvider,
 		@Nonnull ExistingAttributeValueSupplier existingValueSupplier,
 		@Nonnull EntityIndex entityIndex,
-		@Nullable Object valueToUpdate,
+		@Nullable Serializable valueToUpdate,
 		@Nullable Locale locale,
 		@Nonnull String updatedAttributeName,
 		@Nullable Consumer<Runnable> undoActionConsumer
@@ -590,7 +591,7 @@ public interface AttributeIndexMutator {
 		@Nonnull Set<Locale> availableAttributeLocales,
 		@Nullable Locale locale,
 		@Nullable String updatedAttributeName,
-		@Nullable Object valueToUpdate,
+		@Nullable Serializable valueToUpdate,
 		int entityPrimaryKey,
 		@Nonnull Function<String, AttributeSchema> attributeSchemaProvider,
 		@Nonnull Function<AttributeKey, AttributeValue> existingAttributeValueProvider,
@@ -621,13 +622,13 @@ public interface AttributeIndexMutator {
 		@Nonnull EntityIndex entityIndex,
 		@Nonnull SortableAttributeCompoundSchema compound,
 		@Nullable String updatedAttributeName,
-		@Nullable Object valueToUpdate,
+		@Nullable Serializable valueToUpdate,
 		@Nullable Locale locale,
 		@Nonnull Function<String, AttributeSchema> attributeSchemaProvider,
 		@Nonnull Function<AttributeElement, AttributeValue> attributeElementValueProvider,
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
-		final Object[] newCompoundValues = compound.getAttributeElements()
+		final Serializable[] newCompoundValues = compound.getAttributeElements()
 			.stream()
 			.map(
 				it -> Objects.equals(it.attributeName(), updatedAttributeName) ?
@@ -636,20 +637,22 @@ public interface AttributeIndexMutator {
 						.map(AttributeValue::value)
 						.orElse(null)
 			)
-			.toArray();
+			.toArray(Serializable[]::new);
 
-		entityIndex.insertSortAttributeCompound(
-			compound,
-			theAttributeName -> attributeSchemaProvider.apply(theAttributeName).getPlainType(),
-			locale,
-			newCompoundValues, entityPrimaryKey
-		);
-		if (undoActionConsumer != null) {
-			undoActionConsumer.accept(
-				() -> entityIndex.removeSortAttributeCompound(
-					compound, locale, newCompoundValues, entityPrimaryKey
-				)
+		if (!ArrayUtils.isEmptyOrItsValuesNull(newCompoundValues)) {
+			entityIndex.insertSortAttributeCompound(
+				compound,
+				theAttributeName -> attributeSchemaProvider.apply(theAttributeName).getPlainType(),
+				locale,
+				newCompoundValues, entityPrimaryKey
 			);
+			if (undoActionConsumer != null) {
+				undoActionConsumer.accept(
+					() -> entityIndex.removeSortAttributeCompound(
+						compound, locale, newCompoundValues, entityPrimaryKey
+					)
+				);
+			}
 		}
 	}
 
@@ -665,27 +668,29 @@ public interface AttributeIndexMutator {
 		@Nonnull Function<AttributeElement, AttributeValue> attributeElementValueProvider,
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
-		final Object[] oldCompoundValues = compound.getAttributeElements()
+		final Serializable[] oldCompoundValues = compound.getAttributeElements()
 			.stream()
 			.map(
 				it -> ofNullable(attributeElementValueProvider.apply(it))
 					.map(AttributeValue::value)
 					.orElse(null)
 			)
-			.toArray();
+			.toArray(Serializable[]::new);
 
-		entityIndex.removeSortAttributeCompound(
-			compound, locale, oldCompoundValues, entityPrimaryKey
-		);
-		if (undoActionConsumer != null) {
-			undoActionConsumer.accept(
-				() -> entityIndex.insertSortAttributeCompound(
-					compound,
-					theAttributeName -> attributeSchemaProvider.apply(theAttributeName).getPlainType(),
-					locale,
-					oldCompoundValues, entityPrimaryKey
-				)
+		if (!ArrayUtils.isEmptyOrItsValuesNull(oldCompoundValues)) {
+			entityIndex.removeSortAttributeCompound(
+				compound, locale, oldCompoundValues, entityPrimaryKey
 			);
+			if (undoActionConsumer != null) {
+				undoActionConsumer.accept(
+					() -> entityIndex.insertSortAttributeCompound(
+						compound,
+						theAttributeName -> attributeSchemaProvider.apply(theAttributeName).getPlainType(),
+						locale,
+						oldCompoundValues, entityPrimaryKey
+					)
+				);
+			}
 		}
 	}
 

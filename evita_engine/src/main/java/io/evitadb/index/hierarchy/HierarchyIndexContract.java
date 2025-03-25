@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.index.hierarchy;
 
+import io.evitadb.api.query.order.TraversalMode;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.index.bitmap.Bitmap;
@@ -30,8 +31,8 @@ import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Comparator;
 import java.util.OptionalInt;
+import java.util.function.UnaryOperator;
 
 /**
  * HierarchyIndexContract describes the API of {@link HierarchyIndex} that maintains data structures for fast accessing
@@ -71,6 +72,13 @@ public interface HierarchyIndexContract {
 	 */
 	 @Nullable
 	Integer removeNode(int entityPrimaryKey);
+
+	/**
+	 * Method returns all nodes that are reachable from all root nodes traversed in particular mode and sorted on each
+	 * level using provided sorter function.
+	 */
+	@Nonnull
+	Bitmap listHierarchyNodesFromRoot(@Nonnull TraversalMode traversalMode, @Nonnull UnaryOperator<int[]> levelSorter);
 
 	/**
 	 * Method returns result of {@link #listHierarchyNodesFromRoot(HierarchyFilteringPredicate)}  wrapped as lazy lambda
@@ -193,12 +201,6 @@ public interface HierarchyIndexContract {
 	 */
 	@Nonnull
 	Bitmap listHierarchyNodesFromParentDownTo(int parentNode, int levels, @Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate);
-
-	/**
-	 * Method returns primary keys of all nodes from root node to `theNode` traversing entire hierarchy.
-	 */
-	@Nonnull
-	Integer[] listHierarchyNodesFromRootToTheNode(int theNode);
 
 	/**
 	 * Method returns result of {@link #getRootHierarchyNodes(HierarchyFilteringPredicate)} wrapped as lazy lambda in {@link DeferredFormula}.
@@ -324,12 +326,5 @@ public interface HierarchyIndexContract {
 	 * Method returns true if hierarchy index contains no data.
 	 */
 	boolean isHierarchyIndexEmpty();
-
-	/**
-	 * Method return comparator that orders hierarchy entity primary keys by the depth-first-search order of their
-	 * hierarchical tree.
-	 */
-	@Nonnull
-	Comparator<Integer> getHierarchyComparator();
 
 }

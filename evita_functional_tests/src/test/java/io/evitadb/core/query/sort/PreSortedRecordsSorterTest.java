@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import io.evitadb.core.query.SharedBufferPool;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.core.query.sort.attribute.PreSortedRecordsSorter;
+import io.evitadb.core.query.sort.attribute.PreSortedRecordsSorter.MergeMode;
 import io.evitadb.core.query.sort.utils.MockSortedRecordsSupplier;
 import io.evitadb.core.query.sort.utils.SortUtilsTest;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -38,6 +39,7 @@ import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Random;
 import java.util.Set;
@@ -55,8 +57,6 @@ import static org.mockito.Mockito.when;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 class PreSortedRecordsSorterTest {
-	private static final String ENTITY_TYPE = "product";
-
 	private PreSortedRecordsSorterWithContext bitmapSorter;
 
 	private static int findPosition(int[] sortedRecordIds, int recId) {
@@ -124,6 +124,8 @@ class PreSortedRecordsSorterTest {
 		Mockito.doNothing().when(executionContext).returnBuffer(any());
 		bitmapSorter = new PreSortedRecordsSorterWithContext(
 			new PreSortedRecordsSorter(
+				MergeMode.APPEND_FIRST,
+				Comparator.naturalOrder(),
 				() -> new SortedRecordsProvider[]{new MockSortedRecordsSupplier(7, 2, 4, 1, 3, 8, 5, 9, 6)}
 			),
 			planningContext
@@ -161,6 +163,8 @@ class PreSortedRecordsSorterTest {
 	void shouldReturnSortedResultEvenForMissingDataWithAdditionalSorter() {
 		final Sorter updatedSorter = bitmapSorter.sorter().andThen(
 			new PreSortedRecordsSorter(
+				MergeMode.APPEND_FIRST,
+				Comparator.naturalOrder(),
 				() -> new SortedRecordsProvider[]{new MockSortedRecordsSupplier(13, 0, 12)}
 			)
 		);
@@ -184,6 +188,8 @@ class PreSortedRecordsSorterTest {
 		);
 
 		final PreSortedRecordsSorter sorter = new PreSortedRecordsSorter(
+			MergeMode.APPEND_FIRST,
+			Comparator.naturalOrder(),
 			() -> new SortedRecordsProvider[]{sortedRecordsSupplier}
 		);
 		final QueryExecutionContext queryContext = Mockito.mock(QueryExecutionContext.class);

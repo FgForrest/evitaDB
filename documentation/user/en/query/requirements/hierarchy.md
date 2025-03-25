@@ -1177,7 +1177,7 @@ The computed result *subMenu* looks like this (visualized in JSON format):
 
 ```evitaql-syntax
 statistics(
-    argument:enum(COMPLETE_FILTER|WITHOUT_USER_FILTER),
+    argument:enum(COMPLETE_FILTER|WITHOUT_USER_FILTER|COMPLETE_FILTER_EXCLUDING_SELF_IN_USER_FILTER)),
     argument:enum(CHILDREN_COUNT|QUERIED_ENTITY_COUNT)+,
 )
 ```

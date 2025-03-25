@@ -54,7 +54,7 @@ transaction:
   flushFrequencyInMillis: ${transaction.flushFrequencyInMillis:1000}
 
 cache:
-  enabled: ${cache.enabled:true}
+  enabled: ${cache.enabled:false}
   reflection: ${cache.reflection:CACHE}
   reevaluateEachSeconds: ${cache.reevaluateEachSeconds:60}
   anteroomRecordCount: ${cache.anteroomRecordCount:100K}

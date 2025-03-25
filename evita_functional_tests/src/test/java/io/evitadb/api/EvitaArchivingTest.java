@@ -1477,8 +1477,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 					.toArray();
 
 				assertArrayEquals(
-					// first live by code, then archived by code
-					new int[] { 101, 100, 102, 111, 110, 112 },
+					new int[] { 101, 100, 111, 110, 102, 112 },
 					sortedProductsBySharedAttribute
 				);
 
@@ -1501,8 +1500,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 					.toArray();
 
 				assertArrayEquals(
-					// first live by name, then archived by EAN, then live by code, then archived by code
-					new int[] { 101, 100, 110, 111, 102, 112 },
+					new int[] { 101, 100, 110, 111, 112, 102 },
 					sortedProductsByAttributes
 				);
 

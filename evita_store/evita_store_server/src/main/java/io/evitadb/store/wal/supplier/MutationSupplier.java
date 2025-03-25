@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -98,7 +98,7 @@ public final class MutationSupplier extends AbstractMutationSupplier {
 					// in the WAL only when there is a lot of them to be read and processed
 					final long requiredLength = this.filePosition + this.transactionMutation.getTransactionSpan().recordLength();
 					if (
-						avoidPartiallyFilledBuffer ?
+						this.avoidPartiallyFilledBuffer ?
 							// for partially filled buffer we stop reading the transaction mutation when the requested catalog version is reached
 							this.transactionMutation.getCatalogVersion() <= this.requestedCatalogVersion && currentFileLength >= requiredLength :
 							// otherwise we require just the entire transaction to be written

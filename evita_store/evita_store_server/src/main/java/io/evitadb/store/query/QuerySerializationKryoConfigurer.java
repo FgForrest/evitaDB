@@ -69,8 +69,9 @@ public class QuerySerializationKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(StatisticsBase.class, new EnumSerializer(StatisticsBase.class), index++);
 		kryo.register(StatisticsType.class, new EnumSerializer(StatisticsType.class), index++);
 		kryo.register(Scope.class, new EnumSerializer(Scope.class), index++);
-		kryo.register(FacetRelationType.class, new EnumSerializer(Scope.class), index++);
-		kryo.register(FacetGroupRelationLevel.class, new EnumSerializer(Scope.class), index++);
+		kryo.register(FacetRelationType.class, new EnumSerializer(FacetRelationType.class), index++);
+		kryo.register(FacetGroupRelationLevel.class, new EnumSerializer(FacetGroupRelationLevel.class), index++);
+		kryo.register(TraversalMode.class, new EnumSerializer(TraversalMode.class), index++);
 
 		index = QUERY_BASE + 100;
 		kryo.register(Head.class, new HeadSerializer(), index++);
@@ -133,6 +134,8 @@ public class QuerySerializationKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(SegmentLimit.class, new SegmentLimitSerializer(), index++);
 		kryo.register(EntityGroupProperty.class, new EntityGroupPropertySerializer(), index++);
 		kryo.register(EntityProperty.class, new EntityPropertySerializer(), index++);
+		kryo.register(PickFirstByEntityProperty.class, new PickFirstByEntityPropertySerializer(), index++);
+		kryo.register(TraverseByEntityProperty.class, new TraverseByEntityPropertySerializer(), index++);
 
 		index = QUERY_BASE + 400;
 		kryo.register(AssociatedDataContent.class, new AssociatedDataContentSerializer(), index++);

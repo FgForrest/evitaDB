@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,6 +31,8 @@ import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.configuration.metric.MetricType;
 import io.evitadb.api.observability.annotation.ExportInvocationMetric;
 import io.evitadb.api.observability.annotation.ExportMetric;
+import io.evitadb.api.observability.annotation.ExportMetricLabel;
+import io.evitadb.api.requestResponse.system.SystemStatus;
 import jdk.jfr.Description;
 import jdk.jfr.Label;
 import jdk.jfr.Name;
@@ -38,15 +40,47 @@ import lombok.Getter;
 
 import javax.annotation.Nonnull;
 
+import static java.util.Optional.ofNullable;
+
 /**
  * Event that is fired when evitaDB instance is started.
  */
-@Name(AbstractSystemEvent.PACKAGE_NAME + ".EvitaStarted")
+@Name(AbstractSystemEvent.PACKAGE_NAME + ".EvitaStatistics")
 @Description("Event that is triggered when the evitaDB instance is started.")
 @ExportInvocationMetric(label = "Evita started total")
 @Label("Evita started")
 @Getter
-public class EvitaStartedEvent extends AbstractSystemCatalogEvent {
+public class EvitaStatisticsEvent extends AbstractSystemCatalogEvent {
+
+	@Label("Server version")
+	@Description("Precise version of the evitaDB server.")
+	@ExportMetricLabel
+	private final String serverVersion;
+
+	@Label("Server instance id")
+	@Description("Unique server name taken from the configuration file.")
+	@ExportMetricLabel
+	private final String instanceId;
+
+	@Label("Transaction flush frequency")
+	@Description("Frequency of transaction flush in milliseconds.")
+	@ExportMetric(metricType = MetricType.GAUGE)
+	private final long transactionFlushFrequencyInMillis;
+
+	@Label("Close sessions after inactivity")
+	@Description("Number of seconds after which the session is closed if it is inactive.")
+	@ExportMetric(metricType = MetricType.GAUGE)
+	private final int closeSessionsAfterSecondsOfInactivity;
+
+	@Label("Traffic recording enabled")
+	@Description("Flag indicating whether the traffic recording is enabled.")
+	@ExportMetric(metricType = MetricType.GAUGE)
+	private final int trafficRecordingEnabled;
+
+	@Label("Time travel enabled")
+	@Description("Flag indicating whether the time travel is enabled.")
+	@ExportMetric(metricType = MetricType.GAUGE)
+	private final int timeTravelEnabled;
 
 	@Label("Maximum number of threads to handle read-only requests")
 	@Description("Configured threshold for the maximum number of threads to handle read-only requests (`server.requestThreadPool.maxThreadCount`).")
@@ -143,8 +177,26 @@ public class EvitaStartedEvent extends AbstractSystemCatalogEvent {
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final long cacheSizeInBytes;
 
-	public EvitaStartedEvent(@Nonnull EvitaConfiguration configuration) {
+	@Label("Catalog count")
+	@Description("Number of accessible catalogs managed by this instance of evitaDB.")
+	@ExportMetric(metricType = MetricType.GAUGE)
+	private final int catalogs;
+
+	@Label("Corrupted catalog count")
+	@Description("Number of corrupted catalogs that evitaDB could not load.")
+	@ExportMetric(metricType = MetricType.GAUGE)
+	private final int corruptedCatalogs;
+
+	public EvitaStatisticsEvent(
+		@Nonnull EvitaConfiguration configuration,
+		@Nonnull SystemStatus systemStatus
+	) {
 		super(null);
+
+		this.serverVersion = systemStatus.version();
+		this.instanceId = systemStatus.instanceId();
+		this.catalogs = systemStatus.catalogsOk();
+		this.corruptedCatalogs = systemStatus.catalogsCorrupted();
 
 		final ServerOptions serverConfiguration = configuration.server();
 		this.requestMaxThreads = serverConfiguration.requestThreadPool().maxThreadCount();
@@ -156,22 +208,26 @@ public class EvitaStartedEvent extends AbstractSystemCatalogEvent {
 		this.queryTimeoutSeconds = (int) (serverConfiguration.queryTimeoutInMilliseconds() / 1000L);
 		this.transactionTimeoutSeconds = (int) (serverConfiguration.transactionTimeoutInMilliseconds() / 1000L);
 		this.sessionMaxInactiveAgeSeconds = serverConfiguration.closeSessionsAfterSecondsOfInactivity();
+		this.closeSessionsAfterSecondsOfInactivity = serverConfiguration.closeSessionsAfterSecondsOfInactivity();
+		this.trafficRecordingEnabled = serverConfiguration.trafficRecording().enabled() ? 1 : 0;
 
 		final StorageOptions storageConfiguration = configuration.storage();
 		this.readOnlyHandlesLimit = storageConfiguration.maxOpenedReadHandles();
 		this.compactionMinimalActiveRecordSharePercent = Math.toIntExact(Math.round(storageConfiguration.minimalActiveRecordShare() * 100.0));
 		this.compactionFileSizeThresholdBytes = storageConfiguration.fileSizeCompactionThresholdBytes();
+		this.timeTravelEnabled = storageConfiguration.timeTravelEnabled() ? 1 : 0;
 
 		final TransactionOptions transactionConfiguration = configuration.transaction();
 		this.transactionMemoryBufferLimitSizeBytes = transactionConfiguration.transactionMemoryBufferLimitSizeBytes();
 		this.transactionMemoryRegions = transactionConfiguration.transactionMemoryRegionCount();
 		this.walMaxFileSizeBytes = transactionConfiguration.walFileSizeBytes();
 		this.walMaxFileCountKept = transactionConfiguration.walFileCountKept();
+		this.transactionFlushFrequencyInMillis = transactionConfiguration.flushFrequencyInMillis();
 
 		final CacheOptions cacheConfiguration = configuration.cache();
 		this.cacheReevaluationSeconds = cacheConfiguration.reevaluateEachSeconds();
 		this.cacheAnteroomRecordLimit = cacheConfiguration.anteroomRecordCount();
-		this.cacheSizeInBytes = cacheConfiguration.cacheSizeInBytes();
+		this.cacheSizeInBytes = ofNullable(cacheConfiguration.cacheSizeInBytes()).orElse(0L);
 
 	}
 

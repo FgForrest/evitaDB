@@ -536,12 +536,22 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 						)
 					),
 					executionContext.getQueryContext().getScopes(),
-					(es, eik) -> ReferencedTypeEntityIndex.createThrowingStub(es, eik, allReferencedEntityIds),
+					(es, eik) -> {
+						if (referenceSchema.isIndexedInScope(eik.scope())) {
+							return null;
+						} else {
+							return ReferencedTypeEntityIndex.createThrowingStub(es, eik, allReferencedEntityIds);
+						}
+					},
 					(es, eik) -> {
 						final int[] epks = entityPrimaryKeys.get(eik.scope());
-						return ReducedEntityIndex.createThrowingStub(
-							es, eik, epks == null ? ArrayUtils.EMPTY_INT_ARRAY : epks
-						);
+						if (referenceSchema.isIndexedInScope(eik.scope())) {
+							return null;
+						} else {
+							return ReducedEntityIndex.createThrowingStub(
+								es, eik, epks == null ? ArrayUtils.EMPTY_INT_ARRAY : epks
+							);
+						}
 					}
 				);
 

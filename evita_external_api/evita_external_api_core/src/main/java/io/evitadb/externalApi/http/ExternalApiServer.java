@@ -504,6 +504,9 @@ public class ExternalApiServer implements AutoCloseable {
 		final EventLoopGroup workerGroup = EventLoopGroups.newEventLoopGroup(apiOptions.workerGroupThreadsAsInt());
 		serverBuilder
 			.blockingTaskExecutor(evita.getServiceExecutor(), gracefulShutdown)
+			// this may be changed in future versions to a limited set
+			// but without trusting all client IP addresses the client address source wouldn't be evaluated
+			.clientAddressTrustedProxyFilter(inetAddress -> true)
 			.clientAddressSources(
 				ClientAddressSource.ofHeader(HttpHeaderNames.FORWARDED),
 				ClientAddressSource.ofHeader(HttpHeaderNames.X_FORWARDED_FOR),

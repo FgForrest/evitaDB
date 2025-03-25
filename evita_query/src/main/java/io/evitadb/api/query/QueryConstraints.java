@@ -2874,10 +2874,204 @@ public interface QueryConstraints {
 	*/
 	@Nullable
 	static ReferenceProperty referenceProperty(@Nullable String referenceName, @Nullable OrderConstraint... constraints) {
-		if (referenceName == null || constraints == null) {
+		if (referenceName == null || ArrayUtils.isEmptyOrItsValuesNull(constraints)) {
 			return null;
 		}
 		return new ReferenceProperty(referenceName, constraints);
+	}
+
+	/**
+	 * The `traverseByEntityProperty` ordering constraint can only be used within the {@link ReferenceProperty} ordering
+	 * constraint. It changes the behaviour of the ordering rules in a way that first the result is ordered by the referenced
+	 * entity property and within same referenced entity the main entity is ordered by the reference property. This constraint
+	 * is particularly useful when the reference is one-to-many and the referenced entity is hierarchical.
+	 *
+	 * Consider the following example where we want to list products in the *Accessories* category ordered by the `orderInCategory`
+	 * attribute on the reference to the category, but the products could either directly reference the *Accessories* category
+	 * or one of its child categories. The order will first list products directly related to the *Accessories* category in
+	 * a particular order, then it will start listing products in the child categories in depth-first order. To specify which
+	 * order to use when traversing the child categories, we can use the `traverseByEntityProperty` ordering constraint:
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     filterBy(
+	 *         hierarchyWithin(
+	 *             "categories",
+	 *             attributeEquals("code", "accessories")
+	 *         )
+	 *     ),
+	 *      orderBy(
+	 *          referenceProperty(
+	 *              "categories",
+	 *              traverseByEntityProperty(
+	 *                  attributeNatural("order", ASC)
+	 *              ),
+	 *              attributeNatural("orderInCategory", ASC)
+	 *          )
+	 *      ),
+	 *      require(
+	 *          entityFetch(
+	 *              attributeContent("code"),
+	 *              referenceContentWithAttributes(
+	 *                 "categories",
+	 *                 attributeContent("orderInCategory")
+	 *              )
+	 *          )
+	 *      )
+	 * )
+	 * </pre>
+	 *
+	 * You can also change the depth-first traversal to breadth-first traversal by declaring optional first argument as
+	 * follows:
+	 *
+	 * <pre>
+	 * referenceProperty(
+	 *     "categories",
+	 *     traverseByEntityProperty(
+	 *         BREADTH_FIRST, attributeNatural("order", ASC)
+	 *     ),
+	 *     attributeNatural("orderInCategory", ASC)
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/ordering/reference#traverse-by-entity-property">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static TraverseByEntityProperty traverseByEntityProperty(@Nullable OrderConstraint... constraints) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(constraints)) {
+			return new TraverseByEntityProperty(null, entityPrimaryKeyNatural(OrderDirection.ASC));
+		} else {
+			return new TraverseByEntityProperty(null, constraints);
+		}
+	}
+
+	/**
+	 * The `traverseByEntityProperty` ordering constraint can only be used within the {@link ReferenceProperty} ordering
+	 * constraint. It changes the behaviour of the ordering rules in a way that first the result is ordered by the referenced
+	 * entity property and within same referenced entity the main entity is ordered by the reference property. This constraint
+	 * is particularly useful when the reference is one-to-many and the referenced entity is hierarchical.
+	 *
+	 * Consider the following example where we want to list products in the *Accessories* category ordered by the `orderInCategory`
+	 * attribute on the reference to the category, but the products could either directly reference the *Accessories* category
+	 * or one of its child categories. The order will first list products directly related to the *Accessories* category in
+	 * a particular order, then it will start listing products in the child categories in depth-first order. To specify which
+	 * order to use when traversing the child categories, we can use the `traverseByEntityProperty` ordering constraint:
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     filterBy(
+	 *         hierarchyWithin(
+	 *             "categories",
+	 *             attributeEquals("code", "accessories")
+	 *         )
+	 *     ),
+	 *      orderBy(
+	 *          referenceProperty(
+	 *              "categories",
+	 *              traverseByEntityProperty(
+	 *                  attributeNatural("order", ASC)
+	 *              ),
+	 *              attributeNatural("orderInCategory", ASC)
+	 *          )
+	 *      ),
+	 *      require(
+	 *          entityFetch(
+	 *              attributeContent("code"),
+	 *              referenceContentWithAttributes(
+	 *                 "categories",
+	 *                 attributeContent("orderInCategory")
+	 *              )
+	 *          )
+	 *      )
+	 * )
+	 * </pre>
+	 *
+	 * You can also change the depth-first traversal to breadth-first traversal by declaring optional first argument as
+	 * follows:
+	 *
+	 * <pre>
+	 * referenceProperty(
+	 *     "categories",
+	 *     traverseByEntityProperty(
+	 *         BREADTH_FIRST, attributeNatural("order", ASC)
+	 *     ),
+	 *     attributeNatural("orderInCategory", ASC)
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/ordering/reference#traverse-by-entity-property">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static TraverseByEntityProperty traverseByEntityProperty(@Nullable TraversalMode traversalMode, @Nullable OrderConstraint... constraints) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(constraints)) {
+			return new TraverseByEntityProperty(traversalMode, entityPrimaryKeyNatural(OrderDirection.ASC));
+		} else {
+			return new TraverseByEntityProperty(traversalMode, constraints);
+		}
+	}
+
+	/**
+	 * The `pickFirstByEntityProperty` ordering constraint can only be used within the {@link ReferenceProperty} ordering
+	 * constraint and makes sense only if the reference has cardinality 1:N. It allows to define which of the multiple
+	 * references will be picked and examined for a property that will be used for ordering.
+	 *
+	 * Consider the following example where we want to list products of with reference to "main" stock and sort them by
+	 * the `quantityOnStock` attribute on the reference to the stock. The products may have multiple references to different
+	 * stocks, but we want to use only the one that is referenced by the `main` reference. This query will return products
+	 * for this situation:
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     filterBy(
+	 *         referenceHaving(
+	 *             "stocks",
+	 *             attributeEquals("code", "main")
+	 *         )
+	 *     ),
+	 *     orderBy(
+	 *          referenceProperty(
+	 *              "stocks",
+	 *              pickFirstByEntityProperty(
+	 *                  attributeSetExact("code", "main")
+	 *              ),
+	 *              attributeNatural("quantityOnStock", DESC)
+	 *          )
+	 *     ),
+	 *     require(
+	 *         entityFetch(
+	 *             attributeContent("code"),
+	 *             referenceContentWithAttributes(
+	 *                "stocks",
+	 *                attributeContent("quantityOnStock")
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * Constraint `pickFirstByEntityProperty` accepts ordering constraints as its arguments, orders the entity references by
+	 * them and picks the first reference whose attribute `quantityOnStock` will be used for ordering the main entity. In
+	 * this case it uses the explicit ordering where the `main` reference is ordered first and the other references are
+	 * ordered by their primary key in ascending order. Since only the first reference matters, the other entity references
+	 * are ignored.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/ordering/reference#pick-first-by-entity-property">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static PickFirstByEntityProperty pickFirstByEntityProperty(@Nullable OrderConstraint... constraints) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(constraints)) {
+			return null;
+		}
+		return new PickFirstByEntityProperty(constraints);
 	}
 
 	/**

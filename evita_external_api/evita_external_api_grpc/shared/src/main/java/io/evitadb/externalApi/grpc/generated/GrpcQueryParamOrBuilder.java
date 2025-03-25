@@ -727,6 +727,34 @@ public interface GrpcQueryParamOrBuilder extends
 
   /**
    * <pre>
+   * The facet traversal mode enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTraversalMode traversalMode = 27;</code>
+   * @return Whether the traversalMode field is set.
+   */
+  boolean hasTraversalMode();
+  /**
+   * <pre>
+   * The facet traversal mode enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTraversalMode traversalMode = 27;</code>
+   * @return The enum numeric value on the wire for traversalMode.
+   */
+  int getTraversalModeValue();
+  /**
+   * <pre>
+   * The facet traversal mode enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTraversalMode traversalMode = 27;</code>
+   * @return The traversalMode.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcTraversalMode getTraversalMode();
+
+  /**
+   * <pre>
    * The string array value.
    * </pre>
    *
@@ -1212,16 +1240,28 @@ public interface GrpcQueryParamOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArrayOrBuilder getEmptyHierarchicalEntityBehaviourArrayValueOrBuilder();
 
   /**
+   * <pre>
+   * The statistics base array value.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray statisticsBaseArrayValue = 119;</code>
    * @return Whether the statisticsBaseArrayValue field is set.
    */
   boolean hasStatisticsBaseArrayValue();
   /**
+   * <pre>
+   * The statistics base array value.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray statisticsBaseArrayValue = 119;</code>
    * @return The statisticsBaseArrayValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray getStatisticsBaseArrayValue();
   /**
+   * <pre>
+   * The statistics base array value.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray statisticsBaseArrayValue = 119;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArrayOrBuilder getStatisticsBaseArrayValueOrBuilder();

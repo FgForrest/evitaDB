@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -57,20 +57,24 @@ import static io.evitadb.index.attribute.SortIndex.createNormalizerFor;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public class ReferenceCompoundAttributeComparator implements ReferenceComparator, ReferenceComparator.EntityPrimaryKeyAwareComparator, Serializable {
+public class ReferenceCompoundAttributeReferenceComparator implements ReferenceComparator, ReferenceComparator.EntityPrimaryKeyAwareComparator, Serializable {
 	@Serial private static final long serialVersionUID = 3531363761422177481L;
 	/**
 	 * Function for fetching the attribute value from the entity.
 	 */
-	@Nonnull private final BiFunction<ReferenceContract, String, Comparable<?>> attributeValueFetcher;
+	@Nonnull private final BiFunction<ReferenceContract, String, Serializable> attributeValueFetcher;
 	/**
 	 * Function for normalizing the attribute values (such as string values or BigDecimals).
 	 */
-	@Nonnull private final UnaryOperator<Object> normalizer;
+	@Nonnull private final UnaryOperator<Serializable> normalizer;
 	/**
 	 * Comparator for comparing the normalized attribute values.
 	 */
-	@Nonnull private final Comparator<Object> comparator;
+	@Nonnull private final Comparator<Serializable> comparator;
+	/**
+	 * Comparator sources for each attribute element.
+	 */
+	@Nonnull private final ComparatorSource[] comparatorSource;
 	/**
 	 * Comparator for comparing the normalized attribute values.
 	 */
@@ -81,7 +85,7 @@ public class ReferenceCompoundAttributeComparator implements ReferenceComparator
 	 */
 	@Nonnull private final Map<ReferenceKey, ComparableArray> memoizedValues = CollectionUtils.createHashMap(128);
 
-	public ReferenceCompoundAttributeComparator(
+	public ReferenceCompoundAttributeReferenceComparator(
 		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
 		@Nullable Locale locale,
 		@Nonnull Function<String, AttributeSchemaContract> attributeSchemaExtractor,
@@ -89,7 +93,7 @@ public class ReferenceCompoundAttributeComparator implements ReferenceComparator
 	) {
 		final List<AttributeElement> attributeElements = compoundSchemaContract
 			.getAttributeElements();
-		final ComparatorSource[] comparatorSource = attributeElements
+		this.comparatorSource = attributeElements
 			.stream()
 			.map(attributeElement -> new ComparatorSource(
 				attributeSchemaExtractor.apply(attributeElement.attributeName()).getPlainType(),
@@ -152,13 +156,14 @@ public class ReferenceCompoundAttributeComparator implements ReferenceComparator
 	private ComparableArray getAndMemoizeValue(@Nonnull ReferenceContract reference) {
 		ComparableArray value = this.memoizedValues.get(reference.getReferenceKey());
 		if (value == null) {
-			final Comparable<?>[] valueArray = new Comparable<?>[this.attributeElements.length];
+			final Serializable[] valueArray = new Serializable[this.attributeElements.length];
 			for (int i = 0; i < this.attributeElements.length; i++) {
 				final AttributeElement attributeElement = this.attributeElements[i];
 				valueArray[i] = this.attributeValueFetcher.apply(reference, attributeElement.attributeName());
 			}
 			value = new ComparableArray(
-				(Comparable<?>[]) this.normalizer.apply(valueArray)
+				this.comparatorSource,
+				(Serializable[]) this.normalizer.apply(valueArray)
 			);
 			this.memoizedValues.put(reference.getReferenceKey(), value);
 		}
