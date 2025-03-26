@@ -71,6 +71,7 @@ module evita.engine {
 	exports io.evitadb.index.facet;
 	exports io.evitadb.index.price.model.priceRecord;
 	exports io.evitadb.store.spi;
+	exports io.evitadb.store.spi.chunk;
 	exports io.evitadb.store.spi.model;
 	exports io.evitadb.store.spi.model.storageParts;
 	exports io.evitadb.store.spi.model.reference;

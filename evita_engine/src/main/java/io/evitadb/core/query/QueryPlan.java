@@ -35,6 +35,8 @@ import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.ResultForm;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
+import io.evitadb.api.requestResponse.chunk.OffsetAndLimit;
+import io.evitadb.api.requestResponse.chunk.Slicer;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -44,8 +46,6 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.prefetch.PrefetchOrder;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
-import io.evitadb.core.query.slice.Slicer;
-import io.evitadb.core.query.slice.Slicer.OffsetAndLimit;
 import io.evitadb.core.query.sort.ConditionalSorter;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.utils.SortUtils;
@@ -221,7 +221,7 @@ public class QueryPlan {
 				try {
 					this.initSorter(executionContext);
 					offsetAndLimit = this.slicer.calculateOffsetAndLimit(
-						evitaRequest, this.totalRecordCount
+						evitaRequest.getResultForm(), evitaRequest.getStart(), evitaRequest.getLimit(), this.totalRecordCount
 					);
 					this.primaryKeys = sortAndSliceResult(
 						executionContext, this.totalRecordCount,

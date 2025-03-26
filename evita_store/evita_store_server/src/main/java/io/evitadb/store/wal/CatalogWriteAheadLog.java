@@ -53,6 +53,7 @@ import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.store.exception.WriteAheadLogCorruptedException;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutput;
+import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.spi.OffHeapWithFileBackupReference;
 import io.evitadb.store.spi.exception.CatalogWriteAheadLastTransactionMismatchException;
@@ -241,111 +242,123 @@ public class CatalogWriteAheadLog implements Closeable {
 
 		final Kryo kryo = catalogKryoPool.obtain();
 		try (
-			final RandomAccessFile walFile = new RandomAccessFile(walFilePath.toFile(), "rw");
-			final ObservableInput<RandomAccessFileInputStream> input = new ObservableInput<>(
-				new RandomAccessFileInputStream(
-					walFile
-				)
-			)
+			final RandomAccessFile walFile = new RandomAccessFile(walFilePath.toFile(), "rw")
 		) {
-			if (computeCRC32C) {
-				input.computeCRC32();
-			}
-			final long fileLength = walFile.length();
-			if (fileLength == 0) {
-				// WAL file is empty, nothing to check
-				return new FirstAndLastCatalogVersions(-1L, -1L);
-			}
+			// The previous process might have crashed before fsync.
+			// If the DBMS doesn't fsync after opening, it may recover from data in the page cache (not yet durable),
+			// and then externalize this as committed (e.g. to reads), violating Durability.
+			walFile.getFD().sync();
 
-			int transactionSize = 0;
-			int previousTransactionSize;
-			long previousOffset;
-			long offset = 0;
-			do {
-				input.skip(transactionSize);
-				previousTransactionSize = transactionSize;
-				previousOffset = offset;
-				transactionSize = input.simpleIntRead();
-				offset += 4 + transactionSize;
-			} while (offset < fileLength);
-
-			final long lastTxStartPosition;
-			final int lastTxLength;
-			final long consistentLength;
-			if (offset > fileLength) {
-				final Path backupFilePath = walFilePath.getParent().resolve("_damaged_wal.bck");
-				log.warn(
-					"WAL file `" + walFilePath + "` was not written completely! Truncating to the last complete" +
-						" transaction (offset `" + previousOffset + "`) and backing up the original file to: `" +
-						backupFilePath + "`!"
-				);
-				Files.copy(walFilePath, backupFilePath);
-				lastTxStartPosition = previousOffset - previousTransactionSize - 4;
-				lastTxLength = previousTransactionSize;
-				consistentLength = previousOffset;
-			} else {
-				lastTxStartPosition = previousOffset;
-				lastTxLength = transactionSize;
-				consistentLength = offset;
-			}
-
-			try {
-				input.seekWithUnknownLength(4);
-				final TransactionMutation firstTransactionMutation = (TransactionMutation) StorageRecord.read(
-					input, (stream, length) -> kryo.readClassAndObject(stream)
-				).payload();
-
-				input.seekWithUnknownLength(lastTxStartPosition + 4);
-				final TransactionMutation transactionMutation = (TransactionMutation) StorageRecord.read(
-					input, (stream, length) -> kryo.readClassAndObject(stream)
-				).payload();
-
-				final long calculatedTransactionSize = input.total() + transactionMutation.getWalSizeInBytes();
-				Assert.isPremiseValid(
-					lastTxLength == calculatedTransactionSize,
-					() -> new WriteAheadLogCorruptedException(
-						"The transaction size `" + lastTxLength + "` does not match the actual size `" +
-							calculatedTransactionSize + "`!",
-						"The transaction size does not match the actual size!"
+			try (
+				final ObservableInput<RandomAccessFileInputStream> input = new ObservableInput<>(
+					new RandomAccessFileInputStream(
+						walFile
 					)
-				);
-
-				if (consistentLength < fileLength) {
-					final DataFileCompactEvent event = new DataFileCompactEvent(
-						catalogName,
-						FileType.WAL,
-						FileType.WAL.name()
-					);
-
-					// truncate the WAL file to the last consistent transaction
-					walFile.setLength(consistentLength);
-
-					// emit the event
-					event.finish().commit();
+				)
+			) {
+				if (computeCRC32C) {
+					input.computeCRC32();
+				}
+				final long fileLength = walFile.length();
+				if (fileLength == 0) {
+					// WAL file is empty, nothing to check
+					return new FirstAndLastCatalogVersions(-1L, -1L);
 				}
 
-				return new FirstAndLastCatalogVersions(
-					firstTransactionMutation.getCatalogVersion(),
-					transactionMutation.getCatalogVersion()
-				);
+				int transactionSize = 0;
+				int previousTransactionSize;
+				long previousOffset;
+				long offset = 0;
+				do {
+					input.skip(transactionSize);
+					previousTransactionSize = transactionSize;
+					previousOffset = offset;
+					transactionSize = input.simpleIntRead();
+					offset += 4 + transactionSize;
+				} while (offset < fileLength);
 
-			} catch (Exception ex) {
-				log.error(
-					"Failed to read the last transaction from WAL file `" + walFilePath + "`! The file is probably" +
-						" corrupted! The catalog will be marked as corrupted!",
-					ex
-				);
-				if (ex instanceof WriteAheadLogCorruptedException) {
-					// just rethrow
-					throw ex;
+				final long lastTxStartPosition;
+				final int lastTxLength;
+				final long consistentLength;
+				if (offset > fileLength) {
+					final Path backupFilePath = walFilePath.getParent().resolve("_damaged_wal.bck");
+					log.warn(
+						"WAL file `" + walFilePath + "` was not written completely! Truncating to the last complete" +
+							" transaction (offset `" + previousOffset + "`) and backing up the original file to: `" +
+							backupFilePath + "`!"
+					);
+					Files.copy(walFilePath, backupFilePath);
+					lastTxStartPosition = previousOffset - previousTransactionSize - 4;
+					lastTxLength = previousTransactionSize;
+					consistentLength = previousOffset;
 				} else {
-					// wrap original exception
-					throw new WriteAheadLogCorruptedException(
+					lastTxStartPosition = previousOffset;
+					lastTxLength = transactionSize;
+					consistentLength = offset;
+				}
+
+				try {
+					input.seekWithUnknownLength(4);
+					final TransactionMutation firstTransactionMutation = Objects.requireNonNull(
+						(TransactionMutation) StorageRecord.read(
+							input, (stream, length) -> kryo.readClassAndObject(stream)
+						).payload()
+					);
+
+					input.seekWithUnknownLength(lastTxStartPosition + 4);
+					final TransactionMutation transactionMutation = Objects.requireNonNull(
+						(TransactionMutation) StorageRecord.read(
+							input, (stream, length) -> kryo.readClassAndObject(stream)
+						).payload()
+					);
+
+					final long calculatedTransactionSize = input.total() + transactionMutation.getWalSizeInBytes();
+					Assert.isPremiseValid(
+						lastTxLength == calculatedTransactionSize,
+						() -> new WriteAheadLogCorruptedException(
+							"The transaction size `" + lastTxLength + "` does not match the actual size `" +
+								calculatedTransactionSize + "`!",
+							"The transaction size does not match the actual size!"
+						)
+					);
+
+					if (consistentLength < fileLength) {
+						final DataFileCompactEvent event = new DataFileCompactEvent(
+							catalogName,
+							FileType.WAL,
+							FileType.WAL.name()
+						);
+
+						// truncate the WAL file to the last consistent transaction
+						walFile.setLength(consistentLength);
+
+						// emit the event
+						event.finish().commit();
+					}
+
+					return new FirstAndLastCatalogVersions(
+						firstTransactionMutation.getCatalogVersion(),
+						transactionMutation.getCatalogVersion()
+					);
+
+				} catch (Exception ex) {
+					log.error(
 						"Failed to read the last transaction from WAL file `" + walFilePath + "`! The file is probably" +
 							" corrupted! The catalog will be marked as corrupted!",
-						"Failed to read the last transaction from WAL file!",
 						ex
 					);
+					if (ex instanceof WriteAheadLogCorruptedException) {
+						// just rethrow
+						throw ex;
+					} else {
+						// wrap original exception
+						throw new WriteAheadLogCorruptedException(
+							"Failed to read the last transaction from WAL file `" + walFilePath + "`! The file is probably" +
+								" corrupted! The catalog will be marked as corrupted!",
+							"Failed to read the last transaction from WAL file!",
+							ex
+						);
+					}
 				}
 			}
 
@@ -586,7 +599,78 @@ public class CatalogWriteAheadLog implements Closeable {
 	}
 
 	/**
+	 * Constructor for internal use only. It is used to create a new WAL file with the given parameters.
+	 */
+	public CatalogWriteAheadLog(
+		long catalogVersion,
+		@Nonnull String catalogName,
+		@Nonnull Path catalogStoragePath,
+		@Nonnull Pool<Kryo> catalogKryoPool,
+		@Nonnull StorageOptions storageOptions,
+		@Nonnull TransactionOptions transactionOptions,
+		@Nonnull Scheduler scheduler,
+		int walFileIndex
+	) {
+		this.catalogName = catalogName;
+		this.catalogStoragePath = catalogStoragePath;
+		this.catalogKryoPool = catalogKryoPool;
+		this.processedCatalogVersion = new AtomicLong(catalogVersion);
+		this.cutWalCacheTask = new DelayedAsyncTask(
+			catalogName, "WAL cache cutter",
+			scheduler,
+			this::cutWalCache,
+			CUT_WAL_CACHE_AFTER_INACTIVITY_MS, TimeUnit.MILLISECONDS
+		);
+		this.removeWalFileTask = new DelayedAsyncTask(
+			catalogName, "WAL file remover",
+			scheduler,
+			this::removeWalFiles,
+			0, TimeUnit.MILLISECONDS
+		);
+		this.maxWalFileSizeBytes = transactionOptions.walFileSizeBytes();
+		this.walFileCountKept = transactionOptions.walFileCountKept();
+		this.computeCRC32C = storageOptions.computeCRC32C();
+		this.bootstrapFileTrimmer = null;
+		this.onWalPurgeCallback = null;
+
+		try {
+			final Path walFilePath = catalogStoragePath.resolve(getWalFileName(catalogName, walFileIndex));
+			final FileChannel walFileChannel = FileChannel.open(
+				walFilePath,
+				StandardOpenOption.WRITE, StandardOpenOption.APPEND, StandardOpenOption.DSYNC
+			);
+
+			//noinspection IOResourceOpenedButNotSafelyClosed
+			final ObservableOutput<ByteArrayOutputStream> theOutput = new ObservableOutput<>(
+				transactionMutationOutputStream,
+				TRANSACTION_MUTATION_SIZE_WITH_RESERVE,
+				TRANSACTION_MUTATION_SIZE_WITH_RESERVE,
+				TRANSACTION_MUTATION_SIZE_WITH_RESERVE
+			);
+
+			this.currentWalFile.set(
+				new CurrentWalFile(
+					walFileIndex,
+					-1,
+					-1,
+					walFilePath,
+					walFileChannel,
+					computeCRC32C ? theOutput.computeCRC32() : theOutput,
+					walFileChannel.size()
+				)
+			);
+		} catch (IOException e) {
+			throw new WriteAheadLogCorruptedException(
+				"Failed to open WAL file `" + getWalFileName(catalogName, walFileIndex) + "`!",
+				"Failed to open WAL file!",
+				e
+			);
+		}
+	}
+
+	/**
 	 * Returns index of the current WAL file.
+	 *
 	 * @return index of the current WAL file
 	 */
 	public int getWalFileIndex() {
@@ -595,6 +679,7 @@ public class CatalogWriteAheadLog implements Closeable {
 
 	/**
 	 * Returns the path of the current WAL file.
+	 *
 	 * @return the path of the current WAL file
 	 */
 	@Nonnull
@@ -645,6 +730,7 @@ public class CatalogWriteAheadLog implements Closeable {
 	 * @param walReference        The reference to the WAL file.
 	 * @return the number of Bytes written
 	 */
+	@SuppressWarnings("StringConcatenationMissingWhitespace")
 	public long append(
 		@Nonnull TransactionMutation transactionMutation,
 		@Nonnull OffHeapWithFileBackupReference walReference
@@ -801,7 +887,7 @@ public class CatalogWriteAheadLog implements Closeable {
 	 * Retrieves a stream of committed mutations starting from the given catalog version.
 	 * The stream is generated by reading mutations from the Write-Ahead Log (WAL) file.
 	 *
-	 * @param startCatalogVersion             the catalog version to start reading from
+	 * @param startCatalogVersion the catalog version to start reading from
 	 * @return a stream of committed mutations
 	 */
 	@Nonnull
@@ -820,8 +906,8 @@ public class CatalogWriteAheadLog implements Closeable {
 	 * meantime another transaction with 4k size has been written the 4k transaction is then failed to be read from the
 	 * observable input, because the internal pointers are probably somehow misaligned.
 	 *
-	 * @param startCatalogVersion             the catalog version to start reading from
-	 * @param requestedCatalogVersion             the minimal catalog version to finish reading
+	 * @param startCatalogVersion     the catalog version to start reading from
+	 * @param requestedCatalogVersion the minimal catalog version to finish reading
 	 * @return a stream of committed mutations
 	 */
 	@Nonnull
@@ -884,7 +970,8 @@ public class CatalogWriteAheadLog implements Closeable {
 			startPosition = 0L;
 		} else {
 			walFilePath = currentCatalogVersion.toFilePath(this.catalogStoragePath);
-			startPosition = currentCatalogVersion.fileLocation().startingPosition() + currentCatalogVersion.fileLocation().recordLength();
+			final FileLocation fileLocation = Objects.requireNonNull(currentCatalogVersion.fileLocation());
+			startPosition = fileLocation.startingPosition() + fileLocation.recordLength();
 		}
 		final File walFile = walFilePath.toFile();
 		if (walFile.exists() && walFile.length() > startPosition + 4) {
@@ -897,10 +984,13 @@ public class CatalogWriteAheadLog implements Closeable {
 				)
 			) {
 				input.seekWithUnknownLength(startPosition + 4);
-				final TransactionMutation firstTransactionMutation = (TransactionMutation) StorageRecord.read(
-					input, (stream, length) -> catalogKryoPool.obtain().readClassAndObject(stream)
-				).payload();
-				return of(firstTransactionMutation);
+				return of(
+					Objects.requireNonNull(
+						(TransactionMutation) StorageRecord.read(
+							input, (stream, length) -> catalogKryoPool.obtain().readClassAndObject(stream)
+						).payload()
+					)
+				);
 			} catch (Exception e) {
 				throw new WriteAheadLogCorruptedException(
 					"Failed to read `" + walFilePath + "`!",
@@ -1011,8 +1101,8 @@ public class CatalogWriteAheadLog implements Closeable {
 	/**
 	 * Creates a MutationSupplier object with the specified parameters.
 	 *
-	 * @param startCatalogVersion        the catalog version to start reading from
-	 * @param requestedCatalogVersion    the minimal catalog version to finish reading
+	 * @param startCatalogVersion     the catalog version to start reading from
+	 * @param requestedCatalogVersion the minimal catalog version to finish reading
 	 * @return a new MutationSupplier object
 	 */
 	@Nonnull
@@ -1102,8 +1192,10 @@ public class CatalogWriteAheadLog implements Closeable {
 		}
 
 		final int[] walIndexesToSearch = Arrays.stream(
-				this.catalogStoragePath.toFile().listFiles(
-					(dir, name) -> name.endsWith(WAL_FILE_SUFFIX)
+				Objects.requireNonNull(
+					this.catalogStoragePath.toFile().listFiles(
+						(dir, name) -> name.endsWith(WAL_FILE_SUFFIX)
+					)
 				)
 			)
 			.mapToInt(it -> getIndexFromWalFileName(this.catalogName, it.getName()))
@@ -1254,7 +1346,7 @@ public class CatalogWriteAheadLog implements Closeable {
 			final File[] walFiles = this.catalogStoragePath.toFile().listFiles(
 				(dir, name) -> name.endsWith(WAL_FILE_SUFFIX)
 			);
-			if (walFiles.length > this.walFileCountKept) {
+			if (walFiles != null && walFiles.length > this.walFileCountKept) {
 				// first sort the files from oldest to newest according to their index in the file name
 				Arrays.sort(
 					walFiles,
@@ -1402,6 +1494,25 @@ public class CatalogWriteAheadLog implements Closeable {
 	}
 
 	/**
+	 * Interface that allows to look up for the active files for the given catalog version and to remove the files up to
+	 * the given active files.
+	 */
+	public interface WalPurgeCallback {
+
+		WalPurgeCallback NO_OP = activeFiles -> {
+			// do nothing
+		};
+
+		/**
+		 * Purges the files up to the given active files.
+		 *
+		 * @param firstActiveCatalogVersion the first catalog version that needs to be kept
+		 */
+		void purgeFilesUpTo(long firstActiveCatalogVersion);
+
+	}
+
+	/**
 	 * Record contains information about currently use WAL file.
 	 */
 	static class CurrentWalFile implements Closeable {
@@ -1489,8 +1600,9 @@ public class CatalogWriteAheadLog implements Closeable {
 
 		/**
 		 * Initializes the first catalog version of the current WAL file if it is not set yet and runs the given action.
+		 *
 		 * @param catalogVersion the catalog version to set
-		 * @param andThen the action to run after the catalog version is set
+		 * @param andThen        the action to run after the catalog version is set
 		 */
 		public void initFirstCatalogVersionOfCurrentWalFileIfNecessary(long catalogVersion, @Nonnull Runnable andThen) {
 			if (this.firstCatalogVersionOfCurrentWalFile.get() == -1) {
@@ -1504,12 +1616,23 @@ public class CatalogWriteAheadLog implements Closeable {
 		 * catalog version.
 		 *
 		 * @param catalogVersion the updated catalog version
-		 * @param writtenLength the length of the written record
+		 * @param writtenLength  the length of the written record
 		 */
 		public void updateLastWrittenCatalogVersion(long catalogVersion, int writtenLength) {
 			checkNextCatalogVersionMatch(catalogVersion);
 			this.lastWrittenCatalogVersion.set(catalogVersion);
 			this.currentWalFileSize += writtenLength;
+		}
+
+		/**
+		 * Closes the current WAL file.
+		 *
+		 * @throws IOException if an I/O error occurs
+		 */
+		public void close() throws IOException {
+			this.closed = true;
+			this.output.close();
+			this.walFileChannel.close();
 		}
 
 		/**
@@ -1534,16 +1657,6 @@ public class CatalogWriteAheadLog implements Closeable {
 		}
 
 		/**
-		 * Closes the current WAL file.
-		 * @throws IOException if an I/O error occurs
-		 */
-		public void close() throws IOException {
-			this.closed = true;
-			this.output.close();
-			this.walFileChannel.close();
-		}
-
-		/**
 		 * Asserts that the current WAL file is open.
 		 */
 		private void assertOpen() {
@@ -1552,25 +1665,6 @@ public class CatalogWriteAheadLog implements Closeable {
 				"The current WAL file is already closed!"
 			);
 		}
-	}
-
-	/**
-	 * Interface that allows to look up for the active files for the given catalog version and to remove the files up to
-	 * the given active files.
-	 */
-	public interface WalPurgeCallback {
-
-		WalPurgeCallback NO_OP = activeFiles -> {
-			// do nothing
-		};
-
-		/**
-		 * Purges the files up to the given active files.
-		 *
-		 * @param firstActiveCatalogVersion the first catalog version that needs to be kept
-		 */
-		void purgeFilesUpTo(long firstActiveCatalogVersion);
-
 	}
 
 	/**

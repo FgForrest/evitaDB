@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -36,6 +36,7 @@ import io.evitadb.api.query.require.ManagedReferencesBehaviour;
 import io.evitadb.api.query.require.PriceContent;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.QueryPriceMode;
+import io.evitadb.api.query.require.Require;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.dataType.Scope;
@@ -47,6 +48,12 @@ import java.util.Locale;
 import java.util.Map;
 
 import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.api.query.require.FacetGroupRelationLevel.WITH_DIFFERENT_GROUPS;
+import static io.evitadb.api.query.require.FacetRelationType.CONJUNCTION;
+import static io.evitadb.api.query.require.FacetRelationType.DISJUNCTION;
+import static io.evitadb.api.query.require.FacetRelationType.EXCLUSIVITY;
+import static io.evitadb.api.query.require.FacetRelationType.NEGATION;
+import static io.evitadb.api.query.filter.AttributeSpecialValue.NULL;
 import static io.evitadb.api.query.require.FacetStatisticsDepth.COUNTS;
 import static io.evitadb.api.query.require.FacetStatisticsDepth.IMPACT;
 import static io.evitadb.api.query.require.QueryPriceMode.WITH_TAX;
@@ -815,6 +822,662 @@ class EvitaQLRequireConstraintVisitorTest {
 				orderBy(attributeNatural("code"))
 			),
 			constraint31b
+		);
+
+		final RequireConstraint constraint32 = parseRequireConstraint("referenceContent(?, orderBy(attributeNatural(?)), page(?, ?))", "a", "code", 2, 40);
+		assertEquals(
+			referenceContent(
+				"a",
+				orderBy(attributeNatural("code")),
+				page(2, 40)
+			),
+			constraint32
+		);
+
+		final RequireConstraint constraint32a = parseRequireConstraint("referenceContentWithAttributes(?, orderBy(attributeNatural(?)), attributeContent(?), page(?, ?))", "a", "code", "order", 2, 40);
+		assertEquals(
+			referenceContentWithAttributes(
+				"a",
+				orderBy(attributeNatural("code")),
+				attributeContent("order"),
+				page(2, 40)
+			),
+			constraint32a
+		);
+
+		final RequireConstraint constraint32b = parseRequireConstraint("referenceContentWithAttributes(?, orderBy(attributeNatural(?)), page(?, ?))", "a", "code", 2, 40);
+		assertEquals(
+			referenceContentWithAttributes(
+				"a",
+				orderBy(attributeNatural("code")),
+				page(2, 40)
+			),
+			constraint32b
+		);
+
+		final RequireConstraint constraint33 = parseRequireConstraint("referenceContent(?, orderBy(attributeNatural(?)), strip(?, ?))", "a", "code", 2, 40);
+		assertEquals(
+			referenceContent(
+				"a",
+				orderBy(attributeNatural("code")),
+				strip(2, 40)
+			),
+			constraint33
+		);
+
+		final RequireConstraint constraint33a = parseRequireConstraint("referenceContentWithAttributes(?, orderBy(attributeNatural(?)), attributeContent(?), strip(?, ?))", "a", "code", "order", 2, 40);
+		assertEquals(
+			referenceContentWithAttributes(
+				"a",
+				orderBy(attributeNatural("code")),
+				attributeContent("order"),
+				strip(2, 40)
+			),
+			constraint33a
+		);
+
+		final RequireConstraint constraint33b = parseRequireConstraint("referenceContentWithAttributes(?, orderBy(attributeNatural(?)), strip(?, ?))", "a", "code", 2, 40);
+		assertEquals(
+			referenceContentWithAttributes(
+				"a",
+				orderBy(attributeNatural("code")),
+				strip(2, 40)
+			),
+			constraint33b
+		);
+
+		final RequireConstraint constraint34 = parseRequireConstraint("referenceContent(?, filterBy(attributeEquals(?, ?)), page(?, ?))", "a", "code", "a", 2, 40);
+		assertEquals(
+			referenceContent(
+				"a",
+				filterBy(attributeEquals("code", "a")),
+				page(2, 40)
+			),
+			constraint34
+		);
+
+		final RequireConstraint constraint34a = parseRequireConstraint("referenceContentWithAttributes(?, filterBy(attributeEquals(?, ?)), attributeContent(?), page(?, ?))", "a", "code", "a", "order", 2, 40);
+		assertEquals(
+			referenceContentWithAttributes(
+				"a",
+				filterBy(attributeEquals("code", "a")),
+				attributeContent("order"),
+				page(2, 40)
+			),
+			constraint34a
+		);
+
+		final RequireConstraint constraint34b = parseRequireConstraint("referenceContentWithAttributes(?, filterBy(attributeEquals(?, ?)), page(?, ?))", "a", "code", "a", 2, 40);
+		assertEquals(
+			referenceContentWithAttributes(
+				"a",
+				filterBy(attributeEquals("code", "a")),
+				page(2, 40)
+			),
+			constraint34b
+		);
+
+		final RequireConstraint constraint35 = parseRequireConstraint("referenceContent(?, filterBy(attributeEquals(?, ?)), strip(?, ?))", "a", "code", "a", 2, 40);
+		assertEquals(
+			referenceContent(
+				"a",
+				filterBy(attributeEquals("code", "a")),
+				strip(2, 40)
+			),
+			constraint35
+		);
+
+		final RequireConstraint constraint35a = parseRequireConstraint("referenceContentWithAttributes(?, filterBy(attributeEquals(?, ?)), attributeContent(?), strip(?, ?))", "a", "code", "a", "order", 2, 40);
+		assertEquals(
+			referenceContentWithAttributes(
+				"a",
+				filterBy(attributeEquals("code", "a")),
+				attributeContent("order"),
+				strip(2, 40)
+			),
+			constraint35a
+		);
+
+		final RequireConstraint constraint35b = parseRequireConstraint("referenceContentWithAttributes(?, filterBy(attributeEquals(?, ?)), strip(?, ?))", "a", "code", "a", 2, 40);
+		assertEquals(
+			referenceContentWithAttributes(
+				"a",
+				filterBy(attributeEquals("code", "a")),
+				strip(2, 40)
+			),
+			constraint35b
+		);
+
+		final RequireConstraint constraint36 = parseRequireConstraint("referenceContent(?, filterBy(attributeEquals(?, ?)), orderBy(attributeNatural(?)), page(?, ?))", "a", "code", "a", "code", 2, 40);
+		assertEquals(
+			referenceContent(
+				"a",
+				filterBy(attributeEquals("code", "a")),
+				orderBy(attributeNatural("code")),
+				page(2, 40)
+			),
+			constraint36
+		);
+
+		final RequireConstraint constraint36a = parseRequireConstraint("referenceContentWithAttributes(?, filterBy(attributeEquals(?, ?)), orderBy(attributeNatural(?)), attributeContent(?), page(?, ?))", "a", "code", "a", "code", "order", 2, 40);
+		assertEquals(
+			referenceContentWithAttributes(
+				"a",
+				filterBy(attributeEquals("code", "a")),
+				orderBy(attributeNatural("code")),
+				attributeContent("order"),
+				page(2, 40)
+			),
+			constraint36a
+		);
+
+		final RequireConstraint constraint36b = parseRequireConstraint("referenceContentWithAttributes(?, filterBy(attributeEquals(?, ?)), orderBy(attributeNatural(?)), page(?, ?))", "a", "code", "a", "code", 2, 40);
+		assertEquals(
+			referenceContentWithAttributes(
+				"a",
+				filterBy(attributeEquals("code", "a")),
+				orderBy(attributeNatural("code")),
+				page(2, 40)
+			),
+			constraint36b
+		);
+
+		final RequireConstraint constraint37 = parseRequireConstraint("referenceContent(?, filterBy(attributeEquals(?, ?)), orderBy(attributeNatural(?)), strip(?, ?))", "a", "code", "a", "code", 2, 40);
+		assertEquals(
+			referenceContent(
+				"a",
+				filterBy(attributeEquals("code", "a")),
+				orderBy(attributeNatural("code")),
+				strip(2, 40)
+			),
+			constraint37
+		);
+
+		final RequireConstraint constraint37a = parseRequireConstraint("referenceContentWithAttributes(?, filterBy(attributeEquals(?, ?)), orderBy(attributeNatural(?)), attributeContent(?), strip(?, ?))", "a", "code", "a", "code", "order", 2, 40);
+		assertEquals(
+			referenceContentWithAttributes(
+				"a",
+				filterBy(attributeEquals("code", "a")),
+				orderBy(attributeNatural("code")),
+				attributeContent("order"),
+				strip(2, 40)
+			),
+			constraint37a
+		);
+
+		final RequireConstraint constraint37b = parseRequireConstraint("referenceContentWithAttributes(?, filterBy(attributeEquals(?, ?)), orderBy(attributeNatural(?)), strip(?, ?))", "a", "code", "a", "code", 2, 40);
+		assertEquals(
+			referenceContentWithAttributes(
+				"a",
+				filterBy(attributeEquals("code", "a")),
+				orderBy(attributeNatural("code")),
+				strip(2, 40)
+			),
+			constraint37b
+		);
+
+		final RequireConstraint constraint38 = parseRequireConstraint("referenceContent(?, entityFetch(), page(?, ?))", "a", 2, 40);
+		assertEquals(
+			referenceContent(
+				"a",
+				entityFetch(),
+				page(2, 40)
+			),
+			constraint38
+		);
+
+		final RequireConstraint constraint38a = parseRequireConstraint("referenceContentWithAttributes(?, entityFetch(), page(?, ?))", "a", 2, 40);
+		assertEquals(
+			referenceContentWithAttributes(
+				"a",
+				entityFetch(),
+				page(2, 40)
+			),
+			constraint38a
+		);
+
+		final RequireConstraint constraint38b = parseRequireConstraint("referenceContentWithAttributes(?, attributeContent(?), entityFetch(), page(?, ?))", "a", "order", 2, 40);
+		assertEquals(
+			referenceContentWithAttributes(
+				"a",
+				attributeContent("order"),
+				entityFetch(),
+				page(2, 40)
+			),
+			constraint38b
+		);
+
+		final RequireConstraint constraint39 = parseRequireConstraint("referenceContent(?, entityFetch(), strip(?, ?))", "a", 2, 40);
+		assertEquals(
+			referenceContent(
+				"a",
+				entityFetch(),
+				strip(2, 40)
+			),
+			constraint39
+		);
+
+		final RequireConstraint constraint39a = parseRequireConstraint("referenceContentWithAttributes(?, entityFetch(), strip(?, ?))", "a", 2, 40);
+		assertEquals(
+			referenceContentWithAttributes(
+				"a",
+				entityFetch(),
+				strip(2, 40)
+			),
+			constraint39a
+		);
+
+		final RequireConstraint constraint39b = parseRequireConstraint("referenceContentWithAttributes(?, attributeContent(?), entityFetch(), strip(?, ?))", "a", "order", 2, 40);
+		assertEquals(
+			referenceContentWithAttributes(
+				"a",
+				attributeContent("order"),
+				entityFetch(),
+				strip(2, 40)
+			),
+			constraint39b
+		);
+
+		final RequireConstraint constraint40 = parseRequireConstraint("referenceContent(?, entityGroupFetch(), page(?, ?))", "a", 2, 40);
+		assertEquals(
+			referenceContent(
+				"a",
+				entityGroupFetch(),
+				page(2, 40)
+			),
+			constraint40
+		);
+
+		final RequireConstraint constraint40a = parseRequireConstraint("referenceContentWithAttributes(?, entityGroupFetch(), page(?, ?))", "a", 2, 40);
+		assertEquals(
+			referenceContentWithAttributes(
+				"a",
+				entityGroupFetch(),
+				page(2, 40)
+			),
+			constraint40a
+		);
+
+		final RequireConstraint constraint40b = parseRequireConstraint("referenceContentWithAttributes(?, attributeContent(?), entityGroupFetch(), page(?, ?))", "a", "order", 2, 40);
+		assertEquals(
+			referenceContentWithAttributes(
+				"a",
+				attributeContent("order"),
+				entityGroupFetch(),
+				page(2, 40)
+			),
+			constraint40b
+		);
+
+		final RequireConstraint constraint41 = parseRequireConstraint("referenceContent(?, entityGroupFetch(), strip(?, ?))", "a", 2, 40);
+		assertEquals(
+			referenceContent(
+				"a",
+				entityGroupFetch(),
+				strip(2, 40)
+			),
+			constraint41
+		);
+
+		final RequireConstraint constraint41a = parseRequireConstraint("referenceContentWithAttributes(?, entityGroupFetch(), strip(?, ?))", "a", 2, 40);
+		assertEquals(
+			referenceContentWithAttributes(
+				"a",
+				entityGroupFetch(),
+				strip(2, 40)
+			),
+			constraint41a
+		);
+
+		final RequireConstraint constraint41b = parseRequireConstraint("referenceContentWithAttributes(?, attributeContent(?), entityGroupFetch(), strip(?, ?))", "a", "order", 2, 40);
+		assertEquals(
+			referenceContentWithAttributes(
+				"a",
+				attributeContent("order"),
+				entityGroupFetch(),
+				strip(2, 40)
+			),
+			constraint41b
+		);
+
+		final RequireConstraint constraint42 = parseRequireConstraint("referenceContentAll(?, strip(?, ?))", ManagedReferencesBehaviour.EXISTING, 2, 40);
+		assertEquals(
+			referenceContentAll(
+				ManagedReferencesBehaviour.EXISTING,
+				strip(2, 40)
+			),
+			constraint42
+		);
+
+		final RequireConstraint constraint43 = parseRequireConstraint("referenceContentAll(?, entityGroupFetch(), strip(?, ?))", ManagedReferencesBehaviour.EXISTING, 2, 40);
+		assertEquals(
+			referenceContentAll(
+				ManagedReferencesBehaviour.EXISTING,
+				entityGroupFetch(),
+				strip(2, 40)
+			),
+			constraint43
+		);
+
+		final RequireConstraint constraint44 = parseRequireConstraint("referenceContentAll(?, entityGroupFetch())", ManagedReferencesBehaviour.EXISTING);
+		assertEquals(
+			referenceContentAll(
+				ManagedReferencesBehaviour.EXISTING,
+				entityGroupFetch()
+			),
+			constraint44
+		);
+
+		final RequireConstraint constraint45 = parseRequireConstraint("referenceContentAllWithAttributes(?, strip(?, ?))", ManagedReferencesBehaviour.EXISTING, 2, 40);
+		assertEquals(
+			referenceContentAllWithAttributes(
+				ManagedReferencesBehaviour.EXISTING,
+				strip(2, 40)
+			),
+			constraint45
+		);
+
+		final RequireConstraint constraint46 = parseRequireConstraint("referenceContentAllWithAttributes(?, entityGroupFetch(), strip(?, ?))", ManagedReferencesBehaviour.EXISTING, 2, 40);
+		assertEquals(
+			referenceContentAllWithAttributes(
+				ManagedReferencesBehaviour.EXISTING,
+				entityGroupFetch(),
+				strip(2, 40)
+			),
+			constraint46
+		);
+
+		final RequireConstraint constraint47 = parseRequireConstraint("referenceContentAllWithAttributes(?, entityGroupFetch())", ManagedReferencesBehaviour.EXISTING);
+		assertEquals(
+			referenceContentAllWithAttributes(
+				ManagedReferencesBehaviour.EXISTING,
+				entityGroupFetch()
+			),
+			constraint47
+		);
+
+		final RequireConstraint constraint48 = parseRequireConstraint(
+			"require(" +
+					"entityFetch(" +
+						"referenceContent(" +
+							"?," +
+							"entityFetch()," +
+							"entityGroupFetch()," +
+							"page(?, ?)" +
+						")" +
+					")" +
+				")", "a", 2, 40);
+		assertEquals(
+			require(
+				entityFetch(
+					referenceContent(
+						"a", entityFetch(), entityGroupFetch(),
+						page(2, 40)
+					)
+				)
+			),
+			constraint48
+		);
+	}
+
+	@Test
+	void shouldParseComplexRequirement() {
+		final RequireConstraint parsedConstraint = parseRequireConstraintUnsafe(
+			"""
+				require(
+						page(1, 20),
+						entityFetch(
+							attributeContentAll(),
+							priceContentRespectingFilter('reference', 'basic'),
+							referenceContentWithAttributes(
+								EXISTING,
+								'master',
+								filterBy(
+									entityHaving(
+										and(
+											inScope(
+												LIVE,
+												or(
+													attributeIs('validity', NULL),
+													attributeInRangeNow('validity')
+												)
+											),
+											attributeEquals('status', 'ACTIVE')
+										)
+									)
+								)
+							),
+							referenceContentWithAttributes(
+								EXISTING,
+								'bundles',
+								filterBy(
+									entityHaving(
+										and(
+											inScope(
+												LIVE,
+												or(
+													attributeIs('validity', NULL),
+													attributeInRangeNow('validity')
+												)
+											),
+											attributeEquals('status', 'ACTIVE')
+										)
+									)
+								)
+							),
+							referenceContentWithAttributes(
+								EXISTING,
+								'productSetItems',
+								filterBy(
+									entityHaving(
+										and(
+											inScope(
+												LIVE,
+												or(
+													attributeIs('validity', NULL),
+													attributeInRangeNow('validity')
+												)
+											),
+											attributeEquals('status', 'ACTIVE')
+										)
+									)
+								),
+								entityFetch(
+									attributeContentAll()
+								)
+							),
+							referenceContentWithAttributes(
+								EXISTING,
+								'stocks',
+								filterBy(
+									entityHaving(
+										and(
+											inScope(
+												LIVE,
+												or(
+													attributeIs('validity', NULL),
+													attributeInRangeNow('validity')
+												)
+											),
+											attributeEquals('status', 'ACTIVE')
+										)
+									)
+								),
+								entityFetch(
+									attributeContentAll()
+								)
+							),
+							referenceContentWithAttributes(
+								EXISTING,
+								'tags',
+								entityFetch(
+									attributeContentAll()
+								)
+							),
+							referenceContentWithAttributes(
+								EXISTING,
+								'parameterValues',
+								filterBy(
+									entityHaving(
+										and(
+											or(
+												attributeIs('validity', NULL),
+												attributeInRangeNow('validity')
+											),
+											attributeEquals('status', 'ACTIVE'),
+											referenceHaving(
+												'parameter',
+												entityHaving(
+													and(
+														or(
+															attributeIs('validity', NULL),
+															attributeInRangeNow('validity')
+														),
+														attributeEquals('status', 'ACTIVE')
+													)
+												)
+											)
+										)
+									)
+								),
+								entityFetch(
+									attributeContentAll()
+								),
+								entityGroupFetch(
+									attributeContentAll()
+								)
+							)
+						)
+					)
+				""");
+		final Require expectedConstraint = require(
+			page(1, 20),
+			entityFetch(
+				attributeContentAll(),
+				priceContentRespectingFilter("reference", "basic"),
+				referenceContentWithAttributes(
+					ManagedReferencesBehaviour.EXISTING,
+					"master",
+					filterBy(
+						entityHaving(
+							and(
+								inScope(
+									Scope.LIVE,
+									or(
+										attributeIs("validity", NULL),
+										attributeInRangeNow("validity")
+									)
+								),
+								attributeEquals("status", "ACTIVE")
+							)
+						)
+					)
+				),
+				referenceContentWithAttributes(
+					ManagedReferencesBehaviour.EXISTING,
+					"bundles",
+					filterBy(
+						entityHaving(
+							and(
+								inScope(
+									Scope.LIVE,
+									or(
+										attributeIs("validity", NULL),
+										attributeInRangeNow("validity")
+									)
+								),
+								attributeEquals("status", "ACTIVE")
+							)
+						)
+					)
+				),
+				referenceContentWithAttributes(
+					ManagedReferencesBehaviour.EXISTING,
+					"productSetItems",
+					filterBy(
+						entityHaving(
+							and(
+								inScope(
+									Scope.LIVE,
+									or(
+										attributeIs("validity", NULL),
+										attributeInRangeNow("validity")
+									)
+								),
+								attributeEquals("status", "ACTIVE")
+							)
+						)
+					),
+					entityFetch(
+						attributeContentAll()
+					)
+				),
+				referenceContentWithAttributes(
+					ManagedReferencesBehaviour.EXISTING,
+					"stocks",
+					filterBy(
+						entityHaving(
+							and(
+								inScope(
+									Scope.LIVE,
+									or(
+										attributeIs("validity", NULL),
+										attributeInRangeNow("validity")
+									)
+								),
+								attributeEquals("status", "ACTIVE")
+							)
+						)
+					),
+					entityFetch(
+						attributeContentAll()
+					)
+				),
+				referenceContentWithAttributes(
+					ManagedReferencesBehaviour.EXISTING,
+					"tags",
+					entityFetch(
+						attributeContentAll()
+					)
+				),
+				referenceContentWithAttributes(
+					ManagedReferencesBehaviour.EXISTING,
+					"parameterValues",
+					filterBy(
+						entityHaving(
+							and(
+								or(
+									attributeIs("validity", NULL),
+									attributeInRangeNow("validity")
+								),
+								attributeEquals("status", "ACTIVE"),
+								referenceHaving(
+									"parameter",
+									entityHaving(
+										and(
+											or(
+												attributeIs("validity", NULL),
+												attributeInRangeNow("validity")
+											),
+											attributeEquals("status", "ACTIVE")
+										)
+									)
+								)
+							)
+						)
+					),
+					entityFetch(
+						attributeContentAll()
+					),
+					entityGroupFetch(
+						attributeContentAll()
+					)
+				)
+			)
+		);
+		assertEquals(
+			expectedConstraint,
+			parsedConstraint
 		);
 	}
 
@@ -1852,17 +2515,35 @@ class EvitaQLRequireConstraintVisitorTest {
 
 		final RequireConstraint constraint10 = parseRequireConstraintUnsafe("facetGroupsConjunction('a')");
 		assertEquals(facetGroupsConjunction("a"), constraint10);
+
+		final RequireConstraint constraint11 = parseRequireConstraintUnsafe("facetGroupsConjunction('a',  WITH_DIFFERENT_GROUPS)");
+		assertEquals(facetGroupsConjunction("a", WITH_DIFFERENT_GROUPS), constraint11);
+
+		final RequireConstraint constraint12 = parseRequireConstraintUnsafe("facetGroupsConjunction('a',  WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet( 1 , 5, 6)))");
+		assertEquals(facetGroupsConjunction("a", WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(1, 5, 6))), constraint12);
+
+		final RequireConstraint constraint13 = parseRequireConstraint("facetGroupsConjunction(?,?,filterBy(entityPrimaryKeyInSet(?,?)))", "a", WITH_DIFFERENT_GROUPS, 1, 2);
+		assertEquals(facetGroupsConjunction("a", WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(1, 2))), constraint13);
+
+		final RequireConstraint constraint14 = parseRequireConstraint(
+			"facetGroupsConjunction(@name,@groupRelation,filterBy(entityPrimaryKeyInSet(@pk1,@pk2)))",
+			Map.of("name", "a", "pk1", 1, "pk2", 2, "groupRelation", WITH_DIFFERENT_GROUPS)
+		);
+		assertEquals(facetGroupsConjunction("a", WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(1, 2))), constraint14);
 	}
 
 	@Test
 	void shouldNotParseFacetGroupsConjunctionConstraint() {
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsConjunction('a',filterBy(entityPrimaryKeyInSet(1)))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsConjunction('a',WITH_DIFFERENT_GROUPS,filterBy(entityPrimaryKeyInSet(1)))"));
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsConjunction('a',filterBy(entityPrimaryKeyInSet(?)))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsConjunction(?,?,filterBy(entityPrimaryKeyInSet(?)))",  "a", "b", 1));
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsConjunction('a',filterBy(entityPrimaryKeyInSet(?)))", 1));
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsConjunction('a',filterBy(entityPrimaryKeyInSet(@pk)))"));
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("facetGroupsConjunction"));
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("facetGroupsConjunction()"));
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("facetGroupsConjunction('a','b','c')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("facetGroupsConjunction('a',WHATEVER)"));
 	}
 
 	@Test
@@ -1905,17 +2586,37 @@ class EvitaQLRequireConstraintVisitorTest {
 
 		final RequireConstraint constraint10 = parseRequireConstraint("facetGroupsDisjunction(?)", "a");
 		assertEquals(facetGroupsDisjunction("a"), constraint10);
+
+		final RequireConstraint constraint11 = parseRequireConstraintUnsafe("facetGroupsDisjunction('a',  WITH_DIFFERENT_GROUPS)");
+		assertEquals(facetGroupsDisjunction("a", WITH_DIFFERENT_GROUPS), constraint11);
+
+		final RequireConstraint constraint12 = parseRequireConstraintUnsafe("facetGroupsDisjunction('a',  WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet( 1 , 5, 6)))");
+		assertEquals(facetGroupsDisjunction("a", WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(1, 5, 6))), constraint12);
+
+		final RequireConstraint constraint13 = parseRequireConstraint("facetGroupsDisjunction(?,?,filterBy(entityPrimaryKeyInSet(?,?)))", "a", WITH_DIFFERENT_GROUPS, 1, 2);
+		assertEquals(facetGroupsDisjunction("a", WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(1, 2))), constraint13);
+
+		final RequireConstraint constraint14 = parseRequireConstraint(
+			"facetGroupsDisjunction(@name,@groupRelation,filterBy(entityPrimaryKeyInSet(@pk1,@pk2)))",
+			Map.of("name", "a", "pk1", 1, "pk2", 2, "groupRelation", WITH_DIFFERENT_GROUPS)
+		);
+		assertEquals(facetGroupsDisjunction("a", WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(1, 2))), constraint14);
 	}
 
 	@Test
 	void shouldNotParseFacetGroupsDisjunctionConstraint() {
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsDisjunction('a',filterBy(entityPrimaryKeyInSet(1)))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsDisjunction('a',WITH_DIFFERENT_GROUPS,filterBy(entityPrimaryKeyInSet(1)))"));
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsDisjunction('a',filterBy(entityPrimaryKeyInSet(?)))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsDisjunction(?,?,filterBy(entityPrimaryKeyInSet(?)))",  "a", "b", 1));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsDisjunction('a',filterBy(entityPrimaryKeyInSet(?)))", 1));
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsDisjunction('a',filterBy(entityPrimaryKeyInSet(@pk)))"));
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsDisjunction"));
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsDisjunction()"));
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsDisjunction('a','b','c')"));
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsDisjunction('a',filterBy(entityPrimaryKeyInSet(?)))", 1));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("facetGroupsDisjunction('a',WHATEVER)"));
+
 	}
 
 	@Test
@@ -1958,17 +2659,143 @@ class EvitaQLRequireConstraintVisitorTest {
 
 		final RequireConstraint constraint10 = parseRequireConstraintUnsafe("facetGroupsNegation('a')");
 		assertEquals(facetGroupsNegation("a"), constraint10);
+
+		final RequireConstraint constraint11 = parseRequireConstraint("facetGroupsNegation(?)", "a");
+		assertEquals(facetGroupsNegation("a"), constraint11);
+
+		final RequireConstraint constraint12 = parseRequireConstraintUnsafe("facetGroupsNegation('a',  WITH_DIFFERENT_GROUPS)");
+		assertEquals(facetGroupsNegation("a", WITH_DIFFERENT_GROUPS), constraint12);
+
+		final RequireConstraint constraint13 = parseRequireConstraintUnsafe("facetGroupsNegation('a',  WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet( 1 , 5, 6)))");
+		assertEquals(facetGroupsNegation("a", WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(1, 5, 6))), constraint13);
+
+		final RequireConstraint constraint14 = parseRequireConstraint("facetGroupsNegation(?,?,filterBy(entityPrimaryKeyInSet(?,?)))", "a", WITH_DIFFERENT_GROUPS, 1, 2);
+		assertEquals(facetGroupsNegation("a", WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(1, 2))), constraint14);
+
+		final RequireConstraint constraint15 = parseRequireConstraint(
+			"facetGroupsNegation(@name,@groupRelation,filterBy(entityPrimaryKeyInSet(@pk1,@pk2)))",
+			Map.of("name", "a", "pk1", 1, "pk2", 2, "groupRelation", WITH_DIFFERENT_GROUPS)
+		);
+		assertEquals(facetGroupsNegation("a", WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(1, 2))), constraint15);
 	}
 
 	@Test
 	void shouldNotParseFacetGroupsNegationConstraint() {
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsNegation('a',filterBy(entityPrimaryKeyInSet(1)))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsNegation('a',WITH_DIFFERENT_GROUPS,filterBy(entityPrimaryKeyInSet(1)))"));
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsNegation('a',filterBy(entityPrimaryKeyInSet(?)))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsNegation(?,?,filterBy(entityPrimaryKeyInSet(?)))",  "a", "b", 1));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsNegation('a',filterBy(entityPrimaryKeyInSet(?)))", 1));
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsNegation('a',filterBy(entityPrimaryKeyInSet(@pk)))"));
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsNegation"));
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsNegation()"));
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsNegation('a','b','c')"));
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsNegation('a',filterBy(entityPrimaryKeyInSet(?)))", 1));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("facetGroupsNegation('a',WHATEVER)"));
+	}
+
+	@Test
+	void shouldParseFacetGroupsExclusivityConstraint() {
+		final RequireConstraint constraint1 = parseRequireConstraintUnsafe("facetGroupsExclusivity('a',filterBy(entityPrimaryKeyInSet(1)))");
+		assertEquals(facetGroupsExclusivity("a", filterBy(entityPrimaryKeyInSet(1))), constraint1);
+
+		final RequireConstraint constraint2 = parseRequireConstraintUnsafe("facetGroupsExclusivity('a',filterBy(entityPrimaryKeyInSet(1,5,6)))");
+		assertEquals(facetGroupsExclusivity("a", filterBy(entityPrimaryKeyInSet(1, 5, 6))), constraint2);
+
+		final RequireConstraint constraint3 = parseRequireConstraintUnsafe("facetGroupsExclusivity (  'a' , filterBy(entityPrimaryKeyInSet( 1 , 5, 6) ))");
+		assertEquals(facetGroupsExclusivity("a", filterBy(entityPrimaryKeyInSet(1, 5, 6))), constraint3);
+
+		final RequireConstraint constraint4 = parseRequireConstraint("facetGroupsExclusivity(?,filterBy(entityPrimaryKeyInSet(?)))", "a", 1);
+		assertEquals(facetGroupsExclusivity("a", filterBy(entityPrimaryKeyInSet(1))), constraint4);
+
+		final RequireConstraint constraint5 = parseRequireConstraint(
+			"facetGroupsExclusivity(@name,filterBy(entityPrimaryKeyInSet(@pk)))",
+			Map.of("name", "a", "pk", 1)
+		);
+		assertEquals(facetGroupsExclusivity("a", filterBy(entityPrimaryKeyInSet(1))), constraint5);
+
+		final RequireConstraint constraint6 = parseRequireConstraint("facetGroupsExclusivity(?,filterBy(entityPrimaryKeyInSet(?)))", "a", List.of(1, 2));
+		assertEquals(facetGroupsExclusivity("a", filterBy(entityPrimaryKeyInSet(1, 2))), constraint6);
+
+		final RequireConstraint constraint7 = parseRequireConstraint(
+			"facetGroupsExclusivity(@name,filterBy(entityPrimaryKeyInSet(@pk)))",
+			Map.of("name", "a", "pk", List.of(1, 2))
+		);
+		assertEquals(facetGroupsExclusivity("a", filterBy(entityPrimaryKeyInSet(1, 2))), constraint7);
+
+		final RequireConstraint constraint8 = parseRequireConstraint("facetGroupsExclusivity(?,filterBy(entityPrimaryKeyInSet(?,?)))", "a", 1, 2);
+		assertEquals(facetGroupsExclusivity("a", filterBy(entityPrimaryKeyInSet(1, 2))), constraint8);
+
+		final RequireConstraint constraint9 = parseRequireConstraint(
+			"facetGroupsExclusivity(@name,filterBy(entityPrimaryKeyInSet(@pk1,@pk2)))",
+			Map.of("name", "a", "pk1", 1, "pk2", 2)
+		);
+		assertEquals(facetGroupsExclusivity("a", filterBy(entityPrimaryKeyInSet(1, 2))), constraint9);
+
+		final RequireConstraint constraint10 = parseRequireConstraintUnsafe("facetGroupsExclusivity('a')");
+		assertEquals(facetGroupsExclusivity("a"), constraint10);
+
+		final RequireConstraint constraint11 = parseRequireConstraint("facetGroupsExclusivity(?)", "a");
+		assertEquals(facetGroupsExclusivity("a"), constraint11);
+
+		final RequireConstraint constraint12 = parseRequireConstraintUnsafe("facetGroupsExclusivity('a',  WITH_DIFFERENT_GROUPS)");
+		assertEquals(facetGroupsExclusivity("a", WITH_DIFFERENT_GROUPS), constraint12);
+
+		final RequireConstraint constraint13 = parseRequireConstraintUnsafe("facetGroupsExclusivity('a',  WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet( 1 , 5, 6)))");
+		assertEquals(facetGroupsExclusivity("a", WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(1, 5, 6))), constraint13);
+
+		final RequireConstraint constraint14 = parseRequireConstraint("facetGroupsExclusivity(?,?,filterBy(entityPrimaryKeyInSet(?,?)))", "a", WITH_DIFFERENT_GROUPS, 1, 2);
+		assertEquals(facetGroupsExclusivity("a", WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(1, 2))), constraint14);
+
+		final RequireConstraint constraint15 = parseRequireConstraint(
+			"facetGroupsExclusivity(@name,@groupRelation,filterBy(entityPrimaryKeyInSet(@pk1,@pk2)))",
+			Map.of("name", "a", "pk1", 1, "pk2", 2, "groupRelation", WITH_DIFFERENT_GROUPS)
+		);
+		assertEquals(facetGroupsExclusivity("a", WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(1, 2))), constraint15);
+	}
+
+	@Test
+	void shouldNotParseFacetGroupsExclusivityConstraint() {
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsExclusivity('a',filterBy(entityPrimaryKeyInSet(1)))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsExclusivity('a',WITH_DIFFERENT_GROUPS,filterBy(entityPrimaryKeyInSet(1)))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsExclusivity('a',filterBy(entityPrimaryKeyInSet(?)))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsExclusivity(?,?,filterBy(entityPrimaryKeyInSet(?)))",  "a", "b", 1));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsExclusivity('a',filterBy(entityPrimaryKeyInSet(?)))", 1));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsExclusivity('a',filterBy(entityPrimaryKeyInSet(@pk)))"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsExclusivity"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsExclusivity()"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsExclusivity('a','b','c')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetGroupsExclusivity('a',filterBy(entityPrimaryKeyInSet(?)))", 1));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("facetGroupsExclusivity('a',WHATEVER)"));
+	}
+
+	@Test
+	void shouldParseFacetCalculationRulesConstraint() {
+		final RequireConstraint constraint1 = parseRequireConstraintUnsafe("facetCalculationRules(CONJUNCTION, DISJUNCTION)");
+		assertEquals(facetCalculationRules(CONJUNCTION, DISJUNCTION), constraint1);
+
+		final RequireConstraint constraint2 = parseRequireConstraintUnsafe("facetCalculationRules(NEGATION, EXCLUSIVITY)");
+		assertEquals(facetCalculationRules(NEGATION, EXCLUSIVITY), constraint2);
+
+		final RequireConstraint constraint3 = parseRequireConstraint("facetCalculationRules(?, ?)", NEGATION, EXCLUSIVITY);
+		assertEquals(facetCalculationRules(NEGATION, EXCLUSIVITY), constraint3);
+
+		final RequireConstraint constraint4 = parseRequireConstraint("facetCalculationRules(@a, @b)", Map.of("a", NEGATION, "b", EXCLUSIVITY));
+		assertEquals(facetCalculationRules(NEGATION, EXCLUSIVITY), constraint4);
+	}
+
+	@Test
+	void shouldNotParseFacetCalculationRulesConstraint() {
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetCalculationRules()"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetCalculationRules(CONJUNCTION)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetCalculationRules(A, B)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetCalculationRules('A', 'B')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetCalculationRules(?,?)", null, null));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("facetCalculationRules(?,?)", "a", "b"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("facetCalculationRules()"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("facetCalculationRules(CONJUNCTION)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("facetCalculationRules(A, B)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("facetCalculationRules('A', 'B')"));
 	}
 
 	@Test

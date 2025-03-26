@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,10 +31,15 @@ import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.Classifier;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * Sorting by reference attribute is not as common as sorting by entity attributes, but it allows you to sort entities
@@ -119,7 +124,7 @@ import java.io.Serializable;
 	name = "property",
 	shortDescription = "The constraint sorts returned entities or references by attribute specified on its reference in natural order.",
 	userDocsLink = "/documentation/query/ordering/reference#reference-property",
-	supportedIn = { ConstraintDomain.ENTITY }
+	supportedIn = {ConstraintDomain.ENTITY}
 )
 public class ReferenceProperty extends AbstractOrderConstraintContainer implements ReferenceConstraint<OrderConstraint> {
 	@Serial private static final long serialVersionUID = -8564699361608364992L;
@@ -129,9 +134,21 @@ public class ReferenceProperty extends AbstractOrderConstraintContainer implemen
 	}
 
 	@Creator
-	public ReferenceProperty(@Nonnull @Classifier String referenceName,
-	                         @Nonnull @Child OrderConstraint... children) {
-		super(new Serializable[] {referenceName}, children);
+	public ReferenceProperty(
+		@Nonnull @Classifier String referenceName,
+		@Nonnull @Child OrderConstraint... orderBy
+	) {
+		super(new Serializable[]{referenceName}, orderBy);
+	}
+
+	/**
+	 * Returns the array of {@link OrderConstraint} elements used to define ordering constraints.
+	 *
+	 * @return an array of {@link OrderConstraint} elements.
+	 */
+	@Nonnull
+	public OrderConstraint[] getOrderBy() {
+		return super.getChildren();
 	}
 
 	/**
@@ -140,6 +157,39 @@ public class ReferenceProperty extends AbstractOrderConstraintContainer implemen
 	@Nonnull
 	public String getReferenceName() {
 		return (String) getArguments()[0];
+	}
+
+	/**
+	 * Returns either the {@link TraverseByEntityProperty} or {@link PickFirstByEntityProperty} constraint that is used
+	 * to define sorting order for 1:N references.
+	 *
+	 * @return the {@link TraverseByEntityProperty} or {@link PickFirstByEntityProperty} constraint that is used
+	 * to define sorting order for 1:N references.
+	 */
+	@Nonnull
+	public Optional<ReferenceOrderingSpecification> getReferenceOrderingSpecification() {
+		return Arrays.stream(getChildren())
+			.filter(ReferenceOrderingSpecification.class::isInstance)
+			.map(ReferenceOrderingSpecification.class::cast)
+			.reduce((spec1, spec2) -> {
+				throw new EvitaInvalidUsageException(
+					"Duplicate one to many ordering specification found: " + spec1 + " and " + spec2 +
+						". These definitions are mutually exclusive and cannot be used together."
+				);
+			});
+	}
+
+	/**
+	 * Returns the list of {@link OrderConstraint} constraints that are used to order the entities or references
+	 * by the specified reference.
+	 *
+	 * @return the list of {@link OrderConstraint} constraints.
+	 */
+	@Nonnull
+	public List<OrderConstraint> getOrderConstraints() {
+		return Arrays.stream(getChildren())
+			.filter(it -> !(it instanceof TraverseByEntityProperty))
+			.collect(Collectors.toList());
 	}
 
 	@Nonnull

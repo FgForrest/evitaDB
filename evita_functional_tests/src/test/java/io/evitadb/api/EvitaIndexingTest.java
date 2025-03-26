@@ -73,6 +73,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.Currency;
 import java.util.Locale;
@@ -2393,17 +2394,20 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					.orElseThrow();
 
 				// this function allows us to repeatedly verify index contents
-				final Consumer<Comparable<?>[]> verifyIndexContents = expected -> {
+				final Consumer<Serializable[]> verifyIndexContents = expected -> {
 					final EntityIndex globalIndex = getGlobalIndex(productCollection);
 					assertNotNull(globalIndex);
 
 					final SortIndex sortIndex = globalIndex.getSortIndex(new AttributeKey(attributeCodeEan));
-					assertNotNull(sortIndex);
-
-					assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(expected).getArray());
+					if (ArrayUtils.isEmptyOrItsValuesNull(expected)) {
+						assertNull(sortIndex);
+					} else {
+						assertNotNull(sortIndex);
+						assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(expected).getArray());
+					}
 				};
 
-				verifyIndexContents.accept(new Comparable<?>[]{null, null});
+				verifyIndexContents.accept(new Serializable[]{null, null});
 
 				session.getEntity(Entities.PRODUCT, 1, attributeContentAll())
 					.orElseThrow()
@@ -2412,7 +2416,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					.setAttribute(ATTRIBUTE_CODE, "ABC")
 					.upsertVia(session);
 
-				verifyIndexContents.accept(new Comparable<?>[]{"ABC", "123"});
+				verifyIndexContents.accept(new Serializable[]{"ABC", "123"});
 			}
 		);
 	}
@@ -2444,8 +2448,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				final SortIndex sortIndex = globalIndex.getSortIndex(new AttributeKey(attributeCodeEan));
 				assertNotNull(sortIndex);
 
-				assertTrue(sortIndex.getRecordsEqualTo(new Comparable<?>[]{"ABC", "123"}).isEmpty());
-				assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(new Comparable<?>[]{"Whatever", "578"}).getArray());
+				assertTrue(sortIndex.getRecordsEqualTo(new Serializable[]{"ABC", "123"}).isEmpty());
+				assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(new Serializable[]{"Whatever", "578"}).getArray());
 			}
 		);
 	}
@@ -2519,7 +2523,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				final SortIndex englishSortIndex = updatedGlobalIndex.getSortIndex(new AttributeKey(attributeCodeEan, Locale.ENGLISH));
 				assertNotNull(englishSortIndex);
 
-				assertArrayEquals(new int[]{1}, englishSortIndex.getRecordsEqualTo(new Comparable<?>[]{"ABC", null}).getArray());
+				assertArrayEquals(new int[]{1}, englishSortIndex.getRecordsEqualTo(new Serializable[]{"ABC", null}).getArray());
 
 				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), dataInLocalesAll())
 					.orElseThrow()
@@ -2534,12 +2538,12 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				final SortIndex englishSortIndexAgain = updatedGlobalIndexAgain.getSortIndex(new AttributeKey(attributeCodeEan, Locale.ENGLISH));
 				assertNotNull(englishSortIndexAgain);
 
-				assertArrayEquals(new int[]{1}, englishSortIndexAgain.getRecordsEqualTo(new Comparable<?>[]{"ABC", null}).getArray());
+				assertArrayEquals(new int[]{1}, englishSortIndexAgain.getRecordsEqualTo(new Serializable[]{"ABC", null}).getArray());
 
 				final SortIndex canadianSortIndex = updatedGlobalIndexAgain.getSortIndex(new AttributeKey(attributeCodeEan, Locale.CANADA));
 				assertNotNull(canadianSortIndex);
 
-				assertArrayEquals(new int[]{1}, canadianSortIndex.getRecordsEqualTo(new Comparable<?>[]{"ABC", "123"}).getArray());
+				assertArrayEquals(new int[]{1}, canadianSortIndex.getRecordsEqualTo(new Serializable[]{"ABC", "123"}).getArray());
 
 				final SealedEntity finalEntity = session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), dataInLocalesAll())
 					.orElseThrow();
@@ -2578,8 +2582,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				final SortIndex sortIndex = globalIndex.getSortIndex(new AttributeKey(attributeCodeEan, Locale.CANADA));
 				assertNotNull(sortIndex);
 
-				assertTrue(sortIndex.getRecordsEqualTo(new Comparable<?>[]{"ABC", "123"}).isEmpty());
-				assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(new Comparable<?>[]{"Whatever", "578"}).getArray());
+				assertTrue(sortIndex.getRecordsEqualTo(new Serializable[]{"ABC", "123"}).isEmpty());
+				assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(new Serializable[]{"Whatever", "578"}).getArray());
 			}
 		);
 	}
@@ -2614,7 +2618,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 				final SortIndex canadianSortIndex = globalIndex.getSortIndex(new AttributeKey(attributeCodeEan, Locale.CANADA));
 				assertNotNull(canadianSortIndex);
-				assertArrayEquals(new int[]{1}, canadianSortIndex.getRecordsEqualTo(new Comparable<?>[]{"ABC", "123"}).getArray());
+				assertArrayEquals(new int[]{1}, canadianSortIndex.getRecordsEqualTo(new Serializable[]{"ABC", "123"}).getArray());
 
 				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), dataInLocalesAll())
 					.orElseThrow()
@@ -2680,7 +2684,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					final SortIndex sortIndex = entityIndex.getSortIndex(new AttributeKey(attributeCodeEan));
 					assertNotNull(sortIndex);
 
-					assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(new Comparable<?>[]{"ABC", "123"}).getArray());
+					assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(new Serializable[]{"ABC", "123"}).getArray());
 				};
 
 				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10));
@@ -2717,7 +2721,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					final SortIndex sortIndex = entityIndex.getSortIndex(new AttributeKey(attributeCodeEan));
 					assertNotNull(sortIndex);
 
-					assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(new Comparable<?>[]{"ABC", "123"}).getArray());
+					assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(new Serializable[]{"ABC", "123"}).getArray());
 				};
 
 				assertNull(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10));
@@ -2786,17 +2790,20 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					.orElseThrow();
 
 				// this function allows us to repeatedly verify index contents
-				final BiConsumer<EntityIndex, Comparable<?>[]> verifyIndexContents = (entityIndex, expected) -> {
+				final BiConsumer<EntityIndex, Serializable[]> verifyIndexContents = (entityIndex, expected) -> {
 					assertNotNull(entityIndex);
 
 					final SortIndex sortIndex = entityIndex.getSortIndex(new AttributeKey(attributeCodeEan));
-					assertNotNull(sortIndex);
-
-					assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(expected).getArray());
+					if (ArrayUtils.isEmptyOrItsValuesNull(expected)) {
+						assertNull(sortIndex);
+					} else {
+						assertNotNull(sortIndex);
+						assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(expected).getArray());
+					}
 				};
 
-				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10), new Comparable<?>[]{null, null});
-				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.BRAND, 20), new Comparable<?>[]{null, null});
+				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10), new Serializable[]{null, null});
+				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.BRAND, 20), new Serializable[]{null, null});
 
 				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), referenceContentAll())
 					.orElseThrow()
@@ -2815,8 +2822,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					)
 					.upsertVia(session);
 
-				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10), new Comparable<?>[]{"ABC", "123"});
-				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.BRAND, 20), new Comparable<?>[]{"ABC", "123"});
+				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10), new Serializable[]{"ABC", "123"});
+				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.BRAND, 20), new Serializable[]{"ABC", "123"});
 			}
 		);
 	}
@@ -2909,13 +2916,16 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				assertNull(getReferencedEntityIndex(productCollection, Entities.BRAND, 20).getSortIndex(new AttributeKey(attributeCodeEan, Locale.ENGLISH)));
 
 				// this function allows us to repeatedly verify index contents
-				final TriConsumer<EntityIndex, Locale, Comparable<?>[]> verifyIndexContents = (entityIndex, locale, expected) -> {
+				final TriConsumer<EntityIndex, Locale, Serializable[]> verifyIndexContents = (entityIndex, locale, expected) -> {
 					assertNotNull(entityIndex);
 
 					final SortIndex sortIndex = entityIndex.getSortIndex(new AttributeKey(attributeCodeEan, locale));
-					assertNotNull(sortIndex);
-
-					assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(expected).getArray());
+					if (ArrayUtils.isEmptyOrItsValuesNull(expected)) {
+						assertNull(sortIndex);
+					} else {
+						assertNotNull(sortIndex);
+						assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(expected).getArray());
+					}
 				};
 
 				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), referenceContentAll(), dataInLocalesAll())
@@ -2929,8 +2939,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					)
 					.upsertVia(session);
 
-				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10), Locale.ENGLISH, new Comparable<?>[]{null, null});
-				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.BRAND, 20), Locale.CANADA, new Comparable<?>[]{null, null});
+				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10), Locale.ENGLISH, new Serializable[]{null, null});
+				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.BRAND, 20), Locale.CANADA, new Serializable[]{null, null});
 
 				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), referenceContentAll(), dataInLocalesAll())
 					.orElseThrow()
@@ -2945,8 +2955,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					)
 					.upsertVia(session);
 
-				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10), Locale.ENGLISH, new Comparable<?>[]{"The product", "123"});
-				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.BRAND, 20), Locale.CANADA, new Comparable<?>[]{"The CA product", "456"});
+				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10), Locale.ENGLISH, new Serializable[]{"The product", "123"});
+				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.BRAND, 20), Locale.CANADA, new Serializable[]{"The CA product", "456"});
 			}
 		);
 	}
@@ -2961,7 +2971,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				final String attributeCodeEan = ATTRIBUTE_CODE + StringUtils.capitalize(ATTRIBUTE_EAN);
 
 				// this function allows us to repeatedly verify index contents
-				final TriConsumer<EntityIndex, Locale, Comparable<?>[]> verifyIndexContents = (entityIndex, locale, expected) -> {
+				final TriConsumer<EntityIndex, Locale, Serializable[]> verifyIndexContents = (entityIndex, locale, expected) -> {
 					assertNotNull(entityIndex);
 
 					final SortIndex sortIndex = entityIndex.getSortIndex(new AttributeKey(attributeCodeEan, locale));
@@ -2992,8 +3002,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				final EntityCollectionContract productCollection = catalog.getCollectionForEntity(Entities.PRODUCT)
 					.orElseThrow();
 
-				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10), Locale.ENGLISH, new Comparable<?>[]{"Whatever", "567"});
-				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.BRAND, 20), Locale.CANADA, new Comparable<?>[]{"Else", "624"});
+				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10), Locale.ENGLISH, new Serializable[]{"Whatever", "567"});
+				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.BRAND, 20), Locale.CANADA, new Serializable[]{"Else", "624"});
 			}
 		);
 	}

@@ -631,13 +631,25 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 			evita.defineCatalog(TEST_CATALOG);
 			assertFalse(evita.getConfiguration().cache().enabled());
 
-			final GrpcEvitaServerStatusResponse grpcEvitaServerStatusResponse = GrpcClients.builder("gproto-web+https://localhost:" + servicePorts.get(GrpcProvider.CODE))
-				.factory(ClientFactory.insecure())
-				.build(EvitaManagementServiceBlockingStub.class)
-				.serverStatus(Empty.newBuilder().build());
+			long uptime = 0;
+			for (int i = 0; i < 5; i++) {
+				final GrpcEvitaServerStatusResponse grpcEvitaServerStatusResponse = GrpcClients.builder("gproto-web+https://localhost:" + servicePorts.get(GrpcProvider.CODE))
+					.factory(ClientFactory.insecure())
+					.build(EvitaManagementServiceBlockingStub.class)
+					.serverStatus(Empty.newBuilder().build());
 
-			assertNotNull(grpcEvitaServerStatusResponse);
-			assertTrue(grpcEvitaServerStatusResponse.getUptime() > 0);
+				assertNotNull(grpcEvitaServerStatusResponse);
+				uptime = grpcEvitaServerStatusResponse.getUptime();
+				if (uptime > 0) {
+					break;
+				} else {
+					synchronized(this) {
+						TimeUnit.SECONDS.sleep(1);
+					}
+				}
+			}
+
+			assertTrue(uptime > 0);
 		} catch (Exception ex) {
 			fail(ex);
 		} finally {
@@ -894,6 +906,47 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 			fail(ex);
 		} finally {
 			closeServerAndEvita(evitaServer);
+		}
+	}
+
+	@Test
+	void shouldLoadConfigurationWithUnknownProperties() {
+		EvitaTestSupport.bootstrapEvitaServerConfigurationFileFrom(
+			DIR_EVITA_SERVER_TEST,
+			"/testData/evita-configuration-unknown-props.yaml",
+			"evita-configuration-unknown-props.yaml"
+		);
+
+		final EvitaServer evitaServer = new EvitaServer(
+			getPathInTargetDirectory(DIR_EVITA_SERVER_TEST),
+			constructTestArguments()
+		);
+		try {
+			evitaServer.run();
+		} catch (Exception ex) {
+			fail(ex);
+		} finally {
+			closeServerAndEvita(evitaServer);
+		}
+	}
+
+	@Test
+	void shouldFailToLoadConfigurationWithUnknownPropertiesOnStrictSettings() {
+		EvitaTestSupport.bootstrapEvitaServerConfigurationFileFrom(
+			DIR_EVITA_SERVER_TEST,
+			"/testData/evita-configuration-unknown-props.yaml",
+			"evita-configuration-unknown-props.yaml"
+		);
+
+		try {
+			new EvitaServer(
+				getPathInTargetDirectory(DIR_EVITA_SERVER_TEST),
+				true, null,
+				constructTestArguments()
+			);
+			fail("The server should have failed to start due to unknown properties in the configuration file.");
+		} catch (Exception ex) {
+			// this is okey
 		}
 	}
 

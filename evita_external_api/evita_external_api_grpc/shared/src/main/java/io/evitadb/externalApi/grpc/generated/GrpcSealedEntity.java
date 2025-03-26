@@ -248,6 +248,19 @@ private static final long serialVersionUID = 0L;
             scope_ = rawValue;
             break;
           }
+          case 146: {
+            if (!((mutable_bitField0_ & 0x00000080) != 0)) {
+              referenceOffsetAndLimits_ = com.google.protobuf.MapField.newMapField(
+                  ReferenceOffsetAndLimitsDefaultEntryHolder.defaultEntry);
+              mutable_bitField0_ |= 0x00000080;
+            }
+            com.google.protobuf.MapEntry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit>
+            referenceOffsetAndLimits__ = input.readMessage(
+                ReferenceOffsetAndLimitsDefaultEntryHolder.defaultEntry.getParserForType(), extensionRegistry);
+            referenceOffsetAndLimits_.getMutableMap().put(
+                referenceOffsetAndLimits__.getKey(), referenceOffsetAndLimits__.getValue());
+            break;
+          }
           default: {
             if (!parseUnknownField(
                 input, unknownFields, extensionRegistry, tag)) {
@@ -294,6 +307,8 @@ private static final long serialVersionUID = 0L;
         return internalGetGlobalAssociatedData();
       case 15:
         return internalGetLocalizedAssociatedData();
+      case 18:
+        return internalGetReferenceOffsetAndLimits();
       default:
         throw new RuntimeException(
             "Invalid map field number: " + number);
@@ -1195,6 +1210,107 @@ private static final long serialVersionUID = 0L;
     return result == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityScope.UNRECOGNIZED : result;
   }
 
+  public static final int REFERENCEOFFSETANDLIMITS_FIELD_NUMBER = 18;
+  private static final class ReferenceOffsetAndLimitsDefaultEntryHolder {
+    static final com.google.protobuf.MapEntry<
+        java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit> defaultEntry =
+            com.google.protobuf.MapEntry
+            .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit>newDefaultInstance(
+                io.evitadb.externalApi.grpc.generated.GrpcEntity.internal_static_io_evitadb_externalApi_grpc_generated_GrpcSealedEntity_ReferenceOffsetAndLimitsEntry_descriptor,
+                com.google.protobuf.WireFormat.FieldType.STRING,
+                "",
+                com.google.protobuf.WireFormat.FieldType.MESSAGE,
+                io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit.getDefaultInstance());
+  }
+  private com.google.protobuf.MapField<
+      java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit> referenceOffsetAndLimits_;
+  private com.google.protobuf.MapField<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit>
+  internalGetReferenceOffsetAndLimits() {
+    if (referenceOffsetAndLimits_ == null) {
+      return com.google.protobuf.MapField.emptyMapField(
+          ReferenceOffsetAndLimitsDefaultEntryHolder.defaultEntry);
+    }
+    return referenceOffsetAndLimits_;
+  }
+
+  public int getReferenceOffsetAndLimitsCount() {
+    return internalGetReferenceOffsetAndLimits().getMap().size();
+  }
+  /**
+   * <pre>
+   * Contains total count of references per reference name. This may differ from count of provided references
+   * if pagination or strip was used in the input query.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit&gt; referenceOffsetAndLimits = 18;</code>
+   */
+
+  @java.lang.Override
+  public boolean containsReferenceOffsetAndLimits(
+      java.lang.String key) {
+    if (key == null) { throw new NullPointerException("map key"); }
+    return internalGetReferenceOffsetAndLimits().getMap().containsKey(key);
+  }
+  /**
+   * Use {@link #getReferenceOffsetAndLimitsMap()} instead.
+   */
+  @java.lang.Override
+  @java.lang.Deprecated
+  public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit> getReferenceOffsetAndLimits() {
+    return getReferenceOffsetAndLimitsMap();
+  }
+  /**
+   * <pre>
+   * Contains total count of references per reference name. This may differ from count of provided references
+   * if pagination or strip was used in the input query.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit&gt; referenceOffsetAndLimits = 18;</code>
+   */
+  @java.lang.Override
+
+  public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit> getReferenceOffsetAndLimitsMap() {
+    return internalGetReferenceOffsetAndLimits().getMap();
+  }
+  /**
+   * <pre>
+   * Contains total count of references per reference name. This may differ from count of provided references
+   * if pagination or strip was used in the input query.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit&gt; referenceOffsetAndLimits = 18;</code>
+   */
+  @java.lang.Override
+
+  public io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit getReferenceOffsetAndLimitsOrDefault(
+      java.lang.String key,
+      io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit defaultValue) {
+    if (key == null) { throw new NullPointerException("map key"); }
+    java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit> map =
+        internalGetReferenceOffsetAndLimits().getMap();
+    return map.containsKey(key) ? map.get(key) : defaultValue;
+  }
+  /**
+   * <pre>
+   * Contains total count of references per reference name. This may differ from count of provided references
+   * if pagination or strip was used in the input query.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit&gt; referenceOffsetAndLimits = 18;</code>
+   */
+  @java.lang.Override
+
+  public io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit getReferenceOffsetAndLimitsOrThrow(
+      java.lang.String key) {
+    if (key == null) { throw new NullPointerException("map key"); }
+    java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit> map =
+        internalGetReferenceOffsetAndLimits().getMap();
+    if (!map.containsKey(key)) {
+      throw new java.lang.IllegalArgumentException();
+    }
+    return map.get(key);
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -1272,6 +1388,12 @@ private static final long serialVersionUID = 0L;
     if (scope_ != io.evitadb.externalApi.grpc.generated.GrpcEntityScope.SCOPE_LIVE.getNumber()) {
       output.writeEnum(17, scope_);
     }
+    com.google.protobuf.GeneratedMessageV3
+      .serializeStringMapTo(
+        output,
+        internalGetReferenceOffsetAndLimits(),
+        ReferenceOffsetAndLimitsDefaultEntryHolder.defaultEntry,
+        18);
     unknownFields.writeTo(output);
   }
 
@@ -1372,6 +1494,16 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeEnumSize(17, scope_);
     }
+    for (java.util.Map.Entry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit> entry
+         : internalGetReferenceOffsetAndLimits().getMap().entrySet()) {
+      com.google.protobuf.MapEntry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit>
+      referenceOffsetAndLimits__ = ReferenceOffsetAndLimitsDefaultEntryHolder.defaultEntry.newBuilderForType()
+          .setKey(entry.getKey())
+          .setValue(entry.getValue())
+          .build();
+      size += com.google.protobuf.CodedOutputStream
+          .computeMessageSize(18, referenceOffsetAndLimits__);
+    }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
     return size;
@@ -1431,6 +1563,8 @@ private static final long serialVersionUID = 0L;
     if (!getLocalesList()
         .equals(other.getLocalesList())) return false;
     if (scope_ != other.scope_) return false;
+    if (!internalGetReferenceOffsetAndLimits().equals(
+        other.internalGetReferenceOffsetAndLimits())) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -1498,6 +1632,10 @@ private static final long serialVersionUID = 0L;
     }
     hash = (37 * hash) + SCOPE_FIELD_NUMBER;
     hash = (53 * hash) + scope_;
+    if (!internalGetReferenceOffsetAndLimits().getMap().isEmpty()) {
+      hash = (37 * hash) + REFERENCEOFFSETANDLIMITS_FIELD_NUMBER;
+      hash = (53 * hash) + internalGetReferenceOffsetAndLimits().hashCode();
+    }
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -1623,6 +1761,8 @@ private static final long serialVersionUID = 0L;
           return internalGetGlobalAssociatedData();
         case 15:
           return internalGetLocalizedAssociatedData();
+        case 18:
+          return internalGetReferenceOffsetAndLimits();
         default:
           throw new RuntimeException(
               "Invalid map field number: " + number);
@@ -1640,6 +1780,8 @@ private static final long serialVersionUID = 0L;
           return internalGetMutableGlobalAssociatedData();
         case 15:
           return internalGetMutableLocalizedAssociatedData();
+        case 18:
+          return internalGetMutableReferenceOffsetAndLimits();
         default:
           throw new RuntimeException(
               "Invalid map field number: " + number);
@@ -1732,6 +1874,7 @@ private static final long serialVersionUID = 0L;
       }
       scope_ = 0;
 
+      internalGetMutableReferenceOffsetAndLimits().clear();
       return this;
     }
 
@@ -1820,6 +1963,8 @@ private static final long serialVersionUID = 0L;
         result.locales_ = localesBuilder_.build();
       }
       result.scope_ = scope_;
+      result.referenceOffsetAndLimits_ = internalGetReferenceOffsetAndLimits();
+      result.referenceOffsetAndLimits_.makeImmutable();
       onBuilt();
       return result;
     }
@@ -1985,6 +2130,8 @@ private static final long serialVersionUID = 0L;
       if (other.scope_ != 0) {
         setScopeValue(other.getScopeValue());
       }
+      internalGetMutableReferenceOffsetAndLimits().mergeFrom(
+          other.internalGetReferenceOffsetAndLimits());
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
       return this;
@@ -4650,6 +4797,172 @@ private static final long serialVersionUID = 0L;
 
       scope_ = 0;
       onChanged();
+      return this;
+    }
+
+    private com.google.protobuf.MapField<
+        java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit> referenceOffsetAndLimits_;
+    private com.google.protobuf.MapField<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit>
+    internalGetReferenceOffsetAndLimits() {
+      if (referenceOffsetAndLimits_ == null) {
+        return com.google.protobuf.MapField.emptyMapField(
+            ReferenceOffsetAndLimitsDefaultEntryHolder.defaultEntry);
+      }
+      return referenceOffsetAndLimits_;
+    }
+    private com.google.protobuf.MapField<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit>
+    internalGetMutableReferenceOffsetAndLimits() {
+      onChanged();;
+      if (referenceOffsetAndLimits_ == null) {
+        referenceOffsetAndLimits_ = com.google.protobuf.MapField.newMapField(
+            ReferenceOffsetAndLimitsDefaultEntryHolder.defaultEntry);
+      }
+      if (!referenceOffsetAndLimits_.isMutable()) {
+        referenceOffsetAndLimits_ = referenceOffsetAndLimits_.copy();
+      }
+      return referenceOffsetAndLimits_;
+    }
+
+    public int getReferenceOffsetAndLimitsCount() {
+      return internalGetReferenceOffsetAndLimits().getMap().size();
+    }
+    /**
+     * <pre>
+     * Contains total count of references per reference name. This may differ from count of provided references
+     * if pagination or strip was used in the input query.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit&gt; referenceOffsetAndLimits = 18;</code>
+     */
+
+    @java.lang.Override
+    public boolean containsReferenceOffsetAndLimits(
+        java.lang.String key) {
+      if (key == null) { throw new NullPointerException("map key"); }
+      return internalGetReferenceOffsetAndLimits().getMap().containsKey(key);
+    }
+    /**
+     * Use {@link #getReferenceOffsetAndLimitsMap()} instead.
+     */
+    @java.lang.Override
+    @java.lang.Deprecated
+    public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit> getReferenceOffsetAndLimits() {
+      return getReferenceOffsetAndLimitsMap();
+    }
+    /**
+     * <pre>
+     * Contains total count of references per reference name. This may differ from count of provided references
+     * if pagination or strip was used in the input query.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit&gt; referenceOffsetAndLimits = 18;</code>
+     */
+    @java.lang.Override
+
+    public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit> getReferenceOffsetAndLimitsMap() {
+      return internalGetReferenceOffsetAndLimits().getMap();
+    }
+    /**
+     * <pre>
+     * Contains total count of references per reference name. This may differ from count of provided references
+     * if pagination or strip was used in the input query.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit&gt; referenceOffsetAndLimits = 18;</code>
+     */
+    @java.lang.Override
+
+    public io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit getReferenceOffsetAndLimitsOrDefault(
+        java.lang.String key,
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit defaultValue) {
+      if (key == null) { throw new NullPointerException("map key"); }
+      java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit> map =
+          internalGetReferenceOffsetAndLimits().getMap();
+      return map.containsKey(key) ? map.get(key) : defaultValue;
+    }
+    /**
+     * <pre>
+     * Contains total count of references per reference name. This may differ from count of provided references
+     * if pagination or strip was used in the input query.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit&gt; referenceOffsetAndLimits = 18;</code>
+     */
+    @java.lang.Override
+
+    public io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit getReferenceOffsetAndLimitsOrThrow(
+        java.lang.String key) {
+      if (key == null) { throw new NullPointerException("map key"); }
+      java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit> map =
+          internalGetReferenceOffsetAndLimits().getMap();
+      if (!map.containsKey(key)) {
+        throw new java.lang.IllegalArgumentException();
+      }
+      return map.get(key);
+    }
+
+    public Builder clearReferenceOffsetAndLimits() {
+      internalGetMutableReferenceOffsetAndLimits().getMutableMap()
+          .clear();
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains total count of references per reference name. This may differ from count of provided references
+     * if pagination or strip was used in the input query.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit&gt; referenceOffsetAndLimits = 18;</code>
+     */
+
+    public Builder removeReferenceOffsetAndLimits(
+        java.lang.String key) {
+      if (key == null) { throw new NullPointerException("map key"); }
+      internalGetMutableReferenceOffsetAndLimits().getMutableMap()
+          .remove(key);
+      return this;
+    }
+    /**
+     * Use alternate mutation accessors instead.
+     */
+    @java.lang.Deprecated
+    public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit>
+    getMutableReferenceOffsetAndLimits() {
+      return internalGetMutableReferenceOffsetAndLimits().getMutableMap();
+    }
+    /**
+     * <pre>
+     * Contains total count of references per reference name. This may differ from count of provided references
+     * if pagination or strip was used in the input query.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit&gt; referenceOffsetAndLimits = 18;</code>
+     */
+    public Builder putReferenceOffsetAndLimits(
+        java.lang.String key,
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit value) {
+      if (key == null) { throw new NullPointerException("map key"); }
+      if (value == null) {
+  throw new NullPointerException("map value");
+}
+
+      internalGetMutableReferenceOffsetAndLimits().getMutableMap()
+          .put(key, value);
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains total count of references per reference name. This may differ from count of provided references
+     * if pagination or strip was used in the input query.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit&gt; referenceOffsetAndLimits = 18;</code>
+     */
+
+    public Builder putAllReferenceOffsetAndLimits(
+        java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit> values) {
+      internalGetMutableReferenceOffsetAndLimits().getMutableMap()
+          .putAll(values);
       return this;
     }
     @java.lang.Override

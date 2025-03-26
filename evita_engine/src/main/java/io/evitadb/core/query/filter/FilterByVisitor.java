@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -143,7 +143,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 * A no-operation (no-op) implementation of a {@link BiFunction} that returns {@code null} for any input value combination.
 	 */
 	private static final BiFunction<EntitySchemaContract, EntityIndexKey, ReferencedTypeEntityIndex> THROWING_MISSING_RTEI_SUPPLIER =
-		(entitySchema, entityIndexKey) -> ReferencedTypeEntityIndex.createThrowingStub(entitySchema, entityIndexKey);
+		ReferencedTypeEntityIndex::createThrowingStub;
 	/**
 	 * A no-operation (no-op) implementation of a {@link BiFunction} that returns {@code null} for any input value combination.
 	 */
@@ -232,7 +232,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	/**
 	 * This instance contains the {@link EntityIndex} set that is used to resolve passed query filter.
 	 */
-	@Nonnull
+	@Nonnull @Getter
 	private final TargetIndexes<? extends Index<?>> indexSetToUse;
 	/**
 	 * Contains the translated formula from the filtering query source tree.
@@ -542,17 +542,17 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	public void visit(@Nonnull Constraint<?> constraint) {
 		final FilterConstraint filterConstraint = (FilterConstraint) constraint;
 
+		final ProcessingScope<?> theScope = getProcessingScope();
+		if (theScope.isSuppressed(filterConstraint.getClass())) {
+			return;
+		}
+
 		final FilteringConstraintTranslator<FilterConstraint> translator =
 			(FilteringConstraintTranslator<FilterConstraint>) TRANSLATORS.get(filterConstraint.getClass());
 		isPremiseValid(
 			translator != null,
 			"No translator found for constraint `" + filterConstraint.getClass() + "`!"
 		);
-
-		final ProcessingScope<?> theScope = getProcessingScope();
-		if (theScope.isSuppressed(filterConstraint.getClass())) {
-			return;
-		}
 
 		try {
 			theScope.pushConstraint(filterConstraint);
@@ -678,7 +678,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	/**
 	 * Returns extension of {@link ProcessingScope} that is set for current context.
 	 *
-	 * @see #executeInContext(Class, List, EntityContentRequire, EntitySchemaContract, ReferenceSchemaContract, Function, EntityNestedQueryComparator, AttributeSchemaAccessor, TriFunction, Supplier, Class[])
+	 * @see #executeInContext(Class, Supplier, EntityContentRequire, EntitySchemaContract, ReferenceSchemaContract, Function, EntityNestedQueryComparator, AttributeSchemaAccessor, TriFunction, Supplier, Class[])
 	 */
 	@Nonnull
 	public ProcessingScope<? extends Index<?>> getProcessingScope() {
@@ -843,7 +843,10 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 						referenceSchema,
 						null, null,
 						getProcessingScope().withReferenceSchemaAccessor(referenceSchema.getName()),
-						(theEntity, attributeName, locale) -> theEntity.getReferences(referenceName).stream().map(it -> it.getAttributeValue(attributeName, locale)),
+						(theEntity, attributeName, locale) ->
+							theEntity.getReferences(referenceName)
+								.stream()
+								.map(it -> it.getAttributeValue(attributeName, locale)),
 						() -> {
 							filterBy.accept(this);
 							final Formula formula = getFormulaAndClear();
@@ -873,7 +876,9 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 							} else {
 								return formula;
 							}
-						}
+						},
+						FacetIncludingChildren.class,
+						FacetIncludingChildrenExcept.class
 					);
 				})
 				.filter(it -> it != EmptyFormula.INSTANCE)
@@ -1069,45 +1074,6 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		// and always prefer the provided indexes
 		// the prefetch is also possible only in conjunctive scope
 		return this.scope.size() == 1 && this.queryContext.isPrefetchPossible();
-	}
-
-	/**
-	 * Initializes new set of target {@link ProcessingScope} to be used in the visitor.
-	 */
-	@SafeVarargs
-	public final <T, S extends EntityIndex> T executeInContext(
-		@Nonnull Class<S> indexType,
-		@Nonnull List<S> targetIndexes,
-		@Nullable EntityContentRequire requirements,
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nullable ReferenceSchemaContract referenceSchema,
-		@Nullable Function<FilterConstraint, FilterConstraint> nestedQueryFormulaEnricher,
-		@Nullable EntityNestedQueryComparator entityNestedQueryComparator,
-		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
-		@Nonnull TriFunction<EntityContract, String, Locale, Stream<Optional<AttributeValue>>> attributeValueAccessor,
-		@Nonnull Supplier<T> lambda,
-		@Nonnull Class<? extends FilterConstraint>... suppressedConstraints
-	) {
-		try {
-			this.scope.push(
-				new ProcessingScope<>(
-					indexType,
-					targetIndexes,
-					this.getProcessingScope().getScopes(),
-					requirements,
-					entitySchema,
-					referenceSchema,
-					nestedQueryFormulaEnricher,
-					entityNestedQueryComparator,
-					attributeSchemaAccessor,
-					attributeValueAccessor,
-					suppressedConstraints
-				)
-			);
-			return lambda.get();
-		} finally {
-			this.scope.pop();
-		}
 	}
 
 	/**

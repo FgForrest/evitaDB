@@ -26,12 +26,12 @@
 	<modelVersion>4.0.0</modelVersion>
 	<artifactId>evita_java_driver_all_in_one</artifactId>
 	<packaging>jar</packaging>
-	<name>evitaDB - Java driver (gRPC client side)</name>
+	<name>evitaDB - Java driver all-in-one (gRPC client side)</name>
 	<description>Module contains gRPC Java driver (gRPC client) for evitaDB.</description>
 	<parent>
 		<groupId>io.evitadb</groupId>
 		<artifactId>evita_root</artifactId>
-		<version>2025.1-SNAPSHOT</version>
+		<version>2025.2-SNAPSHOT</version>
 		<relativePath>../../../pom.xml</relativePath>
 	</parent>
 	<dependencies>
@@ -76,7 +76,6 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-shade-plugin</artifactId>
-				<version>3.3.0</version>
 				<executions>
 					<execution>
 						<phase>package</phase>
@@ -153,6 +152,12 @@
 							<includes>
 								<include>**</include>
 							</includes>
+						</filter>
+						<filter>
+							<artifact>io.netty:netty-common</artifact>
+							<excludes>
+								<exclude>META-INF/services/reactor.blockhound.integration.BlockHoundIntegration</exclude>
+							</excludes>
 						</filter>
 						<filter>
 							<artifact>*:*</artifact>

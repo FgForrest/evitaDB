@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -272,7 +272,7 @@ abstract class AbstractEntityProxyState implements
 				getReflectionLookup()
 			)
 		);
-		return generatedProxyObjects.computeIfAbsent(
+		return this.generatedProxyObjects.computeIfAbsent(
 				new ProxyInstanceCacheKey(entitySchema.getName(), primaryKey, proxyType),
 				key -> instanceSupplier.get()
 			)
@@ -303,8 +303,8 @@ abstract class AbstractEntityProxyState implements
 		final Supplier<ProxyWithUpsertCallback> instanceSupplier = () -> new ProxyWithUpsertCallback(
 			createReferencedEntityProxy(expectedType, entity)
 		);
-		return generatedProxyObjects.computeIfAbsent(
-				new ProxyInstanceCacheKey(entity.getType(), entity.getPrimaryKey(), proxyType),
+		return this.generatedProxyObjects.computeIfAbsent(
+				new ProxyInstanceCacheKey(entity.getType(), entity.getPrimaryKeyOrThrowException(), proxyType),
 				key -> instanceSupplier.get()
 			)
 			.proxy(expectedType, instanceSupplier);
@@ -339,7 +339,7 @@ abstract class AbstractEntityProxyState implements
 			),
 			callback
 		);
-		return generatedProxyObjects.computeIfAbsent(
+		return this.generatedProxyObjects.computeIfAbsent(
 				new ProxyInstanceCacheKey(entitySchema.getName(), Integer.MIN_VALUE, proxyType),
 				key -> instanceSupplier.get()
 			)
@@ -383,9 +383,9 @@ abstract class AbstractEntityProxyState implements
 		@Nonnull ReferenceContract reference
 	) {
 		return ProxycianFactory.createEntityReferenceProxy(
-			mainType, expectedType, recipes, collectedRecipes,
+			mainType, expectedType, this.recipes, this.collectedRecipes,
 			entity, this::getPrimaryKey,
-			referencedEntitySchemas, reference, getReflectionLookup(),
+			this.referencedEntitySchemas, reference, getReflectionLookup(),
 			this.generatedProxyObjects
 		);
 	}
@@ -408,13 +408,13 @@ abstract class AbstractEntityProxyState implements
 	) {
 		final Supplier<ProxyWithUpsertCallback> instanceSupplier = () -> new ProxyWithUpsertCallback(
 			ProxycianFactory.createEntityReferenceProxy(
-				this.getProxyClass(), expectedType, recipes, collectedRecipes,
-				entity, this::getPrimaryKey,
-				referencedEntitySchemas, reference, getReflectionLookup(),
+				this.getProxyClass(), expectedType, this.recipes, this.collectedRecipes,
+				this.entity, this::getPrimaryKey,
+				this.referencedEntitySchemas, reference, getReflectionLookup(),
 				this.generatedProxyObjects
 			)
 		);
-		return generatedProxyObjects.computeIfAbsent(
+		return this.generatedProxyObjects.computeIfAbsent(
 				new ProxyInstanceCacheKey(reference.getReferenceName(), reference.getReferencedPrimaryKey(), ProxyType.REFERENCE),
 				key -> instanceSupplier.get()
 			)
@@ -433,9 +433,9 @@ abstract class AbstractEntityProxyState implements
 	 */
 	@Nonnull
 	public <T> T cloneProxy(@Nonnull EntityContract entity) {
-		//noinspection DataFlowIssue,unchecked
+		// noinspection unchecked
 		return (T) ProxycianFactory.createEntityProxy(
-			getProxyClass(), recipes, collectedRecipes, entity, referencedEntitySchemas, getReflectionLookup(),
+			getProxyClass(), this.recipes, this.collectedRecipes, entity, this.referencedEntitySchemas, getReflectionLookup(),
 			stateClone -> stateClone.registerReferencedInstancesObjects(this.generatedProxyObjects)
 		);
 	}
@@ -456,7 +456,7 @@ abstract class AbstractEntityProxyState implements
 		@Nonnull ProxyType proxyType
 	) {
 		return ofNullable(
-			generatedProxyObjects.get(
+			this.generatedProxyObjects.get(
 				new ProxyInstanceCacheKey(referencedEntityType, referencedPrimaryKey, proxyType)
 			)
 		).flatMap(it -> it.proxyIfPossible(expectedType));
@@ -478,7 +478,7 @@ abstract class AbstractEntityProxyState implements
 		@Nonnull Object proxy,
 		@Nonnull ProxyType logicalType
 	) {
-		generatedProxyObjects.put(
+		this.generatedProxyObjects.put(
 			new ProxyInstanceCacheKey(referencedEntityType, referencedPrimaryKey, logicalType),
 			new ProxyWithUpsertCallback(proxy)
 		);
@@ -497,7 +497,7 @@ abstract class AbstractEntityProxyState implements
 		int referencedPrimaryKey,
 		@Nonnull ProxyType logicalType
 	) {
-		generatedProxyObjects.remove(
+		this.generatedProxyObjects.remove(
 			new ProxyInstanceCacheKey(referencedEntityType, referencedPrimaryKey, logicalType)
 		);
 	}

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,10 +23,13 @@
 
 package io.evitadb.externalApi.observability.trace;
 
+import com.linecorp.armeria.common.HttpHeaderNames;
 import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.common.RequestHeaders;
 import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.api.observability.trace.TracingContext.SpanAttribute;
+import io.evitadb.api.query.head.Label;
+import io.evitadb.externalApi.http.AdditionalHttpHeaderNames;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.netty.util.AsciiString;
 import io.opentelemetry.context.Context;
@@ -35,6 +38,7 @@ import io.opentelemetry.context.propagation.TextMapGetter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -173,13 +177,35 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpRequ
 	@Nullable
 	@Override
 	public <T> T executeWithinBlock(@Nonnull String protocolName, @Nonnull HttpRequest context, @Nonnull Supplier<T> lambda) {
+		final RequestHeaders headers = context.headers();
+		final String clientIpAddress = headers.get(HttpHeaderNames.X_FORWARDED_FOR);
+		final String clientUri = headers.get(AdditionalHttpHeaderNames.X_FORWARDED_URI);
+		final Label[] labels = headers.getAll(AdditionalHttpHeaderNames.X_EVITADB_META_LABEL)
+			.stream()
+			.map(header -> {
+				final int index = header.indexOf('=');
+				if (index < 0) {
+					return null;
+				} else {
+					return new Label(header.substring(0, index), header.substring(index + 1));
+				}
+			})
+			.filter(Objects::nonNull)
+			.toArray(Label[]::new);
+
 		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
-			return lambda.get();
+			return TracingContext.executeWithClientContext(
+				clientIpAddress, clientUri, labels,
+				lambda
+			);
 		}
 		try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
-			return tracingContext.executeWithinBlock(
-				protocolName,
-				lambda
+			return TracingContext.executeWithClientContext(
+				clientIpAddress, clientUri, labels,
+				() -> tracingContext.executeWithinBlock(
+					protocolName,
+					lambda
+				)
 			);
 		}
 	}
@@ -197,7 +223,7 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpRequ
 			.extract(Context.current(), headers, CONTEXT_GETTER);
 		final String clientId = convertClientId(
 			protocolName,
-			headers.get(CLIENT_ID_CONTEXT_KEY_NAME)
+			headers.get(AdditionalHttpHeaderNames.X_EVITADB_CLIENTID)
 		);
 		return context.with(OpenTelemetryTracerSetup.CONTEXT_KEY, clientId);
 	}

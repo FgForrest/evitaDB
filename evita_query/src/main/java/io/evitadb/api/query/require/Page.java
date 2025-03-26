@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -81,7 +81,8 @@ import java.util.Optional;
 @ConstraintDefinition(
 	name = "page",
 	shortDescription = "The constraint specifies which page of found entities will be returned.",
-	userDocsLink = "/documentation/query/requirements/paging#page"
+	userDocsLink = "/documentation/query/requirements/paging#page",
+	supportedIn = { ConstraintDomain.GENERIC, ConstraintDomain.REFERENCE }
 )
 public class Page extends AbstractRequireConstraintContainer implements GenericConstraint<RequireConstraint>, ChunkingRequireConstraint {
 	@Serial private static final long serialVersionUID = 1300354074537839696L;

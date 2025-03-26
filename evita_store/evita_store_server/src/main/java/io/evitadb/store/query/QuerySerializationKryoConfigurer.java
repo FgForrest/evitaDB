@@ -69,6 +69,9 @@ public class QuerySerializationKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(StatisticsBase.class, new EnumSerializer(StatisticsBase.class), index++);
 		kryo.register(StatisticsType.class, new EnumSerializer(StatisticsType.class), index++);
 		kryo.register(Scope.class, new EnumSerializer(Scope.class), index++);
+		kryo.register(FacetRelationType.class, new EnumSerializer(FacetRelationType.class), index++);
+		kryo.register(FacetGroupRelationLevel.class, new EnumSerializer(FacetGroupRelationLevel.class), index++);
+		kryo.register(TraversalMode.class, new EnumSerializer(TraversalMode.class), index++);
 
 		index = QUERY_BASE + 100;
 		kryo.register(Head.class, new HeadSerializer(), index++);
@@ -131,6 +134,8 @@ public class QuerySerializationKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(SegmentLimit.class, new SegmentLimitSerializer(), index++);
 		kryo.register(EntityGroupProperty.class, new EntityGroupPropertySerializer(), index++);
 		kryo.register(EntityProperty.class, new EntityPropertySerializer(), index++);
+		kryo.register(PickFirstByEntityProperty.class, new PickFirstByEntityPropertySerializer(), index++);
+		kryo.register(TraverseByEntityProperty.class, new TraverseByEntityPropertySerializer(), index++);
 
 		index = QUERY_BASE + 400;
 		kryo.register(AssociatedDataContent.class, new AssociatedDataContentSerializer(), index++);
@@ -141,6 +146,8 @@ public class QuerySerializationKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(FacetGroupsConjunction.class, new FacetGroupsConjunctionSerializer(), index++);
 		kryo.register(FacetGroupsDisjunction.class, new FacetGroupsDisjunctionSerializer(), index++);
 		kryo.register(FacetGroupsNegation.class, new FacetGroupsNegationSerializer(), index++);
+		kryo.register(FacetGroupsExclusivity.class, new FacetGroupsExclusivitySerializer(), index++);
+		kryo.register(FacetCalculationRules.class, new FacetCalculationRulesSerializer(), index++);
 		kryo.register(FacetSummary.class, new FacetSummarySerializer(), index++);
 		kryo.register(FacetSummaryOfReference.class, new FacetSummaryOfReferenceSerializer(), index++);
 		kryo.register(HierarchyOfSelf.class, new HierarchyOfSelfSerializer(), index++);
@@ -169,6 +176,13 @@ public class QuerySerializationKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(QueryTelemetry.class, new QueryTelemetrySerializer(), index++);
 		kryo.register(Debug.class, new DebugSerializer(), index++);
 		kryo.register(RequireInScope.class, new RequireInScopeSerializer(), index++);
+
+		kryo.register(Segments.class, new SegmentsSerializer(), index++);
+		kryo.register(Segment.class, new SegmentSerializer(), index++);
+		kryo.register(SegmentLimit.class, new SegmentLimitSerializer(), index++);
+
+		kryo.register(FacetIncludingChildren.class, new FacetIncludingChildrenSerializer(), index++);
+		kryo.register(FacetIncludingChildrenExcept.class, new FacetIncludingChildrenExceptSerializer(), index++);
 
 		Assert.isPremiseValid(index < 2000, "Index count overflow.");
 	}

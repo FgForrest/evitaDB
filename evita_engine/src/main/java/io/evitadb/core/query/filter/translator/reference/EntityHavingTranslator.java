@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,7 +26,6 @@ package io.evitadb.core.query.filter.translator.reference;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.filter.EntityHaving;
 import io.evitadb.api.query.filter.FilterBy;
-import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -45,6 +44,7 @@ import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.sort.attribute.translator.EntityNestedQueryComparator;
+import io.evitadb.core.query.sort.attribute.translator.EntityNestedQueryComparator.EntityPropertyWithScopes;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
@@ -64,6 +64,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -110,7 +111,7 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 			final Function<FilterConstraint, FilterConstraint> enricher = processingScope.getNestedQueryFormulaEnricher();
 			final FilterConstraint enrichedConstraint = enricher.apply(filter);
 			final FilterBy combinedFilterBy = enrichedConstraint instanceof FilterBy fb ? fb : new FilterBy(enrichedConstraint);
-			final EntityNestedQueryComparator entityNestedQueryComparator = processingScope.getEntityNestedQueryComparator();
+			final Optional<EntityNestedQueryComparator> entityNestedQueryComparator = ofNullable(processingScope.getEntityNestedQueryComparator());
 
 			return globalIndexes
 				.stream()
@@ -120,22 +121,34 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 							Collections.singletonList(globalIndex),
 							combinedFilterBy,
 							() -> {
-								final QueryPlanningContext nestedQueryContext = targetEntityCollection.createQueryContext(
-									filterByVisitor.getQueryContext(),
-									filterByVisitor.getEvitaRequest().deriveCopyWith(
-										targetEntityType,
-										combinedFilterBy,
-										ofNullable(entityNestedQueryComparator)
-											.map(EntityNestedQueryComparator::getOrderBy)
-											.map(it -> new OrderBy(it.getChildren()))
-											.orElse(null),
-										ofNullable(entityNestedQueryComparator)
-											.map(EntityNestedQueryComparator::getLocale)
-											.orElse(null),
-										EnumSet.of(globalIndex.getIndexKey().scope())
-									),
-									filterByVisitor.getEvitaSession()
-								);
+								final QueryPlanningContext nestedQueryContext = entityNestedQueryComparator
+									.map(it -> {
+										final Optional<EntityPropertyWithScopes> orderBy = ofNullable(it.getOrderBy());
+										return targetEntityCollection.createQueryContext(
+											filterByVisitor.getQueryContext(),
+											filterByVisitor.getEvitaRequest().deriveCopyWith(
+												targetEntityType,
+												combinedFilterBy,
+												orderBy.map(EntityPropertyWithScopes::createStandaloneOrderBy).orElse(null),
+												it.getLocale(),
+												orderBy.map(EntityPropertyWithScopes::scopes).orElseGet(() -> EnumSet.of(globalIndex.getIndexKey().scope()))
+											),
+											filterByVisitor.getEvitaSession()
+										);
+									})
+									.orElseGet(
+										() -> targetEntityCollection.createQueryContext(
+											filterByVisitor.getQueryContext(),
+											filterByVisitor.getEvitaRequest().deriveCopyWith(
+												targetEntityType,
+												combinedFilterBy,
+												null,
+												null,
+												EnumSet.of(globalIndex.getIndexKey().scope())
+											),
+											filterByVisitor.getEvitaSession()
+										)
+									);
 
 								return QueryPlanner.planNestedQuery(nestedQueryContext, taskDescriptionSupplier)
 									.getFilter();
@@ -247,15 +260,6 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 		@Nullable GlobalEntityIndex globalIndex,
 		@Nonnull Formula filter
 	) {
-
-		/**
-		 * Checks if the global index is null.
-		 *
-		 * @return true if the global index is null, false otherwise.
-		 */
-		boolean isEmpty() {
-			return this.globalIndex == null;
-		}
 
 	}
 

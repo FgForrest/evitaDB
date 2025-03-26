@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ package io.evitadb.core.query.sort.attribute.translator;
 import com.carrotsearch.hppc.IntObjectHashMap;
 import com.carrotsearch.hppc.IntObjectMap;
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
@@ -44,6 +45,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.UnaryOperator;
 
 import static io.evitadb.index.attribute.SortIndex.createCombinedComparatorFor;
 import static io.evitadb.index.attribute.SortIndex.createNormalizerFor;
@@ -54,20 +56,24 @@ import static io.evitadb.index.attribute.SortIndex.createNormalizerFor;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public class CompoundAttributeComparator implements EntityComparator, Serializable {
+class CompoundAttributeComparator implements EntityComparator, Serializable {
 	@Serial private static final long serialVersionUID = 3531363761422177481L;
 	/**
 	 * Function for fetching the attribute value from the entity.
 	 */
-	@Nonnull private final BiFunction<EntityContract, String, Object> attributeValueFetcher;
+	@Nonnull private final BiFunction<EntityContract, String, Serializable> attributeValueFetcher;
 	/**
 	 * Function for normalizing the attribute values (such as string values or BigDecimals).
 	 */
-	@Nonnull private final Function<Object, Object> normalizer;
+	@Nonnull private final UnaryOperator<Serializable> normalizer;
 	/**
 	 * Comparator for comparing the normalized attribute values.
 	 */
-	@Nonnull private final Comparator<Object> comparator;
+	@Nonnull private final Comparator<Serializable> comparator;
+	/**
+	 * Comparator sources for each attribute element.
+	 */
+	@Nonnull private final ComparatorSource[] comparatorSource;
 	/**
 	 * Array of attribute elements that are to be compared.
 	 */
@@ -82,12 +88,11 @@ public class CompoundAttributeComparator implements EntityComparator, Serializab
 		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
 		@Nullable Locale locale,
 		@Nonnull Function<String, AttributeSchemaContract> attributeSchemaExtractor,
-		@Nonnull AttributeExtractor attributeExtractor,
 		@Nonnull OrderDirection orderDirection
-		) {
+	) {
 		final List<AttributeElement> attributeElements = compoundSchemaContract
 			.getAttributeElements();
-		final ComparatorSource[] comparatorSource = attributeElements
+		this.comparatorSource = attributeElements
 			.stream()
 			.map(attributeElement -> new ComparatorSource(
 				attributeSchemaExtractor.apply(attributeElement.attributeName()).getPlainType(),
@@ -99,13 +104,13 @@ public class CompoundAttributeComparator implements EntityComparator, Serializab
 		// initialize normalizers
 		this.normalizer = createNormalizerFor(comparatorSource);
 		//noinspection rawtypes
-		final Comparator baseComparator = createCombinedComparatorFor(locale, comparatorSource);
+		final Comparator baseComparator = createCombinedComparatorFor(locale, this.comparatorSource);
 		//noinspection unchecked
 		this.comparator = orderDirection == OrderDirection.ASC ?
 			baseComparator : (o1, o2) -> baseComparator.compare(o2, o1);
 		this.attributeValueFetcher = locale == null ?
-			attributeExtractor::extract :
-			(entityContract, attributeName) -> attributeExtractor.extract(entityContract, attributeName, locale);
+			AttributesContract::getAttribute :
+			(entityContract, attributeName) -> entityContract.getAttribute(attributeName, locale);
 		this.attributeElements = attributeElements.toArray(new AttributeElement[0]);
 	}
 
@@ -132,17 +137,18 @@ public class CompoundAttributeComparator implements EntityComparator, Serializab
 	 */
 	@Nonnull
 	private ComparableArray getAndMemoizeValue(@Nonnull EntityContract entity) {
-		ComparableArray value = this.memoizedValues.get(entity.getPrimaryKey());
+		ComparableArray value = this.memoizedValues.get(entity.getPrimaryKeyOrThrowException());
 		if (value == null) {
-			final Object[] valueArray = new Comparable<?>[this.attributeElements.length];
+			final Serializable[] valueArray = new Serializable[this.attributeElements.length];
 			for (int i = 0; i < this.attributeElements.length; i++) {
 				final AttributeElement attributeElement = this.attributeElements[i];
 				valueArray[i] = this.attributeValueFetcher.apply(entity, attributeElement.attributeName());
 			}
 			value = new ComparableArray(
-				(Comparable<?>[]) this.normalizer.apply(valueArray)
+				this.comparatorSource,
+				(Serializable[]) this.normalizer.apply(valueArray)
 			);
-			this.memoizedValues.put(entity.getPrimaryKey(), value);
+			this.memoizedValues.put(entity.getPrimaryKeyOrThrowException(), value);
 		}
 		return value;
 	}

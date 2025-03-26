@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -178,7 +178,7 @@ class PricesContractTest extends AbstractBuilderTest {
 
 		// reference price is not indexed, vip price has not fulfilled validity, logged only is the first
 		assertPriceForSaleWithAccompanyingPrices(
-			1, new int[] {-1, -1, 3, -1}, 3, prices, CZK, MOMENT_2020, new String[] { BASIC },
+			1, new int[] {7, 7, 3, -1}, 3, prices, CZK, MOMENT_2020, new String[] { BASIC },
 			new AccompanyingPrice[] {
 				new AccompanyingPrice("p1", REFERENCE),
 				new AccompanyingPrice("p2", REFERENCE, VIP),

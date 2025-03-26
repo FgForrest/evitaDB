@@ -95,6 +95,9 @@ message GrpcSealedEntity {
   repeated GrpcLocale locales = 16;
   // Identifies scope where the entity resides (either live or archived scope).
   GrpcEntityScope scope = 17;
+  // Contains total count of references per reference name. This may differ from count of provided references
+  // if pagination or strip was used in the input query.
+  map<string, GrpcOffsetAndLimit> referenceOffsetAndLimits = 18;
 }
 
 // Response carries entities in a binary format and is part of the PRIVATE API that is used by Java driver. The client
@@ -160,4 +163,18 @@ message GrpcReference {
   map<string, GrpcLocalizedAttribute> localizedAttributes = 8;
   // Contains reference cardinality.
   GrpcCardinality referenceCardinality = 9;
+}
+
+// The OffsetAndLimit record represents pagination parameters including offset, limit, and the last page number.
+message GrpcOffsetAndLimit {
+  // The starting point for fetching records.
+  int32 offset = 1;
+  // The number of records to fetch from the starting point.
+  int32 limit = 2;
+  // The current page number based on the current pagination settings.
+  int32 pageNumber = 3;
+  // The last page number based on the current pagination settings.
+  int32 lastPageNumber = 4;
+  // The total number of records available.
+  int32 totalRecordCount = 5;
 }

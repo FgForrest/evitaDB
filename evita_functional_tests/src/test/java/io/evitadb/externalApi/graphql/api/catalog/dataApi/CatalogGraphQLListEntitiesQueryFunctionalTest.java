@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,8 +31,11 @@ import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
+import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
+import io.evitadb.api.requestResponse.data.PricesContract.PriceForSaleWithAccompanyingPrices;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -43,6 +46,9 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
+import io.evitadb.externalApi.api.catalog.dataApi.model.ReferencePageDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceStripDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceForSaleDescriptor;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
@@ -58,6 +64,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Random;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
@@ -2002,13 +2009,20 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 	@DisplayName("Should return accompanying prices for single price for sale")
 	void shouldReturnAccompanyingPricesForSinglePriceForSale(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<Integer> desiredEntities = originalProductEntities.stream()
-			.filter(entity ->
-				entity.getPrices(CURRENCY_CZK).stream()
-					.anyMatch(price -> price.priceList().equals(PRICE_LIST_BASIC)) &&
-					entity.getPrices(CURRENCY_CZK).stream()
-						.anyMatch(price -> price.priceList().equals(PRICE_LIST_REFERENCE)) &&
-					entity.getPrices(CURRENCY_CZK).stream()
-						.anyMatch(price -> price.priceList().equals(PRICE_LIST_VIP)))
+			.filter(entity -> {
+				final Optional<PriceForSaleWithAccompanyingPrices> prices = entity.getPriceForSaleWithAccompanyingPrices(
+					CURRENCY_CZK,
+					null,
+					new String[]{PRICE_LIST_BASIC},
+					new AccompanyingPrice[]{
+						new AccompanyingPrice(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name(), PRICE_LIST_REFERENCE),
+						new AccompanyingPrice("vipPrice", PRICE_LIST_VIP)
+					}
+				);
+				return prices.isPresent() &&
+					prices.get().accompanyingPrices().get(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name()).isPresent() &&
+					prices.get().accompanyingPrices().get("vipPrice").isPresent();
+			})
 			.map(entity -> entity.getPrimaryKey())
 			.toList();
 		assertTrue(desiredEntities.size() > 1);
@@ -2073,14 +2087,21 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 	@DisplayName("Should return accompanying prices for single custom price for sale")
 	void shouldReturnAccompanyingPricesForSingleCustomPriceForSale(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<Integer> desiredEntities = originalProductEntities.stream()
-			.filter(entity ->
-				entity.getPrices(CURRENCY_CZK).stream()
-					.anyMatch(price -> price.priceList().equals(PRICE_LIST_BASIC)) &&
-					entity.getPrices(CURRENCY_CZK).stream()
-						.anyMatch(price -> price.priceList().equals(PRICE_LIST_REFERENCE)) &&
-					entity.getPrices(CURRENCY_CZK).stream()
-						.anyMatch(price -> price.priceList().equals(PRICE_LIST_VIP)))
-			.map(entity -> entity.getPrimaryKey())
+			.filter(entity -> {
+					final Optional<PriceForSaleWithAccompanyingPrices> prices = entity.getPriceForSaleWithAccompanyingPrices(
+						CURRENCY_CZK,
+						null,
+						new String[]{PRICE_LIST_BASIC},
+						new AccompanyingPrice[]{
+							new AccompanyingPrice(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name(), PRICE_LIST_REFERENCE),
+							new AccompanyingPrice("vipPrice", PRICE_LIST_VIP)
+						}
+					);
+					return prices.isPresent() &&
+						prices.get().accompanyingPrices().get(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name()).isPresent() &&
+						prices.get().accompanyingPrices().get("vipPrice").isPresent();
+				})
+			.map(EntityContract::getPrimaryKey)
 			.toList();
 		assertTrue(desiredEntities.size() > 1);
 
@@ -2605,6 +2626,183 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return sublist of references for products")
+	void shouldReturnSublistOfReferencesForProducts(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final var entities = findEntities(
+			originalProductEntities,
+			it -> it.getReferences(Entities.STORE).size() >= 4,
+			2
+		);
+
+		final var expectedBody = entities.stream()
+			.map(entity -> map()
+				.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+				.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+				.e("store", entity.getReferences(Entities.STORE)
+					.stream()
+					.limit(2)
+					.map(reference ->
+						map()
+							.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
+								.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getReferencedPrimaryKey()))
+							.build())
+					.toList())
+				.build()
+			)
+			.toList();
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    listProduct(
+	                        filterBy: {
+	                            attributeCodeInSet: ["%s", "%s"]
+	                        }
+	                    ) {
+                            primaryKey
+	                        type
+                            store(limit: 2) {
+                                referencedEntity {
+                                    primaryKey
+                                }
+                            }
+                        }
+	                }
+					""",
+				entities.get(0).getAttribute(ATTRIBUTE_CODE),
+				entities.get(1).getAttribute(ATTRIBUTE_CODE)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(PRODUCT_LIST_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return reference page for products")
+	void shouldReturnReferencePageForProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final var entities = findEntities(
+			originalProductEntities,
+			it -> it.getReferences(Entities.STORE).size() >= 4,
+			2
+		);
+
+		final var expectedBody = entities.stream()
+			.map(entity -> map()
+				.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+				.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+				.e("storePage", map()
+					.e(ReferencePageDescriptor.TOTAL_RECORD_COUNT.name(), entity.getReferences(Entities.STORE).size())
+					.e(ReferencePageDescriptor.DATA.name(), entity.getReferences(Entities.STORE)
+						.stream()
+						.skip(2)
+						.limit(2)
+						.map(reference ->
+							map()
+							.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
+								.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getReferencedPrimaryKey()))
+								.build())
+						.toList()))
+				.build()
+			)
+			.toList();
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    listProduct(
+	                        filterBy: {
+	                            attributeCodeInSet: ["%s", "%s"]
+	                        }
+	                    ) {
+                            primaryKey
+	                        type
+                            storePage(number: 2, size: 2) {
+                                totalRecordCount
+                                data {
+	                                referencedEntity {
+	                                    primaryKey
+	                                }
+                                }
+                            }
+	                    }
+	                }
+					""",
+				entities.get(0).getAttribute(ATTRIBUTE_CODE),
+				entities.get(1).getAttribute(ATTRIBUTE_CODE)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(PRODUCT_LIST_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return reference strip for products")
+	void shouldReturnReferenceStripForProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final var entities = findEntities(
+			originalProductEntities,
+			it -> it.getReferences(Entities.STORE).size() >= 4,
+			2
+		);
+
+		final var expectedBody = entities.stream()
+			.map(entity -> map()
+				.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+				.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+				.e("storeStrip", map()
+					.e(ReferenceStripDescriptor.TOTAL_RECORD_COUNT.name(), entity.getReferences(Entities.STORE).size())
+					.e(ReferenceStripDescriptor.DATA.name(), entity.getReferences(Entities.STORE)
+						.stream()
+						.skip(2)
+						.limit(2)
+						.map(reference ->
+							map()
+							.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
+								.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getReferencedPrimaryKey()))
+								.build())
+						.toList()))
+				.build()
+			)
+			.toList();
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    listProduct(
+	                        filterBy: {
+	                            attributeCodeInSet: ["%s", "%s"]
+	                        }
+	                    ) {
+                            primaryKey
+	                        type
+                            storeStrip(offset: 2, limit: 2) {
+                                totalRecordCount
+                                data {
+	                                referencedEntity {
+	                                    primaryKey
+	                                }
+                                }
+                            }
+	                    }
+	                }
+					""",
+				entities.get(0).getAttribute(ATTRIBUTE_CODE),
+				entities.get(1).getAttribute(ATTRIBUTE_CODE)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(PRODUCT_LIST_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should find product by complex query")
 	void shouldFindProductByComplexQuery(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final Random rnd = new Random(SEED);
@@ -3032,6 +3230,45 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			}
 		);
 	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should pass query labels")
+	void shouldPassQueryLabels(GraphQLTester tester) {
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    listProduct(
+	                        head: [
+	                            {
+	                                label: {
+	                                    name: "myLabel1"
+	                                    value: "myValue1"
+	                                }
+	                            },
+	                            {
+	                                label: {
+	                                    name: "myLabel2"
+	                                    value: 100
+	                                }
+	                            }
+	                        ]
+	                        filterBy: {
+	                            attributeCodeContains: "a"
+	                        }
+	                    ) {
+	                        primaryKey
+	                    }
+	                }
+					"""
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(PRODUCT_LIST_PATH, hasSize(greaterThan(0)));
+	}
+
 
 
 	@Nonnull

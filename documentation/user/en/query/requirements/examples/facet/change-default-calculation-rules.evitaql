@@ -1,0 +1,11 @@
+query(
+    collection("Product"),
+    require(
+        facetSummaryOfReference(
+            "parameterValues",
+            IMPACT,
+            entityFetch(attributeContent("code"))
+        ),
+        facetCalculationRules(CONJUNCTION, EXCLUSIVITY)
+    )
+)

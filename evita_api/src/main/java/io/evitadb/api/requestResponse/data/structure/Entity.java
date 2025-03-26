@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.data.structure;
 
+import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.exception.EntityIsNotHierarchicalException;
 import io.evitadb.api.exception.ReferenceNotFoundException;
 import io.evitadb.api.query.Query;
@@ -43,6 +44,8 @@ import io.evitadb.api.query.require.HierarchyOfSelf;
 import io.evitadb.api.query.require.PriceContent;
 import io.evitadb.api.query.require.PriceHistogram;
 import io.evitadb.api.query.require.QueryPriceMode;
+import io.evitadb.api.requestResponse.chunk.ChunkTransformer;
+import io.evitadb.api.requestResponse.chunk.NoTransformer;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract;
 import io.evitadb.api.requestResponse.data.AssociatedDataEditor.AssociatedDataBuilder;
 import io.evitadb.api.requestResponse.data.AttributesEditor.AttributesBuilder;
@@ -77,6 +80,8 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.dataType.DataChunk;
+import io.evitadb.dataType.PlainChunk;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
@@ -121,6 +126,11 @@ import static java.util.Optional.ofNullable;
 @ThreadSafe
 public class Entity implements SealedEntity {
 	@Serial private static final long serialVersionUID = 8637366499361070438L;
+	/**
+	 * Default implementation of the chunk transformer that simply wraps the input list into a one page facade.
+	 */
+	public static final ChunkTransformerAccessor DEFAULT_CHUNK_TRANSFORMER =
+		referenceName -> NoTransformer.INSTANCE;
 
 	/**
 	 * Contains version of this object and gets increased with any (direct) entity update. Allows to execute
@@ -239,7 +249,13 @@ public class Entity implements SealedEntity {
 	 * Contains map of all references by their name. This map is used for fast lookup of the references by their name
 	 * and is initialized lazily on first request.
 	 */
-	private Map<String, List<ReferenceContract>> referencesByName;
+	private Map<String, DataChunk<ReferenceContract>> referencesByName;
+	/**
+	 * Contains transformer function that takes FULL list of references by their name and returns page that conforms
+	 * to the evita request. The function is called lazily on first request for chunked data. The function should not
+	 * trap entire evita request in its closure.
+	 */
+	private final ChunkTransformerAccessor referenceChunkTransformer;
 
 	/**
 	 * This method is for internal purposes only. It could be used for reconstruction of original Entity from different
@@ -258,7 +274,8 @@ public class Entity implements SealedEntity {
 		@Nonnull AssociatedData associatedData,
 		@Nonnull Prices prices,
 		@Nonnull Set<Locale> locales,
-		@Nonnull Scope scope
+		@Nonnull Scope scope,
+		@Nonnull ChunkTransformerAccessor referenceChunkTransformer
 	) {
 		return new Entity(
 			ofNullable(version).orElse(1),
@@ -271,7 +288,8 @@ public class Entity implements SealedEntity {
 			prices,
 			locales,
 			scope,
-			false
+			false,
+			referenceChunkTransformer
 		);
 	}
 
@@ -309,7 +327,8 @@ public class Entity implements SealedEntity {
 			referencesDefined,
 			withHierarchy,
 			Scope.DEFAULT_SCOPE,
-			dropped
+			dropped,
+			Entity.DEFAULT_CHUNK_TRANSFORMER
 		);
 	}
 
@@ -331,13 +350,15 @@ public class Entity implements SealedEntity {
 		@Nonnull Prices prices,
 		@Nonnull Set<Locale> locales,
 		@Nonnull Scope scope,
-		boolean dropped
+		boolean dropped,
+		@Nonnull ChunkTransformerAccessor referenceChunkTransformer
 	) {
 		return new Entity(
 			version, schema, primaryKey,
 			parent, references,
 			attributes, associatedData, prices,
-			locales, scope, dropped
+			locales, scope, dropped,
+			referenceChunkTransformer
 		);
 	}
 
@@ -360,7 +381,8 @@ public class Entity implements SealedEntity {
 		@Nullable Prices prices,
 		@Nullable Set<Locale> locales,
 		@Nonnull Scope scope,
-		boolean dropped
+		boolean dropped,
+		@Nonnull ChunkTransformerAccessor referenceChunkTransformer
 	) {
 		return new Entity(
 			version, schema, primaryKey,
@@ -371,7 +393,8 @@ public class Entity implements SealedEntity {
 			ofNullable(prices).orElse(entity.prices),
 			ofNullable(locales).orElse(entity.locales),
 			scope,
-			dropped
+			dropped,
+			referenceChunkTransformer
 		);
 	}
 
@@ -451,7 +474,8 @@ public class Entity implements SealedEntity {
 				mergedReferences.referencesDefined(),
 				entitySchema.isWithHierarchy() || newParent != null,
 				newScope,
-				false
+				false,
+				entity.referenceChunkTransformer
 			);
 		} else if (entity == null) {
 			return new Entity(entitySchema.getName(), null);
@@ -843,7 +867,8 @@ public class Entity implements SealedEntity {
 		@Nonnull Prices prices,
 		@Nonnull Set<Locale> locales,
 		@Nonnull Scope scope,
-		boolean dropped
+		boolean dropped,
+		@Nonnull ChunkTransformerAccessor referenceChunkTransformer
 	) {
 		this(
 			version,
@@ -858,7 +883,8 @@ public class Entity implements SealedEntity {
 			schema.getReferences().keySet(),
 			schema.isWithHierarchy(),
 			scope,
-			dropped
+			dropped,
+			referenceChunkTransformer
 		);
 	}
 
@@ -879,6 +905,7 @@ public class Entity implements SealedEntity {
 		this.locales = Collections.emptySet();
 		this.scope = Scope.DEFAULT_SCOPE;
 		this.dropped = false;
+		this.referenceChunkTransformer = Entity.DEFAULT_CHUNK_TRANSFORMER;
 	}
 
 	/**
@@ -898,7 +925,8 @@ public class Entity implements SealedEntity {
 		@Nonnull Set<String> referencesDefined,
 		boolean withHierarchy,
 		@Nonnull Scope scope,
-		boolean dropped
+		boolean dropped,
+		@Nonnull ChunkTransformerAccessor referenceChunkTransformer
 	) {
 		this.version = version;
 		this.type = schema.getName();
@@ -927,6 +955,7 @@ public class Entity implements SealedEntity {
 		this.locales = Collections.unmodifiableSet(locales);
 		this.scope = scope;
 		this.dropped = dropped;
+		this.referenceChunkTransformer = referenceChunkTransformer;
 	}
 
 	@Override
@@ -988,9 +1017,23 @@ public class Entity implements SealedEntity {
 
 	@Nonnull
 	@Override
+	public Set<String> getReferenceNames() {
+		return this.referencesDefined;
+	}
+
+	@Nonnull
+	@Override
 	public Collection<ReferenceContract> getReferences(@Nonnull String referenceName) {
+		return this.getReferenceChunk(referenceName).getData();
+	}
+
+	@Nonnull
+	@Override
+	public <T extends DataChunk<ReferenceContract>> T getReferenceChunk(@Nonnull String referenceName) throws ContextMissingException {
 		checkReferenceName(referenceName);
 		if (this.referencesByName == null) {
+			// here we never limit the references by input requirements
+			// this is managed on entity decorator level
 			this.referencesByName = this.references
 				.entrySet()
 				.stream()
@@ -999,13 +1042,19 @@ public class Entity implements SealedEntity {
 						it -> it.getKey().referenceName(),
 						Collectors.mapping(
 							Entry::getValue,
-							Collectors.toList()
+							Collectors.collectingAndThen(
+								Collectors.toList(),
+								PlainChunk::new
+							)
 						)
 					)
 				);
 		}
-		return ofNullable(this.referencesByName.get(referenceName))
-			.orElse(Collections.emptyList());
+		//noinspection unchecked
+		return (T) this.referencesByName.computeIfAbsent(
+			referenceName,
+			refName -> this.referenceChunkTransformer.apply(refName).createChunk(Collections.emptyList())
+		);
 	}
 
 	@Nonnull
@@ -1086,6 +1135,13 @@ public class Entity implements SealedEntity {
 		);
 	}
 
+	/**
+	 * This method is part of the internal API and is not meant to be used by the client code.
+	 */
+	@Nonnull
+	public ChunkTransformerAccessor getReferenceChunkTransformer() {
+		return this.referenceChunkTransformer;
+	}
 
 	@Override
 	public int hashCode() {
@@ -1116,6 +1172,24 @@ public class Entity implements SealedEntity {
 		@Nonnull Collection<ReferenceContract> references,
 		@Nonnull Set<String> referencesDefined
 	) {
+	}
+
+	/**
+	 * This interface provides access to chunk transformers for particular reference name. The implementations are
+	 * not ought to check the existence of reference in the schema and simply fall back to {@link NoTransformer}
+	 * implementation if necessary, but they must never return NULL.
+	 */
+	public interface ChunkTransformerAccessor {
+
+		/**
+		 * Returns chunk transformer for the given reference name.
+		 *
+		 * @param referenceName name of the reference
+		 * @return chunk transformer for the given reference name, never NULL
+		 */
+		@Nonnull
+		ChunkTransformer apply(@Nonnull String referenceName);
+
 	}
 
 }

@@ -235,6 +235,7 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 						.storageDirectory(evitaDataPath)
 						.exportDirectory(evitaExportPath)
 						.maxOpenedReadHandles(1000)
+						.syncWrites(false)
 						.build()
 				)
 				.cache(

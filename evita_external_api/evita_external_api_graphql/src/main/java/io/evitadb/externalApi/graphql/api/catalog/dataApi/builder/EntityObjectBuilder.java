@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -34,6 +34,7 @@ import graphql.schema.GraphQLType;
 import io.evitadb.api.query.require.HierarchyStopAt;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -55,6 +56,8 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.Ord
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.RequireConstraintSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GlobalEntityDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.ReferencePageDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceStripDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.*;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.BigDecimalDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityDtoTypeResolver;
@@ -70,6 +73,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
@@ -616,13 +620,21 @@ public class EntityObjectBuilder {
 		final Collection<ReferenceSchemaContract> referenceSchemas = collectionBuildingContext.getSchema().getReferences().values();
 
 		return referenceSchemas.stream()
-			.map(referenceSchema -> {
+			.flatMap(referenceSchema -> {
+				final List<BuiltFieldDescriptor> fields = new ArrayList<>(3);
+
 				final GraphQLOutputType referenceObject = switch (version) {
-					case DEFAULT -> buildReferenceObject(collectionBuildingContext, referenceSchema);
-					case NON_HIERARCHICAL -> typeRef(ReferenceDescriptor.THIS.name(collectionBuildingContext.getSchema(), referenceSchema));
+					case DEFAULT -> {
+						final GraphQLObjectType object = buildReferenceObject(collectionBuildingContext, referenceSchema);
+						buildingContext.registerType(object);
+						yield object;
+					}
+					case NON_HIERARCHICAL ->
+						typeRef(ReferenceDescriptor.THIS.name(collectionBuildingContext.getSchema(), referenceSchema));
 					default -> throw new GraphQLSchemaBuildingError("Unsupported version `" + version + "`.");
 				};
 
+				// inline query args
 				final InlineReferenceDataLocator referenceDataLocator = new InlineReferenceDataLocator(
 					new ManagedEntityTypePointer(collectionBuildingContext.getSchema().getName()),
 					referenceSchema.getName()
@@ -630,32 +642,93 @@ public class EntityObjectBuilder {
 				final GraphQLInputType referenceFilter = filterConstraintSchemaBuilder.build(referenceDataLocator);
 				final GraphQLInputType referenceOrder = orderConstraintSchemaBuilder.build(referenceDataLocator);
 
-				final GraphQLFieldDefinition.Builder referenceFieldBuilder = newFieldDefinition()
-					.name(referenceSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
-					.description(referenceSchema.getDescription())
-					.deprecate(referenceSchema.getDeprecationNotice())
-					.argument(ReferenceFieldHeaderDescriptor.FILTER_BY
-						.to(argumentBuilderTransformer)
-						.type(referenceFilter))
-					.argument(ReferenceFieldHeaderDescriptor.ORDER_BY
-						.to(argumentBuilderTransformer)
-						.type(referenceOrder));
+				final Cardinality referenceCardinality = referenceSchema.getCardinality();
+				final boolean referenceIsList = Cardinality.ZERO_OR_MORE.equals(referenceCardinality) ||
+					Cardinality.ONE_OR_MORE.equals(referenceCardinality);
 
-				switch (referenceSchema.getCardinality()) {
-					case ZERO_OR_ONE -> referenceFieldBuilder.type(referenceObject);
-					case EXACTLY_ONE -> referenceFieldBuilder.type(nonNull(referenceObject));
-					case ZERO_OR_MORE, ONE_OR_MORE -> referenceFieldBuilder.type(nonNull(list(nonNull(referenceObject))));
+				{ // base reference field
+					final GraphQLFieldDefinition.Builder referenceFieldBuilder = GraphQLEntityDescriptor.REFERENCE
+						.to(fieldBuilderTransformer)
+						.name(GraphQLEntityDescriptor.REFERENCE.name(referenceSchema))
+						.description(referenceSchema.getDescription())
+						.deprecate(referenceSchema.getDeprecationNotice())
+						.argument(ReferenceFieldHeaderDescriptor.FILTER_BY
+							.to(argumentBuilderTransformer)
+							.type(referenceFilter))
+						.argument(ReferenceFieldHeaderDescriptor.ORDER_BY
+							.to(argumentBuilderTransformer)
+							.type(referenceOrder));
+
+					if (referenceIsList) {
+						referenceFieldBuilder.argument(ReferencesFieldHeaderDescriptor.LIMIT
+							.to(argumentBuilderTransformer));
+					}
+
+					switch (referenceCardinality) {
+						case ZERO_OR_ONE -> referenceFieldBuilder.type(referenceObject);
+						case EXACTLY_ONE -> referenceFieldBuilder.type(nonNull(referenceObject));
+						case ZERO_OR_MORE, ONE_OR_MORE ->
+							referenceFieldBuilder.type(nonNull(list(nonNull(referenceObject))));
+					}
+
+					final DataFetcher<?> referenceDataFetcher = switch (referenceCardinality) {
+						case ZERO_OR_ONE, EXACTLY_ONE -> new ReferenceDataFetcher(referenceSchema);
+						case ZERO_OR_MORE, ONE_OR_MORE -> new ReferencesDataFetcher(referenceSchema);
+					};
+
+					fields.add(new BuiltFieldDescriptor(
+						referenceFieldBuilder.build(),
+						referenceDataFetcher
+					));
 				}
 
-				final DataFetcher<?> referenceDataFetcher = switch (referenceSchema.getCardinality()) {
-					case ZERO_OR_ONE, EXACTLY_ONE -> new ReferenceDataFetcher(referenceSchema);
-					case ZERO_OR_MORE, ONE_OR_MORE -> new ReferencesDataFetcher(referenceSchema);
-				};
+				{ // chunked reference fields
+					if (EntityObjectVariant.DEFAULT.equals(version) && referenceIsList) {
+						fields.add(new BuiltFieldDescriptor(
+							GraphQLEntityDescriptor.REFERENCE_PAGE
+								.to(fieldBuilderTransformer)
+								.name(GraphQLEntityDescriptor.REFERENCE_PAGE.name(referenceSchema))
+								.description(referenceSchema.getDescription())
+								.deprecate(referenceSchema.getDeprecationNotice())
+								.type(buildReferencePageObject(collectionBuildingContext, referenceSchema))
+								.argument(ReferencePageFieldHeaderDescriptor.FILTER_BY
+									.to(argumentBuilderTransformer)
+									.type(referenceFilter))
+								.argument(ReferencePageFieldHeaderDescriptor.ORDER_BY
+									.to(argumentBuilderTransformer)
+									.type(referenceOrder))
+								.argument(ReferencePageFieldHeaderDescriptor.NUMBER
+									.to(argumentBuilderTransformer))
+								.argument(ReferencePageFieldHeaderDescriptor.SIZE
+									.to(argumentBuilderTransformer))
+								.build(),
+							new ReferencePageDataFetcher(referenceSchema)
+						));
 
-				return new BuiltFieldDescriptor(
-					referenceFieldBuilder.build(),
-					referenceDataFetcher
-				);
+						fields.add(new BuiltFieldDescriptor(
+							GraphQLEntityDescriptor.REFERENCE_STRIP
+								.to(fieldBuilderTransformer)
+								.name(GraphQLEntityDescriptor.REFERENCE_STRIP.name(referenceSchema))
+								.description(referenceSchema.getDescription())
+								.deprecate(referenceSchema.getDeprecationNotice())
+								.type(buildReferenceStripObject(collectionBuildingContext, referenceSchema))
+								.argument(ReferenceStripFieldHeaderDescriptor.FILTER_BY
+									.to(argumentBuilderTransformer)
+									.type(referenceFilter))
+								.argument(ReferenceStripFieldHeaderDescriptor.ORDER_BY
+									.to(argumentBuilderTransformer)
+									.type(referenceOrder))
+								.argument(ReferenceStripFieldHeaderDescriptor.OFFSET
+									.to(argumentBuilderTransformer))
+								.argument(ReferenceStripFieldHeaderDescriptor.LIMIT
+									.to(argumentBuilderTransformer))
+								.build(),
+							new ReferenceStripDataFetcher(referenceSchema)
+						));
+					}
+				}
+
+				return fields.stream();
 			})
 			.toList();
 	}
@@ -770,6 +843,32 @@ public class EntityObjectBuilder {
 		} else {
 			return typeRef(GraphQLEntityDescriptor.THIS_REFERENCE.name());
 		}
+	}
+
+	@Nonnull
+	private GraphQLObjectType buildReferencePageObject(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext,
+	                                                   @Nonnull ReferenceSchemaContract referenceSchema) {
+		return ReferencePageDescriptor.THIS
+			.to(objectBuilderTransformer)
+			.name(ReferencePageDescriptor.THIS.name(collectionBuildingContext.getSchema(), referenceSchema))
+			.description(referenceSchema.getDescription())
+			.field(ReferencePageDescriptor.DATA
+				.to(fieldBuilderTransformer)
+				.type(nonNull(list(nonNull(typeRef(ReferenceDescriptor.THIS.name(collectionBuildingContext.getSchema(), referenceSchema)))))))
+			.build();
+	}
+
+	@Nonnull
+	private GraphQLObjectType buildReferenceStripObject(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext,
+	                                                    @Nonnull ReferenceSchemaContract referenceSchema) {
+		return ReferenceStripDescriptor.THIS
+			.to(objectBuilderTransformer)
+			.name(ReferenceStripDescriptor.THIS.name(collectionBuildingContext.getSchema(), referenceSchema))
+			.description(referenceSchema.getDescription())
+			.field(ReferenceStripDescriptor.DATA
+				.to(fieldBuilderTransformer)
+				.type(nonNull(list(nonNull(typeRef(ReferenceDescriptor.THIS.name(collectionBuildingContext.getSchema(), referenceSchema)))))))
+			.build();
 	}
 
 

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,7 +27,6 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.descriptor.ConstraintDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
 import io.evitadb.api.query.descriptor.ConstraintType;
-import io.evitadb.api.query.filter.EntityScope;
 import io.evitadb.api.query.require.*;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintSchemaBuilder;
@@ -60,9 +59,11 @@ public class RequireConstraintSchemaBuilder extends OpenApiConstraintSchemaBuild
 		HierarchyDistance.class,
 		HierarchyLevel.class,
 		HierarchyNode.class,
+		FacetCalculationRules.class,
 		FacetGroupsConjunction.class,
 		FacetGroupsDisjunction.class,
 		FacetGroupsNegation.class,
+		FacetGroupsExclusivity.class,
 		RequireInScope.class,
 		Page.class,
 		Spacing.class,

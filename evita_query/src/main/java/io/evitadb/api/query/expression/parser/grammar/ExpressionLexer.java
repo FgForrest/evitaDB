@@ -1,40 +1,15 @@
-/*
- *
- *                         _ _        ____  ____
- *               _____   _(_) |_ __ _|  _ \| __ )
- *              / _ \ \ / / | __/ _` | | | |  _ \
- *             |  __/\ V /| | || (_| | |_| | |_) |
- *              \___| \_/ |_|\__\__,_|____/|____/
- *
- *   Copyright (c) 2024
- *
- *   Licensed under the Business Source License, Version 1.1 (the "License");
- *   you may not use this file except in compliance with the License.
- *   You may obtain a copy of the License at
- *
- *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
- *
- *   Unless required by applicable law or agreed to in writing, software
- *   distributed under the License is distributed on an "AS IS" BASIS,
- *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *   See the License for the specific language governing permissions and
- *   limitations under the License.
- */
-
 // Generated from Expression.g4 by ANTLR 4.9.2
 
     package io.evitadb.api.query.expression.parser.grammar;
 
-import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.Lexer;
-import org.antlr.v4.runtime.RuntimeMetaData;
-import org.antlr.v4.runtime.Vocabulary;
-import org.antlr.v4.runtime.VocabularyImpl;
-import org.antlr.v4.runtime.atn.ATN;
-import org.antlr.v4.runtime.atn.ATNDeserializer;
-import org.antlr.v4.runtime.atn.LexerATNSimulator;
-import org.antlr.v4.runtime.atn.PredictionContextCache;
+import org.antlr.v4.runtime.CharStream;
+import org.antlr.v4.runtime.Token;
+import org.antlr.v4.runtime.TokenStream;
+import org.antlr.v4.runtime.*;
+import org.antlr.v4.runtime.atn.*;
 import org.antlr.v4.runtime.dfa.DFA;
+import org.antlr.v4.runtime.misc.*;
 
 @SuppressWarnings({"all", "warnings", "unchecked", "unused", "cast"})
 public class ExpressionLexer extends Lexer {
@@ -44,9 +19,9 @@ public class ExpressionLexer extends Lexer {
 	protected static final PredictionContextCache _sharedContextCache =
 		new PredictionContextCache();
 	public static final int
-		LPAREN=1, RPAREN=2, PLUS=3, MINUS=4, TIMES=5, DIV=6, MOD=7, GT=8, GT_EQ=9,
-		LT=10, LT_EQ=11, EQ=12, NOT_EQ=13, NOT=14, AND=15, OR=16, COMMA=17, POINT=18,
-		POW=19, VARIABLE=20, CEIL=21, SQRT=22, FLOOR=23, ABS=24, ROUND=25, LOG=26,
+		LPAREN=1, RPAREN=2, PLUS=3, MINUS=4, TIMES=5, DIV=6, MOD=7, GT=8, GT_EQ=9, 
+		LT=10, LT_EQ=11, EQ=12, NOT_EQ=13, NOT=14, AND=15, OR=16, COMMA=17, POINT=18, 
+		POW=19, VARIABLE=20, CEIL=21, SQRT=22, FLOOR=23, ABS=24, ROUND=25, LOG=26, 
 		MAX=27, MIN=28, RANDOM=29, WS=30, STRING=31, INT=32, FLOAT=33, BOOLEAN=34;
 	public static String[] channelNames = {
 		"DEFAULT_TOKEN_CHANNEL", "HIDDEN"
@@ -58,11 +33,11 @@ public class ExpressionLexer extends Lexer {
 
 	private static String[] makeRuleNames() {
 		return new String[] {
-			"LPAREN", "RPAREN", "PLUS", "MINUS", "TIMES", "DIV", "MOD", "GT", "GT_EQ",
-			"LT", "LT_EQ", "EQ", "NOT_EQ", "NOT", "AND", "OR", "COMMA", "POINT",
-			"POW", "VARIABLE", "CEIL", "SQRT", "FLOOR", "ABS", "ROUND", "LOG", "MAX",
-			"MIN", "RANDOM", "SIGN", "WS", "STRING", "STRING_DOUBLE_QUOTATION_ESC",
-			"STRING_SINGLE_QUOTATION_ESC", "STRING_UNICODE", "STRING_HEX", "STRING_DOUBLE_QUOTATION_SAFECODEPOINT",
+			"LPAREN", "RPAREN", "PLUS", "MINUS", "TIMES", "DIV", "MOD", "GT", "GT_EQ", 
+			"LT", "LT_EQ", "EQ", "NOT_EQ", "NOT", "AND", "OR", "COMMA", "POINT", 
+			"POW", "VARIABLE", "CEIL", "SQRT", "FLOOR", "ABS", "ROUND", "LOG", "MAX", 
+			"MIN", "RANDOM", "SIGN", "WS", "STRING", "STRING_DOUBLE_QUOTATION_ESC", 
+			"STRING_SINGLE_QUOTATION_ESC", "STRING_UNICODE", "STRING_HEX", "STRING_DOUBLE_QUOTATION_SAFECODEPOINT", 
 			"STRING_SINGLE_QUOTATION_SAFECODEPOINT", "INT", "FLOAT", "BOOLEAN"
 		};
 	}
@@ -70,18 +45,18 @@ public class ExpressionLexer extends Lexer {
 
 	private static String[] makeLiteralNames() {
 		return new String[] {
-			null, "'('", "')'", "'+'", "'-'", "'*'", "'/'", "'%'", "'>'", "'>='",
-			"'<'", "'<='", "'=='", "'!='", "'!'", "'&&'", "'||'", "','", "'.'", "'^'",
-			null, "'ceil'", "'sqrt'", "'floor'", "'abs'", "'round'", "'log'", "'max'",
+			null, "'('", "')'", "'+'", "'-'", "'*'", "'/'", "'%'", "'>'", "'>='", 
+			"'<'", "'<='", "'=='", "'!='", "'!'", "'&&'", "'||'", "','", "'.'", "'^'", 
+			null, "'ceil'", "'sqrt'", "'floor'", "'abs'", "'round'", "'log'", "'max'", 
 			"'min'", "'random'"
 		};
 	}
 	private static final String[] _LITERAL_NAMES = makeLiteralNames();
 	private static String[] makeSymbolicNames() {
 		return new String[] {
-			null, "LPAREN", "RPAREN", "PLUS", "MINUS", "TIMES", "DIV", "MOD", "GT",
-			"GT_EQ", "LT", "LT_EQ", "EQ", "NOT_EQ", "NOT", "AND", "OR", "COMMA",
-			"POINT", "POW", "VARIABLE", "CEIL", "SQRT", "FLOOR", "ABS", "ROUND",
+			null, "LPAREN", "RPAREN", "PLUS", "MINUS", "TIMES", "DIV", "MOD", "GT", 
+			"GT_EQ", "LT", "LT_EQ", "EQ", "NOT_EQ", "NOT", "AND", "OR", "COMMA", 
+			"POINT", "POW", "VARIABLE", "CEIL", "SQRT", "FLOOR", "ABS", "ROUND", 
 			"LOG", "MAX", "MIN", "RANDOM", "WS", "STRING", "INT", "FLOAT", "BOOLEAN"
 		};
 	}

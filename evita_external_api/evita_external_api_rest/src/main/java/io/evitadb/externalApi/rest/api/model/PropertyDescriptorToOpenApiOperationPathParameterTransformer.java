@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -48,9 +48,11 @@ public class PropertyDescriptorToOpenApiOperationPathParameterTransformer implem
 	@Override
 	public OpenApiEndpointParameter.Builder apply(@Nonnull PropertyDescriptor propertyDescriptor) {
 		final OpenApiEndpointParameter.Builder parameterBuilder = OpenApiEndpointParameter.newPathParameter()
-			.name(propertyDescriptor.name())
 			.description(propertyDescriptor.description());
 
+		if (propertyDescriptor.isNameStatic()) {
+			parameterBuilder.name(propertyDescriptor.name());
+		}
 		if (propertyDescriptor.deprecate() != null) {
 			parameterBuilder.deprecationNotice(propertyDescriptor.deprecate());
 		}

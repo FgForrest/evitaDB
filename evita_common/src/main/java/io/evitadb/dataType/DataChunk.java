@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -44,7 +44,7 @@ import java.util.stream.StreamSupport;
 @ThreadSafe
 @Immutable
 public sealed interface DataChunk<T extends Serializable> extends Iterable<T>, Serializable
-	permits PaginatedList, StripList {
+	permits PaginatedList, StripList, PlainChunk {
 
 	/**
 	 * Returns list of records for current page. List can contain any type of data.

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -58,9 +58,10 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@SuppressWarnings({"DataFlowIssue", "ConstantValue"})
 public interface QueryConstraints {
 
-	/*+
+	/*
 		HEADING
 	 */
 
@@ -1862,6 +1863,198 @@ public interface QueryConstraints {
 	}
 
 	/**
+	 * The constraint `includingChildren` is a constraint that can only be used within {@link FacetHaving} parent constraint.
+	 * It simply makes no sense anywhere else because it changes the default behavior of this constraint. Facet having
+	 * filters entities that have a direct reference to matching faceted entity. When the `includingChildren` constraint is
+	 * used, the query will return all entities that have a direct reference to the matching entity or any of its children
+	 * in the hierarchy.
+	 *
+	 * This constraint cannot be used for references to non-hierarchical entities - in such case the query will return an
+	 * error.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     filterBy(
+	 *         facetHaving(
+	 *             "categories",
+	 *             entityHaving(
+	 *                attributeEquals("code", "accessories")
+	 *             ),
+	 *             includingChildren()
+	 *         )
+	 *     ),
+	 *     require(
+	 *         entityFetch(
+	 *             attributeContent("code")
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * This query will match all products that have reference to the category with code "accessories" or any of its children.
+	 * The {@link FacetSummary} will take references to any of the category children into account when calculating the impact
+	 * of category facet selection.
+	 *
+	 * It's also possible to specify sub-constraint that each of the child must satisfy in order to be included in selection.
+	 * This can be done by adding suffix `Having` and additional constraints to the `includingChildren` constraint:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     filterBy(
+	 *         facetHaving(
+	 *             "categories",
+	 *             entityHaving(
+	 *                attributeEquals("code", "accessories"),
+	 *             ),
+	 *             includingChildrenHaving(
+	 *                 or(
+	 *                     attributeInRangeNow("validity"),
+	 *                     attributeIs("validity", NULL)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     require(
+	 *         entityFetch(
+	 *             attributeContent("code")
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * This query will select only children of the category "accessories" that have attribute `validity` range that includes
+	 * the current date or the attribute is not set at all.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/references#including-children-having">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static FacetIncludingChildren includingChildren() {
+		return new FacetIncludingChildren();
+	}
+
+	/**
+	 * The constraint `includingChildren` is a constraint that can only be used within {@link FacetHaving} parent constraint.
+	 * It simply makes no sense anywhere else because it changes the default behavior of this constraint. Facet having
+	 * filters entities that have a direct reference to matching faceted entity. When the `includingChildren` constraint is
+	 * used, the query will return all entities that have a direct reference to the matching entity or any of its children
+	 * in the hierarchy.
+	 *
+	 * This constraint cannot be used for references to non-hierarchical entities - in such case the query will return an
+	 * error.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     filterBy(
+	 *         facetHaving(
+	 *             "categories",
+	 *             entityHaving(
+	 *                attributeEquals("code", "accessories")
+	 *             ),
+	 *             includingChildren()
+	 *         )
+	 *     ),
+	 *     require(
+	 *         entityFetch(
+	 *             attributeContent("code")
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * This query will match all products that have reference to the category with code "accessories" or any of its children.
+	 * The {@link FacetSummary} will take references to any of the category children into account when calculating the impact
+	 * of category facet selection.
+	 *
+	 * It's also possible to specify sub-constraint that each of the child must satisfy in order to be included in selection.
+	 * This can be done by adding suffix `Having` and additional constraints to the `includingChildren` constraint:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     filterBy(
+	 *         facetHaving(
+	 *             "categories",
+	 *             entityHaving(
+	 *                attributeEquals("code", "accessories"),
+	 *             ),
+	 *             includingChildrenHaving(
+	 *                 or(
+	 *                     attributeInRangeNow("validity"),
+	 *                     attributeIs("validity", NULL)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     require(
+	 *         entityFetch(
+	 *             attributeContent("code")
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * This query will select only children of the category "accessories" that have attribute `validity` range that includes
+	 * the current date or the attribute is not set at all.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/references#including-children-having">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static FacetIncludingChildren includingChildrenHaving(@Nullable FilterConstraint filterConstraint) {
+		return filterConstraint == null ? new FacetIncludingChildren() : new FacetIncludingChildren(filterConstraint);
+	}
+
+	/**
+	 * The constraint `includingChildrenExcept` is a constraint that can only be used within {@link FacetHaving} parent constraint.
+	 * It simply makes no sense anywhere else because it changes the default behavior of this constraint. Facet having
+	 * filters entities that have a direct reference to matching faceted entity. When the `includingChildrenExcept` constraint
+	 * is used, the query will return all entities that have a direct reference to the matching entity or any of its children
+	 * in the hierarchy except the children that satisfy the internal constraints of the `includingChildrenExcept` constraint
+	 * container.
+	 *
+	 * This constraint cannot be used for references to non-hierarchical entities - in such case the query will return an
+	 * error.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     filterBy(
+	 *         facetHaving(
+	 *             "categories",
+	 *             attributeEquals("code", "accessories"),
+	 *             includingChildrenExcept(
+	 *                 attributeEquals("visible", "INVISIBLE"),
+	 *             )
+	 *         )
+	 *     ),
+	 *     require(
+	 *         entityFetch(
+	 *             attributeContent("code")
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * This query will match all products that have reference to the category with code "accessories" or any of its children
+	 * except those with attribute `visible` set to "INVISIBLE". The {@link FacetSummary} will take references to any of
+	 * the category children into account when calculating the impact of category facet selection.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/references#including-children-except">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static FacetIncludingChildrenExcept includingChildrenExcept(@Nullable FilterConstraint filterConstraint) {
+		return filterConstraint == null ? new FacetIncludingChildrenExcept() : new FacetIncludingChildrenExcept(filterConstraint);
+	}
+
+	/**
 	 * The `entityPrimaryKeyInSet` constraint limits the list of returned entities by exactly specifying their entity
 	 * primary keys.
 	 *
@@ -2681,10 +2874,204 @@ public interface QueryConstraints {
 	*/
 	@Nullable
 	static ReferenceProperty referenceProperty(@Nullable String referenceName, @Nullable OrderConstraint... constraints) {
-		if (referenceName == null || constraints == null) {
+		if (referenceName == null || ArrayUtils.isEmptyOrItsValuesNull(constraints)) {
 			return null;
 		}
 		return new ReferenceProperty(referenceName, constraints);
+	}
+
+	/**
+	 * The `traverseByEntityProperty` ordering constraint can only be used within the {@link ReferenceProperty} ordering
+	 * constraint. It changes the behaviour of the ordering rules in a way that first the result is ordered by the referenced
+	 * entity property and within same referenced entity the main entity is ordered by the reference property. This constraint
+	 * is particularly useful when the reference is one-to-many and the referenced entity is hierarchical.
+	 *
+	 * Consider the following example where we want to list products in the *Accessories* category ordered by the `orderInCategory`
+	 * attribute on the reference to the category, but the products could either directly reference the *Accessories* category
+	 * or one of its child categories. The order will first list products directly related to the *Accessories* category in
+	 * a particular order, then it will start listing products in the child categories in depth-first order. To specify which
+	 * order to use when traversing the child categories, we can use the `traverseByEntityProperty` ordering constraint:
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     filterBy(
+	 *         hierarchyWithin(
+	 *             "categories",
+	 *             attributeEquals("code", "accessories")
+	 *         )
+	 *     ),
+	 *      orderBy(
+	 *          referenceProperty(
+	 *              "categories",
+	 *              traverseByEntityProperty(
+	 *                  attributeNatural("order", ASC)
+	 *              ),
+	 *              attributeNatural("orderInCategory", ASC)
+	 *          )
+	 *      ),
+	 *      require(
+	 *          entityFetch(
+	 *              attributeContent("code"),
+	 *              referenceContentWithAttributes(
+	 *                 "categories",
+	 *                 attributeContent("orderInCategory")
+	 *              )
+	 *          )
+	 *      )
+	 * )
+	 * </pre>
+	 *
+	 * You can also change the depth-first traversal to breadth-first traversal by declaring optional first argument as
+	 * follows:
+	 *
+	 * <pre>
+	 * referenceProperty(
+	 *     "categories",
+	 *     traverseByEntityProperty(
+	 *         BREADTH_FIRST, attributeNatural("order", ASC)
+	 *     ),
+	 *     attributeNatural("orderInCategory", ASC)
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/ordering/reference#traverse-by-entity-property">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static TraverseByEntityProperty traverseByEntityProperty(@Nullable OrderConstraint... constraints) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(constraints)) {
+			return new TraverseByEntityProperty(null, entityPrimaryKeyNatural(OrderDirection.ASC));
+		} else {
+			return new TraverseByEntityProperty(null, constraints);
+		}
+	}
+
+	/**
+	 * The `traverseByEntityProperty` ordering constraint can only be used within the {@link ReferenceProperty} ordering
+	 * constraint. It changes the behaviour of the ordering rules in a way that first the result is ordered by the referenced
+	 * entity property and within same referenced entity the main entity is ordered by the reference property. This constraint
+	 * is particularly useful when the reference is one-to-many and the referenced entity is hierarchical.
+	 *
+	 * Consider the following example where we want to list products in the *Accessories* category ordered by the `orderInCategory`
+	 * attribute on the reference to the category, but the products could either directly reference the *Accessories* category
+	 * or one of its child categories. The order will first list products directly related to the *Accessories* category in
+	 * a particular order, then it will start listing products in the child categories in depth-first order. To specify which
+	 * order to use when traversing the child categories, we can use the `traverseByEntityProperty` ordering constraint:
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     filterBy(
+	 *         hierarchyWithin(
+	 *             "categories",
+	 *             attributeEquals("code", "accessories")
+	 *         )
+	 *     ),
+	 *      orderBy(
+	 *          referenceProperty(
+	 *              "categories",
+	 *              traverseByEntityProperty(
+	 *                  attributeNatural("order", ASC)
+	 *              ),
+	 *              attributeNatural("orderInCategory", ASC)
+	 *          )
+	 *      ),
+	 *      require(
+	 *          entityFetch(
+	 *              attributeContent("code"),
+	 *              referenceContentWithAttributes(
+	 *                 "categories",
+	 *                 attributeContent("orderInCategory")
+	 *              )
+	 *          )
+	 *      )
+	 * )
+	 * </pre>
+	 *
+	 * You can also change the depth-first traversal to breadth-first traversal by declaring optional first argument as
+	 * follows:
+	 *
+	 * <pre>
+	 * referenceProperty(
+	 *     "categories",
+	 *     traverseByEntityProperty(
+	 *         BREADTH_FIRST, attributeNatural("order", ASC)
+	 *     ),
+	 *     attributeNatural("orderInCategory", ASC)
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/ordering/reference#traverse-by-entity-property">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static TraverseByEntityProperty traverseByEntityProperty(@Nullable TraversalMode traversalMode, @Nullable OrderConstraint... constraints) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(constraints)) {
+			return new TraverseByEntityProperty(traversalMode, entityPrimaryKeyNatural(OrderDirection.ASC));
+		} else {
+			return new TraverseByEntityProperty(traversalMode, constraints);
+		}
+	}
+
+	/**
+	 * The `pickFirstByEntityProperty` ordering constraint can only be used within the {@link ReferenceProperty} ordering
+	 * constraint and makes sense only if the reference has cardinality 1:N. It allows to define which of the multiple
+	 * references will be picked and examined for a property that will be used for ordering.
+	 *
+	 * Consider the following example where we want to list products of with reference to "main" stock and sort them by
+	 * the `quantityOnStock` attribute on the reference to the stock. The products may have multiple references to different
+	 * stocks, but we want to use only the one that is referenced by the `main` reference. This query will return products
+	 * for this situation:
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     filterBy(
+	 *         referenceHaving(
+	 *             "stocks",
+	 *             attributeEquals("code", "main")
+	 *         )
+	 *     ),
+	 *     orderBy(
+	 *          referenceProperty(
+	 *              "stocks",
+	 *              pickFirstByEntityProperty(
+	 *                  attributeSetExact("code", "main")
+	 *              ),
+	 *              attributeNatural("quantityOnStock", DESC)
+	 *          )
+	 *     ),
+	 *     require(
+	 *         entityFetch(
+	 *             attributeContent("code"),
+	 *             referenceContentWithAttributes(
+	 *                "stocks",
+	 *                attributeContent("quantityOnStock")
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * Constraint `pickFirstByEntityProperty` accepts ordering constraints as its arguments, orders the entity references by
+	 * them and picks the first reference whose attribute `quantityOnStock` will be used for ordering the main entity. In
+	 * this case it uses the explicit ordering where the `main` reference is ordered first and the other references are
+	 * ordered by their primary key in ascending order. Since only the first reference matters, the other entity references
+	 * are ignored.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/ordering/reference#pick-first-by-entity-property">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static PickFirstByEntityProperty pickFirstByEntityProperty(@Nullable OrderConstraint... constraints) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(constraints)) {
+			return null;
+		}
+		return new PickFirstByEntityProperty(constraints);
 	}
 
 	/**
@@ -3246,12 +3633,14 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * This `facetGroupsConjunction` require allows specifying inter-facet relation inside facet groups of certain primary ids.
-	 * First mandatory argument specifies entity type of the facet group, secondary argument allows to define one more facet
-	 * group ids which inner facets should be considered conjunctive.
+	 * This `facetGroupsConjunction` require constraint allows specifying facet relation on particular level (within group
+	 * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+	 * group, secondary optional argument allows defining the level for which the conjunction is defined, third optional
+	 * argument defines one more facet group ids which facets should be considered conjunctive with other facets either
+	 * in same group or different groups (depending on level argument).
 	 *
-	 * This require constraint changes default behaviour stating that all facets inside same facet group are combined by OR
-	 * relation (eg. disjunction). Constraint has sense only when [facet](#facet) constraint is part of the query.
+	 * This require constraint changes default behavior of the facet calculation rules.
+	 * Constraint has sense only when [facet](#facet) constraint is part of the query.
 	 *
 	 * Example:
 	 *
@@ -3268,7 +3657,7 @@ public interface QueryConstraints {
 	 *       )
 	 *    ),
 	 *    require(
-	 *       facetGroupsConjunction("parameterType", 1, 8, 15)
+	 *       facetGroupsConjunction("parameterType", WITH_DIFFERENT_FACETS_IN_GROUP, 1, 8, 15)
 	 *    )
 	 * )
 	 * </pre>
@@ -3305,12 +3694,14 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * This `facetGroupsConjunction` require allows specifying inter-facet relation inside facet groups of certain primary ids.
-	 * First mandatory argument specifies entity type of the facet group, secondary argument allows to define one more facet
-	 * group ids which inner facets should be considered conjunctive.
+	 * This `facetGroupsConjunction` require constraint allows specifying facet relation on particular level (within group
+	 * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+	 * group, secondary optional argument allows defining the level for which the conjunction is defined, third optional
+	 * argument defines one more facet group ids which facets should be considered conjunctive with other facets either
+	 * in same group or different groups (depending on level argument).
 	 *
-	 * This require constraint changes default behaviour stating that all facets inside same facet group are combined by OR
-	 * relation (eg. disjunction). Constraint has sense only when [facet](#facet) constraint is part of the query.
+	 * This require constraint changes default behavior of the facet calculation rules.
+	 * Constraint has sense only when [facet](#facet) constraint is part of the query.
 	 *
 	 * Example:
 	 *
@@ -3327,7 +3718,129 @@ public interface QueryConstraints {
 	 *       )
 	 *    ),
 	 *    require(
-	 *       facetGroupsConjunction("parameterType", 1, 8, 15)
+	 *       facetGroupsConjunction("parameterType", WITH_DIFFERENT_FACETS_IN_GROUP, 1, 8, 15)
+	 *    )
+	 * )
+	 * </pre>
+	 *
+	 * This statement means, that facets in `parameterType` groups `1`, `8`, `15` will be joined with boolean AND relation when
+	 * selected.
+	 *
+	 * Let's have this facet/group situation:
+	 *
+	 * Color `parameterType` (group id: 1):
+	 *
+	 * - blue (facet id: 11)
+	 * - red (facet id: 12)
+	 *
+	 * Size `parameterType` (group id: 2):
+	 *
+	 * - small (facet id: 21)
+	 * - large (facet id: 22)
+	 *
+	 * Flags `tag` (group id: 3):
+	 *
+	 * - action products (facet id: 31)
+	 * - new products (facet id: 32)
+	 *
+	 * When user selects facets: blue (11), red (12) by default relation would be: get all entities that have facet blue(11) OR
+	 * facet red(12). If require `facetGroupsConjunction('parameterType', 1)` is passed in the query filtering condition will
+	 * be composed as: blue(11) AND red(12)
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-conjunction">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static FacetGroupsConjunction facetGroupsConjunction(@Nullable String referenceName, @Nullable FacetGroupRelationLevel facetGroupRelationLevel) {
+		return referenceName == null ? null : new FacetGroupsConjunction(referenceName, facetGroupRelationLevel, null);
+	}
+
+	/**
+	 * This `facetGroupsConjunction` require constraint allows specifying facet relation on particular level (within group
+	 * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+	 * group, secondary optional argument allows defining the level for which the conjunction is defined, third optional
+	 * argument defines one more facet group ids which facets should be considered conjunctive with other facets either
+	 * in same group or different groups (depending on level argument).
+	 *
+	 * This require constraint changes default behavior of the facet calculation rules.
+	 * Constraint has sense only when [facet](#facet) constraint is part of the query.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *    entities("product"),
+	 *    filterBy(
+	 *       userFilter(
+	 *          facet("group", 1, 2),
+	 *          facet(
+	 *             "parameterType",
+	 *             entityPrimaryKeyInSet(11, 12, 22)
+	 *          )
+	 *       )
+	 *    ),
+	 *    require(
+	 *       facetGroupsConjunction("parameterType", WITH_DIFFERENT_FACETS_IN_GROUP, 1, 8, 15)
+	 *    )
+	 * )
+	 * </pre>
+	 *
+	 * This statement means, that facets in `parameterType` groups `1`, `8`, `15` will be joined with boolean AND relation when
+	 * selected.
+	 *
+	 * Let's have this facet/group situation:
+	 *
+	 * Color `parameterType` (group id: 1):
+	 *
+	 * - blue (facet id: 11)
+	 * - red (facet id: 12)
+	 *
+	 * Size `parameterType` (group id: 2):
+	 *
+	 * - small (facet id: 21)
+	 * - large (facet id: 22)
+	 *
+	 * Flags `tag` (group id: 3):
+	 *
+	 * - action products (facet id: 31)
+	 * - new products (facet id: 32)
+	 *
+	 * When user selects facets: blue (11), red (12) by default relation would be: get all entities that have facet blue(11) OR
+	 * facet red(12). If require `facetGroupsConjunction('parameterType', 1)` is passed in the query filtering condition will
+	 * be composed as: blue(11) AND red(12)
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-conjunction">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static FacetGroupsConjunction facetGroupsConjunction(@Nullable String referenceName, @Nullable FacetGroupRelationLevel facetGroupRelationLevel, @Nullable FilterBy filterBy) {
+		return referenceName == null ? null : new FacetGroupsConjunction(referenceName, facetGroupRelationLevel, filterBy);
+	}
+
+	/**
+	 * This `facetGroupsConjunction` require constraint allows specifying facet relation on particular level (within group
+	 * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+	 * group, secondary optional argument allows defining the level for which the conjunction is defined, third optional
+	 * argument defines one more facet group ids which facets should be considered conjunctive with other facets either
+	 * in same group or different groups (depending on level argument).
+	 *
+	 * This require constraint changes default behavior of the facet calculation rules.
+	 * Constraint has sense only when [facet](#facet) constraint is part of the query.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *    entities("product"),
+	 *    filterBy(
+	 *       userFilter(
+	 *          facet("group", 1, 2),
+	 *          facet(
+	 *             "parameterType",
+	 *             entityPrimaryKeyInSet(11, 12, 22)
+	 *          )
+	 *       )
+	 *    ),
+	 *    require(
+	 *       facetGroupsConjunction("parameterType", WITH_DIFFERENT_FACETS_IN_GROUP, 1, 8, 15)
 	 *    )
 	 * )
 	 * </pre>
@@ -3364,12 +3877,14 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * This `facetGroupsDisjunction` require constraint allows specifying facet relation among different facet groups of certain
-	 * primary ids. First mandatory argument specifies entity type of the facet group, secondary argument allows to define one
-	 * more facet group ids that should be considered disjunctive.
+	 * This `facetGroupsDisjunction` require constraint allows specifying facet relation on particular level (within group
+	 * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+	 * group, secondary optional argument allows defining the level for which the disjunction is defined, third optional
+	 * argument defines one more facet group ids which facets should be considered disjunctive with other facets either
+	 * in same group or different groups (depending on level argument).
 	 *
-	 * This require constraint changes default behaviour stating that facets between two different facet groups are combined by
-	 * AND relation and changes it to the disjunction relation instead.
+	 * This require constraint changes default behavior of the facet calculation rules.
+	 * Constraint has sense only when [facet](#facet) constraint is part of the query.
 	 *
 	 * Example:
 	 *
@@ -3386,7 +3901,7 @@ public interface QueryConstraints {
 	 *       )
 	 *    ),
 	 *    require(
-	 *       facetGroupsDisjunction("parameterType", 1, 2)
+	 *       facetGroupsDisjunction("parameterType", WITH_DIFFERENT_GROUPS, 1, 2)
 	 *    )
 	 * )
 	 * </pre>
@@ -3423,12 +3938,14 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * This `facetGroupsDisjunction` require constraint allows specifying facet relation among different facet groups of certain
-	 * primary ids. First mandatory argument specifies entity type of the facet group, secondary argument allows to define one
-	 * more facet group ids that should be considered disjunctive.
+	 * This `facetGroupsDisjunction` require constraint allows specifying facet relation on particular level (within group
+	 * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+	 * group, secondary optional argument allows defining the level for which the disjunction is defined, third optional
+	 * argument defines one more facet group ids which facets should be considered disjunctive with other facets either
+	 * in same group or different groups (depending on level argument).
 	 *
-	 * This require constraint changes default behaviour stating that facets between two different facet groups are combined by
-	 * AND relation and changes it to the disjunction relation instead.
+	 * This require constraint changes default behavior of the facet calculation rules.
+	 * Constraint has sense only when [facet](#facet) constraint is part of the query.
 	 *
 	 * Example:
 	 *
@@ -3445,7 +3962,129 @@ public interface QueryConstraints {
 	 *       )
 	 *    ),
 	 *    require(
-	 *       facetGroupsDisjunction("parameterType", 1, 2)
+	 *       facetGroupsDisjunction("parameterType", WITH_DIFFERENT_GROUPS, 1, 2)
+	 *    )
+	 * )
+	 * </pre>
+	 *
+	 * This statement means, that facets in `parameterType` facet groups `1`, `2` will be joined with the rest of the query by
+	 * boolean OR relation when selected.
+	 *
+	 * Let's have this facet/group situation:
+	 *
+	 * Color `parameterType` (group id: 1):
+	 *
+	 * - blue (facet id: 11)
+	 * - red (facet id: 12)
+	 *
+	 * Size `parameterType` (group id: 2):
+	 *
+	 * - small (facet id: 21)
+	 * - large (facet id: 22)
+	 *
+	 * Flags `tag` (group id: 3):
+	 *
+	 * - action products (facet id: 31)
+	 * - new products (facet id: 32)
+	 *
+	 * When user selects facets: blue (11), large (22), new products (31) - the default meaning would be: get all entities that
+	 * have facet blue as well as facet large and action products tag (AND). If require `facetGroupsDisjunction('tag', 3)`
+	 * is passed in the query, filtering condition will be composed as: (`blue(11)` AND `large(22)`) OR `new products(31)`
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-disjunction">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static FacetGroupsDisjunction facetGroupsDisjunction(@Nullable String referenceName, @Nullable FacetGroupRelationLevel facetGroupRelationLevel) {
+		return referenceName == null ? null : new FacetGroupsDisjunction(referenceName, facetGroupRelationLevel, null);
+	}
+
+	/**
+	 * This `facetGroupsDisjunction` require constraint allows specifying facet relation on particular level (within group
+	 * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+	 * group, secondary optional argument allows defining the level for which the disjunction is defined, third optional
+	 * argument defines one more facet group ids which facets should be considered disjunctive with other facets either
+	 * in same group or different groups (depending on level argument).
+	 *
+	 * This require constraint changes default behavior of the facet calculation rules.
+	 * Constraint has sense only when [facet](#facet) constraint is part of the query.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *    entities("product"),
+	 *    filterBy(
+	 *       userFilter(
+	 *          facet("group", 1, 2),
+	 *          facet(
+	 *             "parameterType",
+	 *             entityPrimaryKeyInSet(11, 12, 22)
+	 *          )
+	 *       )
+	 *    ),
+	 *    require(
+	 *       facetGroupsDisjunction("parameterType", WITH_DIFFERENT_GROUPS, 1, 2)
+	 *    )
+	 * )
+	 * </pre>
+	 *
+	 * This statement means, that facets in `parameterType` facet groups `1`, `2` will be joined with the rest of the query by
+	 * boolean OR relation when selected.
+	 *
+	 * Let's have this facet/group situation:
+	 *
+	 * Color `parameterType` (group id: 1):
+	 *
+	 * - blue (facet id: 11)
+	 * - red (facet id: 12)
+	 *
+	 * Size `parameterType` (group id: 2):
+	 *
+	 * - small (facet id: 21)
+	 * - large (facet id: 22)
+	 *
+	 * Flags `tag` (group id: 3):
+	 *
+	 * - action products (facet id: 31)
+	 * - new products (facet id: 32)
+	 *
+	 * When user selects facets: blue (11), large (22), new products (31) - the default meaning would be: get all entities that
+	 * have facet blue as well as facet large and action products tag (AND). If require `facetGroupsDisjunction('tag', 3)`
+	 * is passed in the query, filtering condition will be composed as: (`blue(11)` AND `large(22)`) OR `new products(31)`
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-disjunction">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static FacetGroupsDisjunction facetGroupsDisjunction(@Nullable String referenceName, @Nullable FacetGroupRelationLevel facetGroupRelationLevel, @Nullable FilterBy filterBy) {
+		return referenceName == null ? null : new FacetGroupsDisjunction(referenceName, facetGroupRelationLevel, filterBy);
+	}
+
+	/**
+	 * This `facetGroupsDisjunction` require constraint allows specifying facet relation on particular level (within group
+	 * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+	 * group, secondary optional argument allows defining the level for which the disjunction is defined, third optional
+	 * argument defines one more facet group ids which facets should be considered disjunctive with other facets either
+	 * in same group or different groups (depending on level argument).
+	 *
+	 * This require constraint changes default behavior of the facet calculation rules.
+	 * Constraint has sense only when [facet](#facet) constraint is part of the query.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *    entities("product"),
+	 *    filterBy(
+	 *       userFilter(
+	 *          facet("group", 1, 2),
+	 *          facet(
+	 *             "parameterType",
+	 *             entityPrimaryKeyInSet(11, 12, 22)
+	 *          )
+	 *       )
+	 *    ),
+	 *    require(
+	 *       facetGroupsDisjunction("parameterType", WITH_DIFFERENT_GROUPS, 1, 2)
 	 *    )
 	 * )
 	 * </pre>
@@ -3482,9 +4121,15 @@ public interface QueryConstraints {
 	}
 
 	/**
+	 * This `facetGroupsNegation` require constraint allows specifying facet relation on particular level (within group
+	 * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+	 * group, secondary optional argument allows defining the level for which the negation is defined, third optional
+	 * argument defines one more facet group ids which facets should be considered negative with other facets either
+	 * in same group or different groups (depending on level argument).
+	 *
 	 * The `facetGroupsNegation` changes the behavior of the facet option in all facet groups specified in the filterBy
-	 * constraint. Instead of returning only those items that have a reference to that particular faceted entity, the query
-	 * result will return only those items that don't have a reference to it.
+	 * constraint (or all). Instead of returning only those items that have a reference to that particular faceted entity,
+	 * the query result will return only those items that don't have a reference to it.
 	 *
 	 * Example:
 	 *
@@ -3502,6 +4147,7 @@ public interface QueryConstraints {
 	 *         ),
 	 *         facetGroupsNegation(
 	 *             "parameterValues",
+	 *             WITH_DIFFERENT_GROUPS,
 	 *             filterBy(
 	 *               attributeInSet("code", "ram-memory")
 	 *             )
@@ -3522,9 +4168,15 @@ public interface QueryConstraints {
 	}
 
 	/**
+	 * This `facetGroupsNegation` require constraint allows specifying facet relation on particular level (within group
+	 * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+	 * group, secondary optional argument allows defining the level for which the negation is defined, third optional
+	 * argument defines one more facet group ids which facets should be considered negative with other facets either
+	 * in same group or different groups (depending on level argument).
+	 *
 	 * The `facetGroupsNegation` changes the behavior of the facet option in all facet groups specified in the filterBy
-	 * constraint. Instead of returning only those items that have a reference to that particular faceted entity, the query
-	 * result will return only those items that don't have a reference to it.
+	 * constraint (or all). Instead of returning only those items that have a reference to that particular faceted entity,
+	 * the query result will return only those items that don't have a reference to it.
 	 *
 	 * Example:
 	 *
@@ -3542,6 +4194,101 @@ public interface QueryConstraints {
 	 *         ),
 	 *         facetGroupsNegation(
 	 *             "parameterValues",
+	 *             WITH_DIFFERENT_GROUPS,
+	 *             filterBy(
+	 *               attributeInSet("code", "ram-memory")
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * The predicted results in the negated groups are far greater than the numbers produced by the default behavior.
+	 * Selecting any option in the RAM facet group predicts returning thousands of results, while the ROM facet group with
+	 * default behavior predicts only a dozen of them.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-negation">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static FacetGroupsNegation facetGroupsNegation(@Nullable String referenceName, @Nullable FacetGroupRelationLevel facetGroupRelationLevel, @Nullable FilterBy filterBy) {
+		return referenceName == null ? null : new FacetGroupsNegation(referenceName, facetGroupRelationLevel, filterBy);
+	}
+
+	/**
+	 * This `facetGroupsNegation` require constraint allows specifying facet relation on particular level (within group
+	 * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+	 * group, secondary optional argument allows defining the level for which the negation is defined, third optional
+	 * argument defines one more facet group ids which facets should be considered negative with other facets either
+	 * in same group or different groups (depending on level argument).
+	 *
+	 * The `facetGroupsNegation` changes the behavior of the facet option in all facet groups specified in the filterBy
+	 * constraint (or all). Instead of returning only those items that have a reference to that particular faceted entity,
+	 * the query result will return only those items that don't have a reference to it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     require(
+	 *         facetSummaryOfReference(
+	 *             "parameterValues",
+	 *             IMPACT,
+	 *             filterBy(attributeContains("code", "4")),
+	 *             filterGroupBy(attributeInSet("code", "ram-memory", "rom-memory")),
+	 *             entityFetch(attributeContent("code")),
+	 *             entityGroupFetch(attributeContent("code"))
+	 *         ),
+	 *         facetGroupsNegation(
+	 *             "parameterValues",
+	 *             WITH_DIFFERENT_GROUPS,
+	 *             filterBy(
+	 *               attributeInSet("code", "ram-memory")
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * The predicted results in the negated groups are far greater than the numbers produced by the default behavior.
+	 * Selecting any option in the RAM facet group predicts returning thousands of results, while the ROM facet group with
+	 * default behavior predicts only a dozen of them.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-negation">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static FacetGroupsNegation facetGroupsNegation(@Nullable String referenceName, @Nullable FacetGroupRelationLevel facetGroupRelationLevel) {
+		return referenceName == null ? null : new FacetGroupsNegation(referenceName, facetGroupRelationLevel, null);
+	}
+
+	/**
+	 * This `facetGroupsNegation` require constraint allows specifying facet relation on particular level (within group
+	 * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+	 * group, secondary optional argument allows defining the level for which the negation is defined, third optional
+	 * argument defines one more facet group ids which facets should be considered negative with other facets either
+	 * in same group or different groups (depending on level argument).
+	 *
+	 * The `facetGroupsNegation` changes the behavior of the facet option in all facet groups specified in the filterBy
+	 * constraint (or all). Instead of returning only those items that have a reference to that particular faceted entity,
+	 * the query result will return only those items that don't have a reference to it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     require(
+	 *         facetSummaryOfReference(
+	 *             "parameterValues",
+	 *             IMPACT,
+	 *             filterBy(attributeContains("code", "4")),
+	 *             filterGroupBy(attributeInSet("code", "ram-memory", "rom-memory")),
+	 *             entityFetch(attributeContent("code")),
+	 *             entityGroupFetch(attributeContent("code"))
+	 *         ),
+	 *         facetGroupsNegation(
+	 *             "parameterValues",
+	 *             WITH_DIFFERENT_GROUPS,
 	 *             filterBy(
 	 *               attributeInSet("code", "ram-memory")
 	 *             )
@@ -3559,6 +4306,236 @@ public interface QueryConstraints {
 	@Nullable
 	static FacetGroupsNegation facetGroupsNegation(@Nullable String referenceName) {
 		return referenceName == null ? null : new FacetGroupsNegation(referenceName, null);
+	}
+
+	/**
+	 * This `facetGroupsExclusivity` require constraint allows specifying facet relation on particular level (within group
+	 * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+	 * group, secondary optional argument allows defining the level for which the exclusivity is defined, third optional
+	 * argument defines one more facet group ids which facets should be considered exclusive with other facets either
+	 * in same group or different groups (depending on level argument).
+	 *
+	 * The `facetGroupsExclusivity` changes the behavior of the facet option in all facet groups specified in the filterBy
+	 * constraint (or all). Query will allow selecting only single facet from either the group or facets in single group
+	 * among other groups depending on the level argument:
+	 *
+	 * - WITH_DIFFERENT_GROUPS: when facets are selected, they must always be from single group (within the relation only)
+	 * - WITH_DIFFERENT_FACETS_IN_GROUP: only single facet can be selected from each group (within the relation only)
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     require(
+	 *         facetSummaryOfReference(
+	 *             "parameterValues",
+	 *             IMPACT,
+	 *             filterBy(attributeContains("code", "4")),
+	 *             filterGroupBy(attributeInSet("code", "ram-memory", "rom-memory")),
+	 *             entityFetch(attributeContent("code")),
+	 *             entityGroupFetch(attributeContent("code"))
+	 *         ),
+	 *         facetGroupsExclusivity(
+	 *             "parameterValues",
+	 *             WITH_DIFFERENT_FACETS_IN_GROUP,
+	 *             filterBy(
+	 *               attributeInSet("code", "ram-memory")
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * In group `ram-memory` only single facet can be selected, so it should be probably rendered as radio buttons in the UI
+	 * instead of checkboxes.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-exclusivity">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static FacetGroupsExclusivity facetGroupsExclusivity(@Nullable String referenceName, @Nullable FilterBy filterBy) {
+		return referenceName == null ? null : new FacetGroupsExclusivity(referenceName, filterBy);
+	}
+
+	/**
+	 * This `facetGroupsExclusivity` require constraint allows specifying facet relation on particular level (within group
+	 * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+	 * group, secondary optional argument allows defining the level for which the exclusivity is defined, third optional
+	 * argument defines one more facet group ids which facets should be considered exclusive with other facets either
+	 * in same group or different groups (depending on level argument).
+	 *
+	 * The `facetGroupsExclusivity` changes the behavior of the facet option in all facet groups specified in the filterBy
+	 * constraint (or all). Query will allow selecting only single facet from either the group or facets in single group
+	 * among other groups depending on the level argument:
+	 *
+	 * - WITH_DIFFERENT_GROUPS: when facets are selected, they must always be from single group (within the relation only)
+	 * - WITH_DIFFERENT_FACETS_IN_GROUP: only single facet can be selected from each group (within the relation only)
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     require(
+	 *         facetSummaryOfReference(
+	 *             "parameterValues",
+	 *             IMPACT,
+	 *             filterBy(attributeContains("code", "4")),
+	 *             filterGroupBy(attributeInSet("code", "ram-memory", "rom-memory")),
+	 *             entityFetch(attributeContent("code")),
+	 *             entityGroupFetch(attributeContent("code"))
+	 *         ),
+	 *         facetGroupsExclusivity(
+	 *             "parameterValues",
+	 *             WITH_DIFFERENT_FACETS_IN_GROUP,
+	 *             filterBy(
+	 *               attributeInSet("code", "ram-memory")
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * In group `ram-memory` only single facet can be selected, so it should be probably rendered as radio buttons in the UI
+	 * instead of checkboxes.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-exclusivity">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static FacetGroupsExclusivity facetGroupsExclusivity(@Nullable String referenceName, @Nullable FacetGroupRelationLevel facetGroupRelationLevel, @Nullable FilterBy filterBy) {
+		return referenceName == null ? null : new FacetGroupsExclusivity(referenceName, facetGroupRelationLevel, filterBy);
+	}
+
+	/**
+	 * This `facetGroupsExclusivity` require constraint allows specifying facet relation on particular level (within group
+	 * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+	 * group, secondary optional argument allows defining the level for which the exclusivity is defined, third optional
+	 * argument defines one more facet group ids which facets should be considered exclusive with other facets either
+	 * in same group or different groups (depending on level argument).
+	 *
+	 * The `facetGroupsExclusivity` changes the behavior of the facet option in all facet groups specified in the filterBy
+	 * constraint (or all). Query will allow selecting only single facet from either the group or facets in single group
+	 * among other groups depending on the level argument:
+	 *
+	 * - WITH_DIFFERENT_GROUPS: when facets are selected, they must always be from single group (within the relation only)
+	 * - WITH_DIFFERENT_FACETS_IN_GROUP: only single facet can be selected from each group (within the relation only)
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     require(
+	 *         facetSummaryOfReference(
+	 *             "parameterValues",
+	 *             IMPACT,
+	 *             filterBy(attributeContains("code", "4")),
+	 *             filterGroupBy(attributeInSet("code", "ram-memory", "rom-memory")),
+	 *             entityFetch(attributeContent("code")),
+	 *             entityGroupFetch(attributeContent("code"))
+	 *         ),
+	 *         facetGroupsExclusivity(
+	 *             "parameterValues",
+	 *             WITH_DIFFERENT_FACETS_IN_GROUP,
+	 *             filterBy(
+	 *               attributeInSet("code", "ram-memory")
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * In group `ram-memory` only single facet can be selected, so it should be probably rendered as radio buttons in the UI
+	 * instead of checkboxes.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-exclusivity">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static FacetGroupsExclusivity facetGroupsExclusivity(@Nullable String referenceName, @Nullable FacetGroupRelationLevel facetGroupRelationLevel) {
+		return referenceName == null ? null : new FacetGroupsExclusivity(referenceName, facetGroupRelationLevel, null);
+	}
+
+	/**
+	 * This `facetGroupsExclusivity` require constraint allows specifying facet relation on particular level (within group
+	 * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+	 * group, secondary optional argument allows defining the level for which the exclusivity is defined, third optional
+	 * argument defines one more facet group ids which facets should be considered exclusive with other facets either
+	 * in same group or different groups (depending on level argument).
+	 *
+	 * The `facetGroupsExclusivity` changes the behavior of the facet option in all facet groups specified in the filterBy
+	 * constraint (or all). Query will allow selecting only single facet from either the group or facets in single group
+	 * among other groups depending on the level argument:
+	 *
+	 * - WITH_DIFFERENT_GROUPS: when facets are selected, they must always be from single group (within the relation only)
+	 * - WITH_DIFFERENT_FACETS_IN_GROUP: only single facet can be selected from each group (within the relation only)
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     require(
+	 *         facetSummaryOfReference(
+	 *             "parameterValues",
+	 *             IMPACT,
+	 *             filterBy(attributeContains("code", "4")),
+	 *             filterGroupBy(attributeInSet("code", "ram-memory", "rom-memory")),
+	 *             entityFetch(attributeContent("code")),
+	 *             entityGroupFetch(attributeContent("code"))
+	 *         ),
+	 *         facetGroupsExclusivity(
+	 *             "parameterValues",
+	 *             WITH_DIFFERENT_FACETS_IN_GROUP,
+	 *             filterBy(
+	 *               attributeInSet("code", "ram-memory")
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * In group `ram-memory` only single facet can be selected, so it should be probably rendered as radio buttons in the UI
+	 * instead of checkboxes.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-exclusivity">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static FacetGroupsExclusivity facetGroupsExclusivity(@Nullable String referenceName) {
+		return referenceName == null ? null : new FacetGroupsExclusivity(referenceName, null);
+	}
+
+	/**
+	 * This `facetCalculationRules` require constraint allows specifying default facet relation for each recognized level.
+	 * If this constraint is not present, the default behavior is to use the disjunction relation (logical OR) for facets
+	 * within the same group and conjunction relation (logical AND) for facets among different groups or relations.
+	 *
+	 * By using this constraint, you can change the default behavior of the facet calculation rules. The constraint accepts
+	 * two arguments:
+	 *
+	 * - `facetsWithSameGroup`: type of relation that should be applied on facets within the same group by default.
+	 * - `facetsWithDifferentGroups`: type of relation that should be applied on facets among different groups or relations by default.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     require(
+	 *         facetCalculationRules(CONJUNCTION, EXCLUSIVITY)
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * This query will change the default behavior of the facet calculation rules (only for this particular query) to use
+	 * the conjunction relation for facets within the same group and exclusivity relation for facets among different groups.
+	 * It is the equivalent for using the `facetGroupsConjunction` and `facetGroupsExclusivity` require constraints together
+	 * without specifying filter for the particular facet groups.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-calculation-rules">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static FacetCalculationRules facetCalculationRules(@Nullable FacetRelationType facetsWithSameGroup, @Nullable FacetRelationType facetsWithDifferentGroups) {
+		return new FacetCalculationRules(facetsWithSameGroup, facetsWithDifferentGroups);
 	}
 
 	/**
@@ -5872,7 +6849,7 @@ public interface QueryConstraints {
 	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes() {
-		return new ReferenceContent((AttributeContent) null);
+		return new ReferenceContent(AttributeContent.ALL_ATTRIBUTES);
 	}
 
 	/**
@@ -5994,9 +6971,137 @@ public interface QueryConstraints {
 	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(@Nullable AttributeContent attributeContent) {
-		return new ReferenceContent(attributeContent);
+		return new ReferenceContent(
+			ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES)
+		);
 	}
 
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static ReferenceContent referenceContentAllWithAttributes(@Nullable AttributeContent attributeContent, @Nullable ChunkingRequireConstraint chunk) {
+		return new ReferenceContent(
+			ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+			null,
+			null,
+			chunk
+		);
+	}
 
 	/**
 	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
@@ -6247,7 +7352,7 @@ public interface QueryConstraints {
 		} else {
 			return new ReferenceContent(
 				referenceName, null, null,
-				attributeContent(attributeNames), null, null
+				attributeContent(attributeNames), null, null, null
 			);
 		}
 	}
@@ -6371,7 +7476,7 @@ public interface QueryConstraints {
 	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName) {
-		return referenceName == null ? null : new ReferenceContent(referenceName, null, null, null, null, null);
+		return referenceName == null ? null : new ReferenceContent(referenceName, AttributeContent.ALL_ATTRIBUTES);
 	}
 
 
@@ -6496,7 +7601,8 @@ public interface QueryConstraints {
 	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable AttributeContent attributeContent) {
 		return referenceName == null ? null : new ReferenceContent(
 			referenceName, null, null,
-			attributeContent, null, null
+			ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+			null, null, null
 		);
 	}
 
@@ -6751,7 +7857,7 @@ public interface QueryConstraints {
 			return new ReferenceContent(entityRequirement, null);
 		}
 		return new ReferenceContent(
-			referenceName, null, null, entityRequirement, null
+			referenceName, null, null, entityRequirement, null, null
 		);
 	}
 
@@ -6876,7 +7982,7 @@ public interface QueryConstraints {
 	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable EntityFetch entityRequirement) {
 		return referenceName == null ? null : new ReferenceContent(
 			referenceName, null, null,
-			null, entityRequirement, null
+			AttributeContent.ALL_ATTRIBUTES, entityRequirement, null, null
 		);
 	}
 
@@ -7001,7 +8107,8 @@ public interface QueryConstraints {
 	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
 		return referenceName == null ? null : new ReferenceContent(
 			referenceName, null, null,
-			attributeContent, entityRequirement, null
+			ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+			entityRequirement, null, null
 		);
 	}
 
@@ -7130,7 +8237,7 @@ public interface QueryConstraints {
 		if (referenceName == null) {
 			return new ReferenceContent(null, groupEntityRequirement);
 		}
-		return new ReferenceContent(referenceName, null, null, null, groupEntityRequirement);
+		return new ReferenceContent(referenceName, null, null, null, groupEntityRequirement, null);
 	}
 
 	/**
@@ -7254,7 +8361,7 @@ public interface QueryConstraints {
 	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return referenceName == null ? null : new ReferenceContent(
 			referenceName, null, null,
-			null, null, groupEntityRequirement
+			AttributeContent.ALL_ATTRIBUTES, null, groupEntityRequirement, null
 		);
 	}
 
@@ -7379,7 +8486,8 @@ public interface QueryConstraints {
 	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable AttributeContent attributeContent, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return referenceName == null ? null : new ReferenceContent(
 			referenceName, null, null,
-			attributeContent, null, groupEntityRequirement
+			ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+			null, groupEntityRequirement, null
 		);
 	}
 
@@ -7505,7 +8613,7 @@ public interface QueryConstraints {
 		if (referenceName == null) {
 			return new ReferenceContent(entityRequirement, groupEntityRequirement);
 		}
-		return new ReferenceContent(referenceName, null, null, entityRequirement, groupEntityRequirement);
+		return new ReferenceContent(referenceName, null, null, entityRequirement, groupEntityRequirement, null);
 	}
 
 	/**
@@ -7627,11 +8735,13 @@ public interface QueryConstraints {
 	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement
+		@Nullable String referenceName,
+		@Nullable EntityFetch entityRequirement,
+		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
 		return referenceName == null ? null : new ReferenceContent(
 			referenceName, null, null,
-			entityRequirement, groupEntityRequirement
+			AttributeContent.ALL_ATTRIBUTES, entityRequirement, groupEntityRequirement, null
 		);
 	}
 
@@ -7754,13 +8864,18 @@ public interface QueryConstraints {
 	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nullable String referenceName, @Nullable AttributeContent attributeContent,
-		@Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement
+		@Nullable String referenceName,
+		@Nullable AttributeContent attributeContent,
+		@Nullable EntityFetch entityRequirement,
+		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
-		return referenceName == null ? null : new ReferenceContent(
-			referenceName, null, null,
-			attributeContent, entityRequirement, groupEntityRequirement
-		);
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, null, null,
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				entityRequirement, groupEntityRequirement, null
+			);
 	}
 
 
@@ -8273,128 +9388,6 @@ public interface QueryConstraints {
 	*/
 	@Nullable
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy) {
-		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, null, null, null);
-	}
-
-	/**
-	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
-	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
-	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
-	 * `referenceContentWithAttributes` variant of it.
-	 *
-	 * Example:
-	 *
-	 * <pre>
-	 * entityFetch(
-	 *    attributeContent("code"),
-	 *    referenceContent("brand"),
-	 *    referenceContent("categories")
-	 * )
-	 * </pre>
-	 *
-	 * ## Excluding references to non-existing managed references
-	 *
-	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
-	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
-	 * this behavior.
-	 *
-	 * Example:
-	 *
-	 * <pre>
-	 * entityFetch(
-	 *    attributeContent("code"),
-	 *    referenceContent(EXISTING, "brand"),
-	 *    referenceContent(ANY, "categories")
-	 * )
-	 * </pre>
-	 *
-	 * This query will return brand entity only if the target brand entity is present in the database while categories
-	 * reference will be returned regardless of the target entity existence.
-	 *
-	 * ## Referenced entity (group) fetching
-	 *
-	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
-	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
-	 * a product:
-	 *
-	 * <pre>
-	 * referenceContent(
-	 *     "parameterValues",
-	 *     entityFetch(
-	 *         attributeContent("code")
-	 *     ),
-	 *     entityGroupFetch(
-	 *         attributeContent("code")
-	 *     )
-	 * )
-	 * </pre>
-	 *
-	 * ## Filtering references
-	 *
-	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
-	 * you can use the filter constraint to filter out the references you don't need.
-	 *
-	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
-	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
-	 * you must wrap them in the {@link EntityHaving} container constraint.
-	 *
-	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
-	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
-	 * use the following query:
-	 *
-	 * <pre>
-	 * referenceContent(
-	 *     "parameterValues",
-	 *     filterBy(
-	 *         entityHaving(
-	 *             referenceHaving(
-	 *                 "parameter",
-	 *                 entityHaving(
-	 *                     attributeEquals("isVisibleInDetail", true)
-	 *                 )
-	 *             )
-	 *         )
-	 *     ),
-	 *     entityFetch(
-	 *         attributeContent("code")
-	 *     ),
-	 *     entityGroupFetch(
-	 *         attributeContent("code", "isVisibleInDetail")
-	 *     )
-	 * )
-	 * </pre>
-	 *
-	 * ##Ordering references
-	 *
-	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
-	 * the references by a different property - either the attribute set on the reference itself or the property of the
-	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
-	 *
-	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
-	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
-	 * you must wrap them in the entityHaving container constraint.
-	 *
-	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
-	 * query:
-	 *
-	 * <pre>
-	 * referenceContent(
-	 *     "parameterValues",
-	 *     orderBy(
-	 *         entityProperty(
-	 *             attributeNatural("name", ASC)
-	 *         )
-	 *     ),
-	 *     entityFetch(
-	 *         attributeContent("name")
-	 *     )
-	 * )
-	 * </pre>
-	 *
-	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
-	*/
-	@Nullable
-	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable FilterBy filterBy) {
 		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, null, null, null, null);
 	}
 
@@ -8516,8 +9509,148 @@ public interface QueryConstraints {
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
-	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable AttributeContent attributeContent) {
-		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, null, attributeContent, null, null);
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable FilterBy filterBy
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, filterBy, null,
+				AttributeContent.ALL_ATTRIBUTES, null, null, null
+			);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable AttributeContent attributeContent
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, filterBy, null,
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				null, null, null
+			);
 	}
 
 	/**
@@ -8639,7 +9772,7 @@ public interface QueryConstraints {
 	*/
 	@Nullable
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable EntityFetch entityRequirement) {
-		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, null, entityRequirement, null);
+		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, null, entityRequirement, null, null);
 	}
 
 	/**
@@ -8760,11 +9893,17 @@ public interface QueryConstraints {
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
-	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable EntityFetch entityRequirement) {
-		return referenceName == null ? null : new ReferenceContent(
-			referenceName, filterBy, null,
-			null, entityRequirement, null
-		);
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable EntityFetch entityRequirement
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, filterBy, null,
+				AttributeContent.ALL_ATTRIBUTES, entityRequirement, null, null
+			);
 	}
 
 	/**
@@ -8885,11 +10024,19 @@ public interface QueryConstraints {
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
-	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
-		return referenceName == null ? null : new ReferenceContent(
-			referenceName, filterBy, null,
-			attributeContent, entityRequirement, null
-		);
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable AttributeContent attributeContent,
+		@Nullable EntityFetch entityRequirement
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, filterBy, null,
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				entityRequirement, null, null
+			);
 	}
 
 	/**
@@ -9011,7 +10158,7 @@ public interface QueryConstraints {
 	*/
 	@Nullable
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, null, null, groupEntityRequirement);
+		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, null, null, groupEntityRequirement, null);
 	}
 
 	/**
@@ -9132,11 +10279,17 @@ public interface QueryConstraints {
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
-	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return referenceName == null ? null : new ReferenceContent(
-			referenceName, filterBy, null,
-			null, null, groupEntityRequirement
-		);
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable EntityGroupFetch groupEntityRequirement
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, filterBy, null,
+				AttributeContent.ALL_ATTRIBUTES, null, groupEntityRequirement, null
+			);
 	}
 
 	/**
@@ -9257,11 +10410,19 @@ public interface QueryConstraints {
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
-	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable AttributeContent attributeContent, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return referenceName == null ? null : new ReferenceContent(
-			referenceName, filterBy, null,
-			attributeContent, null, groupEntityRequirement
-		);
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable AttributeContent attributeContent,
+		@Nullable EntityGroupFetch groupEntityRequirement
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, filterBy, null,
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				null, groupEntityRequirement, null
+			);
 	}
 
 	/**
@@ -9383,7 +10544,7 @@ public interface QueryConstraints {
 	*/
 	@Nullable
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, null, entityRequirement, groupEntityRequirement);
+		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, null, entityRequirement, groupEntityRequirement, null);
 	}
 
 	/**
@@ -9504,11 +10665,18 @@ public interface QueryConstraints {
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
-	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return referenceName == null ? null : new ReferenceContent(
-			referenceName, filterBy, null,
-			null, entityRequirement, groupEntityRequirement
-		);
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable EntityFetch entityRequirement,
+		@Nullable EntityGroupFetch groupEntityRequirement
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, filterBy, null,
+				AttributeContent.ALL_ATTRIBUTES, entityRequirement, groupEntityRequirement, null
+			);
 	}
 
 	/**
@@ -9629,11 +10797,20 @@ public interface QueryConstraints {
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
-	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return referenceName == null ? null : new ReferenceContent(
-			referenceName, filterBy, null,
-			attributeContent, entityRequirement, groupEntityRequirement
-		);
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable AttributeContent attributeContent,
+		@Nullable EntityFetch entityRequirement,
+		@Nullable EntityGroupFetch groupEntityRequirement
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, filterBy, null,
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				entityRequirement, groupEntityRequirement, null
+			);
 	}
 
 	/**
@@ -9755,7 +10932,7 @@ public interface QueryConstraints {
 	*/
 	@Nullable
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable OrderBy orderBy) {
-		return referenceName == null ? null : new ReferenceContent(referenceName, null, orderBy, null, null);
+		return referenceName == null ? null : new ReferenceContent(referenceName, null, orderBy, null, null, null);
 	}
 
 	/**
@@ -9876,11 +11053,16 @@ public interface QueryConstraints {
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
-	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable OrderBy orderBy) {
-		return referenceName == null ? null : new ReferenceContent(
-			referenceName, null, orderBy,
-			null, null, null
-		);
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable OrderBy orderBy
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, null, orderBy,
+				AttributeContent.ALL_ATTRIBUTES, null, null, null
+			);
 	}
 
 	/**
@@ -10001,11 +11183,18 @@ public interface QueryConstraints {
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
-	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent) {
-		return referenceName == null ? null : new ReferenceContent(
-			referenceName, null, orderBy,
-			attributeContent, null, null
-		);
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable OrderBy orderBy,
+		@Nullable AttributeContent attributeContent
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, null, orderBy,
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				null, null, null
+			);
 	}
 
 	/**
@@ -10127,7 +11316,7 @@ public interface QueryConstraints {
 	*/
 	@Nullable
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement) {
-		return referenceName == null ? null : new ReferenceContent(referenceName, null, orderBy, entityRequirement, null);
+		return referenceName == null ? null : new ReferenceContent(referenceName, null, orderBy, entityRequirement, null, null);
 	}
 
 	/**
@@ -10248,11 +11437,17 @@ public interface QueryConstraints {
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
-	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement) {
-		return referenceName == null ? null : new ReferenceContent(
-			referenceName, null, orderBy,
-			null, entityRequirement, null
-		);
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable OrderBy orderBy,
+		@Nullable EntityFetch entityRequirement
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, null, orderBy,
+				AttributeContent.ALL_ATTRIBUTES, entityRequirement, null, null
+			);
 	}
 
 	/**
@@ -10373,11 +11568,19 @@ public interface QueryConstraints {
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
-	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
-		return referenceName == null ? null : new ReferenceContent(
-			referenceName, null, orderBy,
-			attributeContent, entityRequirement, null
-		);
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable OrderBy orderBy,
+		@Nullable AttributeContent attributeContent,
+		@Nullable EntityFetch entityRequirement
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, null, orderBy,
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				entityRequirement, null, null
+			);
 	}
 
 	/**
@@ -10499,7 +11702,7 @@ public interface QueryConstraints {
 	*/
 	@Nullable
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable OrderBy orderBy, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return referenceName == null ? null : new ReferenceContent(referenceName, null, orderBy, null, groupEntityRequirement);
+		return referenceName == null ? null : new ReferenceContent(referenceName, null, orderBy, null, groupEntityRequirement, null);
 	}
 
 	/**
@@ -10620,11 +11823,17 @@ public interface QueryConstraints {
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
-	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable OrderBy orderBy, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return referenceName == null ? null : new ReferenceContent(
-			referenceName, null, orderBy,
-			null, null, groupEntityRequirement
-		);
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable OrderBy orderBy,
+		@Nullable EntityGroupFetch groupEntityRequirement
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, null, orderBy,
+				AttributeContent.ALL_ATTRIBUTES, null, groupEntityRequirement, null
+			);
 	}
 
 	/**
@@ -10745,11 +11954,19 @@ public interface QueryConstraints {
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
-	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return referenceName == null ? null : new ReferenceContent(
-			referenceName, null, orderBy,
-			attributeContent, null, groupEntityRequirement
-		);
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable OrderBy orderBy,
+		@Nullable AttributeContent attributeContent,
+		@Nullable EntityGroupFetch groupEntityRequirement
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, null, orderBy,
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				null, groupEntityRequirement, null
+			);
 	}
 
 	/**
@@ -10871,7 +12088,7 @@ public interface QueryConstraints {
 	*/
 	@Nullable
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return referenceName == null ? null : new ReferenceContent(referenceName, null, orderBy, entityRequirement, groupEntityRequirement);
+		return referenceName == null ? null : new ReferenceContent(referenceName, null, orderBy, entityRequirement, groupEntityRequirement, null);
 	}
 
 	/**
@@ -10992,11 +12209,18 @@ public interface QueryConstraints {
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
-	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return referenceName == null ? null : new ReferenceContent(
-			referenceName, null, orderBy,
-			null, entityRequirement, groupEntityRequirement
-		);
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable OrderBy orderBy,
+		@Nullable EntityFetch entityRequirement,
+		@Nullable EntityGroupFetch groupEntityRequirement
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, null, orderBy,
+				AttributeContent.ALL_ATTRIBUTES, entityRequirement, groupEntityRequirement, null
+			);
 	}
 
 	/**
@@ -11117,11 +12341,20 @@ public interface QueryConstraints {
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
-	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return referenceName == null ? null : new ReferenceContent(
-			referenceName, null, orderBy,
-			attributeContent, entityRequirement, groupEntityRequirement
-		);
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable OrderBy orderBy,
+		@Nullable AttributeContent attributeContent,
+		@Nullable EntityFetch entityRequirement,
+		@Nullable EntityGroupFetch groupEntityRequirement
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, null, orderBy,
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				entityRequirement, groupEntityRequirement, null
+			);
 	}
 
 	/**
@@ -11243,7 +12476,7 @@ public interface QueryConstraints {
 	*/
 	@Nullable
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy) {
-		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, orderBy, null, null);
+		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, orderBy, null, null, null);
 	}
 
 	/**
@@ -11364,11 +12597,17 @@ public interface QueryConstraints {
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
-	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy) {
-		return referenceName == null ? null : new ReferenceContent(
-			referenceName, filterBy, orderBy,
-			null, null, null
-		);
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, filterBy, orderBy,
+				AttributeContent.ALL_ATTRIBUTES, null, null, null
+			);
 	}
 
 	/**
@@ -11489,11 +12728,19 @@ public interface QueryConstraints {
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
-	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent) {
-		return referenceName == null ? null : new ReferenceContent(
-			referenceName, filterBy, orderBy,
-			attributeContent, null, null
-		);
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable AttributeContent attributeContent
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, filterBy, orderBy,
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				null, null, null
+			);
 	}
 
 	/**
@@ -11615,7 +12862,7 @@ public interface QueryConstraints {
 	*/
 	@Nullable
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement) {
-		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, orderBy, entityRequirement, null);
+		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, orderBy, entityRequirement, null, null);
 	}
 
 	/**
@@ -11736,11 +12983,18 @@ public interface QueryConstraints {
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
-	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement) {
-		return referenceName == null ? null : new ReferenceContent(
-			referenceName, filterBy, orderBy,
-			null, entityRequirement, null
-		);
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable EntityFetch entityRequirement
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, filterBy, orderBy,
+				AttributeContent.ALL_ATTRIBUTES, entityRequirement, null, null
+			);
 	}
 
 	/**
@@ -11861,11 +13115,20 @@ public interface QueryConstraints {
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
-	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
-		return referenceName == null ? null : new ReferenceContent(
-			referenceName, filterBy, orderBy,
-			attributeContent, entityRequirement, null
-		);
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable AttributeContent attributeContent,
+		@Nullable EntityFetch entityRequirement
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, filterBy, orderBy,
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				entityRequirement, null, null
+			);
 	}
 
 	/**
@@ -11987,7 +13250,7 @@ public interface QueryConstraints {
 	*/
 	@Nullable
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, orderBy, null, groupEntityRequirement);
+		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, orderBy, null, groupEntityRequirement, null);
 	}
 
 	/**
@@ -12108,11 +13371,18 @@ public interface QueryConstraints {
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
-	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return referenceName == null ? null : new ReferenceContent(
-			referenceName, filterBy, orderBy,
-			null, null, groupEntityRequirement
-		);
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable EntityGroupFetch groupEntityRequirement
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, filterBy, orderBy,
+				AttributeContent.ALL_ATTRIBUTES, null, groupEntityRequirement, null
+			);
 	}
 
 	/**
@@ -12233,11 +13503,20 @@ public interface QueryConstraints {
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
-	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return referenceName == null ? null : new ReferenceContent(
-			referenceName, filterBy, orderBy,
-			attributeContent, null, groupEntityRequirement
-		);
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable AttributeContent attributeContent,
+		@Nullable EntityGroupFetch groupEntityRequirement
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, filterBy, orderBy,
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				null, groupEntityRequirement, null
+			);
 	}
 
 	/**
@@ -12359,7 +13638,7 @@ public interface QueryConstraints {
 	*/
 	@Nullable
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, orderBy, entityRequirement, groupEntityRequirement);
+		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, orderBy, entityRequirement, groupEntityRequirement, null);
 	}
 
 	/**
@@ -12480,11 +13759,19 @@ public interface QueryConstraints {
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
-	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return referenceName == null ? null : new ReferenceContent(
-			referenceName, filterBy, orderBy,
-			null, entityRequirement, groupEntityRequirement
-		);
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable EntityFetch entityRequirement,
+		@Nullable EntityGroupFetch groupEntityRequirement
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, filterBy, orderBy,
+				AttributeContent.ALL_ATTRIBUTES, entityRequirement, groupEntityRequirement, null
+			);
 	}
 
 	/**
@@ -12605,11 +13892,21 @@ public interface QueryConstraints {
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
-	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return referenceName == null ? null : new ReferenceContent(
-			referenceName, filterBy, orderBy,
-			attributeContent, entityRequirement, groupEntityRequirement
-		);
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable AttributeContent attributeContent,
+		@Nullable EntityFetch entityRequirement,
+		@Nullable EntityGroupFetch groupEntityRequirement
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, filterBy, orderBy,
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				entityRequirement, groupEntityRequirement, null
+			);
 	}
 
 	/**
@@ -12853,7 +14150,11 @@ public interface QueryConstraints {
 	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(@Nullable EntityFetch entityRequirement) {
-		return new ReferenceContent((AttributeContent) null, entityRequirement, null);
+		return new ReferenceContent(
+			AttributeContent.ALL_ATTRIBUTES,
+			entityRequirement,
+			null
+		);
 	}
 
 	/**
@@ -12975,7 +14276,11 @@ public interface QueryConstraints {
 	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(@Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
-		return new ReferenceContent(attributeContent, entityRequirement, null);
+		return new ReferenceContent(
+			ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+			entityRequirement,
+			null
+		);
 	}
 
 	/**
@@ -13219,7 +14524,11 @@ public interface QueryConstraints {
 	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(@Nullable EntityGroupFetch groupEntityRequirement) {
-		return new ReferenceContent((AttributeContent) null, null, groupEntityRequirement);
+		return new ReferenceContent(
+			AttributeContent.ALL_ATTRIBUTES,
+			null,
+			groupEntityRequirement
+		);
 	}
 
 	/**
@@ -13341,7 +14650,11 @@ public interface QueryConstraints {
 	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(@Nullable AttributeContent attributeContent, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return new ReferenceContent(attributeContent, null, groupEntityRequirement);
+		return new ReferenceContent(
+			ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+			null,
+			groupEntityRequirement
+		);
 	}
 
 	/**
@@ -13584,8 +14897,12 @@ public interface QueryConstraints {
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
-	static ReferenceContent referenceContentAllWithAttributes(@Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return new ReferenceContent((AttributeContent) null, entityRequirement, groupEntityRequirement);
+	static ReferenceContent referenceContentAll(@Nullable ChunkingRequireConstraint chunk) {
+		return new ReferenceContent(
+			(EntityFetch) null,
+			null,
+			chunk
+		);
 	}
 
 	/**
@@ -13706,8 +15023,272 @@ public interface QueryConstraints {
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
-	static ReferenceContent referenceContentAllWithAttributes(@Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return new ReferenceContent(attributeContent, entityRequirement, groupEntityRequirement);
+	static ReferenceContent referenceContentAllWithAttributes(@Nullable ChunkingRequireConstraint chunk) {
+		return new ReferenceContent(
+			AttributeContent.ALL_ATTRIBUTES,
+			null,
+			null,
+			chunk
+		);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static ReferenceContent referenceContentAllWithAttributes(
+		@Nullable EntityFetch entityRequirement,
+		@Nullable EntityGroupFetch groupEntityRequirement
+	) {
+		return new ReferenceContent(
+			AttributeContent.ALL_ATTRIBUTES,
+			entityRequirement,
+			groupEntityRequirement
+		);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static ReferenceContent referenceContentAllWithAttributes(
+		@Nullable AttributeContent attributeContent,
+		@Nullable EntityFetch entityRequirement,
+		@Nullable EntityGroupFetch groupEntityRequirement
+	) {
+		return new ReferenceContent(
+			ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+			entityRequirement,
+			groupEntityRequirement
+		);
 	}
 
 	/**
@@ -13951,7 +15532,7 @@ public interface QueryConstraints {
 	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(@Nullable ManagedReferencesBehaviour managedReferencesBehaviour) {
-		return new ReferenceContent(managedReferencesBehaviour, (AttributeContent) null);
+		return new ReferenceContent(managedReferencesBehaviour, AttributeContent.ALL_ATTRIBUTES);
 	}
 
 	/**
@@ -14076,7 +15657,10 @@ public interface QueryConstraints {
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
 		@Nullable AttributeContent attributeContent
 	) {
-		return new ReferenceContent(managedReferencesBehaviour, attributeContent);
+		return new ReferenceContent(
+			managedReferencesBehaviour,
+			ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES)
+		);
 	}
 
 
@@ -14336,7 +15920,7 @@ public interface QueryConstraints {
 		} else {
 			return new ReferenceContent(
 				managedReferencesBehaviour, referenceName, null, null,
-				attributeContent(attributeNames), null, null
+				attributeContent(attributeNames), null, null, null
 			);
 		}
 	}
@@ -14466,7 +16050,8 @@ public interface QueryConstraints {
 		return referenceName == null ?
 			null :
 			new ReferenceContent(
-				managedReferencesBehaviour, referenceName, null, null, null, null, null
+				managedReferencesBehaviour, referenceName, null, null,
+				AttributeContent.ALL_ATTRIBUTES, null, null, null
 			);
 	}
 
@@ -14598,7 +16183,8 @@ public interface QueryConstraints {
 			null :
 			new ReferenceContent(
 				managedReferencesBehaviour, referenceName, null, null,
-				attributeContent, null, null
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				null, null, null
 			);
 	}
 
@@ -14860,7 +16446,7 @@ public interface QueryConstraints {
 			return new ReferenceContent(managedReferencesBehaviour, entityRequirement, null);
 		}
 		return new ReferenceContent(
-			managedReferencesBehaviour, referenceName, null, null, entityRequirement, null
+			managedReferencesBehaviour, referenceName, null, null, entityRequirement, null, null
 		);
 	}
 
@@ -14991,7 +16577,7 @@ public interface QueryConstraints {
 			null :
 			new ReferenceContent(
 				managedReferencesBehaviour, referenceName, null, null,
-				null, entityRequirement, null
+				AttributeContent.ALL_ATTRIBUTES, entityRequirement, null, null
 			);
 	}
 
@@ -15123,7 +16709,8 @@ public interface QueryConstraints {
 			null :
 			new ReferenceContent(
 				managedReferencesBehaviour, referenceName, null, null,
-				attributeContent, entityRequirement, null
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				entityRequirement, null, null
 			);
 	}
 
@@ -15257,7 +16844,7 @@ public interface QueryConstraints {
 			return new ReferenceContent(managedReferencesBehaviour, null, groupEntityRequirement);
 		}
 		return new ReferenceContent(
-			managedReferencesBehaviour, referenceName, null, null, null, groupEntityRequirement
+			managedReferencesBehaviour, referenceName, null, null, null, groupEntityRequirement, null
 		);
 	}
 
@@ -15388,7 +16975,7 @@ public interface QueryConstraints {
 			null :
 			new ReferenceContent(
 				managedReferencesBehaviour, referenceName, null, null,
-				null, null, groupEntityRequirement
+				AttributeContent.ALL_ATTRIBUTES, null, groupEntityRequirement, null
 			);
 	}
 
@@ -15520,7 +17107,8 @@ public interface QueryConstraints {
 			null :
 			new ReferenceContent(
 				managedReferencesBehaviour, referenceName, null, null,
-				attributeContent, null, groupEntityRequirement
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				null, groupEntityRequirement, null
 			);
 	}
 
@@ -15653,7 +17241,7 @@ public interface QueryConstraints {
 		}
 		return new ReferenceContent(
 			managedReferencesBehaviour, referenceName, null, null,
-			entityRequirement, groupEntityRequirement
+			entityRequirement, groupEntityRequirement, null
 		);
 	}
 
@@ -15785,7 +17373,7 @@ public interface QueryConstraints {
 			null :
 			new ReferenceContent(
 				managedReferencesBehaviour, referenceName, null, null,
-				entityRequirement, groupEntityRequirement
+				AttributeContent.ALL_ATTRIBUTES, entityRequirement, groupEntityRequirement, null
 			);
 	}
 
@@ -15909,14 +17497,17 @@ public interface QueryConstraints {
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
 		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
-		@Nullable String referenceName, @Nullable AttributeContent attributeContent,
-		@Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement
+		@Nullable String referenceName,
+		@Nullable AttributeContent attributeContent,
+		@Nullable EntityFetch entityRequirement,
+		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
 		return referenceName == null ?
 			null :
 			new ReferenceContent(
 				managedReferencesBehaviour, referenceName, null, null,
-				attributeContent, entityRequirement, groupEntityRequirement
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				entityRequirement, groupEntityRequirement, null
 			);
 	}
 
@@ -16452,7 +18043,7 @@ public interface QueryConstraints {
 		return referenceName == null ?
 			null :
 			new ReferenceContent(
-				managedReferencesBehaviour, referenceName, filterBy, null, null, null
+				managedReferencesBehaviour, referenceName, filterBy, null, (EntityFetch) null, null, null
 			);
 	}
 
@@ -16582,7 +18173,8 @@ public interface QueryConstraints {
 		return referenceName == null ?
 			null :
 			new ReferenceContent(
-				managedReferencesBehaviour, referenceName, filterBy, null, null, null, null
+				managedReferencesBehaviour, referenceName, filterBy, null,
+				AttributeContent.ALL_ATTRIBUTES, null, null, null
 			);
 	}
 
@@ -16714,7 +18306,8 @@ public interface QueryConstraints {
 			null :
 			new ReferenceContent(
 				managedReferencesBehaviour, referenceName, filterBy, null,
-				attributeContent, null, null
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				null, null, null
 			);
 	}
 
@@ -16845,7 +18438,7 @@ public interface QueryConstraints {
 		return referenceName == null ?
 			null :
 			new ReferenceContent(
-				managedReferencesBehaviour, referenceName, filterBy, null, entityRequirement, null
+				managedReferencesBehaviour, referenceName, filterBy, null, entityRequirement, null, null
 			);
 	}
 
@@ -16977,7 +18570,7 @@ public interface QueryConstraints {
 			null :
 			new ReferenceContent(
 				managedReferencesBehaviour, referenceName, filterBy, null,
-				null, entityRequirement, null
+				AttributeContent.ALL_ATTRIBUTES, entityRequirement, null, null
 			);
 	}
 
@@ -17110,7 +18703,8 @@ public interface QueryConstraints {
 			null :
 			new ReferenceContent(
 				managedReferencesBehaviour, referenceName, filterBy, null,
-				attributeContent, entityRequirement, null
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				entityRequirement, null, null
 			);
 	}
 
@@ -17242,7 +18836,7 @@ public interface QueryConstraints {
 			null :
 			new ReferenceContent(
 				managedReferencesBehaviour, referenceName,
-				filterBy, null, null, groupEntityRequirement
+				filterBy, null, null, groupEntityRequirement, null
 			);
 	}
 
@@ -17374,7 +18968,7 @@ public interface QueryConstraints {
 			null :
 			new ReferenceContent(
 				managedReferencesBehaviour, referenceName, filterBy, null,
-				null, null, groupEntityRequirement
+				AttributeContent.ALL_ATTRIBUTES, null, groupEntityRequirement, null
 			);
 	}
 
@@ -17507,7 +19101,8 @@ public interface QueryConstraints {
 			null :
 			new ReferenceContent(
 				managedReferencesBehaviour, referenceName, filterBy, null,
-				attributeContent, null, groupEntityRequirement
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				null, groupEntityRequirement, null
 			);
 	}
 
@@ -17640,7 +19235,7 @@ public interface QueryConstraints {
 			null :
 			new ReferenceContent(
 				managedReferencesBehaviour, referenceName, filterBy, null,
-				entityRequirement, groupEntityRequirement
+				entityRequirement, groupEntityRequirement, null
 			);
 	}
 
@@ -17773,7 +19368,7 @@ public interface QueryConstraints {
 			null :
 			new ReferenceContent(
 				managedReferencesBehaviour, referenceName, filterBy, null,
-				null, entityRequirement, groupEntityRequirement
+				AttributeContent.ALL_ATTRIBUTES, entityRequirement, groupEntityRequirement, null
 			);
 	}
 
@@ -17907,7 +19502,8 @@ public interface QueryConstraints {
 			null :
 			new ReferenceContent(
 				managedReferencesBehaviour, referenceName, filterBy, null,
-				attributeContent, entityRequirement, groupEntityRequirement
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				entityRequirement, groupEntityRequirement, null
 			);
 	}
 
@@ -18037,7 +19633,7 @@ public interface QueryConstraints {
 		return referenceName == null ?
 			null :
 			new ReferenceContent(
-				managedReferencesBehaviour, referenceName, null, orderBy, null, null
+				managedReferencesBehaviour, referenceName, null, orderBy, (EntityFetch) null, null, null
 			);
 	}
 
@@ -18168,7 +19764,7 @@ public interface QueryConstraints {
 			null :
 			new ReferenceContent(
 				managedReferencesBehaviour, referenceName, null, orderBy,
-				null, null, null
+				AttributeContent.ALL_ATTRIBUTES, null, null, null
 			);
 	}
 
@@ -18300,7 +19896,8 @@ public interface QueryConstraints {
 			null :
 			new ReferenceContent(
 				managedReferencesBehaviour, referenceName, null, orderBy,
-				attributeContent, null, null
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				null, null, null
 			);
 	}
 
@@ -18431,7 +20028,7 @@ public interface QueryConstraints {
 		return referenceName == null ?
 			null :
 			new ReferenceContent(
-				managedReferencesBehaviour, referenceName, null, orderBy, entityRequirement, null
+				managedReferencesBehaviour, referenceName, null, orderBy, entityRequirement, null, null
 			);
 	}
 
@@ -18563,7 +20160,7 @@ public interface QueryConstraints {
 			null :
 			new ReferenceContent(
 				managedReferencesBehaviour, referenceName, null, orderBy,
-				null, entityRequirement, null
+				AttributeContent.ALL_ATTRIBUTES, entityRequirement, null, null
 			);
 	}
 
@@ -18696,7 +20293,8 @@ public interface QueryConstraints {
 			null :
 			new ReferenceContent(
 				managedReferencesBehaviour, referenceName, null, orderBy,
-				attributeContent, entityRequirement, null
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				entityRequirement, null, null
 			);
 	}
 
@@ -18827,7 +20425,7 @@ public interface QueryConstraints {
 		return referenceName == null ?
 			null :
 			new ReferenceContent(
-				managedReferencesBehaviour, referenceName, null, orderBy, null, groupEntityRequirement
+				managedReferencesBehaviour, referenceName, null, orderBy, null, groupEntityRequirement, null
 			);
 	}
 
@@ -18959,7 +20557,7 @@ public interface QueryConstraints {
 			null :
 			new ReferenceContent(
 				managedReferencesBehaviour, referenceName, null, orderBy,
-				null, null, groupEntityRequirement
+				AttributeContent.ALL_ATTRIBUTES, null, groupEntityRequirement, null
 			);
 	}
 
@@ -19092,7 +20690,8 @@ public interface QueryConstraints {
 			null :
 			new ReferenceContent(
 				managedReferencesBehaviour, referenceName, null, orderBy,
-				attributeContent, null, groupEntityRequirement
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				null, groupEntityRequirement, null
 			);
 	}
 
@@ -19225,7 +20824,7 @@ public interface QueryConstraints {
 			null :
 			new ReferenceContent(
 				managedReferencesBehaviour, referenceName, null, orderBy,
-				entityRequirement, groupEntityRequirement
+				entityRequirement, groupEntityRequirement, null
 			);
 	}
 
@@ -19358,7 +20957,7 @@ public interface QueryConstraints {
 			null :
 			new ReferenceContent(
 				managedReferencesBehaviour, referenceName, null, orderBy,
-				null, entityRequirement, groupEntityRequirement
+				AttributeContent.ALL_ATTRIBUTES, entityRequirement, groupEntityRequirement, null
 			);
 	}
 
@@ -19492,7 +21091,8 @@ public interface QueryConstraints {
 			null :
 			new ReferenceContent(
 				managedReferencesBehaviour, referenceName, null, orderBy,
-				attributeContent, entityRequirement, groupEntityRequirement
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				entityRequirement, groupEntityRequirement, null
 			);
 	}
 
@@ -19623,7 +21223,7 @@ public interface QueryConstraints {
 		return referenceName == null ?
 			null :
 			new ReferenceContent(
-				managedReferencesBehaviour, referenceName, filterBy, orderBy, null, null
+				managedReferencesBehaviour, referenceName, filterBy, orderBy, (EntityFetch) null, null, null
 			);
 	}
 
@@ -19755,7 +21355,7 @@ public interface QueryConstraints {
 			null :
 			new ReferenceContent(
 				managedReferencesBehaviour, referenceName, filterBy, orderBy,
-				null, null, null
+				AttributeContent.ALL_ATTRIBUTES, null, null, null
 			);
 	}
 
@@ -19888,7 +21488,8 @@ public interface QueryConstraints {
 			null :
 			new ReferenceContent(
 				managedReferencesBehaviour, referenceName, filterBy, orderBy,
-				attributeContent, null, null
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				null, null, null
 			);
 	}
 
@@ -20020,7 +21621,7 @@ public interface QueryConstraints {
 		return referenceName == null ?
 			null :
 			new ReferenceContent(
-				managedReferencesBehaviour, referenceName, filterBy, orderBy, entityRequirement, null
+				managedReferencesBehaviour, referenceName, filterBy, orderBy, entityRequirement, null, null
 			);
 	}
 
@@ -20153,7 +21754,7 @@ public interface QueryConstraints {
 			null :
 			new ReferenceContent(
 				managedReferencesBehaviour, referenceName, filterBy, orderBy,
-				null, entityRequirement, null
+				AttributeContent.ALL_ATTRIBUTES, entityRequirement, null, null
 			);
 	}
 
@@ -20287,7 +21888,8 @@ public interface QueryConstraints {
 			null :
 			new ReferenceContent(
 				managedReferencesBehaviour, referenceName, filterBy, orderBy,
-				attributeContent, entityRequirement, null
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				entityRequirement, null, null
 			);
 	}
 
@@ -20419,7 +22021,7 @@ public interface QueryConstraints {
 		return referenceName == null ?
 			null :
 			new ReferenceContent(
-				managedReferencesBehaviour, referenceName, filterBy, orderBy, null, groupEntityRequirement
+				managedReferencesBehaviour, referenceName, filterBy, orderBy, null, groupEntityRequirement, null
 			);
 	}
 
@@ -20552,7 +22154,7 @@ public interface QueryConstraints {
 			null :
 			new ReferenceContent(
 				managedReferencesBehaviour, referenceName, filterBy, orderBy,
-				null, null, groupEntityRequirement
+				AttributeContent.ALL_ATTRIBUTES, null, groupEntityRequirement, null
 			);
 	}
 
@@ -20686,7 +22288,8 @@ public interface QueryConstraints {
 			null :
 			new ReferenceContent(
 				managedReferencesBehaviour, referenceName, filterBy, orderBy,
-				attributeContent, null, groupEntityRequirement
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				null, groupEntityRequirement, null
 			);
 	}
 
@@ -20819,7 +22422,7 @@ public interface QueryConstraints {
 		return referenceName == null ?
 			null :
 			new ReferenceContent(
-				managedReferencesBehaviour, referenceName, filterBy, orderBy, entityRequirement, groupEntityRequirement
+				managedReferencesBehaviour, referenceName, filterBy, orderBy, entityRequirement, groupEntityRequirement, null
 			);
 	}
 
@@ -20953,7 +22556,7 @@ public interface QueryConstraints {
 			null :
 			new ReferenceContent(
 				managedReferencesBehaviour, referenceName, filterBy, orderBy,
-				null, entityRequirement, groupEntityRequirement
+				AttributeContent.ALL_ATTRIBUTES, entityRequirement, groupEntityRequirement, null
 			);
 	}
 
@@ -21088,7 +22691,8 @@ public interface QueryConstraints {
 			null :
 			new ReferenceContent(
 				managedReferencesBehaviour, referenceName, filterBy, orderBy,
-				attributeContent, entityRequirement, groupEntityRequirement
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				entityRequirement, groupEntityRequirement, null
 			);
 	}
 
@@ -21340,7 +22944,7 @@ public interface QueryConstraints {
 		@Nullable EntityFetch entityRequirement
 	) {
 		return new ReferenceContent(
-			managedReferencesBehaviour, (AttributeContent) null, entityRequirement, null
+			managedReferencesBehaviour, AttributeContent.ALL_ATTRIBUTES, entityRequirement, null
 		);
 	}
 
@@ -21468,7 +23072,9 @@ public interface QueryConstraints {
 		@Nullable EntityFetch entityRequirement
 	) {
 		return new ReferenceContent(
-			managedReferencesBehaviour, attributeContent, entityRequirement, null
+			managedReferencesBehaviour,
+			ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+			entityRequirement, null
 		);
 	}
 
@@ -21720,7 +23326,7 @@ public interface QueryConstraints {
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
 		return new ReferenceContent(
-			managedReferencesBehaviour, (AttributeContent) null, null, groupEntityRequirement
+			managedReferencesBehaviour, AttributeContent.ALL_ATTRIBUTES, null, groupEntityRequirement
 		);
 	}
 
@@ -21848,7 +23454,9 @@ public interface QueryConstraints {
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
 		return new ReferenceContent(
-			managedReferencesBehaviour, attributeContent, null, groupEntityRequirement
+			managedReferencesBehaviour,
+			ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+			null, groupEntityRequirement
 		);
 	}
 
@@ -22102,7 +23710,7 @@ public interface QueryConstraints {
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
 		return new ReferenceContent(
-			managedReferencesBehaviour, (AttributeContent) null, entityRequirement, groupEntityRequirement
+			managedReferencesBehaviour, AttributeContent.ALL_ATTRIBUTES, entityRequirement, groupEntityRequirement
 		);
 	}
 
@@ -22231,7 +23839,11357 @@ public interface QueryConstraints {
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
 		return new ReferenceContent(
-			managedReferencesBehaviour, attributeContent, entityRequirement, groupEntityRequirement
+			managedReferencesBehaviour,
+			ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+			entityRequirement, groupEntityRequirement
+		);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable ChunkingRequireConstraint chunk) {
+		if (referenceName == null) {
+			return new ReferenceContent(chunk);
+		}
+		return new ReferenceContent(referenceName, null, null, null, null, chunk);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable ChunkingRequireConstraint chunk,
+		@Nullable String... attributeNames
+	) {
+		if (referenceName == null) {
+			return null;
+		} else {
+			return new ReferenceContent(
+				referenceName, null, null,
+				attributeContent(attributeNames), null, null, chunk
+			);
+		}
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, null, null,
+				AttributeContent.ALL_ATTRIBUTES, null, null, chunk
+			);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable AttributeContent attributeContent,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, null, null,
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				null, null, chunk
+			);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static ReferenceContent referenceContent(@Nullable ChunkingRequireConstraint chunk, @Nullable String... referenceName) {
+		if (referenceName == null) {
+			return new ReferenceContent(chunk);
+		}
+		return new ReferenceContent(referenceName, null, null, chunk);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable EntityFetch entityRequirement, @Nullable ChunkingRequireConstraint chunk) {
+		if (referenceName == null && entityRequirement == null) {
+			return new ReferenceContent(chunk);
+		}
+		if (referenceName == null) {
+			return new ReferenceContent(entityRequirement, null, chunk);
+		}
+		return new ReferenceContent(referenceName, null, null, entityRequirement, null, chunk);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable EntityFetch entityRequirement,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, null, null,
+				AttributeContent.ALL_ATTRIBUTES, entityRequirement, null, chunk
+			);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable AttributeContent attributeContent,
+		@Nullable EntityFetch entityRequirement,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, null, null,
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				entityRequirement, null, chunk
+			);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
+		if (referenceName == null && groupEntityRequirement == null) {
+			return new ReferenceContent(chunk);
+		}
+		if (referenceName == null) {
+			return new ReferenceContent(null, groupEntityRequirement, chunk);
+		}
+		return new ReferenceContent(referenceName, null, null, null, groupEntityRequirement, chunk);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable EntityGroupFetch groupEntityRequirement,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, null, null,
+				AttributeContent.ALL_ATTRIBUTES, null, groupEntityRequirement, chunk
+			);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable AttributeContent attributeContent,
+		@Nullable EntityGroupFetch groupEntityRequirement,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, null, null,
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				null, groupEntityRequirement, chunk
+			);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
+		if (referenceName == null) {
+			return new ReferenceContent(entityRequirement, groupEntityRequirement, chunk);
+		}
+		return new ReferenceContent(referenceName, null, null, entityRequirement, groupEntityRequirement, chunk);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable EntityFetch entityRequirement,
+		@Nullable EntityGroupFetch groupEntityRequirement,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, null, null,
+				AttributeContent.ALL_ATTRIBUTES, entityRequirement, groupEntityRequirement, chunk
+			);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable AttributeContent attributeContent,
+		@Nullable EntityFetch entityRequirement,
+		@Nullable EntityGroupFetch groupEntityRequirement,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, null, null,
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				entityRequirement, groupEntityRequirement, chunk
+			);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static ReferenceContent referenceContent(@Nullable String[] referencedEntityTypes, @Nullable EntityFetch entityRequirement, @Nullable ChunkingRequireConstraint chunk) {
+		if (referencedEntityTypes == null && entityRequirement == null) {
+			return new ReferenceContent(chunk);
+		}
+		if (referencedEntityTypes == null) {
+			return new ReferenceContent(entityRequirement, null, chunk);
+		}
+		return new ReferenceContent(referencedEntityTypes, entityRequirement, null, chunk);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static ReferenceContent referenceContent(@Nullable String[] referencedEntityTypes, @Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
+		if (referencedEntityTypes == null && groupEntityRequirement == null) {
+			return new ReferenceContent(chunk);
+		}
+		if (referencedEntityTypes == null) {
+			return new ReferenceContent(null, groupEntityRequirement, chunk);
+		}
+		return new ReferenceContent(referencedEntityTypes, null, groupEntityRequirement, chunk);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static ReferenceContent referenceContent(@Nullable String[] referencedEntityTypes, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
+		if (referencedEntityTypes != null) {
+			return new ReferenceContent(referencedEntityTypes, entityRequirement, groupEntityRequirement, chunk);
+		} else {
+			return new ReferenceContent(entityRequirement, groupEntityRequirement, chunk);
+		}
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable ChunkingRequireConstraint chunk) {
+		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, null, null, null, chunk);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, filterBy, null,
+				AttributeContent.ALL_ATTRIBUTES, null, null, chunk
+			);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable AttributeContent attributeContent,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, filterBy, null,
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				null, null, chunk
+			);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable EntityFetch entityRequirement, @Nullable ChunkingRequireConstraint chunk) {
+		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, null, entityRequirement, null, chunk);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable EntityFetch entityRequirement,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, filterBy, null,
+				AttributeContent.ALL_ATTRIBUTES, entityRequirement, null, chunk
+			);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable AttributeContent attributeContent,
+		@Nullable EntityFetch entityRequirement,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, filterBy, null,
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				entityRequirement, null, chunk
+			);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
+		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, null, null, groupEntityRequirement, chunk);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable EntityGroupFetch groupEntityRequirement,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, filterBy, null,
+				AttributeContent.ALL_ATTRIBUTES, null, groupEntityRequirement, chunk
+			);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable AttributeContent attributeContent,
+		@Nullable EntityGroupFetch groupEntityRequirement,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, filterBy, null,
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				null, groupEntityRequirement, chunk
+			);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
+		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, null, entityRequirement, groupEntityRequirement, chunk);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable EntityFetch entityRequirement,
+		@Nullable EntityGroupFetch groupEntityRequirement,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, filterBy, null,
+				AttributeContent.ALL_ATTRIBUTES, entityRequirement, groupEntityRequirement, chunk
+			);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable AttributeContent attributeContent,
+		@Nullable EntityFetch entityRequirement,
+		@Nullable EntityGroupFetch groupEntityRequirement,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, filterBy, null,
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				entityRequirement, groupEntityRequirement, chunk
+			);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable OrderBy orderBy, @Nullable ChunkingRequireConstraint chunk) {
+		return referenceName == null ? null : new ReferenceContent(referenceName, null, orderBy, null, null, chunk);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable OrderBy orderBy,
+		@Nullable ChunkingRequireConstraint chunk) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, null, orderBy,
+				AttributeContent.ALL_ATTRIBUTES, null, null, chunk
+			);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable OrderBy orderBy,
+		@Nullable AttributeContent attributeContent,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, null, orderBy,
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				null, null, chunk
+			);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement, @Nullable ChunkingRequireConstraint chunk) {
+		return referenceName == null ? null : new ReferenceContent(referenceName, null, orderBy, entityRequirement, null, chunk);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable OrderBy orderBy,
+		@Nullable EntityFetch entityRequirement,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return referenceName == null ?
+			null : new ReferenceContent(
+			referenceName, null, orderBy,
+			AttributeContent.ALL_ATTRIBUTES, entityRequirement, null, chunk
+		);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable OrderBy orderBy,
+		@Nullable AttributeContent attributeContent,
+		@Nullable EntityFetch entityRequirement,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, null, orderBy,
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				entityRequirement, null, chunk
+			);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable OrderBy orderBy, @Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
+		return referenceName == null ? null : new ReferenceContent(referenceName, null, orderBy, null, groupEntityRequirement, chunk);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable OrderBy orderBy,
+		@Nullable EntityGroupFetch groupEntityRequirement,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, null, orderBy,
+				AttributeContent.ALL_ATTRIBUTES, null, groupEntityRequirement, chunk
+			);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable OrderBy orderBy,
+		@Nullable AttributeContent attributeContent,
+		@Nullable EntityGroupFetch groupEntityRequirement,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, null, orderBy,
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				null, groupEntityRequirement, chunk
+			);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
+		return referenceName == null ? null : new ReferenceContent(referenceName, null, orderBy, entityRequirement, groupEntityRequirement, chunk);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable OrderBy orderBy,
+		@Nullable EntityFetch entityRequirement,
+		@Nullable EntityGroupFetch groupEntityRequirement,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, null, orderBy,
+				AttributeContent.ALL_ATTRIBUTES,
+				entityRequirement, groupEntityRequirement, chunk
+			);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable OrderBy orderBy,
+		@Nullable AttributeContent attributeContent,
+		@Nullable EntityFetch entityRequirement,
+		@Nullable EntityGroupFetch groupEntityRequirement,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, null, orderBy,
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				entityRequirement, groupEntityRequirement, chunk
+			);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static ReferenceContent referenceContentAll(@Nullable EntityFetch entityRequirement, @Nullable ChunkingRequireConstraint chunk) {
+		return new ReferenceContent(entityRequirement, null, chunk);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static ReferenceContent referenceContentAllWithAttributes(
+		@Nullable EntityFetch entityRequirement,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return new ReferenceContent(AttributeContent.ALL_ATTRIBUTES, entityRequirement, null, chunk);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static ReferenceContent referenceContentAllWithAttributes(
+		@Nullable AttributeContent attributeContent,
+		@Nullable EntityFetch entityRequirement,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return new ReferenceContent(
+			ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+			entityRequirement, null, chunk
+		);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static ReferenceContent referenceContentAll(@Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
+		return new ReferenceContent(null, groupEntityRequirement, chunk);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static ReferenceContent referenceContentAllWithAttributes(
+		@Nullable EntityGroupFetch groupEntityRequirement,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return new ReferenceContent(
+			AttributeContent.ALL_ATTRIBUTES, null, groupEntityRequirement, chunk
+		);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static ReferenceContent referenceContentAllWithAttributes(
+		@Nullable AttributeContent attributeContent,
+		@Nullable EntityGroupFetch groupEntityRequirement,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return new ReferenceContent(
+			ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+			null, groupEntityRequirement, chunk
+		);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static ReferenceContent referenceContentAll(@Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
+		return new ReferenceContent(entityRequirement, groupEntityRequirement, chunk);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static ReferenceContent referenceContentAllWithAttributes(
+		@Nullable EntityFetch entityRequirement,
+		@Nullable EntityGroupFetch groupEntityRequirement,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return new ReferenceContent(
+			AttributeContent.ALL_ATTRIBUTES, entityRequirement, groupEntityRequirement, chunk
+		);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static ReferenceContent referenceContentAllWithAttributes(
+		@Nullable AttributeContent attributeContent,
+		@Nullable EntityFetch entityRequirement,
+		@Nullable EntityGroupFetch groupEntityRequirement,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return new ReferenceContent(
+			ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+			entityRequirement, groupEntityRequirement, chunk
+		);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static ReferenceContent referenceContentAll(@Nullable ManagedReferencesBehaviour managedReferencesBehaviour, @Nullable ChunkingRequireConstraint chunk) {
+		return new ReferenceContent(managedReferencesBehaviour, chunk);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static ReferenceContent referenceContentAllWithAttributes(
+		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return new ReferenceContent(managedReferencesBehaviour, AttributeContent.ALL_ATTRIBUTES, chunk);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static ReferenceContent referenceContentAllWithAttributes(
+		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
+		@Nullable AttributeContent attributeContent,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return new ReferenceContent(
+			managedReferencesBehaviour,
+			ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+			chunk
+		);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static ReferenceContent referenceContent(@Nullable ManagedReferencesBehaviour managedReferencesBehaviour, @Nullable String referenceName, @Nullable ChunkingRequireConstraint chunk) {
+		if (referenceName == null) {
+			return new ReferenceContent(managedReferencesBehaviour, chunk);
+		}
+		return new ReferenceContent(managedReferencesBehaviour, referenceName, null, null, null, null, chunk);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
+		@Nullable String referenceName,
+		@Nullable ChunkingRequireConstraint chunk,
+		@Nullable String... attributeNames
+	) {
+		if (referenceName == null) {
+			return null;
+		} else {
+			return new ReferenceContent(managedReferencesBehaviour, referenceName, null, null, attributeContent(attributeNames), null, null, chunk);
+		}
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
+		@Nullable String referenceName,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				managedReferencesBehaviour, referenceName, null, null,
+				AttributeContent.ALL_ATTRIBUTES, null, null, chunk
+			);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
+		@Nullable String referenceName,
+		@Nullable AttributeContent attributeContent,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				managedReferencesBehaviour, referenceName, null, null,
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				null, null, chunk
+			);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static ReferenceContent referenceContent(@Nullable ManagedReferencesBehaviour managedReferencesBehaviour, @Nullable ChunkingRequireConstraint chunk, @Nullable String... referenceName) {
+		if (referenceName == null) {
+			return new ReferenceContent(managedReferencesBehaviour, chunk);
+		}
+		return new ReferenceContent(managedReferencesBehaviour, referenceName, null, null, chunk);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static ReferenceContent referenceContent(@Nullable ManagedReferencesBehaviour managedReferencesBehaviour, @Nullable String referenceName, @Nullable EntityFetch entityRequirement, @Nullable ChunkingRequireConstraint chunk) {
+		if (referenceName == null && entityRequirement == null) {
+			return new ReferenceContent(managedReferencesBehaviour, chunk);
+		}
+		if (referenceName == null) {
+			return new ReferenceContent(managedReferencesBehaviour, entityRequirement, null, chunk);
+		}
+		return new ReferenceContent(managedReferencesBehaviour, referenceName, null, null, entityRequirement, null, chunk);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
+		@Nullable String referenceName,
+		@Nullable EntityFetch entityRequirement,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				managedReferencesBehaviour, referenceName, null, null,
+				AttributeContent.ALL_ATTRIBUTES, entityRequirement, null, chunk
+			);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
+		@Nullable String referenceName,
+		@Nullable AttributeContent attributeContent,
+		@Nullable EntityFetch entityRequirement,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				managedReferencesBehaviour, referenceName, null, null,
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				entityRequirement, null, chunk
+			);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static ReferenceContent referenceContent(@Nullable ManagedReferencesBehaviour managedReferencesBehaviour, @Nullable String referenceName, @Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
+		if (referenceName == null && groupEntityRequirement == null) {
+			return new ReferenceContent(managedReferencesBehaviour, chunk);
+		}
+		if (referenceName == null) {
+			return new ReferenceContent(managedReferencesBehaviour, null, groupEntityRequirement, chunk);
+		}
+		return new ReferenceContent(managedReferencesBehaviour, referenceName, null, null, null, groupEntityRequirement, chunk);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
+		@Nullable String referenceName,
+		@Nullable EntityGroupFetch groupEntityRequirement,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				managedReferencesBehaviour, referenceName, null, null,
+				AttributeContent.ALL_ATTRIBUTES, null, groupEntityRequirement, chunk
+			);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
+		@Nullable String referenceName,
+		@Nullable AttributeContent attributeContent,
+		@Nullable EntityGroupFetch groupEntityRequirement,
+		@Nullable ChunkingRequireConstraint chunk) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				managedReferencesBehaviour, referenceName, null, null,
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				null, groupEntityRequirement, chunk
+			);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static ReferenceContent referenceContent(@Nullable ManagedReferencesBehaviour managedReferencesBehaviour, @Nullable String referenceName, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
+		if (referenceName == null) {
+			return new ReferenceContent(managedReferencesBehaviour, entityRequirement, groupEntityRequirement, chunk);
+		}
+		return new ReferenceContent(managedReferencesBehaviour, referenceName, null, null, entityRequirement, groupEntityRequirement, chunk);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
+		@Nullable String referenceName,
+		@Nullable EntityFetch entityRequirement,
+		@Nullable EntityGroupFetch groupEntityRequirement,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				managedReferencesBehaviour, referenceName, null, null,
+				AttributeContent.ALL_ATTRIBUTES, entityRequirement, groupEntityRequirement, chunk
+			);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
+		@Nullable String referenceName,
+		@Nullable AttributeContent attributeContent,
+		@Nullable EntityFetch entityRequirement,
+		@Nullable EntityGroupFetch groupEntityRequirement,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				managedReferencesBehaviour, referenceName, null, null,
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				entityRequirement, groupEntityRequirement, chunk
+			);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable ChunkingRequireConstraint chunk) {
+		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, orderBy, null, null, chunk);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, filterBy, orderBy,
+				AttributeContent.ALL_ATTRIBUTES, null, null, chunk
+			);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable AttributeContent attributeContent,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, filterBy, orderBy,
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				null, null, chunk
+			);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement, @Nullable ChunkingRequireConstraint chunk) {
+		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, orderBy, entityRequirement, null, chunk);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable EntityFetch entityRequirement,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, filterBy, orderBy,
+				AttributeContent.ALL_ATTRIBUTES, entityRequirement, null, chunk
+			);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable AttributeContent attributeContent,
+		@Nullable EntityFetch entityRequirement,
+		@Nullable ChunkingRequireConstraint chunk) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, filterBy, orderBy,
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				entityRequirement, null, chunk
+			);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
+		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, orderBy, null, groupEntityRequirement, chunk);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy, @Nullable EntityGroupFetch groupEntityRequirement,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, filterBy, orderBy,
+				AttributeContent.ALL_ATTRIBUTES, null, groupEntityRequirement, chunk
+			);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable AttributeContent attributeContent,
+		@Nullable EntityGroupFetch groupEntityRequirement,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, filterBy, orderBy,
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				null, groupEntityRequirement, chunk
+			);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
+		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, orderBy, entityRequirement, groupEntityRequirement, chunk);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable EntityFetch entityRequirement,
+		@Nullable EntityGroupFetch groupEntityRequirement,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, filterBy, orderBy,
+				AttributeContent.ALL_ATTRIBUTES, entityRequirement, groupEntityRequirement, chunk
+			);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(
+		@Nullable String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable AttributeContent attributeContent,
+		@Nullable EntityFetch entityRequirement,
+		@Nullable EntityGroupFetch groupEntityRequirement,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return referenceName == null ?
+			null :
+			new ReferenceContent(
+				referenceName, filterBy, orderBy,
+				ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+				entityRequirement, groupEntityRequirement, chunk
+			);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static ReferenceContent referenceContentAll(@Nullable ManagedReferencesBehaviour managedReferencesBehaviour, @Nullable EntityFetch entityRequirement, @Nullable ChunkingRequireConstraint chunk) {
+		return new ReferenceContent(managedReferencesBehaviour, entityRequirement, null, chunk);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static ReferenceContent referenceContentAllWithAttributes(
+		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
+		@Nullable EntityFetch entityRequirement,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return new ReferenceContent(
+			managedReferencesBehaviour, AttributeContent.ALL_ATTRIBUTES,
+			entityRequirement, null, chunk
+		);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static ReferenceContent referenceContentAllWithAttributes(
+		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
+		@Nullable AttributeContent attributeContent,
+		@Nullable EntityFetch entityRequirement,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return new ReferenceContent(
+			managedReferencesBehaviour,
+			ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+			entityRequirement, null, chunk
+		);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static ReferenceContent referenceContentAll(@Nullable ManagedReferencesBehaviour managedReferencesBehaviour, @Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
+		return new ReferenceContent(managedReferencesBehaviour, null, groupEntityRequirement, chunk);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static ReferenceContent referenceContentAllWithAttributes(
+		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
+		@Nullable EntityGroupFetch groupEntityRequirement,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return new ReferenceContent(
+			managedReferencesBehaviour, AttributeContent.ALL_ATTRIBUTES,
+			null, groupEntityRequirement, chunk
+		);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static ReferenceContent referenceContentAllWithAttributes(
+		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
+		@Nullable AttributeContent attributeContent,
+		@Nullable EntityGroupFetch groupEntityRequirement,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return new ReferenceContent(
+			managedReferencesBehaviour,
+			ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+			null, groupEntityRequirement, chunk
+		);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static ReferenceContent referenceContentAll(@Nullable ManagedReferencesBehaviour managedReferencesBehaviour, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement, @Nullable ChunkingRequireConstraint chunk) {
+		return new ReferenceContent(managedReferencesBehaviour, entityRequirement, groupEntityRequirement, chunk);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static ReferenceContent referenceContentAllWithAttributes(
+		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
+		@Nullable EntityFetch entityRequirement,
+		@Nullable EntityGroupFetch groupEntityRequirement,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return new ReferenceContent(
+			managedReferencesBehaviour, AttributeContent.ALL_ATTRIBUTES,
+			entityRequirement, groupEntityRequirement, chunk
+		);
+	}
+
+	/**
+	 * The `referenceContent` requirement allows you to access the information about the references the entity has towards
+	 * other entities (either managed by evitaDB itself or by any other external system). This variant of referenceContent
+	 * doesn't return the attributes set on the reference itself - if you need those attributes, use the
+	 * `referenceContentWithAttributes` variant of it.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent("brand"),
+	 *    referenceContent("categories")
+	 * )
+	 * </pre>
+	 *
+	 * ## Excluding references to non-existing managed references
+	 *
+	 * By default, the referenceContent requirement returns all references, regardless of whether the target entity exists
+	 * in the database. If you want to filter out references to non-existing entities, you can specify argument controlling
+	 * this behavior.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityFetch(
+	 *    attributeContent("code"),
+	 *    referenceContent(EXISTING, "brand"),
+	 *    referenceContent(ANY, "categories")
+	 * )
+	 * </pre>
+	 *
+	 * This query will return brand entity only if the target brand entity is present in the database while categories
+	 * reference will be returned regardless of the target entity existence.
+	 *
+	 * ## Referenced entity (group) fetching
+	 *
+	 * In many scenarios, you'll need to fetch not only the primary keys of the referenced entities, but also their bodies
+	 * and the bodies of the groups the references refer to. One such common scenario is fetching the parameters of
+	 * a product:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ## Filtering references
+	 *
+	 * Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case,
+	 * you can use the filter constraint to filter out the references you don't need.
+	 *
+	 * The referenceContent filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the {@link EntityHaving} container constraint.
+	 *
+	 * For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that
+	 * are part of group which contains an attribute `isVisibleInDetail` set to TRUE.To fetch only those parameters,
+	 * use the following query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     filterBy(
+	 *         entityHaving(
+	 *             referenceHaving(
+	 *                 "parameter",
+	 *                 entityHaving(
+	 *                     attributeEquals("isVisibleInDetail", true)
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("code")
+	 *     ),
+	 *     entityGroupFetch(
+	 *         attributeContent("code", "isVisibleInDetail")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * ##Ordering references
+	 *
+	 * By default, the references are ordered by the primary key of the referenced entity. If you want to order
+	 * the references by a different property - either the attribute set on the reference itself or the property of the
+	 * referenced entity - you can use the order constraint inside the referenceContent requirement.
+	 *
+	 * The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need
+	 * to specify a referenceHaving constraint. However, if you need to declare constraints on referenced entity attributes,
+	 * you must wrap them in the entityHaving container constraint.
+	 *
+	 * Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following
+	 * query:
+	 *
+	 * <pre>
+	 * referenceContent(
+	 *     "parameterValues",
+	 *     orderBy(
+	 *         entityProperty(
+	 *             attributeNatural("name", ASC)
+	 *         )
+	 *     ),
+	 *     entityFetch(
+	 *         attributeContent("name")
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static ReferenceContent referenceContentAllWithAttributes(
+		@Nullable ManagedReferencesBehaviour managedReferencesBehaviour,
+		@Nullable AttributeContent attributeContent,
+		@Nullable EntityFetch entityRequirement,
+		@Nullable EntityGroupFetch groupEntityRequirement,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return new ReferenceContent(
+			managedReferencesBehaviour,
+			ofNullable(attributeContent).orElse(AttributeContent.ALL_ATTRIBUTES),
+			entityRequirement, groupEntityRequirement, chunk
 		);
 	}
 

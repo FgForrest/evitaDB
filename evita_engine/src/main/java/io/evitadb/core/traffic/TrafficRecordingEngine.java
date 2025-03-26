@@ -90,6 +90,7 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 	public static final String LABEL_TRACE_ID = "trace-id";
 	public static final String LABEL_CLIENT_ID = "client-id";
 	public static final String LABEL_IP_ADDRESS = "ip-address";
+	public static final String LABEL_URI = "uri";
 	private final AtomicReference<CatalogInfo> catalogInfo;
 	private final StorageOptions storageOptions;
 	@Getter private final TrafficRecordingOptions trafficOptions;
@@ -160,30 +161,6 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 		this.scheduler = scheduler;
 		this.tracingContext = tracingContext;
 		initializeTrafficRecorder(catalogInfo);
-	}
-
-	/**
-	 * Initializes the traffic recorder for the specified catalog. The traffic recorder can be enabled or disabled
-	 * based on the configuration provided. When enabled, a specific traffic recorder instance is initialized;
-	 * otherwise, a no-operation (NoOp) traffic recorder is set.
-	 *
-	 * @param catalogInfo The name and state of the catalog for which the traffic recorder should be initialized.
-	 *                    This parameter must not be null.
-	 */
-	private void initializeTrafficRecorder(@Nonnull CatalogInfo catalogInfo) {
-		final TrafficRecorder existingTrafficRecorder = this.trafficRecorder.get();
-		if (existingTrafficRecorder != null) {
-			IOUtils.closeQuietly(existingTrafficRecorder::close);
-		}
-		if (this.trafficOptions.enabled() && catalogInfo.state() == CatalogState.ALIVE) {
-			final TrafficRecorder trafficRecorderInstance = getRichTrafficRecorderIfPossible(
-				catalogInfo.catalogName(),
-				this.exportFileService, this.scheduler, this.storageOptions, this.trafficOptions
-			);
-			this.trafficRecorder.set(trafficRecorderInstance);
-		} else {
-			this.trafficRecorder.set(NoOpTrafficRecorder.INSTANCE);
-		}
 	}
 
 	/**
@@ -584,6 +561,30 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 	}
 
 	/**
+	 * Initializes the traffic recorder for the specified catalog. The traffic recorder can be enabled or disabled
+	 * based on the configuration provided. When enabled, a specific traffic recorder instance is initialized;
+	 * otherwise, a no-operation (NoOp) traffic recorder is set.
+	 *
+	 * @param catalogInfo The name and state of the catalog for which the traffic recorder should be initialized.
+	 *                    This parameter must not be null.
+	 */
+	private void initializeTrafficRecorder(@Nonnull CatalogInfo catalogInfo) {
+		final TrafficRecorder existingTrafficRecorder = this.trafficRecorder.get();
+		if (existingTrafficRecorder != null) {
+			IOUtils.closeQuietly(existingTrafficRecorder::close);
+		}
+		if (this.trafficOptions.enabled() && catalogInfo.state() == CatalogState.ALIVE) {
+			final TrafficRecorder trafficRecorderInstance = getRichTrafficRecorderIfPossible(
+				catalogInfo.catalogName(),
+				this.exportFileService, this.scheduler, this.storageOptions, this.trafficOptions
+			);
+			this.trafficRecorder.set(trafficRecorderInstance);
+		} else {
+			this.trafficRecorder.set(NoOpTrafficRecorder.INSTANCE);
+		}
+	}
+
+	/**
 	 * Collects system labels associated with the current tracing context. These labels encapsulate
 	 * metadata, such as trace ID, client ID, and client IP address, if available. If a specific
 	 * value is unavailable in the tracing context, the corresponding label is omitted.
@@ -593,16 +594,22 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 	 */
 	@Nonnull
 	private Label[] collectSystemLabels() {
-		return Stream.of(
-				this.tracingContext.getTraceId()
-					.map(it -> new Label(LABEL_TRACE_ID, it))
-					.orElse(null),
-				this.tracingContext.getClientId()
-					.map(it -> new Label(LABEL_CLIENT_ID, it))
-					.orElse(null),
-				this.tracingContext.getClientIpAddress()
-					.map(it -> new Label(LABEL_IP_ADDRESS, it))
-					.orElse(null)
+		return Stream.concat(
+				Stream.of(
+					this.tracingContext.getTraceId()
+						.map(it -> new Label(LABEL_TRACE_ID, it))
+						.orElse(null),
+					this.tracingContext.getClientId()
+						.map(it -> new Label(LABEL_CLIENT_ID, it))
+						.orElse(null),
+					this.tracingContext.getClientIpAddress()
+						.map(it -> new Label(LABEL_IP_ADDRESS, it))
+						.orElse(null),
+					this.tracingContext.getClientUri()
+						.map(it -> new Label(LABEL_URI, it))
+						.orElse(null)
+				),
+				Arrays.stream(this.tracingContext.getClientLabels())
 			)
 			.filter(Objects::nonNull)
 			.toArray(Label[]::new);
@@ -697,12 +704,14 @@ public class TrafficRecordingEngine implements TrafficRecordingReader {
 
 	/**
 	 * Represents a catalog name and its state.
+	 *
 	 * @param catalogName the name of the catalog
-	 * @param state the state of the catalog
+	 * @param state       the state of the catalog
 	 */
 	private record CatalogInfo(
 		@Nonnull String catalogName,
 		@Nonnull CatalogState state
-	) {}
+	) {
+	}
 
 }

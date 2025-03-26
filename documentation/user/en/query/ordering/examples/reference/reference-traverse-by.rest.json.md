@@ -1,0 +1,501 @@
+```json
+{
+  "recordPage" : {
+    "data" : [
+      {
+        "primaryKey" : 107891,
+        "type" : "Product",
+        "version" : 2,
+        "scope" : "LIVE",
+        "allLocales" : [
+          "en"
+        ],
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-3"
+          }
+        },
+        "categories" : [
+          {
+            "referencedPrimaryKey" : 66486,
+            "attributes" : {
+              "global" : {
+                "orderInCategory" : -1
+              }
+            }
+          }
+        ]
+      },
+      {
+        "primaryKey" : 107893,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
+          "en"
+        ],
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-3-1"
+          }
+        },
+        "categories" : [
+          {
+            "referencedPrimaryKey" : 66486,
+            "attributes" : {
+              "global" : {
+                "orderInCategory" : -1
+              }
+            }
+          }
+        ]
+      },
+      {
+        "primaryKey" : 107894,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
+          "en"
+        ],
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-3-2"
+          }
+        },
+        "categories" : [
+          {
+            "referencedPrimaryKey" : 66486,
+            "attributes" : {
+              "global" : {
+                "orderInCategory" : -1
+              }
+            }
+          }
+        ]
+      },
+      {
+        "primaryKey" : 107895,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
+          "en"
+        ],
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-3-3"
+          }
+        },
+        "categories" : [
+          {
+            "referencedPrimaryKey" : 66486,
+            "attributes" : {
+              "global" : {
+                "orderInCategory" : -1
+              }
+            }
+          }
+        ]
+      },
+      {
+        "primaryKey" : 107899,
+        "type" : "Product",
+        "version" : 2,
+        "scope" : "LIVE",
+        "allLocales" : [
+          "en"
+        ],
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-3-pro"
+          }
+        },
+        "categories" : [
+          {
+            "referencedPrimaryKey" : 66486,
+            "attributes" : {
+              "global" : {
+                "orderInCategory" : 107891
+              }
+            }
+          }
+        ]
+      },
+      {
+        "primaryKey" : 107900,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
+          "en"
+        ],
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-3-pro-1"
+          }
+        },
+        "categories" : [
+          {
+            "referencedPrimaryKey" : 66486,
+            "attributes" : {
+              "global" : {
+                "orderInCategory" : -1
+              }
+            }
+          }
+        ]
+      },
+      {
+        "primaryKey" : 107901,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
+          "en"
+        ],
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-3-pro-2"
+          }
+        },
+        "categories" : [
+          {
+            "referencedPrimaryKey" : 66486,
+            "attributes" : {
+              "global" : {
+                "orderInCategory" : -1
+              }
+            }
+          }
+        ]
+      },
+      {
+        "primaryKey" : 107902,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
+          "en"
+        ],
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-3-pro-3"
+          }
+        },
+        "categories" : [
+          {
+            "referencedPrimaryKey" : 66486,
+            "attributes" : {
+              "global" : {
+                "orderInCategory" : -1
+              }
+            }
+          }
+        ]
+      },
+      {
+        "primaryKey" : 107911,
+        "type" : "Product",
+        "version" : 2,
+        "scope" : "LIVE",
+        "allLocales" : [
+          "en"
+        ],
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-s"
+          }
+        },
+        "categories" : [
+          {
+            "referencedPrimaryKey" : 66486,
+            "attributes" : {
+              "global" : {
+                "orderInCategory" : 107899
+              }
+            }
+          }
+        ]
+      },
+      {
+        "primaryKey" : 107913,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
+          "en"
+        ],
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-s-1"
+          }
+        },
+        "categories" : [
+          {
+            "referencedPrimaryKey" : 66486,
+            "attributes" : {
+              "global" : {
+                "orderInCategory" : -1
+              }
+            }
+          }
+        ]
+      },
+      {
+        "primaryKey" : 107915,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
+          "en"
+        ],
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-s-2"
+          }
+        },
+        "categories" : [
+          {
+            "referencedPrimaryKey" : 66486,
+            "attributes" : {
+              "global" : {
+                "orderInCategory" : -1
+              }
+            }
+          }
+        ]
+      },
+      {
+        "primaryKey" : 107917,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
+          "en"
+        ],
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-s-3"
+          }
+        },
+        "categories" : [
+          {
+            "referencedPrimaryKey" : 66486,
+            "attributes" : {
+              "global" : {
+                "orderInCategory" : -1
+              }
+            }
+          }
+        ]
+      },
+      {
+        "primaryKey" : 107919,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
+          "en"
+        ],
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-s-4"
+          }
+        },
+        "categories" : [
+          {
+            "referencedPrimaryKey" : 66486,
+            "attributes" : {
+              "global" : {
+                "orderInCategory" : -1
+              }
+            }
+          }
+        ]
+      },
+      {
+        "primaryKey" : 107923,
+        "type" : "Product",
+        "version" : 2,
+        "scope" : "LIVE",
+        "allLocales" : [
+          "en"
+        ],
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-s-lite"
+          }
+        },
+        "categories" : [
+          {
+            "referencedPrimaryKey" : 66486,
+            "attributes" : {
+              "global" : {
+                "orderInCategory" : 107911
+              }
+            }
+          }
+        ]
+      },
+      {
+        "primaryKey" : 107924,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
+          "en"
+        ],
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-s-lite-1"
+          }
+        },
+        "categories" : [
+          {
+            "referencedPrimaryKey" : 66486,
+            "attributes" : {
+              "global" : {
+                "orderInCategory" : -1
+              }
+            }
+          }
+        ]
+      },
+      {
+        "primaryKey" : 107925,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
+          "en"
+        ],
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-s-lite-2"
+          }
+        },
+        "categories" : [
+          {
+            "referencedPrimaryKey" : 66486,
+            "attributes" : {
+              "global" : {
+                "orderInCategory" : -1
+              }
+            }
+          }
+        ]
+      },
+      {
+        "primaryKey" : 107926,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
+          "en"
+        ],
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-s-lite-3"
+          }
+        },
+        "categories" : [
+          {
+            "referencedPrimaryKey" : 66486,
+            "attributes" : {
+              "global" : {
+                "orderInCategory" : -1
+              }
+            }
+          }
+        ]
+      },
+      {
+        "primaryKey" : 107933,
+        "type" : "Product",
+        "version" : 2,
+        "scope" : "LIVE",
+        "allLocales" : [
+          "en"
+        ],
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-u"
+          }
+        },
+        "categories" : [
+          {
+            "referencedPrimaryKey" : 66486,
+            "attributes" : {
+              "global" : {
+                "orderInCategory" : 107923
+              }
+            }
+          }
+        ]
+      },
+      {
+        "primaryKey" : 107934,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
+          "en"
+        ],
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-u-1"
+          }
+        },
+        "categories" : [
+          {
+            "referencedPrimaryKey" : 66486,
+            "attributes" : {
+              "global" : {
+                "orderInCategory" : -1
+              }
+            }
+          }
+        ]
+      },
+      {
+        "primaryKey" : 107935,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
+          "en"
+        ],
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-u-2"
+          }
+        },
+        "categories" : [
+          {
+            "referencedPrimaryKey" : 66486,
+            "attributes" : {
+              "global" : {
+                "orderInCategory" : -1
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "type" : "PAGE",
+    "totalRecordCount" : 501,
+    "first" : true,
+    "last" : false,
+    "hasPrevious" : false,
+    "hasNext" : true,
+    "singlePage" : false,
+    "empty" : false,
+    "pageSize" : 20,
+    "pageNumber" : 1,
+    "lastPageNumber" : 26,
+    "firstPageItemNumber" : 0,
+    "lastPageItemNumber" : 19
+  }
+}
+```

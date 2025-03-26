@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,17 +26,22 @@ package io.evitadb.core.query.sort.attribute.translator;
 import com.carrotsearch.hppc.IntContainer;
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
+import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.query.order.EntityGroupProperty;
 import io.evitadb.api.query.order.EntityProperty;
+import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.structure.ReferenceComparator;
 import io.evitadb.api.requestResponse.data.structure.ReferenceDecorator;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.QueryPlan;
 import io.evitadb.core.query.QueryPlanningContext;
+import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
+import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.sort.ConditionalSorter;
 import io.evitadb.core.query.sort.Sorter;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -47,6 +52,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Locale;
+import java.util.Set;
 import java.util.function.Function;
 
 import static java.util.Optional.ofNullable;
@@ -73,12 +79,12 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 	 * The ordering constraint that should be used when preparing nested {@link QueryPlan}. We need to propagate this
 	 * constraint later to this point of execution.
 	 */
-	@Nullable @Getter private EntityProperty orderBy;
+	@Nullable @Getter private EntityPropertyWithScopes orderBy;
 	/**
 	 * The ordering constraint that should be used when preparing nested {@link QueryPlan}. We need to propagate this
 	 * constraint later to this point of execution.
 	 */
-	@Nullable @Getter private EntityGroupProperty groupOrderBy;
+	@Nullable @Getter private EntityGroupPropertyWithScopes groupOrderBy;
 	/**
 	 * Locale valid for nested scope (if set on particular scope level).
 	 */
@@ -118,11 +124,14 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 		if (firstApplicableSorter == null) {
 			return filteredEntities;
 		} else {
-			final int[] result = new int[filteredEntities.length];
+			// if the input filtered entities contains duplicates, this will make distinct bitmap
+			final Formula input = ArrayUtils.isEmpty(filteredEntities) ?
+				EmptyFormula.INSTANCE : new ConstantFormula(new BaseBitmap(filteredEntities));
+			final int inputSize = input.compute().size();
+			final int[] result = new int[inputSize];
 			firstApplicableSorter.sortAndSlice(
 				theSorter.queryContext(),
-				new ConstantFormula(new BaseBitmap(filteredEntities)),
-				0, filteredEntities.length,
+				input, 0, inputSize,
 				result, 0
 			);
 			return result;
@@ -141,15 +150,15 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 		this.groupSorter = base.groupSorter;
 	}
 
-	public void setOrderBy(@Nullable EntityProperty orderBy) {
+	public void setOrderBy(@Nonnull EntityProperty orderBy, @Nonnull Set<Scope> scope) {
 		Assert.isTrue(
 			this.orderBy == null,
 			"The constraint `entityProperty` could be used only once within `referenceProperty` parent container!"
 		);
-		this.orderBy = orderBy;
+		this.orderBy = new EntityPropertyWithScopes(orderBy, scope);
 	}
 
-	public void setGroupOrderBy(@Nullable EntityGroupProperty groupOrderBy) {
+	public void setGroupOrderBy(@Nonnull EntityGroupProperty groupOrderBy, @Nonnull Set<Scope> scope) {
 		Assert.isTrue(
 			this.groupOrderBy == null,
 			"The constraint `entityGroupProperty` could be used only once within `referenceProperty` parent container!"
@@ -158,7 +167,7 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 			this.orderBy == null,
 			"Sorting by group property in a second dimension has no sense! It will have no effect."
 		);
-		this.groupOrderBy = groupOrderBy;
+		this.groupOrderBy = new EntityGroupPropertyWithScopes(groupOrderBy, scope);
 	}
 
 	/**
@@ -190,8 +199,8 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 	 * preceded by {@link #setSorter(QueryExecutionContext, Sorter)} call.
 	 */
 	public void setFilteredEntities(
-		@Nullable int[] filteredEntities,
-		@Nullable int[] filteredEntityGroups,
+		@Nonnull int[] filteredEntities,
+		@Nonnull int[] filteredEntityGroups,
 		@Nonnull Function<Integer, int[]> groupToReferencedEntityIdTranslator
 	) {
 		this.entitiesFound = filteredEntities;
@@ -200,12 +209,12 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 			this.sortedEntityIndexes[i] = i;
 		}
 		if (!ArrayUtils.isEmpty(filteredEntities)) {
-			if (groupSorter == null) {
-				final int[] sortedEntities = getSortedEntities(filteredEntities, sorter);
+			if (this.groupSorter == null) {
+				final int[] sortedEntities = getSortedEntities(filteredEntities, this.sorter);
 				ArrayUtils.sortSecondAlongFirstArray(sortedEntities, this.sortedEntityIndexes);
 			} else {
-				final int[] sortedGroupEntities = getSortedEntities(filteredEntityGroups, groupSorter);
-				final int[] sortedEntities = getSortedEntities(filteredEntities, sorter);
+				final int[] sortedGroupEntities = getSortedEntities(filteredEntityGroups, this.groupSorter);
+				final int[] sortedEntities = getSortedEntities(filteredEntities, this.sorter);
 				final IntSet filteredEntitySet = new IntHashSet(filteredEntities.length);
 				for (int entityPk : filteredEntities) {
 					filteredEntitySet.add(entityPk);
@@ -247,8 +256,9 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 
 	@Override
 	public int compare(ReferenceContract o1, ReferenceContract o2) {
-		final int o1Index = o1 == null ? -1 : Arrays.binarySearch(entitiesFound, o1.getReferencedPrimaryKey());
-		final int o2Index = o2 == null ? -1 : Arrays.binarySearch(entitiesFound, o2.getReferencedPrimaryKey());
+		Assert.isPremiseValid(this.entitiesFound != null && this.sortedEntityIndexes != null, "The comparator is not initialized!");
+		final int o1Index = o1 == null ? -1 : Arrays.binarySearch(this.entitiesFound, o1.getReferencedPrimaryKey());
+		final int o2Index = o2 == null ? -1 : Arrays.binarySearch(this.entitiesFound, o2.getReferencedPrimaryKey());
 		final int o1Position = o1Index < 0 ? -1 : this.sortedEntityIndexes[o1Index];
 		final int o2Position = o2Index < 0 ? -1 : this.sortedEntityIndexes[o2Index];
 		if (o1Position >= 0 && o2Position >= 0) {
@@ -290,6 +300,50 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 		@Nonnull QueryExecutionContext queryContext,
 		@Nullable Sorter sorter
 	) {
+
+	}
+
+	/**
+	 * This record encapsulates an `EntityProperty` instance along with its associated `Scope` set.
+	 *
+	 * `EntityPropertyWithScopes` is used to specify the ordering property and the applicable scopes
+	 * in operations requiring entity sorting or selection based on the referenced entity's attributes.
+	 */
+	public record EntityPropertyWithScopes(
+		@Nonnull EntityProperty orderBy,
+		@Nonnull Set<Scope> scopes
+	) {
+
+		/**
+		 * Creates a standalone {@link OrderBy} constraint that can be used in the main query.
+		 * @return a standalone {@link OrderBy} constraint
+		 */
+		@Nonnull
+		public OrderBy createStandaloneOrderBy() {
+			return QueryConstraints.orderBy(this.orderBy.getChildren());
+		}
+
+	}
+
+	/**
+	 * This record encapsulates an `EntityGroupProperty` instance along with its associated `Scope` set.
+	 *
+	 * `EntityGroupPropertyWithScopes` is used to specify the ordering property and the applicable scopes
+	 * in operations requiring entity sorting or selection based on the referenced entity's attributes.
+	 */
+	public record EntityGroupPropertyWithScopes(
+		@Nonnull EntityGroupProperty orderBy,
+		@Nonnull Set<Scope> scopes
+	) {
+
+		/**
+		 * Creates a standalone {@link OrderBy} constraint that can be used in the main query.
+		 * @return a standalone {@link OrderBy} constraint
+		 */
+		@Nonnull
+		public OrderBy createStandaloneOrderBy() {
+			return QueryConstraints.orderBy(this.orderBy.getChildren());
+		}
 
 	}
 }

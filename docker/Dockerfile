@@ -12,6 +12,9 @@ ENV SYSTEM_API_PORT="5555"
 
 ## 2. Environment variables, MAY BE overriden in container ##
 
+## set to TRUE to fail on unknown properties in configuration files
+ENV EVITA_STRICT_CONFIG_FILE_CHECK="false"
+
 ## using volumes:
 
 ## folder with configuration files, all of them are applied one on top of another in alphabetical order

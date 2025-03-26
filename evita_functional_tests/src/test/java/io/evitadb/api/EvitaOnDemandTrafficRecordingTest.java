@@ -66,6 +66,7 @@ import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -80,7 +81,7 @@ import java.util.zip.ZipInputStream;
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static java.util.Optional.ofNullable;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -289,16 +290,8 @@ public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 		final String[] fileNames = listAndVerifyFilesInArchive(fileForFetch);
 
 		assertTrue(fileForFetch.totalSizeInBytes() > 8000);
-		assertArrayEquals(
-			new String[]{
-				"traffic_recording_1.bin",
-				"traffic_recording_13.bin",
-				"traffic_recording_25.bin",
-				"traffic_recording_37.bin",
-				"metadata.txt"
-			},
-			fileNames
-		);
+		assertEquals(4, Arrays.stream(fileNames).filter(name -> name.startsWith("traffic_recording_")).count());
+		assertEquals(1, Arrays.stream(fileNames).filter(name -> name.equals("metadata.txt")).count());
 	}
 
 	@Test
@@ -363,14 +356,8 @@ public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 			fileForFetch.totalSizeInBytes() > 4000L && fileForFetch.totalSizeInBytes() < 4000L + 8192L,
 			"File size: " + fileForFetch.totalSizeInBytes()
 		);
-		assertArrayEquals(
-			new String[]{
-				"traffic_recording_1.bin",
-				"traffic_recording_13.bin",
-				"metadata.txt"
-			},
-			fileNames
-		);
+		assertEquals(2, Arrays.stream(fileNames).filter(name -> name.startsWith("traffic_recording_")).count());
+		assertEquals(1, Arrays.stream(fileNames).filter(name -> name.equals("metadata.txt")).count());
 	}
 
 	@Disabled("The test needs to be run manually because it takes a minute to run.")

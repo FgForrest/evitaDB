@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.api.query.order;
 
+import io.evitadb.api.query.ConstraintWithDefaults;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.PriceConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
@@ -72,7 +73,7 @@ import java.util.Arrays;
 	userDocsLink = "/documentation/query/ordering/price#price-discount",
 	supportedIn = { ConstraintDomain.ENTITY }
 )
-public class PriceDiscount extends AbstractOrderConstraintLeaf implements PriceConstraint<OrderConstraint> {
+public class PriceDiscount extends AbstractOrderConstraintLeaf implements ConstraintWithDefaults<OrderConstraint>, PriceConstraint<OrderConstraint> {
 	@Serial private static final long serialVersionUID = 994029933423451186L;
 
 	private PriceDiscount(Serializable... arguments) {
@@ -127,9 +128,14 @@ public class PriceDiscount extends AbstractOrderConstraintLeaf implements PriceC
 	@Nonnull
 	@Override
 	public Serializable[] getArgumentsExcludingDefaults() {
-		return Arrays.stream(super.getArgumentsExcludingDefaults())
+		return Arrays.stream(getArguments())
 			.filter(it -> it != OrderDirection.DESC)
 			.toArray(Serializable[]::new);
+	}
+
+	@Override
+	public boolean isArgumentImplicit(@Nonnull Serializable serializable) {
+		return serializable == OrderDirection.DESC;
 	}
 
 	@Nonnull

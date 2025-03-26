@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -42,7 +42,7 @@ import java.util.Comparator;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
 @NotThreadSafe
-public class ObjArrayChanges<T extends Comparable<T>> {
+public class ObjArrayChanges<T> {
 	/**
 	 * Unmodifiable underlying array.
 	 */
@@ -66,7 +66,7 @@ public class ObjArrayChanges<T extends Comparable<T>> {
 	 * Temporary intermediate result of the last {@link #getMergedArray()} operation. Nullified immediately with next
 	 * change.
 	 */
-	private T[] memoizedMergedArray;
+	@Nullable private T[] memoizedMergedArray;
 
 	/**
 	 * Computes closest modification operation that should occur upon the original array.
@@ -348,7 +348,7 @@ public class ObjArrayChanges<T extends Comparable<T>> {
 	/**
 	 * Bucket contains all records on certain position.
 	 */
-	private static class InsertionBucket<T extends Comparable<T>> {
+	private static class InsertionBucket<T> {
 		@Getter private T[] insertedValues;
 
 		@SuppressWarnings("unchecked")

@@ -129,6 +129,7 @@ import io.evitadb.store.spi.EntityCollectionPersistenceService.EntityWithFetchCo
 import io.evitadb.store.spi.HeaderInfoSupplier;
 import io.evitadb.store.spi.StoragePartPersistenceService;
 import io.evitadb.store.spi.TrafficRecorder;
+import io.evitadb.store.spi.chunk.ServerChunkTransformerAccessor;
 import io.evitadb.store.spi.model.EntityCollectionHeader;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -454,7 +455,8 @@ public final class EntityCollection implements
 				referenceEntityFetch,
 				evitaRequest.getDefaultReferenceRequirement(),
 				queryContext.createExecutionContext(),
-				entity
+				entity,
+				new ServerChunkTransformerAccessor(evitaRequest)
 			);
 
 		// record query information
@@ -1194,7 +1196,8 @@ public final class EntityCollection implements
 					partiallyLoadedEntity.getAssociatedDataPredicate(),
 					new ReferenceContractSerializablePredicate(true),
 					partiallyLoadedEntity.getPricePredicate(),
-					this.dataStoreReader
+					this.dataStoreReader,
+					partiallyLoadedEntity.getDelegate().getReferenceChunkTransformer()
 				);
 				//noinspection unchecked
 				return (T) ServerEntityDecorator.decorate(
@@ -1858,7 +1861,8 @@ public final class EntityCollection implements
 			newAssociatedDataPredicate,
 			newReferenceContractPredicate,
 			newPriceContractPredicate,
-			this.dataStoreReader
+			this.dataStoreReader,
+			new ServerChunkTransformerAccessor(evitaRequest)
 		);
 		return ServerEntityDecorator.decorate(
 			// load all missing data according to current evita request
@@ -1981,7 +1985,8 @@ public final class EntityCollection implements
 				evitaRequest.getHierarchyContent(),
 				referenceEntityFetch,
 				evitaRequest.getDefaultReferenceRequirement(),
-				queryContext.createExecutionContext()
+				queryContext.createExecutionContext(),
+				new ServerChunkTransformerAccessor(evitaRequest)
 			);
 	}
 

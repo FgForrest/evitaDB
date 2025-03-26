@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -38,6 +38,7 @@ import net.openhft.hashing.LongHashFunction;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
@@ -59,6 +60,11 @@ import java.util.stream.Stream;
  */
 public class PreSortedRecordsSorter extends AbstractRecordsSorter implements CacheableSorter, ConditionalSorter {
 	private static final long CLASS_ID = 795011057191754417L;
+
+	/**
+	 * Contains the mode for combining multiple {@link SortedRecordsProvider} together.
+	 */
+	private final MergeMode mergeMode;
 	/**
 	 * This callback will be called when this sorter is computed.
 	 */
@@ -67,6 +73,11 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter implements Cac
 	 * This instance will be used by this sorter to access pre sorted arrays of entities.
 	 */
 	private final Supplier<SortedRecordsProvider[]> sortedRecordsSupplier;
+	/**
+	 * The {@link Comparator} instance used for sorting records when {@link MergeMode#APPEND_FIRST} is used and multiple
+	 * {@link SortedRecordsProvider} are provided and needs to be merged together.
+	 */
+	@SuppressWarnings("rawtypes") private final Comparator comparator;
 	/**
 	 * This sorter instance will be used for sorting entities, that cannot be sorted by this sorter.
 	 */
@@ -94,19 +105,25 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter implements Cac
 	/**
 	 * Contains memoized value of {@link #getSortedRecordsProviders()} method.
 	 */
-	private MergedSortedRecordsSupplier memoizedResult;
+	private MergedSortedRecordsSupplierContract memoizedResult;
 
 	public PreSortedRecordsSorter(
+		@Nonnull MergeMode mergeMode,
+		@SuppressWarnings("rawtypes") @Nullable Comparator comparator,
 		@Nonnull Supplier<SortedRecordsProvider[]> sortedRecordsSupplier
 	) {
-		this(null, sortedRecordsSupplier, null);
+		this(null, mergeMode, comparator, sortedRecordsSupplier, null);
 	}
 
 	private PreSortedRecordsSorter(
 		@Nullable Consumer<CacheableSorter> computationCallback,
+		@Nonnull MergeMode mergeMode,
+		@SuppressWarnings("rawtypes") @Nullable Comparator comparator,
 		@Nonnull Supplier<SortedRecordsProvider[]> sortedRecordsSupplier,
 		@Nullable Sorter unknownRecordIdsSorter
 	) {
+		this.mergeMode = mergeMode;
+		this.comparator = comparator;
 		this.computationCallback = computationCallback;
 		this.sortedRecordsSupplier = sortedRecordsSupplier;
 		this.unknownRecordIdsSorter = unknownRecordIdsSorter;
@@ -139,8 +156,10 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter implements Cac
 	@Override
 	public Sorter cloneInstance() {
 		return new PreSortedRecordsSorter(
-			computationCallback,
-			sortedRecordsSupplier,
+			this.computationCallback,
+			this.mergeMode,
+			this.comparator,
+			this.sortedRecordsSupplier,
 			null
 		);
 	}
@@ -149,8 +168,10 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter implements Cac
 	@Override
 	public Sorter andThen(Sorter sorterForUnknownRecords) {
 		return new PreSortedRecordsSorter(
-			computationCallback,
-			sortedRecordsSupplier,
+			this.computationCallback,
+			this.mergeMode,
+			this.comparator,
+			this.sortedRecordsSupplier,
 			sorterForUnknownRecords
 		);
 	}
@@ -158,7 +179,7 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter implements Cac
 	@Nullable
 	@Override
 	public Sorter getNextSorter() {
-		return unknownRecordIdsSorter;
+		return this.unknownRecordIdsSorter;
 	}
 
 	@Override
@@ -239,8 +260,10 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter implements Cac
 	public CacheableSorter getCloneWithComputationCallback(@Nonnull Consumer<CacheableSorter> selfOperator) {
 		return new PreSortedRecordsSorter(
 			selfOperator,
-			sortedRecordsSupplier,
-			unknownRecordIdsSorter
+			this.mergeMode,
+			this.comparator,
+			this.sortedRecordsSupplier,
+			this.unknownRecordIdsSorter
 		);
 	}
 
@@ -250,25 +273,53 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter implements Cac
 	}
 
 	@Nonnull
-	public MergedSortedRecordsSupplier getMemoizedResult() {
-		if (memoizedResult == null) {
+	public MergedSortedRecordsSupplierContract getMemoizedResult() {
+		if (this.memoizedResult == null) {
 			final SortedRecordsProvider[] sortedRecordsProviders = getSortedRecordsProviders();
-			memoizedResult = new MergedSortedRecordsSupplier(
-				sortedRecordsProviders,
-				unknownRecordIdsSorter
-			);
-			if (computationCallback != null) {
-				computationCallback.accept(this);
+			this.memoizedResult = this.mergeMode == MergeMode.APPEND_ALL ?
+				new MergedSortedRecordsSupplier(
+					sortedRecordsProviders,
+					this.unknownRecordIdsSorter
+				) :
+				new MergedComparableSortedRecordsSupplier(
+					this.comparator,
+					sortedRecordsProviders,
+					this.unknownRecordIdsSorter
+				);
+			if (this.computationCallback != null) {
+				this.computationCallback.accept(this);
 			}
 		}
-		return memoizedResult;
+		return this.memoizedResult;
 	}
 
 	@Nonnull
 	private SortedRecordsProvider[] getSortedRecordsProviders() {
-		if (memoizedSortedRecordsProviders == null) {
-			memoizedSortedRecordsProviders = sortedRecordsSupplier.get();
+		if (this.memoizedSortedRecordsProviders == null) {
+			this.memoizedSortedRecordsProviders = this.sortedRecordsSupplier.get();
 		}
-		return memoizedSortedRecordsProviders;
+		return this.memoizedSortedRecordsProviders;
 	}
+
+	/**
+	 * Enum representing the modes of merging sorted records in the {@code PreSortedRecordsSorter}.
+	 * This enum defines the strategies for combining multiple sorted records from different providers
+	 * with behavior determined by the mode selected.
+	 */
+	public enum MergeMode {
+
+		/**
+		 * This mode will append all sorted records from first {@link SortedRecordsProvider}, then second, etc. until all
+		 * sorted records are consumed. Duplicate record records are eliminated from the result.
+		 */
+		APPEND_ALL,
+		/**
+		 * This mode will append sorted record one by one from each {@link SortedRecordsProvider} selecting next one
+		 * using provided {@link java.util.Comparator} instance applied on first element from each provider.
+		 * Duplicate record records are eliminated from the result.
+		 */
+		APPEND_FIRST
+
+	}
+
 }

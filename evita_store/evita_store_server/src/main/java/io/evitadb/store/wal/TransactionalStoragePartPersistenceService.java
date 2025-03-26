@@ -266,7 +266,7 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 	}
 
 	@Override
-	public void purgeHistoryEqualAndLaterThan(@Nullable Long minimalActiveCatalogVersion) {
+	public void purgeHistoryOlderThan(long lastKnownMinimalActiveVersion) {
 		// do nothing, transactional storage has always single reader
 	}
 

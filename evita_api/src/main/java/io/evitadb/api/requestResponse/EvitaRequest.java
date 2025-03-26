@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,7 +25,6 @@ package io.evitadb.api.requestResponse;
 
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.exception.EntityCollectionRequiredException;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
@@ -35,8 +34,13 @@ import io.evitadb.api.query.head.Label;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.*;
 import io.evitadb.api.query.visitor.ConstraintCloneVisitor;
+import io.evitadb.api.requestResponse.chunk.ChunkTransformer;
+import io.evitadb.api.requestResponse.chunk.NoTransformer;
+import io.evitadb.api.requestResponse.chunk.PageTransformer;
+import io.evitadb.api.requestResponse.chunk.StripTransformer;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
@@ -49,6 +53,7 @@ import java.time.OffsetDateTime;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.*;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static io.evitadb.api.query.QueryConstraints.collection;
@@ -110,15 +115,19 @@ public class EvitaRequest {
 	@Nullable private Boolean requiresHierarchyParents;
 	@Nullable private Integer limit;
 	@Nullable private EvitaRequest.ResultForm resultForm;
+	@Nullable private FacetRelationType defaultFacetRelationType;
+	@Nullable private FacetRelationType defaultGroupRelationType;
 	@Nullable private Map<String, FacetFilterBy> facetGroupConjunction;
 	@Nullable private Map<String, FacetFilterBy> facetGroupDisjunction;
 	@Nullable private Map<String, FacetFilterBy> facetGroupNegation;
+	@Nullable private Map<String, FacetFilterBy> facetGroupExclusivity;
 	private Boolean queryTelemetryRequested;
 	@Nullable private EnumSet<DebugMode> debugModes;
-	private Scope[] scopesAsArray;
+	@Nullable private Scope[] scopesAsArray;
 	@Nullable private Set<Scope> scopes;
 	@Nullable private Map<String, RequirementContext> entityFetchRequirements;
 	@Nullable private RequirementContext defaultReferenceRequirement;
+	@Nullable private Function<String, ChunkTransformer> referenceChunkTransformer;
 
 	/**
 	 * Parses the requirement context from the passed {@link ReferenceContent} and {@link AttributeContent}.
@@ -134,7 +143,25 @@ public class EvitaRequest {
 			referenceContent.getEntityRequirement().orElse(null),
 			referenceContent.getGroupEntityRequirement().orElse(null),
 			referenceContent.getFilterBy().orElse(null),
-			referenceContent.getOrderBy().orElse(null)
+			referenceContent.getOrderBy().orElse(null),
+			referenceContent.getChunking()
+				.map(chunking -> {
+					if (chunking instanceof Page page) {
+						return new PageTransformer(
+							page,
+							page.getSpacing()
+								.stream()
+								.flatMap(it -> Arrays.stream(it.getGaps()))
+								.map(it -> new ConditionalGap(it.getSize(), it.getOnPage()))
+								.toArray(ConditionalGap[]::new)
+						);
+					} else if (chunking instanceof Strip strip) {
+						return new StripTransformer(strip);
+					} else {
+						throw new EvitaInvalidUsageException("Unsupported chunking type: " + chunking.getClass().getSimpleName());
+					}
+				})
+				.orElse(NoTransformer.INSTANCE)
 		);
 	}
 
@@ -197,6 +224,7 @@ public class EvitaRequest {
 		this.expectedType = evitaRequest.expectedType;
 		this.debugModes = evitaRequest.debugModes;
 		this.scopes = evitaRequest.scopes;
+		this.scopesAsArray = evitaRequest.scopesAsArray;
 	}
 
 	public EvitaRequest(
@@ -276,6 +304,7 @@ public class EvitaRequest {
 		this.expectedType = evitaRequest.expectedType;
 		this.debugModes = evitaRequest.debugModes;
 		this.scopes = evitaRequest.scopes;
+		this.scopesAsArray = evitaRequest.scopesAsArray;
 	}
 
 	public EvitaRequest(
@@ -341,6 +370,8 @@ public class EvitaRequest {
 		this.expectedType = evitaRequest.expectedType;
 		this.debugModes = null;
 		this.scopes = scopes;
+		this.scopesAsArray = this.scopes == null ?
+			null : this.scopes.toArray(Scope[]::new);
 	}
 
 	/**
@@ -369,17 +400,6 @@ public class EvitaRequest {
 				.orElse(Label.EMPTY_ARRAY);
 		}
 		return this.labels;
-	}
-
-	/**
-	 * Returns type of the entity this query targets. Allows to choose proper {@link EntityCollectionContract}.
-	 */
-	@Nonnull
-	public String getEntityTypeOrThrowException(@Nonnull String purpose) {
-		final Collection header = query.getCollection();
-		return ofNullable(header)
-			.map(Collection::getEntityType)
-			.orElseThrow(() -> new EntityCollectionRequiredException(purpose));
 	}
 
 	/**
@@ -722,6 +742,50 @@ public class EvitaRequest {
 	}
 
 	/**
+	 * Retrieves the default facet relation type for the current configuration.
+	 * If the default facet relation type is not already defined, it initializes the value
+	 * based on the facet calculation rules found in the query. If no custom rules are provided,
+	 * the default facet relation type will be set to {@link FacetRelationType#DISJUNCTION}.
+	 *
+	 * @return The default {@link FacetRelationType} used for facets within the same group.
+	 */
+	@Nonnull
+	public FacetRelationType getDefaultFacetRelationType() {
+		if (this.defaultFacetRelationType == null) {
+			final Optional<FacetCalculationRules> customRules = ofNullable(QueryUtils.findRequire(this.query, FacetCalculationRules.class));
+			this.defaultFacetRelationType = customRules
+				.map(FacetCalculationRules::getFacetsWithSameGroupRelationType)
+				.orElse(FacetRelationType.DISJUNCTION);
+			this.defaultGroupRelationType = customRules
+				.map(FacetCalculationRules::getFacetsWithDifferentGroupsRelationType)
+				.orElse(FacetRelationType.CONJUNCTION);
+		}
+		return this.defaultFacetRelationType;
+	}
+
+	/**
+	 * Retrieves the default group relation type for facets. This method determines the relation type
+	 * applied to facets belonging to different groups. If not previously set, it evaluates custom
+	 * rules from the query context.
+	 * If custom rules are not provided, the default is set to {@link FacetRelationType#CONJUNCTION}.
+	 *
+	 * @return The default relation type for facets in different groups.
+	 */
+	@Nonnull
+	public FacetRelationType getDefaultGroupRelationType() {
+		if (this.defaultGroupRelationType == null) {
+			final Optional<FacetCalculationRules> customRules = ofNullable(QueryUtils.findRequire(this.query, FacetCalculationRules.class));
+			this.defaultFacetRelationType = customRules
+				.map(FacetCalculationRules::getFacetsWithSameGroupRelationType)
+				.orElse(FacetRelationType.DISJUNCTION);
+			this.defaultGroupRelationType = customRules
+				.map(FacetCalculationRules::getFacetsWithDifferentGroupsRelationType)
+				.orElse(FacetRelationType.CONJUNCTION);
+		}
+		return this.defaultGroupRelationType;
+	}
+
+	/**
 	 * Returns filter by representing group entity primary keys of `referenceName` facets, that are requested to be
 	 * joined by conjunction (AND) instead of default disjunction (OR).
 	 */
@@ -770,6 +834,23 @@ public class EvitaRequest {
 				});
 		}
 		return ofNullable(this.facetGroupNegation.get(referenceName));
+	}
+
+	/**
+	 * Returns filter by representing group entity primary keys of `referenceName` facets, that are requested to be
+	 * calculated in exclusive fashion (no other facet from same group is selected).
+	 */
+	@Nonnull
+	public Optional<FacetFilterBy> getFacetGroupExclusivity(@Nonnull String referenceName) {
+		if (this.facetGroupExclusivity == null) {
+			this.facetGroupExclusivity = new HashMap<>();
+			QueryUtils.findRequires(this.query, FacetGroupsExclusivity.class)
+				.forEach(it -> {
+					final String reqReferenceName = it.getReferenceName();
+					this.facetGroupExclusivity.put(reqReferenceName, new FacetFilterBy(it.getFacetGroups().orElse(null)));
+				});
+		}
+		return ofNullable(this.facetGroupExclusivity.get(referenceName));
 	}
 
 	/**
@@ -905,6 +986,20 @@ public class EvitaRequest {
 	}
 
 	/**
+	 * Returns transformation function that wraps list of references into appropriate implementation of the chunk
+	 * data structure requested and expected by the client.
+	 */
+	@Nonnull
+	public ChunkTransformer getReferenceChunkTransformer(@Nonnull String referenceName) {
+		if (referenceChunkTransformer == null) {
+			this.referenceChunkTransformer = refName -> ofNullable(getReferenceEntityFetch().get(refName))
+				.map(RequirementContext::referenceChunkTransformer)
+				.orElse(NoTransformer.INSTANCE);
+		}
+		return referenceChunkTransformer.apply(referenceName);
+	}
+
+	/**
 	 * Returns {@link HierarchyWithin} query
 	 */
 	@Nullable
@@ -974,7 +1069,7 @@ public class EvitaRequest {
 	 */
 	@Nonnull
 	public Set<Scope> getScopes() {
-		if (this.scopes == null) {
+		if (this.scopes == null || this.scopesAsArray == null) {
 			this.scopesAsArray = ofNullable(QueryUtils.findFilter(this.query, EntityScope.class))
 				.map(it -> it.getScope().toArray(Scope[]::new))
 				.orElse(Scope.DEFAULT_SCOPES);
@@ -995,7 +1090,7 @@ public class EvitaRequest {
 	public Scope[] getScopesAsArray() {
 		// init scopes
 		getScopes();
-		return this.scopesAsArray;
+		return Objects.requireNonNull(this.scopesAsArray);
 	}
 
 	/**
@@ -1003,8 +1098,8 @@ public class EvitaRequest {
 	 * If there is no pagination in the input query, first page with size of 20 records is used as default.
 	 */
 	private void initPagination() {
-		final Optional<Page> page = ofNullable(QueryUtils.findRequire(this.query, Page.class));
-		final Optional<Strip> strip = ofNullable(QueryUtils.findRequire(this.query, Strip.class));
+		final Optional<Page> page = ofNullable(QueryUtils.findRequire(this.query, Page.class, SeparateEntityContentRequireContainer.class));
+		final Optional<Strip> strip = ofNullable(QueryUtils.findRequire(this.query, Strip.class, SeparateEntityContentRequireContainer.class));
 		if (page.isPresent()) {
 			final Page thePage = page.get();
 			this.limit = thePage.getPageSize();
@@ -1058,7 +1153,8 @@ public class EvitaRequest {
 		@Nullable EntityFetch entityFetch,
 		@Nullable EntityGroupFetch entityGroupFetch,
 		@Nullable FilterBy filterBy,
-		@Nullable OrderBy orderBy
+		@Nullable OrderBy orderBy,
+		@Nonnull ChunkTransformer referenceChunkTransformer
 	) {
 
 		/**

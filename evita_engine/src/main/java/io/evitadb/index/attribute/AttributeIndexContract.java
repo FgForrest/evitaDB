@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ import io.evitadb.store.model.StoragePart;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.util.Collection;
 import java.util.Locale;
 import java.util.Set;
@@ -60,7 +61,7 @@ public interface AttributeIndexContract extends AttributeIndexScopeSpecificContr
 		@Nonnull Set<Locale> allowedLocales,
 		@Nonnull Scope scope,
 		@Nullable Locale locale,
-		@Nonnull Object value,
+		@Nonnull Serializable value,
 		int recordId
 	);
 
@@ -74,7 +75,7 @@ public interface AttributeIndexContract extends AttributeIndexScopeSpecificContr
 		@Nonnull Set<Locale> allowedLocales,
 		@Nonnull Scope scope,
 		@Nullable Locale locale,
-		@Nonnull Object value,
+		@Nonnull Serializable value,
 		int recordId
 	);
 
@@ -85,7 +86,7 @@ public interface AttributeIndexContract extends AttributeIndexScopeSpecificContr
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
-		@Nonnull Object value,
+		@Nonnull Serializable value,
 		int recordId
 	);
 
@@ -98,7 +99,7 @@ public interface AttributeIndexContract extends AttributeIndexScopeSpecificContr
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
-		@Nonnull Object value,
+		@Nonnull Serializable value,
 		int recordId
 	);
 
@@ -111,7 +112,7 @@ public interface AttributeIndexContract extends AttributeIndexScopeSpecificContr
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
-		@Nonnull Object[] value,
+		@Nonnull Serializable[] value,
 		int recordId
 	);
 
@@ -124,7 +125,7 @@ public interface AttributeIndexContract extends AttributeIndexScopeSpecificContr
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
-		@Nonnull Object[] value,
+		@Nonnull Serializable[] value,
 		int recordId
 	);
 
@@ -135,7 +136,7 @@ public interface AttributeIndexContract extends AttributeIndexScopeSpecificContr
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
-		@Nonnull Object value,
+		@Nonnull Serializable value,
 		int recordId
 	);
 
@@ -148,7 +149,7 @@ public interface AttributeIndexContract extends AttributeIndexScopeSpecificContr
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
-		@Nonnull Object value,
+		@Nonnull Serializable value,
 		int recordId
 	);
 
@@ -160,7 +161,7 @@ public interface AttributeIndexContract extends AttributeIndexScopeSpecificContr
 		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
 		@Nonnull Function<String, Class<?>> attributeTypeProvider,
 		@Nullable Locale locale,
-		@Nonnull Object[] value,
+		@Nonnull Serializable[] value,
 		int recordId
 	);
 
@@ -174,7 +175,7 @@ public interface AttributeIndexContract extends AttributeIndexScopeSpecificContr
 	void removeSortAttributeCompound(
 		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
 		@Nullable Locale locale,
-		@Nonnull Object[] value,
+		@Nonnull Serializable[] value,
 		int recordId
 	);
 

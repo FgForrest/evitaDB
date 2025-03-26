@@ -155,6 +155,7 @@ api:                                              # [see API configuration](#api
       tlsMode: null
       keepAlive: null
       tracing:
+        serviceName: evitaDB
         endpoint: null
         protocol: grpc
       allowedEvents: null
@@ -1154,6 +1155,11 @@ pro scraping Prometheus metrics, OTEL trace exporter and Java Flight Recorder ev
     <dd>
         <p>**Default:** `FORCE_NO_TLS`</p>
         <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
+    </dd>
+    <dt>tracing.serviceName</dt>
+    <dd>
+        <p>**Default:** `evitaDB`</p>
+        <p>Specifies the name of the service the traces should be published for.</p>
     </dd>
     <dt>tracing.endpoint</dt>
     <dd>

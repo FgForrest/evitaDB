@@ -6,7 +6,6 @@ POST /rest/evita/Product/query
   },
   "require" : {
     "facetParameterValuesSummary" : {
-      "statisticsDepth" : "COUNTS",
       "requirements" : {
         "entityFetch" : {
           "attributeContent" : [

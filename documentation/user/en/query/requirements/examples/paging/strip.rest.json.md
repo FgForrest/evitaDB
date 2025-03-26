@@ -78,15 +78,15 @@
       "type" : "Product"
     }
   ],
-  "empty" : false,
-  "first" : false,
-  "hasNext" : true,
-  "hasPrevious" : true,
-  "last" : false,
-  "limit" : 19,
-  "offset" : 76,
-  "singlePage" : false,
+  "type" : "STRIP",
   "totalRecordCount" : 4161,
-  "type" : "STRIP"
+  "first" : false,
+  "last" : false,
+  "hasPrevious" : true,
+  "hasNext" : true,
+  "singlePage" : false,
+  "empty" : false,
+  "offset" : 76,
+  "limit" : 19
 }
 ```

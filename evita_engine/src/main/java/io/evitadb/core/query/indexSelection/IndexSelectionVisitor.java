@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -50,9 +50,9 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.CatalogIndexKey;
-import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
+import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.Index;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.bitmap.Bitmap;
@@ -89,17 +89,17 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 		this.queryContext = queryContext;
 		final Set<Scope> allowedScopes = this.queryContext.getScopes();
 		if (this.queryContext.hasEntityGlobalIndex()) {
-			final List<EntityIndex> indexes = Arrays.stream(Scope.values())
+			final List<GlobalEntityIndex> indexes = Arrays.stream(Scope.values())
 				.filter(allowedScopes::contains)
 				.map(it -> this.queryContext.getIndex(new EntityIndexKey(EntityIndexType.GLOBAL, it)))
 				.filter(Optional::isPresent)
 				.map(Optional::get)
-				.map(EntityIndex.class::cast)
+				.map(GlobalEntityIndex.class::cast)
 				.toList();
 			this.targetIndexes.add(
 				new TargetIndexes<>(
 					indexes.stream().map(it -> it.getIndexKey().toString()).collect(Collectors.joining(", ")),
-					EntityIndex.class,
+					GlobalEntityIndex.class,
 					indexes
 				)
 			);

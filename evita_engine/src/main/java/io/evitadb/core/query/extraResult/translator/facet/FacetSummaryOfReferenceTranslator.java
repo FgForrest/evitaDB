@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -191,10 +191,7 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 		}
 		return extraResultPlanner.getEntityCollection(referenceSchema.getReferencedEntityType())
 			.map(collection -> extraResultPlanner.createSorter(
-					orderBy,
-					locale,
-					collection,
-					referenceSchema.getReferencedEntityType(),
+					orderBy, locale, collection,
 					() -> "Facet summary `" + referenceSchema.getName() + "` facet ordering: " + orderBy
 				)
 			)
@@ -238,10 +235,7 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 
 		return extraResultPlanner.getEntityCollection(referenceSchema.getReferencedGroupType())
 			.map(collection -> extraResultPlanner.createSorter(
-					orderBy,
-					locale,
-					collection,
-					referenceSchema.getReferencedGroupType(),
+					orderBy, locale, collection,
 					() -> "Facet summary `" + referenceSchema.getName() + "` group ordering: " + orderBy
 				)
 			)

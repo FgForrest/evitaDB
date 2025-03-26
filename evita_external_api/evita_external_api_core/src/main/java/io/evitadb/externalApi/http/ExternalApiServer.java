@@ -470,7 +470,7 @@ public class ExternalApiServer implements AutoCloseable {
 						unused -> {
 							ConsoleWriter.write(
 								"External APIs stopped in " + StringUtils.formatPreciseNano(System.nanoTime() - start) + ".\n");
-							probesMaintainer.closeProbes();
+							this.probesMaintainer.closeProbes();
 						}
 					);
 			}
@@ -504,6 +504,9 @@ public class ExternalApiServer implements AutoCloseable {
 		final EventLoopGroup workerGroup = EventLoopGroups.newEventLoopGroup(apiOptions.workerGroupThreadsAsInt());
 		serverBuilder
 			.blockingTaskExecutor(evita.getServiceExecutor(), gracefulShutdown)
+			// this may be changed in future versions to a limited set
+			// but without trusting all client IP addresses the client address source wouldn't be evaluated
+			.clientAddressTrustedProxyFilter(inetAddress -> true)
 			.clientAddressSources(
 				ClientAddressSource.ofHeader(HttpHeaderNames.FORWARDED),
 				ClientAddressSource.ofHeader(HttpHeaderNames.X_FORWARDED_FOR),
@@ -596,15 +599,19 @@ public class ExternalApiServer implements AutoCloseable {
 						HttpService service = httpServiceDefinition.service();
 
 						// decorate the service with security decorator
-						service = service.decorate(
-							new HttpServiceSecurityDecorator(
-								apiOptions,
-								ArrayUtils.mergeArrays(
-									new AbstractApiConfiguration[]{configuration},
-									proxyConfigs
+						service = service
+							.decorate(
+								new HttpServiceSecurityDecorator(
+									apiOptions,
+									ArrayUtils.mergeArrays(
+										new AbstractApiConfiguration[]{configuration},
+										proxyConfigs
+									)
 								)
 							)
-						);
+							// and metrics decorator
+							.decorate(new HttpMetricDecorator(registeredApiProvider.getCode()));
+
 						// decorate the service with connection closing decorator if keepAlive is set to false
 						if (!configuration.isKeepAlive()) {
 							service = service.decorate(ConnectionClosingDecorator.INSTANCE);

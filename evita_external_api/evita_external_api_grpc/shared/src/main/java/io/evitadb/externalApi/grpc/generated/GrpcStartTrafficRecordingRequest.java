@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -738,7 +738,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setSamplingRate(int value) {
-
+      
       samplingRate_ = value;
       onChanged();
       return this;
@@ -752,7 +752,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearSamplingRate() {
-
+      
       samplingRate_ = 0;
       onChanged();
       return this;
@@ -783,7 +783,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setExportFile(boolean value) {
-
+      
       exportFile_ = value;
       onChanged();
       return this;
@@ -798,7 +798,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearExportFile() {
-
+      
       exportFile_ = false;
       onChanged();
       return this;
@@ -919,7 +919,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 3;</code>
      */
     public com.google.protobuf.Int64Value.Builder getMaxDurationInMillisecondsBuilder() {
-
+      
       onChanged();
       return getMaxDurationInMillisecondsFieldBuilder().getBuilder();
     }
@@ -946,7 +946,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder>
+        com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder> 
         getMaxDurationInMillisecondsFieldBuilder() {
       if (maxDurationInMillisecondsBuilder_ == null) {
         maxDurationInMillisecondsBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1074,7 +1074,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 4;</code>
      */
     public com.google.protobuf.Int64Value.Builder getMaxFileSizeInBytesBuilder() {
-
+      
       onChanged();
       return getMaxFileSizeInBytesFieldBuilder().getBuilder();
     }
@@ -1101,7 +1101,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 4;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder>
+        com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder> 
         getMaxFileSizeInBytesFieldBuilder() {
       if (maxFileSizeInBytesBuilder_ == null) {
         maxFileSizeInBytesBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1229,7 +1229,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 5;</code>
      */
     public com.google.protobuf.Int64Value.Builder getChunkFileSizeInBytesBuilder() {
-
+      
       onChanged();
       return getChunkFileSizeInBytesFieldBuilder().getBuilder();
     }
@@ -1256,7 +1256,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 5;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder>
+        com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder> 
         getChunkFileSizeInBytesFieldBuilder() {
       if (chunkFileSizeInBytesBuilder_ == null) {
         chunkFileSizeInBytesBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<

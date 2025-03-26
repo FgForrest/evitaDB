@@ -243,21 +243,21 @@
         ]
       },
       {
-        "primaryKey" : 107891,
+        "primaryKey" : 113221,
         "type" : "Product",
-        "version" : 2,
+        "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
           "en"
         ],
         "attributes" : {
           "global" : {
-            "code" : "amazfit-bip-3"
+            "code" : "24p3qw"
           }
         },
         "categories" : [
           {
-            "referencedPrimaryKey" : 66486,
+            "referencedPrimaryKey" : 66483,
             "attributes" : {
               "global" : {
                 "orderInCategory" : -1
@@ -267,127 +267,7 @@
         ]
       },
       {
-        "primaryKey" : 107899,
-        "type" : "Product",
-        "version" : 2,
-        "scope" : "LIVE",
-        "allLocales" : [
-          "en"
-        ],
-        "attributes" : {
-          "global" : {
-            "code" : "amazfit-bip-3-pro"
-          }
-        },
-        "categories" : [
-          {
-            "referencedPrimaryKey" : 66486,
-            "attributes" : {
-              "global" : {
-                "orderInCategory" : 107891
-              }
-            }
-          }
-        ]
-      },
-      {
-        "primaryKey" : 107911,
-        "type" : "Product",
-        "version" : 2,
-        "scope" : "LIVE",
-        "allLocales" : [
-          "en"
-        ],
-        "attributes" : {
-          "global" : {
-            "code" : "amazfit-bip-s"
-          }
-        },
-        "categories" : [
-          {
-            "referencedPrimaryKey" : 66486,
-            "attributes" : {
-              "global" : {
-                "orderInCategory" : 107899
-              }
-            }
-          }
-        ]
-      },
-      {
-        "primaryKey" : 107923,
-        "type" : "Product",
-        "version" : 2,
-        "scope" : "LIVE",
-        "allLocales" : [
-          "en"
-        ],
-        "attributes" : {
-          "global" : {
-            "code" : "amazfit-bip-s-lite"
-          }
-        },
-        "categories" : [
-          {
-            "referencedPrimaryKey" : 66486,
-            "attributes" : {
-              "global" : {
-                "orderInCategory" : 107911
-              }
-            }
-          }
-        ]
-      },
-      {
-        "primaryKey" : 107933,
-        "type" : "Product",
-        "version" : 2,
-        "scope" : "LIVE",
-        "allLocales" : [
-          "en"
-        ],
-        "attributes" : {
-          "global" : {
-            "code" : "amazfit-bip-u"
-          }
-        },
-        "categories" : [
-          {
-            "referencedPrimaryKey" : 66486,
-            "attributes" : {
-              "global" : {
-                "orderInCategory" : 107923
-              }
-            }
-          }
-        ]
-      },
-      {
-        "primaryKey" : 107938,
-        "type" : "Product",
-        "version" : 2,
-        "scope" : "LIVE",
-        "allLocales" : [
-          "en"
-        ],
-        "attributes" : {
-          "global" : {
-            "code" : "amazfit-bip-u-pro"
-          }
-        },
-        "categories" : [
-          {
-            "referencedPrimaryKey" : 66486,
-            "attributes" : {
-              "global" : {
-                "orderInCategory" : 107933
-              }
-            }
-          }
-        ]
-      },
-      {
-        "primaryKey" : 107952,
+        "primaryKey" : 113230,
         "type" : "Product",
         "version" : 1,
         "scope" : "LIVE",
@@ -396,106 +276,226 @@
         ],
         "attributes" : {
           "global" : {
-            "code" : "amazfit-falcon"
+            "code" : "q27p3qw"
           }
         },
         "categories" : [
           {
-            "referencedPrimaryKey" : 66486,
+            "referencedPrimaryKey" : 66483,
             "attributes" : {
               "global" : {
-                "orderInCategory" : 107938
+                "orderInCategory" : 113221
               }
             }
           }
         ]
       },
       {
-        "primaryKey" : 107961,
+        "primaryKey" : 113237,
         "type" : "Product",
-        "version" : 2,
+        "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
           "en"
         ],
         "attributes" : {
           "global" : {
-            "code" : "amazfit-gtr"
+            "code" : "27e3um-bk"
           }
         },
         "categories" : [
           {
-            "referencedPrimaryKey" : 66486,
+            "referencedPrimaryKey" : 66483,
             "attributes" : {
               "global" : {
-                "orderInCategory" : 107952
+                "orderInCategory" : 113230
               }
             }
           }
         ]
       },
       {
-        "primaryKey" : 107973,
+        "primaryKey" : 113242,
         "type" : "Product",
-        "version" : 2,
+        "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
           "en"
         ],
         "attributes" : {
           "global" : {
-            "code" : "amazfit-gtr-2"
+            "code" : "24e3um-bk"
           }
         },
         "categories" : [
           {
-            "referencedPrimaryKey" : 66486,
+            "referencedPrimaryKey" : 66483,
             "attributes" : {
               "global" : {
-                "orderInCategory" : 107961
+                "orderInCategory" : 113237
               }
             }
           }
         ]
       },
       {
-        "primaryKey" : 107981,
+        "primaryKey" : 113248,
         "type" : "Product",
-        "version" : 2,
+        "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
           "en"
         ],
         "attributes" : {
           "global" : {
-            "code" : "amazfit-gtr-2-2022"
+            "code" : "24p2qm"
           }
         },
         "categories" : [
           {
-            "referencedPrimaryKey" : 66486,
+            "referencedPrimaryKey" : 66483,
             "attributes" : {
               "global" : {
-                "orderInCategory" : 107973
+                "orderInCategory" : 113242
+              }
+            }
+          }
+        ]
+      },
+      {
+        "primaryKey" : 113258,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
+          "en"
+        ],
+        "attributes" : {
+          "global" : {
+            "code" : "u34e2m-bk"
+          }
+        },
+        "categories" : [
+          {
+            "referencedPrimaryKey" : 66483,
+            "attributes" : {
+              "global" : {
+                "orderInCategory" : 113248
+              }
+            }
+          }
+        ]
+      },
+      {
+        "primaryKey" : 113265,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
+          "en"
+        ],
+        "attributes" : {
+          "global" : {
+            "code" : "q27b3ma"
+          }
+        },
+        "categories" : [
+          {
+            "referencedPrimaryKey" : 66483,
+            "attributes" : {
+              "global" : {
+                "orderInCategory" : 113258
+              }
+            }
+          }
+        ]
+      },
+      {
+        "primaryKey" : 113271,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
+          "en"
+        ],
+        "attributes" : {
+          "global" : {
+            "code" : "cu34v5cw"
+          }
+        },
+        "categories" : [
+          {
+            "referencedPrimaryKey" : 66483,
+            "attributes" : {
+              "global" : {
+                "orderInCategory" : 113265
+              }
+            }
+          }
+        ]
+      },
+      {
+        "primaryKey" : 113276,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
+          "en"
+        ],
+        "attributes" : {
+          "global" : {
+            "code" : "24v5cw"
+          }
+        },
+        "categories" : [
+          {
+            "referencedPrimaryKey" : 66483,
+            "attributes" : {
+              "global" : {
+                "orderInCategory" : 113271
+              }
+            }
+          }
+        ]
+      },
+      {
+        "primaryKey" : 113279,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
+          "en"
+        ],
+        "attributes" : {
+          "global" : {
+            "code" : "q27v5cw"
+          }
+        },
+        "categories" : [
+          {
+            "referencedPrimaryKey" : 66483,
+            "attributes" : {
+              "global" : {
+                "orderInCategory" : 113276
               }
             }
           }
         ]
       }
     ],
-    "empty" : false,
-    "first" : true,
-    "firstPageItemNumber" : 0,
-    "hasNext" : true,
-    "hasPrevious" : false,
-    "last" : false,
-    "lastPageItemNumber" : 19,
-    "lastPageNumber" : 26,
-    "pageNumber" : 1,
-    "pageSize" : 20,
-    "singlePage" : false,
+    "type" : "PAGE",
     "totalRecordCount" : 501,
-    "type" : "PAGE"
+    "first" : true,
+    "last" : false,
+    "hasPrevious" : false,
+    "hasNext" : true,
+    "singlePage" : false,
+    "empty" : false,
+    "pageSize" : 20,
+    "pageNumber" : 1,
+    "lastPageNumber" : 26,
+    "firstPageItemNumber" : 0,
+    "lastPageItemNumber" : 19
   }
 }
 ```

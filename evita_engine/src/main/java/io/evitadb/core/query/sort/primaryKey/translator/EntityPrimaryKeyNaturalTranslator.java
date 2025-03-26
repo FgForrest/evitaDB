@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,15 +27,18 @@ import io.evitadb.api.query.order.EntityPrimaryKeyNatural;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.comparator.IntComparator;
 import io.evitadb.comparator.IntComparator.IntAscendingComparator;
 import io.evitadb.comparator.IntComparator.IntDescendingComparator;
 import io.evitadb.core.query.sort.EntityComparator;
 import io.evitadb.core.query.sort.OrderByVisitor;
+import io.evitadb.core.query.sort.OrderByVisitor.MergeModeDefinition;
 import io.evitadb.core.query.sort.OrderByVisitor.ProcessingScope;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.attribute.PreSortedRecordsSorter;
+import io.evitadb.core.query.sort.attribute.PreSortedRecordsSorter.MergeMode;
 import io.evitadb.core.query.sort.generic.PrefetchedRecordsSorter;
 import io.evitadb.core.query.sort.primaryKey.ReversedSorter;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
@@ -44,16 +47,14 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.attribute.SortedRecordsSupplier;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.Objects;
 import java.util.stream.Stream;
 
@@ -77,31 +78,40 @@ public class EntityPrimaryKeyNaturalTranslator implements OrderingConstraintTran
 			return orderDirection == OrderDirection.DESC ? Stream.of(ReversedSorter.INSTANCE) : Stream.empty();
 		} else {
 			final EntityIndex[] entityIndices = processingScope.entityIndex();
-			final TransactionalBitmap[] pkBitmaps = new TransactionalBitmap[entityIndices.length];
-			if (orderDirection == OrderDirection.DESC) {
-				for (int i = 0; i < entityIndices.length; i++) {
-					pkBitmaps[i] = getAsTransactionalBitmap(
-						entityIndices[entityIndices.length - i - 1].getAllPrimaryKeys()
-					);
-				}
-			} else {
-				for (int i = 0; i < entityIndices.length; i++) {
-					pkBitmaps[i] = getAsTransactionalBitmap(
-						entityIndices[i].getAllPrimaryKeys()
-					);
-				}
-			}
-
 			final String referenceSchemaName = referenceSchema.getName();
 			return Stream.of(
 				new PreSortedRecordsSorter(
-					() -> Arrays.stream(pkBitmaps)
-						.filter(Objects::nonNull)
+					ofNullable(processingScope.mergeModeDefinition())
+						.map(MergeModeDefinition::mergeMode)
+						.orElse(MergeMode.APPEND_FIRST),
+					orderDirection == OrderDirection.DESC ? Comparator.naturalOrder().reversed() : Comparator.naturalOrder(),
+					() -> Arrays.stream(entityIndices)
 						.map(
-							bitmap -> new SortedRecordsSupplier(
-								bitmap.getId(), bitmap.getArray(), createPositionArray(bitmap.size()), bitmap
-							)
+							entityIndex -> {
+								final Serializable discriminator = entityIndex.getIndexKey().discriminator();
+								final Bitmap bitmap = entityIndex.getAllPrimaryKeys();
+								final int[] pkArray = bitmap.getArray();
+								if (pkArray.length == 0) {
+									return null;
+								} else if (bitmap instanceof TransactionalBitmap txBitmap) {
+									if (discriminator instanceof ReferenceKey referenceKey) {
+										return new SortedRecordsSupplier(
+											txBitmap.getId(), pkArray, createPositionArray(bitmap.size()), bitmap,
+											position -> referenceKey.primaryKey()
+										);
+									} else {
+										throw new GenericEvitaInternalError(
+											"Entity index " + entityIndex + " is expected to be ReducedEntityIndex with ReferenceKey as discriminator!"
+										);
+									}
+								} else {
+									throw new GenericEvitaInternalError(
+										"Bitmap " + bitmap + " is not transactional and cannot be used for sorting!"
+									);
+								}
+							}
 						)
+						.filter(Objects::nonNull)
 						.toArray(SortedRecordsSupplier[]::new)
 				),
 				new PrefetchedRecordsSorter(
@@ -116,31 +126,12 @@ public class EntityPrimaryKeyNaturalTranslator implements OrderingConstraintTran
 	}
 
 	/**
-	 * Returns the given bitmap as a {@link TransactionalBitmap} or null if the bitmap is empty.
-	 *
-	 * @param bitmap the bitmap to be converted
-	 * @return the given bitmap as a {@link TransactionalBitmap} or null if the bitmap is empty
-	 */
-	@Nullable
-	private static TransactionalBitmap getAsTransactionalBitmap(@Nonnull Bitmap bitmap) {
-		if (bitmap instanceof TransactionalBitmap txBitmap) {
-			return txBitmap;
-		} else if (bitmap instanceof EmptyBitmap) {
-			return null;
-		} else {
-			throw new GenericEvitaInternalError(
-				"Unexpected bitmap type: " + bitmap.getClass().getName(),
-				"Unexpected bitmap type!"
-			);
-		}
-	}
-
-	/**
 	 * Creates an array of positions from 0 to size - 1.
 	 *
 	 * @param size the size of the array
 	 * @return an array of positions from 0 to size - 1
 	 */
+	@Nonnull
 	private static int[] createPositionArray(int size) {
 		final int[] result = new int[size];
 		for (int i = 0; i < size; i++) {
@@ -152,9 +143,9 @@ public class EntityPrimaryKeyNaturalTranslator implements OrderingConstraintTran
 	/**
 	 * A comparator that compares entities based on the primary key of the referenced entity.
 	 */
+	@SuppressWarnings("ComparatorNotSerializable")
 	@RequiredArgsConstructor
-	private static class ReferencePrimaryKeyEntityComparator implements EntityComparator, Serializable {
-		@Serial private static final long serialVersionUID = -7648386897749667944L;
+	private static class ReferencePrimaryKeyEntityComparator implements EntityComparator {
 		@Nonnull private final String referenceSchemaName;
 		@Nonnull private final IntComparator comparator;
 		private CompositeObjectArray<EntityContract> nonSortedEntities;

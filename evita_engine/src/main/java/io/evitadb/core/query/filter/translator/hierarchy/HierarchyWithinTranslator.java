@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -125,27 +125,14 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 						queryContext.setRootHierarchyNodesFormula(hierarchyParentFormula);
 
 						final int[] nodeIds = hierarchyParentFormula.compute().stream().toArray();
-						return FormulaFactory.or(
-							createFormulaFromHierarchyIndex(
-								nodeIds,
-								createAndStoreHavingPredicate(
-									nodeIds,
-									queryContext,
-									scopesToLookup,
-									of(new FilterBy(hierarchyWithin.getHavingChildrenFilter()))
-										.filter(ConstraintContainer::isApplicable)
-										.orElse(null),
-									of(new FilterBy(hierarchyWithin.getExcludedChildrenFilter()))
-										.filter(ConstraintContainer::isApplicable)
-										.orElse(null),
-									referenceSchema
-								),
-								hierarchyWithin.isDirectRelation(),
-								hierarchyWithin.isExcludingRoot(),
-								targetEntitySchema,
-								targetEntityIndex,
-								queryContext
-							)
+						return createFormulaFromHierarchyIndex(
+							hierarchyWithin,
+							targetEntityIndex,
+							nodeIds,
+							queryContext,
+							scopesToLookup,
+							referenceSchema,
+							targetEntitySchema
 						);
 					}
 				))
@@ -154,13 +141,72 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 			.orElse(EmptyFormula.INSTANCE);
 	}
 
+	/**
+	 * Creates a {@link Formula} for a given hierarchy index based on the provided parameters.
+	 * The formula represents computational logic to handle hierarchical relationships,
+	 * filtering, and scope constraints for entities within a hierarchy.
+	 *
+	 * @param hierarchyWithin the hierarchy-related constraints to process, containing filtering rules and relational settings.
+	 * @param targetEntityIndex the target {@link EntityIndex} where the computations will run.
+	 * @param nodeIds an array of node identifiers representing hierarchical nodes to be processed.
+	 * @param queryContext the context of the query, providing access to query-level configurations and dependencies.
+	 * @param scopesToLookup a set of {@link Scope} objects representing specific query scopes to consider.
+	 * @param referenceSchema the schema of the reference entity defining structural rules and constraints.
+	 * @param targetEntitySchema the schema of the target entity defining the structure and constraints for the target entity.
+	 * @return the constructed {@link Formula} representing the computation logic for the hierarchy index.
+	 */
 	@Nonnull
-	private static FilterBy createFilter(QueryPlanningContext queryContext, FilterConstraint parentFilter) {
+	public static Formula createFormulaFromHierarchyIndex(
+		@Nonnull HierarchyWithin hierarchyWithin,
+		@Nonnull EntityIndex targetEntityIndex,
+		@Nonnull int[] nodeIds,
+		@Nonnull QueryPlanningContext queryContext,
+		@Nonnull Set<Scope> scopesToLookup,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull EntitySchemaContract targetEntitySchema
+	) {
+		return createFormulaFromHierarchyIndex(
+			nodeIds,
+			createAndStoreHavingPredicate(
+				nodeIds,
+				queryContext,
+				scopesToLookup,
+				of(new FilterBy(hierarchyWithin.getHavingChildrenFilter()))
+					.filter(ConstraintContainer::isApplicable)
+					.orElse(null),
+				of(new FilterBy(hierarchyWithin.getExcludedChildrenFilter()))
+					.filter(ConstraintContainer::isApplicable)
+					.orElse(null),
+				referenceSchema
+			),
+			hierarchyWithin.isDirectRelation(),
+			hierarchyWithin.isExcludingRoot(),
+			targetEntitySchema,
+			targetEntityIndex,
+			queryContext
+		);
+	}
+
+	/**
+	 * Creates a {@link FilterBy} instance based on the provided query context and parent filter constraint.
+	 * This method generates a filter by incorporating a locale-specific filter when the query context
+	 * has a defined locale. If no locale is specified in the query context, it uses the parent filter directly.
+	 *
+	 * @param queryContext the context of the query, used to access configurations, dependencies, and the locale (if available).
+	 * @param parentFilter the parent {@link FilterConstraint} that serves as the base for building the filter structure.
+	 * @return a {@link FilterBy} instance containing the constructed filter constraints.
+	 */
+	@Nonnull
+	private static FilterBy createFilter(@Nonnull QueryPlanningContext queryContext, @Nonnull FilterConstraint parentFilter) {
 		return ofNullable(queryContext.getLocale())
 			.map(locale -> filterBy(parentFilter, entityLocaleEquals(locale)))
 			.orElseGet(() -> filterBy(parentFilter));
 	}
 
+	/**
+	 * Creates a {@link Formula} from a hierarchy index based on the provided inputs.
+	 **/
+	@Nonnull
 	private static Formula createFormulaFromHierarchyIndex(
 		@Nonnull int[] parentIds,
 		@Nullable HierarchyFilteringPredicate excludedChildren,

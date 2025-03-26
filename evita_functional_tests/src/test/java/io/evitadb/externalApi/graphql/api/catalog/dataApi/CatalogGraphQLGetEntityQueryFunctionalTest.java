@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,8 +25,11 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi;
 
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
+import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
+import io.evitadb.api.requestResponse.data.PricesContract.PriceForSaleWithAccompanyingPrices;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
@@ -37,6 +40,9 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
+import io.evitadb.externalApi.api.catalog.dataApi.model.ReferencePageDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceStripDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceForSaleDescriptor;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
@@ -1538,14 +1544,21 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 	@DisplayName("Should return accompanying prices for single price for sale")
 	void shouldReturnAccompanyingPricesForSinglePriceForSale(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final Integer desiredEntity = originalProductEntities.stream()
-			.filter(entity ->
-				entity.getPrices(CURRENCY_CZK).stream()
-					.anyMatch(price -> price.priceList().equals(PRICE_LIST_BASIC)) &&
-					entity.getPrices(CURRENCY_CZK).stream()
-						.anyMatch(price -> price.priceList().equals(PRICE_LIST_REFERENCE)) &&
-					entity.getPrices(CURRENCY_CZK).stream()
-						.anyMatch(price -> price.priceList().equals(PRICE_LIST_VIP)))
-			.map(entity -> entity.getPrimaryKey())
+			.filter(entity -> {
+				final Optional<PriceForSaleWithAccompanyingPrices> prices = entity.getPriceForSaleWithAccompanyingPrices(
+					CURRENCY_CZK,
+					null,
+					new String[]{PRICE_LIST_BASIC},
+					new AccompanyingPrice[]{
+						new AccompanyingPrice(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name(), PRICE_LIST_REFERENCE),
+						new AccompanyingPrice("vipPrice", PRICE_LIST_VIP)
+					}
+				);
+				return prices.isPresent() &&
+					prices.get().accompanyingPrices().get(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name()).isPresent() &&
+					prices.get().accompanyingPrices().get("vipPrice").isPresent();
+			})
+			.map(EntityContract::getPrimaryKey)
 			.findFirst()
 			.orElseThrow();
 
@@ -1607,14 +1620,21 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 	@DisplayName("Should return accompanying prices for single custom price for sale")
 	void shouldReturnAccompanyingPricesForSingleCustomPriceForSale(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final Integer desiredEntity = originalProductEntities.stream()
-			.filter(entity ->
-				entity.getPrices(CURRENCY_CZK).stream()
-					.anyMatch(price -> price.priceList().equals(PRICE_LIST_BASIC)) &&
-					entity.getPrices(CURRENCY_CZK).stream()
-						.anyMatch(price -> price.priceList().equals(PRICE_LIST_REFERENCE)) &&
-					entity.getPrices(CURRENCY_CZK).stream()
-						.anyMatch(price -> price.priceList().equals(PRICE_LIST_VIP)))
-			.map(entity -> entity.getPrimaryKey())
+			.filter(entity -> {
+				final Optional<PriceForSaleWithAccompanyingPrices> prices = entity.getPriceForSaleWithAccompanyingPrices(
+					CURRENCY_CZK,
+					null,
+					new String[]{PRICE_LIST_BASIC},
+					new AccompanyingPrice[]{
+						new AccompanyingPrice(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name(), PRICE_LIST_REFERENCE),
+						new AccompanyingPrice("vipPrice", PRICE_LIST_VIP)
+					}
+				);
+				return prices.isPresent() &&
+					prices.get().accompanyingPrices().get(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name()).isPresent() &&
+					prices.get().accompanyingPrices().get("vipPrice").isPresent();
+			})
+			.map(EntityContract::getPrimaryKey)
 			.findFirst()
 			.orElseThrow();
 
@@ -2114,6 +2134,199 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 						.toArray(Boolean[]::new)
 				)
 			);
+	}
+
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return sublist of references for product")
+	void shouldReturnSublistOfReferencesForProduct(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final var entity = findEntity(
+			originalProductEntities,
+			it -> it.getReferences(Entities.STORE).size() >= 4
+		);
+
+		final var expectedBody = map()
+			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+			.e("store", entity.getReferences(Entities.STORE)
+				.stream()
+				.limit(2)
+				.map(reference ->
+					map()
+						.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
+							.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getReferencedPrimaryKey()))
+						.build())
+				.toList())
+			.build();
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    getProduct(
+	                        code: "%s"
+	                    ) {
+                            primaryKey
+	                        type
+                            store(limit: 2) {
+                                referencedEntity {
+                                    primaryKey
+                                }
+                            }
+                        }
+	                }
+					""",
+				(String) entity.getAttribute(ATTRIBUTE_CODE)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(GET_PRODUCT_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return reference page for product")
+	void shouldReturnReferencePageForProduct(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final var entity = findEntity(
+			originalProductEntities,
+			it -> it.getReferences(Entities.STORE).size() >= 4
+		);
+
+		final var expectedBody = map()
+			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+			.e("storePage", map()
+				.e(ReferencePageDescriptor.TOTAL_RECORD_COUNT.name(), entity.getReferences(Entities.STORE).size())
+				.e(ReferencePageDescriptor.DATA.name(), entity.getReferences(Entities.STORE)
+					.stream()
+					.skip(2)
+					.limit(2)
+					.map(reference ->
+						map()
+							.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
+								.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getReferencedPrimaryKey()))
+							.build())
+					.toList()))
+			.build();
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    getProduct(
+                            code: "%s"
+	                    ) {
+                            primaryKey
+	                        type
+                            storePage(number: 2, size: 2) {
+                                totalRecordCount
+                                data {
+	                                referencedEntity {
+	                                    primaryKey
+	                                }
+                                }
+                            }
+	                    }
+	                }
+					""",
+				(String) entity.getAttribute(ATTRIBUTE_CODE)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(GET_PRODUCT_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return reference strip for product")
+	void shouldReturnReferenceStripForProduct(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final var entity = findEntity(
+			originalProductEntities,
+			it -> it.getReferences(Entities.STORE).size() >= 4
+		);
+
+		final var expectedBody = map()
+			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+			.e("storeStrip", map()
+				.e(ReferenceStripDescriptor.TOTAL_RECORD_COUNT.name(), entity.getReferences(Entities.STORE).size())
+				.e(ReferenceStripDescriptor.DATA.name(), entity.getReferences(Entities.STORE)
+					.stream()
+					.skip(2)
+					.limit(2)
+					.map(reference ->
+						map()
+							.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
+								.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getReferencedPrimaryKey()))
+							.build())
+					.toList()))
+			.build();
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    getProduct(
+                            code: "%s"
+	                    ) {
+                            primaryKey
+	                        type
+                            storeStrip(offset: 2, limit: 2) {
+                                totalRecordCount
+                                data {
+	                                referencedEntity {
+	                                    primaryKey
+	                                }
+                                }
+                            }
+	                    }
+	                }
+					""",
+				(String) entity.getAttribute(ATTRIBUTE_CODE)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(GET_PRODUCT_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should pass query labels")
+	void shouldPassQueryLabels(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final SealedEntity entity = findEntity(
+			originalProductEntities,
+			it -> it.getAttribute(ATTRIBUTE_CODE) != null
+		);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    getProduct(
+	                        labels: [
+	                            {
+							        name: "myLabel1"
+							        value: "myValue1"
+								},
+								{
+							        name: "myLabel2"
+							        value: 100
+								}
+	                        ]
+	                        primaryKey: %d
+                        ) {
+	                        primaryKey
+	                    }
+	                }
+					""",
+				entity.getPrimaryKey()
+			)
+			.executeAndExpectOkAndThen()
+			.body(GET_PRODUCT_PATH, notNullValue());
 	}
 
 	@Nonnull

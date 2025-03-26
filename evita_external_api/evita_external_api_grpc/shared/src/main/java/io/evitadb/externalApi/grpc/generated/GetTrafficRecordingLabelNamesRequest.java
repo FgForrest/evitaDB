@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -537,7 +537,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setLimit(int value) {
-
+      
       limit_ = value;
       onChanged();
       return this;
@@ -551,7 +551,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearLimit() {
-
+      
       limit_ = 0;
       onChanged();
       return this;
@@ -672,7 +672,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue nameStartsWith = 2;</code>
      */
     public com.google.protobuf.StringValue.Builder getNameStartsWithBuilder() {
-
+      
       onChanged();
       return getNameStartsWithFieldBuilder().getBuilder();
     }
@@ -699,7 +699,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue nameStartsWith = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
         getNameStartsWithFieldBuilder() {
       if (nameStartsWithBuilder_ == null) {
         nameStartsWithBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
