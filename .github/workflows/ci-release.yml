@@ -9,6 +9,12 @@ on:
       - completed
     branches:
       - "master"
+  push:
+    branches:
+      - "release_*"
+    paths: # but react only to changes in code or pipeline definition
+      - evita*/**/*.java
+      - evita*/**/pom.xml
 
 jobs:
   build:
