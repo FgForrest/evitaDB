@@ -164,7 +164,7 @@ By simply changing the first argument `traverseByEntityProperty` (`DEPTH_FIRST`)
 
 | Depth first search                                                                                                         | Breadth first search                                                                                         |
 |----------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------|
-| <img alt="Depth first search" height="175" src="/documentation/blog/en/assets/images/Depth-First-Search.gif" width="187"/> | <img height="175" src="documentation/blog/en/assets/images/Breadth-First-Search.gif" width="187"/>   |
+| <img alt="Depth first search" height="175" src="assets/images/Depth-First-Search.gif" width="187"/> | <img height="175" src="assets/images/Breadth-First-Search.gif" width="187"/>   |
 | Source: [Wikipedia](https://en.wikipedia.org/wiki/Depth-first_search)                                                      | Source: [Wikipedia](https://en.wikipedia.org/wiki/Breadth-first_search)                                      |
 
 ### The Relationship Between Traversing and Sorting by the Selected Reference
