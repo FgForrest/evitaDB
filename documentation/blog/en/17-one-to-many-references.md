@@ -66,7 +66,7 @@ ORDER BY
 
 In addition to the query complexity, it is clear at first glance what problems the application developer will have to solve. The query only handles the correct sorting and does not allow for retrieving other product properties. This would require an additional database query or wrapping it in an outer query that would allow fetching. To get the details of the groups the product belongs to, another SQL query would be needed, and then everything would need to be combined in the application logic.
 
-In several NoSQL databases, this problem is even more complicated. Some do not allow simple joining of data between different collections (e.g., Elasticsearch) and rely on denormalization, which brings its own set of problems. In others, such a model could be achieved, but it is still very complex. Here’s how this problem could be approached [for example in MongoDB](/documentation/blog/en/examples/17-one-to-many/mongodb-one-to-many.md).
+In several NoSQL databases, this problem is even more complicated. Some do not allow simple joining of data between different collections (e.g., Elasticsearch) and rely on denormalization, which brings its own set of problems. In others, such a model could be achieved, but it is still very complex. Here’s how this problem could be approached [for example in MongoDB](https://github.com/FgForrest/evitaDB/blob/2b97c42d72b44294e112fab3ce931848eede108c/documentation/blog/en/examples/17-one-to-many/mongodb-one-to-many.md).
 
 In the web environment, such a problem is very common, so we strive to make things easier for developers. In evitaDB, this query would look much simpler:
 
