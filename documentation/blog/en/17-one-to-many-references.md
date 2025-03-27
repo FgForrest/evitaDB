@@ -182,7 +182,7 @@ To avoid pure theoretical discussions, let’s extend our example with an additi
 
 <Note type="info">
 
-For interest, the corresponding SQL query for the same situation could [look like this](./examples/17-one-to-many/postgresql-product-categories-tags.md).
+For interest, the corresponding SQL query for the same situation could [look like this](https://github.com/FgForrest/evitaDB/blob/5d13e61df6368fefd37ddcd7f8fae20a9d498e2a/documentation/blog/en/examples/17-one-to-many/postgresql-product-categories-tags.md).
 
 </Note>
 
@@ -213,21 +213,21 @@ Or into a more complex JSON structure, which allows passing larger amounts of st
 ```sql
 SELECT p.product_id,
     p.product_name,
-    -- Skupiny
+    -- Groups
     JSON_AGG(
             JSON_BUILD_OBJECT(
                     'group_id', g.group_id,
                     'group_name', g.group_name
             )
     ) AS groups,
-    -- Štítky
+    -- Tags
     JSON_AGG(
             JSON_BUILD_OBJECT(
                     'tag_id', t.tag_id,
                     'tag_name', t.tag_name
             )
     ) AS tags,
-    -- Parametry
+    -- Parameters
     JSON_AGG(
             JSON_BUILD_OBJECT(
                     'parameter_id', par.parameter_id,
