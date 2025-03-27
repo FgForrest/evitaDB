@@ -31,8 +31,8 @@ ProductGroup {
     int order
 }
 
-Product ||--o{ ProductGroup : belongs to
-Group   ||--o{ ProductGroup : aggregates
+Product ||--o{ ProductGroup : "belongs to"
+Group   ||--o{ ProductGroup : "aggregates"
 ```
 
 If we were to solve this using a relational database like PostgreSQL, the SQL query might look like this:
