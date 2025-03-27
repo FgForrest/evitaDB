@@ -27,6 +27,8 @@ import io.evitadb.api.requestResponse.data.ContentComparator;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
+import javax.annotation.Nonnull;
+
 /**
  * Class contains evitaDB specific assertion methods.
  *
@@ -38,14 +40,14 @@ public class Assertions {
 	/**
 	 * Executes full contents comparison and fails the test if contents are equal.
 	 */
-	public static <T> void assertDiffers(ContentComparator<T> expected, T actual) {
+	public static <T> void assertDiffers(@Nonnull ContentComparator<T> expected, @Nonnull T actual) {
 		assertDiffers(expected, actual, "Object are equal!");
 	}
 
 	/**
 	 * Executes full contents comparison and fails the test if contents are equal.
 	 */
-	public static <T> void assertDiffers(ContentComparator<T> expected, T actual, String message) {
+	public static <T> void assertDiffers(@Nonnull ContentComparator<T> expected, @Nonnull T actual, @Nonnull String message) {
 		if (!expected.differsFrom(actual)) {
 			org.junit.jupiter.api.Assertions.fail(message + "\nContents:\n" + actual);
 		}
@@ -54,14 +56,14 @@ public class Assertions {
 	/**
 	 * Executes full contents comparison and fails the test if contents are not equal.
 	 */
-	public static <T> void assertExactlyEquals(ContentComparator<T> expected, T actual) {
+	public static <T> void assertExactlyEquals(@Nonnull ContentComparator<T> expected, @Nonnull T actual) {
 		assertExactlyEquals(expected, actual, "Object differ!");
 	}
 
 	/**
 	 * Executes full contents comparison and fails the test if contents are not equal.
 	 */
-	public static <T> void assertExactlyEquals(ContentComparator<T> expected, T actual, String message) {
+	public static <T> void assertExactlyEquals(@Nonnull ContentComparator<T> expected, @Nonnull T actual, @Nonnull String message) {
 		if (expected.differsFrom(actual)) {
 			org.junit.jupiter.api.Assertions.fail(message + "\nExpected:\n" + expected + "\n\nActual:\n" + actual.toString());
 		}
