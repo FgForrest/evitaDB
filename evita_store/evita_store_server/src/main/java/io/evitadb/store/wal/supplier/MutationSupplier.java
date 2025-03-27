@@ -25,13 +25,16 @@ package io.evitadb.store.wal.supplier;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.util.Pool;
+import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.wal.CatalogWriteAheadLog;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.nio.file.Path;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -48,6 +51,7 @@ public final class MutationSupplier extends AbstractMutationSupplier {
 		long requestedCatalogVersion,
 		@Nonnull String catalogName,
 		@Nonnull Path catalogStoragePath,
+		@Nonnull StorageOptions storageOptions,
 		int walFileIndex,
 		@Nonnull Pool<Kryo> catalogKryoPool,
 		@Nonnull ConcurrentHashMap<Integer, TransactionLocations> transactionLocationsCache,
@@ -55,16 +59,19 @@ public final class MutationSupplier extends AbstractMutationSupplier {
 		@Nullable Runnable onClose
 	) {
 		super(
-			catalogVersion, catalogName, catalogStoragePath,
+			catalogVersion, catalogName, catalogStoragePath, storageOptions,
 			walFileIndex, catalogKryoPool, transactionLocationsCache,
 			avoidPartiallyFilledBuffer, onClose
 		);
 		this.requestedCatalogVersion = requestedCatalogVersion;
 	}
 
+	@Nullable
 	@Override
 	public Mutation get() {
-		if (this.transactionMutationRead == 0) {
+		if (this.transactionMutation == null) {
+			return null;
+		} else if (this.transactionMutationRead == 0) {
 			this.transactionMutationRead++;
 			return this.transactionMutation;
 		} else {
@@ -124,12 +131,16 @@ public final class MutationSupplier extends AbstractMutationSupplier {
 	 *
 	 * @return The mutation read from the input stream. Returns null if no mutation is found.
 	 */
-	@Nullable
+	@Nonnull
 	private Mutation readMutation() {
-		final StorageRecord<Mutation> storageRecord = StorageRecord.read(
-			this.observableInput, (stream, length) -> (Mutation) kryo.readClassAndObject(stream)
+		Assert.isPremiseValid(
+			this.observableInput != null,
+			"Observable input is null!"
 		);
-		return storageRecord.payload();
+		final StorageRecord<Mutation> storageRecord = StorageRecord.read(
+			this.observableInput, (stream, length) -> (Mutation) this.kryo.readClassAndObject(stream)
+		);
+		return Objects.requireNonNull(storageRecord.payload());
 	}
 
 }

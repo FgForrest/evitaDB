@@ -770,7 +770,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 					catalogName,
 					FileType.ENTITY_COLLECTION,
 					this.entityCollectionFileReference.entityType(),
-					storageOptions.syncWrites(),
+					storageOptions,
 					this.entityCollectionFile,
 					observableOutputKeeper
 				),
@@ -825,7 +825,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 					catalogName,
 					FileType.ENTITY_COLLECTION,
 					this.entityCollectionFileReference.entityType(),
-					storageOptions.syncWrites(),
+					storageOptions,
 					this.entityCollectionFile,
 					this.observableOutputKeeper
 				),

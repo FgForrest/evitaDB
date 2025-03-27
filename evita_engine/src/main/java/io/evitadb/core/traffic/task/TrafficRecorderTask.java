@@ -226,7 +226,7 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 	/**
 	 * A private static class responsible for exporting session data to a compressed archive. This class implements
 	 * {@link SessionSink} and {@link Closeable}, enabling it to act as a sink for session data and supporting proper
-	 * resource management. The class ensures session data is exported in chunks, handles file compression using
+	 * resource management. The class ensures session data is exported in chunks, handles file compress using
 	 * a zip archive, and maintains metadata about the export operation such as exported size and session count.
 	 */
 	private static class ExportSessionSink implements SessionSink, Closeable {

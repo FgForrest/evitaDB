@@ -23,6 +23,7 @@
 
 package io.evitadb.store.offsetIndex.io;
 
+import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.core.metric.event.storage.ReadOnlyHandleClosedEvent;
 import io.evitadb.core.metric.event.storage.ReadOnlyHandleOpenedEvent;
@@ -70,9 +71,9 @@ public class ReadOnlyFileHandle implements ReadOnlyHandle {
 
 	public ReadOnlyFileHandle(
 		@Nonnull Path targetFile,
-		boolean computeCRC32C
-	) {
-		this(null, null, null, targetFile, computeCRC32C);
+		@Nonnull StorageOptions storageOptions
+		) {
+		this(null, null, null, targetFile, storageOptions);
 	}
 
 	public ReadOnlyFileHandle(
@@ -80,20 +81,25 @@ public class ReadOnlyFileHandle implements ReadOnlyHandle {
 		@Nullable FileType fileType,
 		@Nullable String logicalName,
 		@Nonnull Path targetFile,
-		boolean computeCRC32C
+		@Nonnull StorageOptions storageOptions
 	) {
 		try {
 			this.catalogName = catalogName;
 			this.fileType = fileType;
 			this.logicalName = logicalName;
 			this.targetFile = targetFile;
-			final ObservableInput<RandomAccessFileInputStream> input = new ObservableInput<>(
+			this.readInput = new ObservableInput<>(
 				new RandomAccessFileInputStream(
 					new RandomAccessFile(targetFile.toFile(), "r"),
 					true
 				)
 			);
-			this.readInput = computeCRC32C ? input.computeCRC32() : input;
+			if (storageOptions.computeCRC32C()) {
+				this.readInput.computeCRC32();
+			}
+			if (storageOptions.compress()) {
+				this.readInput.compress();
+			}
 
 			// emit event
 			if (this.catalogName != null && this.fileType != null && this.logicalName != null) {

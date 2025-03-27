@@ -174,7 +174,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 				catalogName,
 				FileType.CATALOG,
 				catalogName,
-				storageOptions.syncWrites(),
+				storageOptions,
 				catalogFilePath,
 				observableOutputKeeper
 			),
@@ -203,6 +203,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 	 */
 	@Nonnull
 	public static CatalogHeader readCatalogHeader(
+		@Nonnull StorageOptions storageOptions,
 		@Nonnull Path catalogFilePath,
 		@Nonnull CatalogBootstrap catalogBootstrap,
 		@Nonnull OffsetIndexRecordTypeRegistry recordRegistry
@@ -211,6 +212,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		Assert.isPremiseValid(fileLocation != null, "File location must be present for catalog");
 		final RecordKey catalogHeaderRecord = new RecordKey(recordRegistry.idFor(CatalogHeader.class), 1L);
 		return OffsetIndex.readSingleRecord(
+			storageOptions,
 			catalogFilePath,
 			fileLocation,
 			catalogHeaderRecord,
@@ -230,7 +232,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 				return ofNullable(
 					StorageRecord.read(
 						theInput, catalogHeaderLocation,
-						(input, recordLength) -> kryo.readObject(input, CatalogHeader.class)
+						(input, recordLength, control) -> kryo.readObject(input, CatalogHeader.class)
 					).payload()
 				)
 					.orElseThrow(() -> new GenericEvitaInternalError(
@@ -279,7 +281,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		final CatalogHeader theCatalogHeader = Objects.requireNonNull(
 			StorageRecord.read(
 				theInput, catalogHeaderLocation,
-				(input, recordLength) -> kryo.readObject(input, CatalogHeader.class)
+				(input, recordLength, control) -> kryo.readObject(input, CatalogHeader.class)
 			).payload()
 		);
 
@@ -328,7 +330,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 				catalogBootstrap.catalogVersion(),
 				new OffsetIndexDescriptor(
 					0L,
-					null,
+					FileLocation.EMPTY,
 					Map.of(),
 					kryoFactory,
 					// we don't know here yet - this will be recomputed on first flush
@@ -340,7 +342,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 					catalogName,
 					FileType.CATALOG,
 					catalogName,
-					storageOptions.syncWrites(),
+					storageOptions,
 					catalogFilePath,
 					observableOutputKeeper
 				),
@@ -370,7 +372,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 					catalogName,
 					FileType.CATALOG,
 					catalogName,
-					storageOptions.syncWrites(),
+					storageOptions,
 					catalogFilePath,
 					observableOutputKeeper
 				),

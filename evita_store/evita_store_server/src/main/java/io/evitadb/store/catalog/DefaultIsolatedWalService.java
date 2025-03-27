@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -79,7 +79,7 @@ public class DefaultIsolatedWalService implements IsolatedWalPersistenceService 
 
 	@Override
 	public void write(long catalogVersion, @Nonnull Mutation mutation) {
-		mutationSizeInBytes += writeHandle.checkAndExecute(
+		this.mutationSizeInBytes += this.writeHandle.checkAndExecute(
 			"write mutation",
 			() -> { },
 			output -> {
@@ -88,25 +88,25 @@ public class DefaultIsolatedWalService implements IsolatedWalPersistenceService 
 				final StorageRecord<Mutation> record = new StorageRecord<>(
 					output, catalogVersion, false,
 					theOutput -> {
-						writeKryo.writeClassAndObject(output, mutationToWrite);
+						this.writeKryo.writeClassAndObject(output, mutationToWrite);
 						return mutationToWrite;
 					}
 				);
 				return record.fileLocation().recordLength();
 			}
 		);
-		mutationCount++;
+		this.mutationCount++;
 	}
 
 	@Nonnull
 	@Override
 	public OffHeapWithFileBackupReference getWalReference() {
-		return writeHandle.toReadOffHeapWithFileBackupReference();
+		return this.writeHandle.toReadOffHeapWithFileBackupReference();
 	}
 
 	@Override
 	public void close() {
-		writeHandle.close();
+		this.writeHandle.close();
 	}
 
 }

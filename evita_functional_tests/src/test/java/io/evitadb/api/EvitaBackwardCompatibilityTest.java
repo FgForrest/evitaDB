@@ -32,9 +32,12 @@ import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.core.Evita;
 import io.evitadb.test.EvitaTestSupport;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -50,6 +53,7 @@ import java.util.UUID;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
+import static io.evitadb.api.configuration.StorageOptions.DEFAULT_OUTPUT_BUFFER_SIZE;
 import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.entityFetchAll;
 import static io.evitadb.api.query.QueryConstraints.page;
@@ -163,4 +167,75 @@ public class EvitaBackwardCompatibilityTest implements EvitaTestSupport {
 			assertNotNull(catalogId);
 		}
 	}
+
+	@DisplayName("Verify backward binary data compatibility to 2025_1")
+	@Tag(LONG_RUNNING_TEST)
+	@Test
+	@Disabled
+	void verifyBackwardCompatibilityTo_2025_1() throws IOException {
+		final Path directory_2025_1 = mainDirectory.resolve("2025.1");
+		if (!directory_2025_1.toFile().exists()) {
+			log.info("Copying evita catalog");
+
+			io.evitadb.utils.FileUtils.deleteFileIfExists(directory_2025_1);
+
+			// copy directory
+			FileUtils.copyDirectory(
+				Path.of("/www/oss/evitaDB/new-data/old-uncompressed/evita").toFile(),
+				directory_2025_1.resolve("evita").toFile()
+			);
+		}
+
+		log.info("Starting Evita with backward compatibility to 2025.1");
+		try (
+		final Evita evita = new Evita(
+			EvitaConfiguration.builder()
+				.server(
+					ServerOptions.builder()
+						.closeSessionsAfterSecondsOfInactivity(-1)
+						.build()
+				)
+				.storage(
+					StorageOptions.builder()
+						.storageDirectory(directory_2025_1)
+						.outputBufferSize(DEFAULT_OUTPUT_BUFFER_SIZE * 2)
+						.build()
+				)
+				.build()
+		);
+		) {
+
+			final SystemStatus status = evita.management().getSystemStatus();
+			assertEquals(0, status.catalogsCorrupted());
+			assertEquals(1, status.catalogsOk());
+
+			// check the catalog has its own id
+			final UUID catalogId = evita.queryCatalog(
+				"evita",
+				session -> {
+					for (String entityType : session.getAllEntityTypes()) {
+						log.info("Entity type: {}", entityType);
+						if (session.getEntityCollectionSize(entityType) > 0) {
+							final List<SealedEntity> sealedEntities = session.queryListOfSealedEntities(
+								Query.query(
+									collection(entityType),
+									require(
+										page(1, 20),
+										entityFetchAll()
+									)
+								)
+							);
+							for (SealedEntity sealedEntity : sealedEntities) {
+								assertNotNull(sealedEntity);
+							}
+						}
+					}
+
+					return session.getCatalogId();
+				}
+			);
+			assertNotNull(catalogId);
+		}
+	}
+
 }

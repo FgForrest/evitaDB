@@ -31,6 +31,7 @@ import java.io.IOException;
 import java.io.InputStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Test verifies contract of {@link IOUtils}.
@@ -76,6 +77,52 @@ class IOUtilsTest {
 	}
 
 	@Test
+	void testLambdaWithoutException() {
+		IOUtils.executeSafely(
+			IllegalStateException::new,
+			() -> System.out.println("Lambda executed successfully.")
+		);
+	}
+
+	@Test
+	void testLambdaWithException() {
+		IllegalStateException exception = assertThrows(IllegalStateException.class, () ->
+			IOUtils.executeSafely(
+				IllegalStateException::new,
+				() -> {
+					throw new IOException("Exception in lambda");
+				}
+			)
+		);
+
+		assertEquals("Exception in lambda", exception.getSuppressed()[0].getMessage());
+	}
+
+	@Test
+	void testConsumerWithoutException() {
+		IOUtils.executeSafely(
+			1,
+			IllegalStateException::new,
+			i -> System.out.println("Lambda `" + i + "` executed successfully.")
+		);
+	}
+
+	@Test
+	void testConsumerWithException() {
+		IllegalStateException exception = assertThrows(IllegalStateException.class, () ->
+			IOUtils.executeSafely(
+				1,
+				IllegalStateException::new,
+				i -> {
+					throw new IOException("Exception in lambda");
+				}
+			)
+		);
+
+		assertEquals("Exception in lambda", exception.getSuppressed()[0].getMessage());
+	}
+
+	@Test
 	void testCloseWithoutException() {
 		IOUtils.close(
 			IllegalStateException::new,
@@ -86,8 +133,9 @@ class IOUtilsTest {
 
 	@Test
 	void testCloseWithSingleException() {
-		IllegalStateException exception = org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () ->
-			IOUtils.close(IllegalStateException::new,
+		IllegalStateException exception = assertThrows(IllegalStateException.class, () ->
+			IOUtils.close(
+				IllegalStateException::new,
 				() -> {
 					throw new IOException("Single exception in close");
 				}
@@ -99,7 +147,7 @@ class IOUtilsTest {
 
 	@Test
 	void testCloseWithMultipleExceptions() {
-		IllegalStateException exception = org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () ->
+		IllegalStateException exception = assertThrows(IllegalStateException.class, () ->
 			IOUtils.close(IllegalStateException::new,
 				() -> {
 					throw new IOException("Exception 1");

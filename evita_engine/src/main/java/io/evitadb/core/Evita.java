@@ -489,7 +489,7 @@ public final class Evita implements EvitaContract {
 			if (catalogMutation instanceof CreateCatalogSchemaMutation createCatalogSchema) {
 				createCatalogInternal(createCatalogSchema);
 			} else if (catalogMutation instanceof ModifyCatalogSchemaNameMutation modifyCatalogSchemaName) {
-				if (modifyCatalogSchemaName.isOverwriteTarget() && catalogs.containsKey(modifyCatalogSchemaName.getNewCatalogName())) {
+				if (modifyCatalogSchemaName.isOverwriteTarget() && this.catalogs.containsKey(modifyCatalogSchemaName.getNewCatalogName())) {
 					replaceCatalogInternal(modifyCatalogSchemaName);
 				} else {
 					renameCatalogInternal(modifyCatalogSchemaName);

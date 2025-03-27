@@ -2200,28 +2200,48 @@ class EvitaTest implements EvitaTestSupport {
 			assertNotNull(catalogStatistics);
 			assertEquals(3, catalogStatistics.length);
 
+			final CatalogStatistics statistics = Arrays.stream(catalogStatistics).filter(it -> TEST_CATALOG.equals(it.catalogName())).findFirst().orElseThrow();
+			assertTrue(
+				statistics.sizeOnDiskInBytes() > 400L && statistics.sizeOnDiskInBytes() < 600L,
+				"Expected size on disk to be between 400 and 600 bytes, but was " + statistics.sizeOnDiskInBytes()
+			);
 			assertEquals(
-				Arrays.stream(catalogStatistics).filter(it -> TEST_CATALOG.equals(it.catalogName())).findFirst().orElseThrow(),
 				new CatalogStatistics(
-					UUIDUtil.randomUUID(), TEST_CATALOG, false, CatalogState.WARMING_UP, 0L, 0, 1, 490, new EntityCollectionStatistics[0]
-				)
+					UUIDUtil.randomUUID(), TEST_CATALOG, false, CatalogState.WARMING_UP, 0L, 0, 1, statistics.sizeOnDiskInBytes(), new EntityCollectionStatistics[0]
+				),
+				statistics
 			);
 
+			final CatalogStatistics statistics1 = Arrays.stream(catalogStatistics).filter(it -> (TEST_CATALOG + "_1").equals(it.catalogName())).findFirst().orElseThrow();
+			assertTrue(
+				statistics1.sizeOnDiskInBytes() > 900L && statistics1.sizeOnDiskInBytes() < 1200L,
+				"Expected size on disk to be between 900 and 1200 bytes, but was " + statistics1.sizeOnDiskInBytes()
+			);
 			assertEquals(
-				Arrays.stream(catalogStatistics).filter(it -> (TEST_CATALOG + "_1").equals(it.catalogName())).findFirst().orElseThrow(),
 				new CatalogStatistics(
-					UUIDUtil.randomUUID(), TEST_CATALOG + "_1", true, null, -1L, -1, -1, 1153, new EntityCollectionStatistics[0]
-				)
+					UUIDUtil.randomUUID(), TEST_CATALOG + "_1", true, null, -1L, -1, -1, statistics1.sizeOnDiskInBytes(), new EntityCollectionStatistics[0]
+				),
+				statistics1
 			);
 
+			final CatalogStatistics statistics2 = Arrays.stream(catalogStatistics).filter(it -> (TEST_CATALOG + "_2").equals(it.catalogName())).findFirst().orElseThrow();
+			assertTrue(
+				statistics2.sizeOnDiskInBytes() > 1000L && statistics2.sizeOnDiskInBytes() < 1700L,
+				"Expected size on disk to be between 1000 and 1700 bytes, but was " + statistics2.sizeOnDiskInBytes()
+			);
+			final EntityCollectionStatistics productStatistics = statistics2.entityCollectionStatistics()[0];
+			assertTrue(
+				productStatistics.sizeOnDiskInBytes() > 300L && productStatistics.sizeOnDiskInBytes() < 600L,
+				"Expected size on disk to be between 300 and 600 bytes, but was " + productStatistics.sizeOnDiskInBytes()
+			);
 			assertEquals(
 				new CatalogStatistics(
-					UUIDUtil.randomUUID(), TEST_CATALOG + "_2", false, CatalogState.WARMING_UP, 0, 1, 2, 1657,
+					UUIDUtil.randomUUID(), TEST_CATALOG + "_2", false, CatalogState.WARMING_UP, 0, 1, 2, statistics2.sizeOnDiskInBytes(),
 					new EntityCollectionStatistics[]{
-						new EntityCollectionStatistics(Entities.PRODUCT, 1, 1, 520)
+						new EntityCollectionStatistics(Entities.PRODUCT, 1, 1, productStatistics.sizeOnDiskInBytes())
 					}
 				),
-				Arrays.stream(catalogStatistics).filter(it -> (TEST_CATALOG + "_2").equals(it.catalogName())).findFirst().orElseThrow()
+				statistics2
 			);
 
 		} finally {

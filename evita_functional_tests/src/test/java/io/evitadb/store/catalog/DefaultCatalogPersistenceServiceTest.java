@@ -163,7 +163,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	);
 	private final WriteOnlyOffHeapWithFileBackupHandle writeHandle = new WriteOnlyOffHeapWithFileBackupHandle(
 		getTestDirectory().resolve(transactionId.toString()),
-		false,
+		getStorageOptions(),
 		observableOutputKeeper,
 		new OffHeapMemoryManager(TEST_CATALOG, 512, 1)
 	);
@@ -311,7 +311,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 						catalogName,
 						FileType.CATALOG,
 						catalogName,
-						false,
+						storageOptions,
 						catalogFilePath,
 						observableOutputKeeper
 					),
@@ -644,7 +644,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			.resolve(catalogName)
 			.resolve(CatalogPersistenceService.getWalFileName(catalogName, 0));
 
-		final ReadOnlyHandle readOnlyHandle = new ReadOnlyFileHandle(walFile, true);
+		final ReadOnlyHandle readOnlyHandle = new ReadOnlyFileHandle(walFile, StorageOptions.temporary());
 		readOnlyHandle.execute(
 			input -> {
 				final int transactionSize = input.readInt();
@@ -864,7 +864,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			getTestDirectory().resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST),
 			60, 60,
 			StorageOptions.DEFAULT_OUTPUT_BUFFER_SIZE, 1,
-			false, true, 1.0, 0L, false,
+			false, false, true, 1.0, 0L, false,
 			Long.MAX_VALUE, Long.MAX_VALUE
 		);
 	}

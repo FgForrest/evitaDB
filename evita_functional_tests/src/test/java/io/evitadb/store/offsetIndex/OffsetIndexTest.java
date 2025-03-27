@@ -26,6 +26,7 @@ package io.evitadb.store.offsetIndex;
 import com.esotericsoftware.kryo.io.Input;
 import com.github.javafaker.Faker;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.configuration.StorageOptions.Builder;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
 import io.evitadb.core.async.Scheduler;
 import io.evitadb.dataType.Scope;
@@ -56,7 +57,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.ArgumentsSource;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mockito;
 import org.opentest4j.AssertionFailedError;
 
@@ -71,6 +74,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static io.evitadb.store.offsetIndex.OffsetIndexSerializationService.computeExpectedRecordCount;
 import static java.util.Optional.ofNullable;
@@ -91,23 +95,62 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 	private static final String TEST_FOLDER_EXPORT = "offsetIndexTest_export";
 	private final Path targetFile = Path.of(System.getProperty("java.io.tmpdir") + File.separator + "fileOffsetIndex.kryo");
 	private final OffsetIndexRecordTypeRegistry offsetIndexRecordTypeRegistry = new OffsetIndexRecordTypeRegistry();
-	private final StorageOptions options = StorageOptions.temporary();
-	private final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(TEST_CATALOG, options, Mockito.mock(Scheduler.class));
 
-	private static EntityBodyStoragePart getNonExisting(Set<Integer> recordIds, Set<Integer> touchedInThisRound, Random random) {
+	/**
+	 * Generates a stream of arguments by combining all possible combinations
+	 * of {@link OffsetIndexTest.Crc32Check} and {@link OffsetIndexTest.Compression} enum values.
+	 *
+	 * @return a {@link Stream} of {@link Arguments} containing every combination
+	 * of {@link OffsetIndexTest.Crc32Check} and {@link OffsetIndexTest.Compression}.
+	 */
+	@Nonnull
+	private static Stream<Arguments> combineSettings() {
+		return Stream.of(OffsetIndexTest.Crc32Check.values())
+			.flatMap(crc32Check -> Stream.of(OffsetIndexTest.Compression.values())
+				.map(compression -> Arguments.of(crc32Check, compression)));
+	}
+
+	/**
+	 * Retrieves a non-existing record primary key and generates an {@code EntityBodyStoragePart} object
+	 * associated with that primary key. The method ensures that the generated primary key is unique and
+	 * does not exist in the provided sets of record IDs and recently touched IDs.
+	 *
+	 * @param recordIds          the set of existing record primary keys that must not be reused
+	 * @param touchedInThisRound the set of record primary keys that were interacted with in the current operation
+	 * @param random             an instance of {@code Random} used to generate a random primary key
+	 * @return an {@code EntityBodyStoragePart} object initialized with the generated unique primary key
+	 */
+	private static EntityBodyStoragePart getNonExisting(
+		@Nonnull Set<Integer> recordIds,
+		@Nonnull Set<Integer> touchedInThisRound,
+		@Nonnull StorageOptions storageOptions,
+		@Nonnull Random random
+	) {
 		int recPrimaryKey;
 		do {
 			recPrimaryKey = Math.abs(random.nextInt());
 		} while (recPrimaryKey != 0 && (recordIds.contains(recPrimaryKey) || touchedInThisRound.contains(recPrimaryKey)));
 
-		return createEntityBodyStoragePartOfRandomSize(random, recPrimaryKey);
+		return createEntityBodyStoragePartOfRandomSize(storageOptions, random, recPrimaryKey);
 	}
 
+	/**
+	 * Creates an {@link EntityBodyStoragePart} with random associated data of varying size.
+	 * The size of the data and its characteristics are determined by the given random object.
+	 *
+	 * @param random        a non-null {@link Random} instance used to generate random values
+	 * @param recPrimaryKey an integer representing the primary key of the entity record
+	 * @return a newly created instance of {@link EntityBodyStoragePart} containing randomly generated associated data
+	 */
 	@Nonnull
-	private static EntityBodyStoragePart createEntityBodyStoragePartOfRandomSize(@Nonnull Random random, int recPrimaryKey) {
+	private static EntityBodyStoragePart createEntityBodyStoragePartOfRandomSize(
+		@Nonnull StorageOptions storageOptions,
+		@Nonnull Random random,
+		int recPrimaryKey
+	) {
 		// we need to generate some fake data to cross the 4096 bytes boundary
 		final Faker faker = new Faker(random);
-		final int associatedDataKeys = random.nextInt(1000);
+		final int associatedDataKeys = random.nextInt(storageOptions.compress() ? 4000 : 1000);
 		final Set<AssociatedDataKey> associatedData = new HashSet<>(associatedDataKeys);
 		for (int i = 0; i < associatedDataKeys; i++) {
 			associatedData.add(
@@ -123,7 +166,21 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 		);
 	}
 
-	private static EntityBodyStoragePart getExisting(Map<Integer, EntityBodyStoragePart> records, Set<Integer> touchedInThisRound, Random random) {
+	/**
+	 * Retrieves an existing entity body storage part based on a set of records and a set of recently used identifiers.
+	 * The method randomly selects an entry from the provided map, ensuring that the selected entry has not already been
+	 * touched in the current round. If the selected entry has been used, the method recursively retries selection.
+	 *
+	 * @param records            a map of record IDs to their corresponding {@link EntityBodyStoragePart} objects
+	 * @param touchedInThisRound a set of IDs that have been accessed in the current round
+	 * @param random             an instance of {@link Random} used for randomized selection of entries
+	 * @return a new {@link EntityBodyStoragePart} derived from the selected entity, incrementing its version
+	 */
+	private static EntityBodyStoragePart getExisting(
+		@Nonnull Map<Integer, EntityBodyStoragePart> records,
+		@Nonnull Set<Integer> touchedInThisRound,
+		@Nonnull Random random
+	) {
 		final Iterator<Integer> it = records.keySet().iterator();
 		final int bound = records.size() - 1;
 		if (bound > 0) {
@@ -152,17 +209,57 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 		);
 	}
 
+	/**
+	 * Configures the provided {@link StorageOptions} by applying the specified CRC32 check
+	 * and compression settings.
+	 *
+	 * @param options     the initial storage options to configure
+	 * @param crc32Check  the CRC32 check setting to apply; {@link Crc32Check#YES} enables CRC32 computation
+	 * @param compression the compression setting to apply; {@link Compression#YES} enables compression
+	 * @return the configured {@link StorageOptions} instance
+	 */
 	@Nonnull
-	private StorageOptions buildOptionsWithLimitedBuffer() {
-		return StorageOptions.builder()
-			.storageDirectory(getTestDirectory().resolve(TEST_FOLDER))
-			.exportDirectory(getTestDirectory().resolve(TEST_FOLDER_EXPORT))
-			.waitOnCloseSeconds(5)
-			.lockTimeoutSeconds(5)
-			.outputBufferSize(4096)
-			.maxOpenedReadHandles(Runtime.getRuntime().availableProcessors())
-			.computeCRC32(true)
-			.build();
+	private static StorageOptions configure(@Nonnull StorageOptions options, @Nonnull Crc32Check crc32Check, @Nonnull Compression compression) {
+		final Builder builder = StorageOptions.builder(options);
+		builder.computeCRC32(crc32Check == Crc32Check.YES);
+		builder.compress(compression == Compression.YES);
+		return builder.build();
+	}
+
+	@Nonnull
+	private static InsertionOutput createRecordsInFileOffsetIndex(
+		@Nonnull OffsetIndex fileOffsetIndex,
+		int recordCount,
+		int removedRecords,
+		int iterationCount
+	) {
+		OffsetIndexDescriptor fileOffsetIndexDescriptor = null;
+		int inserted = 0;
+		int removed = 0;
+
+		long transactionId = 0;
+		for (int j = 0; j < iterationCount; j++) {
+			transactionId++;
+			if (j > 0) {
+				for (int i = 1; i < removedRecords; i++) {
+					final int primaryKey = i + (j - 1) * recordCount;
+					log.info("Removal of rec with PK:   " + primaryKey);
+					fileOffsetIndex.remove(transactionId, primaryKey, EntityBodyStoragePart.class);
+					removed++;
+				}
+			}
+			for (int i = 1; i <= recordCount; i++) {
+				final int primaryKey = j * recordCount + i;
+				log.info("Insertion of rec with PK (tx " + transactionId + "): " + primaryKey);
+				fileOffsetIndex.put(transactionId, new EntityBodyStoragePart(primaryKey));
+				inserted++;
+			}
+
+			log.info("Flushing table (tx " + transactionId + ")");
+			fileOffsetIndexDescriptor = fileOffsetIndex.flush(transactionId);
+		}
+
+		return new InsertionOutput(fileOffsetIndex, Objects.requireNonNull(fileOffsetIndexDescriptor), transactionId, inserted, removed);
 	}
 
 	@BeforeEach
@@ -175,261 +272,320 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 	@AfterEach
 	void tearDown() throws IOException {
 		targetFile.toFile().delete();
-		observableOutputKeeper.close();
 		cleanTestSubDirectory(TEST_FOLDER);
 		cleanTestSubDirectory(TEST_FOLDER_EXPORT);
 	}
 
 	@DisplayName("Offset index can be stored empty.")
-	@Test
-	void shouldSerializeAndReconstructEmptyOffsetIndex() {
-		shouldSerializeAndReconstructOffsetIndex(options, EntityBodyStoragePart::new, 0);
+	@ParameterizedTest
+	@MethodSource("combineSettings")
+	void shouldSerializeAndReconstructEmptyOffsetIndex(Crc32Check crc32Check, Compression compression) {
+		shouldSerializeAndReconstructOffsetIndex(configure(StorageOptions.temporary(), crc32Check, compression), EntityBodyStoragePart::new, 0);
 	}
 
 	@DisplayName("Offset index can be stored empty and then new records added.")
-	@Test
-	void shouldSerializeEmptyOffsetIndexWithLaterAddingRecordsAndReconstructCorrectly() {
-		final InsertionOutput insertionOutput = shouldSerializeAndReconstructOffsetIndex(options, EntityBodyStoragePart::new, 0);
+	@ParameterizedTest
+	@MethodSource("combineSettings")
+	void shouldSerializeEmptyOffsetIndexWithLaterAddingRecordsAndReconstructCorrectly(Crc32Check crc32Check, Compression compression) {
+		final StorageOptions storageOptions = configure(StorageOptions.temporary(), crc32Check, compression);
+		final InsertionOutput insertionOutput = shouldSerializeAndReconstructOffsetIndex(storageOptions, EntityBodyStoragePart::new, 0);
 		final OffsetIndex offsetIndex = insertionOutput.fileOffsetIndex;
 		final InsertionOutput insertionOutput2 = createRecordsInFileOffsetIndex(offsetIndex, 100, 0, 1);
 		/* input count records +1 record for the OffsetIndex itself */
+		if (crc32Check == Crc32Check.YES) {
+			assertEquals(
+				/* 100 records, 1 empty header, 1 header with single fragment */
+				100 + computeExpectedRecordCount(storageOptions, 100).fragments() + 1,
+				insertionOutput2.fileOffsetIndex().verifyContents().getRecordCount()
+			);
+		}
 		assertEquals(
-			/* 100 records, 1 empty header, 1 header with single fragment */
-			100 + computeExpectedRecordCount(options, 100).fragments() + 1,
-			insertionOutput2.fileOffsetIndex().verifyContents().getRecordCount()
+			100,
+			insertionOutput2.fileOffsetIndex().count(insertionOutput2.catalogVersion())
 		);
 	}
 
 	@DisplayName("Hundreds entities should be stored in OffsetIndex and retrieved intact.")
-	@Test
-	void shouldSerializeAndReconstructBigFileOffsetIndex() {
-		serializeAndReconstructBigFileOffsetIndex(options, EntityBodyStoragePart::new);
+	@ParameterizedTest
+	@MethodSource("combineSettings")
+	void shouldSerializeAndReconstructBigFileOffsetIndex(Crc32Check crc32Check, Compression compression) {
+		serializeAndReconstructBigFileOffsetIndex(configure(StorageOptions.temporary(), crc32Check, compression), EntityBodyStoragePart::new);
 	}
 
 	@DisplayName("Half of the entities should be removed, file offset index copied to different file and reconstructed.")
-	@Test
-	void shouldCopySnapshotOfTheBigFileOffsetIndexAndReconstruct() {
+	@ParameterizedTest
+	@MethodSource("combineSettings")
+	void shouldCopySnapshotOfTheBigFileOffsetIndexAndReconstruct(Crc32Check crc32Check, Compression compression) {
 		final Random random = new Random(42);
-		final StorageOptions limitedBufferOptions = buildOptionsWithLimitedBuffer();
+		final StorageOptions limitedBufferOptions = buildOptionsWithLimitedBuffer(crc32Check, compression);
 		final Map<Integer, EntityBodyStoragePart> parts = new HashMap<>();
 		final InsertionOutput insertionOutput = serializeAndReconstructBigFileOffsetIndex(
 			limitedBufferOptions,
-			pk -> parts.computeIfAbsent(pk, thePk -> createEntityBodyStoragePartOfRandomSize(random, thePk))
+			pk -> parts.computeIfAbsent(pk, thePk -> createEntityBodyStoragePartOfRandomSize(limitedBufferOptions, random, thePk))
 		);
 		final OffsetIndexDescriptor fileOffsetIndexDescriptor = insertionOutput.descriptor();
-		final OffsetIndex sourceOffsetIndex = new OffsetIndex(
-			insertionOutput.catalogVersion(),
-			new OffsetIndexDescriptor(
-				fileOffsetIndexDescriptor.fileLocation(),
-				fileOffsetIndexDescriptor,
-				1.0, 0L
-			),
-			limitedBufferOptions,
-			offsetIndexRecordTypeRegistry,
-			new WriteOnlyFileHandle(targetFile, false, observableOutputKeeper),
-			nonFlushedBlock -> {},
-			oldestRecordTimestamp -> {}
-		);
+		final StorageOptions storageOptions = configure(StorageOptions.temporary(), crc32Check, compression);
 
-		int recordCount = sourceOffsetIndex.count(insertionOutput.catalogVersion());
-		final long nextCatalogVersion = insertionOutput.catalogVersion() + 1;
-		// delete every other record
-		for (int i = 1; i <= recordCount; i = i + 2) {
-			sourceOffsetIndex.remove(nextCatalogVersion, i, EntityBodyStoragePart.class);
-		}
-
-		final OffsetIndexDescriptor updatedOffsetIndexDescriptor = sourceOffsetIndex.flush(nextCatalogVersion);
-		final OffsetIndex purgedSourceOffsetIndex = new OffsetIndex(
-			nextCatalogVersion,
-			new OffsetIndexDescriptor(
-				updatedOffsetIndexDescriptor.fileLocation(),
-				updatedOffsetIndexDescriptor,
-				1.0, 0L
-			),
-			limitedBufferOptions,
-			offsetIndexRecordTypeRegistry,
-			new WriteOnlyFileHandle(targetFile, false, observableOutputKeeper),
-			nonFlushedBlock -> {},
-			oldestRecordTimestamp -> {}
-		);
-
-		// now create a snapshot of the file offset index
-		final Path snapshotPath = Path.of(System.getProperty("java.io.tmpdir") + File.separator + "snapshot.kryo");
-		try {
-			final long finalCatalogVersion = nextCatalogVersion + 1;
-			final OffsetIndexDescriptor snapshotBootstrapDescriptor;
-			try (final FileOutputStream fos = new FileOutputStream(snapshotPath.toFile())) {
-				snapshotBootstrapDescriptor = purgedSourceOffsetIndex.copySnapshotTo(fos, null, finalCatalogVersion);
-			} catch (IOException e) {
-				throw new AssertionFailedError("IO exception!", e);
-			}
-
-			final OffsetIndex loadedFileOffsetIndex = new OffsetIndex(
-				snapshotBootstrapDescriptor.version(),
-				snapshotBootstrapDescriptor,
+		try (
+			final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(TEST_CATALOG, storageOptions, Mockito.mock(Scheduler.class))
+		) {
+			final OffsetIndex sourceOffsetIndex = new OffsetIndex(
+				insertionOutput.catalogVersion(),
+				new OffsetIndexDescriptor(
+					fileOffsetIndexDescriptor.fileLocation(),
+					fileOffsetIndexDescriptor,
+					1.0, 0L
+				),
 				limitedBufferOptions,
 				offsetIndexRecordTypeRegistry,
-				new WriteOnlyFileHandle(snapshotPath, false, observableOutputKeeper),
-				nonFlushedBlock -> {},
-				oldestRecordTimestamp -> {}
+				new WriteOnlyFileHandle(targetFile, storageOptions, observableOutputKeeper),
+				nonFlushedBlock -> {
+				},
+				oldestRecordTimestamp -> {
+				}
 			);
 
-			assertEquals(purgedSourceOffsetIndex.count(finalCatalogVersion), loadedFileOffsetIndex.count(finalCatalogVersion));
-			assertEquals(purgedSourceOffsetIndex.getTotalSizeBytes(), loadedFileOffsetIndex.getTotalSizeBytes());
-			for (int i = 2; i <= recordCount; i = i + 2) {
-				final EntityBodyStoragePart actual = loadedFileOffsetIndex.get(finalCatalogVersion, i, EntityBodyStoragePart.class);
-				assertEquals(
-					parts.get(i),
-					actual
-				);
+			int recordCount = sourceOffsetIndex.count(insertionOutput.catalogVersion());
+			final long nextCatalogVersion = insertionOutput.catalogVersion() + 1;
+			// delete every other record
+			for (int i = 1; i <= recordCount; i = i + 2) {
+				sourceOffsetIndex.remove(nextCatalogVersion, i, EntityBodyStoragePart.class);
 			}
-		} finally {
-			snapshotPath.toFile().delete();
+
+			final OffsetIndexDescriptor updatedOffsetIndexDescriptor = sourceOffsetIndex.flush(nextCatalogVersion);
+			final OffsetIndex purgedSourceOffsetIndex = new OffsetIndex(
+				nextCatalogVersion,
+				new OffsetIndexDescriptor(
+					updatedOffsetIndexDescriptor.fileLocation(),
+					updatedOffsetIndexDescriptor,
+					1.0, 0L
+				),
+				limitedBufferOptions,
+				offsetIndexRecordTypeRegistry,
+				new WriteOnlyFileHandle(targetFile, storageOptions, observableOutputKeeper),
+				nonFlushedBlock -> {
+				},
+				oldestRecordTimestamp -> {
+				}
+			);
+
+			// now create a snapshot of the file offset index
+			final Path snapshotPath = Path.of(System.getProperty("java.io.tmpdir") + File.separator + "snapshot.kryo");
+			try {
+				final long finalCatalogVersion = nextCatalogVersion + 1;
+				final OffsetIndexDescriptor snapshotBootstrapDescriptor;
+				try (final FileOutputStream fos = new FileOutputStream(snapshotPath.toFile())) {
+					snapshotBootstrapDescriptor = purgedSourceOffsetIndex.copySnapshotTo(fos, null, finalCatalogVersion);
+				} catch (IOException e) {
+					throw new AssertionFailedError("IO exception!", e);
+				}
+
+				final OffsetIndex loadedFileOffsetIndex = new OffsetIndex(
+					snapshotBootstrapDescriptor.version(),
+					snapshotBootstrapDescriptor,
+					limitedBufferOptions,
+					offsetIndexRecordTypeRegistry,
+					new WriteOnlyFileHandle(snapshotPath, storageOptions, observableOutputKeeper),
+					nonFlushedBlock -> {
+					},
+					oldestRecordTimestamp -> {
+					}
+				);
+
+				assertEquals(purgedSourceOffsetIndex.count(finalCatalogVersion), loadedFileOffsetIndex.count(finalCatalogVersion));
+				assertEquals(purgedSourceOffsetIndex.getTotalSizeBytes(), loadedFileOffsetIndex.getTotalSizeBytes());
+				for (int i = 2; i <= recordCount; i = i + 2) {
+					final EntityBodyStoragePart actual = loadedFileOffsetIndex.get(finalCatalogVersion, i, EntityBodyStoragePart.class);
+					assertEquals(
+						parts.get(i),
+						actual
+					);
+				}
+			} finally {
+				snapshotPath.toFile().delete();
+			}
 		}
 	}
 
 	@DisplayName("Existing record can be removed")
-	@Test
-	void shouldRemoveRecord() {
+	@ParameterizedTest
+	@MethodSource("combineSettings")
+	void shouldRemoveRecord(Crc32Check crc32Check, Compression compression) {
 		// store 300 records in multiple chunks,
 		final int recordCount = 50;
 		final int removedRecords = 10;
 		final int iterationCount = 6;
 
-		final InsertionOutput insertionResult = createRecordsInFileOffsetIndex(
-			options, observableOutputKeeper, recordCount, removedRecords, iterationCount
-		);
+		final StorageOptions storageOptions = configure(StorageOptions.temporary(), crc32Check, compression);
+		try (
+			final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(TEST_CATALOG, storageOptions, Mockito.mock(Scheduler.class))
+		) {
+			final InsertionOutput insertionResult = createRecordsInFileOffsetIndex(
+				storageOptions, observableOutputKeeper, recordCount, removedRecords, iterationCount
+			);
 
-		final OffsetIndexDescriptor fileOffsetIndexInfo = insertionResult.descriptor();
+			final OffsetIndexDescriptor fileOffsetIndexInfo = insertionResult.descriptor();
 
-		final OffsetIndex loadedFileOffsetIndex = new OffsetIndex(
-			0L,
-			new OffsetIndexDescriptor(
-				fileOffsetIndexInfo.fileLocation(),
-				fileOffsetIndexInfo,
-				1.0, 0L
-			),
-			options,
-			offsetIndexRecordTypeRegistry,
-			new WriteOnlyFileHandle(targetFile, false, observableOutputKeeper),
-			nonFlushedBlock -> {},
-			oldestRecordTimestamp -> {}
-		);
+			final OffsetIndex loadedFileOffsetIndex = new OffsetIndex(
+				0L,
+				new OffsetIndexDescriptor(
+					fileOffsetIndexInfo.fileLocation(),
+					fileOffsetIndexInfo,
+					1.0, 0L
+				),
+				storageOptions,
+				offsetIndexRecordTypeRegistry,
+				new WriteOnlyFileHandle(targetFile, storageOptions, observableOutputKeeper),
+				nonFlushedBlock -> {
+				},
+				oldestRecordTimestamp -> {
+				}
+			);
 
-		for (int i = 1; i <= recordCount * iterationCount; i++) {
-			final EntityBodyStoragePart actual = loadedFileOffsetIndex.get(insertionResult.catalogVersion(), i, EntityBodyStoragePart.class);
-			if (i < recordCount * (iterationCount - 1) && i % recordCount < removedRecords && i % recordCount > 0) {
-				assertNull(actual);
-			} else {
-				assertEquals(
-					new EntityBodyStoragePart(i),
-					actual
-				);
+			for (int i = 1; i <= recordCount * iterationCount; i++) {
+				final EntityBodyStoragePart actual = loadedFileOffsetIndex.get(insertionResult.catalogVersion(), i, EntityBodyStoragePart.class);
+				if (i < recordCount * (iterationCount - 1) && i % recordCount < removedRecords && i % recordCount > 0) {
+					assertNull(actual);
+				} else {
+					assertEquals(
+						new EntityBodyStoragePart(i),
+						actual
+					);
+				}
 			}
-		}
 
-		assertTrue(insertionResult.fileOffsetIndex().fileOffsetIndexEquals(loadedFileOffsetIndex));
-		/* 300 records +6 record for th OffsetIndex itself */
-		assertEquals(306, loadedFileOffsetIndex.verifyContents().getRecordCount());
+			assertTrue(insertionResult.fileOffsetIndex().fileOffsetIndexEquals(loadedFileOffsetIndex));
+			if (crc32Check == Crc32Check.YES) {
+				/* 300 records +6 record for th OffsetIndex itself */
+				assertEquals(306, loadedFileOffsetIndex.verifyContents().getRecordCount());
+			}
+			assertEquals(
+				insertionResult.insertedTotal() - insertionResult.removedTotal(),
+				loadedFileOffsetIndex.count(0L)
+			);
+		}
 	}
 
-	@Test
-	void shouldReadBinaryRecordAndDeserializeManually() {
+	@ParameterizedTest
+	@MethodSource("combineSettings")
+	void shouldReadBinaryRecordAndDeserializeManually(Crc32Check crc32Check, Compression compression) {
 		// store 300 records in multiple chunks,
 		final int recordCount = 50;
 		final int removedRecords = 10;
 		final int iterationCount = 6;
 
-		final InsertionOutput insertionResult = createRecordsInFileOffsetIndex(
-			options, observableOutputKeeper, recordCount, removedRecords, iterationCount
-		);
+		final StorageOptions storageOptions = configure(StorageOptions.temporary(), crc32Check, compression);
 
-		final OffsetIndexDescriptor fileOffsetIndexDescriptor = insertionResult.descriptor();
-
-		final OffsetIndex loadedFileOffsetIndex = new OffsetIndex(
-			0L,
-			new OffsetIndexDescriptor(
-				fileOffsetIndexDescriptor.fileLocation(),
-				fileOffsetIndexDescriptor,
-				1.0, 0L
-			),
-			options,
-			offsetIndexRecordTypeRegistry,
-			new WriteOnlyFileHandle(targetFile, false, observableOutputKeeper),
-			nonFlushedBlock -> {},
-			oldestRecordTimestamp -> {}
-		);
-
-		final VersionedKryo kryo = createKryo()
-			.apply(
-				new VersionedKryoKeyInputs(
-					loadedFileOffsetIndex.getReadOnlyKeyCompressor(), 1
-				)
+		try (
+			final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(TEST_CATALOG, storageOptions, Mockito.mock(Scheduler.class))
+		) {
+			final InsertionOutput insertionResult = createRecordsInFileOffsetIndex(
+				storageOptions, observableOutputKeeper, recordCount, removedRecords, iterationCount
 			);
 
-		for (int i = 1; i <= recordCount * iterationCount; i++) {
-			final byte[] actualBinary = loadedFileOffsetIndex.getBinary(insertionResult.catalogVersion(), i, EntityBodyStoragePart.class);
-			if (i < recordCount * (iterationCount - 1) && i % recordCount < removedRecords && i % recordCount > 0) {
-				assertNull(actualBinary);
-			} else {
-				assertNotNull(actualBinary);
-				assertEquals(
-					new EntityBodyStoragePart(i),
-					kryo.readObject(new Input(actualBinary), EntityBodyStoragePart.class)
-				);
-			}
-		}
+			final OffsetIndexDescriptor fileOffsetIndexDescriptor = insertionResult.descriptor();
 
-		assertTrue(insertionResult.fileOffsetIndex().fileOffsetIndexEquals(loadedFileOffsetIndex));
-		/* 300 records +6 record for th OffsetIndex itself */
-		assertEquals(306, loadedFileOffsetIndex.verifyContents().getRecordCount());
+			final OffsetIndex loadedFileOffsetIndex = new OffsetIndex(
+				0L,
+				new OffsetIndexDescriptor(
+					fileOffsetIndexDescriptor.fileLocation(),
+					fileOffsetIndexDescriptor,
+					1.0, 0L
+				),
+				storageOptions,
+				offsetIndexRecordTypeRegistry,
+				new WriteOnlyFileHandle(targetFile, storageOptions, observableOutputKeeper),
+				nonFlushedBlock -> {
+				},
+				oldestRecordTimestamp -> {
+				}
+			);
+
+			final VersionedKryo kryo = createKryo()
+				.apply(
+					new VersionedKryoKeyInputs(
+						loadedFileOffsetIndex.getReadOnlyKeyCompressor(), 1
+					)
+				);
+
+			for (int i = 1; i <= recordCount * iterationCount; i++) {
+				final byte[] actualBinary = loadedFileOffsetIndex.getBinary(insertionResult.catalogVersion(), i, EntityBodyStoragePart.class);
+				if (i < recordCount * (iterationCount - 1) && i % recordCount < removedRecords && i % recordCount > 0) {
+					assertNull(actualBinary);
+				} else {
+					assertNotNull(actualBinary);
+					assertEquals(
+						new EntityBodyStoragePart(i),
+						kryo.readObject(new Input(actualBinary), EntityBodyStoragePart.class)
+					);
+				}
+			}
+
+			assertTrue(insertionResult.fileOffsetIndex().fileOffsetIndexEquals(loadedFileOffsetIndex));
+			/* 300 records +6 record for th OffsetIndex itself */
+			if (crc32Check == Crc32Check.YES) {
+				assertEquals(306, loadedFileOffsetIndex.verifyContents().getRecordCount());
+			}
+			assertEquals(
+				insertionResult.insertedTotal() - insertionResult.removedTotal(),
+				loadedFileOffsetIndex.count(0L)
+			);
+		}
 	}
 
-	@Test
-	void shouldReadSingleRecordAndUsingManualDeserialization() {
+	@ParameterizedTest
+	@MethodSource("combineSettings")
+	void shouldReadSingleRecordAndUsingManualDeserialization(Crc32Check crc32Check, Compression compression) {
 		// store 300 records in multiple chunks,
 		final int recordCount = 50;
 		final int removedRecords = 10;
 		final int iterationCount = 6;
 
-		final InsertionOutput insertionResult = createRecordsInFileOffsetIndex(
-			options, observableOutputKeeper, recordCount, removedRecords, iterationCount
-		);
+		final StorageOptions storageOptions = configure(StorageOptions.temporary(), crc32Check, compression);
 
-		final OffsetIndexDescriptor offsetIndexDescriptor = insertionResult.descriptor();
-
-		final VersionedKryo kryo = createKryo()
-			.apply(
-				new VersionedKryoKeyInputs(
-					offsetIndexDescriptor.getReadOnlyKeyCompressor(), 1
-				)
+		try (
+			final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(TEST_CATALOG, storageOptions, Mockito.mock(Scheduler.class))
+		) {
+			final InsertionOutput insertionResult = createRecordsInFileOffsetIndex(
+				storageOptions, observableOutputKeeper, recordCount, removedRecords, iterationCount
 			);
 
-		for (int i = 1; i <= recordCount * iterationCount; i++) {
-			final RecordKey key = new RecordKey(
-				offsetIndexRecordTypeRegistry.idFor(EntityBodyStoragePart.class),
-				i
-			);
+			final OffsetIndexDescriptor offsetIndexDescriptor = insertionResult.descriptor();
 
-			final Supplier<EntityBodyStoragePart> entityBodySupplier = () -> OffsetIndex.readSingleRecord(
-				targetFile,
-				offsetIndexDescriptor.fileLocation(),
-				key,
-				(offsetIndexBuilder, input) -> offsetIndexBuilder.getFileLocationFor(key)
-					.map(fileLocation -> StorageRecord.read(
-						input, fileLocation, (theInput, length) -> kryo.readObject(theInput, EntityBodyStoragePart.class)
-					).payload())
-					.orElse(null)
-			);
-			if (i < recordCount * (iterationCount - 1) && i % recordCount < removedRecords && i % recordCount > 0) {
-				assertThrows(NullPointerException.class, entityBodySupplier::get);
-			} else {
-				final EntityBodyStoragePart entityBody = entityBodySupplier.get();
-				assertNotNull(entityBody);
-				assertEquals(
-					new EntityBodyStoragePart(i),
-					entityBody
+			final VersionedKryo kryo = createKryo()
+				.apply(
+					new VersionedKryoKeyInputs(
+						offsetIndexDescriptor.getReadOnlyKeyCompressor(), 1
+					)
 				);
+
+			for (int i = 1; i <= recordCount * iterationCount; i++) {
+				final RecordKey key = new RecordKey(
+					offsetIndexRecordTypeRegistry.idFor(EntityBodyStoragePart.class),
+					i
+				);
+
+				final Supplier<EntityBodyStoragePart> entityBodySupplier = () -> OffsetIndex.readSingleRecord(
+					storageOptions,
+					targetFile,
+					offsetIndexDescriptor.fileLocation(),
+					key,
+					(offsetIndexBuilder, input) -> offsetIndexBuilder.getFileLocationFor(key)
+						.map(fileLocation -> StorageRecord.read(
+							input, fileLocation, (theInput, length, control) -> kryo.readObject(theInput, EntityBodyStoragePart.class)
+						).payload())
+						.orElse(null)
+				);
+				if (i < recordCount * (iterationCount - 1) && i % recordCount < removedRecords && i % recordCount > 0) {
+					assertThrows(NullPointerException.class, entityBodySupplier::get);
+				} else {
+					final EntityBodyStoragePart entityBody = entityBodySupplier.get();
+					assertNotNull(entityBody);
+					assertEquals(
+						new EntityBodyStoragePart(i),
+						entityBody
+					);
+				}
 			}
 		}
 	}
@@ -437,28 +593,35 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 	@DisplayName("No operation should be allowed after close")
 	@Test
 	void shouldRefuseOperationAfterClose() {
-		final OffsetIndex fileOffsetIndex = new OffsetIndex(
-			0L,
-			new OffsetIndexDescriptor(
-				new EntityCollectionHeader(ENTITY_TYPE, 1, 0),
-				createKryo(),
-				1.0, 0L
-			),
-			options,
-			offsetIndexRecordTypeRegistry,
-			new WriteOnlyFileHandle(targetFile, false, observableOutputKeeper),
-			nonFlushedBlock -> {},
-			oldestRecordTimestamp -> {}
-		);
-		fileOffsetIndex.put(0L, new EntityBodyStoragePart(1));
-		fileOffsetIndex.close();
+		final StorageOptions storageOptions = StorageOptions.temporary();
+		try (
+			final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(TEST_CATALOG, storageOptions, Mockito.mock(Scheduler.class))
+		) {
+			final OffsetIndex fileOffsetIndex = new OffsetIndex(
+				0L,
+				new OffsetIndexDescriptor(
+					new EntityCollectionHeader(ENTITY_TYPE, 1, 0),
+					createKryo(),
+					1.0, 0L
+				),
+				storageOptions,
+				offsetIndexRecordTypeRegistry,
+				new WriteOnlyFileHandle(targetFile, storageOptions, observableOutputKeeper),
+				nonFlushedBlock -> {
+				},
+				oldestRecordTimestamp -> {
+				}
+			);
+			fileOffsetIndex.put(0L, new EntityBodyStoragePart(1));
+			fileOffsetIndex.close();
 
-		assertThrows(EvitaInternalError.class, () -> fileOffsetIndex.get(0L, 1, EntityBodyStoragePart.class));
-		assertThrows(EvitaInternalError.class, () -> fileOffsetIndex.put(0L, new EntityBodyStoragePart(2)));
-		assertThrows(EvitaInternalError.class, fileOffsetIndex::getEntries);
-		assertThrows(EvitaInternalError.class, fileOffsetIndex::getKeys);
-		assertThrows(EvitaInternalError.class, fileOffsetIndex::getFileLocations);
-		assertThrows(EvitaInternalError.class, () -> fileOffsetIndex.flush(0L));
+			assertThrows(EvitaInternalError.class, () -> fileOffsetIndex.get(0L, 1, EntityBodyStoragePart.class));
+			assertThrows(EvitaInternalError.class, () -> fileOffsetIndex.put(0L, new EntityBodyStoragePart(2)));
+			assertThrows(EvitaInternalError.class, fileOffsetIndex::getEntries);
+			assertThrows(EvitaInternalError.class, fileOffsetIndex::getKeys);
+			assertThrows(EvitaInternalError.class, fileOffsetIndex::getFileLocations);
+			assertThrows(EvitaInternalError.class, () -> fileOffsetIndex.flush(0L));
+		}
 	}
 
 	@ParameterizedTest(name = "OffsetIndex should survive generational randomized test applying modifications on it")
@@ -466,205 +629,230 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalProofTest(GenerationalTestInput input) {
 		final AtomicReference<Path> currentFilePath = new AtomicReference<>(targetFile);
-		final AtomicReference<OffsetIndex> fileOffsetIndex = new AtomicReference<>(
-			new OffsetIndex(
-				0L,
-				new OffsetIndexDescriptor(
-					new EntityCollectionHeader(ENTITY_TYPE, 1, 0),
-					createKryo(),
-					1.0, 0L
-				),
-				buildOptionsWithLimitedBuffer(),
-				offsetIndexRecordTypeRegistry,
-				new WriteOnlyFileHandle(targetFile, false, observableOutputKeeper),
-				nonFlushedBlock -> {},
-				oldestRecordTimestamp -> {}
-			)
-		);
-
-		final int maximalRecordCount = 10_000;
-		final int minimalRecordCount = 1_000;
-		final int historySize = 10;
-		final Map<Long, Map<Integer, EntityBodyStoragePart>> recordIdsHistory = CollectionUtils.createHashMap(historySize);
-
-		runFor(
-			input,
-			1L,
-			(random, transactionId) -> {
-				final Map<Integer, EntityBodyStoragePart> currentSnapshot = ofNullable(recordIdsHistory.get(transactionId - 1))
-					.map(HashMap::new)
-					.orElseGet(() -> CollectionUtils.createHashMap(maximalRecordCount));
-
-				final int recordCountToTouch = random.nextInt(minimalRecordCount);
-				final List<RecordOperation> plannedOps = new ArrayList<>(recordCountToTouch);
-				final Set<Integer> touchedInThisRound = new HashSet<>();
-				for (int i = 1; i <= recordCountToTouch; i++) {
-					final int rndOp = random.nextInt(3);
-					final RecordOperation operation;
-					if (currentSnapshot.isEmpty() || (rndOp == 0 && currentSnapshot.size() < maximalRecordCount)) {
-						operation = new RecordOperation(getNonExisting(currentSnapshot.keySet(), touchedInThisRound, random), Operation.INSERT);
-						currentSnapshot.put(operation.record().getPrimaryKey(), operation.record());
-					} else if (currentSnapshot.size() - touchedInThisRound.size() > minimalRecordCount && rndOp == 1) {
-						operation = new RecordOperation(getExisting(currentSnapshot, touchedInThisRound, random), Operation.UPDATE);
-						currentSnapshot.put(operation.record().getPrimaryKey(), operation.record());
-					} else if (currentSnapshot.size() - touchedInThisRound.size() > minimalRecordCount && rndOp == 2) {
-						operation = new RecordOperation(getExisting(currentSnapshot, touchedInThisRound, random), Operation.REMOVE);
-						currentSnapshot.remove(operation.record().getPrimaryKey());
-					} else {
-						continue;
-					}
-					touchedInThisRound.add(operation.record().getPrimaryKey());
-					plannedOps.add(operation);
-				}
-
-				final OffsetIndex currentOffsetIndex = fileOffsetIndex.get();
-				for (RecordOperation plannedOp : plannedOps) {
-					switch (plannedOp.operation()) {
-						case INSERT -> {
-							final EntityBodyStoragePart existingContainer = currentOffsetIndex.get(transactionId, plannedOp.record().getPrimaryKey(), EntityBodyStoragePart.class);
-							assertNull(existingContainer, "The container with id " + plannedOp.record().getPrimaryKey() + " unexpectedly found!");
-							currentOffsetIndex.put(transactionId, plannedOp.record());
-						}
-						case UPDATE -> {
-							final EntityBodyStoragePart existingContainer = currentOffsetIndex.get(transactionId, plannedOp.record().getPrimaryKey(), EntityBodyStoragePart.class);
-							assertNotNull(existingContainer, "The container with id " + plannedOp.record().getPrimaryKey() + " unexpectedly not found!");
-							currentOffsetIndex.put(transactionId, plannedOp.record());
-						}
-						case REMOVE -> {
-							final EntityBodyStoragePart existingContainer = currentOffsetIndex.get(transactionId, plannedOp.record().getPrimaryKey(), EntityBodyStoragePart.class);
-							assertNotNull(existingContainer, "The container with id " + plannedOp.record().getPrimaryKey() + " unexpectedly not found!");
-							currentOffsetIndex.remove(transactionId, plannedOp.record.getPrimaryKey(), EntityBodyStoragePart.class);
-						}
-					}
-				}
-
-				final OffsetIndexDescriptor fileOffsetIndexDescriptor = currentOffsetIndex.flush(transactionId);
-
-				long start = System.nanoTime();
-				final OffsetIndex loadedFileOffsetIndex = new OffsetIndex(
-					transactionId,
+		final StorageOptions storageOptions = buildOptionsWithLimitedBuffer(Crc32Check.YES, Compression.NO);
+		try (
+			final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(TEST_CATALOG, storageOptions, Mockito.mock(Scheduler.class))
+		) {
+			final AtomicReference<OffsetIndex> fileOffsetIndex = new AtomicReference<>(
+				new OffsetIndex(
+					0L,
 					new OffsetIndexDescriptor(
-						fileOffsetIndexDescriptor.fileLocation(),
-						fileOffsetIndexDescriptor,
+						new EntityCollectionHeader(ENTITY_TYPE, 1, 0),
+						createKryo(),
 						1.0, 0L
 					),
-					options,
+					storageOptions,
 					offsetIndexRecordTypeRegistry,
-					new WriteOnlyFileHandle(currentFilePath.get(), false, observableOutputKeeper),
-					nonFlushedBlock -> {},
-					oldestRecordTimestamp -> {}
-				);
-				long end = System.nanoTime();
-
-				assertTrue(currentOffsetIndex.fileOffsetIndexEquals(loadedFileOffsetIndex));
-
-				final FileOffsetIndexStatistics stats = currentOffsetIndex.verifyContents();
-
-				assertEquals(currentSnapshot.size(), currentOffsetIndex.count(transactionId));
-				assertEquals(currentSnapshot.size(), currentOffsetIndex.count(transactionId, EntityBodyStoragePart.class));
-
-				for (Entry<Integer, EntityBodyStoragePart> entry : currentSnapshot.entrySet()) {
-					assertTrue(
-						currentOffsetIndex.contains(transactionId, entry.getKey(), EntityBodyStoragePart.class),
-						"Cnt " + entry.getKey() + " should be non null but was!"
-					);
-					assertEquals(
-						entry.getValue(),
-						currentOffsetIndex.get(transactionId, entry.getKey(), EntityBodyStoragePart.class)
-					);
-				}
-				for (RecordOperation plannedOp : plannedOps) {
-					if (plannedOp.operation == Operation.REMOVE) {
-						assertFalse(
-							currentOffsetIndex.contains(transactionId, plannedOp.record().getPrimaryKey(), EntityBodyStoragePart.class),
-							"Cnt " + plannedOp.record().getPrimaryKey() + " should be null but was not!"
-						);
-						assertNull(
-							currentOffsetIndex.get(transactionId, plannedOp.record().getPrimaryKey(), EntityBodyStoragePart.class),
-							"Cnt " + plannedOp.record().getPrimaryKey() + " should be null but was not!"
-						);
+					new WriteOnlyFileHandle(targetFile, storageOptions, observableOutputKeeper),
+					nonFlushedBlock -> {
+					},
+					oldestRecordTimestamp -> {
 					}
-				}
+				)
+			);
 
-				// randomly verify the contents of the previous versions
-				for (int i = 0; i < recordIdsHistory.size() / 2; i++) {
-					final long historyTxId = transactionId - (random.nextInt(recordIdsHistory.size() - 1) + 1);
-					final Map<Integer, EntityBodyStoragePart> historySnapshot = recordIdsHistory.get(historyTxId);
-					assertEquals(
-						historySnapshot.size(), currentOffsetIndex.count(historyTxId),
-						"History snapshot #" + historyTxId + " size mismatch: expected " + historySnapshot.size() + " but was " + currentOffsetIndex.count(transactionId)
-					);
-					assertEquals(
-						historySnapshot.size(), currentOffsetIndex.count(historyTxId, EntityBodyStoragePart.class),
-						"History snapshot #" + historyTxId + " size mismatch: expected " + historySnapshot.size() + " but was " + currentOffsetIndex.count(transactionId)
-					);
-					final int averageSkip = recordIdsHistory.size() / 1000;
-					if (averageSkip > 0) {
-						final Iterator<Entry<Long, Map<Integer, EntityBodyStoragePart>>> it = recordIdsHistory.entrySet().iterator();
-						int index = 0;
-						while (it.hasNext()) {
-							final Entry<Long, Map<Integer, EntityBodyStoragePart>> entry = it.next();
-							if (index++ % averageSkip == 0) {
-								assertEquals(
-									entry.getValue(),
-									currentOffsetIndex.get(historyTxId, entry.getKey(), EntityBodyStoragePart.class)
-								);
+			final int maximalRecordCount = 10_000;
+			final int minimalRecordCount = 1_000;
+			final int historySize = 10;
+			final Map<Long, Map<Integer, EntityBodyStoragePart>> recordIdsHistory = CollectionUtils.createHashMap(historySize);
+
+			runFor(
+				input,
+				1L,
+				(random, transactionId) -> {
+					final Map<Integer, EntityBodyStoragePart> currentSnapshot = ofNullable(recordIdsHistory.get(transactionId - 1))
+						.map(HashMap::new)
+						.orElseGet(() -> CollectionUtils.createHashMap(maximalRecordCount));
+
+					final int recordCountToTouch = random.nextInt(minimalRecordCount);
+					final List<RecordOperation> plannedOps = new ArrayList<>(recordCountToTouch);
+					final Set<Integer> touchedInThisRound = new HashSet<>();
+					for (int i = 1; i <= recordCountToTouch; i++) {
+						final int rndOp = random.nextInt(3);
+						final RecordOperation operation;
+						if (currentSnapshot.isEmpty() || (rndOp == 0 && currentSnapshot.size() < maximalRecordCount)) {
+							operation = new RecordOperation(getNonExisting(currentSnapshot.keySet(), touchedInThisRound, storageOptions, random), Operation.INSERT);
+							currentSnapshot.put(operation.record().getPrimaryKey(), operation.record());
+						} else if (currentSnapshot.size() - touchedInThisRound.size() > minimalRecordCount && rndOp == 1) {
+							operation = new RecordOperation(getExisting(currentSnapshot, touchedInThisRound, random), Operation.UPDATE);
+							currentSnapshot.put(operation.record().getPrimaryKey(), operation.record());
+						} else if (currentSnapshot.size() - touchedInThisRound.size() > minimalRecordCount && rndOp == 2) {
+							operation = new RecordOperation(getExisting(currentSnapshot, touchedInThisRound, random), Operation.REMOVE);
+							currentSnapshot.remove(operation.record().getPrimaryKey());
+						} else {
+							continue;
+						}
+						touchedInThisRound.add(operation.record().getPrimaryKey());
+						plannedOps.add(operation);
+					}
+
+					final OffsetIndex currentOffsetIndex = fileOffsetIndex.get();
+					for (RecordOperation plannedOp : plannedOps) {
+						switch (plannedOp.operation()) {
+							case INSERT -> {
+								final EntityBodyStoragePart existingContainer = currentOffsetIndex.get(transactionId, plannedOp.record().getPrimaryKey(), EntityBodyStoragePart.class);
+								assertNull(existingContainer, "The container with id " + plannedOp.record().getPrimaryKey() + " unexpectedly found!");
+								currentOffsetIndex.put(transactionId, plannedOp.record());
+							}
+							case UPDATE -> {
+								final EntityBodyStoragePart existingContainer = currentOffsetIndex.get(transactionId, plannedOp.record().getPrimaryKey(), EntityBodyStoragePart.class);
+								assertNotNull(existingContainer, "The container with id " + plannedOp.record().getPrimaryKey() + " unexpectedly not found!");
+								currentOffsetIndex.put(transactionId, plannedOp.record());
+							}
+							case REMOVE -> {
+								final EntityBodyStoragePart existingContainer = currentOffsetIndex.get(transactionId, plannedOp.record().getPrimaryKey(), EntityBodyStoragePart.class);
+								assertNotNull(existingContainer, "The container with id " + plannedOp.record().getPrimaryKey() + " unexpectedly not found!");
+								currentOffsetIndex.remove(transactionId, plannedOp.record.getPrimaryKey(), EntityBodyStoragePart.class);
 							}
 						}
 					}
-				}
 
-				System.out.println(
-					"Round trip #" + transactionId + " (loaded in " +
-						StringUtils.formatNano(end - start) + ", " + loadedFileOffsetIndex.count(transactionId) +
-						" living recs. / " + stats.getRecordCount() + " total recs.)"
-				);
+					final OffsetIndexDescriptor fileOffsetIndexDescriptor = currentOffsetIndex.flush(transactionId);
 
-				if (stats.getActiveRecordShare() < 0.5) {
-					System.out.println("Living object share is below 50%! Compacting ...");
-					final long compactionStart = System.currentTimeMillis();
-
-					final Path pathToCompact = currentFilePath.get();
-					final Path newPath = pathToCompact.getParent().resolve("fileOffsetIndex_" + transactionId + ".kryo");
-					currentFilePath.set(newPath);
-
-					final OffsetIndexDescriptor compactedDescriptor = currentOffsetIndex.compact(newPath);
-					final OffsetIndex newOffsetIndex = new OffsetIndex(
+					long start = System.nanoTime();
+					final OffsetIndex loadedFileOffsetIndex = new OffsetIndex(
 						transactionId,
 						new OffsetIndexDescriptor(
-							compactedDescriptor.fileLocation(),
-							compactedDescriptor,
+							fileOffsetIndexDescriptor.fileLocation(),
+							fileOffsetIndexDescriptor,
 							1.0, 0L
 						),
-						options,
+						storageOptions,
 						offsetIndexRecordTypeRegistry,
-						new WriteOnlyFileHandle(newPath, false, observableOutputKeeper),
-						nonFlushedBlock -> {},
-						oldestRecordTimestamp -> {}
+						new WriteOnlyFileHandle(currentFilePath.get(), storageOptions, observableOutputKeeper),
+						nonFlushedBlock -> {
+						},
+						oldestRecordTimestamp -> {
+						}
 					);
-					final FileOffsetIndexStatistics newStats = newOffsetIndex.verifyContents();
-					assertTrue(newStats.getActiveRecordShare() > 0.5);
-					fileOffsetIndex.set(newOffsetIndex);
+					long end = System.nanoTime();
+
+					assertTrue(currentOffsetIndex.fileOffsetIndexEquals(loadedFileOffsetIndex));
+
+					final FileOffsetIndexStatistics stats = currentOffsetIndex.verifyContents();
+
+					assertEquals(currentSnapshot.size(), currentOffsetIndex.count(transactionId));
+					assertEquals(currentSnapshot.size(), currentOffsetIndex.count(transactionId, EntityBodyStoragePart.class));
+
+					for (Entry<Integer, EntityBodyStoragePart> entry : currentSnapshot.entrySet()) {
+						assertTrue(
+							currentOffsetIndex.contains(transactionId, entry.getKey(), EntityBodyStoragePart.class),
+							"Cnt " + entry.getKey() + " should be non null but was!"
+						);
+						assertEquals(
+							entry.getValue(),
+							currentOffsetIndex.get(transactionId, entry.getKey(), EntityBodyStoragePart.class)
+						);
+					}
+					for (RecordOperation plannedOp : plannedOps) {
+						if (plannedOp.operation == Operation.REMOVE) {
+							assertFalse(
+								currentOffsetIndex.contains(transactionId, plannedOp.record().getPrimaryKey(), EntityBodyStoragePart.class),
+								"Cnt " + plannedOp.record().getPrimaryKey() + " should be null but was not!"
+							);
+							assertNull(
+								currentOffsetIndex.get(transactionId, plannedOp.record().getPrimaryKey(), EntityBodyStoragePart.class),
+								"Cnt " + plannedOp.record().getPrimaryKey() + " should be null but was not!"
+							);
+						}
+					}
+
+					// randomly verify the contents of the previous versions
+					for (int i = 0; i < recordIdsHistory.size() / 2; i++) {
+						final long historyTxId = transactionId - (random.nextInt(recordIdsHistory.size() - 1) + 1);
+						final Map<Integer, EntityBodyStoragePart> historySnapshot = recordIdsHistory.get(historyTxId);
+						assertEquals(
+							historySnapshot.size(), currentOffsetIndex.count(historyTxId),
+							"History snapshot #" + historyTxId + " size mismatch: expected " + historySnapshot.size() + " but was " + currentOffsetIndex.count(transactionId)
+						);
+						assertEquals(
+							historySnapshot.size(), currentOffsetIndex.count(historyTxId, EntityBodyStoragePart.class),
+							"History snapshot #" + historyTxId + " size mismatch: expected " + historySnapshot.size() + " but was " + currentOffsetIndex.count(transactionId)
+						);
+						final int averageSkip = recordIdsHistory.size() / 1000;
+						if (averageSkip > 0) {
+							final Iterator<Entry<Long, Map<Integer, EntityBodyStoragePart>>> it = recordIdsHistory.entrySet().iterator();
+							int index = 0;
+							while (it.hasNext()) {
+								final Entry<Long, Map<Integer, EntityBodyStoragePart>> entry = it.next();
+								if (index++ % averageSkip == 0) {
+									assertEquals(
+										entry.getValue(),
+										currentOffsetIndex.get(historyTxId, entry.getKey(), EntityBodyStoragePart.class)
+									);
+								}
+							}
+						}
+					}
 
 					System.out.println(
-						"Compaction from " + StringUtils.formatByteSize(pathToCompact.toFile().length()) +
-							" to " + StringUtils.formatByteSize(newPath.toFile().length()) + " took " +
-							StringUtils.formatNano(System.currentTimeMillis() - compactionStart)
+						"Round trip #" + transactionId + " (loaded in " +
+							StringUtils.formatNano(end - start) + ", " + loadedFileOffsetIndex.count(transactionId) +
+							" living recs. / " + stats.getRecordCount() + " total recs.)"
 					);
 
-					// delete previous file
-					pathToCompact.toFile().delete();
+					if (stats.getActiveRecordShare() < 0.5) {
+						System.out.println("Living object share is below 50%! Compacting ...");
+						final long compactionStart = System.currentTimeMillis();
 
-					// and collected history
-					recordIdsHistory.clear();
+						final Path pathToCompact = currentFilePath.get();
+						final Path newPath = pathToCompact.getParent().resolve("fileOffsetIndex_" + transactionId + ".kryo");
+						currentFilePath.set(newPath);
+
+						final OffsetIndexDescriptor compactedDescriptor = currentOffsetIndex.compact(newPath);
+						final OffsetIndex newOffsetIndex = new OffsetIndex(
+							transactionId,
+							new OffsetIndexDescriptor(
+								compactedDescriptor.fileLocation(),
+								compactedDescriptor,
+								1.0, 0L
+							),
+							storageOptions,
+							offsetIndexRecordTypeRegistry,
+							new WriteOnlyFileHandle(newPath, storageOptions, observableOutputKeeper),
+							nonFlushedBlock -> {
+							},
+							oldestRecordTimestamp -> {
+							}
+						);
+						final FileOffsetIndexStatistics newStats = newOffsetIndex.verifyContents();
+						assertTrue(newStats.getActiveRecordShare() > 0.5);
+						fileOffsetIndex.set(newOffsetIndex);
+
+						System.out.println(
+							"Compaction from " + StringUtils.formatByteSize(pathToCompact.toFile().length()) +
+								" to " + StringUtils.formatByteSize(newPath.toFile().length()) + " took " +
+								StringUtils.formatNano(System.currentTimeMillis() - compactionStart)
+						);
+
+						// delete previous file
+						pathToCompact.toFile().delete();
+
+						// and collected history
+						recordIdsHistory.clear();
+					}
+
+					recordIdsHistory.put(transactionId, currentSnapshot);
+					recordIdsHistory.remove(transactionId - historySize);
+
+					return transactionId + 1;
 				}
+			);
+		}
+	}
 
-				recordIdsHistory.put(transactionId, currentSnapshot);
-				recordIdsHistory.remove(transactionId - historySize);
-
-				return transactionId + 1;
-			}
-		);
+	@Nonnull
+	private StorageOptions buildOptionsWithLimitedBuffer(Crc32Check crc32Check, Compression compression) {
+		return StorageOptions.builder()
+			.storageDirectory(getTestDirectory().resolve(TEST_FOLDER))
+			.exportDirectory(getTestDirectory().resolve(TEST_FOLDER_EXPORT))
+			.waitOnCloseSeconds(5)
+			.lockTimeoutSeconds(5)
+			.outputBufferSize(4096)
+			.maxOpenedReadHandles(Runtime.getRuntime().availableProcessors())
+			.computeCRC32(crc32Check == Crc32Check.YES)
+			.compress(compression == Compression.YES)
+			.build();
 	}
 
 	@Nonnull
@@ -681,61 +869,73 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 		@Nonnull IntFunction<EntityBodyStoragePart> bodyPartFactory,
 		int recordCount
 	) {
-		final OffsetIndex fileOffsetIndex = new OffsetIndex(
-			0L,
-			new OffsetIndexDescriptor(
-				new EntityCollectionHeader(ENTITY_TYPE, 1, 0),
-				createKryo(),
-				1.0, 0L
-			),
-			storageOptions,
-			offsetIndexRecordTypeRegistry,
-			new WriteOnlyFileHandle(targetFile, false, observableOutputKeeper),
-			nonFlushedBlock -> {},
-			oldestRecordTimestamp -> {}
-		);
-
-		final long transactionId = 0L;
-		for (int i = 1; i <= recordCount; i++) {
-			fileOffsetIndex.put(transactionId, bodyPartFactory.apply(i));
-		}
-
-		log.info("Flushing table (" + transactionId + ")");
-		final OffsetIndexDescriptor fileOffsetIndexDescriptor = fileOffsetIndex.flush(transactionId);
-		final OffsetIndex loadedFileOffsetIndex = new OffsetIndex(
-			0L,
-			new OffsetIndexDescriptor(
-				fileOffsetIndexDescriptor.fileLocation(),
-				fileOffsetIndexDescriptor,
-				1.0, 0L
-			),
-			storageOptions,
-			offsetIndexRecordTypeRegistry,
-			new WriteOnlyFileHandle(targetFile, false, observableOutputKeeper),
-			nonFlushedBlock -> {},
-			oldestRecordTimestamp -> {}
-		);
-
-		long duration = 0L;
-		for (int i = 1; i <= recordCount; i++) {
-			long start = System.nanoTime();
-			final EntityBodyStoragePart actual = fileOffsetIndex.get(transactionId, i, EntityBodyStoragePart.class);
-			duration += System.nanoTime() - start;
-			assertEquals(
-				bodyPartFactory.apply(i),
-				actual
+		try (
+			final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(TEST_CATALOG, storageOptions, Mockito.mock(Scheduler.class))
+		) {
+			final OffsetIndex fileOffsetIndex = new OffsetIndex(
+				0L,
+				new OffsetIndexDescriptor(
+					new EntityCollectionHeader(ENTITY_TYPE, 1, 0),
+					createKryo(),
+					1.0, 0L
+				),
+				storageOptions,
+				offsetIndexRecordTypeRegistry,
+				new WriteOnlyFileHandle(targetFile, storageOptions, observableOutputKeeper),
+				nonFlushedBlock -> {
+				},
+				oldestRecordTimestamp -> {
+				}
 			);
+
+			int inserted = 0;
+			final long transactionId = 0L;
+			for (int i = 1; i <= recordCount; i++) {
+				fileOffsetIndex.put(transactionId, bodyPartFactory.apply(i));
+				inserted++;
+			}
+
+			log.info("Flushing table (" + transactionId + ")");
+			final OffsetIndexDescriptor fileOffsetIndexDescriptor = fileOffsetIndex.flush(transactionId);
+			final OffsetIndex loadedFileOffsetIndex = new OffsetIndex(
+				0L,
+				new OffsetIndexDescriptor(
+					fileOffsetIndexDescriptor.fileLocation(),
+					fileOffsetIndexDescriptor,
+					1.0, 0L
+				),
+				storageOptions,
+				offsetIndexRecordTypeRegistry,
+				new WriteOnlyFileHandle(targetFile, storageOptions, observableOutputKeeper),
+				nonFlushedBlock -> {
+				},
+				oldestRecordTimestamp -> {
+				}
+			);
+
+			long duration = 0L;
+			for (int i = 1; i <= recordCount; i++) {
+				long start = System.nanoTime();
+				final EntityBodyStoragePart actual = fileOffsetIndex.get(transactionId, i, EntityBodyStoragePart.class);
+				duration += System.nanoTime() - start;
+				assertEquals(
+					bodyPartFactory.apply(i),
+					actual
+				);
+			}
+
+			assertTrue(fileOffsetIndex.fileOffsetIndexEquals(loadedFileOffsetIndex));
+			/* input count records +1 record for the OffsetIndex itself */
+			if (storageOptions.computeCRC32C()) {
+				assertEquals(
+					recordCount + Math.max(1, computeExpectedRecordCount(storageOptions, recordCount).fragments()),
+					fileOffsetIndex.verifyContents().getRecordCount()
+				);
+			}
+			log.info("Average reads: " + StringUtils.formatRequestsPerSec(recordCount, duration));
+
+			return new InsertionOutput(fileOffsetIndex, fileOffsetIndexDescriptor, transactionId, inserted, 0);
 		}
-
-		assertTrue(fileOffsetIndex.fileOffsetIndexEquals(loadedFileOffsetIndex));
-		/* input count records +1 record for the OffsetIndex itself */
-		assertEquals(
-			recordCount + Math.max(1, computeExpectedRecordCount(storageOptions, recordCount).fragments()),
-			fileOffsetIndex.verifyContents().getRecordCount()
-		);
-		log.info("Average reads: " + StringUtils.formatRequestsPerSec(recordCount, duration));
-
-		return new InsertionOutput(fileOffsetIndex, fileOffsetIndexDescriptor, transactionId);
 	}
 
 	private InsertionOutput createRecordsInFileOffsetIndex(
@@ -753,49 +953,27 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 				1.0, 0L
 			),
 			options,
-			offsetIndexRecordTypeRegistry,
-			new WriteOnlyFileHandle(targetFile, false, observableOutputKeeper),
-			nonFlushedBlock -> {},
-			oldestRecordTimestamp -> {}
+			this.offsetIndexRecordTypeRegistry,
+			new WriteOnlyFileHandle(this.targetFile, options, observableOutputKeeper),
+			nonFlushedBlock -> {
+			},
+			oldestRecordTimestamp -> {
+			}
 		);
 
 		return createRecordsInFileOffsetIndex(fileOffsetIndex, recordCount, removedRecords, iterationCount);
 	}
 
-	@Nonnull
-	private static InsertionOutput createRecordsInFileOffsetIndex(
-		@Nonnull OffsetIndex fileOffsetIndex,
-		int recordCount,
-		int removedRecords,
-		int iterationCount
-	) {
-		OffsetIndexDescriptor fileOffsetIndexDescriptor = null;
-
-		long transactionId = 0;
-		for (int j = 0; j < iterationCount; j++) {
-			transactionId++;
-			if (j > 0) {
-				for (int i = 1; i < removedRecords; i++) {
-					final int primaryKey = i + (j - 1) * recordCount;
-					log.info("Removal of rec with PK:   " + primaryKey);
-					fileOffsetIndex.remove(transactionId, primaryKey, EntityBodyStoragePart.class);
-				}
-			}
-			for (int i = 1; i <= recordCount; i++) {
-				final int primaryKey = j * recordCount + i;
-				log.info("Insertion of rec with PK (tx " + transactionId + "): " + primaryKey);
-				fileOffsetIndex.put(transactionId, new EntityBodyStoragePart(primaryKey));
-			}
-
-			log.info("Flushing table (tx " + transactionId + ")");
-			fileOffsetIndexDescriptor = fileOffsetIndex.flush(transactionId);
-		}
-
-		return new InsertionOutput(fileOffsetIndex, Objects.requireNonNull(fileOffsetIndexDescriptor), transactionId);
-	}
-
 	private enum Operation {
 		INSERT, UPDATE, REMOVE
+	}
+
+	private enum Crc32Check {
+		YES, NO
+	}
+
+	private enum Compression {
+		YES, NO
 	}
 
 	private record RecordOperation(
@@ -807,7 +985,9 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 	private record InsertionOutput(
 		@Nonnull OffsetIndex fileOffsetIndex,
 		@Nonnull OffsetIndexDescriptor descriptor,
-		long catalogVersion
+		long catalogVersion,
+		int insertedTotal,
+		int removedTotal
 	) {
 	}
 
