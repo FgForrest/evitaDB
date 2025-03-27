@@ -439,6 +439,25 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 			.orElse(OptionalInt.empty());
 	}
 
+	@Nonnull
+	@Override
+	public Bitmap listNodesIncludingParents(@Nonnull Bitmap nodes) {
+		final RoaringBitmap output = new RoaringBitmap();
+		for (Integer nodeId : nodes) {
+			output.add(nodeId);
+			HierarchyNode hierarchyNode = getHierarchyNodeOrThrowException(nodeId);
+			while (hierarchyNode.parentEntityPrimaryKey() != null) {
+				if (!output.checkedAdd(hierarchyNode.parentEntityPrimaryKey())) {
+					break;
+				}
+				hierarchyNode = getHierarchyNodeOrThrowException(hierarchyNode.parentEntityPrimaryKey());
+			}
+		}
+		return output.isEmpty() ?
+			EmptyBitmap.INSTANCE :
+			new BaseBitmap(output);
+	}
+
 	@Override
 	public void traverseHierarchyFromNode(@Nonnull HierarchyVisitor visitor, int rootNode, boolean excludingRoot, @Nonnull HierarchyFilteringPredicate havingPredicate) {
 		traverseHierarchyInternal(
