@@ -37,6 +37,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -186,6 +187,7 @@ public class EvitaBackwardCompatibilityTest implements EvitaTestSupport {
 		}
 
 		log.info("Starting Evita with backward compatibility to 2025.1");
+		try (
 		final Evita evita = new Evita(
 			EvitaConfiguration.builder()
 				.server(
@@ -201,37 +203,39 @@ public class EvitaBackwardCompatibilityTest implements EvitaTestSupport {
 				)
 				.build()
 		);
+		) {
 
-		final SystemStatus status = evita.management().getSystemStatus();
-		assertEquals(0, status.catalogsCorrupted());
-		assertEquals(1, status.catalogsOk());
+			final SystemStatus status = evita.management().getSystemStatus();
+			assertEquals(0, status.catalogsCorrupted());
+			assertEquals(1, status.catalogsOk());
 
-		// check the catalog has its own id
-		final UUID catalogId = evita.queryCatalog(
-			"evita",
-			session -> {
-				for (String entityType : session.getAllEntityTypes()) {
-					log.info("Entity type: {}", entityType);
-					if (session.getEntityCollectionSize(entityType)  > 0) {
-						final List<SealedEntity> sealedEntities = session.queryListOfSealedEntities(
-							Query.query(
-								collection(entityType),
-								require(
-									page(1, 20),
-									entityFetchAll()
+			// check the catalog has its own id
+			final UUID catalogId = evita.queryCatalog(
+				"evita",
+				session -> {
+					for (String entityType : session.getAllEntityTypes()) {
+						log.info("Entity type: {}", entityType);
+						if (session.getEntityCollectionSize(entityType) > 0) {
+							final List<SealedEntity> sealedEntities = session.queryListOfSealedEntities(
+								Query.query(
+									collection(entityType),
+									require(
+										page(1, 20),
+										entityFetchAll()
+									)
 								)
-							)
-						);
-						for (SealedEntity sealedEntity : sealedEntities) {
-							assertNotNull(sealedEntity);
+							);
+							for (SealedEntity sealedEntity : sealedEntities) {
+								assertNotNull(sealedEntity);
+							}
 						}
 					}
-				}
 
-				return session.getCatalogId();
-			}
-		);
-		assertNotNull(catalogId);
+					return session.getCatalogId();
+				}
+			);
+			assertNotNull(catalogId);
+		}
 	}
 
 }

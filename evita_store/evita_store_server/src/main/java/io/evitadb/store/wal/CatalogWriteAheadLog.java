@@ -625,6 +625,7 @@ public class CatalogWriteAheadLog implements Closeable {
 		int walFileIndex
 	) {
 		this.catalogName = catalogName;
+		this.storageOptions = storageOptions;
 		this.catalogStoragePath = catalogStoragePath;
 		this.catalogKryoPool = catalogKryoPool;
 		this.processedCatalogVersion = new AtomicLong(catalogVersion);
