@@ -40,6 +40,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
+import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.indexSelection.IndexSelectionVisitor;
@@ -168,9 +169,9 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 	 * The created sorter effectively handles nested contexts and applies the specified sort order
 	 * for the referenced entity type.
 	 *
-	 * @param orderByVisitor The visitor containing the order-by constraints, locale, query context, and processing scope.
+	 * @param orderByVisitor  The visitor containing the order-by constraints, locale, query context, and processing scope.
 	 * @param referenceSchema The schema contract defining the referenced entity type and relationships to be used for sorting.
-	 * @param ordering An array of {@link OrderConstraint} specifying the constraints to determine the sort order.
+	 * @param ordering        An array of {@link OrderConstraint} specifying the constraints to determine the sort order.
 	 * @return An instance of {@link NestedContextSorter} configured with the given parameters.
 	 */
 	@Nonnull
@@ -197,11 +198,11 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 	 * the traversal mode, order constraints, and hierarchical sorting logic. It determines the sorting mechanism
 	 * based on the provided order constraints and traverses relevant scopes to aggregate the results.
 	 *
-	 * @param orderByVisitor The visitor handling the query context, locale, and processing scope for sorting and traversal.
-	 * @param referenceSchema The schema contract defining the entity references and relationships for sorting.
+	 * @param orderByVisitor           The visitor handling the query context, locale, and processing scope for sorting and traversal.
+	 * @param referenceSchema          The schema contract defining the entity references and relationships for sorting.
 	 * @param traverseByEntityProperty An array of {@link OrderConstraint}, specifying the constraints for traversing and sorting.
-	 * @param traversalMode The traversal mode dictating how the hierarchy nodes are processed.
-	 * @param referenceIndexIds A formula providing the set of indices to be traversed and sorted.
+	 * @param traversalMode            The traversal mode dictating how the hierarchy nodes are processed.
+	 * @param referenceIndexIds        A formula providing the set of indices to be traversed and sorted.
 	 * @return A stream of integers representing the traversed and sorted primary keys of reduced entity indices.
 	 */
 	@Nonnull
@@ -211,6 +212,43 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 		@Nonnull OrderConstraint[] traverseByEntityProperty,
 		@Nonnull TraversalMode traversalMode,
 		@Nonnull Formula referenceIndexIds
+	) {
+		final Set<Scope> allowedScopes = orderByVisitor.getProcessingScope().getScopes();
+		IntStream result = IntStream.empty();
+		for (Scope scope : Scope.values()) {
+			if (allowedScopes.contains(scope)) {
+				final Bitmap scopedResult = orderByVisitor.getGlobalEntityIndexIfExists(referenceSchema.getReferencedEntityType(), scope)
+					.map(
+						it -> it.listHierarchyNodesFromRoot(
+							traversalMode,
+							createLevelSorter(
+								orderByVisitor,
+								referenceSchema,
+								traverseByEntityProperty,
+								referenceIndexIds,
+								ids -> {
+									final Bitmap nodesWithParents = it.listNodesIncludingParents(ids.compute());
+									return nodesWithParents.isEmpty() ?
+										EmptyFormula.INSTANCE :
+										new ConstantFormula(nodesWithParents);
+								}
+							)
+						)
+					)
+					.orElse(EmptyBitmap.INSTANCE);
+				result = IntStream.concat(result, IntStream.of(scopedResult.getArray()));
+			}
+		}
+		return result;
+	}
+
+	@Nonnull
+	private static UnaryOperator<int[]> createLevelSorter(
+		@Nonnull OrderByVisitor orderByVisitor,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull OrderConstraint[] traverseByEntityProperty,
+		@Nonnull Formula referenceIndexIds,
+		@Nonnull UnaryOperator<Formula> parentIdsFormula
 	) {
 		final UnaryOperator<int[]> levelSorter;
 		if (traverseByEntityProperty.length == 1 && traverseByEntityProperty[0] instanceof EntityPrimaryKeyNatural epkn) {
@@ -223,7 +261,10 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 					return ArrayUtils.EMPTY_INT_ARRAY;
 				} else {
 					final int[] output = new int[input.length];
-					final Formula filteringFormula = FormulaFactory.and(referenceIndexIds, new ConstantFormula(new BaseBitmap(input)));
+					final Formula filteringFormula = FormulaFactory.and(
+						parentIdsFormula.apply(referenceIndexIds),
+						new ConstantFormula(new BaseBitmap(input))
+					);
 					final int sortedPeak = sorter.sortAndSlice(
 						filteringFormula,
 						0, input.length, output, 0
@@ -236,18 +277,7 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 				}
 			};
 		}
-
-		final Set<Scope> allowedScopes = orderByVisitor.getProcessingScope().getScopes();
-		IntStream result = IntStream.empty();
-		for (Scope scope : Scope.values()) {
-			if (allowedScopes.contains(scope)) {
-				final Bitmap scopedResult = orderByVisitor.getGlobalEntityIndexIfExists(referenceSchema.getReferencedEntityType(), scope)
-					.map(it -> it.listHierarchyNodesFromRoot(traversalMode, levelSorter))
-					.orElse(EmptyBitmap.INSTANCE);
-				result = IntStream.concat(result, IntStream.of(scopedResult.getArray()));
-			}
-		}
-		return result;
+		return levelSorter;
 	}
 
 	/**
@@ -255,10 +285,10 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 	 * This method evaluates the provided order constraints and applies the appropriate sorting mechanism to
 	 * produce the desired order of primary keys.
 	 *
-	 * @param orderByVisitor The visitor used to handle the order-by constraints, query context, and processing scope.
-	 * @param referenceSchema The schema contract defining the referenced entity properties and relationships for sorting.
+	 * @param orderByVisitor            The visitor used to handle the order-by constraints, query context, and processing scope.
+	 * @param referenceSchema           The schema contract defining the referenced entity properties and relationships for sorting.
 	 * @param pickFirstByEntityProperty An array of {@link OrderConstraint} that specifies the constraints for sorting by entity properties.
-	 * @param referenceIndexIds A formula that provides the set of reference indices to be sorted.
+	 * @param referenceIndexIds         A formula that provides the set of reference indices to be sorted.
 	 * @return A stream of integers representing the sorted primary keys of the reduced index entities.
 	 */
 	@Nonnull

@@ -27,6 +27,7 @@ import io.evitadb.api.query.order.TraversalMode;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.hierarchy.predicate.MatchNodeIdHierarchyFilteringPredicate;
 import io.evitadb.test.duration.TimeArgumentProvider;
@@ -323,6 +324,24 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 		assertArrayEquals(
 			new int[]{1, 2, 3, 4, 6, 7, 8},
 			nodeIds.getArray()
+		);
+	}
+
+	@Test
+	void shouldListNodesIncludingParents() {
+		// Create a bitmap with nodes 1, 10, and 0
+		final Bitmap inputNodes = new BaseBitmap(1, 10, 0);
+
+		// Call the method being tested
+		final Bitmap resultNodes = hierarchyIndex.listNodesIncludingParents(inputNodes);
+
+		// Verify the result contains all the expected nodes
+		// Node 1 and its parent 3 and grandparent 6
+		// Node 10 and its parent 9, grandparent 8, and great-grandparent 6
+		// Node 0 and its parent 5 and grandparent 7
+		assertArrayEquals(
+			new int[]{0, 1, 3, 5, 6, 7, 8, 9, 10},
+			resultNodes.getArray()
 		);
 	}
 

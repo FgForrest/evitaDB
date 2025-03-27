@@ -268,6 +268,15 @@ public interface HierarchyIndexContract {
 	OptionalInt getParentNode(int forNode);
 
 	/**
+	 * Generates a bitmap that includes the given nodes along with their parent nodes.
+	 *
+	 * @param nodes a bitmap representing the nodes to include along with their parents; must not be null
+	 * @return a new bitmap including the provided nodes and their parent nodes
+	 */
+	@Nonnull
+	Bitmap listNodesIncludingParents(@Nonnull Bitmap nodes);
+
+	/**
 	 * Method traverses entire hierarchy of (non-orphan) nodes, depth first. Visitor will first visit the leaf nodes
 	 * according to ordering specified on nodes and progresses up to the root. When one root node is examined, next
 	 * one leafs will be visited next.
