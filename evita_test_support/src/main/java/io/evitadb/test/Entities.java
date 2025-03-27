@@ -23,6 +23,8 @@
 
 package io.evitadb.test;
 
+import javax.annotation.Nonnull;
+
 /**
  * Entity types that are used in tests.
  *
@@ -38,6 +40,13 @@ public interface Entities {
 	String PARAMETER_GROUP = "PARAMETER_GROUP";
 	String PARAMETER = "PARAMETER";
 
+	/**
+	 * Returns an array of entity type constants used in the tests.
+	 *
+	 * @return an array of strings representing entity types:
+	 *         PRODUCT, CATEGORY, BRAND, PRICE_LIST, STORE, PARAMETER_GROUP, PARAMETER.
+	 */
+	@Nonnull
 	static String[] values() {
 		return new String[] {
 			PRODUCT, CATEGORY, BRAND, PRICE_LIST, STORE, PARAMETER_GROUP, PARAMETER
