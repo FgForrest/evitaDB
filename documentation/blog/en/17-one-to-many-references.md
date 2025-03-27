@@ -66,13 +66,13 @@ ORDER BY
 
 In addition to the query complexity, it is clear at first glance what problems the application developer will have to solve. The query only handles the correct sorting and does not allow for retrieving other product properties. This would require an additional database query or wrapping it in an outer query that would allow fetching. To get the details of the groups the product belongs to, another SQL query would be needed, and then everything would need to be combined in the application logic.
 
-In several NoSQL databases, this problem is even more complicated. Some do not allow simple joining of data between different collections (e.g., Elasticsearch) and rely on denormalization, which brings its own set of problems. In others, such a model could be achieved, but it is still very complex. Here’s how this problem could be approached [for example in MongoDB](examples/17-one-to-many/mongodb-one-to-many.md).
+In several NoSQL databases, this problem is even more complicated. Some do not allow simple joining of data between different collections (e.g., Elasticsearch) and rely on denormalization, which brings its own set of problems. In others, such a model could be achieved, but it is still very complex. Here’s how this problem could be approached [for example in MongoDB](/documentation/blog/en/examples/17-one-to-many/mongodb-one-to-many.md).
 
 In the web environment, such a problem is very common, so we strive to make things easier for developers. In evitaDB, this query would look much simpler:
 
 <SourceCodeTabs>
 
-[Product Listing Sorted by Group Order](examples/17-one-to-many/product-groups.evitaql)
+[Product Listing Sorted by Group Order](/documentation/blog/en/examples/17-one-to-many/product-groups.evitaql)
 
 </SourceCodeTabs>
 
@@ -156,7 +156,7 @@ The approach in evitaDB adheres to the declarative principle – the developer s
 
 <SourceCodeTabs>
 
-[Product Listing Sorted by Category Order](examples/17-one-to-many/product-categories.evitaql)
+[Product Listing Sorted by Category Order](/documentation/blog/en/examples/17-one-to-many/product-categories.evitaql)
 
 </SourceCodeTabs>
 
@@ -176,7 +176,7 @@ To avoid pure theoretical discussions, let’s extend our example with an additi
 
 <SourceCodeTabs>
 
-[Product Listing Sorted by Category Order, Sorted by the Most Prioritized Tag](examples/17-one-to-many/product-categories-tags.evitaql)
+[Product Listing Sorted by Category Order, Sorted by the Most Prioritized Tag](/documentation/blog/en/examples/17-one-to-many/product-categories-tags.evitaql)
 
 </SourceCodeTabs>
 
@@ -251,7 +251,7 @@ Queries in evitaDB do not suffer from this problem, as they can return entities 
 
 <SourceCodeTabs>
 
-[Product Parameters Listing Limited to the Top 10 Most Important](examples/17-one-to-many/product-parameters-top10.evitaql)
+[Product Parameters Listing Limited to the Top 10 Most Important](/documentation/blog/en/examples/17-one-to-many/product-parameters-top10.evitaql)
 
 </SourceCodeTabs>
 
@@ -261,7 +261,7 @@ In many situations, we don’t even need to load the actual references – we ju
 
 <SourceCodeTabs>
 
-[Checking for Existence of a Priority Warehouse for a Product](examples/17-one-to-many/product-stock-existence.evitaql)
+[Checking for Existence of a Priority Warehouse for a Product](/documentation/blog/en/examples/17-one-to-many/product-stock-existence.evitaql)
 
 </SourceCodeTabs>
 
@@ -273,7 +273,7 @@ For these purposes, spacing is used, which can also be applied to references lis
 
 <SourceCodeTabs>
 
-[Listing Similar Articles with Interspersed Ads](examples/17-one-to-many/article-spacing.evitaql)
+[Listing Similar Articles with Interspersed Ads](/documentation/blog/en/examples/17-one-to-many/article-spacing.evitaql)
 
 </SourceCodeTabs>
 
