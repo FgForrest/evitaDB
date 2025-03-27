@@ -32,7 +32,7 @@ import javax.annotation.Nonnull;
 /**
  * Class contains evitaDB specific assertion methods.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class Assertions {

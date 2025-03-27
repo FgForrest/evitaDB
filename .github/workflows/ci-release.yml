@@ -18,8 +18,8 @@ on:
 
 jobs:
   build:
-    # Only run if the master workflow was successful
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    # Run if the master workflow was successful OR if the branch is a release branch
+    if: ${{ github.event.workflow_run.conclusion == 'success' || startsWith(github.ref, 'refs/heads/release_') }}
 
     permissions:
       # write permission is required to create a github release
