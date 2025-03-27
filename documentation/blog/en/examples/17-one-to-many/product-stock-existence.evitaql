@@ -1,0 +1,24 @@
+query(
+    collection("Product"),
+    filterBy(
+        attributeEquals("url", "/example-product"),
+        entityLocaleEquals("en")
+    ),
+    require(
+        entityFetch(
+            attributeContent("name"),
+            referenceContent(
+                "stocks",
+                filterBy(
+                    entityProperty(
+                        attributeGreaterThan("quantityOnStock", 1)
+                    )
+                ),
+                entityFetch(
+                    attributeContent("name")
+                ),
+                page(1, 0)
+            )
+        )
+    )
+)

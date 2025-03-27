@@ -241,6 +241,43 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		cleanTestSubDirectory(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST);
 	}
 
+	@Disabled("This test is not meant to be run in CI, it is for manual post-mortem analysis of the catalog WAL file remnants.")
+	@Test
+	void analyzeWriteAheadLog() {
+		final String catalogName = "decodoma_cz";
+		final Path basePath = Path.of("/www/oss/evitaDB/data/");
+		final Path catalogFilePath = basePath.resolve(catalogName);
+		final StorageOptions storageOptions = StorageOptions.builder().storageDirectory(basePath).build();
+		final TransactionOptions transactionOptions = TransactionOptions.builder().build();
+		final Pool<Kryo> catalogKryoPool = new Pool<>(true, false, 16) {
+			@Override
+			protected Kryo create() {
+				return KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
+			}
+		};
+
+		try (
+			final CatalogWriteAheadLog wal = new CatalogWriteAheadLog(
+				1, catalogName, catalogFilePath, catalogKryoPool,
+				storageOptions, transactionOptions,
+				new Scheduler(ThreadPoolOptions.transactionThreadPoolBuilder().build()),
+				0
+			)
+		) {
+			final AtomicReference<UUID> lastTransactionId = new AtomicReference<>();
+			wal.getCommittedMutationStream(-1)
+				.forEach(mutation -> {
+					if (mutation instanceof TransactionMutation txMut && !Objects.equals(lastTransactionId.get(), txMut.getTransactionId())) {
+						System.out.println("\n\n>>>>  Transaction " + txMut.getTransactionId() + " at " + txMut.getCommitTimestamp() + "\n\n");
+						lastTransactionId.set(txMut.getTransactionId());
+					}
+					System.out.println("  " + mutation);
+				});
+		} catch (IOException e) {
+			throw new RuntimeException(e);
+		}
+	}
+
 	@Disabled("This test is not meant to be run in CI, it is for manual post-mortem analysis of the catalog data file remnants.")
 	@Test
 	void postMortemAnalysis() {

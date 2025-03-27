@@ -118,10 +118,7 @@ public class HierarchyOfSelfTranslator
 			final NestedContextSorter sorter = hierarchyOfSelf.getOrderBy()
 				.map(
 					it -> extraResultPlanner.createSorter(
-						it,
-						null,
-						targetCollectionRef.get(),
-						queriedEntityType,
+						it, null, targetCollectionRef.get(),
 						() -> "Hierarchy statistics of `" + queriedEntityType + "`: " + it
 					)
 				)
@@ -181,7 +178,7 @@ public class HierarchyOfSelfTranslator
 							)
 						);
 						return new FilteringFormulaHierarchyEntityPredicate(
-							filter, baseFormula
+							queriedEntityType, scopes, filter, baseFormula
 						);
 					}
 				},

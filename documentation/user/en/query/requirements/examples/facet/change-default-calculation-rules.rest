@@ -1,0 +1,20 @@
+POST /rest/evita/Product/query
+
+{
+  "require" : {
+    "facetParameterValuesSummary" : {
+      "statisticsDepth" : "IMPACT",
+      "requirements" : {
+        "entityFetch" : {
+          "attributeContent" : [
+            "code"
+          ]
+        }
+      }
+    },
+    "facetCalculationRules" : {
+      "facetsWithSameGroup" : "CONJUNCTION",
+      "facetsWithDifferentGroups" : "EXCLUSIVITY"
+    }
+  }
+}

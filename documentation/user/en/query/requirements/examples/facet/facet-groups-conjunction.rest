@@ -27,6 +27,6 @@ POST /rest/evita/Product/query
         }
       }
     },
-    "facetGroupsGroupsConjunction" : true
+    "facetGroupsGroupsConjunction" : { }
   }
 }

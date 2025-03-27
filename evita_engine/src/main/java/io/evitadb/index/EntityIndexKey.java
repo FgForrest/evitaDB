@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import io.evitadb.store.spi.model.storageParts.index.EntityIndexKeyAccessor;
 import io.evitadb.utils.StringUtils;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Objects;
@@ -46,7 +47,7 @@ import static java.util.Optional.ofNullable;
 public record EntityIndexKey(
 	@Nonnull EntityIndexType type,
 	@Nonnull Scope scope,
-	Serializable discriminator
+	@Nullable Serializable discriminator
 ) implements IndexKey, Comparable<EntityIndexKey>, EntityIndexKeyAccessor {
 	@Serial private static final long serialVersionUID = -3243859875585872256L;
 

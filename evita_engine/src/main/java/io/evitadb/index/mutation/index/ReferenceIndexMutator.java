@@ -36,11 +36,13 @@ import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
+import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.IndexType;
+import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.mutation.index.dataAccess.ExistingAttributeValueSupplier;
 import io.evitadb.index.mutation.index.dataAccess.ExistingDataSupplierFactory;
@@ -124,15 +126,19 @@ public interface ReferenceIndexMutator {
 		);
 
 		if (referenceIndex != null) {
-			// we need to index entity primary key into the referenced entity index for all attributes
-			executor.updateAttribute(
-				attributeMutation,
+			executeWithProperPrimaryKey(
+				executor, referenceKey,
+				attributeMutation.getAttributeKey().attributeName(),
 				attributeSchemaProvider,
-				compoundSchemaProvider,
-				existingValueAccessorFactory,
-				referenceIndex,
-				false,
-				true
+				() -> executor.updateAttribute(
+					attributeMutation,
+					attributeSchemaProvider,
+					compoundSchemaProvider,
+					existingValueAccessorFactory,
+					referenceIndex,
+					false,
+					true
+				)
 			);
 		}
 	}
@@ -271,16 +277,14 @@ public interface ReferenceIndexMutator {
 	 * {@link EntityIndexType#REFERENCED_ENTITY} index.
 	 */
 	@Nonnull
-	static EntityIndex getOrCreateReferencedEntityIndex(
+	static ReducedEntityIndex getOrCreateReferencedEntityIndex(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull ReferenceKey referenceKey,
 		@Nonnull Scope scope
 	) {
-		final String referenceName = referenceKey.referenceName();
-		final ReferenceSchemaContract referenceSchema = executor.getEntitySchema().getReferenceOrThrowException(referenceName);
 		// in order to save memory the data are indexed either to hierarchical or referenced entity index
 		final EntityIndexKey entityIndexKey = new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, scope, referenceKey);
-		return executor.getOrCreateIndex(entityIndexKey);
+		return (ReducedEntityIndex) executor.getOrCreateIndex(entityIndexKey);
 	}
 
 	/**
@@ -551,6 +555,36 @@ public interface ReferenceIndexMutator {
 	}
 
 	/**
+	 * Executes a given action with the correct primary key for indexing, based on the attribute schema type.
+	 * If the attribute schema represents a type assignable from {@code ReferencedEntityPredecessor},
+	 * the execution is performed under a different primary key derived from the reference key.
+	 * Otherwise, the supplied action is executed as is.
+	 *
+	 * @param executor                The {@link EntityIndexLocalMutationExecutor} used to manage and execute mutations.
+	 * @param referenceKey            The {@link ReferenceKey} representing the reference entity and its primary key.
+	 * @param attributeName           The name of the attribute being processed.
+	 * @param attributeSchemaProvider A function that provides the {@link AttributeSchema} for a given attribute name.
+	 * @param lambda                  The action to execute, typically an indexing operation or similar procedure.
+	 */
+	private static void executeWithProperPrimaryKey(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ReferenceKey referenceKey,
+		@Nonnull String attributeName,
+		@Nonnull Function<String, AttributeSchema> attributeSchemaProvider,
+		@Nonnull Runnable lambda
+	) {
+		// we need to index entity primary key into the referenced entity index for all attributes
+		final AttributeSchema attributeSchema = attributeSchemaProvider.apply(attributeName);
+		if (ReferencedEntityPredecessor.class.isAssignableFrom(attributeSchema.getPlainType())) {
+			executor.executeWithDifferentPrimaryKeyToIndex(
+				indexType -> referenceKey.primaryKey(), lambda
+			);
+		} else {
+			lambda.run();
+		}
+	}
+
+	/**
 	 * Method indexes all existing indexable data for passed entity / referenced entity combination in passed indexes.
 	 */
 	private static void indexAllExistingData(
@@ -682,17 +716,21 @@ public interface ReferenceIndexMutator {
 			existingDataSupplierFactory.getReferenceAttributeValueSupplier(referenceKey)
 				.getAttributeValues()
 				.forEach(attribute ->
-					AttributeIndexMutator.executeAttributeUpsert(
-						executor,
+					executeWithProperPrimaryKey(
+						executor, referenceKey, attribute.key().attributeName(),
 						referenceAttributeSchemaProvider,
-						referenceCompoundsSchemaProvider,
-						NO_EXISTING_VALUE_SUPPLIER,
-						targetIndex,
-						attribute.key(),
-						Objects.requireNonNull(attribute.value()),
-						false,
-						false,
-						undoActionConsumer
+						() -> AttributeIndexMutator.executeAttributeUpsert(
+							executor,
+							referenceAttributeSchemaProvider,
+							referenceCompoundsSchemaProvider,
+							NO_EXISTING_VALUE_SUPPLIER,
+							targetIndex,
+							attribute.key(),
+							Objects.requireNonNull(attribute.value()),
+							false,
+							false,
+							undoActionConsumer
+						)
 					)
 				);
 		}
@@ -822,16 +860,20 @@ public interface ReferenceIndexMutator {
 			referenceAttributeValueSupplier
 				.getAttributeValues()
 				.forEach(attribute ->
-					AttributeIndexMutator.executeAttributeRemoval(
-						executor,
+					executeWithProperPrimaryKey(
+						executor, referenceKey, attribute.key().attributeName(),
 						referenceAttributeSchemaProvider,
-						referenceCompoundsSchemaProvider,
-						referenceAttributeValueSupplier,
-						targetIndex,
-						attribute.key(),
-						false,
-						false,
-						undoActionConsumer
+						() -> AttributeIndexMutator.executeAttributeRemoval(
+							executor,
+							referenceAttributeSchemaProvider,
+							referenceCompoundsSchemaProvider,
+							referenceAttributeValueSupplier,
+							targetIndex,
+							attribute.key(),
+							false,
+							false,
+							undoActionConsumer
+						)
 					)
 				);
 		}

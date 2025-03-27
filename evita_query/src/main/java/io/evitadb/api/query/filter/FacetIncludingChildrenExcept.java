@@ -36,6 +36,7 @@ import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 
@@ -99,6 +100,12 @@ public class FacetIncludingChildrenExcept extends AbstractFilterConstraintContai
 	@Creator
 	public FacetIncludingChildrenExcept(@Nonnull @Child(domain = ConstraintDomain.ENTITY) FilterConstraint child) {
 		super(CONSTRAINT_NAME, child);
+	}
+
+	@Nullable
+	public FilterConstraint getChild() {
+		final FilterConstraint[] children = getChildren();
+		return children.length == 0 ? null : children[0];
 	}
 
 	@Override

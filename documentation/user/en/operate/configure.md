@@ -67,7 +67,7 @@ transaction:                                      # [see Transaction configurati
   flushFrequencyInMillis: 1s
 
 cache:                                            # [see Cache configuration](#cache-configuration)
-  enabled: true
+  enabled: false
   reflection: CACHE
   reevaluateEachSeconds: 60
   anteroomRecordCount: 100K
@@ -678,7 +678,7 @@ is resolved.
 <dl>
     <dt>enabled</dt>
     <dd>
-        <p>**Default:** `true`</p>
+        <p>**Default:** `false`</p>
         <p>This setting enables or disables the use of the cache entirely.</p>
     </dd>
     <dt>reflection</dt>

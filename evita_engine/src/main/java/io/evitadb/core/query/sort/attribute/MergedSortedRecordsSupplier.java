@@ -52,7 +52,7 @@ import java.util.function.IntConsumer;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public class MergedSortedRecordsSupplier extends AbstractRecordsSorter implements ConditionalSorter, Serializable {
+public final class MergedSortedRecordsSupplier extends AbstractRecordsSorter implements ConditionalSorter, Serializable, MergedSortedRecordsSupplierContract {
 	@Serial private static final long serialVersionUID = 6709519064291586499L;
 	/**
 	 * Contains the {@link SortedRecordsProvider} implementation with merged pre-sorted records.
@@ -65,6 +65,23 @@ public class MergedSortedRecordsSupplier extends AbstractRecordsSorter implement
 
 	/**
 	 * Maps positions to the record ids in presorted set respecting start and end index.
+	 * Retrieves a slice of records from the sorted records based on the given parameters.
+	 * Handles skipping of records, filtering already processed records, and adds the resulting
+	 * records to the provided result array. It also accounts for skipped records using an
+	 * optional consumer.
+	 *
+	 * @param sortedRecordsProvider the provider that supplies access to sorted records
+	 * @param positions a bitmap indicating the positions of the records to retrieve
+	 * @param alreadySortedRecordIds a set of record IDs that have already been processed
+	 * @param skip the number of records to skip from the beginning of the positions bitmap
+	 * @param length the number of records to retrieve
+	 * @param result an array where the fetched record IDs will be stored
+	 * @param peak the index at which to start populating the result array
+	 * @param buffer an auxiliary buffer used to process record positions
+	 * @param skippedRecordsConsumer an optional consumer for processing skipped records
+	 *
+	 * @return a PartialSortResult object containing the number of skipped records,
+	 *         the number of records read, and the updated peak index in the result array
 	 */
 	@Nonnull
 	private static PartialSortResult fetchSlice(
@@ -244,7 +261,7 @@ public class MergedSortedRecordsSupplier extends AbstractRecordsSorter implement
 				);
 				return returnResultAppendingUnknown(
 					queryContext, sortResult.notSortedRecords(),
-					unknownRecordIdsSorter,
+					this.unknownRecordIdsSorter,
 					Math.max(0, startIndex - delegateConsumer.getCounter()),
 					Math.max(0, endIndex - delegateConsumer.getCounter()),
 					result, sortResult.peak(), buffer
@@ -260,6 +277,22 @@ public class MergedSortedRecordsSupplier extends AbstractRecordsSorter implement
 		return queryContext.getPrefetchedEntities() == null;
 	}
 
+	/**
+	 * Collects partially sorted results from multiple sorted record providers based on the specified
+	 * range and stores them in the provided result array. The method processes sorted records,
+	 * handles remaining unsorted records, and calculates the peak value of the sorted results.
+	 *
+	 * @param queryContext the execution context for the query being processed
+	 * @param selectedRecordIds a bitmap containing the IDs of the records to be sorted
+	 * @param startIndex the starting index in the sorted result range
+	 * @param endIndex the ending index in the sorted result range
+	 * @param result an array to store the sorted result
+	 * @param peak the current peak index in the result array
+	 * @param buffer an auxiliary buffer used for processing
+	 * @param skippedRecordsConsumer a consumer for handling skipped record counts, or null if not needed
+	 *
+	 * @return a SortResult containing information about the remaining unsorted records and the final peak index
+	 */
 	@Nonnull
 	private SortResult collectPartialResults(
 		@Nonnull QueryExecutionContext queryContext,
@@ -336,7 +369,7 @@ public class MergedSortedRecordsSupplier extends AbstractRecordsSorter implement
 	 * @param peak             current peak index in the result array
 	 */
 	private record SortResult(
-		RoaringBitmap notSortedRecords,
+		@Nonnull RoaringBitmap notSortedRecords,
 		int peak
 	) {
 	}

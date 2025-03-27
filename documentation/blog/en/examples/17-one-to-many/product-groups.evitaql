@@ -1,0 +1,21 @@
+query(
+  collection("Product"),
+  orderBy(
+      referenceProperty(
+          "groups",
+          pickFirstByEntityProperty(
+              attributeNatural("name", ASC)
+          ),
+          attributeNatural("order", ASC)
+      )
+  ),
+  require(
+      entityFetch(
+          attributeContentAll(),
+          referenceContentWithAttributes(
+              "groups",
+              attributeContent("order")
+          )
+      )
+  )
+)

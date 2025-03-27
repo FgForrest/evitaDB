@@ -1060,6 +1060,9 @@ class EvitaQLFilterConstraintVisitorTest {
 
         final FilterConstraint constraint4 = parseFilterConstraintUnsafe("facetHaving ( 'a', includingChildren()   ) )");
         assertEquals(facetHaving("a", includingChildren()), constraint4);
+
+        final FilterConstraint constraint5 = parseFilterConstraintUnsafe("facetHaving ( 'a', entityHaving(attributeEquals('b', 'e') ), includingChildren()   ) )");
+        assertEquals(facetHaving("a", entityHaving(attributeEquals("b", "e")), includingChildren()), constraint5);
     }
 
     @Test

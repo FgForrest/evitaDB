@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -91,6 +91,15 @@ public class FacetSummaryConverter extends RequireConverter {
 					.values()
 					.stream()
 					.filter(ReferenceSchemaContract::isFaceted)
+					.filter(it -> {
+						if (facetSummary != null) {
+							// we need to generate constraints for all references if generic facet summary is requested
+							return true;
+						}
+						// else pick only requested references
+						return facetSummaryOfReferences.stream().anyMatch(facetSummaryOfReference ->
+							facetSummaryOfReference.getReferenceName().equals(it.getName()));
+					})
 					.map(referenceSchema -> getFacetSummaryOfReference(
 						referenceSchema,
 						facetSummaryRequests.get(referenceSchema.getName()),

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -102,13 +102,13 @@ public interface PricesContract extends Versioned, Serializable {
 		final Stream<PriceContract> pricesStream = entityPrices
 			.stream()
 			.filter(PriceContract::exists)
-			.filter(PriceContract::indexed)
 			.filter(it -> currency.equals(it.currency()))
 			.filter(it -> ofNullable(atTheMoment).map(mmt -> it.validity() == null || it.validity().isValidFor(mmt)).orElse(true));
 
 		switch (innerRecordHandling) {
 			case NONE -> {
 				final Optional<PriceContract> priceForSale = pricesStream
+					.filter(PriceContract::indexed)
 					.filter(it -> priorityIndex.containsKey(it.priceList()))
 					.min(Comparator.comparing(o -> priorityIndex.get(o.priceList())))
 					.filter(filterPredicate);
@@ -129,6 +129,7 @@ public interface PricesContract extends Versioned, Serializable {
 					.values()
 					.stream()
 					.map(prices -> prices.stream()
+						.filter(PriceContract::indexed)
 						.filter(it -> priorityIndex.containsKey(it.priceList()))
 						.min(Comparator.comparing(o -> priorityIndex.get(o.priceList())))
 						.orElse(null))
@@ -146,11 +147,13 @@ public interface PricesContract extends Versioned, Serializable {
 					);
 			}
 			case SUM -> {
-				final List<PriceContract> pricesToSum = pricesStream
-					.collect(Collectors.groupingBy(it -> ofNullable(it.innerRecordId()).orElse(0)))
+				final Map<Integer, List<PriceContract>> pricesByInnerId = pricesStream
+					.collect(Collectors.groupingBy(it -> ofNullable(it.innerRecordId()).orElse(0)));
+				final List<PriceContract> pricesToSum = pricesByInnerId
 					.values()
 					.stream()
 					.map(prices -> prices.stream()
+						.filter(PriceContract::indexed)
 						.filter(it -> priorityIndex.containsKey(it.priceList()))
 						.min(Comparator.comparing(o -> priorityIndex.get(o.priceList())))
 						.orElse(null))

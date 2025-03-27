@@ -497,6 +497,20 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitReferencePropertyConstraint(EvitaQLParser.ReferencePropertyConstraintContext ctx);
 	/**
+	 * Visit a parse tree produced by the {@code traverseByEntityPropertyConstraint}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitTraverseByEntityPropertyConstraint(EvitaQLParser.TraverseByEntityPropertyConstraintContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code pickFirstByByEntityPropertyConstraint}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitPickFirstByByEntityPropertyConstraint(EvitaQLParser.PickFirstByByEntityPropertyConstraintContext ctx);
+	/**
 	 * Visit a parse tree produced by the {@code entityPrimaryKeyExactNatural}
 	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
 	 * @param ctx the parse tree
@@ -938,6 +952,20 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitFacetGroupsNegationConstraint(EvitaQLParser.FacetGroupsNegationConstraintContext ctx);
 	/**
+	 * Visit a parse tree produced by the {@code facetGroupsExclusivityConstraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitFacetGroupsExclusivityConstraint(EvitaQLParser.FacetGroupsExclusivityConstraintContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code facetCalculationRulesConstraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitFacetCalculationRulesConstraint(EvitaQLParser.FacetCalculationRulesConstraintContext ctx);
+	/**
 	 * Visit a parse tree produced by the {@code attributeHistogramConstraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
 	 * @param ctx the parse tree
@@ -1172,6 +1200,12 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitFilterConstraintArgs(EvitaQLParser.FilterConstraintArgsContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link EvitaQLParser#traverseOrderConstraintListArgs}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitTraverseOrderConstraintListArgs(EvitaQLParser.TraverseOrderConstraintListArgsContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link EvitaQLParser#orderConstraintListArgs}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -1256,23 +1290,29 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitClassifierWithFilterConstraintArgs(EvitaQLParser.ClassifierWithFilterConstraintArgsContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link EvitaQLParser#classifierWithOptionalFilterConstraintArgs}.
+	 * Visit a parse tree produced by {@link EvitaQLParser#classifierWithTwoFilterConstraintArgs}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitClassifierWithOptionalFilterConstraintArgs(EvitaQLParser.ClassifierWithOptionalFilterConstraintArgsContext ctx);
+	T visitClassifierWithTwoFilterConstraintArgs(EvitaQLParser.ClassifierWithTwoFilterConstraintArgsContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link EvitaQLParser#facetGroupRelationArgs}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitFacetGroupRelationArgs(EvitaQLParser.FacetGroupRelationArgsContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link EvitaQLParser#facetCalculationRulesArgs}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitFacetCalculationRulesArgs(EvitaQLParser.FacetCalculationRulesArgsContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link EvitaQLParser#classifierWithOrderConstraintListArgs}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
 	T visitClassifierWithOrderConstraintListArgs(EvitaQLParser.ClassifierWithOrderConstraintListArgsContext ctx);
-	/**
-	 * Visit a parse tree produced by {@link EvitaQLParser#valueWithRequireConstraintListArgs}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitValueWithRequireConstraintListArgs(EvitaQLParser.ValueWithRequireConstraintListArgsContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link EvitaQLParser#hierarchyWithinConstraintArgs}.
 	 * @param ctx the parse tree

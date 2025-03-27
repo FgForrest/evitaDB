@@ -29,14 +29,8 @@ import io.evitadb.api.observability.HealthProblem;
 import io.evitadb.api.observability.ReadinessState;
 import io.evitadb.api.query.filter.AttributeSpecialValue;
 import io.evitadb.api.query.order.OrderDirection;
-import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
-import io.evitadb.api.query.require.FacetStatisticsDepth;
-import io.evitadb.api.query.require.HistogramBehavior;
-import io.evitadb.api.query.require.ManagedReferencesBehaviour;
-import io.evitadb.api.query.require.PriceContentMode;
-import io.evitadb.api.query.require.QueryPriceMode;
-import io.evitadb.api.query.require.StatisticsBase;
-import io.evitadb.api.query.require.StatisticsType;
+import io.evitadb.api.query.order.TraversalMode;
+import io.evitadb.api.query.require.*;
 import io.evitadb.api.requestResponse.cdc.CaptureArea;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.Operation;
@@ -443,6 +437,68 @@ public class EvitaEnumConverter {
 	}
 
 	/**
+	 * Converts {@link FacetRelationType} to {@link GrpcFacetRelationType}.
+	 *
+	 * @param facetRelationType the {@link FacetRelationType} to be converted
+	 * @return the converted {@link GrpcFacetRelationType}
+	 */
+	@Nonnull
+	public static GrpcFacetRelationType toGrpcFacetRelationType(@Nonnull FacetRelationType facetRelationType) {
+		return switch (facetRelationType) {
+			case CONJUNCTION -> GrpcFacetRelationType.CONJUNCTION;
+			case DISJUNCTION -> GrpcFacetRelationType.DISJUNCTION;
+			case NEGATION -> GrpcFacetRelationType.NEGATION;
+			case EXCLUSIVITY -> GrpcFacetRelationType.EXCLUSIVITY;
+		};
+	}
+
+	/**
+	 * Converts {@link GrpcFacetRelationType} to {@link FacetRelationType}.
+	 *
+	 * @param grpcFacetRelationType the {@link GrpcFacetRelationType} to be converted
+	 * @return the converted {@link FacetRelationType}
+	 */
+	@Nonnull
+	public static FacetRelationType toFacetRelationType(@Nonnull GrpcFacetRelationType grpcFacetRelationType) {
+	    return switch (grpcFacetRelationType) {
+	        case CONJUNCTION -> FacetRelationType.CONJUNCTION;
+	        case DISJUNCTION -> FacetRelationType.DISJUNCTION;
+	        case NEGATION -> FacetRelationType.NEGATION;
+	        case EXCLUSIVITY -> FacetRelationType.EXCLUSIVITY;
+	        default -> throw new GenericEvitaInternalError("Unrecognized remote facet relation type: " + grpcFacetRelationType);
+	    };
+	}
+
+	/**
+	 * Converts {@link FacetGroupRelationLevel} to {@link GrpcFacetGroupRelationLevel}.
+	 *
+	 * @param facetGroupRelationLevel the {@link FacetGroupRelationLevel} to be converted
+	 * @return the converted {@link GrpcFacetGroupRelationLevel}
+	 */
+	@Nonnull
+	public static GrpcFacetGroupRelationLevel toGrpcFacetGroupRelationLevel(@Nonnull FacetGroupRelationLevel facetGroupRelationLevel) {
+		return switch (facetGroupRelationLevel) {
+			case WITH_DIFFERENT_GROUPS -> GrpcFacetGroupRelationLevel.WITH_DIFFERENT_GROUPS;
+			case WITH_DIFFERENT_FACETS_IN_GROUP -> GrpcFacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP;
+		};
+	}
+
+	/**
+	 * Converts {@link GrpcFacetGroupRelationLevel} to {@link FacetGroupRelationLevel}.
+	 *
+	 * @param grpcFacetGroupRelationLevel the {@link GrpcFacetGroupRelationLevel} to be converted
+	 * @return the converted {@link FacetGroupRelationLevel}
+	 */
+	@Nonnull
+	public static FacetGroupRelationLevel toFacetGroupRelationLevel(@Nonnull GrpcFacetGroupRelationLevel grpcFacetGroupRelationLevel) {
+	    return switch (grpcFacetGroupRelationLevel) {
+	        case WITH_DIFFERENT_GROUPS -> FacetGroupRelationLevel.WITH_DIFFERENT_GROUPS;
+	        case WITH_DIFFERENT_FACETS_IN_GROUP -> FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP;
+	        default -> throw new GenericEvitaInternalError("Unrecognized remote facet group relation level: " + grpcFacetGroupRelationLevel);
+	    };
+	}
+
+	/**
 	 * Converts {@link FacetStatisticsDepth} to {@link GrpcFacetStatisticsDepth}.
 	 *
 	 * @param facetStatisticsDepth the {@link FacetStatisticsDepth} to be converted
@@ -453,6 +509,35 @@ public class EvitaEnumConverter {
 		return switch (facetStatisticsDepth) {
 			case COUNTS -> GrpcFacetStatisticsDepth.COUNTS;
 			case IMPACT -> GrpcFacetStatisticsDepth.IMPACT;
+		};
+	}
+
+	/**
+	 * Converts {@link TraversalMode} to {@link GrpcTraversalMode}.
+	 *
+	 * @param traversalMode the {@link TraversalMode} to be converted
+	 * @return the converted {@link GrpcTraversalMode}
+	 */
+	@Nonnull
+	public static GrpcTraversalMode toGrpcTraversalMode(@Nonnull TraversalMode traversalMode) {
+		return switch (traversalMode) {
+			case DEPTH_FIRST -> GrpcTraversalMode.DEPTH_FIRST;
+			case BREADTH_FIRST -> GrpcTraversalMode.BREADTH_FIRST;
+		};
+	}
+
+	/**
+	 * Converts {@link GrpcTraversalMode} to {@link TraversalMode}.
+	 *
+	 * @param grpcTraversalMode the {@link GrpcTraversalMode} to be converted
+	 * @return the converted {@link TraversalMode}
+	 */
+	@Nonnull
+	public static TraversalMode toTraversalMode(@Nonnull GrpcTraversalMode grpcTraversalMode) {
+		return switch (grpcTraversalMode) {
+			case DEPTH_FIRST -> TraversalMode.DEPTH_FIRST;
+			case BREADTH_FIRST -> TraversalMode.BREADTH_FIRST;
+			default -> throw new GenericEvitaInternalError("Unrecognized remote traversal mode: " + grpcTraversalMode);
 		};
 	}
 

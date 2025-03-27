@@ -21,8 +21,12 @@
     <dd><strong>gRPC response status</strong>: State of the gRPC response (OK, ERROR, CANCELED).</dd>
     <dt>httpMethod</dt>
     <dd><strong>HTTP method</strong>: The HTTP method of the request.</dd>
+    <dt>httpStatusCode</dt>
+    <dd><strong>HTTP status code</strong>: The HTTP response status code that was sent to client.</dd>
     <dt>initiator</dt>
     <dd><strong>Initiator of the call</strong>: Initiator of the gRPC call (either client or server).</dd>
+    <dt>instanceId</dt>
+    <dd><strong>Server instance id</strong>: Unique server name taken from the configuration file.</dd>
     <dt>name</dt>
     <dd><strong>Logical file name</strong>: The logical name of the file that was flushed. Identifies the file more precisely.</dd>
     <dt>operationId</dt>
@@ -31,6 +35,8 @@
     <dd><strong>GraphQL operation</strong>: The name of the operation specified in the GQL request.</dd>
     <dt>prefetched</dt>
     <dd><strong>Prefetched vs. non-prefetched query</strong>: Whether or not the query used a prefetch plan. Prefetch plan optimistically fetches queried entities in advance and executes directly on them (without accessing the indexes).</dd>
+    <dt>probeResult</dt>
+    <dd><strong>Probe result</strong>: The result of the readiness probe (ok, timeout, error).</dd>
     <dt>procedureName</dt>
     <dd><strong>Procedure name</strong>: Name of the gRPC procedure that was called (the method name).</dd>
     <dt>prospective</dt>
@@ -39,6 +45,8 @@ Client view is the duration viewed from the HTTP client side affected by timeout
 duration of the probe.</dd>
     <dt>recordType</dt>
     <dd><strong>Record type</strong>: Type of records that changed in the OffsetIndex.</dd>
+    <dt>requestResult</dt>
+    <dd><strong>Request result</strong>: Simplified result of the request (success, error, cancelled).</dd>
     <dt>resolution</dt>
     <dd><strong>Transaction resolution</strong>: The resolution of the transaction (either commit or rollback).</dd>
     <dt>responseStatus</dt>
@@ -47,8 +55,8 @@ duration of the probe.</dd>
     <dd><strong>REST instance type</strong>: Domain of the REST API used in connection with this event/metric: SYSTEM, or CATALOG</dd>
     <dt>restOperationType</dt>
     <dd><strong>REST operation type</strong>: The type of operation that was executed. One of: QUERY, MUTATION.</dd>
-    <dt>result</dt>
-    <dd><strong>Result</strong>: The result of the readiness probe (ok, timeout, error).</dd>
+    <dt>serverVersion</dt>
+    <dd><strong>Server version</strong>: Precise version of the evitaDB server.</dd>
     <dt>serviceName</dt>
     <dd><strong>Service name</strong>: Name of the gRPC service that was called (the name of the Java class).</dd>
     <dt>stage</dt>
@@ -62,9 +70,11 @@ duration of the probe.</dd>
 
 <dl>
   <dt><code>io_evitadb_external_api_readiness_duration_milliseconds</code> (HISTOGRAM)</dt>
-  <dd>Readiness probe duration<br/><br/><strong>Labels:</strong> <Term>api</Term>, <Term>prospective</Term>, <Term>result</Term><br/></dd>
+  <dd>Readiness probe duration<br/><br/><strong>Labels:</strong> <Term>api</Term>, <Term>probeResult</Term>, <Term>prospective</Term><br/></dd>
   <dt><code>io_evitadb_external_api_readiness_total</code> (COUNTER)</dt>
-  <dd>Readiness probe invoked total<br/><br/><strong>Labels:</strong> <Term>api</Term>, <Term>prospective</Term>, <Term>result</Term><br/></dd>
+  <dd>Readiness probe invoked total<br/><br/><strong>Labels:</strong> <Term>api</Term>, <Term>probeResult</Term>, <Term>prospective</Term><br/></dd>
+  <dt><code>io_evitadb_external_api_request_total</code> (COUNTER)</dt>
+  <dd>Requests invoked total<br/><br/><strong>Labels:</strong> <Term>api</Term>, <Term>httpStatusCode</Term>, <Term>requestResult</Term><br/></dd>
 </dl>
 
 #### API / GraphQL / Instance / Schema
@@ -248,10 +258,6 @@ duration of the probe.</dd>
   <dd>Duration of OffsetIndex compaction.<br/><br/><strong>Labels:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
   <dt><code>io_evitadb_storage_data_file_compact_total</code> (COUNTER)</dt>
   <dd>OffsetIndex compaction.<br/><br/><strong>Labels:</strong> <Term>fileType</Term>, <Term>name</Term><br/></dd>
-  <dt><code>io_evitadb_storage_evita_dbcomposition_changed_catalogs</code> (GAUGE)</dt>
-  <dd><strong>Catalog count</strong>: Number of accessible catalogs managed by this instance of evitaDB.</dd>
-  <dt><code>io_evitadb_storage_evita_dbcomposition_changed_corrupted_catalogs</code> (GAUGE)</dt>
-  <dd><strong>Corrupted catalog count</strong>: Number of corrupted catalogs that evitaDB could not load.</dd>
   <dt><code>io_evitadb_storage_observable_output_change_occupied_memory_bytes</code> (GAUGE)</dt>
   <dd><strong>Memory occupied by opened output buffers in Bytes</strong>: The amount of memory in bytes occupied by open OffsetIndex output buffers.</dd>
   <dt><code>io_evitadb_storage_observable_output_change_opened_buffers</code> (GAUGE)</dt>

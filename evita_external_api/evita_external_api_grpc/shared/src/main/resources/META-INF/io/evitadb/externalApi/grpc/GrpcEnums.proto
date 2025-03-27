@@ -696,3 +696,41 @@ enum GrpcEntityScope {
     SCOPE_ARCHIVED = 1;
 
 }
+
+// Enum defines all supported relation type that can be used in the facet summary impact calculation.
+enum GrpcFacetRelationType {
+
+  // Logical OR relation.
+  DISJUNCTION = 0;
+  // Logical AND relation.
+  CONJUNCTION = 1;
+  // Logical AND NOT relation.
+  NEGATION = 2;
+  // Exclusive relations to other facets on the same level, when selected no other facet on that level can be selected.
+  EXCLUSIVITY = 3;
+
+}
+
+// Enum defines various level of relationship for which the facet summary calculation rules are defined.
+enum GrpcFacetGroupRelationLevel {
+
+  // Defines relation type between two facets in the same group and reference.
+  WITH_DIFFERENT_FACETS_IN_GROUP = 0;
+
+  // Defines relation type between two facets in the different groups or references.
+  WITH_DIFFERENT_GROUPS = 1;
+
+}
+
+// Enum defines the two modes of traversing a hierarchy when using the `traverseByEntityProperty` ordering constraint.
+enum GrpcTraversalMode {
+
+  // The depth-first traversal mode traverses the hierarchy in a depth-first manner, meaning it will
+  // explore as far as possible along each branch before backtracking.
+  DEPTH_FIRST = 0;
+
+  // The breadth-first traversal mode traverses the hierarchy in a breadth-first manner, meaning it will
+  // explore all the nodes at the present depth level before moving on to the nodes at the next depth level.
+  BREADTH_FIRST = 1;
+
+}

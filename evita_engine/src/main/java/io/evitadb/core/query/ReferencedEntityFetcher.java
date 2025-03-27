@@ -536,12 +536,22 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 						)
 					),
 					executionContext.getQueryContext().getScopes(),
-					(es, eik) -> ReferencedTypeEntityIndex.createThrowingStub(es, eik, allReferencedEntityIds),
+					(es, eik) -> {
+						if (referenceSchema.isIndexedInScope(eik.scope())) {
+							return null;
+						} else {
+							return ReferencedTypeEntityIndex.createThrowingStub(es, eik, allReferencedEntityIds);
+						}
+					},
 					(es, eik) -> {
 						final int[] epks = entityPrimaryKeys.get(eik.scope());
-						return ReducedEntityIndex.createThrowingStub(
-							es, eik, epks == null ? ArrayUtils.EMPTY_INT_ARRAY : epks
-						);
+						if (referenceSchema.isIndexedInScope(eik.scope())) {
+							return null;
+						} else {
+							return ReducedEntityIndex.createThrowingStub(
+								es, eik, epks == null ? ArrayUtils.EMPTY_INT_ARRAY : epks
+							);
+						}
 					}
 				);
 
@@ -581,6 +591,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 								final Formula epkFormula = entityPrimaryKeyFormula.get(indexKey.scope());
 								if (epkFormula != null) {
 									lastIndexFormula = FormulaFactory.or(
+										lastIndexFormula,
 										resultFormula,
 										epkFormula
 									);
@@ -1875,7 +1886,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		/**
 		 * Contains cache of groups indexed by entity primary key.
 		 */
-		private Map<Integer, int[]> groupsForEntity;
+		private Map<Integer, int[]> groupsForEntity = Collections.emptyMap();
 
 		public BitmapSlicer(
 			@Nonnull Map<Scope, int[]> entityPrimaryKey,

@@ -473,8 +473,8 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	@Disabled
 	Stream<DynamicTest> testSingleFileDocumentationAndCreateOtherLanguageSnippets() {
 		return this.createTests(
-			Environment.DEMO_SERVER,
-			getRootDirectory().resolve("documentation/user/en/query/requirements/fetching.md"),
+			Environment.LOCALHOST,
+			getRootDirectory().resolve("documentation/user/en/query/ordering/reference.md"),
 			new ExampleFilter[]{
 				/*ExampleFilter.CSHARP,*/
 				ExampleFilter.JAVA,

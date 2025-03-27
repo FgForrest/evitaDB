@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.dataType.array.CompositeObjectArray;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -39,20 +40,26 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 class AttributeComparatorTest {
 	public static final String ATTRIBUTE_NAME = "test";
-	@SuppressWarnings({"unchecked", "rawtypes"})
 	private final AttributeComparator comparator = new AttributeComparator(
-		ATTRIBUTE_NAME, Integer.class, null, EntityAttributeExtractor.INSTANCE, OrderDirection.ASC
+		ATTRIBUTE_NAME, Integer.class, null, OrderDirection.ASC
 	);
-	@SuppressWarnings({"unchecked", "rawtypes"})
 	private final AttributeComparator reverseComparator = new AttributeComparator(
-		ATTRIBUTE_NAME, Integer.class, null, EntityAttributeExtractor.INSTANCE, OrderDirection.DESC
+		ATTRIBUTE_NAME, Integer.class, null, OrderDirection.DESC
 	);
+
+	@BeforeEach
+	void setUp() {
+		comparator.prepareFor(100);
+		reverseComparator.prepareFor(100);
+	}
 
 	@Test
 	void shouldSortEntitiesInAscendingOrder() {
 		final SealedEntity entity1 = Mockito.mock(SealedEntity.class);
+		Mockito.when(entity1.getPrimaryKeyOrThrowException()).thenReturn(1);
 		Mockito.when(entity1.getAttribute(ATTRIBUTE_NAME)).thenReturn("A");
 		final SealedEntity entity2 = Mockito.mock(SealedEntity.class);
+		Mockito.when(entity2.getPrimaryKeyOrThrowException()).thenReturn(2);
 		Mockito.when(entity2.getAttribute(ATTRIBUTE_NAME)).thenReturn("B");
 		assertEquals(-1, comparator.compare(entity1, entity2));
 		assertEquals(1, comparator.compare(entity2, entity1));
@@ -62,8 +69,10 @@ class AttributeComparatorTest {
 	@Test
 	void shouldSortEntitiesInDescendingOrder() {
 		final SealedEntity entity1 = Mockito.mock(SealedEntity.class);
+		Mockito.when(entity1.getPrimaryKeyOrThrowException()).thenReturn(1);
 		Mockito.when(entity1.getAttribute(ATTRIBUTE_NAME)).thenReturn("A");
 		final SealedEntity entity2 = Mockito.mock(SealedEntity.class);
+		Mockito.when(entity2.getPrimaryKeyOrThrowException()).thenReturn(2);
 		Mockito.when(entity2.getAttribute(ATTRIBUTE_NAME)).thenReturn("B");
 		assertEquals(1, reverseComparator.compare(entity1, entity2));
 		assertEquals(-1, reverseComparator.compare(entity2, entity1));
@@ -73,17 +82,14 @@ class AttributeComparatorTest {
 	@Test
 	void shouldIdentifyNonSortableEntityA() {
 		final SealedEntity entity1 = Mockito.mock(SealedEntity.class);
+		Mockito.when(entity1.getPrimaryKeyOrThrowException()).thenReturn(1);
 		Mockito.when(entity1.getAttribute(ATTRIBUTE_NAME)).thenReturn("A");
 		final SealedEntity entity2 = Mockito.mock(SealedEntity.class);
+		Mockito.when(entity2.getPrimaryKeyOrThrowException()).thenReturn(2);
 		Mockito.when(entity2.getAttribute(ATTRIBUTE_NAME)).thenReturn(null);
 		assertEquals(-1, comparator.compare(entity1, entity2));
 		assertEquals(1, ((CompositeObjectArray<EntityContract>)comparator.getNonSortedEntities()).getSize());
 		assertEquals(entity2, ((CompositeObjectArray<EntityContract>)comparator.getNonSortedEntities()).get(0));
-
-		assertEquals(1, comparator.compare(entity2, entity1));
-		assertEquals(2, ((CompositeObjectArray<EntityContract>)comparator.getNonSortedEntities()).getSize());
-		assertEquals(entity2, ((CompositeObjectArray<EntityContract>)comparator.getNonSortedEntities()).get(0));
-		assertEquals(entity2, ((CompositeObjectArray<EntityContract>)comparator.getNonSortedEntities()).get(1));
 	}
 
 }

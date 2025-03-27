@@ -1,0 +1,35 @@
+{
+  queryProduct(
+    orderBy: [
+      {
+        referenceGroupsProperty: [
+          {
+            pickFirstByEntityProperty: [
+              {
+                attributeNameNatural: ASC
+              }
+            ]
+          },
+          {
+            attributeOrderNatural: ASC
+          }
+        ]
+      }
+    ]
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        attributes {
+          name
+        }
+        groups {
+          referencedPrimaryKey
+          attributes {
+            order
+          }
+        }
+      }
+    }
+  }
+}

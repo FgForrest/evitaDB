@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -51,7 +51,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class ClientTaskTrackerTest implements TestConstants {
 	final EvitaManagementContract evitaClientMock = Mockito.mock(EvitaManagementContract.class);
-	private ClientTaskTracker tested = new ClientTaskTracker(evitaClientMock, 100, 1);
+	private final ClientTaskTracker tested = new ClientTaskTracker(evitaClientMock, 100, 1);
 
 	@Test
 	void shouldTrackTaskUntilFinished() throws ExecutionException, InterruptedException, TimeoutException {

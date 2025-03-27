@@ -28,6 +28,7 @@ import io.evitadb.api.query.ConstraintContainer;
 import io.evitadb.api.query.ConstraintContainerWithSuffix;
 import io.evitadb.api.query.ConstraintLeaf;
 import io.evitadb.api.query.ConstraintVisitor;
+import io.evitadb.api.query.ConstraintWithDefaults;
 import io.evitadb.api.query.ConstraintWithSuffix;
 import io.evitadb.api.query.Query;
 import io.evitadb.dataType.BigDecimalNumberRange;
@@ -275,7 +276,9 @@ public class JavaPrettyPrintingVisitor implements ConstraintVisitor {
 			final Constraint<?>[] additionalChildren = constraint.getExplicitAdditionalChildren();
 			final int additionalChildrenLength = additionalChildren.length;
 
-			final Serializable[] arguments = constraint.getArgumentsExcludingDefaults();
+			final Serializable[] arguments = (constraint instanceof ConstraintWithDefaults<?> constraintWithDefaults)
+				? constraintWithDefaults.getArgumentsExcludingDefaults()
+				: constraint.getArguments();
 			final int argumentsLength = arguments.length;
 
 			// print arguments

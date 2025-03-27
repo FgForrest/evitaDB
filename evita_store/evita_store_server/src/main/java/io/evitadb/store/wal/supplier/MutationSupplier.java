@@ -105,7 +105,7 @@ public final class MutationSupplier extends AbstractMutationSupplier {
 					// in the WAL only when there is a lot of them to be read and processed
 					final long requiredLength = this.filePosition + this.transactionMutation.getTransactionSpan().recordLength();
 					if (
-						avoidPartiallyFilledBuffer ?
+						this.avoidPartiallyFilledBuffer ?
 							// for partially filled buffer we stop reading the transaction mutation when the requested catalog version is reached
 							this.transactionMutation.getCatalogVersion() <= this.requestedCatalogVersion && currentFileLength >= requiredLength :
 							// otherwise we require just the entire transaction to be written

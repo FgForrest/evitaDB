@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -253,5 +253,19 @@ public non-sealed interface HierarchyFilteringPredicate extends IntPredicate, Ex
 			return "NOT(" + predicate + ")";
 		}
 
+		@Override
+		public final boolean equals(Object o) {
+			if (this == o) return true;
+			if (!(o instanceof NegatedHierarchyFilteringPredicate that)) return false;
+
+			return predicate.equals(that.predicate) && hash.equals(that.hash);
+		}
+
+		@Override
+		public int hashCode() {
+			int result = predicate.hashCode();
+			result = 31 * result + hash.hashCode();
+			return result;
+		}
 	}
 }

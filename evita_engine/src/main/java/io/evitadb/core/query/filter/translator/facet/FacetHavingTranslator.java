@@ -68,6 +68,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.api.query.require.FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP;
+import static io.evitadb.api.query.require.FacetGroupRelationLevel.WITH_DIFFERENT_GROUPS;
 import static io.evitadb.utils.Assert.isTrue;
 import static java.util.Optional.ofNullable;
 
@@ -268,7 +270,7 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 				return entityIndex.getFacetReferencingEntityIdsFormula(
 					facetHaving.getReferenceName(),
 					(groupId, theFacetIds, recordIdBitmaps) -> {
-						if (filterByVisitor.isFacetGroupConjunction(referenceSchema, groupId)) {
+						if (filterByVisitor.isFacetGroupConjunction(referenceSchema, groupId, WITH_DIFFERENT_FACETS_IN_GROUP)) {
 							// AND relation is requested for facet of this group
 							return new FacetGroupAndFormula(
 								facetHaving.getReferenceName(), groupId, theFacetIds, recordIdBitmaps
@@ -312,10 +314,10 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 						if (groupId != null) {
 							if (referenceSchema.isReferencedGroupTypeManaged()) {
 								// OR relation is requested for facets of this group
-								if (filterByVisitor.isFacetGroupDisjunction(referenceSchema, groupId)) {
+								if (filterByVisitor.isFacetGroupDisjunction(referenceSchema, groupId, WITH_DIFFERENT_GROUPS)) {
 									return Or.class;
 									// NOT relation is requested for facets of this group
-								} else if (filterByVisitor.isFacetGroupNegation(referenceSchema, groupId)) {
+								} else if (filterByVisitor.isFacetGroupNegation(referenceSchema, groupId, WITH_DIFFERENT_GROUPS)) {
 									return Not.class;
 								}
 							}
@@ -389,7 +391,7 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 
 		@Override
 		public int hashCode() {
-			return Objects.hash(groupId);
+			return groupId == null ? 0 : groupId.hashCode();
 		}
 
 	}

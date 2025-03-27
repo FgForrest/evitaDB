@@ -735,6 +735,7 @@ public class EvitaServer {
 		public void run() {
 			final Evita evita = this.evitaServer.getEvita();
 			try {
+				evita.getServiceExecutor().prepareForBeingShutdown();
 				this.evitaServer.stop()
 					.thenAccept(unused -> stop())
 					.get(30, TimeUnit.SECONDS);

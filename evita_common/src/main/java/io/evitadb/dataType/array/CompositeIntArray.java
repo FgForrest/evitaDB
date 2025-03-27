@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
@@ -220,7 +221,7 @@ public class CompositeIntArray implements Serializable {
 	 * Returns the size of the array.
 	 */
 	public int getSize() {
-		return ((chunks.size() - 1) * CHUNK_SIZE) + chunkPeek + 1;
+		return ((this.chunks.size() - 1) * CHUNK_SIZE) + this.chunkPeek + 1;
 	}
 
 	/**
@@ -332,11 +333,24 @@ public class CompositeIntArray implements Serializable {
 	}
 
 	/**
-	 * Returns iterator over the composite array.
+	 * Returns an iterator over the elements in this composite integer array.
+	 *
+	 * @return an iterator of type {@code OfInt} to traverse the elements of the composite integer array.
 	 */
 	@Nonnull
 	public OfInt iterator() {
 		return new CompositeIntArrayOfInt();
+	}
+
+	/**
+	 * Returns an {@link OfInt} iterator starting from the given integer value.
+	 *
+	 * @param index the starting point from which the iterator will begin
+	 * @return an {@link OfInt} iterator instance that starts from the specified value
+	 */
+	@Nonnull
+	public OfInt iteratorFrom(int index) {
+		return new CompositeIntArrayOfInt(index);
 	}
 
 	/**
@@ -386,35 +400,40 @@ public class CompositeIntArray implements Serializable {
 	 */
 	private class CompositeIntArrayOfInt implements OfInt {
 		private final Iterator<int[]> chunkIterator;
-		private final int size;
 		private int chunkIndex;
 		private int index;
-		private int[] currentChunk;
+		@Nullable private int[] currentChunk;
 
 		CompositeIntArrayOfInt() {
-			this.index = -1;
-			this.chunkIndex = CHUNK_SIZE;
+			this(0);
+		}
+
+		CompositeIntArrayOfInt(int index) {
+			this.index = index - 1;
+			this.chunkIndex = Math.max(-1, index % CHUNK_SIZE - 1);
+			this.chunkIterator = CompositeIntArray.this.chunks.listIterator(index / CHUNK_SIZE);
 			this.currentChunk = null;
-			this.size = CompositeIntArray.this.getSize();
-			this.chunkIterator = CompositeIntArray.this.chunks.iterator();
 		}
 
 		@Override
 		public int nextInt() {
-			if (this.index == size) {
+			final boolean endOfChunk = this.chunkIndex + 1 >= CHUNK_SIZE;
+			if (endOfChunk || this.currentChunk == null) {
+				if (endOfChunk) {
+					this.chunkIndex = -1;
+				}
+				this.currentChunk = this.chunkIterator.hasNext() ? this.chunkIterator.next() : null;
+			}
+			if (this.currentChunk == null) {
 				throw new NoSuchElementException("End of the array reached - max number of elements is " + getSize());
 			}
-			if (this.chunkIndex + 1 >= CHUNK_SIZE) {
-				this.chunkIndex = -1;
-				this.currentChunk = chunkIterator.next();
-			}
 			this.index++;
-			return this.currentChunk[++chunkIndex];
+			return this.currentChunk[++this.chunkIndex];
 		}
 
 		@Override
 		public boolean hasNext() {
-			return size > index + 1;
+			return CompositeIntArray.this.getSize() > this.index + 1;
 		}
 	}
 

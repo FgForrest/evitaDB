@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -70,7 +70,7 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 	 */
 	protected final String taskType;
 
-	protected AbstractServerTask(@Nonnull String taskType, @Nonnull String taskName, @Nullable S settings, @Nonnull TaskTrait... traits) {
+	protected AbstractServerTask(@Nonnull String taskType, @Nonnull String taskName, @Nonnull S settings, @Nonnull TaskTrait... traits) {
 		this.taskType = taskType;
 		this.future = new ServerTaskCompletableFuture<>();
 		this.status = new AtomicReference<>(
@@ -94,7 +94,7 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 		this.exceptionHandler = null;
 	}
 
-	protected AbstractServerTask(@Nonnull String catalogName, @Nonnull String taskType, @Nonnull String taskName, @Nullable S settings, @Nonnull TaskTrait... traits) {
+	protected AbstractServerTask(@Nonnull String catalogName, @Nonnull String taskType, @Nonnull String taskName, @Nonnull S settings, @Nonnull TaskTrait... traits) {
 		this.taskType = taskType;
 		this.future = new ServerTaskCompletableFuture<>();
 		this.status = new AtomicReference<>(
@@ -118,7 +118,7 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 		this.exceptionHandler = null;
 	}
 
-	protected AbstractServerTask(@Nonnull String taskType, @Nonnull String taskName, @Nullable S settings, @Nonnull Function<Throwable, T> exceptionHandler, @Nonnull TaskTrait... traits) {
+	protected AbstractServerTask(@Nonnull String taskType, @Nonnull String taskName, @Nonnull S settings, @Nonnull Function<Throwable, T> exceptionHandler, @Nonnull TaskTrait... traits) {
 		this.taskType = taskType;
 		this.future = new ServerTaskCompletableFuture<>();
 		this.status = new AtomicReference<>(
@@ -142,7 +142,7 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 		this.exceptionHandler = exceptionHandler;
 	}
 
-	protected AbstractServerTask(@Nonnull String catalogName, @Nonnull String taskType, @Nonnull String taskName, @Nullable S settings, @Nonnull Function<Throwable, T> exceptionHandler, @Nonnull TaskTrait... traits) {
+	protected AbstractServerTask(@Nonnull String catalogName, @Nonnull String taskType, @Nonnull String taskName, @Nonnull S settings, @Nonnull Function<Throwable, T> exceptionHandler, @Nonnull TaskTrait... traits) {
 		this.taskType = taskType;
 		this.future = new ServerTaskCompletableFuture<>();
 		this.status = new AtomicReference<>(
@@ -263,7 +263,7 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 	public void updateTaskNameAndTraits(@Nonnull String taskName, @Nonnull TaskTrait... traits) {
 		if (!(this.future.isDone() || this.future.isCancelled())) {
 			this.status.updateAndGet(
-				currentStatus -> currentStatus.updateTaskNameAndTraits(taskName)
+				currentStatus -> currentStatus.updateTaskNameAndTraits(taskName, traits)
 			);
 		}
 	}
@@ -291,7 +291,7 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 	protected T executeAndCompleteFuture() {
 		final T result = this.executeInternal();
 		if (this.future.isDone()) {
-			return null;
+			return this.future.getNow(null);
 		} else {
 			this.status.updateAndGet(
 				currentStatus -> currentStatus.transitionToFinished(result)

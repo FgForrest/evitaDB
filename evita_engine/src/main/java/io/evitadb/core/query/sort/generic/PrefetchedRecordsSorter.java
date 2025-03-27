@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -81,7 +81,7 @@ public class PrefetchedRecordsSorter extends AbstractRecordsSorter implements Co
 	@Override
 	public Sorter cloneInstance() {
 		return new PrefetchedRecordsSorter(
-			entityComparator, null
+			this.entityComparator, null
 		);
 	}
 
@@ -114,12 +114,12 @@ public class PrefetchedRecordsSorter extends AbstractRecordsSorter implements Co
 			entities.add(queryContext.translateToEntity(id));
 		}
 
-		entityComparator.prepareFor(endIndex - startIndex);
-		entities.sort(entityComparator);
+		this.entityComparator.prepareFor(endIndex - startIndex);
+		entities.sort(this.entityComparator);
 
 		int notFoundRecordsCnt = 0;
 		final RoaringBitmap notFoundRecords = new RoaringBitmap();
-		for (EntityContract entityContract : entityComparator.getNonSortedEntities()) {
+		for (EntityContract entityContract : this.entityComparator.getNonSortedEntities()) {
 			if (notFoundRecords.checkedAdd(queryContext.translateEntity(entityContract))) {
 				notFoundRecordsCnt++;
 			}
@@ -140,15 +140,15 @@ public class PrefetchedRecordsSorter extends AbstractRecordsSorter implements Co
 		}
 
 		// pass them to another sorter
-		final int recomputedStartIndex = Math.max(0, startIndex - index.get());
-		final int recomputedEndIndex = Math.max(0, endIndex - index.get());
+		final int recomputedStartIndex = Math.max(0, startIndex - (index.get() + skippedItems));
+		final int recomputedEndIndex = Math.max(0, endIndex - (index.get() + skippedItems));
 
 		final int[] buffer = queryContext.borrowBuffer();
 		try {
 			return returnResultAppendingUnknown(
 				queryContext,
 				notFoundRecords,
-				unknownRecordIdsSorter,
+				this.unknownRecordIdsSorter,
 				recomputedStartIndex, recomputedEndIndex,
 				result, peak + index.get(),
 				buffer

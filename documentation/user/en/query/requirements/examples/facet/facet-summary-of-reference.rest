@@ -12,7 +12,6 @@ POST /rest/evita/Product/query
   },
   "require" : {
     "facetBrandSummary" : {
-      "statisticsDepth" : "COUNTS",
       "requirements" : {
         "entityFetch" : {
           "attributeContent" : [
@@ -27,7 +26,6 @@ POST /rest/evita/Product/query
       ]
     },
     "facetParameterValuesSummary" : {
-      "statisticsDepth" : "COUNTS",
       "requirements" : {
         "entityFetch" : {
           "attributeContent" : [

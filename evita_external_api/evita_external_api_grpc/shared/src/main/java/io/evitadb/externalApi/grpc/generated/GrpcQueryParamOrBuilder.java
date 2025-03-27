@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -671,6 +671,90 @@ public interface GrpcQueryParamOrBuilder extends
 
   /**
    * <pre>
+   * The facetRelationType enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType facetRelationType = 25;</code>
+   * @return Whether the facetRelationType field is set.
+   */
+  boolean hasFacetRelationType();
+  /**
+   * <pre>
+   * The facetRelationType enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType facetRelationType = 25;</code>
+   * @return The enum numeric value on the wire for facetRelationType.
+   */
+  int getFacetRelationTypeValue();
+  /**
+   * <pre>
+   * The facetRelationType enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType facetRelationType = 25;</code>
+   * @return The facetRelationType.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType getFacetRelationType();
+
+  /**
+   * <pre>
+   * The facetGroupRelationLevel enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel facetGroupRelationLevel = 26;</code>
+   * @return Whether the facetGroupRelationLevel field is set.
+   */
+  boolean hasFacetGroupRelationLevel();
+  /**
+   * <pre>
+   * The facetGroupRelationLevel enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel facetGroupRelationLevel = 26;</code>
+   * @return The enum numeric value on the wire for facetGroupRelationLevel.
+   */
+  int getFacetGroupRelationLevelValue();
+  /**
+   * <pre>
+   * The facetGroupRelationLevel enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel facetGroupRelationLevel = 26;</code>
+   * @return The facetGroupRelationLevel.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel getFacetGroupRelationLevel();
+
+  /**
+   * <pre>
+   * The facet traversal mode enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTraversalMode traversalMode = 27;</code>
+   * @return Whether the traversalMode field is set.
+   */
+  boolean hasTraversalMode();
+  /**
+   * <pre>
+   * The facet traversal mode enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTraversalMode traversalMode = 27;</code>
+   * @return The enum numeric value on the wire for traversalMode.
+   */
+  int getTraversalModeValue();
+  /**
+   * <pre>
+   * The facet traversal mode enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTraversalMode traversalMode = 27;</code>
+   * @return The traversalMode.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcTraversalMode getTraversalMode();
+
+  /**
+   * <pre>
    * The string array value.
    * </pre>
    *
@@ -1156,16 +1240,28 @@ public interface GrpcQueryParamOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArrayOrBuilder getEmptyHierarchicalEntityBehaviourArrayValueOrBuilder();
 
   /**
+   * <pre>
+   * The statistics base array value.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray statisticsBaseArrayValue = 119;</code>
    * @return Whether the statisticsBaseArrayValue field is set.
    */
   boolean hasStatisticsBaseArrayValue();
   /**
+   * <pre>
+   * The statistics base array value.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray statisticsBaseArrayValue = 119;</code>
    * @return The statisticsBaseArrayValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray getStatisticsBaseArrayValue();
   /**
+   * <pre>
+   * The statistics base array value.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray statisticsBaseArrayValue = 119;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArrayOrBuilder getStatisticsBaseArrayValueOrBuilder();
