@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -966,7 +966,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setVersion(long value) {
-
+      
       version_ = value;
       onChanged();
       return this;
@@ -980,7 +980,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearVersion() {
-
+      
       version_ = 0L;
       onChanged();
       return this;
@@ -1009,7 +1009,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setIndex(int value) {
-
+      
       index_ = value;
       onChanged();
       return this;
@@ -1023,7 +1023,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearIndex() {
-
+      
       index_ = 0;
       onChanged();
       return this;
@@ -1051,7 +1051,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setAreaValue(int value) {
-
+      
       area_ = value;
       onChanged();
       return this;
@@ -1083,7 +1083,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-
+      
       area_ = value.getNumber();
       onChanged();
       return this;
@@ -1097,7 +1097,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearArea() {
-
+      
       area_ = 0;
       onChanged();
       return this;
@@ -1225,7 +1225,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue entityType = 4;</code>
      */
     public com.google.protobuf.StringValue.Builder getEntityTypeBuilder() {
-
+      
       onChanged();
       return getEntityTypeFieldBuilder().getBuilder();
     }
@@ -1254,7 +1254,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue entityType = 4;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
         getEntityTypeFieldBuilder() {
       if (entityTypeBuilder_ == null) {
         entityTypeBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1289,7 +1289,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setOperationValue(int value) {
-
+      
       operation_ = value;
       onChanged();
       return this;
@@ -1321,7 +1321,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-
+      
       operation_ = value.getNumber();
       onChanged();
       return this;
@@ -1335,7 +1335,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearOperation() {
-
+      
       operation_ = 0;
       onChanged();
       return this;
@@ -1464,7 +1464,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation schemaMutation = 6;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutationOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutationOrBuilder> 
         getSchemaMutationFieldBuilder() {
       if (schemaMutationBuilder_ == null) {
         if (!(bodyCase_ == 6)) {
@@ -1605,7 +1605,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityMutation entityMutation = 7;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcEntityMutation, io.evitadb.externalApi.grpc.generated.GrpcEntityMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityMutationOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcEntityMutation, io.evitadb.externalApi.grpc.generated.GrpcEntityMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityMutationOrBuilder> 
         getEntityMutationFieldBuilder() {
       if (entityMutationBuilder_ == null) {
         if (!(bodyCase_ == 7)) {
@@ -1746,7 +1746,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalMutation localMutation = 8;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcLocalMutation, io.evitadb.externalApi.grpc.generated.GrpcLocalMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocalMutationOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcLocalMutation, io.evitadb.externalApi.grpc.generated.GrpcLocalMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocalMutationOrBuilder> 
         getLocalMutationFieldBuilder() {
       if (localMutationBuilder_ == null) {
         if (!(bodyCase_ == 8)) {

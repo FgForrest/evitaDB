@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,14 +26,8 @@ package io.evitadb.externalApi.grpc.query;
 import io.evitadb.api.query.QueryParser;
 import io.evitadb.api.query.filter.AttributeSpecialValue;
 import io.evitadb.api.query.order.OrderDirection;
-import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
-import io.evitadb.api.query.require.FacetStatisticsDepth;
-import io.evitadb.api.query.require.HistogramBehavior;
-import io.evitadb.api.query.require.ManagedReferencesBehaviour;
-import io.evitadb.api.query.require.PriceContentMode;
-import io.evitadb.api.query.require.QueryPriceMode;
-import io.evitadb.api.query.require.StatisticsBase;
-import io.evitadb.api.query.require.StatisticsType;
+import io.evitadb.api.query.order.TraversalMode;
+import io.evitadb.api.query.require.*;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ByteNumberRange;
 import io.evitadb.dataType.DateTimeRange;
@@ -68,6 +62,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.*;
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.*;
 
 /**
  * This class is used for converting parametrised query parameters to a form that is accepted by {@link QueryParser}.
@@ -143,27 +138,33 @@ public final class QueryConverter {
 		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.CURRENCYVALUE) {
 			return toCurrency(GrpcQueryParam.getCurrencyValue());
 		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.FACETSTATISTICSDEPTHVALUE) {
-			return EvitaEnumConverter.toFacetStatisticsDepth(GrpcQueryParam.getFacetStatisticsDepthValue());
+			return toFacetStatisticsDepth(GrpcQueryParam.getFacetStatisticsDepthValue());
 		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.QUERYPRICEMODELVALUE) {
-			return EvitaEnumConverter.toQueryPriceMode(GrpcQueryParam.getQueryPriceModelValue());
+			return toQueryPriceMode(GrpcQueryParam.getQueryPriceModelValue());
 		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.PRICECONTENTMODEVALUE) {
-			return EvitaEnumConverter.toPriceContentMode(GrpcQueryParam.getPriceContentModeValue());
+			return toPriceContentMode(GrpcQueryParam.getPriceContentModeValue());
 		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.ATTRIBUTESPECIALVALUE) {
-			return EvitaEnumConverter.toAttributeSpecialValue(GrpcQueryParam.getAttributeSpecialValue());
+			return toAttributeSpecialValue(GrpcQueryParam.getAttributeSpecialValue());
 		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.ORDERDIRECTIONVALUE) {
-			return EvitaEnumConverter.toOrderDirection(GrpcQueryParam.getOrderDirectionValue());
+			return toOrderDirection(GrpcQueryParam.getOrderDirectionValue());
 		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.EMPTYHIERARCHICALENTITYBEHAVIOUR) {
-			return EvitaEnumConverter.toEmptyHierarchicalEntityBehaviour(GrpcQueryParam.getEmptyHierarchicalEntityBehaviour());
+			return toEmptyHierarchicalEntityBehaviour(GrpcQueryParam.getEmptyHierarchicalEntityBehaviour());
 		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.STATISTICSBASE) {
-			return EvitaEnumConverter.toStatisticsBase(GrpcQueryParam.getStatisticsBase());
+			return toStatisticsBase(GrpcQueryParam.getStatisticsBase());
 		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.STATISTICSTYPE) {
-			return EvitaEnumConverter.toStatisticsType(GrpcQueryParam.getStatisticsType());
+			return toStatisticsType(GrpcQueryParam.getStatisticsType());
 		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.HISTOGRAMBEHAVIOR) {
-			return EvitaEnumConverter.toHistogramBehavior(GrpcQueryParam.getHistogramBehavior());
+			return toHistogramBehavior(GrpcQueryParam.getHistogramBehavior());
 		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.SCOPE) {
-			return EvitaEnumConverter.toScope(GrpcQueryParam.getScope());
+			return toScope(GrpcQueryParam.getScope());
 		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.MANAGEDREFERENCESBEHAVIOUR) {
-			return EvitaEnumConverter.toManagedReferencesBehaviour(GrpcQueryParam.getManagedReferencesBehaviour());
+			return toManagedReferencesBehaviour(GrpcQueryParam.getManagedReferencesBehaviour());
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.FACETRELATIONTYPE) {
+			return toFacetRelationType(GrpcQueryParam.getFacetRelationType());
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.FACETGROUPRELATIONLEVEL) {
+			return toFacetGroupRelationLevel(GrpcQueryParam.getFacetGroupRelationLevel());
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.TRAVERSALMODE) {
+			return toTraversalMode(GrpcQueryParam.getTraversalMode());
 		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.EXPRESSIONVALUE) {
 			return GrpcQueryParam.getExpressionValue();
 		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.STRINGARRAYVALUE) {
@@ -298,27 +299,33 @@ public final class QueryConverter {
 		} else if (parameter instanceof final Currency currencyValue) {
 			builder.setCurrencyValue(toGrpcCurrency(currencyValue));
 		} else if (parameter instanceof final FacetStatisticsDepth facetStatisticsDepth) {
-			builder.setFacetStatisticsDepthValue(EvitaEnumConverter.toGrpcFacetStatisticsDepth(facetStatisticsDepth));
+			builder.setFacetStatisticsDepthValue(toGrpcFacetStatisticsDepth(facetStatisticsDepth));
 		} else if (parameter instanceof final QueryPriceMode queryPriceModeValue) {
-			builder.setQueryPriceModelValue(EvitaEnumConverter.toGrpcQueryPriceMode(queryPriceModeValue));
+			builder.setQueryPriceModelValue(toGrpcQueryPriceMode(queryPriceModeValue));
 		} else if (parameter instanceof final PriceContentMode priceContentModeValue) {
-			builder.setPriceContentModeValue(EvitaEnumConverter.toGrpcPriceContentMode(priceContentModeValue));
+			builder.setPriceContentModeValue(toGrpcPriceContentMode(priceContentModeValue));
 		} else if (parameter instanceof final AttributeSpecialValue attributeSpecialValue) {
-			builder.setAttributeSpecialValue(EvitaEnumConverter.toGrpcAttributeSpecialValue(attributeSpecialValue));
+			builder.setAttributeSpecialValue(toGrpcAttributeSpecialValue(attributeSpecialValue));
 		} else if (parameter instanceof final OrderDirection orderDirectionValue) {
-			builder.setOrderDirectionValue(EvitaEnumConverter.toGrpcOrderDirection(orderDirectionValue));
+			builder.setOrderDirectionValue(toGrpcOrderDirection(orderDirectionValue));
 		} else if (parameter instanceof final EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour) {
-			builder.setEmptyHierarchicalEntityBehaviour(EvitaEnumConverter.toGrpcEmptyHierarchicalEntityBehaviour(emptyHierarchicalEntityBehaviour));
+			builder.setEmptyHierarchicalEntityBehaviour(toGrpcEmptyHierarchicalEntityBehaviour(emptyHierarchicalEntityBehaviour));
 		} else if (parameter instanceof final StatisticsBase statisticsBase) {
-			builder.setStatisticsBase(EvitaEnumConverter.toGrpcStatisticsBase(statisticsBase));
+			builder.setStatisticsBase(toGrpcStatisticsBase(statisticsBase));
 		} else if (parameter instanceof final StatisticsType statisticsType) {
-			builder.setStatisticsType(EvitaEnumConverter.toGrpcStatisticsType(statisticsType));
+			builder.setStatisticsType(toGrpcStatisticsType(statisticsType));
 		} else if (parameter instanceof final HistogramBehavior histogramBehavior) {
-			builder.setHistogramBehavior(EvitaEnumConverter.toGrpcHistogramBehavior(histogramBehavior));
+			builder.setHistogramBehavior(toGrpcHistogramBehavior(histogramBehavior));
 		} else if (parameter instanceof final Scope scope) {
-			builder.setScope(EvitaEnumConverter.toGrpcScope(scope));
+			builder.setScope(toGrpcScope(scope));
 		} else if (parameter instanceof final ManagedReferencesBehaviour managedReferencesBehaviour) {
-			builder.setManagedReferencesBehaviour(EvitaEnumConverter.toGrpcManagedReferencesBehaviour(managedReferencesBehaviour));
+			builder.setManagedReferencesBehaviour(toGrpcManagedReferencesBehaviour(managedReferencesBehaviour));
+		} else if (parameter instanceof final FacetRelationType facetRelationType) {
+			builder.setFacetRelationType(EvitaEnumConverter.toGrpcFacetRelationType(facetRelationType));
+		} else if (parameter instanceof final FacetGroupRelationLevel facetGroupRelationLevel) {
+			builder.setFacetGroupRelationLevel(EvitaEnumConverter.toGrpcFacetGroupRelationLevel(facetGroupRelationLevel));
+		} else if (parameter instanceof final TraversalMode traversalMode) {
+			builder.setTraversalMode(EvitaEnumConverter.toGrpcTraversalMode(traversalMode));
 		} else if (parameter instanceof Expression expression) {
 			builder.setExpressionValue(expression.toString());
 		} else if (parameter instanceof final String[] stringArrayValue) {

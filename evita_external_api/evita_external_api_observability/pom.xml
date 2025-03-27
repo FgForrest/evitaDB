@@ -32,7 +32,7 @@
 	<parent>
 		<groupId>io.evitadb</groupId>
 		<artifactId>evita_external_api</artifactId>
-		<version>2025.2-SNAPSHOT</version>
+		<version>2025.3-SNAPSHOT</version>
 	</parent>
 
 	<dependencyManagement>
@@ -40,7 +40,7 @@
 			<dependency>
 				<groupId>io.opentelemetry</groupId>
 				<artifactId>opentelemetry-bom</artifactId>
-				<version>1.34.1</version>
+				<version>1.48.0</version>
 				<type>pom</type>
 				<scope>import</scope>
 			</dependency>
@@ -94,7 +94,7 @@
 			<!-- Not managed by opentelemetry-bom -->
 			<groupId>io.opentelemetry.semconv</groupId>
 			<artifactId>opentelemetry-semconv</artifactId>
-			<version>1.23.1-alpha</version>
+			<version>1.30.0</version>
 		</dependency>
 		<dependency>
 			<groupId>io.opentelemetry</groupId>
@@ -129,19 +129,19 @@
 		<dependency>
 			<groupId>io.evitadb</groupId>
 			<artifactId>evita_external_api_grpc</artifactId>
-			<version>2025.2-SNAPSHOT</version>
+			<version>2025.3-SNAPSHOT</version>
 			<scope>compile</scope>
 		</dependency>
 		<dependency>
 			<groupId>io.evitadb</groupId>
 			<artifactId>evita_external_api_graphql</artifactId>
-			<version>2025.2-SNAPSHOT</version>
+			<version>2025.3-SNAPSHOT</version>
 			<scope>compile</scope>
 		</dependency>
 		<dependency>
 			<groupId>io.evitadb</groupId>
 			<artifactId>evita_external_api_rest</artifactId>
-			<version>2025.2-SNAPSHOT</version>
+			<version>2025.3-SNAPSHOT</version>
 			<scope>compile</scope>
 		</dependency>
 	</dependencies>

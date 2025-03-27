@@ -1,0 +1,48 @@
+{
+  queryProduct(
+    filterBy: {
+      referenceBrandHaving: [
+        {
+          entityHaving: {
+            attributeCodeEquals: "asus"
+          }
+        }
+      ],
+      userFilter: [
+        {
+          facetCategoriesHaving: [
+            {
+              entityHaving: {
+                attributeCodeEquals: "laptops"
+              },
+              includingChildren: true
+            }
+          ]
+        }
+      ]
+    }
+  ) {
+    extraResults {
+      facetSummary {
+        categories {
+          count
+          facetStatistics {
+            requested
+            count
+            impact {
+              difference
+              matchCount
+              hasSense
+            }
+            facetEntity {
+              primaryKey
+              attributes {
+                code
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

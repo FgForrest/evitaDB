@@ -163,7 +163,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	);
 	private final WriteOnlyOffHeapWithFileBackupHandle writeHandle = new WriteOnlyOffHeapWithFileBackupHandle(
 		getTestDirectory().resolve(transactionId.toString()),
-		false,
+		getStorageOptions(),
 		observableOutputKeeper,
 		new OffHeapMemoryManager(TEST_CATALOG, 512, 1)
 	);
@@ -241,6 +241,43 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		cleanTestSubDirectory(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST);
 	}
 
+	@Disabled("This test is not meant to be run in CI, it is for manual post-mortem analysis of the catalog WAL file remnants.")
+	@Test
+	void analyzeWriteAheadLog() {
+		final String catalogName = "decodoma_cz";
+		final Path basePath = Path.of("/www/oss/evitaDB/data/");
+		final Path catalogFilePath = basePath.resolve(catalogName);
+		final StorageOptions storageOptions = StorageOptions.builder().storageDirectory(basePath).build();
+		final TransactionOptions transactionOptions = TransactionOptions.builder().build();
+		final Pool<Kryo> catalogKryoPool = new Pool<>(true, false, 16) {
+			@Override
+			protected Kryo create() {
+				return KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
+			}
+		};
+
+		try (
+			final CatalogWriteAheadLog wal = new CatalogWriteAheadLog(
+				1, catalogName, catalogFilePath, catalogKryoPool,
+				storageOptions, transactionOptions,
+				new Scheduler(ThreadPoolOptions.transactionThreadPoolBuilder().build()),
+				0
+			)
+		) {
+			final AtomicReference<UUID> lastTransactionId = new AtomicReference<>();
+			wal.getCommittedMutationStream(-1)
+				.forEach(mutation -> {
+					if (mutation instanceof TransactionMutation txMut && !Objects.equals(lastTransactionId.get(), txMut.getTransactionId())) {
+						System.out.println("\n\n>>>>  Transaction " + txMut.getTransactionId() + " at " + txMut.getCommitTimestamp() + "\n\n");
+						lastTransactionId.set(txMut.getTransactionId());
+					}
+					System.out.println("  " + mutation);
+				});
+		} catch (IOException e) {
+			throw new RuntimeException(e);
+		}
+	}
+
 	@Disabled("This test is not meant to be run in CI, it is for manual post-mortem analysis of the catalog data file remnants.")
 	@Test
 	void postMortemAnalysis() {
@@ -274,7 +311,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 						catalogName,
 						FileType.CATALOG,
 						catalogName,
-						false,
+						storageOptions,
 						catalogFilePath,
 						observableOutputKeeper
 					),
@@ -607,7 +644,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			.resolve(catalogName)
 			.resolve(CatalogPersistenceService.getWalFileName(catalogName, 0));
 
-		final ReadOnlyHandle readOnlyHandle = new ReadOnlyFileHandle(walFile, true);
+		final ReadOnlyHandle readOnlyHandle = new ReadOnlyFileHandle(walFile, StorageOptions.temporary());
 		readOnlyHandle.execute(
 			input -> {
 				final int transactionSize = input.readInt();
@@ -827,7 +864,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			getTestDirectory().resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST),
 			60, 60,
 			StorageOptions.DEFAULT_OUTPUT_BUFFER_SIZE, 1,
-			false, true, 1.0, 0L, false,
+			false, false, true, 1.0, 0L, false,
 			Long.MAX_VALUE, Long.MAX_VALUE
 		);
 	}

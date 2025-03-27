@@ -55,6 +55,7 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchem
 import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveCatalogSchemaMutation;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.core.async.ClientRunnableTask;
+import io.evitadb.core.async.EmptySettings;
 import io.evitadb.core.async.ObservableExecutorServiceWithHardDeadline;
 import io.evitadb.core.async.ObservableThreadExecutor;
 import io.evitadb.core.async.Scheduler;
@@ -63,8 +64,11 @@ import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.cache.HeapMemoryCacheSupervisor;
 import io.evitadb.core.cache.NoCacheSupervisor;
 import io.evitadb.core.exception.CatalogCorruptedException;
-import io.evitadb.core.metric.event.storage.EvitaDBCompositionChangedEvent;
-import io.evitadb.core.metric.event.system.EvitaStartedEvent;
+import io.evitadb.core.metric.event.storage.CatalogStatisticsEvent;
+import io.evitadb.core.metric.event.system.EvitaStatisticsEvent;
+import io.evitadb.core.metric.event.system.RequestForkJoinPoolStatisticsEvent;
+import io.evitadb.core.metric.event.system.ScheduledExecutorStatisticsEvent;
+import io.evitadb.core.metric.event.system.TransactionForkJoinPoolStatisticsEvent;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -77,6 +81,7 @@ import io.evitadb.utils.IOUtils;
 import io.evitadb.utils.NamingConvention;
 import io.evitadb.utils.ReflectionLookup;
 import io.evitadb.utils.StringUtils;
+import jdk.jfr.FlightRecorder;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -91,6 +96,8 @@ import java.util.ServiceLoader.Provider;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -205,6 +212,18 @@ public final class Evita implements EvitaContract {
 	 * The flag might be changed from false to TRUE one time using internal Evita API. This is used in test support.
 	 */
 	@Getter private boolean readOnly;
+	/**
+	 * Last observed steal count of the request executor.
+	 */
+	private long requestExecutorSteals;
+	/**
+	 * Last observed steal count of the transactional executor.
+	 */
+	private long transactionalExecutorSteals;
+	/**
+	 * Last observed completed task count of the scheduler.
+	 */
+	private long schedulerCompletedTasks;
 
 	/**
 	 * Shuts down passed executor service in a safe manner.
@@ -286,12 +305,6 @@ public final class Evita implements EvitaContract {
 			.filter(CatalogStructuralChangeObserverWithEvitaContractCallback.class::isInstance)
 			.map(CatalogStructuralChangeObserverWithEvitaContractCallback.class::cast)
 			.forEach(it -> it.onInit(this));
-
-		// repeatedly call the updateCatalogStatistics method every 10 minutes, so that metrics are updated
-		this.serviceExecutor.scheduleAtFixedRate(
-			this::updateCatalogStatistics,
-			10, 10, TimeUnit.MINUTES
-		);
 	}
 
 	/**
@@ -299,12 +312,71 @@ public final class Evita implements EvitaContract {
 	 * If we didn't postpone this initialization, events would become lost.
 	 */
 	public void emitStartObservabilityEvents() {
-		// emit the event
-		new EvitaStartedEvent(this.configuration)
-			.commit();
-
 		// emit the statistics event
-		updateCatalogStatistics();
+		FlightRecorder.addPeriodicEvent(
+			EvitaStatisticsEvent.class,
+			this::emitEvitaStatistics
+		);
+		FlightRecorder.addPeriodicEvent(
+			RequestForkJoinPoolStatisticsEvent.class,
+			this::emitRequestForkJoinPoolStatistics
+		);
+		FlightRecorder.addPeriodicEvent(
+			TransactionForkJoinPoolStatisticsEvent.class,
+			this::emitTransactionalForkJoinPoolStatistics
+		);
+		FlightRecorder.addPeriodicEvent(
+			ScheduledExecutorStatisticsEvent.class,
+			this::emitScheduledForkJoinPoolStatistics
+		);
+	}
+
+	/**
+	 * Emits statistics of the ThreadPool associated with the scheduler.
+	 */
+	private void emitScheduledForkJoinPoolStatistics() {
+		final ScheduledThreadPoolExecutor tp = this.serviceExecutor.getExecutorServiceInternal();
+		final long currentlyCompleted = tp.getCompletedTaskCount();
+		new ScheduledExecutorStatisticsEvent(
+			currentlyCompleted - this.schedulerCompletedTasks,
+			tp.getActiveCount(),
+			tp.getQueue().size(),
+			tp.getQueue().remainingCapacity(),
+			tp.getPoolSize(),
+			tp.getCorePoolSize(),
+			tp.getMaximumPoolSize()
+		).commit();
+		this.schedulerCompletedTasks = currentlyCompleted;
+	}
+
+	/**
+	 * Emits statistics of the ForkJoinPool associated with the request executor.
+	 */
+	private void emitRequestForkJoinPoolStatistics() {
+		final ForkJoinPool fj = ((ObservableThreadExecutor) this.requestExecutor).getForkJoinPoolInternal();
+		final long currentStealCount = fj.getStealCount();
+		new RequestForkJoinPoolStatisticsEvent(
+			currentStealCount - this.requestExecutorSteals,
+			fj.getQueuedTaskCount(),
+			fj.getActiveThreadCount(),
+			fj.getRunningThreadCount()
+		).commit();
+		this.requestExecutorSteals = currentStealCount;
+	}
+
+	/**
+	 * Emits statistics of the ForkJoinPool associated with the transactional executor.
+	 */
+	private void emitTransactionalForkJoinPoolStatistics() {
+		final ForkJoinPool fj = ((ObservableThreadExecutor) this.transactionExecutor).getForkJoinPoolInternal();
+		final long currentStealCount = fj.getStealCount();
+		new RequestForkJoinPoolStatisticsEvent(
+			currentStealCount - this.transactionalExecutorSteals,
+			fj.getQueuedTaskCount(),
+			fj.getActiveThreadCount(),
+			fj.getRunningThreadCount()
+		).commit();
+		this.transactionalExecutorSteals = currentStealCount;
 	}
 
 	/**
@@ -404,7 +476,7 @@ public final class Evita implements EvitaContract {
 			return false;
 		} else {
 			update(new RemoveCatalogSchemaMutation(catalogName));
-			updateCatalogStatistics();
+			emitEvitaStatistics();
 			return true;
 		}
 	}
@@ -417,7 +489,7 @@ public final class Evita implements EvitaContract {
 			if (catalogMutation instanceof CreateCatalogSchemaMutation createCatalogSchema) {
 				createCatalogInternal(createCatalogSchema);
 			} else if (catalogMutation instanceof ModifyCatalogSchemaNameMutation modifyCatalogSchemaName) {
-				if (modifyCatalogSchemaName.isOverwriteTarget() && catalogs.containsKey(modifyCatalogSchemaName.getNewCatalogName())) {
+				if (modifyCatalogSchemaName.isOverwriteTarget() && this.catalogs.containsKey(modifyCatalogSchemaName.getNewCatalogName())) {
 					replaceCatalogInternal(modifyCatalogSchemaName);
 				} else {
 					renameCatalogInternal(modifyCatalogSchemaName);
@@ -620,12 +692,12 @@ public final class Evita implements EvitaContract {
 	 * @param catalogName name of the catalog
 	 */
 	@Nonnull
-	ServerTask<Void, Void> createLoadCatalogTask(@Nonnull String catalogName) {
+	ServerTask<EmptySettings, Void> createLoadCatalogTask(@Nonnull String catalogName) {
 		return new ClientRunnableTask<>(
 			catalogName,
 			"LoadCatalogTask",
 			"Loading catalog " + catalogName + " from disk...",
-			null,
+			EmptySettings.INSTANCE,
 			() -> {
 				final long start = System.nanoTime();
 				final Catalog theCatalog = new Catalog(
@@ -645,6 +717,7 @@ public final class Evita implements EvitaContract {
 				theCatalog.processWriteAheadLog(
 					updatedCatalog -> this.catalogs.put(catalogName, updatedCatalog)
 				);
+				this.emitCatalogStatistics(catalogName);
 			},
 			exception -> {
 				log.error("Catalog {} is corrupted!", catalogName, exception);
@@ -656,6 +729,7 @@ public final class Evita implements EvitaContract {
 						exception
 					)
 				);
+				this.emitEvitaStatistics();
 			}
 		);
 	}
@@ -720,7 +794,8 @@ public final class Evita implements EvitaContract {
 			}
 		);
 		this.structuralChangeObservers.forEach(it -> it.onCatalogCreate(catalogName));
-		updateCatalogStatistics();
+		emitEvitaStatistics();
+		emitCatalogStatistics(catalogName);
 	}
 
 	/**
@@ -777,11 +852,11 @@ public final class Evita implements EvitaContract {
 			// notify callback that it's now a live snapshot
 			((Catalog) replacedCatalog).notifyCatalogPresentInLiveView();
 
-			structuralChangeObservers.forEach(it -> it.onCatalogDelete(catalogNameToBeReplacedWith));
+			this.structuralChangeObservers.forEach(it -> it.onCatalogDelete(catalogNameToBeReplacedWith));
 			if (previousCatalog == null) {
-				structuralChangeObservers.forEach(it -> it.onCatalogCreate(catalogNameToBeReplaced));
+				this.structuralChangeObservers.forEach(it -> it.onCatalogCreate(catalogNameToBeReplaced));
 			} else {
-				structuralChangeObservers.forEach(it -> it.onCatalogSchemaUpdate(catalogNameToBeReplaced));
+				this.structuralChangeObservers.forEach(it -> it.onCatalogSchemaUpdate(catalogNameToBeReplaced));
 			}
 
 			// now remove the catalog that was renamed to, we need observers to be still able to access it and therefore
@@ -792,7 +867,8 @@ public final class Evita implements EvitaContract {
 			}
 
 			// we need to update catalog statistics
-			updateCatalogStatistics();
+			emitEvitaStatistics();
+			emitCatalogStatistics(catalogNameToBeReplaced);
 
 		} catch (RuntimeException ex) {
 			// in case of exception return the original catalog to be replaced back
@@ -811,9 +887,11 @@ public final class Evita implements EvitaContract {
 		if (catalogToRemove == null) {
 			throw new CatalogNotFoundException(catalogName);
 		} else {
-			structuralChangeObservers.forEach(it -> doWithPretendingCatalogStillPresent(catalogToRemove, () -> it.onCatalogDelete(catalogName)));
+			this.structuralChangeObservers.forEach(it -> doWithPretendingCatalogStillPresent(catalogToRemove, () -> it.onCatalogDelete(catalogName)));
 			catalogToRemove.terminate();
 			catalogToRemove.delete();
+			// we need to update catalog statistics
+			emitEvitaStatistics();
 			if (catalogToRemove instanceof Catalog theCatalog) {
 				theCatalog.emitDeleteObservabilityEvents();
 			}
@@ -883,7 +961,7 @@ public final class Evita implements EvitaContract {
 	 */
 	void assertActiveAndWritable() {
 		assertActive();
-		if (readOnly) {
+		if (this.readOnly) {
 			throw new ReadOnlyException();
 		}
 	}
@@ -895,7 +973,7 @@ public final class Evita implements EvitaContract {
 	private void notifyStructuralChangeObservers(@Nonnull CatalogContract newCatalog, @Nonnull CatalogContract currentCatalog) {
 		final String catalogName = newCatalog.getName();
 		if (currentCatalog.getSchema().version() != newCatalog.getSchema().version()) {
-			structuralChangeObservers.forEach(it -> it.onCatalogSchemaUpdate(catalogName));
+			this.structuralChangeObservers.forEach(it -> it.onCatalogSchemaUpdate(catalogName));
 		}
 		// and examine catalog entity collection changes
 		final Set<String> currentEntityTypes = currentCatalog.getEntityTypes();
@@ -905,14 +983,14 @@ public final class Evita implements EvitaContract {
 			final EntityCollectionContract existingCollection = currentCatalog.getCollectionForEntityOrThrowException(entityType);
 			final Optional<EntityCollectionContract> updatedCollection = newCatalog.getCollectionForEntity(entityType);
 			if (updatedCollection.isEmpty()) {
-				structuralChangeObservers.forEach(it -> it.onEntityCollectionDelete(catalogName, entityType));
+				this.structuralChangeObservers.forEach(it -> it.onEntityCollectionDelete(catalogName, entityType));
 			} else if (existingCollection.getSchema().version() != updatedCollection.get().getSchema().version()) {
-				structuralChangeObservers.forEach(it -> it.onEntitySchemaUpdate(catalogName, entityType));
+				this.structuralChangeObservers.forEach(it -> it.onEntitySchemaUpdate(catalogName, entityType));
 			}
 		}
 		for (String entityType : newCatalog.getEntityTypes()) {
 			if (!examinedTypes.contains(entityType)) {
-				structuralChangeObservers.forEach(it -> it.onEntityCollectionCreate(catalogName, entityType));
+				this.structuralChangeObservers.forEach(it -> it.onEntityCollectionCreate(catalogName, entityType));
 			}
 		}
 	}
@@ -930,7 +1008,7 @@ public final class Evita implements EvitaContract {
 			catalog = (Catalog) catalogContract;
 		}
 
-		final SessionRegistry sessionRegistry = catalogSessionRegistries.computeIfAbsent(
+		final SessionRegistry sessionRegistry = this.catalogSessionRegistries.computeIfAbsent(
 			sessionTraits.catalogName(),
 			theCatalogName -> new SessionRegistry(
 				this.tracingContext,
@@ -950,9 +1028,9 @@ public final class Evita implements EvitaContract {
 
 		final NonTransactionalCatalogDescriptor nonTransactionalCatalogDescriptor =
 			catalog.getCatalogState() == CatalogState.WARMING_UP && sessionTraits.isReadWrite() && !sessionTraits.isDryRun() ?
-				new NonTransactionalCatalogDescriptor(catalog, structuralChangeObservers) : null;
+				new NonTransactionalCatalogDescriptor(catalog, this.structuralChangeObservers) : null;
 
-		if (readOnly) {
+		if (this.readOnly) {
 			isTrue(!sessionTraits.isReadWrite() || sessionTraits.isDryRun(), ReadOnlyException::new);
 		}
 
@@ -968,7 +1046,7 @@ public final class Evita implements EvitaContract {
 		final EvitaInternalSessionContract newSession = sessionRegistry.addSession(
 			catalog.supportsTransaction(),
 			() -> new EvitaSession(
-				this, catalog, reflectionLookup,
+				this, catalog, this.reflectionLookup,
 				terminationCallback,
 				ofNullable(sessionTraits.commitBehaviour()).orElse(CommitBehavior.defaultBehaviour()),
 				sessionTraits,
@@ -987,32 +1065,43 @@ public final class Evita implements EvitaContract {
 	 */
 	private void doWithPretendingCatalogStillPresent(@Nonnull CatalogContract catalog, @Nonnull Runnable runnable) {
 		try {
-			removedCatalog.set(catalog);
+			this.removedCatalog.set(catalog);
 			runnable.run();
 		} finally {
-			removedCatalog.remove();
+			this.removedCatalog.remove();
 		}
 	}
 
 	/**
-	 * Emits the event about catalog statistics in metrics.
+	 * Emits the event about evita engine statistics in metrics.
 	 */
-	private void updateCatalogStatistics() {
+	private void emitEvitaStatistics() {
 		// emit the event
-		new EvitaDBCompositionChangedEvent(
-			this.catalogs.size(),
-			(int) this.catalogs.values()
-				.stream()
-				.filter(it -> it instanceof CorruptedCatalog)
-				.count()
+		new EvitaStatisticsEvent(
+			this.configuration,
+			this.management().getSystemStatus()
 		).commit();
+	}
 
-		// iterate over all catalogs and emit the event
-		for (CatalogContract catalog : this.catalogs.values()) {
-			if (catalog instanceof Catalog theCatalog) {
-				theCatalog.emitObservabilityEvents();
+	/**
+	 * Emits the event about catalog statistics in metrics.
+	 * @param catalogName name of the catalog
+	 */
+	private void emitCatalogStatistics(@Nonnull String catalogName) {
+		// register regular metrics extraction of the catalog
+		FlightRecorder.addPeriodicEvent(
+			CatalogStatisticsEvent.class,
+			new Runnable() {
+				@Override
+				public void run() {
+					if (Evita.this.catalogs.get(catalogName) instanceof Catalog monitoredCatalog) {
+						monitoredCatalog.emitObservabilityEvents();
+					} else {
+						FlightRecorder.removePeriodicEvent(this);
+					}
+				}
 			}
-		}
+		);
 	}
 
 	/**

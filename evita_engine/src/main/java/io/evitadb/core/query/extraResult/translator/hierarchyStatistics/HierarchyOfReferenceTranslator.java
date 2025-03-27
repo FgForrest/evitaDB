@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,7 +29,6 @@ import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.HierarchyFilterConstraint;
 import io.evitadb.api.query.require.HierarchyOfReference;
 import io.evitadb.api.query.require.HierarchyOfSelf;
-import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -127,10 +126,7 @@ public class HierarchyOfReferenceTranslator
 				final NestedContextSorter sorter = hierarchyOfReference.getOrderBy()
 					.map(
 						it -> extraResultPlanner.createSorter(
-							it,
-							null,
-							targetCollectionRef.get(),
-							entityType,
+							it, null, targetCollectionRef.get(),
 							() -> "Hierarchy statistics of `" + referencedEntitySchema.getName() + "`: " + it
 						)
 					)
@@ -150,9 +146,7 @@ public class HierarchyOfReferenceTranslator
 					(nodeId, statisticsBase) ->
 						extraResultPlanner.getIndex(queriedEntityType, createReferencedHierarchyIndexKey(referenceName, nodeId), ReducedEntityIndex.class)
 							.map(hierarchyIndex -> {
-								final FilterBy filter = statisticsBase == StatisticsBase.COMPLETE_FILTER ?
-									extraResultPlanner.getFilterByWithoutHierarchyFilter(referenceSchema) :
-									extraResultPlanner.getFilterByWithoutHierarchyAndUserFilter(referenceSchema);
+								final FilterBy filter = extraResultPlanner.getFilterByForStatisticsBase(statisticsBase, referenceSchema);
 								if (filter == null || !filter.isApplicable()) {
 									return hierarchyIndex.getAllPrimaryKeysFormula();
 								} else {

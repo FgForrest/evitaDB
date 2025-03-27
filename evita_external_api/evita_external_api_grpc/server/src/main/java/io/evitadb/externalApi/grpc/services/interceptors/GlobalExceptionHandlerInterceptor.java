@@ -64,7 +64,7 @@ public class GlobalExceptionHandlerInterceptor implements ServerInterceptor {
 		final com.google.rpc.Status errorStatus = createErrorStatus(exception);
 		final StatusRuntimeException statusRuntimeException = StatusProto.toStatusRuntimeException(errorStatus);
 		final Metadata newHeaders = statusRuntimeException.getTrailers();
-		final Status newStatus = Status.fromThrowable(statusRuntimeException);
+		final Status newStatus = Status.fromThrowable(statusRuntimeException).withCause(exception);
 		responseObserver.onError(newStatus.asRuntimeException(newHeaders));
 	}
 
@@ -136,6 +136,11 @@ public class GlobalExceptionHandlerInterceptor implements ServerInterceptor {
 		public void onHalfClose() {
 			try {
 				super.onHalfClose();
+			} catch (EvitaInvalidUsageException ex) {
+				// log as debug, the problem is probably on the client side
+				log.debug("Exception occurred during processing of gRPC call", ex);
+				handleException(ex, delegate);
+				throw ex;
 			} catch (RuntimeException ex) {
 				// we're responsible for logging the exception here
 				log.error("Exception occurred during processing of gRPC call", ex);
@@ -150,7 +155,7 @@ public class GlobalExceptionHandlerInterceptor implements ServerInterceptor {
 
 				final StatusRuntimeException statusRuntimeException = StatusProto.toStatusRuntimeException(rpcStatus);
 				final Metadata newHeaders = statusRuntimeException.getTrailers();
-				final Status newStatus = Status.fromThrowable(statusRuntimeException);
+				final Status newStatus = Status.fromThrowable(statusRuntimeException).withCause(exception);
 				serverCall.close(newStatus, newHeaders);
 			}
 		}

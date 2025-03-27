@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -121,7 +121,7 @@ public class DataStoreChanges {
 	 * Returns a KeyCompressor that contains indexes of keys assigned to key-comparable objects which are expensive
 	 * to store redundantly during serialization.
 	 *
-	 * @return a read-only KeyCompressor instance to be used for key compression.
+	 * @return a read-only KeyCompressor instance to be used for key compress.
 	 */
 	@Nonnull
 	public KeyCompressor getReadOnlyKeyCompressor() {

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -456,18 +456,21 @@ public class DataGenerator {
 			.toList();
 		for (String referenceName : referenceNames) {
 			final ReferenceSchemaContract referenceSchema = schema.getReference(referenceName).orElseThrow();
+			final boolean multiple = referenceSchema.getCardinality() == Cardinality.ONE_OR_MORE || referenceSchema.getCardinality() == Cardinality.ZERO_OR_MORE;
 			final String referencedType = referenceSchema.getReferencedEntityType();
 			final int initialCount;
-			if (Entities.CATEGORY.equals(referencedType)) {
+			if (Entities.CATEGORY.equals(referencedType) && multiple) {
 				initialCount = genericFaker.random().nextInt(4);
-			} else if (Entities.STORE.equals(referencedType)) {
+			} else if (Entities.STORE.equals(referencedType) && multiple) {
 				initialCount = genericFaker.random().nextInt(8);
-			} else if (Entities.PARAMETER.equals(referencedType)) {
+			} else if (Entities.PARAMETER.equals(referencedType) && multiple) {
 				initialCount = genericFaker.random().nextInt(16);
-			} else if (Entities.PRICE_LIST.equals(referencedType)) {
+			} else if (Entities.PRICE_LIST.equals(referencedType) && multiple) {
 				initialCount = genericFaker.random().nextInt(10);
-			} else if (Entities.PRODUCT.equals(referencedType)) {
+			} else if (Entities.PRODUCT.equals(referencedType) && multiple) {
 				initialCount = genericFaker.random().nextInt(30);
+			} else if (multiple) {
+				initialCount = 10;
 			} else {
 				initialCount = 1;
 			}

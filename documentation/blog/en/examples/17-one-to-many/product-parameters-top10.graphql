@@ -1,0 +1,40 @@
+{
+    queryProduct(
+        filterBy: {
+            attributeUrlEquals: "/example-product",
+            entityLocaleEquals: en
+        }
+    ) {
+        recordPage {
+            data {
+                primaryKey
+                attributes {
+                    name
+                }
+                parameterValuesPage(
+                    orderBy: [
+                        {
+                            entityProperty: [
+                                {
+                                    attributeOrderNatural: ASC
+                                }
+                            ]
+                        }
+                    ],
+                    number: 1,
+                    size: 10
+                ) {
+                    data {
+                        referencedPrimaryKey
+                        referencedEntity {
+                            primaryKey
+                            attributes {
+                                name
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

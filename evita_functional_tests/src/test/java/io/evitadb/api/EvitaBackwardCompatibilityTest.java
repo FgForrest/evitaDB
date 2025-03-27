@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,9 +33,9 @@ import io.evitadb.core.Evita;
 import io.evitadb.test.EvitaTestSupport;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -49,6 +49,7 @@ import java.util.UUID;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
+import static io.evitadb.api.configuration.StorageOptions.DEFAULT_OUTPUT_BUFFER_SIZE;
 import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.entityFetchAll;
 import static io.evitadb.api.query.QueryConstraints.page;
@@ -74,27 +75,30 @@ public class EvitaBackwardCompatibilityTest implements EvitaTestSupport {
 		}
 	}
 
-	@DisplayName("Verify backward binary data compatibility to 2024.5")
 	@Tag(LONG_RUNNING_TEST)
-	@Test
-	void verifyBackwardCompatibilityTo_2024_5() throws IOException {
-		final Path directory_2024_5 = mainDirectory.resolve("2024.5");
-		if (!directory_2024_5.toFile().exists()) {
-			log.info("Downloading and unzipping evita-demo-dataset_2024.5.zip");
+	@ParameterizedTest
+	@ValueSource(
+		strings = {"2024.5", "2025.1"}
+	)
+	void verifyBackwardCompatibilityTo(String version) throws IOException {
+		final Path targetDirectory = this.mainDirectory.resolve(version);
+		if (!targetDirectory.toFile().exists()) {
+			final String fileName = "evita-demo-dataset_" + version + ".zip";
+			log.info("Downloading and unzipping " + fileName);
 
-			directory_2024_5.toFile().mkdirs();
+			targetDirectory.toFile().mkdirs();
 			// first download the file from https://evitadb.io/test/evita-demo-dataset_2024.5.zip to tmp folder and unzip it
-			try (final InputStream is = new URL("https://evitadb.io/download/test/evita-demo-dataset_2024.5.zip").openStream()) {
-				Files.copy(is, directory_2024_5.resolve("evita-demo-dataset_2024.5.zip"), StandardCopyOption.REPLACE_EXISTING);
+			try (final InputStream is = new URL("https://evitadb.io/download/test/" + fileName).openStream()) {
+				Files.copy(is, targetDirectory.resolve(fileName), StandardCopyOption.REPLACE_EXISTING);
 			}
 			// unzip the file
 			try (
-				final InputStream is = Files.newInputStream(directory_2024_5.resolve("evita-demo-dataset_2024.5.zip"));
+				final InputStream is = Files.newInputStream(targetDirectory.resolve(fileName));
 				final ZipInputStream zis = new ZipInputStream(is)
 			) {
 				ZipEntry zipEntry = zis.getNextEntry();
 				while (zipEntry != null) {
-					Path newPath = directory_2024_5.resolve(zipEntry.getName());
+					Path newPath = targetDirectory.resolve(zipEntry.getName());
 					if (zipEntry.isDirectory()) {
 						Files.createDirectories(newPath);
 					} else {
@@ -108,51 +112,56 @@ public class EvitaBackwardCompatibilityTest implements EvitaTestSupport {
 			}
 		}
 
-		log.info("Starting Evita with backward compatibility to 2024.5");
-		final Evita evita = new Evita(
-			EvitaConfiguration.builder()
-				.server(
-					ServerOptions.builder()
-						.closeSessionsAfterSecondsOfInactivity(-1)
-						.build()
-				)
-				.storage(
-					StorageOptions.builder()
-						.storageDirectory(directory_2024_5)
-						.build()
-				)
-				.build()
-		);
+		log.info("Starting Evita with backward compatibility to " + version);
+		try (
+			final Evita evita = new Evita(
+				EvitaConfiguration.builder()
+					.server(
+						ServerOptions.builder()
+							.closeSessionsAfterSecondsOfInactivity(-1)
+							.build()
+					)
+					.storage(
+						StorageOptions.builder()
+							.storageDirectory(targetDirectory)
+							.outputBufferSize(DEFAULT_OUTPUT_BUFFER_SIZE * 2)
+							.build()
+					)
+					.build()
+			)
+		) {
 
-		final SystemStatus status = evita.management().getSystemStatus();
-		assertEquals(0, status.catalogsCorrupted());
-		assertEquals(1, status.catalogsOk());
+			final SystemStatus status = evita.management().getSystemStatus();
+			assertEquals(0, status.catalogsCorrupted());
+			assertEquals(1, status.catalogsOk());
 
-		// check the catalog has its own id
-		final UUID catalogId = evita.queryCatalog(
-			"evita",
-			session -> {
-				for (String entityType : session.getAllEntityTypes()) {
-					log.info("Entity type: {}", entityType);
-					if (session.getEntityCollectionSize(entityType)  > 0) {
-						final List<SealedEntity> sealedEntities = session.queryListOfSealedEntities(
-							Query.query(
-								collection(entityType),
-								require(
-									page(1, 20),
-									entityFetchAll()
+			// check the catalog has its own id
+			final UUID catalogId = evita.queryCatalog(
+				"evita",
+				session -> {
+					for (String entityType : session.getAllEntityTypes()) {
+						log.info("Entity type: {}", entityType);
+						if (session.getEntityCollectionSize(entityType) > 0) {
+							final List<SealedEntity> sealedEntities = session.queryListOfSealedEntities(
+								Query.query(
+									collection(entityType),
+									require(
+										page(1, 20),
+										entityFetchAll()
+									)
 								)
-							)
-						);
-						for (SealedEntity sealedEntity : sealedEntities) {
-							assertNotNull(sealedEntity);
+							);
+							for (SealedEntity sealedEntity : sealedEntities) {
+								assertNotNull(sealedEntity);
+							}
 						}
 					}
-				}
 
-				return session.getCatalogId();
-			}
-		);
-		assertNotNull(catalogId);
+					return session.getCatalogId();
+				}
+			);
+			assertNotNull(catalogId);
+		}
 	}
+
 }

@@ -149,6 +149,10 @@ public class CatalogWriteAheadLog implements Closeable {
 	 */
 	private final Path catalogStoragePath;
 	/**
+	 * The storage options for the catalog.
+	 */
+	private final StorageOptions storageOptions;
+	/**
 	 * The output stream for writing {@link TransactionMutation} to the WAL file.
 	 */
 	private final ByteArrayOutputStream transactionMutationOutputStream = new ByteArrayOutputStream(TRANSACTION_MUTATION_SIZE);
@@ -230,11 +234,16 @@ public class CatalogWriteAheadLog implements Closeable {
 	 * @param catalogName     the name of the catalog
 	 * @param walFilePath     the path to the WAL file to check and truncate
 	 * @param catalogKryoPool the Kryo object pool to use for deserialization
-	 * @param computeCRC32C   a flag indicating whether to compute CRC32C checksums for the input
+	 * @param storageOptions   a flag indicating whether to compute CRC32C checksums for the input
 	 * @return the last fully written catalog version found in the WAL file
 	 */
 	@Nonnull
-	static FirstAndLastCatalogVersions checkAndTruncate(@Nonnull String catalogName, @Nonnull Path walFilePath, @Nonnull Pool<Kryo> catalogKryoPool, boolean computeCRC32C) {
+	static FirstAndLastCatalogVersions checkAndTruncate(
+		@Nonnull String catalogName,
+		@Nonnull Path walFilePath,
+		@Nonnull Pool<Kryo> catalogKryoPool,
+		@Nonnull StorageOptions storageOptions
+	) {
 		if (!walFilePath.toFile().exists()) {
 			// WAL file does not exist, nothing to check
 			return new FirstAndLastCatalogVersions(-1L, -1L);
@@ -256,8 +265,11 @@ public class CatalogWriteAheadLog implements Closeable {
 					)
 				)
 			) {
-				if (computeCRC32C) {
+				if (storageOptions.computeCRC32C()) {
 					input.computeCRC32();
+				}
+				if (storageOptions.compress()) {
+					input.compress();
 				}
 				final long fileLength = walFile.length();
 				if (fileLength == 0) {
@@ -535,6 +547,7 @@ public class CatalogWriteAheadLog implements Closeable {
 		this.catalogName = catalogName;
 		this.catalogKryoPool = catalogKryoPool;
 		this.processedCatalogVersion = new AtomicLong(catalogVersion);
+		this.storageOptions = storageOptions;
 		this.cutWalCacheTask = new DelayedAsyncTask(
 			catalogName, "WAL cache cutter",
 			scheduler,
@@ -559,7 +572,7 @@ public class CatalogWriteAheadLog implements Closeable {
 			walFileIndex = firstAndLastWalFileIndex[1];
 			final Path walFilePath = catalogStoragePath.resolve(getWalFileName(catalogName, walFileIndex));
 			final FirstAndLastCatalogVersions versions = checkAndTruncate(
-				catalogName, walFilePath, catalogKryoPool, storageOptions.computeCRC32C()
+				catalogName, walFilePath, catalogKryoPool, storageOptions
 			);
 
 			// create the WAL file if it does not exist
@@ -586,6 +599,77 @@ public class CatalogWriteAheadLog implements Closeable {
 					walFilePath,
 					walFileChannel,
 					this.computeCRC32C ? theOutput.computeCRC32() : theOutput,
+					walFileChannel.size()
+				)
+			);
+		} catch (IOException e) {
+			throw new WriteAheadLogCorruptedException(
+				"Failed to open WAL file `" + getWalFileName(catalogName, walFileIndex) + "`!",
+				"Failed to open WAL file!",
+				e
+			);
+		}
+	}
+
+	/**
+	 * Constructor for internal use only. It is used to create a new WAL file with the given parameters.
+	 */
+	public CatalogWriteAheadLog(
+		long catalogVersion,
+		@Nonnull String catalogName,
+		@Nonnull Path catalogStoragePath,
+		@Nonnull Pool<Kryo> catalogKryoPool,
+		@Nonnull StorageOptions storageOptions,
+		@Nonnull TransactionOptions transactionOptions,
+		@Nonnull Scheduler scheduler,
+		int walFileIndex
+	) {
+		this.catalogName = catalogName;
+		this.storageOptions = storageOptions;
+		this.catalogStoragePath = catalogStoragePath;
+		this.catalogKryoPool = catalogKryoPool;
+		this.processedCatalogVersion = new AtomicLong(catalogVersion);
+		this.cutWalCacheTask = new DelayedAsyncTask(
+			catalogName, "WAL cache cutter",
+			scheduler,
+			this::cutWalCache,
+			CUT_WAL_CACHE_AFTER_INACTIVITY_MS, TimeUnit.MILLISECONDS
+		);
+		this.removeWalFileTask = new DelayedAsyncTask(
+			catalogName, "WAL file remover",
+			scheduler,
+			this::removeWalFiles,
+			0, TimeUnit.MILLISECONDS
+		);
+		this.maxWalFileSizeBytes = transactionOptions.walFileSizeBytes();
+		this.walFileCountKept = transactionOptions.walFileCountKept();
+		this.computeCRC32C = storageOptions.computeCRC32C();
+		this.bootstrapFileTrimmer = null;
+		this.onWalPurgeCallback = null;
+
+		try {
+			final Path walFilePath = catalogStoragePath.resolve(getWalFileName(catalogName, walFileIndex));
+			final FileChannel walFileChannel = FileChannel.open(
+				walFilePath,
+				StandardOpenOption.WRITE, StandardOpenOption.APPEND, StandardOpenOption.DSYNC
+			);
+
+			//noinspection IOResourceOpenedButNotSafelyClosed
+			final ObservableOutput<ByteArrayOutputStream> theOutput = new ObservableOutput<>(
+				transactionMutationOutputStream,
+				TRANSACTION_MUTATION_SIZE_WITH_RESERVE,
+				TRANSACTION_MUTATION_SIZE_WITH_RESERVE,
+				TRANSACTION_MUTATION_SIZE_WITH_RESERVE
+			);
+
+			this.currentWalFile.set(
+				new CurrentWalFile(
+					walFileIndex,
+					-1,
+					-1,
+					walFilePath,
+					walFileChannel,
+					computeCRC32C ? theOutput.computeCRC32() : theOutput,
 					walFileChannel.size()
 				)
 			);
@@ -866,15 +950,17 @@ public class CatalogWriteAheadLog implements Closeable {
 			if (this.getFirstCatalogVersionOfCurrentWalFile() <= catalogVersion) {
 				// we could start reading the current WAL file
 				supplier = new ReverseMutationSupplier(
-					catalogVersion, this.catalogName, this.catalogStoragePath, theCurrentWalFile.getWalFileIndex(),
-					this.catalogKryoPool, this.transactionLocationsCache, this::updateCacheSize
+					catalogVersion, this.catalogName, this.catalogStoragePath, this.storageOptions,
+					theCurrentWalFile.getWalFileIndex(), this.catalogKryoPool, this.transactionLocationsCache,
+					this::updateCacheSize
 				);
 			} else {
 				// we need to find older WAL file
 				final int foundWalIndex = findWalIndexFor(catalogVersion);
 				supplier = new ReverseMutationSupplier(
-					catalogVersion, this.catalogName, this.catalogStoragePath, foundWalIndex,
-					this.catalogKryoPool, this.transactionLocationsCache, this::updateCacheSize
+					catalogVersion, this.catalogName, this.catalogStoragePath, this.storageOptions,
+					foundWalIndex, this.catalogKryoPool, this.transactionLocationsCache,
+					this::updateCacheSize
 				);
 			}
 			this.cutWalCacheTask.schedule();
@@ -1049,8 +1135,8 @@ public class CatalogWriteAheadLog implements Closeable {
 			// we could start reading the current WAL file
 			return new MutationSupplier(
 				startCatalogVersion, theRequestedCatalogVersion,
-				this.catalogName, this.catalogStoragePath, getWalFileIndex(),
-				this.catalogKryoPool, this.transactionLocationsCache,
+				this.catalogName, this.catalogStoragePath, this.storageOptions,
+				getWalFileIndex(), this.catalogKryoPool, this.transactionLocationsCache,
 				avoidPartiallyFilledBuffer,
 				this::updateCacheSize
 			);
@@ -1059,8 +1145,8 @@ public class CatalogWriteAheadLog implements Closeable {
 			final int foundWalIndex = findWalIndexFor(startCatalogVersion);
 			return new MutationSupplier(
 				startCatalogVersion, theRequestedCatalogVersion,
-				this.catalogName, this.catalogStoragePath, foundWalIndex,
-				this.catalogKryoPool, this.transactionLocationsCache,
+				this.catalogName, this.catalogStoragePath, this.storageOptions,
+				foundWalIndex, this.catalogKryoPool, this.transactionLocationsCache,
 				avoidPartiallyFilledBuffer,
 				this::updateCacheSize
 			);
@@ -1348,7 +1434,7 @@ public class CatalogWriteAheadLog implements Closeable {
 		);
 		try (
 			final MutationSupplier mutationSupplier = new MutationSupplier(
-				0L, 0L, this.catalogName, this.catalogStoragePath,
+				0L, 0L, this.catalogName, this.catalogStoragePath, this.storageOptions,
 				getIndexFromWalFileName(this.catalogName, walFile.getName()),
 				this.catalogKryoPool, this.transactionLocationsCache, false,
 				this::updateCacheSize

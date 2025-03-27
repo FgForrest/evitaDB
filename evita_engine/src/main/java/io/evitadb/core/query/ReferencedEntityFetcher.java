@@ -44,11 +44,14 @@ import io.evitadb.api.query.require.Page;
 import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.query.require.Strip;
 import io.evitadb.api.requestResponse.EvitaRequest;
-import io.evitadb.api.requestResponse.EvitaRequest.ChunkTransformer;
-import io.evitadb.api.requestResponse.EvitaRequest.NoTransformer;
-import io.evitadb.api.requestResponse.EvitaRequest.PageTransformer;
 import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
-import io.evitadb.api.requestResponse.EvitaRequest.StripTransformer;
+import io.evitadb.api.requestResponse.EvitaRequest.ResultForm;
+import io.evitadb.api.requestResponse.chunk.ChunkTransformer;
+import io.evitadb.api.requestResponse.chunk.NoTransformer;
+import io.evitadb.api.requestResponse.chunk.OffsetAndLimit;
+import io.evitadb.api.requestResponse.chunk.PageTransformer;
+import io.evitadb.api.requestResponse.chunk.Slicer;
+import io.evitadb.api.requestResponse.chunk.StripTransformer;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
@@ -101,6 +104,8 @@ import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.bitmap.collection.IntegerIntoBitmapCollector;
 import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate;
 import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate.SelfTraversingPredicate;
+import io.evitadb.store.spi.chunk.PageTransformerWithSlicer;
+import io.evitadb.store.spi.chunk.ServerChunkTransformerAccessor;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -165,6 +170,11 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 */
 	@Nonnull private final ExistingEntityProvider existingEntityRetriever;
 	/**
+	 * Function providing access to {@link ChunkTransformer} implementations for particular references. Accessor is
+	 * simple wrapper over {@link EvitaRequest} method references.
+	 */
+	@Nonnull private final ChunkTransformerAccessor chunkTransformerAccessor;
+	/**
 	 * Index of prefetched entities assembled in constructor and quickly available when the entity is requested
 	 * by the {@link EntityDecorator} constructor. The key is {@link ReferenceSchemaContract#getName()}, the value
 	 * is the information containing the indexes of fetched entities and their groups, information about their ordering
@@ -179,11 +189,6 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * is either {@link EntityReferenceWithParent} if bodies were not requested, or full {@link SealedEntity} otherwise.
 	 */
 	@Nullable private IntObjectMap<EntityClassifierWithParent> parentEntities;
-	/**
-	 * Function providing access to {@link ChunkTransformer} implementations for particular references. Accessor is
-	 * simple wrapper over {@link EvitaRequest} method references.
-	 */
-	@Nonnull private final ChunkTransformerAccessor chunkTransformerAccessor;
 	/**
 	 * This request is used to extend the original request on top-level entity. It solves the scenario, when the nested
 	 * references are ordered by reference attribute. In that case we need to extend the original request with additional
@@ -258,7 +263,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			referenceEntityFetch,
 			fetchRequest.getDefaultReferenceRequirement(),
 			nestedQueryContext.createExecutionContext(),
-			fetchRequest::getReferenceChunkTransformer
+			new ServerChunkTransformerAccessor(fetchRequest)
 		);
 
 		try {
@@ -300,7 +305,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			referenceEntityFetch,
 			fetchRequest.getDefaultReferenceRequirement(),
 			nestedQueryContext.createExecutionContext(),
-			fetchRequest::getReferenceChunkTransformer
+			new ServerChunkTransformerAccessor(fetchRequest)
 		);
 
 		try {
@@ -531,12 +536,22 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 						)
 					),
 					executionContext.getQueryContext().getScopes(),
-					(es, eik) -> ReferencedTypeEntityIndex.createThrowingStub(es, eik, allReferencedEntityIds),
+					(es, eik) -> {
+						if (referenceSchema.isIndexedInScope(eik.scope())) {
+							return null;
+						} else {
+							return ReferencedTypeEntityIndex.createThrowingStub(es, eik, allReferencedEntityIds);
+						}
+					},
 					(es, eik) -> {
 						final int[] epks = entityPrimaryKeys.get(eik.scope());
-						return ReducedEntityIndex.createThrowingStub(
-							es, eik, epks == null ? ArrayUtils.EMPTY_INT_ARRAY : epks
-						);
+						if (referenceSchema.isIndexedInScope(eik.scope())) {
+							return null;
+						} else {
+							return ReducedEntityIndex.createThrowingStub(
+								es, eik, epks == null ? ArrayUtils.EMPTY_INT_ARRAY : epks
+							);
+						}
 					}
 				);
 
@@ -576,6 +591,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 								final Formula epkFormula = entityPrimaryKeyFormula.get(indexKey.scope());
 								if (epkFormula != null) {
 									lastIndexFormula = FormulaFactory.or(
+										lastIndexFormula,
 										resultFormula,
 										epkFormula
 									);
@@ -1194,8 +1210,12 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	@Nonnull
 	@Override
 	public DataChunk<ReferenceContract> createChunk(@Nonnull Entity entity, @Nonnull String referenceName, @Nonnull List<ReferenceContract> references) {
-		// the server side has always access to complete list of references
-		return this.chunkTransformerAccessor.apply(referenceName).createChunk(references);
+		Assert.isPremiseValid(
+			this.fetchedEntities != null,
+			() -> new GenericEvitaInternalError("Method `prefetchEntities` must be called prior creating chunks!")
+		);
+		return this.chunkTransformerAccessor.apply(referenceName)
+			.createChunk(references);
 	}
 
 	/**
@@ -1268,7 +1288,13 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 						);
 						final int[] filteredReferencedEntityIdsArray;
 						final Map<Integer, ServerEntityDecorator> entityIndex;
-						final Slicer slicer;
+						final BitmapSlicer slicer = new BitmapSlicer(
+							entityPrimaryKey,
+							referenceName,
+							referencedEntityIdsFormula,
+							referencedEntityToGroupIdTranslator,
+							ServerChunkTransformerAccessor.convertIfNecessary(requirements.referenceChunkTransformer())
+						);
 						// are we requested to (are we able to) fetch the entity bodies?
 						if (referenceSchema.isReferencedEntityTypeManaged()) {
 							final Bitmap filteredReferencedEntityIds = getFilteredReferencedEntityIds(
@@ -1285,15 +1311,9 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 							);
 							// apply chunking if necessary
 							if (requirements.entityFetch() != null) {
-								slicer = new Slicer(
-									entityPrimaryKey,
-									referenceName,
-									toFormula(filteredReferencedEntityIds),
-									referencedEntityIdsFormula,
-									referencedEntityToGroupIdTranslator,
-									requirements.referenceChunkTransformer()
+								final Bitmap filteredAndSlicedReferencedIds = slicer.sliceEntityIds(
+									toFormula(filteredReferencedEntityIds)
 								);
-								final Bitmap filteredAndSlicedReferencedIds = slicer.sliceEntityIds();
 								if (!filteredAndSlicedReferencedIds.isEmpty()) {
 									// if so, fetch them
 									entityIndex = fetchReferencedEntities(
@@ -1308,13 +1328,12 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 									entityIndex = Collections.emptyMap();
 								}
 							} else {
-								slicer = null;
 								entityIndex = Collections.emptyMap();
 							}
 							filteredReferencedEntityIdsArray = filteredReferencedEntityIds.getArray();
 						} else {
 							// if not, leave the index empty
-							slicer = null;
+							slicer.sliceAllEntityIds();
 							filteredReferencedEntityIdsArray = ArrayUtils.EMPTY_INT_ARRAY;
 							entityIndex = Collections.emptyMap();
 						}
@@ -1322,7 +1341,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 						final int[] filteredReferencedGroupEntityIdsArray;
 						final Map<Integer, ServerEntityDecorator> entityGroupIndex;
 						// are we requested to (are we able to) fetch the entity group bodies?
-						if (referenceSchema.isReferencedGroupTypeManaged() && referenceSchema.getReferencedGroupType() != null && slicer != null) {
+						if (referenceSchema.isReferencedGroupTypeManaged() && referenceSchema.getReferencedGroupType() != null) {
 							// if so, fetch them
 							final Bitmap filteredReferencedGroupEntityIds = getFilteredReferencedEntityIds(
 								entityPrimaryKey, executionContext, entitySchema, referenceSchema,
@@ -1635,9 +1654,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull Map<Integer, ServerEntityDecorator> entityIndex,
 		@Nullable ValidEntityToReferenceMapping validityMapping,
 		@Nonnull Map<Integer, ServerEntityDecorator> entityGroupIndex,
-
 		@Nullable ReferenceComparator referenceComparator
-
 	) {
 
 		/**
@@ -1839,10 +1856,10 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	}
 
 	/**
-	 * Slicer is supposed to identify only a small subset of referenced entities and their groups that should
+	 * BitmapSlicer is supposed to identify only a small subset of referenced entities and their groups that should
 	 * be actually fetched / returned in the result taking `filterBy` and `page` / `strip` constraints into an account.
 	 */
-	private static class Slicer {
+	private static class BitmapSlicer {
 		/**
 		 * Arrays of source entity primary keys indexed by their scope.
 		 */
@@ -1852,10 +1869,6 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		 * The slicer always work with only single reference.
 		 */
 		@Nonnull private final String referenceName;
-		/**
-		 * The formula that contains only referenced entity ids that satisfy `filterBy` constraint.
-		 */
-		@Nonnull private final Formula filteredReferencedEntityIds;
 		/**
 		 * Function that accepts `referenceName` and `entityPrimaryKey` and returns the formula that contains all
 		 * referenced entity ids for the given entity.
@@ -1873,23 +1886,23 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		/**
 		 * Contains cache of groups indexed by entity primary key.
 		 */
-		private Map<Integer, int[]> groupsForEntity;
+		private Map<Integer, int[]> groupsForEntity = Collections.emptyMap();
 
-		public Slicer(
+		public BitmapSlicer(
 			@Nonnull Map<Scope, int[]> entityPrimaryKey,
 			@Nonnull String referenceName,
-			@Nonnull Formula filteredReferencedEntityIds,
 			@Nonnull BiFunction<String, Integer, Formula> referencedEntityIdsFormula,
 			@Nonnull BiFunction<String, Integer, Integer> referencedEntityToGroupIdTranslator,
 			@Nonnull ChunkTransformer chunkTransformer
 		) {
 			this.entityPrimaryKey = entityPrimaryKey;
 			this.referenceName = referenceName;
-			this.filteredReferencedEntityIds = filteredReferencedEntityIds;
 			this.referencedEntityIdsFormula = referencedEntityIdsFormula;
 			this.referencedEntityToGroupIdTranslator = referencedEntityToGroupIdTranslator;
 			if (chunkTransformer instanceof PageTransformer pageTransformer) {
 				this.chunker = (bitmap) -> this.slice(bitmap, pageTransformer.getPage());
+			} else if (chunkTransformer instanceof PageTransformerWithSlicer pageTransformerWithSlicer) {
+				this.chunker = (bitmap) -> this.slice(bitmap, pageTransformerWithSlicer.getPage(), pageTransformerWithSlicer.getSlicer());
 			} else if (chunkTransformer instanceof StripTransformer stripTransformer) {
 				this.chunker = (bitmap) -> this.slice(bitmap, stripTransformer.getStrip());
 			} else if (chunkTransformer instanceof NoTransformer) {
@@ -1901,41 +1914,63 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 
 		/**
 		 * Iterates over all entity primary keys and picks up all references of particular referenceName, filters them
-		 * by {@link #filteredReferencedEntityIds} and then slices a single chunk by {@link #chunker}. For the sliced
+		 * by `referencedEntityIds` and then slices a single chunk by {@link #chunker}. For the sliced
 		 * referenced entity ids the set of group ids is gradually built up.
 		 *
 		 * This method is supposed to identify only a small subset of referenced entities and their groups that should
 		 * be actually fetched / returned in the result.
 		 *
-		 * @return all referenced entity ids that match {@link #filteredReferencedEntityIds} and are appropriately sliced
+		 * @return all referenced entity ids that match `referencedEntityIds` and are appropriately sliced
 		 * on per entity basis by {@link #chunker}
 		 */
 		@Nonnull
-		public Bitmap sliceEntityIds() {
+		public Bitmap sliceEntityIds(@Nonnull Formula referencedEntityIds) {
 			this.groupsForEntity = CollectionUtils.createHashMap(this.entityPrimaryKey.size());
 			return FormulaFactory.or(
-				entityPrimaryKey
+				this.entityPrimaryKey
 					.values()
 					.stream()
 					.flatMapToInt(IntStream::of)
 					.mapToObj(epk -> {
-						final Bitmap filteredReferencedEntityIds = FormulaFactory.and(
+						final Bitmap filteredReferenceEntityIds = FormulaFactory.and(
 							this.referencedEntityIdsFormula.apply(this.referenceName, epk),
-							this.filteredReferencedEntityIds
+							referencedEntityIds
 						).compute();
+						final Bitmap chunk = this.chunker.apply(filteredReferenceEntityIds);
 						this.groupsForEntity.put(
 							epk,
-							filteredReferencedEntityIds.stream()
+							filteredReferenceEntityIds.stream()
 								.mapToObj(refId -> this.referencedEntityToGroupIdTranslator.apply(this.referenceName, refId))
 								.filter(Objects::nonNull)
 								.mapToInt(Integer::intValue)
 								.toArray()
 						);
-						return toFormula(this.chunker.apply(filteredReferencedEntityIds));
+						return toFormula(chunk);
 					})
 					.toArray(Formula[]::new)
 			).compute();
 		}
+
+		/**
+		 * Prepares the sliced information for all entity primary keys (no filtering is applied).
+		 */
+		public void sliceAllEntityIds() {
+			this.groupsForEntity = CollectionUtils.createHashMap(this.entityPrimaryKey.size());
+			for (int[] entityPrimaryKeys : this.entityPrimaryKey.values()) {
+				for (int epk : entityPrimaryKeys) {
+					final Bitmap referenceEntityIds = this.referencedEntityIdsFormula.apply(this.referenceName, epk).compute();
+					this.groupsForEntity.put(
+						epk,
+						referenceEntityIds.stream()
+							.mapToObj(refId -> this.referencedEntityToGroupIdTranslator.apply(this.referenceName, refId))
+							.filter(Objects::nonNull)
+							.mapToInt(Integer::intValue)
+							.toArray()
+					);
+				}
+			}
+		}
+
 
 		/**
 		 * Retrieves a Formula object that represents the group IDs associated with the given reference name
@@ -1977,6 +2012,31 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 					primaryKeys.getRange(
 						offset,
 						Math.min(offset + pageSize, primaryKeys.size())
+					)
+				);
+		}
+
+		/**
+		 * Creates a subset of the provided bitmap by slicing it based on the specified page number and page size
+		 * defined in the provided page object. If the page number or size exceeds the bounds of the bitmap,
+		 * adjustments are made to fit within the bitmap size.
+		 *
+		 * @param primaryKeys the bitmap containing the full set of record IDs to be sliced
+		 * @param page        the page object defining the page number and size for slicing the bitmap
+		 * @param slicer      the slicer to calculate offset    and limit
+		 * @return a new bitmap containing the sliced subset of record IDs
+		 */
+		@Nonnull
+		public Bitmap slice(@Nonnull Bitmap primaryKeys, @Nonnull Page page, @Nonnull Slicer slicer) {
+			final OffsetAndLimit offsetAndLimit = slicer.calculateOffsetAndLimit(
+				ResultForm.PAGINATED_LIST, page.getPageNumber(), page.getPageSize(), primaryKeys.size()
+			);
+			return primaryKeys.isEmpty() ?
+				EmptyBitmap.INSTANCE :
+				new ArrayBitmap(
+					primaryKeys.getRange(
+						offsetAndLimit.offset(),
+						Math.min(offsetAndLimit.offset() + offsetAndLimit.limit(), primaryKeys.size())
 					)
 				);
 		}

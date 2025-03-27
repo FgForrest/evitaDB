@@ -11,6 +11,16 @@
       {
         referenceCategoriesProperty: [
           {
+            traverseByEntityProperty: {
+              traversalMode: BREADTH_FIRST,
+              orderBy: [
+                {
+                  entityPrimaryKeyNatural: ASC
+                }
+              ]
+            }
+          },
+          {
             attributeOrderInCategoryNatural: ASC
           }
         ]

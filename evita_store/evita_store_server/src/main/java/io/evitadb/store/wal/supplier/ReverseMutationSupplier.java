@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ package io.evitadb.store.wal.supplier;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.util.Pool;
+import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.store.exception.WriteAheadLogCorruptedException;
 import io.evitadb.store.model.FileLocation;
@@ -42,19 +43,20 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class ReverseMutationSupplier extends AbstractMutationSupplier {
 	private int mutationIndex;
-	private FileLocation[] mappedPositions;
+	@Nullable private FileLocation[] mappedPositions;
 
 	public ReverseMutationSupplier(
 		long catalogVersion,
 		@Nonnull String catalogName,
 		@Nonnull Path catalogStoragePath,
+		@Nonnull StorageOptions storageOptions,
 		int walFileIndex,
 		@Nonnull Pool<Kryo> catalogKryoPool,
 		@Nonnull ConcurrentHashMap<Integer, TransactionLocations> transactionLocationsCache,
 		@Nullable Runnable onClose
 	) {
 		super(
-			catalogVersion, catalogName, catalogStoragePath,
+			catalogVersion, catalogName, catalogStoragePath, storageOptions,
 			walFileIndex, catalogKryoPool, transactionLocationsCache,
 			false, onClose
 		);
@@ -62,6 +64,7 @@ public final class ReverseMutationSupplier extends AbstractMutationSupplier {
 			0: this.transactionMutation.getMutationCount();
 	}
 
+	@Nullable
 	@Override
 	public Mutation get() {
 		if (this.transactionMutation == null) {
@@ -72,10 +75,14 @@ public final class ReverseMutationSupplier extends AbstractMutationSupplier {
 				this.mutationIndex--;
 				return this.transactionMutation;
 			} else if (this.mutationIndex >= 0) {
+				Assert.isPremiseValid(
+					this.observableInput != null,
+					"Observable input stream is not available!"
+				);
 				// transaction is fully mapped - we could read it backwards
 				final FileLocation currentLocation = mappedPositions[this.mutationIndex--];
 				final StorageRecord<Mutation> storageRecord = StorageRecord.read(
-					this.observableInput, currentLocation, (stream, length) -> (Mutation) kryo.readClassAndObject(stream)
+					this.observableInput, currentLocation, (stream, length, control) -> (Mutation) kryo.readClassAndObject(stream)
 				);
 				return storageRecord.payload();
 			} else {
@@ -95,6 +102,14 @@ public final class ReverseMutationSupplier extends AbstractMutationSupplier {
 	@Nonnull
 	private FileLocation[] getMappedPositions() {
 		if (this.mappedPositions == null) {
+			Assert.isPremiseValid(
+				this.observableInput != null,
+				"Observable input stream is not available!"
+			);
+			Assert.isPremiseValid(
+				this.transactionMutation != null,
+				"Transaction mutation is not available!"
+			);
 			final FileLocation transactionMutationLocation = StorageRecord.readFileLocation(
 				this.observableInput,
 				this.transactionMutation.getTransactionSpan().startingPosition() + 4
@@ -144,6 +159,11 @@ public final class ReverseMutationSupplier extends AbstractMutationSupplier {
 			this.walFileIndex,
 			(index) -> new TransactionLocations()
 		).findNearestLocation(previousCatalogVersion);
+
+		Assert.isPremiseValid(
+			this.observableInput != null,
+			"Observable input stream is not available!"
+		);
 
 		// move forward, until we reach EOL or current tx mutation
 		this.observableInput.seekWithUnknownLength(this.filePosition);

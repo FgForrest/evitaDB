@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -168,21 +168,23 @@ public interface ExternalApiFunctionTestsSupport {
 
 	@Nonnull
 	default Integer[] findEntityPks(@Nonnull List<SealedEntity> originalProductEntities,
-	                                  @Nonnull Predicate<SealedEntity> filter) {
+	                                @Nonnull Predicate<SealedEntity> filter,
+	                                int limit) {
 		final Integer[] pks = originalProductEntities.stream()
 			.filter(filter)
-			.limit(2)
+			.limit(limit)
 			.map(EntityContract::getPrimaryKey)
 			.toArray(Integer[]::new);
-		assertEquals(2, pks.length);
+		assertEquals(limit, pks.length);
 		return pks;
 	}
 
 	@Nonnull
-	default Integer[] findEntityWithPricePks(List<SealedEntity> originalProductEntities) {
+	default Integer[] findEntityWithPricePks(List<SealedEntity> originalProductEntities, int limit) {
 		return findEntityPks(
 			originalProductEntities,
-			it -> it.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).size() == 1
+			it -> it.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).size() == 1,
+			limit
 		);
 	}
 

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.http;
 
+import com.esotericsoftware.kryo.util.Pool;
 import com.linecorp.armeria.common.HttpData;
 import com.linecorp.armeria.common.HttpHeaderNames;
 import com.linecorp.armeria.common.HttpMethod;
@@ -57,6 +58,8 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
+import static java.util.Optional.ofNullable;
+
 /**
  * Base implementation of {@link HttpService} for handling endpoints logic with content negotiation, request and response
  * bodies serialization and so on.
@@ -68,6 +71,13 @@ import java.util.stream.Collectors;
 public abstract class EndpointHandler<C extends EndpointExecutionContext> implements HttpService {
 	private static final int STREAM_CHUNK_SIZE = 8192;
 	private static final String CONTENT_TYPE_CHARSET = "; charset=UTF-8";
+	private static final Pool<byte[]> BYTE_ARRAY_POOL = new Pool<>(true, true) {
+		@Override
+		protected byte[] create() {
+			//noinspection CheckForOutOfMemoryOnLargeArrayAllocation
+			return new byte[STREAM_CHUNK_SIZE];
+		}
+	};
 
 	@Nonnull
 	@Override
@@ -75,8 +85,8 @@ public abstract class EndpointHandler<C extends EndpointExecutionContext> implem
 		final C executionContext = createExecutionContext(req);
 		validateRequest(req);
 
-		executionContext.provideRequestBodyContentType(resolveRequestBodyContentType(executionContext).orElse(null));
-		executionContext.providePreferredResponseContentType(resolvePreferredResponseContentType(executionContext).orElse(null));
+		resolveRequestBodyContentType(executionContext).ifPresent(executionContext::provideRequestBodyContentType);
+		resolvePreferredResponseContentType(executionContext).ifPresent(executionContext::providePreferredResponseContentType);
 
 		beforeRequestHandled(executionContext);
 		return HttpResponse.of(
@@ -95,18 +105,7 @@ public abstract class EndpointHandler<C extends EndpointExecutionContext> implem
 										.status(HttpStatus.NO_CONTENT)
 										.build();
 								} else {
-									final HttpResponseWriter responseWriter = HttpResponse.streaming();
-									responseWriter.write(
-										ResponseHeaders.of(
-											HttpStatus.OK,
-											HttpHeaderNames.CONTENT_TYPE, executionContext.preferredResponseContentType() + CONTENT_TYPE_CHARSET
-										)
-									);
-									writeResponse(executionContext, responseWriter, result, ctx.eventLoop());
-									if (responseWriter.isOpen()) {
-										responseWriter.close();
-									}
-									return responseWriter;
+									return getResponse(ctx, executionContext, successResponse.getResult(), HttpStatus.OK);
 								}
 							} else {
 								throw createInternalError("Unsupported response `" + response.getClass().getName() + "`.");
@@ -115,10 +114,42 @@ public abstract class EndpointHandler<C extends EndpointExecutionContext> implem
 							executionContext.notifyError(e);
 							throw e;
 						}
-					}).whenComplete((response, throwable) -> {
-						executionContext.close();
-					})
+					}).whenComplete((response, throwable) -> executionContext.close())
 			));
+	}
+
+	/**
+	 * Creates and configures an {@link HttpResponseWriter} to generate an HTTP response based on the provided context,
+	 * execution context, result, and HTTP status code. The method writes the response headers with the preferred content
+	 * type and includes the provided result if it is not null. The writer is closed when all data is written.
+	 *
+	 * @param ctx the service request context containing necessary details about the request; must not be null
+	 * @param executionContext the execution context providing additional configuration, including preferred content type; must not be null
+	 * @param result the result data to include in the response body, or null if no body is required
+	 * @param httpStatus the HTTP status code to set as the response status; must not be null
+	 * @return an {@link HttpResponseWriter} instance containing the configured response
+	 */
+	@Nonnull
+	private HttpResponseWriter getResponse(
+		@Nonnull ServiceRequestContext ctx,
+		@Nonnull C executionContext,
+		@Nullable Object result,
+		@Nonnull HttpStatus httpStatus
+	) {
+		final HttpResponseWriter responseWriter = HttpResponse.streaming();
+		responseWriter.write(
+			ResponseHeaders.of(
+				httpStatus,
+				HttpHeaderNames.CONTENT_TYPE, executionContext.preferredResponseContentType() + CONTENT_TYPE_CHARSET
+			)
+		);
+		if (result != null) {
+			writeResponse(executionContext, responseWriter, result, ctx.eventLoop());
+		}
+		if (responseWriter.isOpen()) {
+			responseWriter.close();
+		}
+		return responseWriter;
 	}
 
 	/**
@@ -201,7 +232,10 @@ public abstract class EndpointHandler<C extends EndpointExecutionContext> implem
 		);
 
 		final String bodyContentType = executionContext.requestBodyContentType();
-		final Charset bodyCharset = Arrays.stream(bodyContentType.split(";"))
+		final Charset bodyCharset = ofNullable(bodyContentType)
+			.map(bct -> bct.split(";"))
+			.stream()
+			.flatMap(Arrays::stream)
 			.map(String::trim)
 			.filter(part -> part.startsWith("charset"))
 			.findFirst()
@@ -226,13 +260,17 @@ public abstract class EndpointHandler<C extends EndpointExecutionContext> implem
 			.thenApply(r -> {
 				try (HttpData data = r.content()) {
 					try (InputStream inputStream = data.toInputStream()) {
-						final byte[] buffer = new byte[EndpointHandler.STREAM_CHUNK_SIZE];
-						final StringBuilder stringBuilder = new StringBuilder(64);
-						int bytesRead;
-						while ((bytesRead = inputStream.read(buffer)) != -1) {
-							stringBuilder.append(new String(buffer, 0, bytesRead, bodyCharset));
+						final byte[] buffer = BYTE_ARRAY_POOL.obtain();
+						try {
+							final StringBuilder stringBuilder = new StringBuilder(64);
+							int bytesRead;
+							while ((bytesRead = inputStream.read(buffer)) != -1) {
+								stringBuilder.append(new String(buffer, 0, bytesRead, bodyCharset));
+							}
+							return stringBuilder.toString();
+						} finally {
+							BYTE_ARRAY_POOL.free(buffer);
 						}
-						return stringBuilder.toString();
 					} catch (IOException e) {
 						throw new RuntimeException(e);
 					}
@@ -274,7 +312,7 @@ public abstract class EndpointHandler<C extends EndpointExecutionContext> implem
 			return Optional.empty();
 		}
 
-		final String bodyContentType = Optional.ofNullable(executionContext.httpRequest().headers().contentType())
+		final String bodyContentType = ofNullable(executionContext.httpRequest().headers().contentType())
 			.map(MediaType::toString)
 			.orElse(null);
 		Assert.isTrue(

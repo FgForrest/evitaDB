@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,6 +32,20 @@ import io.evitadb.dataType.SupportedEnum;
 @SupportedEnum
 public enum StatisticsBase {
 
-	COMPLETE_FILTER, WITHOUT_USER_FILTER
+	/**
+	 * Complete `filterBy` constraint output will be considered when calculating statistics of the queried entities.
+	 */
+	COMPLETE_FILTER,
+	/**
+	 * Contents of the `filterBy` excluding `userFilter` and its children will be considered when calculating statistics
+	 * of the queried entities.
+	 */
+	WITHOUT_USER_FILTER,
+	/**
+	 * Complete `filterBy` constraint output excluding constraints within `userFilter` limiting references of the same
+	 * hierarchical entity type this constraint is applied to will be considered when calculating statistics of
+	 * the queried entities.
+	 */
+	COMPLETE_FILTER_EXCLUDING_SELF_IN_USER_FILTER
 
 }

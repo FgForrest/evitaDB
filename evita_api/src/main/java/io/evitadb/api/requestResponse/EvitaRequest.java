@@ -34,12 +34,11 @@ import io.evitadb.api.query.head.Label;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.*;
 import io.evitadb.api.query.visitor.ConstraintCloneVisitor;
-import io.evitadb.api.requestResponse.data.ReferenceContract;
-import io.evitadb.dataType.DataChunk;
-import io.evitadb.dataType.PaginatedList;
-import io.evitadb.dataType.PlainChunk;
+import io.evitadb.api.requestResponse.chunk.ChunkTransformer;
+import io.evitadb.api.requestResponse.chunk.NoTransformer;
+import io.evitadb.api.requestResponse.chunk.PageTransformer;
+import io.evitadb.api.requestResponse.chunk.StripTransformer;
 import io.evitadb.dataType.Scope;
-import io.evitadb.dataType.StripList;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.ArrayUtils;
@@ -116,9 +115,12 @@ public class EvitaRequest {
 	@Nullable private Boolean requiresHierarchyParents;
 	@Nullable private Integer limit;
 	@Nullable private EvitaRequest.ResultForm resultForm;
+	@Nullable private FacetRelationType defaultFacetRelationType;
+	@Nullable private FacetRelationType defaultGroupRelationType;
 	@Nullable private Map<String, FacetFilterBy> facetGroupConjunction;
 	@Nullable private Map<String, FacetFilterBy> facetGroupDisjunction;
 	@Nullable private Map<String, FacetFilterBy> facetGroupNegation;
+	@Nullable private Map<String, FacetFilterBy> facetGroupExclusivity;
 	private Boolean queryTelemetryRequested;
 	@Nullable private EnumSet<DebugMode> debugModes;
 	@Nullable private Scope[] scopesAsArray;
@@ -145,7 +147,14 @@ public class EvitaRequest {
 			referenceContent.getChunking()
 				.map(chunking -> {
 					if (chunking instanceof Page page) {
-						return new PageTransformer(page);
+						return new PageTransformer(
+							page,
+							page.getSpacing()
+								.stream()
+								.flatMap(it -> Arrays.stream(it.getGaps()))
+								.map(it -> new ConditionalGap(it.getSize(), it.getOnPage()))
+								.toArray(ConditionalGap[]::new)
+						);
 					} else if (chunking instanceof Strip strip) {
 						return new StripTransformer(strip);
 					} else {
@@ -733,6 +742,50 @@ public class EvitaRequest {
 	}
 
 	/**
+	 * Retrieves the default facet relation type for the current configuration.
+	 * If the default facet relation type is not already defined, it initializes the value
+	 * based on the facet calculation rules found in the query. If no custom rules are provided,
+	 * the default facet relation type will be set to {@link FacetRelationType#DISJUNCTION}.
+	 *
+	 * @return The default {@link FacetRelationType} used for facets within the same group.
+	 */
+	@Nonnull
+	public FacetRelationType getDefaultFacetRelationType() {
+		if (this.defaultFacetRelationType == null) {
+			final Optional<FacetCalculationRules> customRules = ofNullable(QueryUtils.findRequire(this.query, FacetCalculationRules.class));
+			this.defaultFacetRelationType = customRules
+				.map(FacetCalculationRules::getFacetsWithSameGroupRelationType)
+				.orElse(FacetRelationType.DISJUNCTION);
+			this.defaultGroupRelationType = customRules
+				.map(FacetCalculationRules::getFacetsWithDifferentGroupsRelationType)
+				.orElse(FacetRelationType.CONJUNCTION);
+		}
+		return this.defaultFacetRelationType;
+	}
+
+	/**
+	 * Retrieves the default group relation type for facets. This method determines the relation type
+	 * applied to facets belonging to different groups. If not previously set, it evaluates custom
+	 * rules from the query context.
+	 * If custom rules are not provided, the default is set to {@link FacetRelationType#CONJUNCTION}.
+	 *
+	 * @return The default relation type for facets in different groups.
+	 */
+	@Nonnull
+	public FacetRelationType getDefaultGroupRelationType() {
+		if (this.defaultGroupRelationType == null) {
+			final Optional<FacetCalculationRules> customRules = ofNullable(QueryUtils.findRequire(this.query, FacetCalculationRules.class));
+			this.defaultFacetRelationType = customRules
+				.map(FacetCalculationRules::getFacetsWithSameGroupRelationType)
+				.orElse(FacetRelationType.DISJUNCTION);
+			this.defaultGroupRelationType = customRules
+				.map(FacetCalculationRules::getFacetsWithDifferentGroupsRelationType)
+				.orElse(FacetRelationType.CONJUNCTION);
+		}
+		return this.defaultGroupRelationType;
+	}
+
+	/**
 	 * Returns filter by representing group entity primary keys of `referenceName` facets, that are requested to be
 	 * joined by conjunction (AND) instead of default disjunction (OR).
 	 */
@@ -781,6 +834,23 @@ public class EvitaRequest {
 				});
 		}
 		return ofNullable(this.facetGroupNegation.get(referenceName));
+	}
+
+	/**
+	 * Returns filter by representing group entity primary keys of `referenceName` facets, that are requested to be
+	 * calculated in exclusive fashion (no other facet from same group is selected).
+	 */
+	@Nonnull
+	public Optional<FacetFilterBy> getFacetGroupExclusivity(@Nonnull String referenceName) {
+		if (this.facetGroupExclusivity == null) {
+			this.facetGroupExclusivity = new HashMap<>();
+			QueryUtils.findRequires(this.query, FacetGroupsExclusivity.class)
+				.forEach(it -> {
+					final String reqReferenceName = it.getReferenceName();
+					this.facetGroupExclusivity.put(reqReferenceName, new FacetFilterBy(it.getFacetGroups().orElse(null)));
+				});
+		}
+		return ofNullable(this.facetGroupExclusivity.get(referenceName));
 	}
 
 	/**
@@ -999,7 +1069,7 @@ public class EvitaRequest {
 	 */
 	@Nonnull
 	public Set<Scope> getScopes() {
-		if (this.scopes == null) {
+		if (this.scopes == null || this.scopesAsArray == null) {
 			this.scopesAsArray = ofNullable(QueryUtils.findFilter(this.query, EntityScope.class))
 				.map(it -> it.getScope().toArray(Scope[]::new))
 				.orElse(Scope.DEFAULT_SCOPES);
@@ -1020,7 +1090,7 @@ public class EvitaRequest {
 	public Scope[] getScopesAsArray() {
 		// init scopes
 		getScopes();
-		return this.scopesAsArray;
+		return Objects.requireNonNull(this.scopesAsArray);
 	}
 
 	/**
@@ -1111,122 +1181,6 @@ public class EvitaRequest {
 				entityFetch != null || entityGroupFetch != null || filterBy != null || orderBy != null;
 		}
 
-	}
-
-	public interface ChunkTransformer {
-
-		/**
-		 * Slices the complete list of references according to the requirements of the transformer.
-		 * This method expects the complete list of references to be passed in and returns the sliced list.
-		 *
-		 * @param referenceContracts the complete list of references
-		 * @return the sliced list of references
-		 */
-		@Nonnull
-		DataChunk<ReferenceContract> createChunk(@Nonnull List<ReferenceContract> referenceContracts);
-
-		/**
-		 * Wraps the incomplete list of references into a data chunk.
-		 * This method expect that the list contains already resolved chunk with total count of references.
-		 *
-		 * @param referenceContracts the incomplete list of references
-		 * @param totalReferenceCount the total count of references
-		 * @return the wrapped data chunk
-		 */
-		@Nonnull
-		DataChunk<ReferenceContract> createChunk(@Nonnull List<ReferenceContract> referenceContracts, int totalReferenceCount);
-
-	}
-
-	/**
-	 * Contains transformation function that wraps list of references into {@link PaginatedList} implementation as
-	 * requested by {@link Page} requirement constraint in particular {@link ReferenceContent}.
-	 */
-	@RequiredArgsConstructor
-	public static class PageTransformer implements ChunkTransformer {
-		@Getter private final Page page;
-
-		@Nonnull
-		@Override
-		public DataChunk<ReferenceContract> createChunk(@Nonnull List<ReferenceContract> referenceContracts) {
-			final int pageNumber = page.getPageNumber();
-			final int pageSize = page.getPageSize();
-			final int realPageNumber = PaginatedList.isRequestedResultBehindLimit(pageNumber, pageSize, referenceContracts.size()) ?
-				1 : pageNumber;
-			final int offset = PaginatedList.getFirstItemNumberForPage(realPageNumber, pageSize);
-			return new PaginatedList<>(
-				realPageNumber, pageSize, referenceContracts.size(),
-				referenceContracts.isEmpty() ?
-					referenceContracts :
-					referenceContracts.subList(
-						offset,
-						Math.min(offset + pageSize, referenceContracts.size())
-					)
-			);
-		}
-
-		@Nonnull
-		@Override
-		public DataChunk<ReferenceContract> createChunk(@Nonnull List<ReferenceContract> referenceContracts, int totalReferenceCount) {
-			final int pageNumber = page.getPageNumber();
-			final int pageSize = page.getPageSize();
-			final int realPageNumber = PaginatedList.isRequestedResultBehindLimit(pageNumber, pageSize, totalReferenceCount) ?
-				1 : pageNumber;
-			return new PaginatedList<>(realPageNumber, pageSize, totalReferenceCount, referenceContracts);
-		}
-	}
-
-	/**
-	 * Contains transformation function that wraps list of references into {@link StripList} implementation as
-	 * requested by {@link Strip} requirement constraint in particular {@link ReferenceContent}.
-	 */
-	@RequiredArgsConstructor
-	public static class StripTransformer implements ChunkTransformer {
-		@Getter private final Strip strip;
-
-		@Nonnull
-		@Override
-		public DataChunk<ReferenceContract> createChunk(@Nonnull List<ReferenceContract> referenceContracts) {
-			return new StripList<>(
-				strip.getOffset(), strip.getLimit(), referenceContracts.size(),
-				referenceContracts.isEmpty() ?
-					referenceContracts :
-					referenceContracts.subList(
-						Math.min(strip.getOffset(), referenceContracts.size() - 1),
-						Math.min(strip.getOffset() + strip.getLimit(), referenceContracts.size())
-					)
-			);
-		}
-
-		@Nonnull
-		@Override
-		public DataChunk<ReferenceContract> createChunk(@Nonnull List<ReferenceContract> referenceContracts, int totalReferenceCount) {
-			return new StripList<>(strip.getOffset(), strip.getLimit(), totalReferenceCount, referenceContracts);
-		}
-	}
-
-	/**
-	 * Contains transformation function that wraps list of references into plain chunked facade without real chunking.
-	 */
-	@RequiredArgsConstructor
-	public static class NoTransformer implements ChunkTransformer {
-		public static final NoTransformer INSTANCE = new NoTransformer();
-
-		@Nonnull
-		@Override
-		public DataChunk<ReferenceContract> createChunk(@Nonnull List<ReferenceContract> referenceContracts) {
-			return new PlainChunk<>(referenceContracts);
-		}
-
-		@Nonnull
-		@Override
-		public DataChunk<ReferenceContract> createChunk(@Nonnull List<ReferenceContract> referenceContracts, int totalReferenceCount) {
-			Assert.isPremiseValid(
-				referenceContracts.size() == totalReferenceCount,
-				"Total count must match the chunk size in case of no transformer implementation!"
-			);
-			return new PlainChunk<>(referenceContracts);
-		}
 	}
 
 	/**

@@ -72,7 +72,10 @@ filterConstraint
     | 'priceValidInNow'                     emptyArgs                                                       # priceValidInNowConstraint
     | 'priceValidIn'                        args = valueArgs                                                # priceValidInConstraint
     | 'priceBetween'                        args = betweenValuesArgs                                        # priceBetweenConstraint
-    | 'facetHaving'                         args = classifierWithFilterConstraintArgs                       # facetHavingConstraint
+    | 'facetHaving'                         args = classifierWithTwoFilterConstraintArgs                    # facetHavingConstraint
+    | 'includingChildren'                   emptyArgs                                                       # facetIncludingChildrenConstraint
+    | 'includingChildrenHaving'             args = filterConstraintArgs                                     # facetIncludingChildrenHavingConstraint
+    | 'includingChildrenExcept'             args = filterConstraintArgs                                     # facetIncludingChildrenExceptConstraint
     | 'referenceHaving'                     (args = classifierArgs | classifierWithFilterConstraintArgs)    # referenceHavingConstraint
     | 'hierarchyWithin'                     args = hierarchyWithinConstraintArgs                            # hierarchyWithinConstraint
     | 'hierarchyWithinSelf'                 args = hierarchyWithinSelfConstraintArgs                        # hierarchyWithinSelfConstraint
@@ -98,6 +101,8 @@ orderConstraint
     | 'random'                              emptyArgs                                                       # randomConstraint
     | 'randomWithSeed'                      args = valueArgs                                                # randomWithSeedConstraint
     | 'referenceProperty'                   args = classifierWithOrderConstraintListArgs                    # referencePropertyConstraint
+    | 'traverseByEntityProperty'            args = traverseOrderConstraintListArgs                          # traverseByEntityPropertyConstraint
+    | 'pickFirstByEntityProperty'           args = orderConstraintListArgs                                  # pickFirstByByEntityPropertyConstraint
     | 'entityPrimaryKeyNatural'             (emptyArgs | args = valueArgs)                                  # entityPrimaryKeyExactNatural
     | 'entityPrimaryKeyExact'               args = valueListArgs                                            # entityPrimaryKeyExactConstraint
     | 'entityPrimaryKeyInFilter'            emptyArgs                                                       # entityPrimaryKeyInFilterConstraint
@@ -163,9 +168,11 @@ requireConstraint
     | 'facetSummary'                        args = facetSummary7Args                                        # facetSummary7Constraint
     | 'facetSummaryOfReference'             args = classifierArgs                                           # facetSummaryOfReference1Constraint
     | 'facetSummaryOfReference'             args = facetSummaryOfReference2Args                             # facetSummaryOfReference2Constraint
-    | 'facetGroupsConjunction'              args = classifierWithOptionalFilterConstraintArgs               # facetGroupsConjunctionConstraint
-    | 'facetGroupsDisjunction'              args = classifierWithOptionalFilterConstraintArgs               # facetGroupsDisjunctionConstraint
-    | 'facetGroupsNegation'                 args = classifierWithOptionalFilterConstraintArgs               # facetGroupsNegationConstraint
+    | 'facetGroupsConjunction'              args = facetGroupRelationArgs                                   # facetGroupsConjunctionConstraint
+    | 'facetGroupsDisjunction'              args = facetGroupRelationArgs                                   # facetGroupsDisjunctionConstraint
+    | 'facetGroupsNegation'                 args = facetGroupRelationArgs                                   # facetGroupsNegationConstraint
+    | 'facetGroupsExclusivity'              args = facetGroupRelationArgs                                   # facetGroupsExclusivityConstraint
+    | 'facetCalculationRules'               args = facetCalculationRulesArgs                                # facetCalculationRulesConstraint
     | 'attributeHistogram'                  args = attributeHistogramArgs                                   # attributeHistogramConstraint
     | 'priceHistogram'                      args = priceHistogramArgs                                       # priceHistogramConstraint
     | 'distance'                            args = valueArgs                                                # hierarchyDistanceConstraint
@@ -217,6 +224,11 @@ filterConstraintListArgs :                          argsOpening constraints += f
 
 filterConstraintArgs :                              argsOpening filter = filterConstraint argsClosing ;
 
+traverseOrderConstraintListArgs :                   argsOpening(
+                                                        (traversalMode = valueToken) |
+                                                        ((traversalMode = valueToken ARGS_DELIMITER)? constraints += orderConstraint (ARGS_DELIMITER constraints += orderConstraint)*)
+                                                    ) argsClosing ;
+
 orderConstraintListArgs :                           argsOpening constraints += orderConstraint (ARGS_DELIMITER constraints += orderConstraint)* argsClosing ;
 
 requireConstraintArgs :                             argsOpening requirement = requireConstraint argsClosing ;
@@ -245,11 +257,13 @@ classifierListArgs :                                argsOpening classifiers = va
 
 classifierWithFilterConstraintArgs :                argsOpening classifier = valueToken ARGS_DELIMITER filter = filterConstraint argsClosing ;
 
-classifierWithOptionalFilterConstraintArgs :        argsOpening classifier = valueToken (ARGS_DELIMITER filter = filterConstraint)? argsClosing ;
+classifierWithTwoFilterConstraintArgs :             argsOpening classifier = valueToken ARGS_DELIMITER filter1 = filterConstraint (ARGS_DELIMITER filter2 = filterConstraint)? argsClosing ;
+
+facetGroupRelationArgs :                            argsOpening classifier = valueToken (ARGS_DELIMITER facetGroupRelationLevel = valueToken)? (ARGS_DELIMITER filter = filterConstraint)? argsClosing ;
+
+facetCalculationRulesArgs :                         argsOpening facetsWithSameGroup = valueToken ARGS_DELIMITER facetsWithDifferentGroups = valueToken argsClosing ;
 
 classifierWithOrderConstraintListArgs :             argsOpening classifier = valueToken (ARGS_DELIMITER constrains += orderConstraint)+ argsClosing ;
-
-valueWithRequireConstraintListArgs:                 argsOpening value = valueToken (ARGS_DELIMITER requirements += requireConstraint)* argsClosing ;
 
 hierarchyWithinConstraintArgs :                     argsOpening classifier = valueToken ARGS_DELIMITER ofParent = filterConstraint (ARGS_DELIMITER constrains += filterConstraint)* argsClosing ;
 

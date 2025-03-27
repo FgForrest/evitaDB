@@ -31,6 +31,7 @@ import io.evitadb.store.compressor.AggregatedKeyCompressor;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.kryo.VersionedKryo;
 import io.evitadb.store.kryo.VersionedKryoKeyInputs;
+import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.model.PersistentStorageDescriptor;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.offsetIndex.OffsetIndex;
@@ -98,7 +99,7 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 		this.offsetIndex = new OffsetIndex(
 			catalogVersion + 1,
 			new OffsetIndexDescriptor(
-				new PersistentStorageHeader(1L, null, this.delegate.getReadOnlyKeyCompressor().getKeys()),
+				new PersistentStorageHeader(1L, FileLocation.EMPTY, this.delegate.getReadOnlyKeyCompressor().getKeys()),
 				kryoFactory,
 				// we don't care here
 				1.0, 0L
@@ -107,7 +108,7 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 			offsetIndexRecordTypeRegistry,
 			new WriteOnlyOffHeapWithFileBackupHandle(
 				this.targetFile,
-				storageOptions.syncWrites(),
+				storageOptions,
 				observableOutputKeeper,
 				offHeapMemoryManager
 			),
@@ -195,13 +196,14 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 				.map(it -> offsetIndex.get(it.getValue(), containerType))
 				.filter(Objects::nonNull),
 			this.delegate.getEntryStream(containerType)
+				.filter(it -> it.getStoragePartPK() != null)
 				.filter(it -> !this.removedStoragePartKeys.contains(new RecordKey(recType, it.getStoragePartPK())))
 				.filter(it -> !returnedPks.contains(it.getStoragePartPK()))
 		);
 	}
 
 	@Override
-	public <T extends StoragePart> int countStorageParts(long catalogVersion) {
+	public int countStorageParts(long catalogVersion) {
 		// this is going to be slow, but it's not used in production scenarios
 		return this.offsetIndex.count(catalogVersion) + this.delegate.countStorageParts(catalogVersion) -
 			this.removedStoragePartKeys.size();

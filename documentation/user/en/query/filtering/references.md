@@ -1,6 +1,6 @@
 ---
 title: Reference filtering
-date: '7.11.2023'
+date: '10.2.2025'
 perex: |
   Reference filtering is used to filter entities based on their references to other entities in the catalog or
   attributes specified in those relations.
@@ -292,6 +292,214 @@ changed accordingly:
 <LS to="r">
 
 <MDInclude sourceVariable="extraResults.facetSummary">[The result of facet having filtering constraint](/documentation/user/en/query/filtering/examples/references/facet-having.rest.json.md)</MDInclude>
+
+</LS>
+
+</Note>
+
+### Including children
+
+```evitaql-syntax
+includingChildren()
+```
+
+The <LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/FacetIncludingChildren.java</SourceClass></LS> 
+filtering constraint can only be placed within a `facetHaving` parent constraint and only if the parent constraint refers 
+to the hierarchical entity. This constraint will automatically propagate all child entities of any entity that matches
+the `facetHaving` constraint to that parent constraint, as if the `facetHaving` contained the children directly.
+
+Let's illustrate this situation with some real data. Imagine you have a category `Laptops` with subcategories `Netbooks`,
+`Ultrabooks` and so on:
+
+![Laptops category listing](assets/laptops-category-listing.png "Laptops category listing")
+
+Products can be related to any of these sub-categories, or directly to the `Laptops` category (if they don't match any
+of the sub-categories). If you generated a facet summary for the `category` reference, you'd get all the categories with
+matching products on the same level. But you may want to visualise the category part of the facet summary as a tree
+using the [`hierarchy](../requirements/hierarchy.md#hierarchy-of-reference) requirement. When the user selects one of 
+the category options, it should automatically select all subcategories as well, and also change the predicted
+[facet statistics](../requirements/facet.md#facet-summary-of-reference) accordingly.
+
+To achieve this, you can use the `includingChildren` constraint within the `facetHaving` constraint. The query is also
+restricted to the products of the `ASUS` manufacturer so that the facet summary is not too long:
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
+[Facet including children example](/documentation/user/en/query/filtering/examples/references/facet-including-children.evitaql)
+
+</SourceCodeTabs>
+
+| Facet summary without including children requested             | Facet summary after facet including children requested      |
+|----------------------------------------------------------------|-------------------------------------------------------------|
+| ![Before](assets/facet-including-children-before.png "Before") | ![After](assets/facet-including-children-after.png "After") |
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of facet having filtering including children constraint
+
+</NoteTitle>
+
+Because the facet summary JSON is quite long and not very readable, we will only show a simplified version of the facet
+summary result in this documentation. As you can see, not only the facet `laptops` matched by equals function is checked,
+but also all of its children. The predicted numbers have changed accordingly:
+
+<LS to="e,j,c">
+
+<MDInclude sourceVariable="extraResults.FacetSummary">[The result of facet having including children](/documentation/user/en/query/filtering/examples/references/facet-including-children.evitaql.string.md)</MDInclude>
+
+</LS>
+
+<LS to="g">
+
+<MDInclude sourceVariable="data.queryProduct.extraResults.facetSummary">[The result of facet having including children](/documentation/user/en/query/filtering/examples/references/facet-including-children.graphql.json.md)</MDInclude>
+
+</LS>
+
+<LS to="r">
+
+<MDInclude sourceVariable="extraResults.facetSummary">[The result of facet having including children](/documentation/user/en/query/filtering/examples/references/facet-including-children.rest.json.md)</MDInclude>
+
+</LS>
+
+</Note>
+
+### Including children having
+
+```evitaql-syntax
+includingChildrenHaving(
+    filterConstraint:any+
+)
+```
+
+<dl>
+    <dt>filterConstraint:any+</dt>
+    <dd>
+        one or more filter constraints that further narrow down the child entities that will be included in 
+        the `facetHaving` parent constraint
+    </dd>
+</dl>
+
+The <LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/ReferenceIncludingChildren.java</SourceClass></LS>
+filtering constraint is a specialisation of [`includingChildren`](#including-children) that allows you to restrict
+the child entities that are included in the `facetHaving` parent constraint. This can be useful if you are using 
+filters in the [`facetSummary`](../requirements/facet.md#facet-summary-of-reference) and your selection logic needs 
+to match it.
+
+To better understand how the `includingChildrenHaving` constraint works, let's look at an example (the query is also
+restricted to the products of the `ASUS` manufacturer so that the facet summary is not too long):
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
+[Facet including children having example](/documentation/user/en/query/filtering/examples/references/facet-including-children-having.evitaql)
+
+</SourceCodeTabs>
+
+| Facet summary with standard including children requested              | Facet summary with limited facet including children having requested |
+|-----------------------------------------------------------------------|----------------------------------------------------------------------|
+| ![Before](assets/facet-including-children-having-before.png "Before") | ![After](assets/facet-including-children-having-after.png "After")   |
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of facet having including children having filtering constraint
+
+</NoteTitle>
+
+Because the facet summary JSON is quite long and not very readable, we will only show a simplified version of the facet
+summary result in this documentation. As you can see, not only the `laptops` facet matched by the equals function is 
+checked, but also all of its children whose `code` attribute contains the string `books`. The predicted numbers have 
+changed accordingly:
+
+<LS to="e,j,c">
+
+<MDInclude sourceVariable="extraResults.FacetSummary">[The result of facet having including children having](/documentation/user/en/query/filtering/examples/references/facet-including-children-having.evitaql.string.md)</MDInclude>
+
+</LS>
+
+<LS to="g">
+
+<MDInclude sourceVariable="data.queryProduct.extraResults.facetSummary">[The result of facet having including children having](/documentation/user/en/query/filtering/examples/references/facet-including-children-having.graphql.json.md)</MDInclude>
+
+</LS>
+
+<LS to="r">
+
+<MDInclude sourceVariable="extraResults.facetSummary">[The result of facet having including children having](/documentation/user/en/query/filtering/examples/references/facet-including-children-having.rest.json.md)</MDInclude>
+
+</LS>
+
+</Note>
+
+### Including children except
+
+```evitaql-syntax
+includingChildrenExcept(
+    filterConstraint:any+
+)
+```
+
+<dl>
+    <dt>filterConstraint:any+</dt>
+    <dd>
+        one or more filter constraints that excludes specific child entities from being included in 
+        the `facetHaving` parent constraint
+    </dd>
+</dl>
+
+The <LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/ReferenceIncludingChildren.java</SourceClass></LS>
+filtering constraint is a specialisation of [`includingChildren`](#including-children) and exact opposite to [`includingChildrenHaving`]
+that allows you to exclude the matched child entities from being included in the `facetHaving` parent constraint.
+This can be useful if you are using filters in the [`facetSummary`](../requirements/facet.md#facet-summary-of-reference) 
+and your selection logic needs to match it.
+
+You can also combine the `includingChildrenExcept` constraint with the `includingChildrenHaving` constraint. 
+In this case, the `includingChildrenHaving` constraint is evaluated first and the `includingChildrenExcept` constraint 
+is applied to the result of the `includingChildrenHaving` constraint.
+
+To better understand how the `includingChildrenExcept` constraint works, let's look at an example (the query is also
+restricted to the products of the `ASUS` manufacturer so that the facet summary is not too long):
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
+[Facet including children except example](/documentation/user/en/query/filtering/examples/references/facet-including-children-except.evitaql)
+
+</SourceCodeTabs>
+
+| Facet summary with standard including children requested              | Facet summary with limited facet including children except requested |
+|-----------------------------------------------------------------------|----------------------------------------------------------------------|
+| ![Before](assets/facet-including-children-except-before.png "Before") | ![After](assets/facet-including-children-except-after.png "After")   |
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of facet except including children except filtering constraint
+
+</NoteTitle>
+
+Because the facet summary JSON is quite long and not very readable, we will only show a simplified version of the facet
+summary result in this documentation. As you can see, not only the `laptops` facet matched by the equals function is
+checked, but also all of its children whose `code` attribute doesn't contain the string `books`. The predicted numbers 
+have changed accordingly:
+
+<LS to="e,j,c">
+
+<MDInclude sourceVariable="extraResults.FacetSummary">[The result of facet except including children except](/documentation/user/en/query/filtering/examples/references/facet-including-children-except.evitaql.string.md)</MDInclude>
+
+</LS>
+
+<LS to="g">
+
+<MDInclude sourceVariable="data.queryProduct.extraResults.facetSummary">[The result of facet except including children except](/documentation/user/en/query/filtering/examples/references/facet-including-children-except.graphql.json.md)</MDInclude>
+
+</LS>
+
+<LS to="r">
+
+<MDInclude sourceVariable="extraResults.facetSummary">[The result of facet except including children except](/documentation/user/en/query/filtering/examples/references/facet-including-children-except.rest.json.md)</MDInclude>
 
 </LS>
 

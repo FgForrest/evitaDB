@@ -51,6 +51,7 @@ storage:                                          # [see Storage configuration](
   maxOpenedReadHandles: 12
   syncWrites: true
   computeCRC32C: true
+  compress: false
   minimalActiveRecordShare: 0.5
   fileSizeCompactionThresholdBytes: 100MB
   timeTravelEnabled: false
@@ -66,7 +67,7 @@ transaction:                                      # [see Transaction configurati
   flushFrequencyInMillis: 1s
 
 cache:                                            # [see Cache configuration](#cache-configuration)
-  enabled: true
+  enabled: false
   reflection: CACHE
   reevaluateEachSeconds: 60
   anteroomRecordCount: 100K
@@ -573,6 +574,14 @@ This section contains configuration options for the storage layer of the databas
             early as possible.
         </Note>
     </dd>
+    <dt>compress</dt>
+    <dd>
+        <p>**Default:** `false`</p>
+        <p>Specifies whether or not to compress the data. If set to true, all data will be compressed, but only those 
+        whose compressed size is less than the original size will be stored in compressed form. Setting this property 
+        to `true` may slow down writes (though not significantly) and increase read speed and throughput, as there's 
+        less slow disk I/O involved. Currently the standard ZIP/deflate compression method is used.</p>
+    </dd>
     <dt>minimalActiveRecordShare</dt>
     <dd>
         <p>**Default:** `0.5` (when waste exceeds 50% the file is compacted)</p>
@@ -669,7 +678,7 @@ is resolved.
 <dl>
     <dt>enabled</dt>
     <dd>
-        <p>**Default:** `true`</p>
+        <p>**Default:** `false`</p>
         <p>This setting enables or disables the use of the cache entirely.</p>
     </dd>
     <dt>reflection</dt>

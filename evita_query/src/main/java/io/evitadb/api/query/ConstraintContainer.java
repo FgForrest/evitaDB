@@ -192,7 +192,7 @@ public abstract class ConstraintContainer<T extends Constraint<T>> extends BaseC
 		return getName() +
 			ARG_OPENING +
 			Stream.of(
-					Arrays.stream(getArgumentsExcludingDefaults())
+					Arrays.stream((this instanceof ConstraintWithDefaults<?> constraintWithDefaults) ? constraintWithDefaults.getArgumentsExcludingDefaults() : getArguments())
 						.filter(it -> !(this instanceof ConstraintWithSuffix cws) || !cws.isArgumentImplicitForSuffix(it))
 						.map(BaseConstraint::convertToString),
 					Arrays.stream(this.additionalChildren)

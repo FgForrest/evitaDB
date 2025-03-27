@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -112,7 +112,7 @@ class CatalogWriteAheadLogTest {
 	@Test
 	void shouldVerifyWalIsOk() {
 		// should not throw any exception
-		CatalogWriteAheadLog.checkAndTruncate(TEST_CATALOG, walFilePath, catalogKryoPool, true);
+		CatalogWriteAheadLog.checkAndTruncate(TEST_CATALOG, walFilePath, catalogKryoPool, StorageOptions.temporary());
 	}
 
 	@Test
@@ -125,7 +125,7 @@ class CatalogWriteAheadLogTest {
 			raf.setLength(newLength);
 		}
 		// should not throw any exception
-		CatalogWriteAheadLog.checkAndTruncate(TEST_CATALOG, walFilePath, catalogKryoPool, true);
+		CatalogWriteAheadLog.checkAndTruncate(TEST_CATALOG, walFilePath, catalogKryoPool, StorageOptions.temporary());
 
 		final int txLengthBytes = 4;
 		final int classIdBytes = 2;
@@ -150,7 +150,7 @@ class CatalogWriteAheadLogTest {
 		// should throw an exception
 		assertThrows(
 			WriteAheadLogCorruptedException.class,
-			() -> CatalogWriteAheadLog.checkAndTruncate(TEST_CATALOG, walFilePath, catalogKryoPool, true)
+			() -> CatalogWriteAheadLog.checkAndTruncate(TEST_CATALOG, walFilePath, catalogKryoPool, StorageOptions.temporary())
 		);
 	}
 }

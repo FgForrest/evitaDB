@@ -101,6 +101,8 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	);
 	protected final EvitaQLOrderConstraintVisitor orderConstraintVisitor = new EvitaQLOrderConstraintVisitor();
 	protected final EvitaQLValueTokenVisitor priceContentModeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(PriceContentMode.class);
+	protected final EvitaQLValueTokenVisitor facetGroupRelationLevelValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(FacetGroupRelationLevel.class);
+	protected final EvitaQLValueTokenVisitor facetRelationTypeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(FacetRelationType.class);
 	protected final EvitaQLValueTokenVisitor queryPriceModeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(QueryPriceMode.class);
 	protected final EvitaQLValueTokenVisitor statisticsArgValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(StatisticsBase.class, StatisticsType.class);
 	protected final EvitaQLValueTokenVisitor stringValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(String.class);
@@ -1735,6 +1737,8 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 			ctx,
 			() -> new FacetGroupsConjunction(
 				ctx.args.classifier.accept(stringValueTokenVisitor).asString(),
+				ctx.args.facetGroupRelationLevel == null ?
+					null : ctx.args.facetGroupRelationLevel.accept(facetGroupRelationLevelValueTokenVisitor).asEnum(FacetGroupRelationLevel.class),
 				ctx.args.filterConstraint() == null ?
 					null : (FilterBy) ctx.args.filterConstraint().accept(filterConstraintVisitor)
 			)
@@ -1747,6 +1751,8 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 			ctx,
 			() -> new FacetGroupsDisjunction(
 				ctx.args.classifier.accept(stringValueTokenVisitor).asString(),
+				ctx.args.facetGroupRelationLevel == null ?
+					null : ctx.args.facetGroupRelationLevel.accept(facetGroupRelationLevelValueTokenVisitor).asEnum(FacetGroupRelationLevel.class),
 				ctx.args.filterConstraint() == null ?
 					null : (FilterBy) ctx.args.filterConstraint().accept(filterConstraintVisitor)
 			)
@@ -1759,8 +1765,35 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 			ctx,
 			() -> new FacetGroupsNegation(
 				ctx.args.classifier.accept(stringValueTokenVisitor).asString(),
+				ctx.args.facetGroupRelationLevel == null ?
+					null : ctx.args.facetGroupRelationLevel.accept(facetGroupRelationLevelValueTokenVisitor).asEnum(FacetGroupRelationLevel.class),
 				ctx.args.filterConstraint() == null ?
 					null : (FilterBy) ctx.args.filterConstraint().accept(filterConstraintVisitor)
+			)
+		);
+	}
+
+	@Override
+	public RequireConstraint visitFacetGroupsExclusivityConstraint(FacetGroupsExclusivityConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new FacetGroupsExclusivity(
+				ctx.args.classifier.accept(stringValueTokenVisitor).asString(),
+				ctx.args.facetGroupRelationLevel == null ?
+					null : ctx.args.facetGroupRelationLevel.accept(facetGroupRelationLevelValueTokenVisitor).asEnum(FacetGroupRelationLevel.class),
+				ctx.args.filterConstraint() == null ?
+					null : (FilterBy) ctx.args.filterConstraint().accept(filterConstraintVisitor)
+			)
+		);
+	}
+
+	@Override
+	public RequireConstraint visitFacetCalculationRulesConstraint(FacetCalculationRulesConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new FacetCalculationRules(
+				ctx.args.facetsWithSameGroup.accept(facetRelationTypeValueTokenVisitor).asEnum(FacetRelationType.class),
+				ctx.args.facetsWithDifferentGroups.accept(facetRelationTypeValueTokenVisitor).asEnum(FacetRelationType.class)
 			)
 		);
 	}

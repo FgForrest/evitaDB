@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,6 +31,7 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Objects;
 import java.util.function.BooleanSupplier;
 
@@ -52,7 +53,7 @@ class MutableFormula implements Formula {
 	private boolean suppressPivot;
 	private FacetGroupFormula pivot;
 	private FacetGroupFormula delegate;
-	private FacetGroupFormula result;
+	@Nullable private FacetGroupFormula result;
 
 	public MutableFormula(@Nonnull FacetGroupFormula delegate) {
 		this.delegate = delegate;
@@ -173,7 +174,7 @@ class MutableFormula implements Formula {
 
 		MutableFormula that = (MutableFormula) o;
 
-		return Objects.equals(delegate, that.delegate);
+		return Objects.equals(this.delegate, that.delegate);
 	}
 
 	@Override

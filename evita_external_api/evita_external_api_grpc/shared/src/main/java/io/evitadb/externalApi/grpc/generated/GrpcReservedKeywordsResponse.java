@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -142,7 +142,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReservedKeyword keywords = 1;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcReservedKeywordOrBuilder>
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcReservedKeywordOrBuilder> 
       getKeywordsOrBuilderList() {
     return keywords_;
   }
@@ -489,7 +489,7 @@ private static final long serialVersionUID = 0L;
             keywordsBuilder_ = null;
             keywords_ = other.keywords_;
             bitField0_ = (bitField0_ & ~0x00000001);
-            keywordsBuilder_ =
+            keywordsBuilder_ = 
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getKeywordsFieldBuilder() : null;
           } else {
@@ -782,7 +782,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReservedKeyword keywords = 1;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcReservedKeywordOrBuilder>
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcReservedKeywordOrBuilder> 
          getKeywordsOrBuilderList() {
       if (keywordsBuilder_ != null) {
         return keywordsBuilder_.getMessageOrBuilderList();
@@ -820,12 +820,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReservedKeyword keywords = 1;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcReservedKeyword.Builder>
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcReservedKeyword.Builder> 
          getKeywordsBuilderList() {
       return getKeywordsFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcReservedKeyword, io.evitadb.externalApi.grpc.generated.GrpcReservedKeyword.Builder, io.evitadb.externalApi.grpc.generated.GrpcReservedKeywordOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcReservedKeyword, io.evitadb.externalApi.grpc.generated.GrpcReservedKeyword.Builder, io.evitadb.externalApi.grpc.generated.GrpcReservedKeywordOrBuilder> 
         getKeywordsFieldBuilder() {
       if (keywordsBuilder_ == null) {
         keywordsBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<

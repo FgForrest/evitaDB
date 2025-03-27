@@ -33,6 +33,7 @@ import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.kryo.VersionedKryo;
 import io.evitadb.store.kryo.VersionedKryoKeyInputs;
+import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.offsetIndex.OffsetIndex;
 import io.evitadb.store.offsetIndex.OffsetIndexDescriptor;
@@ -338,7 +339,7 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 	@Override
 	public boolean isNew() {
 		if (offsetIndex.isOperative()) {
-			return this.offsetIndex.getFileOffsetIndexLocation() == null;
+			return this.offsetIndex.getFileOffsetIndexLocation() == FileLocation.EMPTY;
 		} else {
 			throw new PersistenceServiceClosed();
 		}

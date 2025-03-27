@@ -38,6 +38,8 @@ import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
+import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
+import io.evitadb.api.requestResponse.data.PricesContract.PriceForSaleWithAccompanyingPrices;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -69,8 +71,9 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDes
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor.BucketDescriptor;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ReferencePageDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ReferenceStripDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.ReferencePageDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceStripDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceForSaleDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.LevelInfoDescriptor;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
@@ -2482,14 +2485,21 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@DisplayName("Should return accompanying prices for single price for sale")
 	void shouldReturnAccompanyingPricesForSinglePriceForSale(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<Integer> desiredEntities = originalProductEntities.stream()
-			.filter(entity ->
-				entity.getPrices(CURRENCY_CZK).stream()
-					.anyMatch(price -> price.priceList().equals(PRICE_LIST_BASIC)) &&
-					entity.getPrices(CURRENCY_CZK).stream()
-						.anyMatch(price -> price.priceList().equals(PRICE_LIST_REFERENCE)) &&
-					entity.getPrices(CURRENCY_CZK).stream()
-						.anyMatch(price -> price.priceList().equals(PRICE_LIST_VIP)))
-			.map(entity -> entity.getPrimaryKey())
+			.filter(entity -> {
+				final Optional<PriceForSaleWithAccompanyingPrices> prices = entity.getPriceForSaleWithAccompanyingPrices(
+					CURRENCY_CZK,
+					null,
+					new String[]{PRICE_LIST_BASIC},
+					new AccompanyingPrice[]{
+						new AccompanyingPrice(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name(), PRICE_LIST_REFERENCE),
+						new AccompanyingPrice("vipPrice", PRICE_LIST_VIP)
+					}
+				);
+				return prices.isPresent() &&
+					prices.get().accompanyingPrices().get(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name()).isPresent() &&
+					prices.get().accompanyingPrices().get("vipPrice").isPresent();
+			})
+			.map(EntityContract::getPrimaryKey)
 			.toList();
 		assertTrue(desiredEntities.size() > 1);
 
@@ -2559,14 +2569,21 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@DisplayName("Should return accompanying prices for single custom price for sale")
 	void shouldReturnAccompanyingPricesForSingleCustomPriceForSale(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<Integer> desiredEntities = originalProductEntities.stream()
-			.filter(entity ->
-				entity.getPrices(CURRENCY_CZK).stream()
-					.anyMatch(price -> price.priceList().equals(PRICE_LIST_BASIC)) &&
-					entity.getPrices(CURRENCY_CZK).stream()
-						.anyMatch(price -> price.priceList().equals(PRICE_LIST_REFERENCE)) &&
-					entity.getPrices(CURRENCY_CZK).stream()
-						.anyMatch(price -> price.priceList().equals(PRICE_LIST_VIP)))
-			.map(entity -> entity.getPrimaryKey())
+			.filter(entity -> {
+				final Optional<PriceForSaleWithAccompanyingPrices> prices = entity.getPriceForSaleWithAccompanyingPrices(
+					CURRENCY_CZK,
+					null,
+					new String[]{PRICE_LIST_BASIC},
+					new AccompanyingPrice[]{
+						new AccompanyingPrice(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name(), PRICE_LIST_REFERENCE),
+						new AccompanyingPrice("vipPrice", PRICE_LIST_VIP)
+					}
+				);
+				return prices.isPresent() &&
+					prices.get().accompanyingPrices().get(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name()).isPresent() &&
+					prices.get().accompanyingPrices().get("vipPrice").isPresent();
+			})
+			.map(EntityContract::getPrimaryKey)
 			.toList();
 		assertTrue(desiredEntities.size() > 1);
 
@@ -6752,6 +6769,46 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				}
 			}
 		);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should pass query labels")
+	void shouldPassQueryLabels(GraphQLTester tester) {
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    queryProduct(
+	                        head: [
+	                            {
+	                                label: {
+	                                    name: "myLabel1"
+	                                    value: "myValue1"
+	                                }
+	                            },
+	                            {
+	                                label: {
+	                                    name: "myLabel2"
+	                                    value: 100
+	                                }
+	                            }
+	                        ]
+	                        filterBy: {
+	                            attributeCodeContains: "a"
+	                        }
+	                    ) {
+	                        recordPage {
+	                            totalRecordCount
+	                        }
+	                    }
+	                }
+					"""
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.RECORD_PAGE, RecordPageDescriptor.TOTAL_RECORD_COUNT), greaterThan(0));
 	}
 
 	/**

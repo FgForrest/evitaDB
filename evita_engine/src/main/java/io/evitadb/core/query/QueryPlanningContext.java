@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -36,9 +36,8 @@ import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.DefaultPrefetchRequirementCollector;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetchRequire;
-import io.evitadb.api.query.require.FacetGroupsConjunction;
-import io.evitadb.api.query.require.FacetGroupsDisjunction;
-import io.evitadb.api.query.require.FacetGroupsNegation;
+import io.evitadb.api.query.require.FacetGroupRelationLevel;
+import io.evitadb.api.query.require.FacetRelationType;
 import io.evitadb.api.query.require.FetchRequirementCollector;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.EvitaRequest;
@@ -86,6 +85,7 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.*;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import java.util.stream.LongStream;
 
@@ -802,29 +802,122 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Returns true if passed `groupId` of `referenceName` facets are requested to be joined by conjunction (AND) instead
-	 * of default disjunction (OR).
+	 * Returns true if passed `groupId` of `referenceName` facets are requested to be joined by conjunction (AND) on
+	 * particular level.
+	 *
+	 * @param referenceSchema reference schema of the facet group
+	 * @param groupId         group id to be tested
+	 * @param level           level of the facet group relation (within group, between groups)
 	 */
-	public boolean isFacetGroupConjunction(@Nonnull ReferenceSchemaContract referenceSchema, @Nullable Integer groupId) {
+	public boolean isFacetGroupConjunction(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nullable Integer groupId,
+		@Nonnull FacetGroupRelationLevel level
+	) {
+		return isFacetGroupRelationType(
+			FacetRelationType.CONJUNCTION,
+			referenceSchema, groupId, level,
+			EvitaRequest::getFacetGroupConjunction
+		);
+	}
+
+	/**
+	 * Returns true if passed `groupId` of `referenceName` facets are requested to be joined by disjunction (OR) on
+	 * particular level.
+	 *
+	 * @param referenceSchema reference schema of the facet group
+	 * @param groupId         group id to be tested
+	 * @param level           level of the facet group relation (within group, between groups)
+	 */
+	public boolean isFacetGroupDisjunction(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nullable Integer groupId,
+		@Nonnull FacetGroupRelationLevel level
+	) {
+		return isFacetGroupRelationType(
+			FacetRelationType.DISJUNCTION,
+			referenceSchema, groupId, level,
+			EvitaRequest::getFacetGroupDisjunction
+		);
+	}
+
+	/**
+	 * Returns true if passed `groupId` of `referenceName` facets are requested to be joined by negation (AND NOT) on
+	 * particular level.
+	 *
+	 * @param referenceSchema reference schema of the facet group
+	 * @param groupId         group id to be tested
+	 * @param level           level of the facet group relation (within group, between groups)
+	 */
+	public boolean isFacetGroupNegation(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nullable Integer groupId,
+		@Nonnull FacetGroupRelationLevel level
+	) {
+		return isFacetGroupRelationType(
+			FacetRelationType.NEGATION,
+			referenceSchema, groupId, level,
+			EvitaRequest::getFacetGroupNegation
+		);
+	}
+
+	/**
+	 * Returns true if passed `groupId` of `referenceName` facets are requested to be joined by exclusivity on
+	 * particular level.
+	 *
+	 * @param referenceSchema reference schema of the facet group
+	 * @param groupId         group id to be tested
+	 * @param level           level of the facet group relation (within group, between groups)
+	 */
+	public boolean isFacetGroupExclusivity(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nullable Integer groupId,
+		@Nonnull FacetGroupRelationLevel level
+	) {
+		return isFacetGroupRelationType(
+			FacetRelationType.EXCLUSIVITY,
+			referenceSchema, groupId, level,
+			EvitaRequest::getFacetGroupExclusivity
+		);
+	}
+
+	/**
+	 * Determines whether the specified relation type matches the given facet group relation criteria.
+	 *
+	 * @param relationType the type of the facet relation to be checked
+	 * @param referenceSchema the schema of the reference to which the facet group belongs
+	 * @param groupId the identifier of the group being considered; can be null if no group is specified
+	 * @param level the level of facet group relation that should be considered in the evaluation
+	 * @return {@code true} if the relation type matches the facet group relation criteria, {@code false} otherwise
+	 */
+	private boolean isFacetGroupRelationType(
+		@Nonnull FacetRelationType relationType,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nullable Integer groupId,
+		@Nonnull FacetGroupRelationLevel level,
+		@Nonnull BiFunction<EvitaRequest, String, Optional<FacetFilterBy>> facetSettingsRetriever
+		) {
 		final String referenceName = referenceSchema.getName();
-		final Optional<FacetFilterBy> facetGroupConjunction = getEvitaRequest().getFacetGroupConjunction(referenceName);
-		if (facetGroupConjunction.isEmpty()) {
-			return false;
+		final FacetRelationType theDefault = level == FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP ?
+			this.evitaRequest.getDefaultFacetRelationType() : this.evitaRequest.getDefaultGroupRelationType();
+		final Optional<FacetFilterBy> facetSettings = facetSettingsRetriever.apply(this.evitaRequest, referenceName);
+		if (facetSettings.isEmpty()) {
+			return theDefault == relationType;
 		} else {
-			final FacetFilterBy facetFilterBy = facetGroupConjunction.get();
+			final FacetFilterBy facetFilterBy = facetSettings.get();
 			final FilterBy filterBy = facetFilterBy.filterBy();
 			if (filterBy != null) {
 				if (groupId == null) {
 					return false;
 				} else {
-					return getFacetRelationTuples()
+					final boolean requestedExplicitly = getFacetRelationTuples()
 						.computeIfAbsent(
-							new FacetRelationTuple(referenceName, FacetRelation.CONJUNCTION),
+							new FacetRelationTuple(referenceName, relationType),
 							refName -> {
 								final String referencedGroupType = referenceSchema.getReferencedGroupType();
 								Assert.isTrue(
 									referencedGroupType != null,
-									() -> "Referenced group type must be defined for facet group conjunction of `" + referenceName + "`!"
+									() -> "Referenced group type must be defined for facet group " + relationType.name().toLowerCase() + " of `" + referenceName + "`!"
 								);
 								if (referenceSchema.isReferencedGroupTypeManaged()) {
 									return new FilteringFormulaPredicate(
@@ -832,148 +925,20 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 										getScopes(),
 										filterBy,
 										referencedGroupType,
-										() -> "Facet group conjunction of `" + referenceSchema.getName() + "` filter: " + facetFilterBy
+										() -> "Facet group " + relationType.name().toLowerCase() + " of `" + referenceSchema.getName() + "` filter: " + facetFilterBy
 									);
 								} else {
 									return new FilteringFormulaPredicate(
 										this,
 										getThrowingGlobalIndexesForNonManagedEntityTypeGroup(referenceName, referencedGroupType),
 										filterBy,
-										() -> "Facet group conjunction of `" + referenceSchema.getName() + "` filter: " + facetFilterBy
+										() -> "Facet group "  + relationType.name().toLowerCase() + " of `" + referenceSchema.getName() + "` filter: " + facetFilterBy
 									);
 								}
 							}
 						)
 						.test(groupId);
-				}
-			} else {
-				return true;
-			}
-		}
-	}
-
-	/**
-	 * Creates a list of global entity indexes for the given non-managed entity type. Global indexes contains only
-	 * primary keys of groups retrieved from {@link FacetIndex} of the given reference.
-	 *
-	 * @param referenceName name of the reference to retrieve groups from
-	 * @param referencedGroupType type of the referenced group
-	 * @return list of fake global entity indexes
-	 */
-	@Nonnull
-	private List<GlobalEntityIndex> getThrowingGlobalIndexesForNonManagedEntityTypeGroup(
-		@Nonnull String referenceName,
-		@Nonnull String referencedGroupType
-	) {
-		return getScopes().stream()
-			.map(scope -> {
-				final Optional<Index<EntityIndexKey>> refTypeIndex = getIndex(new EntityIndexKey(EntityIndexType.GLOBAL, scope));
-				return refTypeIndex
-					.map(GlobalEntityIndex.class::cast)
-					.map(index -> index.getFacetingEntities().get(referenceName))
-					.map(facetIndex -> GlobalEntityIndex.createThrowingStub(
-							referencedGroupType,
-							new EntityIndexKey(EntityIndexType.GLOBAL, scope),
-							facetIndex.getGroupsAsMap().keySet()
-						)
-					)
-					.orElse(null);
-			})
-			.filter(Objects::nonNull)
-			.toList();
-	}
-
-	/**
-	 * Returns true if passed `groupId` of `referenceName` is requested to be joined with other facet groups by
-	 * disjunction (OR) instead of default conjunction (AND).
-	 */
-	public boolean isFacetGroupDisjunction(@Nonnull ReferenceSchemaContract referenceSchema, @Nullable Integer groupId) {
-		final String referenceName = referenceSchema.getName();
-		final Optional<FacetFilterBy> facetGroupDisjunction = getEvitaRequest().getFacetGroupDisjunction(referenceName);
-		if (facetGroupDisjunction.isEmpty()) {
-			return false;
-		} else {
-			final FacetFilterBy facetFilterBy = facetGroupDisjunction.get();
-			final FilterBy filterBy = facetFilterBy.filterBy();
-			if (filterBy != null) {
-				if (groupId == null) {
-					return false;
-				} else {
-					return getFacetRelationTuples().computeIfAbsent(
-						new FacetRelationTuple(referenceName, FacetRelation.DISJUNCTION),
-						refName -> {
-							final String referencedGroupType = referenceSchema.getReferencedGroupType();
-							Assert.isTrue(
-								referencedGroupType != null,
-								() -> "Referenced group type must be defined for facet group disjunction of `" + referenceName + "`!"
-							);
-							if (referenceSchema.isReferencedGroupTypeManaged()) {
-								return new FilteringFormulaPredicate(
-									this,
-									getScopes(),
-									filterBy,
-									referencedGroupType,
-									() -> "Facet group disjunction of `" + referenceSchema.getName() + "` filter: " + facetFilterBy
-								);
-							} else {
-								return new FilteringFormulaPredicate(
-									this,
-									getThrowingGlobalIndexesForNonManagedEntityTypeGroup(referenceName, referencedGroupType),
-									filterBy,
-									() -> "Facet group disjunction of `" + referenceSchema.getName() + "` filter: " + facetFilterBy
-								);
-							}
-						}
-					).test(groupId);
-				}
-			} else {
-				return true;
-			}
-		}
-	}
-
-	/**
-	 * Returns true if passed `groupId` of `referenceName` facets are requested to be joined by negation (AND NOT) instead
-	 * of default disjunction (OR).
-	 */
-	public boolean isFacetGroupNegation(@Nonnull ReferenceSchemaContract referenceSchema, @Nullable Integer groupId) {
-		final String referenceName = referenceSchema.getName();
-		final Optional<FacetFilterBy> facetGroupNegation = getEvitaRequest().getFacetGroupNegation(referenceName);
-		if (facetGroupNegation.isEmpty()) {
-			return false;
-		} else {
-			final FacetFilterBy facetFilterBy = facetGroupNegation.get();
-			final FilterBy filterBy = facetFilterBy.filterBy();
-			if (filterBy != null) {
-				if (groupId == null) {
-					return false;
-				} else {
-					return getFacetRelationTuples().computeIfAbsent(
-						new FacetRelationTuple(referenceName, FacetRelation.NEGATION),
-						refName -> {
-							final String referencedGroupType = referenceSchema.getReferencedGroupType();
-							Assert.isTrue(
-								referencedGroupType != null,
-								() -> "Referenced group type must be defined for facet group negation of `" + referenceName + "`!"
-							);
-							if (referenceSchema.isReferencedGroupTypeManaged()) {
-								return new FilteringFormulaPredicate(
-									this,
-									getScopes(),
-									filterBy,
-									referencedGroupType,
-									() -> "Facet group negation of `" + referenceSchema.getName() + "` filter: " + facetFilterBy
-								);
-							} else {
-								return new FilteringFormulaPredicate(
-									this,
-									getThrowingGlobalIndexesForNonManagedEntityTypeGroup(referenceName, referencedGroupType),
-									filterBy,
-									() -> "Facet group negation of `" + referenceSchema.getName() + "` filter: " + facetFilterBy
-								);
-							}
-						}
-					).test(groupId);
+					return requestedExplicitly || theDefault == relationType;
 				}
 			} else {
 				return true;
@@ -988,7 +953,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	@Nonnull
 	public Bitmap getRootHierarchyNodes() {
-		return ofNullable(rootHierarchyNodesFormula)
+		return ofNullable(this.rootHierarchyNodesFormula)
 			.map(Formula::compute)
 			.orElse(EmptyBitmap.INSTANCE);
 	}
@@ -1019,10 +984,6 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		);
 	}
 
-	/*
-		PRIVATE METHODS
-	 */
-
 	/**
 	 * Method retrieves already assigned masking id for the {@link EntityReference} or creates brand new. This virtual
 	 * id is necessary because our filtering logic works with {@link Bitmap} objects that contains plain integers. In
@@ -1050,6 +1011,41 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		}
 	}
 
+	/*
+		PRIVATE METHODS
+	 */
+
+	/**
+	 * Creates a list of global entity indexes for the given non-managed entity type. Global indexes contains only
+	 * primary keys of groups retrieved from {@link FacetIndex} of the given reference.
+	 *
+	 * @param referenceName       name of the reference to retrieve groups from
+	 * @param referencedGroupType type of the referenced group
+	 * @return list of fake global entity indexes
+	 */
+	@Nonnull
+	private List<GlobalEntityIndex> getThrowingGlobalIndexesForNonManagedEntityTypeGroup(
+		@Nonnull String referenceName,
+		@Nonnull String referencedGroupType
+	) {
+		return getScopes().stream()
+			.map(scope -> {
+				final Optional<Index<EntityIndexKey>> refTypeIndex = getIndex(new EntityIndexKey(EntityIndexType.GLOBAL, scope));
+				return refTypeIndex
+					.map(GlobalEntityIndex.class::cast)
+					.map(index -> index.getFacetingEntities().get(referenceName))
+					.map(facetIndex -> GlobalEntityIndex.createThrowingStub(
+							referencedGroupType,
+							new EntityIndexKey(EntityIndexType.GLOBAL, scope),
+							facetIndex.getGroupsAsMap().keySet()
+						)
+					)
+					.orElse(null);
+			})
+			.filter(Objects::nonNull)
+			.toList();
+	}
+
 	/**
 	 * Lazy initialization of the facet relation tuples.
 	 *
@@ -1057,30 +1053,19 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	@Nonnull
 	private Map<FacetRelationTuple, FilteringFormulaPredicate> getFacetRelationTuples() {
-		if (facetRelationTuples == null) {
+		if (this.facetRelationTuples == null) {
 			this.facetRelationTuples = new HashMap<>();
 		}
-		return facetRelationTuples;
+		return this.facetRelationTuples;
 	}
 
 	/**
-	 * The relation that refers to constraint types:
-	 *
-	 * - {@link FacetGroupsConjunction}
-	 * - {@link FacetGroupsDisjunction}
-	 * - {@link FacetGroupsNegation}
-	 */
-	private enum FacetRelation {
-		CONJUNCTION, DISJUNCTION, NEGATION
-	}
-
-	/**
-	 * Tuple that wraps {@link ReferenceSchemaContract#getName()} and {@link FacetRelation} into one object used as
+	 * Tuple that wraps {@link ReferenceSchemaContract#getName()} and {@link FacetRelationType} into one object used as
 	 * the {@link #facetRelationTuples} key.
 	 */
 	private record FacetRelationTuple(
 		@Nonnull String referenceName,
-		@Nonnull FacetRelation relation
+		@Nonnull FacetRelationType relation
 	) {
 
 	}

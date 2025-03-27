@@ -28,6 +28,7 @@ import com.carrotsearch.hppc.IntObjectMap;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.EntityCollectionRequiredException;
 import io.evitadb.api.query.require.EntityFetchRequire;
+import io.evitadb.api.query.require.FacetGroupRelationLevel;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
@@ -54,6 +55,7 @@ import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.function.TriFunction;
 import io.evitadb.index.attribute.EntityReferenceWithLocale;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.store.spi.chunk.ServerChunkTransformerAccessor;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -195,7 +197,7 @@ public class QueryExecutionContext implements Closeable {
 				requirementTuples,
 				evitaRequest.getDefaultReferenceRequirement(),
 				this,
-				evitaRequest::getReferenceChunkTransformer
+				new ServerChunkTransformerAccessor(evitaRequest)
 			);
 
 		if (this.prefetchedEntities == null) {
@@ -442,16 +444,36 @@ public class QueryExecutionContext implements Closeable {
 		return this.queryContext.translateToEntityReference(primaryKey);
 	}
 
-	public boolean isFacetGroupConjunction(@Nonnull ReferenceSchemaContract referenceSchema, @Nullable Integer groupId) {
-		return this.queryContext.isFacetGroupConjunction(referenceSchema, groupId);
+	public boolean isFacetGroupConjunction(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nullable Integer groupId,
+		@Nonnull FacetGroupRelationLevel level
+	) {
+		return this.queryContext.isFacetGroupConjunction(referenceSchema, groupId, level);
 	}
 
-	public boolean isFacetGroupDisjunction(@Nonnull ReferenceSchemaContract referenceSchema, @Nullable Integer groupId) {
-		return this.queryContext.isFacetGroupDisjunction(referenceSchema, groupId);
+	public boolean isFacetGroupDisjunction(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nullable Integer groupId,
+		@Nonnull FacetGroupRelationLevel level
+	) {
+		return this.queryContext.isFacetGroupDisjunction(referenceSchema, groupId, level);
 	}
 
-	public boolean isFacetGroupNegation(@Nonnull ReferenceSchemaContract referenceSchema, @Nullable Integer groupId) {
-		return this.queryContext.isFacetGroupNegation(referenceSchema, groupId);
+	public boolean isFacetGroupNegation(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nullable Integer groupId,
+		@Nonnull FacetGroupRelationLevel level
+	) {
+		return this.queryContext.isFacetGroupNegation(referenceSchema, groupId, level);
+	}
+
+	public boolean isFacetGroupExclusive(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nullable Integer groupId,
+		@Nonnull FacetGroupRelationLevel level
+	) {
+		return this.queryContext.isFacetGroupExclusivity(referenceSchema, groupId, level);
 	}
 
 	@Nonnull

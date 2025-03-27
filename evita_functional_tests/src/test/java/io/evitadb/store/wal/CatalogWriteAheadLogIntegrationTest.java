@@ -102,7 +102,10 @@ class CatalogWriteAheadLogIntegrationTest {
 	private final Path isolatedWalFilePath = walDirectory.resolve("isolatedWal.tmp");
 	private final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(
 		TEST_CATALOG,
-		StorageOptions.builder().build(),
+		StorageOptions.builder()
+			/* there are tests that rely on standard size of mutations on disk in this class */
+			.compress(false)
+			.build(),
 		Mockito.mock(Scheduler.class)
 	);
 	private final OffHeapMemoryManager noOffHeapMemoryManager = new OffHeapMemoryManager(TEST_CATALOG, 0, 0);
@@ -240,7 +243,7 @@ class CatalogWriteAheadLogIntegrationTest {
 
 	@Test
 	void shouldCorrectlyReportFirstAvailableTimestamp() {
-		wal = createCatalogWriteAheadLogOfSmallSize();
+		this.wal = createCatalogWriteAheadLogOfSmallSize();
 
 		final int justEnoughSize = 20;
 		final int[] transactionSizes = new int[7];
@@ -263,7 +266,10 @@ class CatalogWriteAheadLogIntegrationTest {
 			TEST_CATALOG,
 			walDirectory,
 			catalogKryoPool,
-			StorageOptions.builder().build(),
+			StorageOptions.builder()
+				/* there are tests that rely on standard size of mutations on disk in this class */
+				.compress(false)
+				.build(),
 			TransactionOptions.builder()
 				.walFileCountKept(5)
 				.walFileSizeBytes(16_384)
@@ -281,7 +287,10 @@ class CatalogWriteAheadLogIntegrationTest {
 			TEST_CATALOG,
 			walDirectory,
 			catalogKryoPool,
-			StorageOptions.builder().build(),
+			StorageOptions.builder()
+				/* there are tests that rely on standard size of mutations on disk in this class */
+				.compress(false)
+				.build(),
 			TransactionOptions.builder().walFileSizeBytes(Long.MAX_VALUE).build(),
 			Mockito.mock(Scheduler.class),
 			offsetConsumer,
@@ -333,7 +342,13 @@ class CatalogWriteAheadLogIntegrationTest {
 			UUID.randomUUID(),
 			KryoFactory.createKryo(WalKryoConfigurer.INSTANCE),
 			new WriteOnlyOffHeapWithFileBackupHandle(
-				isolatedWalFilePath, false, observableOutputKeeper, offHeapMemoryManager
+				isolatedWalFilePath,
+				StorageOptions.builder(StorageOptions.temporary())
+					/* there are tests that rely on standard size of mutations on disk in this class */
+					.compress(false)
+					.build(),
+				observableOutputKeeper,
+				offHeapMemoryManager
 			)
 		);
 

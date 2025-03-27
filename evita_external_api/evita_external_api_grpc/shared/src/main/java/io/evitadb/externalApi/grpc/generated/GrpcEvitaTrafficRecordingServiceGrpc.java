@@ -268,6 +268,21 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
   }
 
   /**
+   * Creates a new blocking-style stub that supports all types of calls on the service
+   */
+  public static GrpcEvitaTrafficRecordingServiceBlockingV2Stub newBlockingV2Stub(
+      io.grpc.Channel channel) {
+    io.grpc.stub.AbstractStub.StubFactory<GrpcEvitaTrafficRecordingServiceBlockingV2Stub> factory =
+      new io.grpc.stub.AbstractStub.StubFactory<GrpcEvitaTrafficRecordingServiceBlockingV2Stub>() {
+        @java.lang.Override
+        public GrpcEvitaTrafficRecordingServiceBlockingV2Stub newStub(io.grpc.Channel channel, io.grpc.CallOptions callOptions) {
+          return new GrpcEvitaTrafficRecordingServiceBlockingV2Stub(channel, callOptions);
+        }
+      };
+    return GrpcEvitaTrafficRecordingServiceBlockingV2Stub.newStub(factory, channel);
+  }
+
+  /**
    * Creates a new blocking-style stub that supports unary and streaming output calls on the service
    */
   public static GrpcEvitaTrafficRecordingServiceBlockingStub newBlockingStub(
@@ -491,6 +506,101 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
 
   /**
    * A stub to allow clients to do synchronous rpc calls to service GrpcEvitaTrafficRecordingService.
+   */
+  public static final class GrpcEvitaTrafficRecordingServiceBlockingV2Stub
+      extends io.grpc.stub.AbstractBlockingStub<GrpcEvitaTrafficRecordingServiceBlockingV2Stub> {
+    private GrpcEvitaTrafficRecordingServiceBlockingV2Stub(
+        io.grpc.Channel channel, io.grpc.CallOptions callOptions) {
+      super(channel, callOptions);
+    }
+
+    @java.lang.Override
+    protected GrpcEvitaTrafficRecordingServiceBlockingV2Stub build(
+        io.grpc.Channel channel, io.grpc.CallOptions callOptions) {
+      return new GrpcEvitaTrafficRecordingServiceBlockingV2Stub(channel, callOptions);
+    }
+
+    /**
+     * <pre>
+     * Procedure that returns requested list of past traffic records with limited size that match the request criteria.
+     * Order of the returned records is from the oldest sessions to the newest,
+     * traffic records within the session are ordered from the oldest to the newest.
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListResponse getTrafficRecordingHistoryList(io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListRequest request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+          getChannel(), getGetTrafficRecordingHistoryListMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure that returns requested list of past traffic records with limited size that match the request criteria.
+     * Order of the returned records is from the newest sessions to the oldest,
+     * traffic records within the session are ordered from the newest to the oldest.
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListResponse getTrafficRecordingHistoryListReversed(io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListRequest request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+          getChannel(), getGetTrafficRecordingHistoryListReversedMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure that returns stream of all past traffic records that match the request criteria.
+     * Order of the returned records is from the newest sessions to the oldest,
+     * traffic records within the session are ordered from the newest to the oldest.
+     * </pre>
+     */
+    @io.grpc.ExperimentalApi("https://github.com/grpc/grpc-java/issues/10918")
+    public io.grpc.stub.BlockingClientCall<?, io.evitadb.externalApi.grpc.generated.GetTrafficHistoryResponse>
+        getTrafficRecordingHistory(io.evitadb.externalApi.grpc.generated.GetTrafficHistoryRequest request) {
+      return io.grpc.stub.ClientCalls.blockingV2ServerStreamingCall(
+          getChannel(), getGetTrafficRecordingHistoryMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure returns a list of top unique labels names ordered by cardinality of their values present in the traffic recording.
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GetTrafficRecordingLabelNamesResponse getTrafficRecordingLabelsNamesOrderedByCardinality(io.evitadb.externalApi.grpc.generated.GetTrafficRecordingLabelNamesRequest request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+          getChannel(), getGetTrafficRecordingLabelsNamesOrderedByCardinalityMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure returns a list of top unique label values ordered by cardinality of their values present in the traffic recording.
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GetTrafficRecordingValuesNamesResponse getTrafficRecordingLabelValuesOrderedByCardinality(io.evitadb.externalApi.grpc.generated.GetTrafficRecordingValuesNamesRequest request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+          getChannel(), getGetTrafficRecordingLabelValuesOrderedByCardinalityMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure that starts the traffic recording for the given criteria and settings
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GetTrafficRecordingStatusResponse startTrafficRecording(io.evitadb.externalApi.grpc.generated.GrpcStartTrafficRecordingRequest request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+          getChannel(), getStartTrafficRecordingMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure that stops the traffic recording
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GetTrafficRecordingStatusResponse stopTrafficRecording(io.evitadb.externalApi.grpc.generated.GrpcStopTrafficRecordingRequest request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+          getChannel(), getStopTrafficRecordingMethod(), getCallOptions(), request);
+    }
+  }
+
+  /**
+   * A stub to allow clients to do limited synchronous rpc calls to service GrpcEvitaTrafficRecordingService.
    */
   public static final class GrpcEvitaTrafficRecordingServiceBlockingStub
       extends io.grpc.stub.AbstractBlockingStub<GrpcEvitaTrafficRecordingServiceBlockingStub> {

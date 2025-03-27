@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -102,7 +102,7 @@ public class EntityByReferenceAttributeOrderingFunctionalTest {
 			} else if (o2 == null && o1 != null) {
 				return -1;
 			} else if (o1 == null) {
-				return Integer.compare(sealedEntityA.getPrimaryKey(), sealedEntityB.getPrimaryKey());
+				return Integer.compare(sealedEntityA.getPrimaryKeyOrThrowException(), sealedEntityB.getPrimaryKeyOrThrowException());
 			} else {
 				return Integer.compare(o2.getReferencedPrimaryKey(), o1.getReferencedPrimaryKey());
 			}
@@ -124,15 +124,15 @@ public class EntityByReferenceAttributeOrderingFunctionalTest {
 			} else if (o2 == null && o1 != null) {
 				return -1;
 			} else if (o1 == null) {
-				return Integer.compare(sealedEntityA.getPrimaryKey(), sealedEntityB.getPrimaryKey());
+				return Integer.compare(sealedEntityA.getPrimaryKeyOrThrowException(), sealedEntityB.getPrimaryKeyOrThrowException());
 			} else {
-				final int refKeyCmp = Integer.compare(o1.getReferencedPrimaryKey(), o2.getReferencedPrimaryKey());
-				if (refKeyCmp == 0) {
-					final Long priorityA = o1.getAttribute(ATTRIBUTE_BRAND_PRIORITY, Long.class);
-					final Long priorityB = o2.getAttribute(ATTRIBUTE_BRAND_PRIORITY, Long.class);
-					return priorityB.compareTo(priorityA);
+				final Long priorityA = o1.getAttribute(ATTRIBUTE_BRAND_PRIORITY, Long.class);
+				final Long priorityB = o2.getAttribute(ATTRIBUTE_BRAND_PRIORITY, Long.class);
+				int attrCompare = priorityB.compareTo(priorityA);
+				if (attrCompare == 0) {
+					return Integer.compare(o1.getReferencedPrimaryKey(), o2.getReferencedPrimaryKey());
 				} else {
-					return refKeyCmp;
+					return attrCompare;
 				}
 			}
 		};
@@ -172,7 +172,7 @@ public class EntityByReferenceAttributeOrderingFunctionalTest {
 			} else if (o2priority == null && o1priority != null) {
 				return -1;
 			} else if (o1priority == null) {
-				return Integer.compare(sealedEntityA.getPrimaryKey(), sealedEntityB.getPrimaryKey());
+				return Integer.compare(sealedEntityA.getPrimaryKeyOrThrowException(), sealedEntityB.getPrimaryKeyOrThrowException());
 			} else {
 				final int o1CategoryDepthOrder = ArrayUtils.indexOf(o1.getReferencedPrimaryKey(), depthFirstOrder);
 				final int o2CategoryDepthOrder = ArrayUtils.indexOf(o2.getReferencedPrimaryKey(), depthFirstOrder);
@@ -181,7 +181,12 @@ public class EntityByReferenceAttributeOrderingFunctionalTest {
 				} else if (o1CategoryDepthOrder > o2CategoryDepthOrder) {
 					return 1;
 				} else {
-					return Long.compare(o2priority, o1priority);
+					final int priorityComparison = Long.compare(o2priority, o1priority);
+					if (priorityComparison == 0) {
+						return Integer.compare(sealedEntityA.getPrimaryKeyOrThrowException(), sealedEntityB.getPrimaryKeyOrThrowException());
+					} else {
+						return priorityComparison;
+					}
 				}
 			}
 		};
@@ -463,14 +468,16 @@ public class EntityByReferenceAttributeOrderingFunctionalTest {
 							.min(Comparator.comparingInt(ReferenceContract::getReferencedPrimaryKey))
 							.orElse(null);
 
-						if (o1.getReferencedPrimaryKey() < o2.getReferencedPrimaryKey()) {
-							return -1;
-						} else if (o1.getReferencedPrimaryKey() > o2.getReferencedPrimaryKey()) {
-							return 1;
-						} else {
+						if (o1 != null && o2 != null) {
 							final Long o1priority = o1.getAttribute(ATTRIBUTE_STORE_PRIORITY, Long.class);
 							final Long o2priority = o2.getAttribute(ATTRIBUTE_STORE_PRIORITY, Long.class);
 							return Long.compare(o2priority, o1priority);
+						} else if (o1 == null && o2 != null) {
+							return 1;
+						} else if (o1 != null) {
+							return -1;
+						} else {
+							return Integer.compare(sealedEntityA.getPrimaryKeyOrThrowException(), sealedEntityB.getPrimaryKeyOrThrowException());
 						}
 					}
 				);

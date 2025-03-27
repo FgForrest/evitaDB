@@ -59,36 +59,14 @@ import static io.evitadb.utils.Assert.isTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class WriteOnlyFileHandle implements WriteOnlyHandle {
-
-	/**
-	 * A factory function that creates an observable output stream for a file using the provided path and storage options.
-	 */
-	static final BiFunction<Path, StorageOptions, ObservableOutput<FileOutputStream>> OUTPUT_FACTORY = (theFilePath, options) -> {
-		try {
-			final File theFile = theFilePath.toFile();
-			final FileOutputStream targetOs = new FileOutputStream(theFile, true);
-			final ObservableOutput<FileOutputStream> output = new ObservableOutput<>(
-				targetOs,
-				options.outputBufferSize(),
-				theFile.length()
-			);
-			if (options.computeCRC32C()) {
-				output.computeCRC32();
-			}
-			return output;
-		} catch (FileNotFoundException ex) {
-			throw new StorageException("Target file " + theFilePath + " cannot be opened!", ex);
-		}
-	};
-
-	/**
-	 * Name of the catalog the persistence service relates to - used for observability.
-	 */
-	private final String catalogName;
 	/**
 	 * Logical name of the file that backs the {@link OffsetIndex} - used for observability.
 	 */
 	protected final String logicalName;
+	/**
+	 * Name of the catalog the persistence service relates to - used for observability.
+	 */
+	private final String catalogName;
 	/**
 	 * Type of the file that backs the {@link OffsetIndex} - used for observability.
 	 */
@@ -99,10 +77,9 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 	 */
 	private final long lockTimeoutSeconds;
 	/**
-	 * Execute fsync when asked. When set to false, methods simply flush the buffers, but doesn't explicitly sync
-	 * the data on the persistent storage - leaving it to the OS to decide when to do so.
+	 * Reference to the {@link StorageOptions} object that contains configuration options for the storage system.
 	 */
-	private final boolean fsSync;
+	private final StorageOptions storageOptions;
 	/**
 	 * The path to the target file that this handle is associated with.
 	 * This handle provides write-only access to the file at this path.
@@ -177,12 +154,45 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 	}
 
 	/**
+	 * Creates an observable output stream for a file using the specified file path and storage options.
+	 * The method ensures the file is opened for writing, optionally computes a CRC32 checksum,
+	 * and applies compression if specified in the storage options.
+	 *
+	 * @param theFilePath    The path to the target file to which data will be written.
+	 * @param storageOptions The storage options that define buffer size, checksum computation, and compression settings.
+	 * @return An {@code ObservableOutput} instance wrapping a {@code FileOutputStream} for the specified file.
+	 * @throws StorageException If the target file cannot be opened or accessed.
+	 */
+	@Nonnull
+	static ObservableOutput<FileOutputStream> createObservableOutput(@Nonnull Path theFilePath, @Nonnull StorageOptions storageOptions) {
+		try {
+			final File theFile = theFilePath.toFile();
+			final FileOutputStream targetOs = new FileOutputStream(theFile, true);
+			final ObservableOutput<FileOutputStream> output = new ObservableOutput<>(
+				targetOs,
+				Math.min(ObservableOutput.DEFAULT_FLUSH_SIZE, storageOptions.outputBufferSize()),
+				storageOptions.outputBufferSize(),
+				theFile.length()
+			);
+			if (storageOptions.computeCRC32C()) {
+				output.computeCRC32();
+			}
+			if (storageOptions.compress()) {
+				output.compress();
+			}
+			return output;
+		} catch (FileNotFoundException ex) {
+			throw new StorageException("Target file " + theFilePath + " cannot be opened!", ex);
+		}
+	}
+
+	/**
 	 * Synchronizes the data stored in the provided observable output stream to the disk.
 	 *
 	 * @param os The observable output stream to synchronize.
 	 * @throws SyncFailedException if the synchronization operation failed.
 	 */
-	private static void doSync(@Nonnull ObservableOutput<FileOutputStream> os, boolean fsSync) {
+	static void doSync(@Nonnull ObservableOutput<FileOutputStream> os, boolean fsSync) {
 		// execute fsync so that data are really stored to the disk
 		try {
 			os.flush();
@@ -196,17 +206,17 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 
 	public WriteOnlyFileHandle(
 		@Nonnull Path targetFile,
-		boolean fsSync,
+		@Nonnull StorageOptions storageOptions,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper
 	) {
-		this(null, null, null, fsSync, targetFile, observableOutputKeeper);
+		this(null, null, null, storageOptions, targetFile, observableOutputKeeper);
 	}
 
 	public WriteOnlyFileHandle(
 		@Nullable String catalogName,
 		@Nullable FileType fileType,
 		@Nullable String logicalName,
-		boolean fsSync,
+		@Nonnull StorageOptions storageOptions,
 		@Nonnull Path targetFile,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper
 	) {
@@ -214,7 +224,7 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 		this.fileType = fileType;
 		this.logicalName = logicalName;
 		this.lockTimeoutSeconds = observableOutputKeeper.getLockTimeoutSeconds();
-		this.fsSync = fsSync;
+		this.storageOptions = storageOptions;
 		this.targetFile = targetFile;
 		Assert.isPremiseValid(getTargetFile(targetFile) != null, "Target file should be created or exception thrown!");
 		this.observableOutputKeeper = observableOutputKeeper;
@@ -223,16 +233,16 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 	@Override
 	public <T> T checkAndExecute(@Nonnull String operation, @Nonnull Runnable premise, @Nonnull Function<ObservableOutput<?>, T> logic) {
 		try {
-			if (handleLock.tryLock(lockTimeoutSeconds, TimeUnit.SECONDS)) {
+			if (this.handleLock.tryLock(this.lockTimeoutSeconds, TimeUnit.SECONDS)) {
 				try {
 					premise.run();
-					return observableOutputKeeper.executeWithOutput(
-						targetFile,
-						OUTPUT_FACTORY,
+					return this.observableOutputKeeper.executeWithOutput(
+						this.targetFile,
+						this::createObservableOutput,
 						logic::apply
 					);
 				} finally {
-					handleLock.unlock();
+					this.handleLock.unlock();
 				}
 			}
 			throw new StorageException(operation + " within timeout!");
@@ -245,20 +255,20 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 	@Override
 	public void checkAndExecuteAndSync(@Nonnull String operation, @Nonnull Runnable premise, @Nonnull Consumer<ObservableOutput<?>> logic) {
 		try {
-			if (handleLock.tryLock(lockTimeoutSeconds, TimeUnit.SECONDS)) {
+			if (this.handleLock.tryLock(this.lockTimeoutSeconds, TimeUnit.SECONDS)) {
 				try {
 					premise.run();
-					observableOutputKeeper.executeWithOutput(
-						targetFile,
-						OUTPUT_FACTORY,
+					this.observableOutputKeeper.executeWithOutput(
+						this.targetFile,
+						this::createObservableOutput,
 						observableOutput -> {
 							logic.accept(observableOutput);
-							doSync(observableOutput, this.fsSync);
+							doSync(observableOutput, this.storageOptions.syncWrites());
 						}
 					);
 					return;
 				} finally {
-					handleLock.unlock();
+					this.handleLock.unlock();
 				}
 			}
 			throw new StorageException(operation + " within timeout!");
@@ -271,20 +281,20 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 	@Override
 	public <S, T> T checkAndExecuteAndSync(@Nonnull String operation, @Nonnull Runnable premise, @Nonnull Function<ObservableOutput<?>, S> logic, @Nonnull BiFunction<ObservableOutput<?>, S, T> postExecutionLogic) {
 		try {
-			if (handleLock.tryLock(lockTimeoutSeconds, TimeUnit.SECONDS)) {
+			if (this.handleLock.tryLock(this.lockTimeoutSeconds, TimeUnit.SECONDS)) {
 				try {
 					premise.run();
-					return observableOutputKeeper.executeWithOutput(
-						targetFile,
-						OUTPUT_FACTORY,
+					return this.observableOutputKeeper.executeWithOutput(
+						this.targetFile,
+						this::createObservableOutput,
 						observableOutput -> {
 							final S result = logic.apply(observableOutput);
-							doSync(observableOutput, this.fsSync);
+							doSync(observableOutput, this.storageOptions.syncWrites());
 							return postExecutionLogic.apply(observableOutput, result);
 						}
 					);
 				} finally {
-					handleLock.unlock();
+					this.handleLock.unlock();
 				}
 			}
 			throw new StorageException(operation + " within timeout!");
@@ -304,7 +314,7 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 	public ReadOnlyHandle toReadOnlyHandle() {
 		return new ReadOnlyFileHandle(
 			this.catalogName, this.fileType, this.logicalName,
-			this.targetFile, this.observableOutputKeeper.getOptions().computeCRC32C()
+			this.targetFile, this.storageOptions
 		);
 	}
 
@@ -323,7 +333,15 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 
 	@Override
 	public String toString() {
-		return "write handle: " + targetFile;
+		return "write handle: " + this.targetFile;
+	}
+
+	/**
+	 * A factory function that creates an observable output stream for a file using the provided path and storage options.
+	 */
+	@Nonnull
+	private ObservableOutput<FileOutputStream> createObservableOutput(@Nonnull Path theFilePath) {
+		return createObservableOutput(theFilePath, this.storageOptions);
 	}
 
 }

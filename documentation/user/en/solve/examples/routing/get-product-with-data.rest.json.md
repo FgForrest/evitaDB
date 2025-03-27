@@ -77,9 +77,95 @@
       }
     }
   },
-  "brand" : {
-    "referencedPrimaryKey" : 66465
-  },
+  "productSetItems" : [ ],
+  "relatedProducts" : [ ],
+  "groups" : [
+    {
+      "referencedPrimaryKey" : 66503
+    }
+  ],
+  "variants" : [
+    {
+      "referencedPrimaryKey" : 66554
+    },
+    {
+      "referencedPrimaryKey" : 66556
+    },
+    {
+      "referencedPrimaryKey" : 66559
+    },
+    {
+      "referencedPrimaryKey" : 66561
+    },
+    {
+      "referencedPrimaryKey" : 66562
+    },
+    {
+      "referencedPrimaryKey" : 66563
+    },
+    {
+      "referencedPrimaryKey" : 66565
+    },
+    {
+      "referencedPrimaryKey" : 66566
+    },
+    {
+      "referencedPrimaryKey" : 66567
+    },
+    {
+      "referencedPrimaryKey" : 66569
+    },
+    {
+      "referencedPrimaryKey" : 66570
+    },
+    {
+      "referencedPrimaryKey" : 66571
+    },
+    {
+      "referencedPrimaryKey" : 66572
+    },
+    {
+      "referencedPrimaryKey" : 66573
+    },
+    {
+      "referencedPrimaryKey" : 66574
+    },
+    {
+      "referencedPrimaryKey" : 66575
+    },
+    {
+      "referencedPrimaryKey" : 66576
+    },
+    {
+      "referencedPrimaryKey" : 66577
+    }
+  ],
+  "variantParameters" : [
+    {
+      "referencedPrimaryKey" : 66460
+    },
+    {
+      "referencedPrimaryKey" : 66461
+    },
+    {
+      "referencedPrimaryKey" : 66462
+    },
+    {
+      "referencedPrimaryKey" : 66463
+    },
+    {
+      "referencedPrimaryKey" : 66464
+    }
+  ],
+  "stockVisibilities" : [ ],
+  "stocks" : [
+    {
+      "referencedPrimaryKey" : 119334
+    }
+  ],
+  "tags" : [ ],
+  "master" : null,
+  "bundles" : [ ],
   "categories" : [
     {
       "referencedPrimaryKey" : 66470
@@ -88,11 +174,9 @@
       "referencedPrimaryKey" : 66479
     }
   ],
-  "groups" : [
-    {
-      "referencedPrimaryKey" : 66503
-    }
-  ],
+  "brand" : {
+    "referencedPrimaryKey" : 66465
+  },
   "parameterValues" : [
     {
       "referencedPrimaryKey" : 66549,
@@ -170,84 +254,6 @@
         "primaryKey" : 66461,
         "type" : "Parameter"
       }
-    }
-  ],
-  "stocks" : [
-    {
-      "referencedPrimaryKey" : 119334
-    }
-  ],
-  "variantParameters" : [
-    {
-      "referencedPrimaryKey" : 66460
-    },
-    {
-      "referencedPrimaryKey" : 66461
-    },
-    {
-      "referencedPrimaryKey" : 66462
-    },
-    {
-      "referencedPrimaryKey" : 66463
-    },
-    {
-      "referencedPrimaryKey" : 66464
-    }
-  ],
-  "variants" : [
-    {
-      "referencedPrimaryKey" : 66554
-    },
-    {
-      "referencedPrimaryKey" : 66556
-    },
-    {
-      "referencedPrimaryKey" : 66559
-    },
-    {
-      "referencedPrimaryKey" : 66561
-    },
-    {
-      "referencedPrimaryKey" : 66562
-    },
-    {
-      "referencedPrimaryKey" : 66563
-    },
-    {
-      "referencedPrimaryKey" : 66565
-    },
-    {
-      "referencedPrimaryKey" : 66566
-    },
-    {
-      "referencedPrimaryKey" : 66567
-    },
-    {
-      "referencedPrimaryKey" : 66569
-    },
-    {
-      "referencedPrimaryKey" : 66570
-    },
-    {
-      "referencedPrimaryKey" : 66571
-    },
-    {
-      "referencedPrimaryKey" : 66572
-    },
-    {
-      "referencedPrimaryKey" : 66573
-    },
-    {
-      "referencedPrimaryKey" : 66574
-    },
-    {
-      "referencedPrimaryKey" : 66575
-    },
-    {
-      "referencedPrimaryKey" : 66576
-    },
-    {
-      "referencedPrimaryKey" : 66577
     }
   ]
 }

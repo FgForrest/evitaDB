@@ -280,6 +280,24 @@ private static final long serialVersionUID = 0L;
             queryParam_ = rawValue;
             break;
           }
+          case 200: {
+            int rawValue = input.readEnum();
+            queryParamCase_ = 25;
+            queryParam_ = rawValue;
+            break;
+          }
+          case 208: {
+            int rawValue = input.readEnum();
+            queryParamCase_ = 26;
+            queryParam_ = rawValue;
+            break;
+          }
+          case 216: {
+            int rawValue = input.readEnum();
+            queryParamCase_ = 27;
+            queryParam_ = rawValue;
+            break;
+          }
           case 810: {
             io.evitadb.externalApi.grpc.generated.GrpcStringArray.Builder subBuilder = null;
             if (queryParamCase_ == 101) {
@@ -649,6 +667,9 @@ private static final long serialVersionUID = 0L;
     MANAGEDREFERENCESBEHAVIOUR(22),
     EXPRESSIONVALUE(23),
     SCOPE(24),
+    FACETRELATIONTYPE(25),
+    FACETGROUPRELATIONLEVEL(26),
+    TRAVERSALMODE(27),
     STRINGARRAYVALUE(101),
     INTEGERARRAYVALUE(102),
     LONGARRAYVALUE(103),
@@ -712,6 +733,9 @@ private static final long serialVersionUID = 0L;
         case 22: return MANAGEDREFERENCESBEHAVIOUR;
         case 23: return EXPRESSIONVALUE;
         case 24: return SCOPE;
+        case 25: return FACETRELATIONTYPE;
+        case 26: return FACETGROUPRELATIONLEVEL;
+        case 27: return TRAVERSALMODE;
         case 101: return STRINGARRAYVALUE;
         case 102: return INTEGERARRAYVALUE;
         case 103: return LONGARRAYVALUE;
@@ -1792,6 +1816,138 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcEntityScope.SCOPE_LIVE;
   }
 
+  public static final int FACETRELATIONTYPE_FIELD_NUMBER = 25;
+  /**
+   * <pre>
+   * The facetRelationType enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType facetRelationType = 25;</code>
+   * @return Whether the facetRelationType field is set.
+   */
+  public boolean hasFacetRelationType() {
+    return queryParamCase_ == 25;
+  }
+  /**
+   * <pre>
+   * The facetRelationType enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType facetRelationType = 25;</code>
+   * @return The enum numeric value on the wire for facetRelationType.
+   */
+  public int getFacetRelationTypeValue() {
+    if (queryParamCase_ == 25) {
+      return (java.lang.Integer) queryParam_;
+    }
+    return 0;
+  }
+  /**
+   * <pre>
+   * The facetRelationType enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType facetRelationType = 25;</code>
+   * @return The facetRelationType.
+   */
+  public io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType getFacetRelationType() {
+    if (queryParamCase_ == 25) {
+      @SuppressWarnings("deprecation")
+      io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType result = io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType.valueOf(
+          (java.lang.Integer) queryParam_);
+      return result == null ? io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType.UNRECOGNIZED : result;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType.DISJUNCTION;
+  }
+
+  public static final int FACETGROUPRELATIONLEVEL_FIELD_NUMBER = 26;
+  /**
+   * <pre>
+   * The facetGroupRelationLevel enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel facetGroupRelationLevel = 26;</code>
+   * @return Whether the facetGroupRelationLevel field is set.
+   */
+  public boolean hasFacetGroupRelationLevel() {
+    return queryParamCase_ == 26;
+  }
+  /**
+   * <pre>
+   * The facetGroupRelationLevel enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel facetGroupRelationLevel = 26;</code>
+   * @return The enum numeric value on the wire for facetGroupRelationLevel.
+   */
+  public int getFacetGroupRelationLevelValue() {
+    if (queryParamCase_ == 26) {
+      return (java.lang.Integer) queryParam_;
+    }
+    return 0;
+  }
+  /**
+   * <pre>
+   * The facetGroupRelationLevel enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel facetGroupRelationLevel = 26;</code>
+   * @return The facetGroupRelationLevel.
+   */
+  public io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel getFacetGroupRelationLevel() {
+    if (queryParamCase_ == 26) {
+      @SuppressWarnings("deprecation")
+      io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel result = io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel.valueOf(
+          (java.lang.Integer) queryParam_);
+      return result == null ? io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel.UNRECOGNIZED : result;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP;
+  }
+
+  public static final int TRAVERSALMODE_FIELD_NUMBER = 27;
+  /**
+   * <pre>
+   * The facet traversal mode enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTraversalMode traversalMode = 27;</code>
+   * @return Whether the traversalMode field is set.
+   */
+  public boolean hasTraversalMode() {
+    return queryParamCase_ == 27;
+  }
+  /**
+   * <pre>
+   * The facet traversal mode enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTraversalMode traversalMode = 27;</code>
+   * @return The enum numeric value on the wire for traversalMode.
+   */
+  public int getTraversalModeValue() {
+    if (queryParamCase_ == 27) {
+      return (java.lang.Integer) queryParam_;
+    }
+    return 0;
+  }
+  /**
+   * <pre>
+   * The facet traversal mode enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTraversalMode traversalMode = 27;</code>
+   * @return The traversalMode.
+   */
+  public io.evitadb.externalApi.grpc.generated.GrpcTraversalMode getTraversalMode() {
+    if (queryParamCase_ == 27) {
+      @SuppressWarnings("deprecation")
+      io.evitadb.externalApi.grpc.generated.GrpcTraversalMode result = io.evitadb.externalApi.grpc.generated.GrpcTraversalMode.valueOf(
+          (java.lang.Integer) queryParam_);
+      return result == null ? io.evitadb.externalApi.grpc.generated.GrpcTraversalMode.UNRECOGNIZED : result;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcTraversalMode.DEPTH_FIRST;
+  }
+
   public static final int STRINGARRAYVALUE_FIELD_NUMBER = 101;
   /**
    * <pre>
@@ -2568,6 +2724,10 @@ private static final long serialVersionUID = 0L;
 
   public static final int STATISTICSBASEARRAYVALUE_FIELD_NUMBER = 119;
   /**
+   * <pre>
+   * The statistics base array value.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray statisticsBaseArrayValue = 119;</code>
    * @return Whether the statisticsBaseArrayValue field is set.
    */
@@ -2576,6 +2736,10 @@ private static final long serialVersionUID = 0L;
     return queryParamCase_ == 119;
   }
   /**
+   * <pre>
+   * The statistics base array value.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray statisticsBaseArrayValue = 119;</code>
    * @return The statisticsBaseArrayValue.
    */
@@ -2587,6 +2751,10 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray.getDefaultInstance();
   }
   /**
+   * <pre>
+   * The statistics base array value.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray statisticsBaseArrayValue = 119;</code>
    */
   @java.lang.Override
@@ -2815,6 +2983,15 @@ private static final long serialVersionUID = 0L;
     if (queryParamCase_ == 24) {
       output.writeEnum(24, ((java.lang.Integer) queryParam_));
     }
+    if (queryParamCase_ == 25) {
+      output.writeEnum(25, ((java.lang.Integer) queryParam_));
+    }
+    if (queryParamCase_ == 26) {
+      output.writeEnum(26, ((java.lang.Integer) queryParam_));
+    }
+    if (queryParamCase_ == 27) {
+      output.writeEnum(27, ((java.lang.Integer) queryParam_));
+    }
     if (queryParamCase_ == 101) {
       output.writeMessage(101, (io.evitadb.externalApi.grpc.generated.GrpcStringArray) queryParam_);
     }
@@ -2986,6 +3163,18 @@ private static final long serialVersionUID = 0L;
     if (queryParamCase_ == 24) {
       size += com.google.protobuf.CodedOutputStream
         .computeEnumSize(24, ((java.lang.Integer) queryParam_));
+    }
+    if (queryParamCase_ == 25) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeEnumSize(25, ((java.lang.Integer) queryParam_));
+    }
+    if (queryParamCase_ == 26) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeEnumSize(26, ((java.lang.Integer) queryParam_));
+    }
+    if (queryParamCase_ == 27) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeEnumSize(27, ((java.lang.Integer) queryParam_));
     }
     if (queryParamCase_ == 101) {
       size += com.google.protobuf.CodedOutputStream
@@ -3188,6 +3377,18 @@ private static final long serialVersionUID = 0L;
         if (getScopeValue()
             != other.getScopeValue()) return false;
         break;
+      case 25:
+        if (getFacetRelationTypeValue()
+            != other.getFacetRelationTypeValue()) return false;
+        break;
+      case 26:
+        if (getFacetGroupRelationLevelValue()
+            != other.getFacetGroupRelationLevelValue()) return false;
+        break;
+      case 27:
+        if (getTraversalModeValue()
+            != other.getTraversalModeValue()) return false;
+        break;
       case 101:
         if (!getStringArrayValue()
             .equals(other.getStringArrayValue())) return false;
@@ -3388,6 +3589,18 @@ private static final long serialVersionUID = 0L;
       case 24:
         hash = (37 * hash) + SCOPE_FIELD_NUMBER;
         hash = (53 * hash) + getScopeValue();
+        break;
+      case 25:
+        hash = (37 * hash) + FACETRELATIONTYPE_FIELD_NUMBER;
+        hash = (53 * hash) + getFacetRelationTypeValue();
+        break;
+      case 26:
+        hash = (37 * hash) + FACETGROUPRELATIONLEVEL_FIELD_NUMBER;
+        hash = (53 * hash) + getFacetGroupRelationLevelValue();
+        break;
+      case 27:
+        hash = (37 * hash) + TRAVERSALMODE_FIELD_NUMBER;
+        hash = (53 * hash) + getTraversalModeValue();
         break;
       case 101:
         hash = (37 * hash) + STRINGARRAYVALUE_FIELD_NUMBER;
@@ -3749,6 +3962,15 @@ private static final long serialVersionUID = 0L;
       if (queryParamCase_ == 24) {
         result.queryParam_ = queryParam_;
       }
+      if (queryParamCase_ == 25) {
+        result.queryParam_ = queryParam_;
+      }
+      if (queryParamCase_ == 26) {
+        result.queryParam_ = queryParam_;
+      }
+      if (queryParamCase_ == 27) {
+        result.queryParam_ = queryParam_;
+      }
       if (queryParamCase_ == 101) {
         if (stringArrayValueBuilder_ == null) {
           result.queryParam_ = queryParam_;
@@ -4051,6 +4273,18 @@ private static final long serialVersionUID = 0L;
         }
         case SCOPE: {
           setScopeValue(other.getScopeValue());
+          break;
+        }
+        case FACETRELATIONTYPE: {
+          setFacetRelationTypeValue(other.getFacetRelationTypeValue());
+          break;
+        }
+        case FACETGROUPRELATIONLEVEL: {
+          setFacetGroupRelationLevelValue(other.getFacetGroupRelationLevelValue());
+          break;
+        }
+        case TRAVERSALMODE: {
+          setTraversalModeValue(other.getTraversalModeValue());
           break;
         }
         case STRINGARRAYVALUE: {
@@ -7056,6 +7290,291 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearScope() {
       if (queryParamCase_ == 24) {
+        queryParamCase_ = 0;
+        queryParam_ = null;
+        onChanged();
+      }
+      return this;
+    }
+
+    /**
+     * <pre>
+     * The facetRelationType enum value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType facetRelationType = 25;</code>
+     * @return Whether the facetRelationType field is set.
+     */
+    @java.lang.Override
+    public boolean hasFacetRelationType() {
+      return queryParamCase_ == 25;
+    }
+    /**
+     * <pre>
+     * The facetRelationType enum value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType facetRelationType = 25;</code>
+     * @return The enum numeric value on the wire for facetRelationType.
+     */
+    @java.lang.Override
+    public int getFacetRelationTypeValue() {
+      if (queryParamCase_ == 25) {
+        return ((java.lang.Integer) queryParam_).intValue();
+      }
+      return 0;
+    }
+    /**
+     * <pre>
+     * The facetRelationType enum value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType facetRelationType = 25;</code>
+     * @param value The enum numeric value on the wire for facetRelationType to set.
+     * @return This builder for chaining.
+     */
+    public Builder setFacetRelationTypeValue(int value) {
+      queryParamCase_ = 25;
+      queryParam_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The facetRelationType enum value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType facetRelationType = 25;</code>
+     * @return The facetRelationType.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType getFacetRelationType() {
+      if (queryParamCase_ == 25) {
+        @SuppressWarnings("deprecation")
+        io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType result = io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType.valueOf(
+            (java.lang.Integer) queryParam_);
+        return result == null ? io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType.UNRECOGNIZED : result;
+      }
+      return io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType.DISJUNCTION;
+    }
+    /**
+     * <pre>
+     * The facetRelationType enum value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType facetRelationType = 25;</code>
+     * @param value The facetRelationType to set.
+     * @return This builder for chaining.
+     */
+    public Builder setFacetRelationType(io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      queryParamCase_ = 25;
+      queryParam_ = value.getNumber();
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The facetRelationType enum value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType facetRelationType = 25;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearFacetRelationType() {
+      if (queryParamCase_ == 25) {
+        queryParamCase_ = 0;
+        queryParam_ = null;
+        onChanged();
+      }
+      return this;
+    }
+
+    /**
+     * <pre>
+     * The facetGroupRelationLevel enum value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel facetGroupRelationLevel = 26;</code>
+     * @return Whether the facetGroupRelationLevel field is set.
+     */
+    @java.lang.Override
+    public boolean hasFacetGroupRelationLevel() {
+      return queryParamCase_ == 26;
+    }
+    /**
+     * <pre>
+     * The facetGroupRelationLevel enum value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel facetGroupRelationLevel = 26;</code>
+     * @return The enum numeric value on the wire for facetGroupRelationLevel.
+     */
+    @java.lang.Override
+    public int getFacetGroupRelationLevelValue() {
+      if (queryParamCase_ == 26) {
+        return ((java.lang.Integer) queryParam_).intValue();
+      }
+      return 0;
+    }
+    /**
+     * <pre>
+     * The facetGroupRelationLevel enum value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel facetGroupRelationLevel = 26;</code>
+     * @param value The enum numeric value on the wire for facetGroupRelationLevel to set.
+     * @return This builder for chaining.
+     */
+    public Builder setFacetGroupRelationLevelValue(int value) {
+      queryParamCase_ = 26;
+      queryParam_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The facetGroupRelationLevel enum value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel facetGroupRelationLevel = 26;</code>
+     * @return The facetGroupRelationLevel.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel getFacetGroupRelationLevel() {
+      if (queryParamCase_ == 26) {
+        @SuppressWarnings("deprecation")
+        io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel result = io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel.valueOf(
+            (java.lang.Integer) queryParam_);
+        return result == null ? io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel.UNRECOGNIZED : result;
+      }
+      return io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP;
+    }
+    /**
+     * <pre>
+     * The facetGroupRelationLevel enum value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel facetGroupRelationLevel = 26;</code>
+     * @param value The facetGroupRelationLevel to set.
+     * @return This builder for chaining.
+     */
+    public Builder setFacetGroupRelationLevel(io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      queryParamCase_ = 26;
+      queryParam_ = value.getNumber();
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The facetGroupRelationLevel enum value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel facetGroupRelationLevel = 26;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearFacetGroupRelationLevel() {
+      if (queryParamCase_ == 26) {
+        queryParamCase_ = 0;
+        queryParam_ = null;
+        onChanged();
+      }
+      return this;
+    }
+
+    /**
+     * <pre>
+     * The facet traversal mode enum value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTraversalMode traversalMode = 27;</code>
+     * @return Whether the traversalMode field is set.
+     */
+    @java.lang.Override
+    public boolean hasTraversalMode() {
+      return queryParamCase_ == 27;
+    }
+    /**
+     * <pre>
+     * The facet traversal mode enum value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTraversalMode traversalMode = 27;</code>
+     * @return The enum numeric value on the wire for traversalMode.
+     */
+    @java.lang.Override
+    public int getTraversalModeValue() {
+      if (queryParamCase_ == 27) {
+        return ((java.lang.Integer) queryParam_).intValue();
+      }
+      return 0;
+    }
+    /**
+     * <pre>
+     * The facet traversal mode enum value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTraversalMode traversalMode = 27;</code>
+     * @param value The enum numeric value on the wire for traversalMode to set.
+     * @return This builder for chaining.
+     */
+    public Builder setTraversalModeValue(int value) {
+      queryParamCase_ = 27;
+      queryParam_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The facet traversal mode enum value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTraversalMode traversalMode = 27;</code>
+     * @return The traversalMode.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcTraversalMode getTraversalMode() {
+      if (queryParamCase_ == 27) {
+        @SuppressWarnings("deprecation")
+        io.evitadb.externalApi.grpc.generated.GrpcTraversalMode result = io.evitadb.externalApi.grpc.generated.GrpcTraversalMode.valueOf(
+            (java.lang.Integer) queryParam_);
+        return result == null ? io.evitadb.externalApi.grpc.generated.GrpcTraversalMode.UNRECOGNIZED : result;
+      }
+      return io.evitadb.externalApi.grpc.generated.GrpcTraversalMode.DEPTH_FIRST;
+    }
+    /**
+     * <pre>
+     * The facet traversal mode enum value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTraversalMode traversalMode = 27;</code>
+     * @param value The traversalMode to set.
+     * @return This builder for chaining.
+     */
+    public Builder setTraversalMode(io.evitadb.externalApi.grpc.generated.GrpcTraversalMode value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      queryParamCase_ = 27;
+      queryParam_ = value.getNumber();
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The facet traversal mode enum value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTraversalMode traversalMode = 27;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearTraversalMode() {
+      if (queryParamCase_ == 27) {
         queryParamCase_ = 0;
         queryParam_ = null;
         onChanged();
@@ -10252,6 +10771,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray, io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArrayOrBuilder> statisticsBaseArrayValueBuilder_;
     /**
+     * <pre>
+     * The statistics base array value.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray statisticsBaseArrayValue = 119;</code>
      * @return Whether the statisticsBaseArrayValue field is set.
      */
@@ -10260,6 +10783,10 @@ private static final long serialVersionUID = 0L;
       return queryParamCase_ == 119;
     }
     /**
+     * <pre>
+     * The statistics base array value.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray statisticsBaseArrayValue = 119;</code>
      * @return The statisticsBaseArrayValue.
      */
@@ -10278,6 +10805,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The statistics base array value.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray statisticsBaseArrayValue = 119;</code>
      */
     public Builder setStatisticsBaseArrayValue(io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray value) {
@@ -10294,6 +10825,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The statistics base array value.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray statisticsBaseArrayValue = 119;</code>
      */
     public Builder setStatisticsBaseArrayValue(
@@ -10308,6 +10843,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The statistics base array value.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray statisticsBaseArrayValue = 119;</code>
      */
     public Builder mergeStatisticsBaseArrayValue(io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray value) {
@@ -10330,6 +10869,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The statistics base array value.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray statisticsBaseArrayValue = 119;</code>
      */
     public Builder clearStatisticsBaseArrayValue() {
@@ -10349,12 +10892,20 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The statistics base array value.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray statisticsBaseArrayValue = 119;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray.Builder getStatisticsBaseArrayValueBuilder() {
       return getStatisticsBaseArrayValueFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * The statistics base array value.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray statisticsBaseArrayValue = 119;</code>
      */
     @java.lang.Override
@@ -10369,6 +10920,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The statistics base array value.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray statisticsBaseArrayValue = 119;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<

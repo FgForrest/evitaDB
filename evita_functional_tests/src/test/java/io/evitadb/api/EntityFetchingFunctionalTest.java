@@ -4132,7 +4132,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				final SealedEntity referencedCategory = categoryReference.getReferencedEntity().orElseThrow();
 				assertEquals(theParentPk, referencedCategory.getParentEntity().orElseThrow().getPrimaryKey());
 				assertEquals(
-					createParentChain(categoryHierarchy, theChildPk, 4, null),
+					createParentChain(categoryHierarchy, theChildPk, theChild.getLevel() - 1, null),
 					referencedCategory.getParentEntity().orElseThrow()
 				);
 				return null;
@@ -5158,6 +5158,75 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 							.forEach(referencedParameters::add);
 
 					}
+					return referencedParameters;
+				}
+			)
+		);
+	}
+
+	@DisplayName("Should provide paginated access to references")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnPaginatedReferencesWithSpacing(Evita evita, List<SealedEntity> originalProducts) {
+		final SealedEntity productWithMaxReferences = originalProducts
+			.stream()
+			.max(Comparator.comparingInt(o -> o.getReferences(Entities.BRAND).size() + o.getReferences(Entities.PARAMETER).size()))
+			.orElseThrow();
+		final Set<Integer> originParameters = productWithMaxReferences.getReferences(Entities.PARAMETER)
+			.stream()
+			.map(ReferenceContract::getReferencedPrimaryKey)
+			.collect(Collectors.toSet());
+		final int totalParameterCount = originParameters.size();
+
+		assertEquals(
+			originParameters,
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final Set<Integer> referencedParameters = CollectionUtils.createHashSet(totalParameterCount);
+					PaginatedList<ReferenceContract> parameters;
+					int pageNumber = 1;
+					do {
+						final SealedEntity productByPk = session.queryOneSealedEntity(
+							query(
+								collection(Entities.PRODUCT),
+								filterBy(
+									entityPrimaryKeyInSet(productWithMaxReferences.getPrimaryKeyOrThrowException())
+								),
+								require(
+									entityFetch(
+										// but only first four parameters
+										referenceContent(
+											Entities.PARAMETER,
+											entityFetchAll(),
+											entityGroupFetchAll(),
+											page(pageNumber, 5, spacing(gap(1, "$pageNumber % 2 == 0")))
+										)
+									)
+								)
+							)
+						).orElseThrow();
+
+						final Collection<ReferenceContract> foundParameters = productByPk.getReferences(Entities.PARAMETER);
+						final int maxItemsPerPage = pageNumber % 2 == 0 ? 4 : 5;
+						assertTrue(!foundParameters.isEmpty() && foundParameters.size() <= maxItemsPerPage);
+						assertEquals(foundParameters.size(), productByPk.getReferences().stream().filter(it -> it.getReferenceName().equals(Entities.PARAMETER)).count());
+
+						for (ReferenceContract foundParameter : foundParameters) {
+							assertNotNull(foundParameter.getReferencedEntity());
+							assertNotNull(foundParameter.getGroupEntity().orElse(null));
+						}
+
+						parameters = new PaginatedList<>(pageNumber, 4, 5, totalParameterCount, new ArrayList<>(foundParameters));
+						assertEquals(parameters, productByPk.getReferenceChunk(Entities.PARAMETER));
+						foundParameters
+							.stream()
+							.map(ReferenceContract::getReferencedPrimaryKey)
+							.forEach(referencedParameters::add);
+						pageNumber++;
+
+					} while (parameters.hasNext());
+
 					return referencedParameters;
 				}
 			)

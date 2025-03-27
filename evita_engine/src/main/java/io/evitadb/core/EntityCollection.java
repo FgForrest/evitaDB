@@ -129,6 +129,7 @@ import io.evitadb.store.spi.EntityCollectionPersistenceService.EntityWithFetchCo
 import io.evitadb.store.spi.HeaderInfoSupplier;
 import io.evitadb.store.spi.StoragePartPersistenceService;
 import io.evitadb.store.spi.TrafficRecorder;
+import io.evitadb.store.spi.chunk.ServerChunkTransformerAccessor;
 import io.evitadb.store.spi.model.EntityCollectionHeader;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -455,7 +456,7 @@ public final class EntityCollection implements
 				evitaRequest.getDefaultReferenceRequirement(),
 				queryContext.createExecutionContext(),
 				entity,
-				evitaRequest::getReferenceChunkTransformer
+				new ServerChunkTransformerAccessor(evitaRequest)
 			);
 
 		// record query information
@@ -1861,7 +1862,7 @@ public final class EntityCollection implements
 			newReferenceContractPredicate,
 			newPriceContractPredicate,
 			this.dataStoreReader,
-			evitaRequest::getReferenceChunkTransformer
+			new ServerChunkTransformerAccessor(evitaRequest)
 		);
 		return ServerEntityDecorator.decorate(
 			// load all missing data according to current evita request
@@ -1985,7 +1986,7 @@ public final class EntityCollection implements
 				referenceEntityFetch,
 				evitaRequest.getDefaultReferenceRequirement(),
 				queryContext.createExecutionContext(),
-				evitaRequest::getReferenceChunkTransformer
+				new ServerChunkTransformerAccessor(evitaRequest)
 			);
 	}
 

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,12 +23,9 @@
 
 package io.evitadb.externalApi.event;
 
-import io.evitadb.api.observability.annotation.EventGroup;
 import io.evitadb.api.observability.annotation.ExportDurationMetric;
 import io.evitadb.api.observability.annotation.ExportInvocationMetric;
 import io.evitadb.api.observability.annotation.ExportMetricLabel;
-import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
-import jdk.jfr.Category;
 import jdk.jfr.Description;
 import jdk.jfr.Label;
 import jdk.jfr.Name;
@@ -37,24 +34,17 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 
 /**
- * This event is base class for all query related events.
+ * This event is fired when a readiness probe is either executed by client or invoked on the server side.
  */
-@EventGroup(
-	value = ReadinessEvent.PACKAGE_NAME,
-	name = "evitaDB - external API readiness",
-	description = "evitaDB events related to readiness probes."
-)
-@Category({"evitaDB", "API"})
 @ExportInvocationMetric(label = "Readiness probe invoked total")
 @ExportDurationMetric(label = "Readiness probe duration")
 @Description("Event that is fired when a readiness probe is either executed by client or invoked on the server side.")
 @Label("Readiness probe")
 @Getter
-public class ReadinessEvent extends CustomMetricsExecutionEvent {
-	protected static final String PACKAGE_NAME = "io.evitadb.externalApi";
+public class ReadinessEvent extends AbstractExternalApiEvent {
 
 	/**
-	 * The name of the catalog the transaction relates to.
+	 * The code of the API that was probed.
 	 */
 	@Label("API type")
 	@Name("api")
@@ -63,7 +53,9 @@ public class ReadinessEvent extends CustomMetricsExecutionEvent {
 	final String api;
 
 	/**
-	 * The name of the catalog the transaction relates to.
+	 * Identifies whether the event represents whether event represents server or client view of readiness.
+	 * Client view is the duration viewed from the HTTP client side affected by timeouts, server view is the real
+	 * duration of the probe.
 	 */
 	@Label("Prospective (client/server)")
 	@Name("prospective")
@@ -79,11 +71,10 @@ public class ReadinessEvent extends CustomMetricsExecutionEvent {
 	/**
 	 * The result of the readiness probe.
 	 */
-	@Label("Result")
-	@Name("result")
+	@Label("Probe result")
 	@Description("The result of the readiness probe (ok, timeout, error).")
 	@ExportMetricLabel
-	String result;
+	String probeResult;
 
 	public ReadinessEvent(@Nonnull String api, @Nonnull Prospective prospective) {
 		this.api = api;
@@ -97,7 +88,7 @@ public class ReadinessEvent extends CustomMetricsExecutionEvent {
 	 * @param result The result of the readiness probe, which can be either READY, TIMEOUT, or ERROR.
 	 */
 	public void finish(@Nonnull Result result) {
-		this.result = result.name();
+		this.probeResult = result.name();
 		super.end();
 		this.commit();
 	}

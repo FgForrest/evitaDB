@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.dataType.StripList;
@@ -59,7 +60,8 @@ import java.util.Optional;
 @ConstraintDefinition(
 	name = "strip",
 	shortDescription = "The constraint specifies which strip (subset) of found entities will be returned.",
-	userDocsLink = "/documentation/query/requirements/paging#strip"
+	userDocsLink = "/documentation/query/requirements/paging#strip",
+	supportedIn = { ConstraintDomain.GENERIC, ConstraintDomain.REFERENCE }
 )
 public class Strip extends AbstractRequireConstraintLeaf implements GenericConstraint<RequireConstraint>, ChunkingRequireConstraint {
 	@Serial private static final long serialVersionUID = 1300354074537839696L;

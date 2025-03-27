@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -40,6 +40,7 @@ import org.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Objects;
 import java.util.function.IntConsumer;
 
 /**
@@ -140,7 +141,7 @@ public class SegmentSorter implements Sorter {
 				);
 			}
 		} else {
-			final Sorter sorterToUse = ConditionalSorter.getFirstApplicableSorter(queryContext, this.delegateSorter);
+			final Sorter sorterToUse = Objects.requireNonNull(ConditionalSorter.getFirstApplicableSorter(queryContext, this.delegateSorter));
 			// otherwise, we need to fully calculate the segment to be able to exclude it from the next sorter
 			final int physicalLimit = Math.min(filteredRecordIdBitmap.size(), this.limit);
 			final int endIndexOrLimit = Math.min(physicalLimit, endIndex);

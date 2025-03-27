@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -77,6 +77,21 @@ public final class PaginatedList<T extends Serializable> implements DataChunk<T>
 	}
 
 	/**
+	 * Calculates the number of the last page for a paginated list based on the
+	 * provided page size and total record count.
+	 *
+	 * @param pageSize the number of records per page. If this value is 0,
+	 *                 the result will be 0 to avoid division by zero.
+	 * @param totalRecordCount the total number of records in the dataset.
+	 * @return the number of the last page. If the page size is 0, it returns 0.
+	 *         Otherwise, it calculates the ceiling of totalRecordCount divided
+	 *         by pageSize.
+	 */
+	public static int getLastPageNumber(int pageSize, int totalRecordCount) {
+		return pageSize == 0 ? 0 : (int) Math.ceil((float) (totalRecordCount) / (float) pageSize);
+	}
+
+	/**
 	 * Constructor. This one doesn't require target data to be known. It is handy if you want to compute pagination
 	 * data for execution via methods {@link #getFirstPageItemNumber()} and {@link #getLastPageItemNumber()}.
 	 *
@@ -85,7 +100,7 @@ public final class PaginatedList<T extends Serializable> implements DataChunk<T>
 	 * @param totalRecordCount total number of records
 	 */
 	public PaginatedList(int pageNumber, int pageSize, int totalRecordCount) {
-		this(pageNumber, (int) Math.ceil((float) (totalRecordCount) / (float) pageSize), pageSize, totalRecordCount);
+		this(pageNumber, getLastPageNumber(pageSize, totalRecordCount), pageSize, totalRecordCount);
 	}
 
 	/**
@@ -112,8 +127,8 @@ public final class PaginatedList<T extends Serializable> implements DataChunk<T>
 	 * @param totalRecordCount total number of records
 	 * @param data             list of records
 	 */
-	public PaginatedList(int pageNumber, int pageSize, int totalRecordCount, List<T> data) {
-		this(pageNumber, (int) Math.ceil((float) (totalRecordCount) / (float) pageSize), pageSize, totalRecordCount, data);
+	public PaginatedList(int pageNumber, int pageSize, int totalRecordCount, @Nonnull List<T> data) {
+		this(pageNumber, getLastPageNumber(pageSize, totalRecordCount), pageSize, totalRecordCount, data);
 	}
 
 	/**
@@ -124,7 +139,7 @@ public final class PaginatedList<T extends Serializable> implements DataChunk<T>
 	 * @param totalRecordCount total number of records
 	 * @param data             list of records
 	 */
-	public PaginatedList(int pageNumber, int lastPageNumber, int pageSize, int totalRecordCount, List<T> data) {
+	public PaginatedList(int pageNumber, int lastPageNumber, int pageSize, int totalRecordCount, @Nonnull List<T> data) {
 		this.pageSize = pageSize;
 		this.lastPageNumber = lastPageNumber;
 		this.pageNumber = pageNumber;

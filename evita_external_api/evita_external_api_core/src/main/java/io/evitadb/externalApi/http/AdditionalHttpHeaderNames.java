@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -35,9 +35,18 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class AdditionalHttpHeaderNames {
 
-	public static final AsciiString OPENTELEMETRY_TRACEPARENT_STRING = new AsciiString("traceparent");
-	public static final AsciiString EVITADB_CLIENTID_HEADER_STRING = new AsciiString("X-EvitaDB-ClientID");
-	public static final AsciiString EVITADB_QUERY_LABEL_HEADER_STRING = new AsciiString("X-EvitaDB-Query-Label");
+	public static final AsciiString OPENTELEMETRY_TRACEPARENT = new AsciiString("traceparent");
+	/**
+	 * Header name for the client URI.
+	 */
+	public static final AsciiString X_FORWARDED_URI = new AsciiString("X-Forwarded-Uri");
+
+	public static final AsciiString X_EVITADB_CLIENTID = new AsciiString("X-EvitaDB-ClientID");
+
+	/**
+	 * Header name for meta labels that allow to set traffic recording labels via HTTP headers.
+	 */
+	public static final AsciiString X_EVITADB_META_LABEL = new AsciiString("X-Meta-Label");
 
 	public static final AsciiString INTERNAL_HEADER_PREFIX = new AsciiString("internal_");
 }

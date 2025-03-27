@@ -1,0 +1,37 @@
+POST /rest/evita/Product/query
+
+{
+  "filterBy" : {
+    "referenceBrandHaving" : [
+      {
+        "entityHaving" : {
+          "attributeCodeEquals" : "asus"
+        }
+      }
+    ],
+    "userFilter" : [
+      {
+        "facetCategoriesHaving" : [
+          {
+            "entityHaving" : {
+              "attributeCodeEquals" : "laptops"
+            },
+            "includingChildren" : true
+          }
+        ]
+      }
+    ]
+  },
+  "require" : {
+    "facetCategoriesSummary" : {
+      "statisticsDepth" : "IMPACT",
+      "requirements" : {
+        "entityFetch" : {
+          "attributeContent" : [
+            "code"
+          ]
+        }
+      }
+    }
+  }
+}

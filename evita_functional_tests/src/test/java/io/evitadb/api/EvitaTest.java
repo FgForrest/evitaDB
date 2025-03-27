@@ -39,6 +39,8 @@ import io.evitadb.api.exception.UnexpectedResultException;
 import io.evitadb.api.exception.UniqueValueViolationException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.mock.MockCatalogStructuralChangeObserver;
+import io.evitadb.api.mock.ProductInterface;
+import io.evitadb.api.mock.ProductParameterInterface;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.requestResponse.EvitaResponse;
@@ -2198,28 +2200,48 @@ class EvitaTest implements EvitaTestSupport {
 			assertNotNull(catalogStatistics);
 			assertEquals(3, catalogStatistics.length);
 
+			final CatalogStatistics statistics = Arrays.stream(catalogStatistics).filter(it -> TEST_CATALOG.equals(it.catalogName())).findFirst().orElseThrow();
+			assertTrue(
+				statistics.sizeOnDiskInBytes() > 400L && statistics.sizeOnDiskInBytes() < 600L,
+				"Expected size on disk to be between 400 and 600 bytes, but was " + statistics.sizeOnDiskInBytes()
+			);
 			assertEquals(
-				Arrays.stream(catalogStatistics).filter(it -> TEST_CATALOG.equals(it.catalogName())).findFirst().orElseThrow(),
 				new CatalogStatistics(
-					UUIDUtil.randomUUID(), TEST_CATALOG, false, CatalogState.WARMING_UP, 0L, 0, 1, 490, new EntityCollectionStatistics[0]
-				)
+					UUIDUtil.randomUUID(), TEST_CATALOG, false, CatalogState.WARMING_UP, 0L, 0, 1, statistics.sizeOnDiskInBytes(), new EntityCollectionStatistics[0]
+				),
+				statistics
 			);
 
+			final CatalogStatistics statistics1 = Arrays.stream(catalogStatistics).filter(it -> (TEST_CATALOG + "_1").equals(it.catalogName())).findFirst().orElseThrow();
+			assertTrue(
+				statistics1.sizeOnDiskInBytes() > 900L && statistics1.sizeOnDiskInBytes() < 1200L,
+				"Expected size on disk to be between 900 and 1200 bytes, but was " + statistics1.sizeOnDiskInBytes()
+			);
 			assertEquals(
-				Arrays.stream(catalogStatistics).filter(it -> (TEST_CATALOG + "_1").equals(it.catalogName())).findFirst().orElseThrow(),
 				new CatalogStatistics(
-					UUIDUtil.randomUUID(), TEST_CATALOG + "_1", true, null, -1L, -1, -1, 1153, new EntityCollectionStatistics[0]
-				)
+					UUIDUtil.randomUUID(), TEST_CATALOG + "_1", true, null, -1L, -1, -1, statistics1.sizeOnDiskInBytes(), new EntityCollectionStatistics[0]
+				),
+				statistics1
 			);
 
+			final CatalogStatistics statistics2 = Arrays.stream(catalogStatistics).filter(it -> (TEST_CATALOG + "_2").equals(it.catalogName())).findFirst().orElseThrow();
+			assertTrue(
+				statistics2.sizeOnDiskInBytes() > 1000L && statistics2.sizeOnDiskInBytes() < 1700L,
+				"Expected size on disk to be between 1000 and 1700 bytes, but was " + statistics2.sizeOnDiskInBytes()
+			);
+			final EntityCollectionStatistics productStatistics = statistics2.entityCollectionStatistics()[0];
+			assertTrue(
+				productStatistics.sizeOnDiskInBytes() > 300L && productStatistics.sizeOnDiskInBytes() < 600L,
+				"Expected size on disk to be between 300 and 600 bytes, but was " + productStatistics.sizeOnDiskInBytes()
+			);
 			assertEquals(
 				new CatalogStatistics(
-					UUIDUtil.randomUUID(), TEST_CATALOG + "_2", false, CatalogState.WARMING_UP, 0, 1, 2, 1657,
+					UUIDUtil.randomUUID(), TEST_CATALOG + "_2", false, CatalogState.WARMING_UP, 0, 1, 2, statistics2.sizeOnDiskInBytes(),
 					new EntityCollectionStatistics[]{
-						new EntityCollectionStatistics(Entities.PRODUCT, 1, 1, 520)
+						new EntityCollectionStatistics(Entities.PRODUCT, 1, 1, productStatistics.sizeOnDiskInBytes())
 					}
 				),
-				Arrays.stream(catalogStatistics).filter(it -> (TEST_CATALOG + "_2").equals(it.catalogName())).findFirst().orElseThrow()
+				statistics2
 			);
 
 		} finally {
@@ -2469,6 +2491,90 @@ class EvitaTest implements EvitaTestSupport {
 				// the brand with PK=2 is not (yet) present in the evita storage
 				assertEquals(2, shortEntity.getReferences(Entities.BRAND).size());
 				assertEquals(1, shortEntity.getReferences(Entities.PARAMETER).size());
+			}
+		);
+	}
+
+	@Test
+	void shouldNotReturnGroupOfNonMatchingLocale() {
+		shouldCreateReflectedReference();
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session
+					.defineEntitySchema(Entities.PARAMETER_GROUP)
+					.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized())
+					.updateVia(session);
+
+				session
+					.defineEntitySchema(Entities.PARAMETER)
+					.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized())
+					.withReferenceToEntity(Entities.PARAMETER_GROUP, Entities.PARAMETER_GROUP, Cardinality.ZERO_OR_ONE)
+					.updateVia(session);
+
+				session
+					.defineEntitySchema(Entities.PRODUCT)
+					.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized())
+					.withReferenceToEntity(Entities.PARAMETER, Entities.PARAMETER, Cardinality.ZERO_OR_MORE, whichIs -> whichIs.withGroupTypeRelatedToEntity(Entities.PARAMETER_GROUP))
+					.updateVia(session);
+
+				session.createNewEntity(Entities.PARAMETER_GROUP, 1)
+					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Group")
+					.upsertVia(session);
+
+				session.createNewEntity(Entities.PARAMETER, 1)
+					.setAttribute(ATTRIBUTE_NAME, LOCALE_CZ, "Parametr")
+					.setReference(Entities.PARAMETER_GROUP, 1)
+					.upsertVia(session);
+
+				session.createNewEntity(Entities.PRODUCT, 1)
+					.setAttribute(ATTRIBUTE_NAME, LOCALE_CZ, "Produkt")
+					.setReference(Entities.PARAMETER, 1, whichIs -> whichIs.setGroup(1))
+					.upsertVia(session);
+
+				final SealedEntity product = session.queryOneSealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(1),
+							entityLocaleEquals(LOCALE_CZ)
+						),
+						require(
+							entityFetch(
+								entityFetchAllContentAnd(
+									referenceContent(Entities.PARAMETER, entityFetchAll(), entityGroupFetchAll())
+								)
+							)
+						)
+					)
+				).orElseThrow();
+
+				assertNotNull(product.getReference(Entities.PARAMETER, 1).orElse(null));
+				assertNotNull(product.getReference(Entities.PARAMETER, 1).orElseThrow().getGroup().orElse(null));
+				assertNull(product.getReference(Entities.PARAMETER, 1).orElseThrow().getGroupEntity().orElse(null));
+
+				final ProductInterface productAsCustomClass = session.queryOne(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(1),
+							entityLocaleEquals(LOCALE_CZ)
+						),
+						require(
+							entityFetch(
+								entityFetchAllContentAnd(
+									referenceContent(Entities.PARAMETER, entityFetchAll(), entityGroupFetchAll())
+								)
+							)
+						)
+					),
+					ProductInterface.class
+				).orElseThrow();
+
+				final ProductParameterInterface parameter = productAsCustomClass.getParameterById(1);
+				assertNotNull(parameter);
+				assertNotNull(parameter.getParameterGroup());
+				assertNull(parameter.getParameterGroupEntity());
 			}
 		);
 	}

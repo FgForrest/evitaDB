@@ -31,6 +31,8 @@ import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -109,6 +111,129 @@ public class IOUtils {
 	}
 
 	/**
+	 * Executes lambda logic encapsulated in {@link IOExceptionThrowingRunnable} instances, suppressing
+	 * and aggregating any {@link IOException} that occurs during execution. If any exceptions are thrown, they
+	 * are encapsulated and re-thrown as a single exception provided by the {@code exceptionFactory}.
+	 *
+	 * @param <T>               the type of exception that will be thrown if any {@link IOException} occurs
+	 * @param exceptionFactory  a supplier that provides an exception of type {@code T}, used to wrap any
+	 *                          {@link IOException} thrown during the execution of the provided runnables
+	 * @param consumer          varargs of {@link IOExceptionThrowingRunnable} instances which encapsulate
+	 *                          the resources/actions to be closed or executed
+	 * @throws T                the consolidated exception containing any {@link IOException}s that were
+	 *                          thrown by the provided runnables
+	 */
+	public static <T extends RuntimeException> void executeSafely(
+		@Nonnull Supplier<T> exceptionFactory,
+		@Nonnull IOExceptionThrowingRunnable consumer
+	) throws T {
+		T exception = null;
+		try {
+			consumer.run();
+		} catch (IOException e) {
+			exception = exceptionFactory.get();
+			exception.addSuppressed(e);
+		}
+		if (exception != null) {
+			throw exception;
+		}
+	}
+
+	/**
+	 * Executes lambda logic encapsulated in {@link IOExceptionThrowingConsumer} instances, suppressing
+	 * and aggregating any {@link IOException} that occurs during execution. If any exceptions are thrown, they
+	 * are encapsulated and re-thrown as a single exception provided by the {@code exceptionFactory}.
+	 *
+	 * @param <T>               the type of exception that will be thrown if any {@link IOException} occurs
+	 * @param exceptionFactory  a supplier that provides an exception of type {@code T}, used to wrap any
+	 *                          {@link IOException} thrown during the execution of the provided runnables
+	 * @param consumer          varargs of {@link IOExceptionThrowingConsumer} instances which encapsulate
+	 *                          the resources/actions to be closed or executed
+	 * @throws T                the consolidated exception containing any {@link IOException}s that were
+	 *                          thrown by the provided runnables
+	 */
+	public static <S, T extends RuntimeException> void executeSafely(
+		@Nonnull S input,
+		@Nonnull Supplier<T> exceptionFactory,
+		@Nonnull IOExceptionThrowingConsumer<S> consumer
+	) throws T {
+		T exception = null;
+		try {
+			consumer.accept(input);
+		} catch (IOException e) {
+			exception = exceptionFactory.get();
+			exception.addSuppressed(e);
+		}
+		if (exception != null) {
+			throw exception;
+		}
+	}
+
+	/**
+	 * Executes lambda logic encapsulated in {@link IOExceptionThrowingConsumer} instances, suppressing
+	 * and aggregating any {@link IOException} that occurs during execution. If any exceptions are thrown, they
+	 * are encapsulated and re-thrown as a single exception provided by the {@code exceptionFactory}.
+	 *
+	 * @param <T>               the type of exception that will be thrown if any {@link IOException} occurs
+	 * @param exceptionFactory  a supplier that provides an exception of type {@code T}, used to wrap any
+	 *                          {@link IOException} thrown during the execution of the provided runnables
+	 * @param consumer          varargs of {@link IOExceptionThrowingConsumer} instances which encapsulate
+	 *                          the resources/actions to be closed or executed
+	 * @throws T                the consolidated exception containing any {@link IOException}s that were
+	 *                          thrown by the provided runnables
+	 */
+	public static <S, T, U extends RuntimeException> void executeSafely(
+		@Nonnull S input1,
+		@Nonnull T input2,
+		@Nonnull Supplier<U> exceptionFactory,
+		@Nonnull IOExceptionThrowingBiConsumer<S, T> consumer
+	) throws U {
+		U exception = null;
+		try {
+			consumer.accept(input1, input2);
+		} catch (IOException e) {
+			exception = exceptionFactory.get();
+			exception.addSuppressed(e);
+		}
+		if (exception != null) {
+			throw exception;
+		}
+	}
+
+	/**
+	 * Executes lambda logic encapsulated in {@link IOExceptionThrowingSupplier} instances, suppressing
+	 * and aggregating any {@link IOException} that occurs during execution. If any exceptions are thrown, they
+	 * are encapsulated and re-thrown as a single exception provided by the {@code exceptionFactory}.
+	 *
+	 * @param <T>               the type of exception that will be thrown if any {@link IOException} occurs
+	 * @param exceptionFactory  a supplier that provides an exception of type {@code T}, used to wrap any
+	 *                          {@link IOException} thrown during the execution of the provided runnables
+	 * @param supplier          varargs of {@link IOExceptionThrowingConsumer} instances which encapsulate
+	 *                          the resources/actions to be closed or executed
+	 * @throws T                the consolidated exception containing any {@link IOException}s that were
+	 *                          thrown by the provided runnables
+	 */
+	@Nonnull
+	public static <S, T extends RuntimeException> S executeSafely(
+		@Nonnull Supplier<T> exceptionFactory,
+		@Nonnull IOExceptionThrowingSupplier<S> supplier
+	) throws T {
+		S result = null;
+		T exception = null;
+		try {
+			result = supplier.get();
+		} catch (IOException e) {
+			exception = exceptionFactory.get();
+			exception.addSuppressed(e);
+		}
+		if (exception != null) {
+			throw exception;
+		} else {
+			return result;
+		}
+	}
+
+	/**
 	 * Closes multiple resources encapsulated in {@link IOExceptionThrowingRunnable} instances, suppressing
 	 * and aggregating any {@link IOException} that occurs during execution. If any exceptions are thrown, they
 	 * are encapsulated and re-thrown as a single exception provided by the {@code exceptionFactory}.
@@ -163,7 +288,6 @@ public class IOUtils {
 		}
 	}
 
-
 	/**
 	 * Represents a functional interface that can be used to encapsulate a block of code
 	 * that may throw an {@link IOException}. This interface is effectively a specialized
@@ -185,6 +309,79 @@ public class IOUtils {
 	public interface IOExceptionThrowingRunnable {
 
 		void run() throws IOException;
+
+	}
+
+	/**
+	 * Represents a functional interface that can be used to encapsulate a block of code
+	 * that may throw an {@link IOException}. This interface is effectively a specialized
+	 * form of {@link Consumer} for operations where checked I/O exceptions need to be handled.
+	 *
+	 * Implementations of this interface enable the execution of operations with the awareness
+	 * and explicit handling of {@link IOException}. This is especially useful in scenarios
+	 * where multiple such operations need to be executed or wrapped with exception aggregation,
+	 * for example, in utility methods like resource handling or cleanup.
+	 *
+	 * Method {@code run} is similar to the {@link Consumer#accept(Object)} method but allows an
+	 * {@link IOException} to be thrown.
+	 *
+	 * Functional-style programming can make use of this interface to define inline behaviors
+	 * for operations expected to throw {@link IOException}. It can also be integrated with
+	 * various utility methods that leverage this interface for exception handling and resource management.
+	 */
+	@FunctionalInterface
+	public interface IOExceptionThrowingConsumer<T> {
+
+		void accept(@Nonnull T input) throws IOException;
+
+	}
+
+	/**
+	 * Represents a functional interface that can be used to encapsulate a block of code
+	 * that may throw an {@link IOException}. This interface is effectively a specialized
+	 * form of {@link Supplier} for operations where checked I/O exceptions need to be handled.
+	 *
+	 * Implementations of this interface enable the execution of operations with the awareness
+	 * and explicit handling of {@link IOException}. This is especially useful in scenarios
+	 * where multiple such operations need to be executed or wrapped with exception aggregation,
+	 * for example, in utility methods like resource handling or cleanup.
+	 *
+	 * Method {@code run} is similar to the {@link Supplier#get()} method but allows an
+	 * {@link IOException} to be thrown.
+	 *
+	 * Functional-style programming can make use of this interface to define inline behaviors
+	 * for operations expected to throw {@link IOException}. It can also be integrated with
+	 * various utility methods that leverage this interface for exception handling and resource management.
+	 */
+	@FunctionalInterface
+	public interface IOExceptionThrowingSupplier<T> {
+
+		@Nonnull
+		T get() throws IOException;
+
+	}
+
+	/**
+	 * Represents a functional interface that can be used to encapsulate a block of code
+	 * that may throw an {@link IOException}. This interface is effectively a specialized
+	 * form of {@link BiConsumer} for operations where checked I/O exceptions need to be handled.
+	 *
+	 * Implementations of this interface enable the execution of operations with the awareness
+	 * and explicit handling of {@link IOException}. This is especially useful in scenarios
+	 * where multiple such operations need to be executed or wrapped with exception aggregation,
+	 * for example, in utility methods like resource handling or cleanup.
+	 *
+	 * Method {@code run} is similar to the {@link BiConsumer#accept(Object, Object)} method but allows an
+	 * {@link IOException} to be thrown.
+	 *
+	 * Functional-style programming can make use of this interface to define inline behaviors
+	 * for operations expected to throw {@link IOException}. It can also be integrated with
+	 * various utility methods that leverage this interface for exception handling and resource management.
+	 */
+	@FunctionalInterface
+	public interface IOExceptionThrowingBiConsumer<S, T> {
+
+		void accept(@Nonnull S input1, @Nonnull T input2) throws IOException;
 
 	}
 

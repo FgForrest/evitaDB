@@ -1,0 +1,45 @@
+{
+  queryProduct(
+    filterBy: {
+      hierarchyCategoriesWithin: {
+        ofParent: {
+          attributeCodeEquals: "accessories"
+        }
+      }
+    },
+    orderBy: [
+      {
+        referenceCategoriesProperty: [
+          {
+            traverseByEntityProperty: {
+              traversalMode: BREADTH_FIRST,
+              orderBy: [
+                {
+                  attributeOrderNatural: ASC
+                }
+              ]
+            }
+          },
+          {
+            attributeOrderInCategoryNatural: ASC
+          }
+        ]
+      }
+    ]
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        attributes {
+          code
+        }
+        categories {
+          referencedPrimaryKey
+          attributes {
+            orderInCategory
+          }
+        }
+      }
+    }
+  }
+}
