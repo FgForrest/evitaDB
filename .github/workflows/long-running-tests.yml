@@ -42,12 +42,11 @@ jobs:
           echo "Commits found in dev branch: $NEW_COMMIT_COUNT"
 
       - name: Setup Java JDK   # this should setup JDK 17 but only if something was committed to dev branch in the last week
-        uses: actions/setup-java@7a6d8a8234af8eb26422e24e3006232cccaa061b # v4.6.0
+        uses: actions/setup-java@3a4f6e1af504cf6a31855fa899c6aa5355ba6c12 # v4.7.0
         if: ${{ env.NEW_COMMIT_COUNT != '0' }}
         with:
            distribution: 'temurin'
            java-version: '17'
-           architecture: ${{ matrix.arch }}
            cache: 'maven'
 
       - name: Long running tests   # this run Maven tests but only if something was committed to dev branch in the last week
