@@ -70,7 +70,7 @@ In several NoSQL databases, this problem is even more complicated. Some do not a
 
 In the web environment, such a problem is very common, so we strive to make things easier for developers. In evitaDB, this query would look much simpler:
 
-<SourceCodeTabs>
+<SourceCodeTabs local>
 
 [Product Listing Sorted by Group Order](/documentation/blog/en/examples/17-one-to-many/product-groups.evitaql)
 
@@ -154,7 +154,7 @@ Even this query is very complicated to understand in relational database formula
 
 The approach in evitaDB adheres to the declarative principle – the developer simply specifies the desired output without worrying about how it is achieved. That’s the database’s job. Our query for hierarchical structures in evitaDB would look like this:
 
-<SourceCodeTabs>
+<SourceCodeTabs local>
 
 [Product Listing Sorted by Category Order](/documentation/blog/en/examples/17-one-to-many/product-categories.evitaql)
 
@@ -174,7 +174,7 @@ The sorting described can be applied not only at the level of the main output en
 
 To avoid pure theoretical discussions, let’s extend our example with an additional entity `tag` (Tag), which is assigned at the category level and also has a "one-to-many" cardinality. If we wanted to list products according to the hierarchical structure, where categories at each level are sorted by the first assigned tag with the highest priority, the query might look like this:
 
-<SourceCodeTabs>
+<SourceCodeTabs local>
 
 [Product Listing Sorted by Category Order, Sorted by the Most Prioritized Tag](/documentation/blog/en/examples/17-one-to-many/product-categories-tags.evitaql)
 
@@ -249,7 +249,7 @@ Again, in application logic, we need to handle the conversion of this informatio
 
 Queries in evitaDB do not suffer from this problem, as they can return entities loaded to any depth in a structured way. The issue arises when there is a risk of a large number of references being returned. Besides the fact that we might not be able to present such large amounts of data to the target user, we also risk unnecessary load on the database machine and the transmission of large amounts of data over the network (i.e., increased query latency). Therefore, it’s useful to limit the number of references loaded in such cases. In evitaDB, we would do this like this:
 
-<SourceCodeTabs>
+<SourceCodeTabs local>
 
 [Product Parameters Listing Limited to the Top 10 Most Important](/documentation/blog/en/examples/17-one-to-many/product-parameters-top10.evitaql)
 
@@ -259,7 +259,7 @@ The output is a data structure representing a page or a slice defined by `offset
 
 In many situations, we don’t even need to load the actual references – we just need information about their count or simply the fact that at least one such reference exists. This situation often occurs when we need to filter the references further – for example, in the product entity, check if there is at least one reference to a warehouse marked as a priority with a stock quantity greater than one. We would simply handle this like this (the GraphQL query variant is more representative here):
 
-<SourceCodeTabs>
+<SourceCodeTabs local>
 
 [Checking for Existence of a Priority Warehouse for a Product](/documentation/blog/en/examples/17-one-to-many/product-stock-existence.evitaql)
 
@@ -271,7 +271,7 @@ The current world is driven by marketing needs, so it is common to have listings
 
 For these purposes, spacing is used, which can also be applied to references listing. Our described example would be handled like this:
 
-<SourceCodeTabs>
+<SourceCodeTabs local>
 
 [Listing Similar Articles with Interspersed Ads](/documentation/blog/en/examples/17-one-to-many/article-spacing.evitaql)
 
