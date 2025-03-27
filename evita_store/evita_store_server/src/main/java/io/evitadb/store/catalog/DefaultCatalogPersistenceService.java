@@ -934,25 +934,45 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				)
 				.forEach(filePath -> {
 					final long sourceFileSize = filePath.toFile().length();
+					final String fileName = filePath.getFileName().toString();
 					try (
 						final ObservableInput<RandomAccessFileInputStream> input = new ObservableInput<>(
 							new RandomAccessFileInputStream(new RandomAccessFile(filePath.toFile(), "rw"), true)
 						);
 						final ObservableOutput<FileOutputStream> output = new ObservableOutput<>(
-							new FileOutputStream(targetPath.resolve(filePath.getFileName().toString()).toFile(), false),
+							new FileOutputStream(targetPath.resolve(fileName).toFile(), false),
 							storageOptions.outputBufferSize(),
 							sourceFileSize
 						)
 					) {
 						if (storageOptions.computeCRC32C()) {
+							input.computeCRC32();
 							output.computeCRC32();
 						}
-						RawRecord rawRecord;
-						do {
-							rawRecord = StorageRecord.readOldRaw(input);
-							StorageRecord.writeRaw(output, rawRecord.control(), rawRecord.generationId(), rawRecord.rawData());
-						} while (rawRecord.location().endPosition() < sourceFileSize);
-						ConsoleWriter.writeLine("Migrated catalog `" + catalogName + "` file: " + filePath, ConsoleColor.DARK_BLUE);
+						if (fileName.endsWith(WAL_FILE_SUFFIX)) {
+							RawRecord rawRecord;
+							long endOfTransaction = 0L;
+							long readTotal = 0L;
+							do {
+								// each transaction is preceded by overall transaction length
+								if (endOfTransaction == -1 || readTotal >= endOfTransaction) {
+									final int txLength = input.simpleIntRead();
+									endOfTransaction += 4 + txLength;
+									output.writeInt(txLength);
+									readTotal += 4;
+								}
+								rawRecord = StorageRecord.readOldRaw(input);
+								StorageRecord.writeRaw(output, rawRecord.control(), rawRecord.generationId(), rawRecord.rawData());
+								readTotal += rawRecord.location().recordLength();
+							} while (rawRecord.location().endPosition() < sourceFileSize);
+						} else {
+							RawRecord rawRecord;
+							do {
+								rawRecord = StorageRecord.readOldRaw(input);
+								StorageRecord.writeRaw(output, rawRecord.control(), rawRecord.generationId(), rawRecord.rawData());
+							} while (rawRecord.location().endPosition() < sourceFileSize);
+							ConsoleWriter.writeLine("Migrated catalog `" + catalogName + "` file: " + filePath, ConsoleColor.DARK_BLUE);
+						}
 					} catch (FileNotFoundException e) {
 						throw new UnexpectedIOException(
 							"Failed to open catalog data file `" + filePath + "`!",
@@ -2588,11 +2608,11 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			if (catalogHeader.storageProtocolVersion() == 1) {
 				// upgrade from version 1 to version 2
 				ConsoleWriter.writeLine("Catalog `" + catalogHeader.catalogName() + "` uses deprecated entity collection data file names of storage protocol version 1.", ConsoleColor.BRIGHT_BLUE, ConsoleDecoration.BOLD);
-				upgradeFromStorageProtocolVersion_1_to_2(catalogVersion, catalogHeader, storagePartPersistenceService);
+				upgradeFromStorageProtocolVersion_1_to_2(catalogHeader, storagePartPersistenceService);
 			} else if (catalogHeader.storageProtocolVersion() == 2) {
 				// upgrade storage protocol version 2 to 3
 				ConsoleWriter.writeLine("Catalog `" + catalogHeader.catalogName() + "` contains storage protocol version 2 in its header, updating.", ConsoleColor.BRIGHT_BLUE);
-				updateStorageProtocolInCatalogHeader(catalogVersion, catalogHeader, storagePartPersistenceService);
+				updateStorageProtocolInCatalogHeader(catalogHeader, storagePartPersistenceService);
 				ConsoleWriter.writeLine("Catalog `" + catalogHeader.catalogName() + "` catalog header updated.", ConsoleColor.BRIGHT_BLUE);
 			}
 			// try to initialize the persistence service again - it should now have the correct storage protocol version
@@ -2612,14 +2632,12 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 * Upgrades the storage protocol from version 1 to version 2. In the version 2 the entity collection files were
 	 * renamed and contains the primary key in their name.
 	 *
-	 * @param catalogVersion                the version of the catalog
 	 * @param catalogHeader                 the catalog header
 	 * @param storagePartPersistenceService the storage part persistence service
 	 * @deprecated introduced with ##41 and could be removed later when no version prior to 2024.11 is used
 	 */
 	@Deprecated
 	private void upgradeFromStorageProtocolVersion_1_to_2(
-		long catalogVersion,
 		@Nonnull CatalogHeader catalogHeader,
 		@Nonnull CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService
 	) {
@@ -2640,7 +2658,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			}
 
 			// entity collection files contains also their primary key in the name
-			updateStorageProtocolInCatalogHeader(catalogVersion, catalogHeader, storagePartPersistenceService);
+			updateStorageProtocolInCatalogHeader(catalogHeader, storagePartPersistenceService);
 
 			ConsoleWriter.writeLine("Catalog `" + catalogHeader.catalogName() + "` successfully upgraded from storage protocol version 1 to version " + STORAGE_PROTOCOL_VERSION + ".", ConsoleColor.BRIGHT_BLUE, ConsoleDecoration.BOLD);
 		} catch (IOException e) {
@@ -2657,13 +2675,11 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 * using the supplied catalog offset index storage service. It also updates the catalog bootstrap
 	 * data after flushing the updated catalog header.
 	 *
-	 * @param catalogVersion The current version of the catalog being processed.
 	 * @param catalogHeader The catalog header containing metadata about the catalog.
 	 * @param storagePartPersistenceService The service used to manage persistence of the catalog
 	 *                                      header and related storage parts.
 	 */
 	private void updateStorageProtocolInCatalogHeader(
-		long catalogVersion,
 		@Nonnull CatalogHeader catalogHeader,
 		@Nonnull CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService
 	) {
@@ -2678,7 +2694,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			catalogHeader.catalogState(),
 			catalogHeader.lastEntityCollectionPrimaryKey()
 		);
-		final OffsetIndexDescriptor flushedDescriptor = storagePartPersistenceService.flush(catalogVersion);
+		final OffsetIndexDescriptor flushedDescriptor = storagePartPersistenceService.flush(catalogHeader.version());
 		this.bootstrapUsed = writeCatalogBootstrap(
 			catalogHeader.version(),
 			catalogHeader.catalogName(),
