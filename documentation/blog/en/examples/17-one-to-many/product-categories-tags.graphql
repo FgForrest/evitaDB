@@ -1,0 +1,48 @@
+{
+  queryProduct(
+    orderBy: [
+      {
+        referenceGroupsProperty: [
+          {
+            traverseByEntityProperty: {
+              traversalMode: DEPTH_FIRST,
+              orderBy: [
+                {
+                  referenceTagsProperty: [
+                    {
+                      traverseByEntityProperty: {
+                        orderBy: [
+                          {
+                            attributePriorityNatural: DESC
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            attributeOrderNatural: ASC
+          }
+        ]
+      }
+    ]
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        attributes {
+          name
+        }
+        groups {
+          referencedPrimaryKey
+          attributes {
+            order
+          }
+        }
+      }
+    }
+  }
+}
