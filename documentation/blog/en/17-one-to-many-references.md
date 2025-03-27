@@ -162,10 +162,10 @@ The approach in evitaDB adheres to the declarative principle – the developer s
 
 By simply changing the first argument `traverseByEntityProperty` (`DEPTH_FIRST`) to `BREADTH_FIRST`, we can easily switch between depth-first [search](https://en.wikipedia.org/wiki/Depth-first_search) and [breadth-first search](https://en.wikipedia.org/wiki/Breadth-first_search). At the `traverseByEntityProperty` level, we simply determine the order in which categories should be traversed at each level.
 
-| Depth first search                                                    | Breadth first search                                                                                         |
-|-----------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------|
-| <img alt="Depth first search" height="175" src="../en/assets/images/Depth-First-Search.gif" width="187"/>    | <img height="175" src="../en/assets/images/Breadth-First-Search.gif" width="187"/>   |
-| Source: [Wikipedia](https://en.wikipedia.org/wiki/Depth-first_search) | Source: [Wikipedia](https://en.wikipedia.org/wiki/Breadth-first_search)                                      |
+| Depth first search                                                                                                         | Breadth first search                                                                                         |
+|----------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------|
+| <img alt="Depth first search" height="175" src="/documentation/blog/en/assets/images/Depth-First-Search.gif" width="187"/> | <img height="175" src="documentation/blog/en/assets/images/Breadth-First-Search.gif" width="187"/>   |
+| Source: [Wikipedia](https://en.wikipedia.org/wiki/Depth-first_search)                                                      | Source: [Wikipedia](https://en.wikipedia.org/wiki/Breadth-first_search)                                      |
 
 ### The Relationship Between Traversing and Sorting by the Selected Reference
 
