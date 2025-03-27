@@ -51,15 +51,11 @@ jobs:
 
       - name: Long running tests   # this run Maven tests but only if something was committed to dev branch in the last week
         if: ${{ env.NEW_COMMIT_COUNT != '0' }}
-        run: mvn -T 1C -B package -P longRunning -V --fail-at-end -Dmaven.test.skip=false --file pom.xml
+        run: mvn -T 1C -B package -P longRunning -V --fail-at-end --file pom.xml
 
       - name: Upload test results  # this upload test results but only if something was committed to dev branch in the last week
         uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
         if: ${{ env.NEW_COMMIT_COUNT != '0' && always() }}
         with:
-          name: test-results
+          name: test-results-${{ matrix.os }}-${{ matrix.arch }}
           path: 'evita*/**/target/surefire-reports/TEST-*.xml'
-
-      - name: Upload coverage to Codecov  # this upload test coverage but only if something was committed to dev branch in the last week
-        uses: codecov/codecov-action@13ce06bfc6bbe3ecf90edbbf1bc32fe5978ca1d3 # v5.3.1
-        if: ${{ env.NEW_COMMIT_COUNT != '0' }}
