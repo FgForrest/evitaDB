@@ -464,6 +464,19 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 				content -> assertTrue(content.contains("evitaDB-"), "The system API should be accessible via Lab scheme and port: " + content)
 			);
 
+			// we should be able also to access the system API with trailing slash
+			NetworkUtils.fetchContent(
+				"http://localhost:" + servicePorts.get(SystemProvider.CODE) + "/system/server-name/",
+				"GET",
+				"text/plain",
+				null,
+				TIMEOUT_IN_MILLIS,
+				error -> fail("The system API should be accessible via Lab scheme and port: " + error),
+				timeout -> assertEquals("Error fetching content from URL: http://localhost:" + servicePorts.get(ObservabilityProvider.CODE) + "/system/server-name/ HTTP status 404 - Not Found: Service not available.", timeout)
+			).ifPresent(
+				content -> assertTrue(content.contains("evitaDB-"), "The system API should be accessible via Lab scheme and port: " + content)
+			);
+
 			NetworkUtils.fetchContent(
 				"https://localhost:" + servicePorts.get(GraphQLProvider.CODE) + "/gql/system",
 				"POST",
