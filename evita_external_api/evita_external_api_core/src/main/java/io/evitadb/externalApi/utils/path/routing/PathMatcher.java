@@ -147,7 +147,7 @@ public class PathMatcher<T> {
 	}
 
 	public T getExactPath(final String path) {
-		return exactPathMatches.get(URLUtils.normalizeSlashes(path));
+		return exactPathMatches.get(path);
 	}
 
 	public T getPrefixPath(final String path) {
