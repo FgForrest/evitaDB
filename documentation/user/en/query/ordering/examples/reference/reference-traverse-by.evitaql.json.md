@@ -1,13 +1,13 @@
 ```json
 {
-  "primaryKey" : 107891,
+  "primaryKey" : 113705,
   "attributes" : {
-    "code" : "amazfit-bip-3"
+    "code" : "emos-cold-base-set-for-interconnecting-chains"
   },
   "references" : {
     "categories" : [
       {
-        "referencedKey" : 66486,
+        "referencedKey" : 66480,
         "attributes" : {
           "orderInCategory" : "Predecessor[predecessorPk=-1]"
         }
