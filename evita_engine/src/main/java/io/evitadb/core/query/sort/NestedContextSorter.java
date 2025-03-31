@@ -51,9 +51,10 @@ public class NestedContextSorter {
 		int startIndex,
 		int endIndex,
 		@Nonnull int[] result,
-		int peak
+		int peak,
+		int skipped
 	) {
-		return sorter.sortAndSlice(context, input, startIndex, endIndex, result, peak);
+		return sorter.sortAndSlice(context, input, startIndex, endIndex, result, peak, skipped);
 	}
 
 }

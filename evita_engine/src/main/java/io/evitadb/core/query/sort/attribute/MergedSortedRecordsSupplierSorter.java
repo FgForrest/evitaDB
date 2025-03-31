@@ -52,7 +52,7 @@ import java.util.function.IntConsumer;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public final class MergedSortedRecordsSupplier extends AbstractRecordsSorter implements ConditionalSorter, Serializable, MergedSortedRecordsSupplierContract {
+public final class MergedSortedRecordsSupplierSorter extends AbstractRecordsSorter implements ConditionalSorter, Serializable, MergedSortedRecordsSupplierContract {
 	@Serial private static final long serialVersionUID = 6709519064291586499L;
 	/**
 	 * Contains the {@link SortedRecordsProvider} implementation with merged pre-sorted records.
@@ -206,7 +206,7 @@ public final class MergedSortedRecordsSupplier extends AbstractRecordsSorter imp
 		}
 	}
 
-	public MergedSortedRecordsSupplier(
+	public MergedSortedRecordsSupplierSorter(
 		@Nonnull SortedRecordsProvider[] sortedRecordsProviders,
 		@Nullable Sorter unknownRecordIdsSorter
 	) {
@@ -217,7 +217,7 @@ public final class MergedSortedRecordsSupplier extends AbstractRecordsSorter imp
 	@Nonnull
 	@Override
 	public Sorter cloneInstance() {
-		return new MergedSortedRecordsSupplier(
+		return new MergedSortedRecordsSupplierSorter(
 			sortedRecordsProviders, null
 		);
 	}
@@ -225,7 +225,7 @@ public final class MergedSortedRecordsSupplier extends AbstractRecordsSorter imp
 	@Nonnull
 	@Override
 	public Sorter andThen(Sorter sorterForUnknownRecords) {
-		return new MergedSortedRecordsSupplier(
+		return new MergedSortedRecordsSupplierSorter(
 			sortedRecordsProviders, sorterForUnknownRecords
 		);
 	}
@@ -244,11 +244,15 @@ public final class MergedSortedRecordsSupplier extends AbstractRecordsSorter imp
 		int endIndex,
 		@Nonnull int[] result,
 		int peak,
+		int skipped,
 		@Nullable IntConsumer skippedRecordsConsumer
 	) {
+		final int recomputedStartIndex = Math.max(0, startIndex - peak - skipped);
+		final int recomputedEndIndex = Math.max(0, endIndex - peak - skipped);
+
 		final Bitmap selectedRecordIds = input.compute();
-		if (selectedRecordIds.size() < startIndex) {
-			throw new IndexOutOfBoundsException("Index: " + startIndex + ", Size: " + selectedRecordIds.size());
+		if (selectedRecordIds.size() < recomputedStartIndex) {
+			throw new IndexOutOfBoundsException("Index: " + recomputedStartIndex + ", Size: " + selectedRecordIds.size());
 		}
 		if (selectedRecordIds.isEmpty()) {
 			return 0;
@@ -257,14 +261,17 @@ public final class MergedSortedRecordsSupplier extends AbstractRecordsSorter imp
 			try {
 				final SkippingRecordConsumer delegateConsumer = new SkippingRecordConsumer(skippedRecordsConsumer);
 				final SortResult sortResult = collectPartialResults(
-					queryContext, selectedRecordIds, startIndex, endIndex, result, peak, buffer, delegateConsumer
+					queryContext, selectedRecordIds, recomputedStartIndex, recomputedEndIndex, result, peak, buffer, delegateConsumer
 				);
 				return returnResultAppendingUnknown(
 					queryContext, sortResult.notSortedRecords(),
 					this.unknownRecordIdsSorter,
-					Math.max(0, startIndex - delegateConsumer.getCounter()),
-					Math.max(0, endIndex - delegateConsumer.getCounter()),
-					result, sortResult.peak(), buffer
+					startIndex,
+					endIndex,
+					result,
+					sortResult.peak(),
+					skipped + delegateConsumer.getCounter(),
+					buffer
 				);
 			} finally {
 				queryContext.returnBuffer(buffer);

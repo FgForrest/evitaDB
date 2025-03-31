@@ -132,7 +132,7 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 			firstApplicableSorter.sortAndSlice(
 				theSorter.queryContext(),
 				input, 0, inputSize,
-				result, 0
+				result, 0, 0
 			);
 			return result;
 		}

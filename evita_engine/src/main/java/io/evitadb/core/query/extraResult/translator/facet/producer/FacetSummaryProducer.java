@@ -527,7 +527,7 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 			final Bitmap recordsToSort = unsortedIds.compute();
 			final int count = recordsToSort.size();
 			final int[] result = new int[count];
-			final int peak = sorter.sortAndSlice(unsortedIds, 0, count, result, 0);
+			final int peak = sorter.sortAndSlice(unsortedIds, 0, count, result, 0, 0);
 			return SortUtils.asResult(result, peak);
 		}
 
@@ -563,7 +563,7 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 						final Bitmap unsortedIdsBitmap = unsortedIds.compute();
 						final int[] result = new int[unsortedIdsBitmap.size()];
 						final int peak = sorter.sortAndSlice(
-							unsortedIds, 0, unsortedIdsBitmap.size(), result, 0
+							unsortedIds, 0, unsortedIdsBitmap.size(), result, 0, 0
 						);
 						return SortUtils.asResult(result, peak);
 					}

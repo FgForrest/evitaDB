@@ -70,6 +70,7 @@ public class DeferredSorter implements Sorter {
 		int endIndex,
 		@Nonnull int[] result,
 		int peak,
+		int skipped,
 		@Nullable IntConsumer skippedRecordsConsumer
 	) {
 		final Sorter firstApplicableSorter = ConditionalSorter.getFirstApplicableSorter(queryContext, sorter);
@@ -78,7 +79,7 @@ public class DeferredSorter implements Sorter {
 		} else {
 			return executionWrapper.applyAsInt(
 				() -> firstApplicableSorter.sortAndSlice(
-					queryContext, input, startIndex, endIndex, result, peak, skippedRecordsConsumer
+					queryContext, input, startIndex, endIndex, result, peak, skipped, skippedRecordsConsumer
 				)
 			);
 		}

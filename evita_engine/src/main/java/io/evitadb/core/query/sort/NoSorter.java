@@ -69,13 +69,17 @@ public class NoSorter implements Sorter {
 		int endIndex,
 		@Nonnull int[] result,
 		int peak,
+		int skipped,
 		@Nullable IntConsumer skippedRecordsConsumer
 	) {
+		final int recomputedStartIndex = Math.max(0, startIndex - peak - skipped);
+		final int recomputedEndIndex = Math.max(0, endIndex - peak - skipped);
+
 		final Bitmap filteredRecordIdBitmap = input.compute();
-		final int maxLength = Math.max(0, Math.min(endIndex - startIndex, filteredRecordIdBitmap.size() - startIndex));
-		if (endIndex > 0 && !filteredRecordIdBitmap.isEmpty()) {
-			final int[] slice = filteredRecordIdBitmap.getRange(startIndex, startIndex + maxLength);
-			System.arraycopy(slice, 0, result, peak, slice.length);
+		final int maxLength = Math.max(0, Math.min(recomputedEndIndex - recomputedStartIndex, filteredRecordIdBitmap.size() - recomputedStartIndex));
+		if (recomputedEndIndex > 0 && !filteredRecordIdBitmap.isEmpty()) {
+			final int[] slice = filteredRecordIdBitmap.getRange(recomputedStartIndex, recomputedStartIndex + maxLength);
+			System.arraycopy(slice, 0, result, peak, Math.min(result.length - peak, slice.length));
 			return peak + slice.length;
 		} else {
 			return 0;

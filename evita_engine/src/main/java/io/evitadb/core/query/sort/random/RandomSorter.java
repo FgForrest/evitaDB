@@ -78,26 +78,30 @@ public class RandomSorter implements Sorter {
 		int endIndex,
 		@Nonnull int[] result,
 		int peak,
+		int skipped,
 		@Nullable IntConsumer skippedRecordsConsumer
 	) {
+		final int recomputedStartIndex = Math.max(0, startIndex - peak - skipped);
+		final int recomputedEndIndex = Math.max(0, endIndex - peak - skipped);
+
 		final Bitmap filteredRecordIdBitmap = input.compute();
 		if (filteredRecordIdBitmap.isEmpty()) {
 			return 0;
 		} else {
 			final int[] filteredRecordIds = filteredRecordIdBitmap.getArray();
-			final int length = Math.min(filteredRecordIds.length, endIndex - startIndex);
+			final int length = Math.min(filteredRecordIds.length, recomputedEndIndex - recomputedStartIndex);
 			if (length < 0) {
-				throw new IndexOutOfBoundsException("Index: " + startIndex + ", Size: " + filteredRecordIds.length);
+				throw new IndexOutOfBoundsException("Index: " + recomputedStartIndex + ", Size: " + filteredRecordIds.length);
 			}
 			final Random random = seed == null ? queryContext.getRandom() : new Random(seed);
 			for (int i = 0; i < length; i++) {
-				final int tmp = filteredRecordIds[startIndex + i];
+				final int tmp = filteredRecordIds[recomputedStartIndex + i];
 				final int swapPosition = random.nextInt(filteredRecordIds.length);
-				filteredRecordIds[startIndex + i] = filteredRecordIds[swapPosition];
+				filteredRecordIds[recomputedStartIndex + i] = filteredRecordIds[swapPosition];
 				filteredRecordIds[swapPosition] = tmp;
 			}
 
-			System.arraycopy(filteredRecordIds, startIndex, result, peak, length);
+			System.arraycopy(filteredRecordIds, recomputedStartIndex, result, peak, length);
 			return peak + length;
 		}
 	}

@@ -69,6 +69,7 @@ public interface Sorter {
 	 * @param endIndex               The ending index for the slicing (exclusive).
 	 * @param result                 An array to store the sliced result.
 	 * @param peak                   A parameter to indicate last index of the result array where the data has been written.
+	 * @param skipped                A parameter to indicate the number of skipped records by previous sorters.
 	 * @param skippedRecordsConsumer A consumer to handle the records that are skipped during the process.
 	 * @return The number of records that were processed and stored in the result array.
 	 */
@@ -79,6 +80,7 @@ public interface Sorter {
 		int endIndex,
 		@Nonnull int[] result,
 		int peak,
+		int skipped,
 		@Nullable IntConsumer skippedRecordsConsumer
 	);
 
@@ -92,6 +94,7 @@ public interface Sorter {
 	 * @param endIndex               The ending index for the slicing (exclusive).
 	 * @param result                 An array to store the sliced result.
 	 * @param peak                   A parameter to indicate last index of the result array where the data has been written.
+	 * @param skipped                A parameter to indicate the number of skipped records by previous sorters.
 	 * @return The number of records that were processed and stored in the result array.
 	 */
 	default int sortAndSlice(
@@ -100,7 +103,8 @@ public interface Sorter {
 		int startIndex,
 		int endIndex,
 		@Nonnull int[] result,
-		int peak
+		int peak,
+		int skipped
 	) {
 		return sortAndSlice(
 			queryContext,
@@ -109,6 +113,7 @@ public interface Sorter {
 			endIndex,
 			result,
 			peak,
+			skipped,
 			null
 		);
 	}

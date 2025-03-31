@@ -139,6 +139,7 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 		int endIndex,
 		@Nonnull int[] result,
 		int peak,
+		int skipped,
 		@Nullable IntConsumer skippedRecordsConsumer
 	) {
 		final Bitmap selectedRecordIds = input.compute();
@@ -146,9 +147,9 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 			return 0;
 		} else {
 			if (queryContext.getPrefetchedEntities() == null) {
-				return sortOutputBasedOnIndex(queryContext, startIndex, endIndex, selectedRecordIds, result, peak);
+				return sortOutputBasedOnIndex(queryContext, startIndex, endIndex, selectedRecordIds, result, peak, skipped, skippedRecordsConsumer);
 			} else {
-				return sortOutputByPrefetchedEntities(queryContext, startIndex, endIndex, selectedRecordIds, result, peak);
+				return sortOutputByPrefetchedEntities(queryContext, startIndex, endIndex, selectedRecordIds, result, peak, skipped, skippedRecordsConsumer);
 			}
 		}
 	}
@@ -157,13 +158,22 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 	 * Sorts the selected primary key ids by the order of attributes in {@link SortIndex}.
 	 */
 	private int sortOutputBasedOnIndex(
-		@Nonnull QueryExecutionContext queryContext, int startIndex, int endIndex, @Nonnull Bitmap selectedRecordIds,
-		@Nonnull int[] result, int peak
+		@Nonnull QueryExecutionContext queryContext,
+		int startIndex,
+		int endIndex,
+		@Nonnull Bitmap selectedRecordIds,
+		@Nonnull int[] result,
+		int peak,
+		int skipped,
+		@Nullable IntConsumer skippedRecordsConsumer
 	) {
+		final int recomputedStartIndex = Math.max(0, startIndex - peak - skipped);
+		final int recomputedEndIndex = Math.max(0, endIndex - peak - skipped);
+
 		final int[] entireResult = selectedRecordIds.getArray();
-		final int length = Math.min(entireResult.length, endIndex - startIndex);
+		final int length = Math.min(entireResult.length, recomputedEndIndex - recomputedStartIndex);
 		if (length < 0) {
-			throw new IndexOutOfBoundsException("Index: " + startIndex + ", Size: " + entireResult.length);
+			throw new IndexOutOfBoundsException("Index: " + recomputedStartIndex + ", Size: " + entireResult.length);
 		}
 
 		// retrieve array of "sorted" primary keys based on data from index
@@ -176,8 +186,13 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 		final int lastSortedItem = ArrayUtils.sortAlong(exactPkOrder, entireResult);
 
 		// copy the sorted data to result
-		final int toAppend = Math.min(lastSortedItem, endIndex - startIndex);
-		System.arraycopy(entireResult, startIndex, result, peak, toAppend);
+		final int toAppend = Math.min(lastSortedItem, recomputedEndIndex - recomputedStartIndex);
+		if (skippedRecordsConsumer != null) {
+			for (int i = 0; i < Math.min(recomputedStartIndex, entireResult.length); i++) {
+				skippedRecordsConsumer.accept(entireResult[i]);
+			}
+		}
+		System.arraycopy(entireResult, recomputedStartIndex, result, peak, toAppend);
 
 		// if there are no more records to sort or no additional sorter is present, return entire result
 		if (lastSortedItem == selectedRecordIds.size()) {
@@ -189,12 +204,10 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 				writer.add(entireResult[i]);
 			}
 			// pass them to another sorter
-			final int recomputedStartIndex = Math.max(0, startIndex - lastSortedItem);
-			final int recomputedEndIndex = Math.max(0, endIndex - lastSortedItem);
 			final RoaringBitmap outputBitmap = writer.get();
 			return unknownRecordIdsSorter.sortAndSlice(
 				queryContext, outputBitmap.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(new BaseBitmap(outputBitmap)),
-				recomputedStartIndex, recomputedEndIndex, result, peak + toAppend
+				startIndex, endIndex, result, peak + toAppend, skipped + recomputedStartIndex
 			);
 		}
 	}
@@ -204,9 +217,18 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 	 * by comparator in the place.
 	 */
 	private int sortOutputByPrefetchedEntities(
-		@Nonnull QueryExecutionContext queryContext, int startIndex, int endIndex, @Nonnull Bitmap selectedRecordIds,
-		@Nonnull int[] result, int peak
+		@Nonnull QueryExecutionContext queryContext,
+		int startIndex,
+		int endIndex,
+		@Nonnull Bitmap selectedRecordIds,
+		@Nonnull int[] result,
+		int peak,
+		int skipped,
+		@Nullable IntConsumer skippedRecordsConsumer
 	) {
+		final int recomputedStartIndex = Math.max(0, startIndex - peak - skipped);
+		final int recomputedEndIndex = Math.max(0, endIndex - peak - skipped);
+
 		// collect entity primary keys
 		final OfInt it = selectedRecordIds.iterator();
 		final List<EntityContract> entities = new ArrayList<>(selectedRecordIds.size());
@@ -234,16 +256,19 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 
 		// collect the result
 		final AtomicInteger index = new AtomicInteger();
-		entities.subList(0, selectedRecordIds.size() - notFoundRecordsCnt)
+		final List<EntityContract> finalEntities = entities.subList(0, selectedRecordIds.size() - notFoundRecordsCnt);
+		final int skippedRecords = Math.min(recomputedStartIndex, finalEntities.size());
+		if (skippedRecordsConsumer != null) {
+			for (int i = 0; i < skippedRecords; i++) {
+				skippedRecordsConsumer.accept(queryContext.translateEntity(finalEntities.get(i)));
+			}
+		}
+		finalEntities
 			.stream()
-			.skip(startIndex)
-			.limit((long) endIndex - startIndex)
+			.skip(recomputedStartIndex)
+			.limit((long) recomputedEndIndex - recomputedStartIndex)
 			.mapToInt(queryContext::translateEntity)
 			.forEach(pk -> result[peak + index.getAndIncrement()] = pk);
-
-		// pass them to another sorter
-		final int recomputedStartIndex = Math.max(0, startIndex - index.get());
-		final int recomputedEndIndex = Math.max(0, endIndex - index.get());
 
 		// and return appending the not sorted records
 		final int[] borrowedBuffer = queryContext.borrowBuffer();
@@ -252,8 +277,10 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 				queryContext,
 				notFoundRecords,
 				unknownRecordIdsSorter,
-				recomputedStartIndex, recomputedEndIndex,
-				result, peak + index.get(),
+				startIndex, endIndex,
+				result,
+				peak + index.get(),
+				skipped + skippedRecords,
 				borrowedBuffer
 			);
 		} finally {
@@ -272,7 +299,7 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 		private final Serializable[] attributeValues;
 		private int estimatedCount = 100;
 		private ObjectIntMap<Serializable> cache;
-		private CompositeObjectArray<EntityContract> nonSortedEntities;
+		@Nullable private CompositeObjectArray<EntityContract> nonSortedEntities;
 
 		@Override
 		public void prepareFor(int entityCount) {

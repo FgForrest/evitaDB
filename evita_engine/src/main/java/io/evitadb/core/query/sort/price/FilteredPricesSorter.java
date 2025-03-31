@@ -165,6 +165,7 @@ public class FilteredPricesSorter implements Sorter {
 		int endIndex,
 		@Nonnull int[] result,
 		int peak,
+		int skipped,
 		@Nullable IntConsumer skippedRecordsConsumer
 	) {
 		// compute entire set of entity pks that needs to be sorted
@@ -189,7 +190,7 @@ public class FilteredPricesSorter implements Sorter {
 		// determine the count and set of non-found (not-sorted) entities
 		boolean notFoundEntitiesRequireSort = false;
 		int[] notFoundEntities = this.priceRecordsLookupResult.getNotFoundEntities();
-		if (priceRecordComparator instanceof NonSortedRecordsProvider notSortedRecordsProvider && notSortedRecordsProvider.getNonSortedRecords() != null) {
+		if (this.priceRecordComparator instanceof NonSortedRecordsProvider notSortedRecordsProvider && notSortedRecordsProvider.getNonSortedRecords() != null) {
 			if (notFoundEntities == null) {
 				notFoundEntities = notSortedRecordsProvider.getNonSortedRecords();
 			} else {
@@ -199,18 +200,26 @@ public class FilteredPricesSorter implements Sorter {
 		}
 		final int notFoundEntitiesLength = notFoundEntities == null ? 0 : notFoundEntities.length;
 
+		final int recomputedStartIndex = Math.max(0, startIndex - peak - skipped);
+		final int recomputedEndIndex = Math.max(0, endIndex - peak - skipped);
+
 		// slice the output and cut appropriate page from it
-		final int pageSize = Math.min(endIndex - startIndex, translatedResult.length - notFoundEntitiesLength - startIndex);
-		int written = 0;
-		for (int i = startIndex; i < startIndex + pageSize; i++) {
-			result[peak + written++] = translatedResult[i].entityPrimaryKey();
+		final int pageSize = Math.min(recomputedEndIndex - recomputedStartIndex, translatedResult.length - notFoundEntitiesLength - recomputedStartIndex);
+		int writtenRecords = 0;
+		int skippedRecords = 0;
+		for (int i = 0; i < recomputedStartIndex + pageSize; i++) {
+			if (i < recomputedStartIndex) {
+				skippedRecords++;
+				if (skippedRecordsConsumer != null) {
+					skippedRecordsConsumer.accept(translatedResult[i].entityPrimaryKey());
+				}
+			} else {
+				result[peak + writtenRecords++] = translatedResult[i].entityPrimaryKey();
+			}
 		}
 
 		// if the output is not complete, and we have not found entity PKs
-		if (translatedResult.length < endIndex && notFoundEntitiesLength > 0) {
-			// pass them to another sorter
-			final int recomputedStartIndex = Math.max(0, startIndex - written);
-			final int recomputedEndIndex = Math.max(0, endIndex - written);
+		if (translatedResult.length < recomputedEndIndex && notFoundEntitiesLength > 0) {
 			// record ids are not sorted - sort them by natural order before passing to next stage
 			if (notFoundEntitiesRequireSort) {
 				Arrays.sort(notFoundEntities);
@@ -220,11 +229,13 @@ public class FilteredPricesSorter implements Sorter {
 				queryContext,
 				computeResult, computeResultBitmap,
 				notFoundEntities,
-				recomputedStartIndex, recomputedEndIndex,
-				result, peak + written
+				startIndex, endIndex,
+				result,
+				peak + writtenRecords,
+				skipped + skippedRecords
 			);
 		} else {
-			return peak + written;
+			return peak + writtenRecords;
 		}
 	}
 
@@ -260,7 +271,8 @@ public class FilteredPricesSorter implements Sorter {
 		int startIndex,
 		int endIndex,
 		@Nonnull int[] result,
-		int peak
+		int peak,
+		int skipped
 	) {
 		// compute the rest we need to fill in
 		if (notFoundArray == null) {
@@ -268,7 +280,7 @@ public class FilteredPricesSorter implements Sorter {
 				// use provided unknown sorter to sort the rest and copy the result to the output
 				return unknownRecordIdsSorter.sortAndSlice(
 					queryContext, new ConstantFormula(computeResult),
-					startIndex, endIndex, result, peak
+					startIndex, endIndex, result, peak, skipped
 				);
 			} else {
 				// copy the not found ids sorted by PK asc in to the result
@@ -286,7 +298,7 @@ public class FilteredPricesSorter implements Sorter {
 				// use provided unknown sorter to sort the rest and copty the result to the output
 				return unknownRecordIdsSorter.sortAndSlice(
 					queryContext, new ConstantFormula(new BaseBitmap(notFoundArray)),
-					startIndex, endIndex, result, peak
+					startIndex, endIndex, result, peak, skipped
 				);
 			} else {
 				// copy the not found ids sorted by PK asc in to the result

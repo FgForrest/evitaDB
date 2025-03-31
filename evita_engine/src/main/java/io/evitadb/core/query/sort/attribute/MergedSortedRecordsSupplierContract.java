@@ -35,7 +35,7 @@ import javax.annotation.Nonnull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 public sealed interface MergedSortedRecordsSupplierContract extends Sorter
-	permits MergedComparableSortedRecordsSupplier, MergedSortedRecordsSupplier {
+	permits MergedComparableSortedRecordsSupplierSorter, MergedSortedRecordsSupplierSorter {
 
 	/**
 	 * Retrieves an array of {@link SortedRecordsProvider} instances. Each provider supplies access

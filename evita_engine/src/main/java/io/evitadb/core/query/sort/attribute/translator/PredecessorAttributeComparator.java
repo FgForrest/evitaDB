@@ -85,7 +85,7 @@ public class PredecessorAttributeComparator implements EntityComparator {
 	/**
 	 * Container for entities that cannot be sorted using the resolved {@link SortedRecordsProvider}.
 	 */
-	private CompositeObjectArray<EntityContract> nonSortedEntities;
+	@Nullable private CompositeObjectArray<EntityContract> nonSortedEntities;
 	/**
 	 * Estimated count of entities used for initializing data structures such as cache.
 	 */

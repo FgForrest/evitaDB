@@ -57,7 +57,7 @@ import java.util.function.IntConsumer;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public final class MergedComparableSortedRecordsSupplier extends AbstractRecordsSorter implements ConditionalSorter, Serializable, MergedSortedRecordsSupplierContract {
+public final class MergedComparableSortedRecordsSupplierSorter extends AbstractRecordsSorter implements ConditionalSorter, Serializable, MergedSortedRecordsSupplierContract {
 	@Serial private static final long serialVersionUID = -2455704501031260272L;
 	/**
 	 * Contains the {@link Comparator} for the sorting execution.
@@ -133,7 +133,7 @@ public final class MergedComparableSortedRecordsSupplier extends AbstractRecords
 		}
 	}
 
-	public MergedComparableSortedRecordsSupplier(
+	public MergedComparableSortedRecordsSupplierSorter(
 		@SuppressWarnings("rawtypes") @Nonnull Comparator comparator,
 		@Nonnull SortedRecordsProvider[] sortedRecordsProviders,
 		@Nullable Sorter unknownRecordIdsSorter
@@ -147,7 +147,7 @@ public final class MergedComparableSortedRecordsSupplier extends AbstractRecords
 	@Nonnull
 	@Override
 	public Sorter cloneInstance() {
-		return new MergedComparableSortedRecordsSupplier(
+		return new MergedComparableSortedRecordsSupplierSorter(
 			this.comparator, this.sortedRecordsProviders, null
 		);
 	}
@@ -155,7 +155,7 @@ public final class MergedComparableSortedRecordsSupplier extends AbstractRecords
 	@Nonnull
 	@Override
 	public Sorter andThen(Sorter sorterForUnknownRecords) {
-		return new MergedComparableSortedRecordsSupplier(
+		return new MergedComparableSortedRecordsSupplierSorter(
 			this.comparator, this.sortedRecordsProviders, sorterForUnknownRecords
 		);
 	}
@@ -174,11 +174,15 @@ public final class MergedComparableSortedRecordsSupplier extends AbstractRecords
 		int endIndex,
 		@Nonnull int[] result,
 		int peak,
+		int skipped,
 		@Nullable IntConsumer skippedRecordsConsumer
 	) {
+		final int recomputedStartIndex = Math.max(0, startIndex - peak - skipped);
+		final int recomputedEndIndex = Math.max(0, endIndex - peak - skipped);
+
 		final Bitmap selectedRecordIds = input.compute();
-		if (selectedRecordIds.size() < startIndex) {
-			throw new IndexOutOfBoundsException("Index: " + startIndex + ", Size: " + selectedRecordIds.size());
+		if (selectedRecordIds.size() < recomputedStartIndex) {
+			throw new IndexOutOfBoundsException("Index: " + recomputedStartIndex + ", Size: " + selectedRecordIds.size());
 		}
 		if (selectedRecordIds.isEmpty()) {
 			return 0;
@@ -187,14 +191,17 @@ public final class MergedComparableSortedRecordsSupplier extends AbstractRecords
 			try {
 				final SkippingRecordConsumer delegateConsumer = new SkippingRecordConsumer(skippedRecordsConsumer);
 				final SortResult sortResult = collectPartialResults(
-					queryContext, selectedRecordIds, startIndex, endIndex, result, peak, delegateConsumer
+					queryContext, selectedRecordIds, recomputedStartIndex, recomputedEndIndex, result, peak, delegateConsumer
 				);
 				return returnResultAppendingUnknown(
 					queryContext, sortResult.notSortedRecords(),
 					this.unknownRecordIdsSorter,
-					Math.max(0, startIndex - delegateConsumer.getCounter()),
-					Math.max(0, endIndex - delegateConsumer.getCounter()),
-					result, sortResult.peak(), buffer
+					startIndex,
+					endIndex,
+					result,
+					sortResult.peak(),
+					skipped + delegateConsumer.getCounter(),
+					buffer
 				);
 			} finally {
 				queryContext.returnBuffer(buffer);
@@ -231,7 +238,7 @@ public final class MergedComparableSortedRecordsSupplier extends AbstractRecords
 		int peak,
 		@Nullable IntConsumer skippedRecordsConsumer
 	) {
-		final int toRead = endIndex - startIndex;
+		final int toRead = Math.min(endIndex - startIndex, result.length - peak);
 		int alreadyRead = 0;
 		int skip = startIndex;
 
@@ -381,7 +388,6 @@ public final class MergedComparableSortedRecordsSupplier extends AbstractRecords
 			this.counter++;
 		}
 	}
-
 	/**
 	 * Represents a buffer for managing and extracting data from sorted record providers while applying a mask filter.
 	 * This class implements the {@link Comparable} interface for comparing buffer instances based on their current comparable value

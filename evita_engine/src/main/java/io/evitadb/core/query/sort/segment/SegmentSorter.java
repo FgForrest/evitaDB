@@ -116,6 +116,7 @@ public class SegmentSorter implements Sorter {
 		int endIndex,
 		@Nonnull int[] result,
 		int peak,
+		int skipped,
 		@Nullable IntConsumer skippedRecordsConsumer
 	) {
 		// if the filter is defined we need to narrow the input to only records that satisfy the filter
@@ -137,47 +138,48 @@ public class SegmentSorter implements Sorter {
 				return unknownRecordIdsSorter.sortAndSlice(
 					queryContext,
 					// we may pass the complete input, since we didn't drained any records in this segment
-					input, startIndex, endIndex, result, peak
+					input, startIndex, endIndex, result, peak, skipped
 				);
 			}
 		} else {
 			final Sorter sorterToUse = Objects.requireNonNull(ConditionalSorter.getFirstApplicableSorter(queryContext, this.delegateSorter));
 			// otherwise, we need to fully calculate the segment to be able to exclude it from the next sorter
 			final int physicalLimit = Math.min(filteredRecordIdBitmap.size(), this.limit);
-			final int endIndexOrLimit = Math.min(physicalLimit, endIndex);
+			final int recomputedEndIndex = (skipped + peak) + physicalLimit;
 
 			// all the skipped records will be written to this bitmap
 			final RoaringBitmapWriter<RoaringBitmap> drainedRecordPks = RoaringBitmapBackedBitmap.buildWriter();
 			final int lastSortedItem = sorterToUse.sortAndSlice(
 				queryContext,
 				filterFormula,
-				Math.min(startIndex, endIndexOrLimit),
-				endIndexOrLimit,
+				Math.min(startIndex, recomputedEndIndex),
+				recomputedEndIndex,
 				result,
 				peak,
+				skipped,
 				drainedRecordPks::add
 			);
-			// now we have to manually add also all the records that were added to the result
-			// since the hadn't been passed to drained records via skipped records consumer
-			for (int i = peak; i < lastSortedItem; i++) {
-				drainedRecordPks.add(result[i]);
-			}
 
-			// recalculate indexes for the next sorter
-			final int recomputedStartIndex = Math.max(0, startIndex - physicalLimit);
-			final int recomputedEndIndex = Math.max(0, endIndex - physicalLimit);
-
-			if (recomputedStartIndex >= recomputedEndIndex || lastSortedItem - peak >= endIndex) {
+			if (result.length == lastSortedItem) {
 				// if the next sorter would receive empty input, we can skip it
 				return lastSortedItem;
 			} else {
-				final ConstantFormula drainedRecordsFormula = new ConstantFormula(new BaseBitmap(drainedRecordPks.get()));
-				return unknownRecordIdsSorter.sortAndSlice(
+				// now we have to manually add also all the records that were added to the result
+				// since they hadn't been passed to drained records via skipped records consumer
+				for (int i = peak; i < lastSortedItem; i++) {
+					drainedRecordPks.add(result[i]);
+				}
+
+				final RoaringBitmap drainedRecordIds = drainedRecordPks.get();
+				int skippedRecords = drainedRecordIds.getCardinality() - (lastSortedItem - peak);
+				// and filter the filtered input to next query to avoid records that has been already consumed
+				// by this segment
+				final Formula nextInput = drainedRecordIds.isEmpty() ?
+					input : FormulaFactory.not(new ConstantFormula(new BaseBitmap(drainedRecordIds)), input);
+				return this.unknownRecordIdsSorter.sortAndSlice(
 					queryContext,
-					// and filter the filtered input to next query to avoid records that has been already consumed
-					// by this segment
-					FormulaFactory.not(drainedRecordsFormula, input),
-					recomputedStartIndex, recomputedEndIndex, result, lastSortedItem
+					nextInput,
+					startIndex, endIndex, result, lastSortedItem, skipped + skippedRecords
 				);
 			}
 		}

@@ -71,7 +71,6 @@ import org.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -91,11 +90,6 @@ import static io.evitadb.api.query.QueryConstraints.traverseByEntityProperty;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class ReferencePropertyTranslator implements OrderingConstraintTranslator<ReferenceProperty>, SelfTraversingTranslator {
-	private static final Comparator<EntityIndex> DEFAULT_COMPARATOR = (o1, o2) -> {
-		final int o1pk = Objects.requireNonNull((ReferenceKey) o1.getIndexKey().discriminator()).primaryKey();
-		final int o2pk = Objects.requireNonNull((ReferenceKey) o2.getIndexKey().discriminator()).primaryKey();
-		return Integer.compare(o1pk, o2pk);
-	};
 
 	/**
 	 * Method locates all {@link EntityIndex} from the resolved list of {@link TargetIndexes} which were identified
@@ -267,7 +261,7 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 					);
 					final int sortedPeak = sorter.sortAndSlice(
 						filteringFormula,
-						0, input.length, output, 0
+						0, input.length, output, 0, 0
 					);
 					Assert.isPremiseValid(
 						sortedPeak == filteringFormula.compute().size(),
@@ -308,7 +302,7 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 
 			final int referenceIndexCount = referenceIndexIds.compute().size();
 			final int[] result = new int[referenceIndexCount];
-			final int sortedPeak = sorter.sortAndSlice(referenceIndexIds, 0, referenceIndexCount, result, 0);
+			final int sortedPeak = sorter.sortAndSlice(referenceIndexIds, 0, referenceIndexCount, result, 0, 0);
 			Assert.isPremiseValid(sortedPeak == referenceIndexCount, "Unexpected number of sorted indexes: " + sortedPeak);
 			return IntStream.of(result);
 		}
@@ -379,6 +373,8 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 				.filter(Objects::nonNull)
 				.toArray(ReducedEntityIndex[]::new);
 
+			final int sorterPeakBefore = processingScope.sorters().size();
+
 			orderByVisitor.executeInContext(
 				sortedReducedIndexes,
 				referenceSchema,
@@ -404,6 +400,29 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 					return null;
 				}
 			);
+
+			/* TODO JNO - remove if not used */
+			/*if (mergeMode == MergeMode.APPEND_ALL) {
+				final Deque<Sorter> sorters = processingScope.sorters();
+				final Sorter sorter = sorters.pollLast();
+
+				ReferenceKey referenceKey = null;
+				final CompositeObjectArray<SortedRecordsProvider[]> atomicBlocks = new CompositeObjectArray<>(SortedRecordsProvider[].class, false);
+				for (int i = 0; i < sortedRecordsProviders.length; i++) {
+					final ReferenceSortedRecordsSupplier sortedReducedIndex = (ReferenceSortedRecordsSupplier) sortedRecordsProviders[i];
+					final ReferenceKey srpReferenceKey = sortedReducedIndex.getReferenceKey();
+					if (referenceKey != null && !referenceKey.equals(srpReferenceKey)) {
+						atomicBlocks.add(
+							Arrays.copyOfRange(sortedRecordsProviders, start, i)
+						);
+						start = i;
+					}
+					referenceKey = srpReferenceKey;
+				}
+				atomicBlocks.add(
+					Arrays.copyOfRange(sortedRecordsProviders, start, sortedRecordsProviders.length)
+				);
+			}*/
 
 		}
 		return Stream.empty();

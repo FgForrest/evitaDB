@@ -326,6 +326,7 @@ public class QueryPlanner {
 						final List<QueryPlanBuilder> alternativeBuilderInList = Collections.singletonList(alternativeBuilder);
 						createSorter(queryContext, targetIndexes, alternativeBuilderInList);
 						createExtraResultProducers(queryContext, alternativeBuilderInList);
+						ofNullable(sourcePlan.getSlicer()).ifPresent(alternativeBuilder::setSlicer);
 						return alternativeBuilder;
 					}
 				).toList();

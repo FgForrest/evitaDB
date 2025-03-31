@@ -69,7 +69,7 @@ public class ExactSorter implements Sorter {
 	@Override
 	public Sorter andThen(Sorter sorterForUnknownRecords) {
 		return new ExactSorter(
-			exactOrder,
+			this.exactOrder,
 			sorterForUnknownRecords
 		);
 	}
@@ -78,8 +78,8 @@ public class ExactSorter implements Sorter {
 	@Override
 	public Sorter cloneInstance() {
 		return new ExactSorter(
-			exactOrder,
-			null
+			this.exactOrder,
+			NoSorter.INSTANCE
 		);
 	}
 
@@ -97,24 +97,35 @@ public class ExactSorter implements Sorter {
 		int endIndex,
 		@Nonnull int[] result,
 		int peak,
+		int skipped,
 		@Nullable IntConsumer skippedRecordsConsumer
 	) {
 		final Bitmap filteredRecordIdBitmap = input.compute();
 		if (filteredRecordIdBitmap.isEmpty()) {
 			return 0;
 		} else {
+			final int recomputedStartIndex = Math.max(0, startIndex - peak - skipped);
+			final int recomputedEndIndex = Math.max(0, endIndex - peak - skipped);
+
 			final int[] filteredRecordIds = filteredRecordIdBitmap.getArray();
-			final int length = Math.min(filteredRecordIds.length, endIndex - startIndex);
+			final int length = Math.min(filteredRecordIds.length, recomputedEndIndex - recomputedStartIndex);
 			if (length < 0) {
-				throw new IndexOutOfBoundsException("Index: " + startIndex + ", Size: " + filteredRecordIds.length);
+				throw new IndexOutOfBoundsException("Index: " + recomputedStartIndex + ", Size: " + filteredRecordIds.length);
 			}
 
 			// sort the filtered entity primary keys along the exact order in input
 			final int lastSortedItem = ArrayUtils.sortAlong(this.exactOrder, filteredRecordIds);
 
 			// copy the sorted data to result
-			final int toAppend = Math.min(lastSortedItem - startIndex, endIndex - startIndex);
-			System.arraycopy(filteredRecordIds, startIndex, result, peak, toAppend);
+			final int toAppend = Math.min(lastSortedItem - recomputedStartIndex, recomputedEndIndex - recomputedStartIndex);
+			System.arraycopy(filteredRecordIds, recomputedStartIndex, result, peak, toAppend);
+
+			int skippedRecords = Math.min(recomputedStartIndex, filteredRecordIds.length);
+			if (skippedRecordsConsumer != null) {
+				for (int i = 0; i < skippedRecords; i++) {
+					skippedRecordsConsumer.accept(filteredRecordIds[i]);
+				}
+			}
 
 			// if there are no more records to sort or no additional sorter is present, return entire result
 			if (lastSortedItem == filteredRecordIdBitmap.size()) {
@@ -125,14 +136,11 @@ public class ExactSorter implements Sorter {
 				for (int i = lastSortedItem; i < filteredRecordIds.length; i++) {
 					writer.add(filteredRecordIds[i]);
 				}
-				// pass them to another sorter
-				final int recomputedStartIndex = Math.max(0, startIndex - lastSortedItem);
-				final int recomputedEndIndex = Math.max(0, endIndex - lastSortedItem);
 
 				final RoaringBitmap outputBitmap = writer.get();
-				return unknownRecordIdsSorter.sortAndSlice(
+				return this.unknownRecordIdsSorter.sortAndSlice(
 					queryContext, outputBitmap.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(new BaseBitmap(outputBitmap)),
-					recomputedStartIndex, recomputedEndIndex, result, peak + toAppend
+					startIndex, endIndex, result, peak + toAppend, skipped + skippedRecords
 				);
 			}
 		}

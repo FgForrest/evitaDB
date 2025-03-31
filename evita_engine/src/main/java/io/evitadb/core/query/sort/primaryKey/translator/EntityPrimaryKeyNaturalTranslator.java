@@ -40,7 +40,7 @@ import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.attribute.PreSortedRecordsSorter;
 import io.evitadb.core.query.sort.attribute.PreSortedRecordsSorter.MergeMode;
 import io.evitadb.core.query.sort.generic.PrefetchedRecordsSorter;
-import io.evitadb.core.query.sort.primaryKey.ReversedSorter;
+import io.evitadb.core.query.sort.primaryKey.ReversedPrimaryKeySorter;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -75,7 +75,7 @@ public class EntityPrimaryKeyNaturalTranslator implements OrderingConstraintTran
 		final ProcessingScope processingScope = orderByVisitor.getProcessingScope();
 		final ReferenceSchemaContract referenceSchema = processingScope.referenceSchema();
 		if (referenceSchema == null) {
-			return orderDirection == OrderDirection.DESC ? Stream.of(ReversedSorter.INSTANCE) : Stream.empty();
+			return orderDirection == OrderDirection.DESC ? Stream.of(ReversedPrimaryKeySorter.INSTANCE) : Stream.empty();
 		} else {
 			final EntityIndex[] entityIndices = processingScope.entityIndex();
 			final String referenceSchemaName = referenceSchema.getName();

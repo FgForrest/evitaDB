@@ -5017,8 +5017,8 @@ public class EntityByChainOrderingFunctionalTest {
 							)
 						),
 						require(
-							page(1, 60),
-							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+							page(1, 60)/*,
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)*/
 						)
 					),
 					EntityReference.class

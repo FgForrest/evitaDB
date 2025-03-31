@@ -37,23 +37,23 @@ import java.util.function.IntConsumer;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public class ReversedSorter implements Sorter {
-	public static final ReversedSorter INSTANCE = new ReversedSorter();
+public class ReversedPrimaryKeySorter implements Sorter {
+	public static final ReversedPrimaryKeySorter INSTANCE = new ReversedPrimaryKeySorter();
 
-	private ReversedSorter() {
+	private ReversedPrimaryKeySorter() {
 	}
 
 	@Nonnull
 	@Override
 	public Sorter andThen(Sorter sorterForUnknownRecords) {
 		// this sorter will always sort all records
-		return ReversedSorter.INSTANCE;
+		return ReversedPrimaryKeySorter.INSTANCE;
 	}
 
 	@Nonnull
 	@Override
 	public Sorter cloneInstance() {
-		return ReversedSorter.INSTANCE;
+		return ReversedPrimaryKeySorter.INSTANCE;
 	}
 
 	@Nullable
@@ -70,6 +70,7 @@ public class ReversedSorter implements Sorter {
 		int endIndex,
 		@Nonnull int[] result,
 		int peak,
+		int skipped,
 		@Nullable IntConsumer skippedRecordsConsumer
 	) {
 		final Bitmap filteredRecordIdBitmap = input.compute();
@@ -78,14 +79,17 @@ public class ReversedSorter implements Sorter {
 		} else {
 			final int size = filteredRecordIdBitmap.size();
 
+			final int recomputedStartIndex = Math.max(0, startIndex - peak - skipped);
+			final int recomputedEndIndex = Math.max(0, endIndex - peak - skipped);
+
 			// copy the sorted data to result
-			final int length = endIndex - startIndex;
+			final int length = recomputedEndIndex - recomputedStartIndex;
 			final int newPeak = Math.min(size, length);
 
 			// recalculate positions for reversed order
 			final int[] range = filteredRecordIdBitmap.getRange(
 				size - newPeak,
-				size - startIndex
+				size - recomputedStartIndex
 			);
 			// and copy the range contents in reversed order
 			for (int i = range.length - 1; i >= 0; i--) {

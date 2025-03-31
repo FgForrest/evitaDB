@@ -53,21 +53,23 @@ public abstract class AbstractRecordsSorter implements Sorter {
 		int endIndex,
 		@Nonnull int[] result,
 		int peak,
+		int skipped,
 		@Nonnull int[] buffer
 	) {
 		unknownRecordIdsSorter = ConditionalSorter.getFirstApplicableSorter(queryContext, unknownRecordIdsSorter);
 		final int finalResultPeak;
 		if (peak < result.length && !notFoundRecords.isEmpty()) {
-			final int recomputedStartIndex = Math.max(0, startIndex - peak);
-			final int recomputedEndIndex = Math.max(0, endIndex - peak);
 			if (unknownRecordIdsSorter == null) {
 				finalResultPeak = SortUtils.appendNotFoundResult(
-					result, peak, recomputedStartIndex, recomputedEndIndex, notFoundRecords, buffer
+					result, peak,
+					Math.max(0, startIndex - peak - skipped),
+					Math.max(0, endIndex - peak - skipped),
+					notFoundRecords, buffer
 				);
 			} else {
 				finalResultPeak = unknownRecordIdsSorter.sortAndSlice(
 					queryContext, new ConstantFormula(new BaseBitmap(notFoundRecords)),
-					recomputedStartIndex, recomputedEndIndex, result, peak
+					startIndex, endIndex, result, peak, skipped
 				);
 			}
 		} else {

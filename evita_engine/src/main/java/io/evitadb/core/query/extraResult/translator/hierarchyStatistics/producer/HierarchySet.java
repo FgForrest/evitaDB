@@ -142,7 +142,7 @@ public class HierarchySet {
 				)
 			);
 		// if the sorter is defined, sort them
-		if (sorter != null) {
+		if (this.sorter != null) {
 			final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
 			// collect all entity primary keys
 			unsortedResult.values().forEach(it -> collect(it, writer));
@@ -151,7 +151,7 @@ public class HierarchySet {
 			final Formula levelIdFormula = bitmap.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(new BaseBitmap(bitmap));
 			final int[] sortedEntities = new int[levelIdFormula.compute().size()];
 			final int sortedEntitiesPeak = sorter.sortAndSlice(
-				levelIdFormula, 0, levelIdFormula.compute().size(), sortedEntities, 0
+				levelIdFormula, 0, levelIdFormula.compute().size(), sortedEntities, 0, 0
 			);
 			// replace the output with the sorted one
 			final int[] normalizedSortedResult = SortUtils.asResult(sortedEntities, sortedEntitiesPeak);

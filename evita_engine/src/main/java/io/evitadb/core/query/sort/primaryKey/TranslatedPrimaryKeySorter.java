@@ -74,6 +74,7 @@ public class TranslatedPrimaryKeySorter implements Sorter {
 		int endIndex,
 		@Nonnull int[] result,
 		int peak,
+		int skipped,
 		@Nullable IntConsumer skippedRecordsConsumer
 	) {
 		final Bitmap translatedPrimaryKeysBitmap = input.compute();
@@ -85,10 +86,18 @@ public class TranslatedPrimaryKeySorter implements Sorter {
 			order[i] = i;
 		}
 
+		final int recomputedStartIndex = Math.max(0, startIndex - peak - skipped);
+		final int recomputedEndIndex = Math.max(0, endIndex - peak - skipped);
+
 		ArrayUtils.sortSecondAlongFirstArray(originalPrimaryKeys, order);
-		final int length = endIndex - startIndex;
-		for (int i = peak; i < translatedPrimaryKeys.length && i < length; i++) {
+		final int length = Math.min(translatedPrimaryKeys.length, recomputedEndIndex - recomputedStartIndex);
+		for (int i = recomputedStartIndex; i < length; i++) {
 			result[i] = translatedPrimaryKeys[order[i]];
+		}
+		if (skippedRecordsConsumer != null) {
+			for (int i = 0; i < Math.min(recomputedStartIndex, order.length); i++) {
+				skippedRecordsConsumer.accept(translatedPrimaryKeys[order[i]]);
+			}
 		}
 		return peak + Math.min(translatedPrimaryKeys.length, length);
 	}

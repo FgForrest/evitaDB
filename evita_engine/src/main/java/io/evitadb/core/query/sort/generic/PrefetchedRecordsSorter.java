@@ -104,6 +104,7 @@ public class PrefetchedRecordsSorter extends AbstractRecordsSorter implements Co
 		int endIndex,
 		@Nonnull int[] result,
 		int peak,
+		int skipped,
 		@Nullable IntConsumer skippedRecordsConsumer
 	) {
 		final Bitmap selectedRecordIds = input.compute();
@@ -114,7 +115,10 @@ public class PrefetchedRecordsSorter extends AbstractRecordsSorter implements Co
 			entities.add(queryContext.translateToEntity(id));
 		}
 
-		this.entityComparator.prepareFor(endIndex - startIndex);
+		final int recomputedStartIndex = Math.max(0, startIndex - peak - skipped);
+		final int recomputedEndIndex = Math.max(0, endIndex - peak - skipped);
+
+		this.entityComparator.prepareFor(recomputedEndIndex - recomputedStartIndex);
 		entities.sort(this.entityComparator);
 
 		int notFoundRecordsCnt = 0;
@@ -128,8 +132,8 @@ public class PrefetchedRecordsSorter extends AbstractRecordsSorter implements Co
 		final AtomicInteger index = new AtomicInteger();
 		final int entitiesCount = selectedRecordIds.size() - notFoundRecordsCnt;
 		final List<EntityContract> entityContracts = entities.subList(0, entitiesCount);
-		final int skippedItems = Math.min(startIndex, entitiesCount);
-		final int appendedItems = Math.min(entitiesCount, endIndex);
+		final int skippedItems = Math.min(recomputedStartIndex, entitiesCount);
+		final int appendedItems = Math.min(Math.min(recomputedEndIndex, entitiesCount), skippedItems + result.length - peak);
 		if (skippedRecordsConsumer != null) {
 			for (int i = 0; i < skippedItems; i++) {
 				skippedRecordsConsumer.accept(queryContext.translateEntity(entityContracts.get(i)));
@@ -139,18 +143,16 @@ public class PrefetchedRecordsSorter extends AbstractRecordsSorter implements Co
 			result[peak + index.getAndIncrement()] = queryContext.translateEntity(entityContracts.get(i));
 		}
 
-		// pass them to another sorter
-		final int recomputedStartIndex = Math.max(0, startIndex - (index.get() + skippedItems));
-		final int recomputedEndIndex = Math.max(0, endIndex - (index.get() + skippedItems));
-
 		final int[] buffer = queryContext.borrowBuffer();
 		try {
 			return returnResultAppendingUnknown(
 				queryContext,
 				notFoundRecords,
 				this.unknownRecordIdsSorter,
-				recomputedStartIndex, recomputedEndIndex,
-				result, peak + index.get(),
+				startIndex, endIndex,
+				result,
+				peak + index.get(),
+				skipped + skippedItems,
 				buffer
 			);
 		} finally {

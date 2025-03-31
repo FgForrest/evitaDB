@@ -153,6 +153,7 @@ public class QueryPlan {
 			offsetAndLimit.offset(),
 			offsetAndLimit.length(),
 			result,
+			0,
 			0
 		);
 		return SortUtils.asResult(result, peak);
