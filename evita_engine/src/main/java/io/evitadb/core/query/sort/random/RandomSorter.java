@@ -54,7 +54,7 @@ public class RandomSorter implements Sorter {
 
 	@Nonnull
 	@Override
-	public Sorter andThen(Sorter sorterForUnknownRecords) {
+	public Sorter andThen(@Nonnull Sorter sorterForUnknownRecords) {
 		throw new UnsupportedOperationException("Random sorter cannot be chained!");
 	}
 

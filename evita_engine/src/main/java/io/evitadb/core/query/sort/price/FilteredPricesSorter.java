@@ -133,7 +133,7 @@ public class FilteredPricesSorter implements Sorter {
 
 	@Nonnull
 	@Override
-	public Sorter andThen(Sorter sorterForUnknownRecords) {
+	public Sorter andThen(@Nonnull Sorter sorterForUnknownRecords) {
 		return new FilteredPricesSorter(
 			filteredPriceRecordAccessors,
 			priceRecordComparator,

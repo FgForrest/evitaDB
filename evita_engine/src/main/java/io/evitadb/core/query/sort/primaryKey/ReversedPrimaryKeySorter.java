@@ -45,7 +45,7 @@ public class ReversedPrimaryKeySorter implements Sorter {
 
 	@Nonnull
 	@Override
-	public Sorter andThen(Sorter sorterForUnknownRecords) {
+	public Sorter andThen(@Nonnull Sorter sorterForUnknownRecords) {
 		// this sorter will always sort all records
 		return ReversedPrimaryKeySorter.INSTANCE;
 	}

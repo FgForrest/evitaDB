@@ -117,7 +117,7 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter implements Con
 
 	@Nonnull
 	@Override
-	public Sorter andThen(Sorter sorterForUnknownRecords) {
+	public Sorter andThen(@Nonnull Sorter sorterForUnknownRecords) {
 		return new PreSortedRecordsSorter(
 			this.computationCallback,
 			this.mergeMode,

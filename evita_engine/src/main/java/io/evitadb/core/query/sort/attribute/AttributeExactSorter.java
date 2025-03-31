@@ -116,7 +116,7 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 
 	@Nonnull
 	@Override
-	public Sorter andThen(Sorter sorterForUnknownRecords) {
+	public Sorter andThen(@Nonnull Sorter sorterForUnknownRecords) {
 		return new AttributeExactSorter(
 			this.attributeName,
 			this.exactOrder,

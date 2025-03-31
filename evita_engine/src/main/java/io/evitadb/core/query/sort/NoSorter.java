@@ -45,7 +45,7 @@ public class NoSorter implements Sorter {
 
 	@Nonnull
 	@Override
-	public Sorter andThen(Sorter sorterForUnknownRecords) {
+	public Sorter andThen(@Nonnull Sorter sorterForUnknownRecords) {
 		throw new UnsupportedOperationException("NoSorter cannot be chained!");
 	}
 

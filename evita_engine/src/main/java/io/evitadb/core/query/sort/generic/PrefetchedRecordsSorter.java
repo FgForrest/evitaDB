@@ -71,7 +71,7 @@ public class PrefetchedRecordsSorter extends AbstractRecordsSorter implements Co
 
 	@Nonnull
 	@Override
-	public Sorter andThen(Sorter sorterForUnknownRecords) {
+	public Sorter andThen(@Nonnull Sorter sorterForUnknownRecords) {
 		return new PrefetchedRecordsSorter(
 			entityComparator, sorterForUnknownRecords
 		);

@@ -373,8 +373,6 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 				.filter(Objects::nonNull)
 				.toArray(ReducedEntityIndex[]::new);
 
-			final int sorterPeakBefore = processingScope.sorters().size();
-
 			orderByVisitor.executeInContext(
 				sortedReducedIndexes,
 				referenceSchema,

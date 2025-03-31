@@ -56,7 +56,7 @@ public class TranslatedPrimaryKeySorter implements Sorter {
 
 	@Nonnull
 	@Override
-	public Sorter andThen(Sorter sorterForUnknownRecords) {
+	public Sorter andThen(@Nonnull Sorter sorterForUnknownRecords) {
 		return INSTANCE;
 	}
 

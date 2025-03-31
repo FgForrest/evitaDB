@@ -154,7 +154,7 @@ public final class MergedComparableSortedRecordsSupplierSorter extends AbstractR
 
 	@Nonnull
 	@Override
-	public Sorter andThen(Sorter sorterForUnknownRecords) {
+	public Sorter andThen(@Nonnull Sorter sorterForUnknownRecords) {
 		return new MergedComparableSortedRecordsSupplierSorter(
 			this.comparator, this.sortedRecordsProviders, sorterForUnknownRecords
 		);

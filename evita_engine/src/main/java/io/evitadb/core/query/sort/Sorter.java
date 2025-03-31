@@ -50,7 +50,7 @@ public interface Sorter {
 	 * sorter, the passed sorter will be used.
 	 */
 	@Nonnull
-	Sorter andThen(Sorter sorterForUnknownRecords);
+	Sorter andThen(@Nonnull Sorter sorterForUnknownRecords);
 
 	/**
 	 * Method returns next sorter in the sort chain. I.e. the sorter that will be applied on entity keys, that couldn't

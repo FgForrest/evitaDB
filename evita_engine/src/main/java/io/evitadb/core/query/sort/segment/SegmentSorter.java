@@ -98,7 +98,7 @@ public class SegmentSorter implements Sorter {
 
 	@Nonnull
 	@Override
-	public Sorter andThen(Sorter sorterForUnknownRecords) {
+	public Sorter andThen(@Nonnull Sorter sorterForUnknownRecords) {
 		return new SegmentSorter(this.delegateSorter, this.filter, this.limit, sorterForUnknownRecords);
 	}
 
@@ -135,7 +135,7 @@ public class SegmentSorter implements Sorter {
 				return 0;
 			} else {
 				// otherwise, our filter is too strict and we need to pass the input to the next sorter
-				return unknownRecordIdsSorter.sortAndSlice(
+				return this.unknownRecordIdsSorter.sortAndSlice(
 					queryContext,
 					// we may pass the complete input, since we didn't drained any records in this segment
 					input, startIndex, endIndex, result, peak, skipped
