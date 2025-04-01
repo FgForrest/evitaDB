@@ -28,7 +28,9 @@ import org.roaringbitmap.BatchIterator;
 import org.roaringbitmap.ImmutableBitmapDataProvider;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Arrays;
+import java.util.function.IntConsumer;
 
 /**
  * Class contains utility methods shared across multiple sorter implementations.
@@ -58,9 +60,18 @@ public class SortUtils {
 	 *
 	 * @return number of records copies (usually `endIndex` - `startIndex`, if there is enough space left in result array)
 	 */
-	public static int appendNotFoundResult(int[] result, int resultPeak, int startIndex, int endIndex, int[] rest) {
+	public static int appendNotFoundResult(
+		@Nonnull int[] result, int resultPeak, int startIndex, int endIndex,
+		@Nonnull int[] rest,
+		@Nullable IntConsumer skippedRecordsConsumer
+	) {
 		final int length = Math.min(Math.min(endIndex - startIndex, rest.length - startIndex), result.length - resultPeak);
 		final int safeStart = Math.min(startIndex, rest.length - 1);
+		if (safeStart > 0 && skippedRecordsConsumer != null) {
+			for (int i = 0; i < safeStart; i++) {
+				skippedRecordsConsumer.accept(rest[i]);
+			}
+		}
 		System.arraycopy(rest, safeStart, result, resultPeak, length);
 		return resultPeak + length;
 	}
@@ -73,7 +84,9 @@ public class SortUtils {
 	 */
 	public static int appendNotFoundResult(
 		@Nonnull int[] result, int resultPeak, int startIndex, int endIndex,
-		@Nonnull ImmutableBitmapDataProvider roaringBitmap, @Nonnull int[] buffer
+		@Nonnull ImmutableBitmapDataProvider roaringBitmap,
+		@Nonnull int[] buffer,
+		@Nullable IntConsumer skippedRecordsConsumer
 	) {
 		final BatchIterator unsortedRecordIdsIt = roaringBitmap.getBatchIterator();
 		int readAcc = 0;
@@ -82,6 +95,11 @@ public class SortUtils {
 			final int read = unsortedRecordIdsIt.nextBatch(buffer);
 			final int prevReadAcc = readAcc;
 			readAcc += read;
+			if (skippedRecordsConsumer != null) {
+				for (int i = 0; i < Math.min(read, startIndex); i++) {
+					skippedRecordsConsumer.accept(buffer[i]);
+				}
+			}
 			if (readAcc > startIndex) {
 				final int si = startIndex > prevReadAcc && startIndex - prevReadAcc <= read ? startIndex - prevReadAcc : 0;
 				for (int i = si; i < read && actualPeak < result.length; i++) {

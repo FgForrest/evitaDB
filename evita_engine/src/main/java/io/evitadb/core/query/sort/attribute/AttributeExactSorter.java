@@ -207,7 +207,7 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 			final RoaringBitmap outputBitmap = writer.get();
 			return unknownRecordIdsSorter.sortAndSlice(
 				queryContext, outputBitmap.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(new BaseBitmap(outputBitmap)),
-				startIndex, endIndex, result, peak + toAppend, skipped + recomputedStartIndex
+				startIndex, endIndex, result, peak + toAppend, skipped + recomputedStartIndex, skippedRecordsConsumer
 			);
 		}
 	}
@@ -281,7 +281,8 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 				result,
 				peak + index.get(),
 				skipped + skippedRecords,
-				borrowedBuffer
+				borrowedBuffer,
+				skippedRecordsConsumer
 			);
 		} finally {
 			queryContext.returnBuffer(borrowedBuffer);

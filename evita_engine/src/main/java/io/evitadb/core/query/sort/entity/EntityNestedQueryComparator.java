@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.query.sort.attribute.translator;
+package io.evitadb.core.query.sort.entity;
 
 import com.carrotsearch.hppc.IntContainer;
 import com.carrotsearch.hppc.IntHashSet;
@@ -132,7 +132,7 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 			firstApplicableSorter.sortAndSlice(
 				theSorter.queryContext(),
 				input, 0, inputSize,
-				result, 0, 0
+				result, 0, 0, null
 			);
 			return result;
 		}

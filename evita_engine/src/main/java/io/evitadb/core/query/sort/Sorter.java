@@ -25,6 +25,8 @@ package io.evitadb.core.query.sort;
 
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -85,37 +87,21 @@ public interface Sorter {
 	);
 
 	/**
-	 * Sorts the data produced by the given {@link Formula}, slices the sorted data according to the provided
-	 * pagination parameters, and stores the result in the specified array.
-	 *
-	 * @param queryContext           The context of the query execution.
-	 * @param input                  The formula whose computed results need to be sorted.
-	 * @param startIndex             The starting index for the slicing (inclusive).
-	 * @param endIndex               The ending index for the slicing (exclusive).
-	 * @param result                 An array to store the sliced result.
-	 * @param peak                   A parameter to indicate last index of the result array where the data has been written.
-	 * @param skipped                A parameter to indicate the number of skipped records by previous sorters.
-	 * @return The number of records that were processed and stored in the result array.
+	 * The SkippingRecordConsumer is an implementation of the {@link IntConsumer} interface that wraps an optional delegate
+	 * {@code IntConsumer} and tracks the count of records processed. This class is intended to be used for scenarios
+	 * where certain records need to be tracked, possibly skipped, or processed with optional side effects.
 	 */
-	default int sortAndSlice(
-		@Nonnull QueryExecutionContext queryContext,
-		@Nonnull Formula input,
-		int startIndex,
-		int endIndex,
-		@Nonnull int[] result,
-		int peak,
-		int skipped
-	) {
-		return sortAndSlice(
-			queryContext,
-			input,
-			startIndex,
-			endIndex,
-			result,
-			peak,
-			skipped,
-			null
-		);
-	}
+	@RequiredArgsConstructor
+	class SkippingRecordConsumer implements IntConsumer {
+		@Nullable private final IntConsumer delegate;
+		@Getter private int counter = 0;
 
+		@Override
+		public void accept(int value) {
+			if (this.delegate != null) {
+				this.delegate.accept(value);
+			}
+			this.counter++;
+		}
+	}
 }

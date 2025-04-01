@@ -181,11 +181,8 @@ public final class MergedComparableSortedRecordsSupplierSorter extends AbstractR
 		final int recomputedEndIndex = Math.max(0, endIndex - peak - skipped);
 
 		final Bitmap selectedRecordIds = input.compute();
-		if (selectedRecordIds.size() < recomputedStartIndex) {
-			throw new IndexOutOfBoundsException("Index: " + recomputedStartIndex + ", Size: " + selectedRecordIds.size());
-		}
 		if (selectedRecordIds.isEmpty()) {
-			return 0;
+			return peak;
 		} else {
 			final int[] buffer = queryContext.borrowBuffer();
 			try {
@@ -201,7 +198,8 @@ public final class MergedComparableSortedRecordsSupplierSorter extends AbstractR
 					result,
 					sortResult.peak(),
 					skipped + delegateConsumer.getCounter(),
-					buffer
+					buffer,
+					skippedRecordsConsumer
 				);
 			} finally {
 				queryContext.returnBuffer(buffer);
@@ -281,7 +279,7 @@ public final class MergedComparableSortedRecordsSupplierSorter extends AbstractR
 		// sort buffers
 		Arrays.sort(sortedRecordsProviderBuffers, 0, sortedRecordsProviderBufferPeak);
 
-		do {
+		while ((toRead > alreadyRead || skip > 0) && sortedRecordsProviderBufferPeak > 0) {
 			SortedRecordsProviderBuffer sortedPk = sortedRecordsProviderBuffers[0];
 			if (skip > 0) {
 				skip--;
@@ -327,12 +325,8 @@ public final class MergedComparableSortedRecordsSupplierSorter extends AbstractR
 				sortedPk.close();
 				// sorted record provider buffer is empty, we need to remove it from the array
 				System.arraycopy(sortedRecordsProviderBuffers, 1, sortedRecordsProviderBuffers, 0, --sortedRecordsProviderBufferPeak);
-				// if there are no more sorted record providers, we can break the loop
-				if (sortedRecordsProviderBufferPeak == 0) {
-					break;
-				}
 			}
-		} while (toRead > alreadyRead || skip > 0);
+		}
 
 		// finalize the rest of the sorted record providers
 		for (int i = 0; i < sortedRecordsProviderBufferPeak; i++) {

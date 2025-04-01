@@ -232,7 +232,8 @@ public class FilteredPricesSorter implements Sorter {
 				startIndex, endIndex,
 				result,
 				peak + writtenRecords,
-				skipped + skippedRecords
+				skipped + skippedRecords,
+				skippedRecordsConsumer
 			);
 		} else {
 			return peak + writtenRecords;
@@ -272,7 +273,8 @@ public class FilteredPricesSorter implements Sorter {
 		int endIndex,
 		@Nonnull int[] result,
 		int peak,
-		int skipped
+		int skipped,
+		@Nullable IntConsumer skippedRecordsConsumer
 	) {
 		// compute the rest we need to fill in
 		if (notFoundArray == null) {
@@ -280,14 +282,14 @@ public class FilteredPricesSorter implements Sorter {
 				// use provided unknown sorter to sort the rest and copy the result to the output
 				return unknownRecordIdsSorter.sortAndSlice(
 					queryContext, new ConstantFormula(computeResult),
-					startIndex, endIndex, result, peak, skipped
+					startIndex, endIndex, result, peak, skipped, skippedRecordsConsumer
 				);
 			} else {
 				// copy the not found ids sorted by PK asc in to the result
 				final int[] buffer = queryContext.borrowBuffer();
 				try {
 					return SortUtils.appendNotFoundResult(
-						result, peak, startIndex, endIndex, computeResultBitmap, buffer
+						result, peak, startIndex, endIndex, computeResultBitmap, buffer, skippedRecordsConsumer
 					);
 				} finally {
 					queryContext.returnBuffer(buffer);
@@ -298,12 +300,12 @@ public class FilteredPricesSorter implements Sorter {
 				// use provided unknown sorter to sort the rest and copty the result to the output
 				return unknownRecordIdsSorter.sortAndSlice(
 					queryContext, new ConstantFormula(new BaseBitmap(notFoundArray)),
-					startIndex, endIndex, result, peak, skipped
+					startIndex, endIndex, result, peak, skipped, skippedRecordsConsumer
 				);
 			} else {
 				// copy the not found ids sorted by PK asc in to the result
 				return SortUtils.appendNotFoundResult(
-					result, peak, startIndex, endIndex, notFoundArray
+					result, peak, startIndex, endIndex, notFoundArray, skippedRecordsConsumer
 				);
 			}
 		}

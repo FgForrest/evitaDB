@@ -140,7 +140,7 @@ public class ExactSorter implements Sorter {
 				final RoaringBitmap outputBitmap = writer.get();
 				return this.unknownRecordIdsSorter.sortAndSlice(
 					queryContext, outputBitmap.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(new BaseBitmap(outputBitmap)),
-					startIndex, endIndex, result, peak + toAppend, skipped + skippedRecords
+					startIndex, endIndex, result, peak + toAppend, skipped + skippedRecords, skippedRecordsConsumer
 				);
 			}
 		}

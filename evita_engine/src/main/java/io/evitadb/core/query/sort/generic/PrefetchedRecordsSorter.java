@@ -153,7 +153,8 @@ public class PrefetchedRecordsSorter extends AbstractRecordsSorter implements Co
 				result,
 				peak + index.get(),
 				skipped + skippedItems,
-				buffer
+				buffer,
+				skippedRecordsConsumer
 			);
 		} finally {
 			queryContext.returnBuffer(buffer);

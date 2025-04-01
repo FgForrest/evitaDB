@@ -21,13 +21,14 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.query.sort.attribute.translator;
+package io.evitadb.core.query.sort.entity.translator;
 
 import io.evitadb.api.query.order.EntityGroupProperty;
 import io.evitadb.api.requestResponse.data.structure.ReferenceDecorator;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.sort.ReferenceOrderByVisitor;
+import io.evitadb.core.query.sort.entity.EntityNestedQueryComparator;
 import io.evitadb.core.query.sort.translator.ReferenceOrderingConstraintTranslator;
 
 import javax.annotation.Nonnull;

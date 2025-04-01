@@ -221,11 +221,11 @@ public class EntityByChainOrderingFunctionalTest {
 				SealedEntity.class
 			)
 			.forEach(theEntity -> {
-				final int[] referencedProducts = theEntity.getReferences(referenceName)
+				final int[] referenceEntities = theEntity.getReferences(referenceName)
 					.stream()
 					.mapToInt(ReferenceContract::getReferencedPrimaryKey)
 					.toArray();
-				ArrayUtils.shuffleArray(rnd, referencedProducts, referencedProducts.length);
+				ArrayUtils.shuffleArray(rnd, referenceEntities, referenceEntities.length);
 				final EntityBuilder entityBuilder = theEntity.openForWrite();
 				theEntity
 					.getReferences(referenceName)
@@ -237,7 +237,7 @@ public class EntityByChainOrderingFunctionalTest {
 									reference.getReferencedPrimaryKey(),
 									whichIs -> whichIs.setAttribute(
 										referenceAttributeName,
-										predecessorCreator.apply(reference, referencedProducts)
+										predecessorCreator.apply(reference, referenceEntities)
 									)
 								);
 							}
@@ -387,6 +387,56 @@ public class EntityByChainOrderingFunctionalTest {
 	}
 
 	/**
+	 * Returns the primary keys (PKs) of items in depth-first order from the given category hierarchy.
+	 *
+	 * @param categoryHierarchy the hierarchy structure containing categories to traverse. Must not be null.
+	 * @return an array of integers containing primary keys of items in depth-first order. Never null.
+	 */
+	@Nonnull
+	static int[] getDepthFirstOrderedPks(
+		@Nonnull Hierarchy categoryHierarchy,
+		@Nonnull Comparator<SealedEntity> entityComparator,
+		@Nonnull Map<Integer, SealedEntity> categoryIndex
+	) {
+		final List<Integer> orderedCategoryIds = new ArrayList<>();
+		categoryHierarchy.getRootItems()
+			.stream()
+			.sorted((cat1, cat2) -> entityComparator.compare(categoryIndex.get(Integer.parseInt(cat1.getCode())), categoryIndex.get(Integer.parseInt(cat2.getCode()))))
+			.forEach(childItem -> traverseDepthFirst(childItem, categoryHierarchy, orderedCategoryIds, entityComparator, categoryIndex));
+		return orderedCategoryIds.stream()
+			.mapToInt(Integer::intValue)
+			.toArray();
+	}
+
+	/**
+	 * Returns the primary keys (PKs) of items in breadth-first order from the given category hierarchy.
+	 *
+	 * @param categoryHierarchy the hierarchy structure containing categories to traverse. Must not be null.
+	 * @return an array of integers containing primary keys of items in breadth-first order. Never null.
+	 */
+	@Nonnull
+	static int[] getBreadthFirstOrderedPks(
+		@Nonnull Hierarchy categoryHierarchy,
+		@Nonnull Comparator<SealedEntity> entityComparator,
+		@Nonnull Map<Integer, SealedEntity> categoryIndex
+	) {
+		final List<Integer> orderedCategoryIds = new ArrayList<>();
+		traverseBreadthFirst(
+			categoryHierarchy.getRootItems()
+				.stream()
+				.sorted((cat1, cat2) -> entityComparator.compare(categoryIndex.get(Integer.parseInt(cat1.getCode())), categoryIndex.get(Integer.parseInt(cat2.getCode()))))
+				.toList(),
+			categoryHierarchy,
+			orderedCategoryIds,
+			entityComparator,
+			categoryIndex
+		);
+		return orderedCategoryIds.stream()
+			.mapToInt(Integer::intValue)
+			.toArray();
+	}
+
+	/**
 	 * Retrieves the category ID with the most products.
 	 *
 	 * @param productsInCategory a map of category IDs to lists of SealedEntity objects
@@ -492,28 +542,6 @@ public class EntityByChainOrderingFunctionalTest {
 	}
 
 	/**
-	 * Returns the primary keys (PKs) of items in depth-first order from the given category hierarchy.
-	 *
-	 * @param categoryHierarchy the hierarchy structure containing categories to traverse. Must not be null.
-	 * @return an array of integers containing primary keys of items in depth-first order. Never null.
-	 */
-	@Nonnull
-	private static int[] getDepthFirstOrderedPks(
-		@Nonnull Hierarchy categoryHierarchy,
-		@Nonnull Comparator<SealedEntity> entityComparator,
-		@Nonnull Map<Integer, SealedEntity> categoryIndex
-	) {
-		final List<Integer> orderedCategoryIds = new ArrayList<>();
-		categoryHierarchy.getRootItems()
-			.stream()
-			.sorted((cat1, cat2) -> entityComparator.compare(categoryIndex.get(Integer.parseInt(cat1.getCode())), categoryIndex.get(Integer.parseInt(cat2.getCode()))))
-			.forEach(childItem -> traverseDepthFirst(childItem, categoryHierarchy, orderedCategoryIds, entityComparator, categoryIndex));
-		return orderedCategoryIds.stream()
-			.mapToInt(Integer::intValue)
-			.toArray();
-	}
-
-	/**
 	 * Traverses a hierarchy depth-first starting from the given item and populates a list of ordered category IDs.
 	 *
 	 * @param item               {@link HierarchyItem} to start traversing from. Must not be {@code null}.
@@ -533,34 +561,6 @@ public class EntityByChainOrderingFunctionalTest {
 			.stream()
 			.sorted((cat1, cat2) -> entityComparator.compare(categoryIndex.get(Integer.parseInt(cat1.getCode())), categoryIndex.get(Integer.parseInt(cat2.getCode()))))
 			.forEach(childItem -> traverseDepthFirst(childItem, categoryHierarchy, orderedCategoryIds, entityComparator, categoryIndex));
-	}
-
-	/**
-	 * Returns the primary keys (PKs) of items in breadth-first order from the given category hierarchy.
-	 *
-	 * @param categoryHierarchy the hierarchy structure containing categories to traverse. Must not be null.
-	 * @return an array of integers containing primary keys of items in breadth-first order. Never null.
-	 */
-	@Nonnull
-	private static int[] getBreadthFirstOrderedPks(
-		@Nonnull Hierarchy categoryHierarchy,
-		@Nonnull Comparator<SealedEntity> entityComparator,
-		@Nonnull Map<Integer, SealedEntity> categoryIndex
-	) {
-		final List<Integer> orderedCategoryIds = new ArrayList<>();
-		traverseBreadthFirst(
-			categoryHierarchy.getRootItems()
-				.stream()
-				.sorted((cat1, cat2) -> entityComparator.compare(categoryIndex.get(Integer.parseInt(cat1.getCode())), categoryIndex.get(Integer.parseInt(cat2.getCode()))))
-				.toList(),
-			categoryHierarchy,
-			orderedCategoryIds,
-			entityComparator,
-			categoryIndex
-		);
-		return orderedCategoryIds.stream()
-			.mapToInt(Integer::intValue)
-			.toArray();
 	}
 
 	/**

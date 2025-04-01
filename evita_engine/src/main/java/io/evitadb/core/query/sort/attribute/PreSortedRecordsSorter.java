@@ -34,6 +34,7 @@ import io.evitadb.core.query.sort.generic.AbstractRecordsSorter;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Comparator;
+import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import java.util.function.Supplier;
@@ -163,7 +164,7 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter implements Con
 					this.unknownRecordIdsSorter
 				) :
 				new MergedComparableSortedRecordsSupplierSorter(
-					this.comparator,
+					Objects.requireNonNull(this.comparator),
 					sortedRecordsProviders,
 					this.unknownRecordIdsSorter
 				);

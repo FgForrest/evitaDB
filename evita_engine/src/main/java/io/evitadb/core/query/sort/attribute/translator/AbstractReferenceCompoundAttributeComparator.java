@@ -24,7 +24,6 @@
 package io.evitadb.core.query.sort.attribute.translator;
 
 
-import com.carrotsearch.hppc.IntIntMap;
 import com.carrotsearch.hppc.IntObjectHashMap;
 import com.carrotsearch.hppc.IntObjectMap;
 import io.evitadb.api.query.order.OrderDirection;
@@ -45,14 +44,13 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 import static io.evitadb.index.attribute.SortIndex.createCombinedComparatorFor;
@@ -87,10 +85,6 @@ public abstract class AbstractReferenceCompoundAttributeComparator implements En
 	 */
 	@Nonnull protected final UnaryOperator<Serializable> normalizer;
 	/**
-	 * Supplier of the index of the referenced id positions in the main ordering.
-	 */
-	@Nonnull protected final Supplier<IntIntMap> referencePositionMapSupplier;
-	/**
 	 * Mandatory reference to reference schema, if the attribute is a reference attribute.
 	 */
 	@Nonnull protected final ReferenceSchemaContract referenceSchema;
@@ -99,10 +93,6 @@ public abstract class AbstractReferenceCompoundAttributeComparator implements En
 	 * in compare method multiple times.
 	 */
 	@Nonnull private final IntObjectMap<ReferenceAttributeValue> memoizedValues = new IntObjectHashMap<>(128);
-	/**
-	 * Memoized result from {@link #referencePositionMapSupplier} supplier.
-	 */
-	protected IntIntMap referencePositionMap;
 	/**
 	 * Container for entities that cannot be sorted using the resolved {@link SortedRecordsProvider}.
 	 */
@@ -113,11 +103,9 @@ public abstract class AbstractReferenceCompoundAttributeComparator implements En
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nullable Locale locale,
 		@Nonnull Function<String, AttributeSchemaContract> attributeSchemaExtractor,
-		@Nonnull OrderDirection orderDirection,
-		@Nonnull Supplier<IntIntMap> referencePositionMapSupplier
+		@Nonnull OrderDirection orderDirection
 	) {
 		this.referenceSchema = referenceSchema;
-		this.referencePositionMapSupplier = referencePositionMapSupplier;
 		final List<AttributeElement> attributeElements = compoundSchemaContract
 			.getAttributeElements();
 		this.comparatorSource = attributeElements
@@ -160,35 +148,24 @@ public abstract class AbstractReferenceCompoundAttributeComparator implements En
 	protected ReferenceAttributeValue getAndMemoizeValue(@Nonnull EntityContract entity) {
 		final ReferenceAttributeValue memoizedValue = this.memoizedValues.get(entity.getPrimaryKeyOrThrowException());
 		if (memoizedValue == null) {
-			// initialize the reference position map if it hasn't been initialized yet
-			if (this.referencePositionMap == null) {
-				this.referencePositionMap = this.referencePositionMapSupplier.get();
-			}
-			// find the reference contract that has the attribute we are looking for
-			final ReferenceContract referenceContract = entity.getReferences(this.referenceSchema.getName())
-				.stream()
-				.filter(it -> Arrays.stream(this.attributeElements).anyMatch(ae -> it.getAttribute(ae.attributeName()) != null))
-				.min(Comparator.comparingInt(it -> this.referencePositionMap.get(it.getReferencedPrimaryKey())))
-				.orElse(null);
-
-			final ReferenceAttributeValue calculatedValue;
-			if (referenceContract == null) {
-				calculatedValue = ReferenceAttributeValue.MISSING;
-			} else {
-				final Serializable[] valueArray = new Serializable[this.attributeElements.length];
-				for (int i = 0; i < this.attributeElements.length; i++) {
-					final AttributeElement attributeElement = this.attributeElements[i];
-					valueArray[i] = this.attributeValueFetcher.apply(referenceContract, attributeElement.attributeName());
-				}
-				calculatedValue = new ReferenceAttributeValue(
-					referenceContract.getReferencedPrimaryKey(),
-					new ComparableArray(
-						this.comparatorSource,
-						(Serializable[]) this.normalizer.apply(valueArray)
-					),
-					this.comparator
-				);
-			}
+			final Optional<ReferenceContract> referenceContract = pickReference(entity);
+			final ReferenceAttributeValue calculatedValue = referenceContract
+				.map(reference -> {
+					final Serializable[] valueArray = new Serializable[this.attributeElements.length];
+					for (int i = 0; i < this.attributeElements.length; i++) {
+						final AttributeElement attributeElement = this.attributeElements[i];
+						valueArray[i] = this.attributeValueFetcher.apply(reference, attributeElement.attributeName());
+					}
+					return new ReferenceAttributeValue(
+						reference.getReferencedPrimaryKey(),
+						new ComparableArray(
+							this.comparatorSource,
+							(Serializable[]) this.normalizer.apply(valueArray)
+						),
+						this.comparator
+					);
+				})
+				.orElse(ReferenceAttributeValue.MISSING);
 			this.memoizedValues.put(entity.getPrimaryKeyOrThrowException(), calculatedValue);
 			// if the value is missing, we need to add the entity to the non-sorted entities
 			if (calculatedValue == ReferenceAttributeValue.MISSING) {
@@ -202,6 +179,16 @@ public abstract class AbstractReferenceCompoundAttributeComparator implements En
 			return memoizedValue;
 		}
 	}
+
+	/**
+	 * Abstract method for selecting a {@link ReferenceContract} instance based on the given {@link EntityContract}.
+	 * This method provides a way to retrieve a specific reference from the entity, if applicable.
+	 *
+	 * @param entity the entity from which the reference is to be selected, must not be null
+	 * @return the selected {@link ReferenceContract}, or null if no appropriate reference exists
+	 */
+	@Nonnull
+	protected abstract Optional<ReferenceContract> pickReference(@Nonnull EntityContract entity);
 
 	/**
 	 * Represents a data structure that encapsulates a reference key and its associated attribute value.

@@ -97,22 +97,22 @@ class PrefetchedRecordsSorterTest {
 		final QueryExecutionContext executionContext = entitySorter.context().createExecutionContext();
 		assertArrayEquals(
 			new int[]{2, 4, 1, 3},
-			asResult(theArray -> entitySorter.sorter().sortAndSlice(executionContext, makeFormula(1, 2, 3, 4), 0, 100, theArray, 0, 0))
+			asResult(theArray -> entitySorter.sorter().sortAndSlice(executionContext, makeFormula(1, 2, 3, 4), 0, 100, theArray, 0, 0, null))
 		);
 		assertArrayEquals(
 			new int[]{1, 3},
-			asResult(theArray -> entitySorter.sorter().sortAndSlice(executionContext, makeFormula(1, 2, 3, 4, 5, 6, 7, 8, 9), 3, 5, theArray, 0, 0))
+			asResult(theArray -> entitySorter.sorter().sortAndSlice(executionContext, makeFormula(1, 2, 3, 4, 5, 6, 7, 8, 9), 3, 5, theArray, 0, 0, null))
 		);
 		assertArrayEquals(
 			new int[]{7, 8, 9},
-			asResult(theArray -> entitySorter.sorter().sortAndSlice(executionContext, makeFormula(7, 8, 9), 0, 3, theArray, 0, 0))
+			asResult(theArray -> entitySorter.sorter().sortAndSlice(executionContext, makeFormula(7, 8, 9), 0, 3, theArray, 0, 0, null))
 		);
 	}
 
 	@Test
 	void shouldReturnSortedResultEvenForMissingData() {
 		final QueryExecutionContext executionContext = entitySorter.context().createExecutionContext();
-		final int[] actual = asResult(theArray -> entitySorter.sorter().sortAndSlice(executionContext, makeFormula(0, 1, 2, 3, 4, 12, 13), 0, 100, theArray, 0, 0));
+		final int[] actual = asResult(theArray -> entitySorter.sorter().sortAndSlice(executionContext, makeFormula(0, 1, 2, 3, 4, 12, 13), 0, 100, theArray, 0, 0, null));
 		assertArrayEquals(
 			new int[]{2, 4, 1, 3, 0, 12, 13},
 			actual
@@ -128,7 +128,7 @@ class PrefetchedRecordsSorterTest {
 		);
 
 		final QueryExecutionContext executionContext = entitySorter.context().createExecutionContext();
-		final int[] actual = asResult(theArray -> updatedSorter.sortAndSlice(executionContext, makeFormula(0, 1, 2, 3, 4, 12, 13), 0, 100, theArray, 0, 0));
+		final int[] actual = asResult(theArray -> updatedSorter.sortAndSlice(executionContext, makeFormula(0, 1, 2, 3, 4, 12, 13), 0, 100, theArray, 0, 0, null));
 		assertArrayEquals(
 			new int[]{2, 4, 1, 3, 13, 0, 12},
 			actual

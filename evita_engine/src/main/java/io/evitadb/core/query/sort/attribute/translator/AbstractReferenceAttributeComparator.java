@@ -24,7 +24,6 @@
 package io.evitadb.core.query.sort.attribute.translator;
 
 
-import com.carrotsearch.hppc.IntIntMap;
 import com.carrotsearch.hppc.IntObjectHashMap;
 import com.carrotsearch.hppc.IntObjectMap;
 import io.evitadb.api.query.order.OrderDirection;
@@ -46,7 +45,6 @@ import java.util.Comparator;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 import static io.evitadb.index.attribute.SortIndex.createComparatorFor;
@@ -69,17 +67,13 @@ public abstract class AbstractReferenceAttributeComparator implements EntityComp
 	 */
 	@Nonnull protected final Comparator<EntityContract> pkComparator;
 	/**
-	 * Supplier of the index of the referenced id positions in the main ordering.
+	 * The name of the reference that is being compared.
 	 */
-	@Nonnull protected final Supplier<IntIntMap> referencePositionMapSupplier;
+	protected final String referenceName;
 	/**
 	 * Internal storage for entities that could not be fully sorted due to missing attributes.
 	 */
-	protected CompositeObjectArray<EntityContract> nonSortedEntities;
-	/**
-	 * Memoized result from {@link #referencePositionMapSupplier} supplier.
-	 */
-	protected IntIntMap referencePositionMap;
+	@Nullable protected CompositeObjectArray<EntityContract> nonSortedEntities;
 	/**
 	 * Cache for storing attribute values of entities to avoid redundant calculations.
 	 */
@@ -90,10 +84,9 @@ public abstract class AbstractReferenceAttributeComparator implements EntityComp
 		@Nonnull Class<?> type,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nullable Locale locale,
-		@Nonnull OrderDirection orderDirection,
-		@Nonnull Supplier<IntIntMap> referencePositionMapSupplier
+		@Nonnull OrderDirection orderDirection
 	) {
-		this.referencePositionMapSupplier = referencePositionMapSupplier;
+		this.referenceName = referenceSchema.getName();
 		this.pkComparator = orderDirection == OrderDirection.ASC ?
 			Comparator.comparingInt(EntityContract::getPrimaryKeyOrThrowException) :
 			Comparator.comparingInt(EntityContract::getPrimaryKeyOrThrowException).reversed();
@@ -104,23 +97,11 @@ public abstract class AbstractReferenceAttributeComparator implements EntityComp
 		final UnaryOperator<Serializable> normalizer = normalizerFor.orElseGet(UnaryOperator::identity);
 		//noinspection rawtypes
 		final Comparator valueComparator = createComparatorFor(locale, comparatorSource);
-		final String referenceName = referenceSchema.getName();
-		final Function<ReferenceContract, Comparable<?>> attributeExtractor = locale == null ?
-			referenceContract -> referenceContract.getAttribute(attributeName) :
-			referenceContract -> referenceContract.getAttribute(attributeName, locale);
-
 		this.attributeValueFetcher = entityContract -> {
 			final ReferenceAttributeValue cachedValue = this.cache.get(entityContract.getPrimaryKeyOrThrowException());
 			if (cachedValue == null) {
-				// initialize the reference position map if it hasn't been initialized yet
-				if (this.referencePositionMap == null) {
-					this.referencePositionMap = this.referencePositionMapSupplier.get();
-				}
 				// find the reference contract that has the attribute we are looking for
-				final ReferenceAttributeValue calculatedValue = entityContract.getReferences(referenceName)
-					.stream()
-					.filter(it -> attributeExtractor.apply(it) != null)
-					.min(Comparator.comparingInt(it -> this.referencePositionMap.get(it.getReferencedPrimaryKey())))
+				final ReferenceAttributeValue calculatedValue = pickReference(entityContract)
 					.map(
 						it -> new ReferenceAttributeValue(
 							it.getReferencedPrimaryKey(),
@@ -144,6 +125,16 @@ public abstract class AbstractReferenceAttributeComparator implements EntityComp
 			}
 		};
 	}
+
+	/**
+	 * Abstract method for selecting a {@link ReferenceContract} instance based on the given {@link EntityContract}.
+	 * This method provides a way to retrieve a specific reference from the entity, if applicable.
+	 *
+	 * @param entity the entity from which the reference is to be selected, must not be null
+	 * @return the selected {@link ReferenceContract}, or null if no appropriate reference exists
+	 */
+	@Nonnull
+	protected abstract Optional<ReferenceContract> pickReference(@Nonnull EntityContract entity);
 
 	@Override
 	public void prepareFor(int entityCount) {

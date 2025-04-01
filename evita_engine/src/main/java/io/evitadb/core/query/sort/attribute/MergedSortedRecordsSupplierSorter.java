@@ -34,7 +34,6 @@ import io.evitadb.core.query.sort.generic.AbstractRecordsSorter;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import org.roaringbitmap.BatchIterator;
 import org.roaringbitmap.RoaringBatchIterator;
 import org.roaringbitmap.RoaringBitmap;
@@ -108,22 +107,24 @@ public final class MergedSortedRecordsSupplierSorter extends AbstractRecordsSort
 			}
 
 			// skip previous pages quickly
+			final int skippedInBuffer;
 			if (toSkip > 0) {
+				skippedInBuffer = Math.max(0, Math.min(toSkip, bufferPeak));
 				if (skippedRecordsConsumer != null) {
 					// skip records in buffer, cap really read records in the buffer
-					final int skippedInBuffer = Math.max(0, Math.min(toSkip, bufferPeak));
 					for (int i = 0; i < skippedInBuffer; i++) {
 						skippedRecordsConsumer.accept(preSortedRecordIds[buffer[i]]);
 					}
 				}
 				toSkip -= bufferPeak;
+			} else {
+				skippedInBuffer = 0;
 			}
 
 			// now we are on the page
 			if (toSkip <= 0) {
 				// copy records for page
-				final int startIndex = toSkip == 0 ? 0 : bufferPeak + toSkip;
-				for (int i = startIndex; toRead > 0 && i < bufferPeak; i++) {
+				for (int i = skippedInBuffer; toRead > 0 && i < bufferPeak; i++) {
 					final int preSortedRecordId = preSortedRecordIds[buffer[i]];
 					if (!alreadySortedRecordIds.contains(preSortedRecordId)) {
 						result[peak++] = preSortedRecordId;
@@ -251,9 +252,6 @@ public final class MergedSortedRecordsSupplierSorter extends AbstractRecordsSort
 		final int recomputedEndIndex = Math.max(0, endIndex - peak - skipped);
 
 		final Bitmap selectedRecordIds = input.compute();
-		if (selectedRecordIds.size() < recomputedStartIndex) {
-			throw new IndexOutOfBoundsException("Index: " + recomputedStartIndex + ", Size: " + selectedRecordIds.size());
-		}
 		if (selectedRecordIds.isEmpty()) {
 			return 0;
 		} else {
@@ -271,7 +269,8 @@ public final class MergedSortedRecordsSupplierSorter extends AbstractRecordsSort
 					result,
 					sortResult.peak(),
 					skipped + delegateConsumer.getCounter(),
-					buffer
+					buffer,
+					skippedRecordsConsumer
 				);
 			} finally {
 				queryContext.returnBuffer(buffer);
@@ -381,22 +380,4 @@ public final class MergedSortedRecordsSupplierSorter extends AbstractRecordsSort
 	) {
 	}
 
-	/**
-	 * The SkippingRecordConsumer is an implementation of the {@link IntConsumer} interface that wraps an optional delegate
-	 * {@code IntConsumer} and tracks the count of records processed. This class is intended to be used for scenarios
-	 * where certain records need to be tracked, possibly skipped, or processed with optional side effects.
-	 */
-	@RequiredArgsConstructor
-	private static class SkippingRecordConsumer implements IntConsumer {
-		@Nullable private final IntConsumer delegate;
-		@Getter private int counter = 0;
-
-		@Override
-		public void accept(int value) {
-			if (this.delegate != null) {
-				this.delegate.accept(value);
-			}
-			this.counter++;
-		}
-	}
 }

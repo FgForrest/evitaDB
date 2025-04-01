@@ -151,7 +151,7 @@ public class HierarchySet {
 			final Formula levelIdFormula = bitmap.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(new BaseBitmap(bitmap));
 			final int[] sortedEntities = new int[levelIdFormula.compute().size()];
 			final int sortedEntitiesPeak = sorter.sortAndSlice(
-				levelIdFormula, 0, levelIdFormula.compute().size(), sortedEntities, 0, 0
+				levelIdFormula, 0, levelIdFormula.compute().size(), sortedEntities, 0, 0, null
 			);
 			// replace the output with the sorted one
 			final int[] normalizedSortedResult = SortUtils.asResult(sortedEntities, sortedEntitiesPeak);

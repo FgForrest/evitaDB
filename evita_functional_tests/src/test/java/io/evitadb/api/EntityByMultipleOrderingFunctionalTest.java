@@ -27,7 +27,6 @@ package io.evitadb.api;
 import com.carrotsearch.hppc.IntIntHashMap;
 import com.carrotsearch.hppc.IntIntMap;
 import com.github.javafaker.Faker;
-import io.evitadb.api.EntityByChainOrderingFunctionalTest.*;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.order.TraversalMode;
 import io.evitadb.api.query.require.DebugMode;
@@ -68,6 +67,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static io.evitadb.api.EntityByChainOrderingFunctionalTest.*;
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
@@ -215,7 +215,8 @@ public class EntityByMultipleOrderingFunctionalTest {
 			// second pass - update the category order of the products
 			updateReferenceAttributeInProduct(
 				session,
-				Entities.CATEGORY, REFERENCE_CATEGORY_PRODUCTS, ATTRIBUTE_CATEGORY_ORDER, (reference, referencedProducts) -> {
+				Entities.CATEGORY, REFERENCE_CATEGORY_PRODUCTS, ATTRIBUTE_CATEGORY_ORDER,
+				(reference, referencedProducts) -> {
 					final int theIndex = ArrayUtils.indexOf(reference.getReferencedPrimaryKey(), referencedProducts);
 					return theIndex == 0 ?
 						ReferencedEntityPredecessor.HEAD : new ReferencedEntityPredecessor(referencedProducts[theIndex - 1]);
@@ -263,34 +264,40 @@ public class EntityByMultipleOrderingFunctionalTest {
 		@Nonnull Evita evita,
 		@Nonnull Hierarchy categoryHierarchy,
 		@Nonnull Map<Integer, SealedEntity> categoryIndex,
+		@Nonnull IntIntMap categoryPositionIndex,
 		@Nonnull Map<Integer, List<SealedEntity>> productsInCategory
 	) {
-		final int[] sortedProducts = Arrays.stream(getDepthFirstOrderedPks(categoryHierarchy, categoryIndex))
+		final int[] sortedProducts = Arrays.stream(
+				getDepthFirstOrderedPks(
+					categoryHierarchy,
+					Comparator.comparingInt(o -> categoryPositionIndex.get(o.getPrimaryKeyOrThrowException())),
+					categoryIndex
+				)
+			)
 			.flatMap(
-				catId -> ofNullable(productsInCategory.get(catId)).stream()
+				catId -> ofNullable(productsInCategory.get(catId))
+					.stream()
 					.flatMapToInt(
 						categoryProducts -> {
+							final int[] orderedProducts = categoryProducts.stream()
+								.mapToInt(SealedEntity::getPrimaryKeyOrThrowException)
+								.toArray();
 							final Comparator<SealedEntity> comparator;
 							if (catId % 3 == 0) {
 								comparator = Comparator.comparing(
 									it -> it.getReference(Entities.CATEGORY, catId)
 										.map(ref -> ref.getAttribute(ATTRIBUTE_INCEPTION_YEAR, Integer.class))
-										.orElse(null),
-									Comparator.nullsLast(Comparator.naturalOrder())
+										.orElseThrow()
 								);
 							} else if (catId % 4 == 0) {
 								comparator = Comparator.comparing(
 									it -> it.getReference(Entities.CATEGORY, catId)
 										.map(ref -> ref.getAttribute(ATTRIBUTE_MARKET, String.class))
-										.orElse(null),
-									Comparator.nullsLast(Comparator.naturalOrder())
+										.orElseThrow()
 								);
 							} else if (catId % 7 == 0) {
 								comparator = Comparator.comparing(
-									it -> it.getReference(Entities.CATEGORY, catId)
-										.map(ref -> ref.getAttribute(ATTRIBUTE_MARKET, String.class))
-										.orElse(null),
-									Comparator.nullsLast(Comparator.naturalOrder())
+									it -> ArrayUtils.indexOf(it.getPrimaryKeyOrThrowException(), orderedProducts)
 								);
 							} else {
 								comparator = Comparator.comparingInt(EntityClassifier::getPrimaryKeyOrThrowException);

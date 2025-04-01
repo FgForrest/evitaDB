@@ -28,6 +28,7 @@ import com.carrotsearch.hppc.IntIntMap;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.order.PickFirstByEntityProperty;
 import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
@@ -36,7 +37,10 @@ import io.evitadb.core.query.sort.attribute.PreSortedRecordsSorter.MergeMode;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -49,6 +53,15 @@ import java.util.function.Supplier;
  */
 public class PickFirstReferenceCompoundAttributeComparator extends AbstractReferenceCompoundAttributeComparator {
 	@Serial private static final long serialVersionUID = 2199278500724685085L;
+
+	/**
+	 * Supplier of the index of the referenced id positions in the main ordering.
+	 */
+	@Nonnull private final Supplier<IntIntMap> referencePositionMapSupplier;
+	/**
+	 * Memoized result from {@link #referencePositionMapSupplier} supplier.
+	 */
+	private IntIntMap referencePositionMap;
 
 	public PickFirstReferenceCompoundAttributeComparator(
 		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
@@ -63,9 +76,23 @@ public class PickFirstReferenceCompoundAttributeComparator extends AbstractRefer
 			referenceSchema,
 			locale,
 			attributeSchemaExtractor,
-			orderDirection,
-			referencePositionMapSupplier
+			orderDirection
 		);
+		this.referencePositionMapSupplier = referencePositionMapSupplier;
+	}
+
+	@Override
+	@Nonnull
+	protected Optional<ReferenceContract> pickReference(@Nonnull EntityContract entity) {
+		// initialize the reference position map if it hasn't been initialized yet
+		if (this.referencePositionMap == null) {
+			this.referencePositionMap = this.referencePositionMapSupplier.get();
+		}
+		// find the reference contract that has the attribute we are looking for
+		return entity.getReferences(this.referenceSchema.getName())
+			.stream()
+			.filter(it -> Arrays.stream(this.attributeElements).anyMatch(ae -> it.getAttribute(ae.attributeName()) != null))
+			.min(Comparator.comparingInt(it -> this.referencePositionMap.get(it.getReferencedPrimaryKey())));
 	}
 
 	@Override

@@ -291,19 +291,24 @@ public class DataGenerator {
 		for (AttributeSchemaContract attribute : attributeSchema) {
 			final Class<? extends Serializable> type = attribute.getType();
 			final String attributeName = attribute.getName();
-			if (!attributeFilter.test(attributeName)) {
-				continue;
-			}
-			if (!attribute.isUnique() && attribute.isNullable() && genericFaker.random().nextInt(10) == 0) {
-				// randomly skip attributes
-				continue;
-			}
 
 			final Function<Faker, Object> genericValueGenerator = valueGenerators.get(new EntityAttribute(entityType, attributeName));
 			final BiFunction<ReferenceKey, Faker, Object> referenceValueGenerator = referenceValueGenerators.get(new EntityAttribute(entityType, attributeName));
 			final Function<Faker, Object> valueGenerator = referenceKey != null && referenceValueGenerator != null ?
 				faker -> referenceValueGenerator.apply(referenceKey, faker) :
 				genericValueGenerator;
+
+			// if value generator is specified, the randomness should be implemented in the generator
+			if (valueGenerator == null) {
+				if (!attributeFilter.test(attributeName)) {
+					continue;
+				}
+				if (!attribute.isUnique() && attribute.isNullable() && genericFaker.random().nextInt(10) == 0) {
+					// randomly skip attributes
+					continue;
+				}
+			}
+
 			if (attribute.isLocalized()) {
 				final Collection<Locale> localesToGenerate = attribute.isNullable() ? usedLocales : allLocales;
 				for (Locale usedLocale : localesToGenerate) {

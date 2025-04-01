@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.query.sort.attribute.translator;
+package io.evitadb.core.query.sort.reference.translator;
 
 import com.carrotsearch.hppc.IntObjectHashMap;
 import com.carrotsearch.hppc.IntObjectMap;
@@ -51,6 +51,7 @@ import io.evitadb.core.query.sort.OrderByVisitor.MergeModeDefinition;
 import io.evitadb.core.query.sort.OrderByVisitor.ProcessingScope;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.attribute.PreSortedRecordsSorter.MergeMode;
+import io.evitadb.core.query.sort.reference.SequentialSorter;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -70,11 +71,13 @@ import org.roaringbitmap.RoaringBitmap;
 import org.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.UnaryOperator;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -261,7 +264,7 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 					);
 					final int sortedPeak = sorter.sortAndSlice(
 						filteringFormula,
-						0, input.length, output, 0, 0
+						0, input.length, output, 0, 0, null
 					);
 					Assert.isPremiseValid(
 						sortedPeak == filteringFormula.compute().size(),
@@ -302,9 +305,37 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 
 			final int referenceIndexCount = referenceIndexIds.compute().size();
 			final int[] result = new int[referenceIndexCount];
-			final int sortedPeak = sorter.sortAndSlice(referenceIndexIds, 0, referenceIndexCount, result, 0, 0);
+			final int sortedPeak = sorter.sortAndSlice(referenceIndexIds, 0, referenceIndexCount, result, 0, 0, null);
 			Assert.isPremiseValid(sortedPeak == referenceIndexCount, "Unexpected number of sorted indexes: " + sortedPeak);
 			return IntStream.of(result);
+		}
+	}
+
+	/**
+	 * Traverses the child constraints within the provided {@link ReferenceProperty}
+	 * and applies the specified {@link OrderByVisitor} to handle the ordering constraints.
+	 * This method handles specific constraints such as {@link EntityProperty} with
+	 * {@link EntityPrimaryKeyNatural}, skipping unsupported or already processed types.
+	 *
+	 * @param referenceProperty The {@link ReferenceProperty} containing the order constraints to be traversed.
+	 * @param orderByVisitor    The {@link OrderByVisitor} responsible for handling and applying the ordering logic
+	 *                          during the traversal of constraints.
+	 */
+	private static void traverseChildConstraints(@Nonnull ReferenceProperty referenceProperty, @Nonnull OrderByVisitor orderByVisitor) {
+		for (OrderConstraint innerConstraint : referenceProperty.getOrderConstraints()) {
+			// explicit support for `entityProperty(entityPrimaryKeyNatural())` - other variants
+			// of `entityProperty` doesn't make sense in this context
+			if (innerConstraint instanceof EntityProperty entityProperty) {
+				final OrderConstraint[] childrenConstraints = entityProperty.getChildren();
+				if (childrenConstraints.length == 1 && childrenConstraints[0] instanceof EntityPrimaryKeyNatural primaryKeyNatural) {
+					primaryKeyNatural.accept(orderByVisitor);
+					continue;
+				}
+			} else if (innerConstraint instanceof TraverseByEntityProperty || innerConstraint instanceof PickFirstByEntityProperty) {
+				// skip this constraint as it is already handled by this translator
+				continue;
+			}
+			innerConstraint.accept(orderByVisitor);
 		}
 	}
 
@@ -337,13 +368,19 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 			reducedEntityIndexSet;
 
 		if (!referenceIndexes.isEmpty()) {
-			final IntObjectMap<ReducedEntityIndex> reducedIndexesMap = new IntObjectHashMap<>(referenceIndexes.size());
+			final IntObjectMap<Stream<ReducedEntityIndex>> reducedIndexesMap = new IntObjectHashMap<>(referenceIndexes.size());
 			final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
 			for (ReducedEntityIndex referenceIndex : referenceIndexes) {
 				final ReferenceKey discriminator = (ReferenceKey) Objects.requireNonNull(referenceIndex.getIndexKey().discriminator());
 				final int referencedPk = discriminator.primaryKey();
 				writer.add(referencedPk);
-				reducedIndexesMap.put(referencedPk, referenceIndex);
+				final Stream<ReducedEntityIndex> existingValue = reducedIndexesMap.get(referencedPk);
+				if (existingValue == null) {
+					reducedIndexesMap.put(referencedPk, Stream.of(referenceIndex));
+				} else {
+					// there should be at most 2 such indexes
+					reducedIndexesMap.put(referencedPk, Stream.concat(existingValue, Stream.of(referenceIndex)));
+				}
 			}
 			final Formula referenceIndexIds = new ConstantFormula(new BaseBitmap(writer.get()));
 
@@ -371,59 +408,57 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 			final ReducedEntityIndex[] sortedReducedIndexes = sortedReferencePks
 				.mapToObj(reducedIndexesMap::get)
 				.filter(Objects::nonNull)
+				.flatMap(Function.identity())
 				.toArray(ReducedEntityIndex[]::new);
 
-			orderByVisitor.executeInContext(
-				sortedReducedIndexes,
-				referenceSchema,
-				null,
-				processingScope.withReferenceSchemaAccessor(referenceName),
-				new MergeModeDefinition(mergeMode, orderingSpecificationRef.isEmpty()),
-				() -> {
-					for (OrderConstraint innerConstraint : referenceProperty.getOrderConstraints()) {
-						// explicit support for `entityProperty(entityPrimaryKeyNatural())` - other variants
-						// of `entityProperty` doesn't make sense in this context
-						if (innerConstraint instanceof EntityProperty entityProperty) {
-							final OrderConstraint[] childrenConstraints = entityProperty.getChildren();
-							if (childrenConstraints.length == 1 && childrenConstraints[0] instanceof EntityPrimaryKeyNatural primaryKeyNatural) {
-								primaryKeyNatural.accept(orderByVisitor);
-								continue;
-							}
-						} else if (innerConstraint instanceof TraverseByEntityProperty || innerConstraint instanceof PickFirstByEntityProperty) {
-							// skip this constraint as it is already handled by this translator
-							continue;
-						}
-						innerConstraint.accept(orderByVisitor);
-					}
-					return null;
-				}
-			);
-
-			/* TODO JNO - remove if not used */
-			/*if (mergeMode == MergeMode.APPEND_ALL) {
-				final Deque<Sorter> sorters = processingScope.sorters();
-				final Sorter sorter = sorters.pollLast();
-
+			if (mergeMode == MergeMode.APPEND_ALL) {
+				int start = 0;
 				ReferenceKey referenceKey = null;
-				final CompositeObjectArray<SortedRecordsProvider[]> atomicBlocks = new CompositeObjectArray<>(SortedRecordsProvider[].class, false);
-				for (int i = 0; i < sortedRecordsProviders.length; i++) {
-					final ReferenceSortedRecordsSupplier sortedReducedIndex = (ReferenceSortedRecordsSupplier) sortedRecordsProviders[i];
+				int index = 0;
+				final ReducedEntityIndex[][] atomicBlocks = new ReducedEntityIndex[reducedIndexesMap.size()][];
+				for (int i = 0; i < sortedReducedIndexes.length; i++) {
+					final ReducedEntityIndex sortedReducedIndex = sortedReducedIndexes[i];
 					final ReferenceKey srpReferenceKey = sortedReducedIndex.getReferenceKey();
 					if (referenceKey != null && !referenceKey.equals(srpReferenceKey)) {
-						atomicBlocks.add(
-							Arrays.copyOfRange(sortedRecordsProviders, start, i)
-						);
+						atomicBlocks[index++] = Arrays.copyOfRange(sortedReducedIndexes, start, i);
 						start = i;
 					}
 					referenceKey = srpReferenceKey;
 				}
-				atomicBlocks.add(
-					Arrays.copyOfRange(sortedRecordsProviders, start, sortedRecordsProviders.length)
-				);
-			}*/
+				atomicBlocks[index] = Arrays.copyOfRange(sortedReducedIndexes, start, sortedReducedIndexes.length);
+				Assert.isPremiseValid(index == atomicBlocks.length - 1, "Unexpected number of atomic blocks: " + index);
 
+				final Sorter delegate = orderByVisitor.executeInContext(
+					sortedReducedIndexes,
+					referenceSchema,
+					null,
+					processingScope.withReferenceSchemaAccessor(referenceName),
+					new MergeModeDefinition(mergeMode, orderingSpecificationRef.isEmpty()),
+					() -> orderByVisitor.collectIsolatedSorter(
+						() -> traverseChildConstraints(referenceProperty, orderByVisitor)
+					)
+				);
+
+				return Stream.of(
+					new SequentialSorter(atomicBlocks, delegate)
+				);
+			} else {
+				orderByVisitor.executeInContext(
+					sortedReducedIndexes,
+					referenceSchema,
+					null,
+					processingScope.withReferenceSchemaAccessor(referenceName),
+					new MergeModeDefinition(mergeMode, orderingSpecificationRef.isEmpty()),
+					() -> {
+						traverseChildConstraints(referenceProperty, orderByVisitor);
+						return null;
+					}
+				);
+				return Stream.empty();
+			}
+		} else {
+			return Stream.empty();
 		}
-		return Stream.empty();
 	}
 
 }

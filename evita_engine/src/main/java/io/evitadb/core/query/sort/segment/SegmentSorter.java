@@ -138,7 +138,7 @@ public class SegmentSorter implements Sorter {
 				return this.unknownRecordIdsSorter.sortAndSlice(
 					queryContext,
 					// we may pass the complete input, since we didn't drained any records in this segment
-					input, startIndex, endIndex, result, peak, skipped
+					input, startIndex, endIndex, result, peak, skipped, skippedRecordsConsumer
 				);
 			}
 		} else {
@@ -179,7 +179,7 @@ public class SegmentSorter implements Sorter {
 				return this.unknownRecordIdsSorter.sortAndSlice(
 					queryContext,
 					nextInput,
-					startIndex, endIndex, result, lastSortedItem, skipped + skippedRecords
+					startIndex, endIndex, result, lastSortedItem, skipped + skippedRecords, skippedRecordsConsumer
 				);
 			}
 		}

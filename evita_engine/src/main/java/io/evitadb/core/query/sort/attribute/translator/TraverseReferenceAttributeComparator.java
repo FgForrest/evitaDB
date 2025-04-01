@@ -23,18 +23,21 @@
 
 package io.evitadb.core.query.sort.attribute.translator;
 
-import com.carrotsearch.hppc.IntIntMap;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.order.TraverseByEntityProperty;
 import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.core.query.sort.EntityReferenceSensitiveComparator;
 import io.evitadb.core.query.sort.attribute.PreSortedRecordsSorter.MergeMode;
+import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.util.Locale;
-import java.util.function.Supplier;
+import java.util.Optional;
 
 /**
  * Attribute comparator sorts entities according to a specified attribute value. It needs to provide a function for
@@ -43,25 +46,61 @@ import java.util.function.Supplier;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class TraverseReferenceAttributeComparator extends AbstractReferenceAttributeComparator {
-	@Serial private static final long serialVersionUID = 2969632214608241409L;
+public class TraverseReferenceAttributeComparator
+	extends AbstractReferenceAttributeComparator
+	implements EntityReferenceSensitiveComparator
+{
+	@Serial private static final long serialVersionUID = 2199278500724685085L;
+	/**
+	 * The name of the reference that is being traversed.
+	 */
+	private final String referenceName;
+	/**
+	 * The id of the referenced entity that is being traversed.
+	 */
+	@Nullable private Integer referencedEntityId;
 
 	public TraverseReferenceAttributeComparator(
 		@Nonnull String attributeName,
 		@Nonnull Class<?> type,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nullable Locale locale,
-		@Nonnull OrderDirection orderDirection,
-		@Nonnull Supplier<IntIntMap> referencePositionMapSupplier
+		@Nonnull OrderDirection orderDirection
 	) {
 		super(
 			attributeName,
 			type,
 			referenceSchema,
 			locale,
-			orderDirection,
-			referencePositionMapSupplier
+			orderDirection
 		);
+		this.referenceName = referenceSchema.getName();
+	}
+
+	/**
+	 * Temporarily sets the ID of a referenced entity, executes a given lambda expression,
+	 * and then resets the referenced entity ID to null to ensure proper cleanup.
+	 *
+	 * @param referencedEntityId the ID of the referenced entity to be temporarily set
+	 * @param lambda the lambda expression to execute while the referenced entity ID is set
+	 * @throws GenericEvitaInternalError if the referenced entity ID has already been set
+	 */
+	@Override
+	public void withReferencedEntityId(int referencedEntityId, @Nonnull Runnable lambda) {
+		try {
+			Assert.isPremiseValid(this.referencedEntityId == null, "Cannot set referenced entity id twice!");
+			this.referencedEntityId = referencedEntityId;
+			lambda.run();
+		} finally {
+			this.referencedEntityId = null;
+		}
+	}
+
+	@Nonnull
+	@Override
+	protected Optional<ReferenceContract> pickReference(@Nonnull EntityContract entity) {
+		Assert.isPremiseValid(this.referencedEntityId != null, "Referenced entity id must be set!");
+		return entity.getReference(this.referenceName, this.referencedEntityId);
 	}
 
 	@Override
@@ -69,18 +108,11 @@ public class TraverseReferenceAttributeComparator extends AbstractReferenceAttri
 		final ReferenceAttributeValue attribute1 = this.attributeValueFetcher.apply(o1);
 		final ReferenceAttributeValue attribute2 = this.attributeValueFetcher.apply(o2);
 		if (attribute1 != null && attribute2 != null) {
-			final int pos1 = this.referencePositionMap.get(attribute1.referencedEntityPrimaryKey());
-			final int pos2 = this.referencePositionMap.get(attribute2.referencedEntityPrimaryKey());
-			final int firstComparison = Integer.compare(pos1, pos2);
-			if (firstComparison == 0) {
-				final int result = attribute1.compareTo(attribute2);
-				if (result == 0) {
-					return this.pkComparator.compare(o1, o2);
-				} else {
-					return result;
-				}
+			final int result = attribute1.compareTo(attribute2);
+			if (result == 0) {
+				return this.pkComparator.compare(o1, o2);
 			} else {
-				return firstComparison;
+				return result;
 			}
 		} else if (attribute1 == null && attribute2 != null) {
 			return 1;

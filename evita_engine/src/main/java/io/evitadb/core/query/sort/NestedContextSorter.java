@@ -30,6 +30,8 @@ import io.evitadb.core.query.algebra.Formula;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.util.function.IntConsumer;
 
 /**
  * This class is a wrapper for {@link Sorter} along with correct nested {@link QueryPlanningContext} initialized for proper
@@ -52,9 +54,10 @@ public class NestedContextSorter {
 		int endIndex,
 		@Nonnull int[] result,
 		int peak,
-		int skipped
+		int skipped,
+		@Nullable IntConsumer skippedRecordsConsumer
 	) {
-		return sorter.sortAndSlice(context, input, startIndex, endIndex, result, peak, skipped);
+		return this.sorter.sortAndSlice(context, input, startIndex, endIndex, result, peak, skipped, null);
 	}
 
 }

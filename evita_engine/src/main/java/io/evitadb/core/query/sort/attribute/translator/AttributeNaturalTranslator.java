@@ -215,8 +215,7 @@ public class AttributeNaturalTranslator
 					referenceSchema,
 					locale,
 					attributeName -> processingScope.getAttributeSchema(attributeName, AttributeTrait.SORTABLE),
-					orderDirection,
-					() -> createReferenceSortedRecordsProviderPositionIndex(sortedRecordsSupplier)
+					orderDirection
 				);
 			}
 		} else if (attributeOrCompoundSchema instanceof AttributeSchemaContract attributeSchema) {
@@ -251,8 +250,7 @@ public class AttributeNaturalTranslator
 					attributeSchema.getPlainType(),
 					referenceSchema,
 					locale,
-					orderDirection,
-					() -> createReferenceSortedRecordsProviderPositionIndex(sortedRecordsSupplier)
+					orderDirection
 				);
 			}
 		} else {

@@ -33,6 +33,7 @@ import org.roaringbitmap.RoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.function.IntConsumer;
 
 /**
  * Ancestor for sharing the same logic among multiple {@link Sorter} implementations.
@@ -54,7 +55,8 @@ public abstract class AbstractRecordsSorter implements Sorter {
 		@Nonnull int[] result,
 		int peak,
 		int skipped,
-		@Nonnull int[] buffer
+		@Nonnull int[] buffer,
+		@Nullable IntConsumer skippedRecordsConsumer
 	) {
 		unknownRecordIdsSorter = ConditionalSorter.getFirstApplicableSorter(queryContext, unknownRecordIdsSorter);
 		final int finalResultPeak;
@@ -64,12 +66,12 @@ public abstract class AbstractRecordsSorter implements Sorter {
 					result, peak,
 					Math.max(0, startIndex - peak - skipped),
 					Math.max(0, endIndex - peak - skipped),
-					notFoundRecords, buffer
+					notFoundRecords, buffer, skippedRecordsConsumer
 				);
 			} else {
 				finalResultPeak = unknownRecordIdsSorter.sortAndSlice(
 					queryContext, new ConstantFormula(new BaseBitmap(notFoundRecords)),
-					startIndex, endIndex, result, peak, skipped
+					startIndex, endIndex, result, peak, skipped, skippedRecordsConsumer
 				);
 			}
 		} else {
