@@ -24,10 +24,7 @@
 package io.evitadb.core.query.sort.attribute;
 
 
-import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.core.query.sort.Sorter;
-
-import javax.annotation.Nonnull;
 
 /**
  * Generic interface for sorted records suppliers that merge multiple sorted records suppliers into one.
@@ -36,15 +33,5 @@ import javax.annotation.Nonnull;
  */
 public sealed interface MergedSortedRecordsSupplierContract extends Sorter
 	permits MergedComparableSortedRecordsSupplierSorter, MergedSortedRecordsSupplierSorter {
-
-	/**
-	 * Retrieves an array of {@link SortedRecordsProvider} instances. Each provider supplies access
-	 * to a collection of sorted records, enabling operations such as retrieving records count,
-	 * sorted record IDs, and their positions.
-	 *
-	 * @return an array of {@link SortedRecordsProvider} instances representing the sorted records providers.
-	 */
-	@Nonnull
-	SortedRecordsProvider[] getSortedRecordsProviders();
 
 }

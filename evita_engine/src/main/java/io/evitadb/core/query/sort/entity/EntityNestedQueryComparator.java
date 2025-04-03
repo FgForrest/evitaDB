@@ -39,8 +39,9 @@ import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
-import io.evitadb.core.query.sort.ConditionalSorter;
+import io.evitadb.core.query.sort.NoSorter;
 import io.evitadb.core.query.sort.Sorter;
+import io.evitadb.core.query.sort.Sorter.SortingContext;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.utils.ArrayUtils;
@@ -51,6 +52,7 @@ import lombok.Setter;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Locale;
 import java.util.Set;
 import java.util.function.Function;
@@ -62,7 +64,7 @@ import static java.util.Optional.ofNullable;
  * In order to sort efficiently this comparator binds to the nested query execution and prior to calling
  * {@link #compare(ReferenceContract, ReferenceContract)} these two methods needs to be called in specific order:
  *
- * - {@link #setSorter(QueryExecutionContext, Sorter)} or {@link #setGroupSorter(QueryExecutionContext, Sorter)} which initializes
+ * - {@link #setSorters(QueryExecutionContext, Collection)} or {@link #setGroupSorters(QueryExecutionContext, Collection)} which initializes
  * the sorted provided by nested {@link QueryPlan}
  * - {@link #setFilteredEntities(int[], int[], Function)}  which initializes filtered referenced records and allows to
  * prepare all internal datastructures required form efficient comparisons
@@ -93,12 +95,12 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 	 * The array of sorters that should be used for sorting referenced entities. The sorters order is key for sorting
 	 * priority (primary, secondary, etc.).
 	 */
-	@Nullable private SorterTuple sorter;
+	@Nullable private SortersTuple sorter;
 	/**
 	 * The array of sorters that should be used for sorting referenced entities. The sorters order is key for sorting
 	 * priority (primary, secondary, etc.).
 	 */
-	@Nullable private SorterTuple groupSorter;
+	@Nullable private SortersTuple groupSorter;
 	/**
 	 * The array of filtered referenced entity primary keys.
 	 * Array contains sorted, distinct array of primary keys.
@@ -117,11 +119,8 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 	private IntSet nonSortedReferences;
 
 	@Nonnull
-	private static int[] getSortedEntities(@Nonnull int[] filteredEntities, @Nullable SorterTuple theSorter) {
-		final Sorter firstApplicableSorter = theSorter == null ?
-			null : ConditionalSorter.getFirstApplicableSorter(theSorter.queryContext(), theSorter.sorter());
-
-		if (firstApplicableSorter == null) {
+	private static int[] getSortedEntities(@Nonnull int[] filteredEntities, @Nullable SortersTuple sortersTuple) {
+		if (sortersTuple == null) {
 			return filteredEntities;
 		} else {
 			// if the input filtered entities contains duplicates, this will make distinct bitmap
@@ -129,11 +128,21 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 				EmptyFormula.INSTANCE : new ConstantFormula(new BaseBitmap(filteredEntities));
 			final int inputSize = input.compute().size();
 			final int[] result = new int[inputSize];
-			firstApplicableSorter.sortAndSlice(
-				theSorter.queryContext(),
-				input, 0, inputSize,
-				result, 0, 0, null
+			SortingContext sortingContext = new SortingContext(
+				sortersTuple.queryContext(),
+				input.compute(),
+				0, inputSize,
+				0, 0
 			);
+			for (Sorter sorter : sortersTuple.sorters()) {
+				sortingContext = sorter.sortAndSlice(sortingContext, result,null);
+			}
+
+			// append the rest of the records if not all are sorted
+			if (sortingContext.peak() < result.length) {
+				NoSorter.INSTANCE.sortAndSlice(sortingContext, result, null);
+			}
+
 			return result;
 		}
 	}
@@ -182,21 +191,21 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 	 * Initializes the query context used for evaluation nested {@link QueryPlan} and the {@link Sorter} that was
 	 * identified by this plan.
 	 */
-	public void setSorter(@Nonnull QueryExecutionContext queryContext, @Nullable Sorter sorter) {
-		this.sorter = new SorterTuple(queryContext, sorter);
+	public void setSorters(@Nonnull QueryExecutionContext queryContext, @Nonnull Collection<Sorter> sorters) {
+		this.sorter = new SortersTuple(queryContext, sorters);
 	}
 
 	/**
 	 * Initializes the query context used for evaluation nested {@link QueryPlan} and the {@link Sorter} that was
 	 * identified by this plan.
 	 */
-	public void setGroupSorter(@Nonnull QueryExecutionContext queryContext, @Nullable Sorter sorter) {
-		this.groupSorter = new SorterTuple(queryContext, sorter);
+	public void setGroupSorters(@Nonnull QueryExecutionContext queryContext, @Nonnull Collection<Sorter> sorters) {
+		this.groupSorter = new SortersTuple(queryContext, sorters);
 	}
 
 	/**
 	 * Initializes internal datastructures by using previously identified {@link Sorter}. This method needs to be
-	 * preceded by {@link #setSorter(QueryExecutionContext, Sorter)} call.
+	 * preceded by {@link #setSorters(QueryExecutionContext, Collection)} call.
 	 */
 	public void setFilteredEntities(
 		@Nonnull int[] filteredEntities,
@@ -294,11 +303,11 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 	 * Tuple containing {@link QueryPlanningContext} and {@link Sorter} that needs to be used in combination in this comparator.
 	 *
 	 * @param queryContext the reference to the query context used for nested query plan evaluation
-	 * @param sorter       the reference to created referenced entity sorter
+	 * @param sorters      the reference to created list of referenced entity sorters
 	 */
-	private record SorterTuple(
+	private record SortersTuple(
 		@Nonnull QueryExecutionContext queryContext,
-		@Nullable Sorter sorter
+		@Nonnull Collection<Sorter> sorters
 	) {
 
 	}

@@ -173,14 +173,14 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 				.map(GlobalEntityIndex.class::cast)
 				.filter(Objects::nonNull)
 				.toArray(GlobalEntityIndex[]::new);
-			final Sorter sorter;
+			final List<Sorter> sorters;
 			if (entityIndexes.length == 0) {
-				sorter = NoSorter.INSTANCE;
+				sorters = List.of();
 			} else {
 				// create a visitor
 				final OrderByVisitor orderByVisitor = new OrderByVisitor(nestedQueryContext);
 				// now analyze the filter by in a nested context with exchanged primary entity index
-				sorter = orderByVisitor.executeInContext(
+				sorters = orderByVisitor.executeInContext(
 					entityIndexes,
 					entityType,
 					locale,
@@ -190,22 +190,14 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 							innerConstraint.accept(orderByVisitor);
 						}
 						// create a deferred sorter that will log the execution time to query telemetry
-						return new DeferredSorter(
-							orderByVisitor.getSorter(),
-							theSorter -> {
-								try {
-									nestedQueryContext.pushStep(QueryPhase.EXECUTION_SORT_AND_SLICE, stepDescriptionSupplier);
-									return theSorter.getAsInt();
-								} finally {
-									nestedQueryContext.popStep();
-								}
-							}
-						);
+						return orderByVisitor.getSorters();
 					}
 				);
 			}
 			return new NestedContextSorter(
-				nestedQueryContext.createExecutionContext(), sorter
+				nestedQueryContext.createExecutionContext(),
+				stepDescriptionSupplier,
+				sorters
 			);
 		} finally {
 			queryContext.popStep();
@@ -266,33 +258,38 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	}
 
 	/**
-	 * Returns the created sorter from the ordering query source tree or default {@link NoSorter} instance.
+	 * Returns the created list of sorters from the ordering query source tree or default {@link NoSorter} instance.
 	 */
 	@Nonnull
-	public Sorter getSorter() {
+	public List<Sorter> getSorters() {
 		final ProcessingScope currentScope = getProcessingScope();
 		final Deque<Sorter> currentSorters = currentScope.sorters();
 		if (currentSorters.isEmpty()) {
-			return NoSorter.INSTANCE;
+			return List.of(NoSorter.INSTANCE);
 		} else {
 			boolean canUseCache = !this.queryContext.isDebugModeEnabled(DebugMode.VERIFY_POSSIBLE_CACHING_TREES) &&
 				this.queryContext.isEntityTypeKnown();
 
 			final CacheSupervisor cacheSupervisor = this.queryContext.getCacheSupervisor();
-			Sorter composedSorter = null;
-			final Iterator<Sorter> it = currentSorters.descendingIterator();
-			while (it.hasNext()) {
-				final Sorter nextSorter = it.next();
+			final List<Sorter> sorters = new ArrayList<>(currentSorters.size() + 1);
+			boolean defaultSorterPresent = false;
+			for (Sorter nextSorter : currentSorters) {
+				if (nextSorter instanceof NoSorter) {
+					defaultSorterPresent = true;
+				}
 				final Sorter possiblyCachedSorter = canUseCache && nextSorter instanceof CacheableSorter cacheableSorter ?
 					cacheSupervisor.analyse(
 						this.queryContext.getEvitaSession(),
 						this.queryContext.getSchema().getName(),
 						cacheableSorter
 					) : nextSorter;
-				composedSorter = composedSorter == null ? possiblyCachedSorter : possiblyCachedSorter.andThen(composedSorter);
+				sorters.add(possiblyCachedSorter);
 			}
-
-			return composedSorter == null ? NoSorter.INSTANCE : composedSorter;
+			if (!defaultSorterPresent) {
+				// if there is no default sorter, we need to add it to the end of the list
+				sorters.add(NoSorter.INSTANCE);
+			}
+			return sorters;
 		}
 	}
 
@@ -305,7 +302,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	 * @return the created {@link Sorter} from the ordering query source tree or default {@link NoSorter} instance
 	 */
 	@Nonnull
-	public final Sorter collectIsolatedSorter(@Nonnull Runnable lambda) {
+	public final List<Sorter> collectIsolatedSorters(@Nonnull Runnable lambda) {
 		try {
 			final ProcessingScope currentScope = getProcessingScope();
 			final LinkedList<Set<Scope>> requestedScopes = new LinkedList<>();
@@ -320,11 +317,11 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 					currentScope.locale(),
 					currentScope.attributeSchemaAccessor(),
 					new ArrayDeque<>(16),
-					null
+					currentScope.mergeModeDefinition()
 				)
 			);
 			lambda.run();
-			return getSorter();
+			return getSorters();
 		} finally {
 			this.scope.pop();
 		}

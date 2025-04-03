@@ -24,13 +24,12 @@
 package io.evitadb.core.query.sort.attribute;
 
 import io.evitadb.core.query.QueryExecutionContext;
-import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.sort.ConditionalSorter;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedComparableForwardSeeker;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.core.query.sort.Sorter;
-import io.evitadb.core.query.sort.generic.AbstractRecordsSorter;
+import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
@@ -44,7 +43,6 @@ import org.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -57,8 +55,8 @@ import java.util.function.IntConsumer;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public final class MergedComparableSortedRecordsSupplierSorter extends AbstractRecordsSorter implements ConditionalSorter, Serializable, MergedSortedRecordsSupplierContract {
-	@Serial private static final long serialVersionUID = -2455704501031260272L;
+@RequiredArgsConstructor
+public final class MergedComparableSortedRecordsSupplierSorter implements Sorter, MergedSortedRecordsSupplierContract {
 	/**
 	 * Contains the {@link Comparator} for the sorting execution.
 	 */
@@ -67,10 +65,6 @@ public final class MergedComparableSortedRecordsSupplierSorter extends AbstractR
 	 * Contains the {@link SortedRecordsProvider} implementation with merged pre-sorted records.
 	 */
 	@Getter private final SortedRecordsProvider[] sortedRecordsProviders;
-	/**
-	 * This sorter instance will be used for sorting entities, that cannot be sorted by this sorter.
-	 */
-	private final Sorter unknownRecordIdsSorter;
 
 	/**
 	 * Returns mask of the positions in the presorted array that matched the computational result
@@ -133,207 +127,129 @@ public final class MergedComparableSortedRecordsSupplierSorter extends AbstractR
 		}
 	}
 
-	public MergedComparableSortedRecordsSupplierSorter(
-		@SuppressWarnings("rawtypes") @Nonnull Comparator comparator,
-		@Nonnull SortedRecordsProvider[] sortedRecordsProviders,
-		@Nullable Sorter unknownRecordIdsSorter
-	) {
-		this.comparator = comparator;
-		Assert.isPremiseValid(sortedRecordsProviders.length > 0, "At least one sorted records provider must be present!");
-		this.sortedRecordsProviders = sortedRecordsProviders;
-		this.unknownRecordIdsSorter = unknownRecordIdsSorter;
-	}
-
 	@Nonnull
 	@Override
-	public Sorter cloneInstance() {
-		return new MergedComparableSortedRecordsSupplierSorter(
-			this.comparator, this.sortedRecordsProviders, null
-		);
-	}
-
-	@Nonnull
-	@Override
-	public Sorter andThen(@Nonnull Sorter sorterForUnknownRecords) {
-		return new MergedComparableSortedRecordsSupplierSorter(
-			this.comparator, this.sortedRecordsProviders, sorterForUnknownRecords
-		);
-	}
-
-	@Nullable
-	@Override
-	public Sorter getNextSorter() {
-		return unknownRecordIdsSorter;
-	}
-
-	@Override
-	public int sortAndSlice(
-		@Nonnull QueryExecutionContext queryContext,
-		@Nonnull Formula input,
-		int startIndex,
-		int endIndex,
+	public SortingContext sortAndSlice(
+		@Nonnull SortingContext sortingContext,
 		@Nonnull int[] result,
-		int peak,
-		int skipped,
 		@Nullable IntConsumer skippedRecordsConsumer
 	) {
-		final int recomputedStartIndex = Math.max(0, startIndex - peak - skipped);
-		final int recomputedEndIndex = Math.max(0, endIndex - peak - skipped);
-
-		final Bitmap selectedRecordIds = input.compute();
-		if (selectedRecordIds.isEmpty()) {
-			return peak;
-		} else {
+		final QueryExecutionContext queryContext = sortingContext.queryContext();
+		if (queryContext.getPrefetchedEntities() == null) {
+			final int startIndex = sortingContext.recomputedStartIndex();
+			final int endIndex = sortingContext.recomputedEndIndex();
+			final int peak = sortingContext.peak();
+			final Bitmap selectedRecordIds = sortingContext.nonSortedKeys();
 			final int[] buffer = queryContext.borrowBuffer();
 			try {
-				final SkippingRecordConsumer delegateConsumer = new SkippingRecordConsumer(skippedRecordsConsumer);
-				final SortResult sortResult = collectPartialResults(
-					queryContext, selectedRecordIds, recomputedStartIndex, recomputedEndIndex, result, peak, delegateConsumer
-				);
-				return returnResultAppendingUnknown(
-					queryContext, sortResult.notSortedRecords(),
-					this.unknownRecordIdsSorter,
-					startIndex,
-					endIndex,
-					result,
-					sortResult.peak(),
-					skipped + delegateConsumer.getCounter(),
-					buffer,
-					skippedRecordsConsumer
+				final int toRead = Math.min(endIndex - startIndex, result.length - peak);
+				int alreadyRead = 0;
+				int toSkip = startIndex;
+
+				RoaringBitmap recordsToSort = RoaringBitmapBackedBitmap.getRoaringBitmap(selectedRecordIds);
+				int recordsToSortCount = selectedRecordIds.size();
+
+				// first we need to create masks for all selected record ids using provided sorted record providers
+				final MaskResult[] maskResults = new MaskResult[this.sortedRecordsProviders.length];
+				int maskPeak = -1;
+				for (int i = 0; i < this.sortedRecordsProviders.length; i++) {
+					final SortedRecordsProvider sortedRecordsProvider = this.sortedRecordsProviders[++maskPeak];
+					final MaskResult maskResult = getMask(
+						queryContext, sortedRecordsProvider, recordsToSort, recordsToSortCount
+					);
+					maskResults[maskPeak] = maskResult;
+					recordsToSort = maskResult.notFoundRecords();
+					recordsToSortCount = maskResult.notFoundRecordsCount();
+					if (recordsToSortCount == 0) {
+						break;
+					}
+				}
+
+				// next we need to fetch comparable values for head values from each mask and compare them
+				final SortedRecordsProviderBuffer[] sortedRecordsProviderBuffers = new SortedRecordsProviderBuffer[maskPeak + 1];
+				int sortedRecordsProviderBufferPeak = 0;
+				// init first values
+				for (int i = 0; i <= maskPeak; i++) {
+					final MaskResult maskResult = maskResults[i];
+					final SortedRecordsProvider sortedRecordsProvider = this.sortedRecordsProviders[i];
+					final SortedRecordsProviderBuffer sortedRecordsProviderBuffer = new SortedRecordsProviderBuffer(
+						this.comparator, sortedRecordsProvider, maskResult.mask(), queryContext
+					);
+					if (sortedRecordsProviderBuffer.fetchNext()) {
+						sortedRecordsProviderBuffers[sortedRecordsProviderBufferPeak++] = sortedRecordsProviderBuffer;
+					} else {
+						sortedRecordsProviderBuffer.close();
+					}
+				}
+
+				// sort buffers
+				Arrays.sort(sortedRecordsProviderBuffers, 0, sortedRecordsProviderBufferPeak);
+
+				while ((toRead > alreadyRead || toSkip > 0) && sortedRecordsProviderBufferPeak > 0) {
+					SortedRecordsProviderBuffer sortedPk = sortedRecordsProviderBuffers[0];
+					if (toSkip > 0) {
+						toSkip--;
+						if (skippedRecordsConsumer != null) {
+							skippedRecordsConsumer.accept(sortedPk.primaryKey());
+						}
+					} else {
+						result[peak + alreadyRead++] = sortedPk.primaryKey();
+					}
+					// fetch next value for the used one
+					if (sortedPk.fetchNext()) {
+						if (sortedRecordsProviderBufferPeak > 1) {
+							final InsertionPosition insertionPosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
+								sortedPk, sortedRecordsProviderBuffers, 1, sortedRecordsProviderBufferPeak
+							);
+							// when the position is zero, we don't need to do anything and the sortedPk is already in the right place
+							// it will produce next sorted PK in the next iteration
+							if (insertionPosition.position() > 0) {
+								if (insertionPosition.alreadyPresent()) {
+									/* TODO JNO - tohle je potřeba ověřit, tady mi to nehitlo! */
+									if (sortedRecordsProviderBuffers[insertionPosition.position() - 1].primaryKey() > sortedPk.primaryKey()) {
+										// otherwise we need to perform copy of the existing values first
+										System.arraycopy(sortedRecordsProviderBuffers, 1, sortedRecordsProviderBuffers, 0, insertionPosition.position() + 1);
+										// and then insert the new value
+										sortedRecordsProviderBuffers[insertionPosition.position() - 1] = sortedPk;
+									} else {
+										// otherwise we need to perform copy of the existing values first
+										System.arraycopy(sortedRecordsProviderBuffers, 1, sortedRecordsProviderBuffers, 0, insertionPosition.position());
+										// and then insert the new value
+										sortedRecordsProviderBuffers[insertionPosition.position()] = sortedPk;
+									}
+								} else {
+									// otherwise we need to perform copy of the existing values first
+									System.arraycopy(sortedRecordsProviderBuffers, 1, sortedRecordsProviderBuffers, 0, Math.min(sortedRecordsProviderBuffers.length - 1, insertionPosition.position()));
+									// and then insert the new value
+									sortedRecordsProviderBuffers[insertionPosition.position() - 1] = sortedPk;
+								}
+							}
+						}
+					} else {
+						// finalize the sorted record provider buffer
+						sortedPk.close();
+						// sorted record provider buffer is empty, we need to remove it from the array
+						System.arraycopy(sortedRecordsProviderBuffers, 1, sortedRecordsProviderBuffers, 0, --sortedRecordsProviderBufferPeak);
+					}
+				}
+
+				// finalize the rest of the sorted record providers
+				for (int i = 0; i < sortedRecordsProviderBufferPeak; i++) {
+					sortedRecordsProviderBuffers[i].close();
+				}
+
+				return sortingContext.createResultContext(
+					recordsToSort.isEmpty() ?
+						EmptyBitmap.INSTANCE : new BaseBitmap(recordsToSort),
+					alreadyRead,
+					startIndex - toSkip
 				);
 			} finally {
 				queryContext.returnBuffer(buffer);
 			}
+		} else {
+			return sortingContext;
 		}
-	}
-
-	@Override
-	public boolean shouldApply(@Nonnull QueryExecutionContext queryContext) {
-		return queryContext.getPrefetchedEntities() == null;
-	}
-
-	/**
-	 * Collects partially sorted results from multiple sorted record providers based on the specified
-	 * range and stores them in the provided result array. The method processes sorted records,
-	 * handles remaining unsorted records, and calculates the peak value of the sorted results.
-	 *
-	 * @param queryContext           the execution context for the query being processed
-	 * @param selectedRecordIds      a bitmap containing the IDs of the records to be sorted
-	 * @param startIndex             the starting index in the sorted result range
-	 * @param endIndex               the ending index in the sorted result range
-	 * @param result                 an array to store the sorted result
-	 * @param peak                   the current peak index in the result array
-	 * @param skippedRecordsConsumer a consumer for handling skipped record counts, or null if not needed
-	 * @return a SortResult containing information about the remaining unsorted records and the final peak index
-	 */
-	@Nonnull
-	private SortResult collectPartialResults(
-		@Nonnull QueryExecutionContext queryContext,
-		@Nonnull Bitmap selectedRecordIds,
-		int startIndex,
-		int endIndex,
-		@Nonnull int[] result,
-		int peak,
-		@Nullable IntConsumer skippedRecordsConsumer
-	) {
-		final int toRead = Math.min(endIndex - startIndex, result.length - peak);
-		int alreadyRead = 0;
-		int skip = startIndex;
-
-		RoaringBitmap recordsToSort = RoaringBitmapBackedBitmap.getRoaringBitmap(selectedRecordIds);
-		int recordsToSortCount = selectedRecordIds.size();
-
-		// first we need to create masks for all selected record ids using provided sorted record providers
-		final MaskResult[] maskResults = new MaskResult[this.sortedRecordsProviders.length];
-		int maskPeak = -1;
-		for (int i = 0; i < this.sortedRecordsProviders.length; i++) {
-			final SortedRecordsProvider sortedRecordsProvider = this.sortedRecordsProviders[++maskPeak];
-			final MaskResult maskResult = getMask(
-				queryContext, sortedRecordsProvider, recordsToSort, recordsToSortCount
-			);
-			maskResults[maskPeak] = maskResult;
-			recordsToSort = maskResult.notFoundRecords();
-			recordsToSortCount = maskResult.notFoundRecordsCount();
-			if (recordsToSortCount == 0) {
-				break;
-			}
-		}
-
-		// next we need to fetch comparable values for head values from each mask and compare them
-		final SortedRecordsProviderBuffer[] sortedRecordsProviderBuffers = new SortedRecordsProviderBuffer[maskPeak + 1];
-		int sortedRecordsProviderBufferPeak = 0;
-		// init first values
-		for (int i = 0; i <= maskPeak; i++) {
-			final MaskResult maskResult = maskResults[i];
-			final SortedRecordsProvider sortedRecordsProvider = this.sortedRecordsProviders[i];
-			final SortedRecordsProviderBuffer sortedRecordsProviderBuffer = new SortedRecordsProviderBuffer(
-				this.comparator, sortedRecordsProvider, maskResult.mask(), queryContext
-			);
-			if (sortedRecordsProviderBuffer.fetchNext()) {
-				sortedRecordsProviderBuffers[sortedRecordsProviderBufferPeak++] = sortedRecordsProviderBuffer;
-			} else {
-				sortedRecordsProviderBuffer.close();
-			}
-		}
-
-		// sort buffers
-		Arrays.sort(sortedRecordsProviderBuffers, 0, sortedRecordsProviderBufferPeak);
-
-		while ((toRead > alreadyRead || skip > 0) && sortedRecordsProviderBufferPeak > 0) {
-			SortedRecordsProviderBuffer sortedPk = sortedRecordsProviderBuffers[0];
-			if (skip > 0) {
-				skip--;
-				if (skippedRecordsConsumer != null) {
-					skippedRecordsConsumer.accept(sortedPk.primaryKey());
-				}
-			} else {
-				alreadyRead++;
-				result[peak++] = sortedPk.primaryKey();
-			}
-			// fetch next value for the used one
-			if (sortedPk.fetchNext()) {
-				if (sortedRecordsProviderBufferPeak > 1) {
-					final InsertionPosition insertionPosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
-						sortedPk, sortedRecordsProviderBuffers, 1, sortedRecordsProviderBufferPeak
-					);
-					// when the position is zero, we don't need to do anything and the sortedPk is already in the right place
-					// it will produce next sorted PK in the next iteration
-					if (insertionPosition.position() > 0) {
-						if (insertionPosition.alreadyPresent()) {
-							/* TODO JNO - tohle je potřeba ověřit, tady mi to nehitlo! */
-							if (sortedRecordsProviderBuffers[insertionPosition.position() - 1].primaryKey() > sortedPk.primaryKey()) {
-								// otherwise we need to perform copy of the existing values first
-								System.arraycopy(sortedRecordsProviderBuffers, 1, sortedRecordsProviderBuffers, 0, insertionPosition.position() + 1);
-								// and then insert the new value
-								sortedRecordsProviderBuffers[insertionPosition.position() - 1] = sortedPk;
-							} else {
-								// otherwise we need to perform copy of the existing values first
-								System.arraycopy(sortedRecordsProviderBuffers, 1, sortedRecordsProviderBuffers, 0, insertionPosition.position());
-								// and then insert the new value
-								sortedRecordsProviderBuffers[insertionPosition.position()] = sortedPk;
-							}
-						} else {
-							// otherwise we need to perform copy of the existing values first
-							System.arraycopy(sortedRecordsProviderBuffers, 1, sortedRecordsProviderBuffers, 0, Math.min(sortedRecordsProviderBuffers.length - 1, insertionPosition.position()));
-							// and then insert the new value
-							sortedRecordsProviderBuffers[insertionPosition.position() - 1] = sortedPk;
-						}
-					}
-				}
-			} else {
-				// finalize the sorted record provider buffer
-				sortedPk.close();
-				// sorted record provider buffer is empty, we need to remove it from the array
-				System.arraycopy(sortedRecordsProviderBuffers, 1, sortedRecordsProviderBuffers, 0, --sortedRecordsProviderBufferPeak);
-			}
-		}
-
-		// finalize the rest of the sorted record providers
-		for (int i = 0; i < sortedRecordsProviderBufferPeak; i++) {
-			sortedRecordsProviderBuffers[i].close();
-		}
-
-		return new SortResult(recordsToSort, peak);
 	}
 
 	/**
@@ -350,38 +266,6 @@ public final class MergedComparableSortedRecordsSupplierSorter extends AbstractR
 	) {
 	}
 
-	/**
-	 * This DTO allows to information collected from
-	 * {@link #collectPartialResults(QueryExecutionContext, Bitmap, int, int, int[], int, IntConsumer) collectPartialResults}
-	 * method.
-	 *
-	 * @param notSortedRecords roaring bitmap with all records that hasn't been sorted yet
-	 * @param peak             current peak index in the result array
-	 */
-	private record SortResult(
-		@Nonnull RoaringBitmap notSortedRecords,
-		int peak
-	) {
-	}
-
-	/**
-	 * The SkippingRecordConsumer is an implementation of the {@link IntConsumer} interface that wraps an optional delegate
-	 * {@code IntConsumer} and tracks the count of records processed. This class is intended to be used for scenarios
-	 * where certain records need to be tracked, possibly skipped, or processed with optional side effects.
-	 */
-	@RequiredArgsConstructor
-	private static class SkippingRecordConsumer implements IntConsumer {
-		@Nullable private final IntConsumer delegate;
-		@Getter private int counter = 0;
-
-		@Override
-		public void accept(int value) {
-			if (this.delegate != null) {
-				this.delegate.accept(value);
-			}
-			this.counter++;
-		}
-	}
 	/**
 	 * Represents a buffer for managing and extracting data from sorted record providers while applying a mask filter.
 	 * This class implements the {@link Comparable} interface for comparing buffer instances based on their current comparable value
@@ -501,7 +385,7 @@ public final class MergedComparableSortedRecordsSupplierSorter extends AbstractR
 		@Override
 		public int compareTo(@Nonnull SortedRecordsProviderBuffer o) {
 			assertUsable();
-			// this is ok, we'll be always comparing values of same type and the sorting will never modify contents
+			// this is ok, we'll always be comparing values of same type and the sorting will never modify contents
 			// of the comparable value, we use non-final fields to make the algorithm faster
 			//noinspection unchecked,CompareToUsesNonFinalVariable
 			final int comparisonResult = this.comparator.compare(this.valueToCompare, o.valueToCompare);

@@ -23,14 +23,10 @@
 
 package io.evitadb.core.query.sort.primaryKey;
 
-import io.evitadb.core.query.QueryExecutionContext;
-import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.base.ConstantFormula;
-import io.evitadb.core.query.algebra.base.EmptyFormula;
-import io.evitadb.core.query.sort.NoSorter;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.ArrayUtils;
 import org.roaringbitmap.RoaringBitmap;
@@ -50,99 +46,57 @@ public class ExactSorter implements Sorter {
 	 * The entity primary keys whose order must be maintained in the sorted result.
 	 */
 	private final int[] exactOrder;
-	/**
-	 * This sorter instance will be used for sorting entities, that cannot be sorted by this sorter.
-	 */
-	private final Sorter unknownRecordIdsSorter;
 
 	public ExactSorter(@Nonnull int[] exactOrder) {
 		this.exactOrder = exactOrder;
-		this.unknownRecordIdsSorter = NoSorter.INSTANCE;
-	}
-
-	public ExactSorter(@Nonnull int[] exactOrder, @Nonnull Sorter unknownRecordIdsSorter) {
-		this.exactOrder = exactOrder;
-		this.unknownRecordIdsSorter = unknownRecordIdsSorter;
 	}
 
 	@Nonnull
 	@Override
-	public Sorter andThen(@Nonnull Sorter sorterForUnknownRecords) {
-		return new ExactSorter(
-			this.exactOrder,
-			sorterForUnknownRecords
-		);
-	}
+	public SortingContext sortAndSlice(@Nonnull SortingContext sortingContext, @Nonnull int[] result, @Nullable IntConsumer skippedRecordsConsumer) {
+		final Bitmap filteredRecordIdBitmap = sortingContext.nonSortedKeys();
+		final int recomputedStartIndex = sortingContext.recomputedStartIndex();
+		final int recomputedEndIndex = sortingContext.recomputedEndIndex();
 
-	@Nonnull
-	@Override
-	public Sorter cloneInstance() {
-		return new ExactSorter(
-			this.exactOrder,
-			NoSorter.INSTANCE
-		);
-	}
+		final int[] filteredRecordIds = filteredRecordIdBitmap.getArray();
+		final int length = Math.min(filteredRecordIds.length, recomputedEndIndex - recomputedStartIndex);
+		if (length < 0) {
+			throw new IndexOutOfBoundsException("Index: " + recomputedStartIndex + ", Size: " + filteredRecordIds.length);
+		}
 
-	@Nullable
-	@Override
-	public Sorter getNextSorter() {
-		return unknownRecordIdsSorter;
-	}
+		// sort the filtered entity primary keys along the exact order in input
+		final int lastSortedItem = ArrayUtils.sortAlong(this.exactOrder, filteredRecordIds);
 
-	@Override
-	public int sortAndSlice(
-		@Nonnull QueryExecutionContext queryContext,
-		@Nonnull Formula input,
-		int startIndex,
-		int endIndex,
-		@Nonnull int[] result,
-		int peak,
-		int skipped,
-		@Nullable IntConsumer skippedRecordsConsumer
-	) {
-		final Bitmap filteredRecordIdBitmap = input.compute();
-		if (filteredRecordIdBitmap.isEmpty()) {
-			return 0;
+		// copy the sorted data to result
+		final int toAppend = Math.min(lastSortedItem - recomputedStartIndex, recomputedEndIndex - recomputedStartIndex);
+		System.arraycopy(filteredRecordIds, recomputedStartIndex, result, sortingContext.peak(), toAppend);
+
+		int skippedRecords = Math.min(recomputedStartIndex, filteredRecordIds.length);
+		if (skippedRecordsConsumer != null) {
+			for (int i = 0; i < skippedRecords; i++) {
+				skippedRecordsConsumer.accept(filteredRecordIds[i]);
+			}
+		}
+
+		// if there are no more records to sort or no additional sorter is present, return entire result
+		if (lastSortedItem == filteredRecordIdBitmap.size()) {
+			return sortingContext.createResultContext(
+				EmptyBitmap.INSTANCE,
+				toAppend, skippedRecords
+			);
 		} else {
-			final int recomputedStartIndex = Math.max(0, startIndex - peak - skipped);
-			final int recomputedEndIndex = Math.max(0, endIndex - peak - skipped);
-
-			final int[] filteredRecordIds = filteredRecordIdBitmap.getArray();
-			final int length = Math.min(filteredRecordIds.length, recomputedEndIndex - recomputedStartIndex);
-			if (length < 0) {
-				throw new IndexOutOfBoundsException("Index: " + recomputedStartIndex + ", Size: " + filteredRecordIds.length);
+			// otherwise, collect the not sorted record ids
+			final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+			for (int i = lastSortedItem; i < filteredRecordIds.length; i++) {
+				writer.add(filteredRecordIds[i]);
 			}
 
-			// sort the filtered entity primary keys along the exact order in input
-			final int lastSortedItem = ArrayUtils.sortAlong(this.exactOrder, filteredRecordIds);
-
-			// copy the sorted data to result
-			final int toAppend = Math.min(lastSortedItem - recomputedStartIndex, recomputedEndIndex - recomputedStartIndex);
-			System.arraycopy(filteredRecordIds, recomputedStartIndex, result, peak, toAppend);
-
-			int skippedRecords = Math.min(recomputedStartIndex, filteredRecordIds.length);
-			if (skippedRecordsConsumer != null) {
-				for (int i = 0; i < skippedRecords; i++) {
-					skippedRecordsConsumer.accept(filteredRecordIds[i]);
-				}
-			}
-
-			// if there are no more records to sort or no additional sorter is present, return entire result
-			if (lastSortedItem == filteredRecordIdBitmap.size()) {
-				return peak + toAppend;
-			} else {
-				// otherwise, collect the not sorted record ids
-				final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
-				for (int i = lastSortedItem; i < filteredRecordIds.length; i++) {
-					writer.add(filteredRecordIds[i]);
-				}
-
-				final RoaringBitmap outputBitmap = writer.get();
-				return this.unknownRecordIdsSorter.sortAndSlice(
-					queryContext, outputBitmap.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(new BaseBitmap(outputBitmap)),
-					startIndex, endIndex, result, peak + toAppend, skipped + skippedRecords, skippedRecordsConsumer
-				);
-			}
+			final RoaringBitmap outputBitmap = writer.get();
+			return sortingContext.createResultContext(
+				outputBitmap.isEmpty() ?
+					EmptyBitmap.INSTANCE : new BaseBitmap(outputBitmap),
+				toAppend, skippedRecords
+			);
 		}
 	}
 

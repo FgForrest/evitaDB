@@ -43,6 +43,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 import static java.util.Optional.ofNullable;
 
@@ -79,10 +80,10 @@ public class QueryPlanBuilder implements FetchRequirementCollector {
 	@Nonnull
 	@Getter private final PrefetchFormulaVisitor prefetchFormulaVisitor;
 	/**
-	 * The sorter that is responsible for ordering the filtered results.
+	 * The sorters that is responsible for ordering the filtered results.
 	 */
 	@Nullable
-	@Getter private Sorter sorter;
+	@Getter private Collection<Sorter> sorters;
 	/**
 	 * The `slicer` variable represents an instance of the Slicer interface used to determine the offset and limit
 	 * for paginating query results. By default, it is set to the `DefaultSlicer` instance. The slicer can be customized
@@ -106,7 +107,7 @@ public class QueryPlanBuilder implements FetchRequirementCollector {
 			"None",
 			EmptyFormula.INSTANCE,
 			null,
-			NoSorter.INSTANCE,
+			List.of(NoSorter.INSTANCE),
 			DefaultSlicer.INSTANCE,
 			Collections.emptyList()
 		);
@@ -149,12 +150,12 @@ public class QueryPlanBuilder implements FetchRequirementCollector {
 	}
 
 	/**
-	 * Method accepts a sorter that should be used for sorting the filtered results.
+	 * Method accepts a sorters that should be used for sorting the filtered results.
 	 *
-	 * @param sorter the sorter implementation that defines the sorting logic to be applied to the query results
+	 * @param sorters the list of sorters that defines the sorting logic to be applied to the query results
 	 */
-	public void appendSorter(@Nonnull Sorter sorter) {
-		this.sorter = sorter;
+	public void setSorters(@Nonnull List<Sorter> sorters) {
+		this.sorters = sorters;
 	}
 
 	/**
@@ -169,7 +170,7 @@ public class QueryPlanBuilder implements FetchRequirementCollector {
 	/**
 	 * Method accepts a collection of extra result producers that compute additional results requested in the response.
 	 */
-	public void appendExtraResultProducers(@Nonnull Collection<ExtraResultProducer> extraResultProducers) {
+	public void setExtraResultProducers(@Nonnull Collection<ExtraResultProducer> extraResultProducers) {
 		this.extraResultProducers = extraResultProducers;
 	}
 
@@ -189,7 +190,7 @@ public class QueryPlanBuilder implements FetchRequirementCollector {
 			this.targetIndexes.getIndexDescription(),
 			this.filterFormula,
 			this.prefetchFormulaVisitor.createPrefetcherIfNeededOrWorthwhile().orElse(null),
-			this.sorter == null ? NoSorter.INSTANCE : this.sorter,
+			this.sorters == null || this.sorters.isEmpty() ? List.of(NoSorter.INSTANCE) : this.sorters,
 			this.slicer,
 			this.extraResultProducers
 		);

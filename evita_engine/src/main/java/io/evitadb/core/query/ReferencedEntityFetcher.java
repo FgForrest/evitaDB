@@ -569,7 +569,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 					Integer lastReferencedPrimaryKey = null;
 					for (ReducedEntityIndex referencedEntityIndex : referencedEntityIndexes) {
 						final EntityIndexKey indexKey = referencedEntityIndex.getIndexKey();
-						final ReferenceKey indexDiscriminator = (ReferenceKey) indexKey.discriminator();
+						final ReferenceKey indexDiscriminator = Objects.requireNonNull((ReferenceKey) indexKey.discriminator());
 						final int referencedPrimaryKey = indexDiscriminator.primaryKey();
 						foundReferencedIds.add(referencedPrimaryKey);
 
@@ -754,8 +754,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				() -> "ordering reference `" + referenceSchema.getName() +
 					"` by entity `" + targetEntityCollection.getEntityType() + "`: " + entityOrderBy
 			);
-			final Sorter sorter = queryPlan.getSorter();
-			entityNestedQueryComparator.setSorter(nestedQueryContext.createExecutionContext(), sorter);
+			entityNestedQueryComparator.setSorters(nestedQueryContext.createExecutionContext(), queryPlan.getSorters());
 		}
 		final EntityGroupPropertyWithScopes entityGroupOrderBy = entityNestedQueryComparator.getGroupOrderBy();
 		if (entityGroupOrderBy != null) {
@@ -781,8 +780,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				() -> "ordering reference groups `" + referenceSchema.getName() +
 					"` by entity group `" + targetEntityGroupCollection.getEntityType() + "`: " + entityGroupOrderBy
 			);
-			final Sorter sorter = queryPlan.getSorter();
-			entityNestedQueryComparator.setGroupSorter(nestedQueryContext.createExecutionContext(), sorter);
+			entityNestedQueryComparator.setGroupSorters(nestedQueryContext.createExecutionContext(), queryPlan.getSorters());
 		}
 	}
 

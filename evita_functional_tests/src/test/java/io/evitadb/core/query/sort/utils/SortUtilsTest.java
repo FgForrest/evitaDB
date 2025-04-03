@@ -23,11 +23,13 @@
 
 package io.evitadb.core.query.sort.utils;
 
+import io.evitadb.core.query.sort.Sorter.SortingContext;
+import io.evitadb.test.utils.SortUtils;
 import org.junit.jupiter.api.Test;
 import org.roaringbitmap.RoaringBitmap;
 
 import javax.annotation.Nonnull;
-import java.util.function.ToIntFunction;
+import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -42,9 +44,10 @@ public class SortUtilsTest {
 
 	public static final int[] BUFFER = new int[16];
 
-	public static int[] asResult(ToIntFunction<int[]> computer) {
+	public static int[] asResult(Function<int[], SortingContext> computer) {
 		final int[] result = new int[512];
-		return SortUtils.asResult(result, computer.applyAsInt(result));
+		final int peak = computer.apply(result).peak();
+		return SortUtils.asResult(result, peak);
 	}
 
 	@Test

@@ -56,9 +56,9 @@ public class UniqueValueViolationException extends EvitaInvalidUsageException {
 		int newRecordId
 	) {
 		super(
-			"Unique value is already present for entity `" + existingRecordType + "` `" + attributeName +
-				"` key: `" + value + "`" + (locale == null ? "" : " in locale `" + locale.toLanguageTag() + "`") + " (existing: " + existingRecordId + ", " +
-				"new: " + newRecordId + (existingRecordType.compareTo(newRecordType) == 0 ? "" : " of entity `" + newRecordType + "`") + ")!"
+			"Unique constraint violation: attribute `" + attributeName + "` value " + value + "`" + (locale == null ? "" : " in locale `" + locale.toLanguageTag() + "`") +
+				" is already present for entity `" + existingRecordType + "` (existing entity PK: " + existingRecordId + ", " +
+				"newly inserted " + (existingRecordType.compareTo(newRecordType) == 0 ? "" : "`" + newRecordType + "`") + " entity PK: " + newRecordId + ")!"
 		);
 		this.attributeName = attributeName;
 		this.value = value;

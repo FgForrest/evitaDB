@@ -53,7 +53,7 @@ import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.attribute.ChainIndex;
-import io.evitadb.index.attribute.ReferenceSortedRecordsSupplier;
+import io.evitadb.index.attribute.ReferenceSortedRecordsProvider;
 import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.attribute.SortIndex.ComparableArray;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
@@ -277,12 +277,12 @@ public class AttributeNaturalTranslator
 	 * Creates a mapping between the primary keys of reference-sorted records and their indices
 	 * in the order they are sorted. This method processes the sorted records provided by the
 	 * {@link SortedRecordsProvider} suppliers, filtering out those that are implementations of
-	 * {@link ReferenceSortedRecordsSupplier}. For each instance, the primary key of its reference key
+	 * {@link ReferenceSortedRecordsProvider}. For each instance, the primary key of its reference key
 	 * is associated with its zero-based position in the sorted array. The mapping is returned as an
 	 * {@link IntIntHashMap}.
 	 *
 	 * @param sortedRecordsSupplier a supplier that provides an array of {@link SortedRecordsProvider}
-	 *                               instances, which may include {@link ReferenceSortedRecordsSupplier}
+	 *                               instances, which may include {@link ReferenceSortedRecordsProvider}
 	 *                               implementations containing reference-based sorting information.
 	 * @return an {@link IntIntHashMap} that maps each reference primary key to its position in the
 	 *         sorted array.
@@ -292,8 +292,8 @@ public class AttributeNaturalTranslator
 		@Nonnull Supplier<SortedRecordsProvider[]> sortedRecordsSupplier
 	) {
 		final int[] sortedReferencePks = Arrays.stream(sortedRecordsSupplier.get())
-			.filter(ReferenceSortedRecordsSupplier.class::isInstance)
-			.map(ReferenceSortedRecordsSupplier.class::cast)
+			.filter(ReferenceSortedRecordsProvider.class::isInstance)
+			.map(ReferenceSortedRecordsProvider.class::cast)
 			.mapToInt(it -> it.getReferenceKey().primaryKey())
 			.toArray();
 		final IntIntHashMap result = new IntIntHashMap();

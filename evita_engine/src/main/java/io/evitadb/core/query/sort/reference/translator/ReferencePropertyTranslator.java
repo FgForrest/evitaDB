@@ -257,20 +257,12 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 				if (input.length == 0) {
 					return ArrayUtils.EMPTY_INT_ARRAY;
 				} else {
-					final int[] output = new int[input.length];
-					final Formula filteringFormula = FormulaFactory.and(
-						parentIdsFormula.apply(referenceIndexIds),
-						new ConstantFormula(new BaseBitmap(input))
+					return sorter.sortAndSlice(
+						FormulaFactory.and(
+							parentIdsFormula.apply(referenceIndexIds),
+							new ConstantFormula(new BaseBitmap(input))
+						).compute()
 					);
-					final int sortedPeak = sorter.sortAndSlice(
-						filteringFormula,
-						0, input.length, output, 0, 0, null
-					);
-					Assert.isPremiseValid(
-						sortedPeak == filteringFormula.compute().size(),
-						"Unexpected number of sorted output: " + sortedPeak
-					);
-					return output;
 				}
 			};
 		}
@@ -302,12 +294,7 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 			);
 		} else {
 			final NestedContextSorter sorter = createNestedContextSorter(orderByVisitor, referenceSchema, pickFirstByEntityProperty);
-
-			final int referenceIndexCount = referenceIndexIds.compute().size();
-			final int[] result = new int[referenceIndexCount];
-			final int sortedPeak = sorter.sortAndSlice(referenceIndexIds, 0, referenceIndexCount, result, 0, 0, null);
-			Assert.isPremiseValid(sortedPeak == referenceIndexCount, "Unexpected number of sorted indexes: " + sortedPeak);
-			return IntStream.of(result);
+			return IntStream.of(sorter.sortAndSlice(referenceIndexIds));
 		}
 	}
 
@@ -428,19 +415,19 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 				atomicBlocks[index] = Arrays.copyOfRange(sortedReducedIndexes, start, sortedReducedIndexes.length);
 				Assert.isPremiseValid(index == atomicBlocks.length - 1, "Unexpected number of atomic blocks: " + index);
 
-				final Sorter delegate = orderByVisitor.executeInContext(
+				final List<Sorter> sorters = orderByVisitor.executeInContext(
 					sortedReducedIndexes,
 					referenceSchema,
 					null,
 					processingScope.withReferenceSchemaAccessor(referenceName),
 					new MergeModeDefinition(mergeMode, orderingSpecificationRef.isEmpty()),
-					() -> orderByVisitor.collectIsolatedSorter(
+					() -> orderByVisitor.collectIsolatedSorters(
 						() -> traverseChildConstraints(referenceProperty, orderByVisitor)
 					)
 				);
 
 				return Stream.of(
-					new SequentialSorter(atomicBlocks, delegate)
+					new SequentialSorter(atomicBlocks, sorters)
 				);
 			} else {
 				orderByVisitor.executeInContext(

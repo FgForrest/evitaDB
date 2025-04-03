@@ -25,12 +25,9 @@ package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.produce
 
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.core.query.QueryExecutionContext;
-import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.base.ConstantFormula;
-import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.sort.NestedContextSorter;
-import io.evitadb.core.query.sort.utils.SortUtils;
 import io.evitadb.index.bitmap.BaseBitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.ArrayUtils;
 import lombok.RequiredArgsConstructor;
@@ -148,13 +145,10 @@ public class HierarchySet {
 			unsortedResult.values().forEach(it -> collect(it, writer));
 			// create sorted array using the sorter
 			final RoaringBitmap bitmap = writer.get();
-			final Formula levelIdFormula = bitmap.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(new BaseBitmap(bitmap));
-			final int[] sortedEntities = new int[levelIdFormula.compute().size()];
-			final int sortedEntitiesPeak = sorter.sortAndSlice(
-				levelIdFormula, 0, levelIdFormula.compute().size(), sortedEntities, 0, 0, null
-			);
 			// replace the output with the sorted one
-			final int[] normalizedSortedResult = SortUtils.asResult(sortedEntities, sortedEntitiesPeak);
+			final int[] normalizedSortedResult = this.sorter.sortAndSlice(
+				bitmap.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(bitmap)
+			);
 			for (Entry<String, List<LevelInfo>> entry : unsortedResult.entrySet()) {
 				entry.setValue(sort(entry.getValue(), normalizedSortedResult));
 			}

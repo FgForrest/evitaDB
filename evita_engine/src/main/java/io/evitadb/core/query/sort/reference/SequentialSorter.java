@@ -24,18 +24,21 @@
 package io.evitadb.core.query.sort.reference;
 
 
-import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
-import io.evitadb.core.query.sort.ConditionalSorter;
+import io.evitadb.core.query.sort.NoSorter;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.index.ReducedEntityIndex;
-import lombok.AccessLevel;
-import lombok.RequiredArgsConstructor;
+import io.evitadb.index.bitmap.BaseBitmap;
+import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
+import org.roaringbitmap.RoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
+import java.util.List;
 import java.util.function.IntConsumer;
 
 /**
@@ -43,80 +46,97 @@ import java.util.function.IntConsumer;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public class SequentialSorter implements Sorter {
 	private final ReducedEntityIndex[][] atomicBlocks;
-	private final Sorter delegate;
-	/**
-	 * This sorter instance will be used for sorting entities, that cannot be sorted by this sorter.
-	 */
-	private final Sorter unknownRecordIdsSorter;
+	private final List<Sorter> embeddedSorters;
 
-	public SequentialSorter(@Nonnull ReducedEntityIndex[][] atomicBlocks, @Nonnull Sorter delegate) {
+	public SequentialSorter(@Nonnull ReducedEntityIndex[][] atomicBlocks, @Nonnull List<Sorter> embeddedSorters) {
 		this.atomicBlocks = atomicBlocks;
-		this.delegate = delegate;
-		this.unknownRecordIdsSorter = null;
+		this.embeddedSorters = embeddedSorters;
+		// ensure NoSorter is not present in the list of embedded sorters
+		// we need to avoid sorting records which may not have related sort information (such as attribute by which we sort)
+		int index = -1;
+		for (int i = 0; i < this.embeddedSorters.size(); i++) {
+			if (this.embeddedSorters.get(i) instanceof NoSorter) {
+				index = i;
+			}
+		}
+		if (index != -1) {
+			this.embeddedSorters.remove(index);
+		}
 	}
 
 	@Nonnull
 	@Override
-	public Sorter cloneInstance() {
-		return new SequentialSorter(this.atomicBlocks, this.delegate.cloneInstance(), this.unknownRecordIdsSorter);
-	}
-
-	@Nonnull
-	@Override
-	public Sorter andThen(@Nonnull Sorter sorterForUnknownRecords) {
-		return new SequentialSorter(this.atomicBlocks, this.delegate, sorterForUnknownRecords);
-	}
-
-	@Nullable
-	@Override
-	public Sorter getNextSorter() {
-		return this.unknownRecordIdsSorter;
-	}
-
-	@Override
-	public int sortAndSlice(
-		@Nonnull QueryExecutionContext queryContext,
-		@Nonnull Formula input,
-		int startIndex,
-		int endIndex,
+	public SortingContext sortAndSlice(
+		@Nonnull SortingContext sortingContext,
 		@Nonnull int[] result,
-		int peak,
-		int skipped,
 		@Nullable IntConsumer skippedRecordsConsumer
 	) {
-		final Sorter theSorter = ConditionalSorter.getFirstApplicableSorter(queryContext, this.delegate);
-		if (theSorter == null) {
-			return peak;
-		} else {
-			int resultPeak = peak;
-			final SkippingRecordConsumer theSkippedRecordsConsumer = new SkippingRecordConsumer(skippedRecordsConsumer);
-			for (ReducedEntityIndex[] atomicBlock : this.atomicBlocks) {
-				// TODO JNO - handle comparators
-				final Formula limitedInput = FormulaFactory.or(
-					Arrays.stream(atomicBlock)
-						.map(it -> FormulaFactory.and(input, it.getAllPrimaryKeysFormula()))
-						.toArray(Formula[]::new)
-				);
-				resultPeak = theSorter.sortAndSlice(
-					queryContext,
-					/* TODO JNO - tady asi nějak odstraňovat ty, co už byly? */
-					limitedInput,
-					startIndex,
-					endIndex,
+		final RoaringBitmap recordsToSort = RoaringBitmapBackedBitmap.getRoaringBitmapClone(sortingContext.nonSortedKeys());
+
+		SortingContext nextSortingContext = sortingContext;
+		top:
+		for (ReducedEntityIndex[] atomicBlock : this.atomicBlocks) {
+			// TODO JNO - handle comparators
+			final Bitmap limitedInput = FormulaFactory.or(
+				Arrays.stream(atomicBlock)
+					.map(
+						it -> FormulaFactory.and(
+							new ConstantFormula(new BaseBitmap(recordsToSort)),
+							it.getAllPrimaryKeysFormula()
+						)
+					)
+					.toArray(Formula[]::new)
+			).compute();
+
+			/*
+			  We can't optimize here to skip entire block if the nextSortingContext.startIndex() is greater than the
+			  limitedInput.size() because part of the records may have the sorting information (e.g. attribute) and
+			  some not and this changes the behavior of the items that are propagated to the next round.
+			 */
+
+			// execute sorting
+			nextSortingContext = new SortingContext(
+				nextSortingContext.queryContext(),
+				new BaseBitmap(limitedInput),
+				nextSortingContext.startIndex(),
+				nextSortingContext.endIndex(),
+				nextSortingContext.peak(),
+				nextSortingContext.skipped(),
+				atomicBlock[0].getReferenceKey()
+			);
+
+			final int previousPeak = nextSortingContext.peak();
+			for (Sorter embeddedSorter : this.embeddedSorters) {
+				nextSortingContext = embeddedSorter.sortAndSlice(
+					nextSortingContext,
 					result,
-					resultPeak,
-					theSkippedRecordsConsumer.getCounter(),
-					theSkippedRecordsConsumer
+					skippedRecordsConsumer == null ?
+						recordsToSort::remove :
+						pk -> {
+							recordsToSort.remove(pk);
+							skippedRecordsConsumer.accept(pk);
+						}
 				);
-				// we don't need to continue, we've reached the requested number of records
-				if (theSkippedRecordsConsumer.getCounter() + resultPeak >= endIndex) {
+
+				for (int i = previousPeak; i < nextSortingContext.peak(); i++) {
+					recordsToSort.remove(result[i]);
+				}
+
+				if (nextSortingContext.peak() == result.length) {
+					// we don't need to continue, we've reached the requested number of records
+					break top;
+				} else if (nextSortingContext.nonSortedKeys().isEmpty()) {
+					// there is nothing else to be sorted
 					break;
 				}
 			}
-			return resultPeak;
 		}
+		return sortingContext.createResultContext(
+			new BaseBitmap(recordsToSort),
+			nextSortingContext.peak() - sortingContext.peak(),
+			nextSortingContext.skipped() - sortingContext.skipped()
+		);
 	}
 }

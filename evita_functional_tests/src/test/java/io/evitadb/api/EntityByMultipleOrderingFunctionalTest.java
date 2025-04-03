@@ -24,8 +24,11 @@
 package io.evitadb.api;
 
 
+import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntIntHashMap;
 import com.carrotsearch.hppc.IntIntMap;
+import com.carrotsearch.hppc.IntSet;
+import com.carrotsearch.hppc.cursors.IntCursor;
 import com.github.javafaker.Faker;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.order.TraversalMode;
@@ -309,6 +312,112 @@ public class EntityByMultipleOrderingFunctionalTest {
 					)
 			)
 			.toArray();
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				for (int pageNumber = 1; pageNumber <= PRODUCT_ORDER.length / 20; pageNumber++) {
+					final EvitaResponse<EntityReference> result = session.query(
+						query(
+							collection(Entities.PRODUCT),
+							orderBy(
+								referenceProperty(
+									Entities.CATEGORY,
+									traverseByEntityProperty(
+										TraversalMode.DEPTH_FIRST,
+										attributeNatural(ATTRIBUTE_ORDER, OrderDirection.ASC)
+									),
+									attributeNatural(ATTRIBUTE_CATEGORY_ORDER, OrderDirection.ASC),
+									attributeNatural(ATTRIBUTE_INCEPTION_YEAR, OrderDirection.ASC),
+									attributeNatural(ATTRIBUTE_MARKET, OrderDirection.ASC),
+									entityPrimaryKeyNatural(OrderDirection.ASC)
+								)
+							),
+							require(
+								page(pageNumber, 20),
+								debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+							)
+						),
+						EntityReference.class
+					);
+					assertSortedResultEquals(
+						result.getRecordData().stream().map(EntityReference::getPrimaryKey).toList(),
+						Arrays.copyOfRange(sortedProducts, (pageNumber - 1) * 20, pageNumber * 20)
+					);
+				}
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("The product should be returned in ascending order using traverse by hierarchy with records lacking attributes at the end")
+	@UseDataSet(HIERARCHY_MULTIPLE_ASPECT_ORDERING)
+	@Test
+	void shouldSortProductsByPredecessorAttributeInAscendingOrderWithNoPrimaryKeySorting(
+		@Nonnull Evita evita,
+		@Nonnull Hierarchy categoryHierarchy,
+		@Nonnull Map<Integer, SealedEntity> categoryIndex,
+		@Nonnull IntIntMap categoryPositionIndex,
+		@Nonnull Map<Integer, List<SealedEntity>> productsInCategory
+	) {
+		final IntSet productsWithMissingAttributes = new IntHashSet();
+		final int[] sortedProductsFirstRound = Arrays.stream(
+				getDepthFirstOrderedPks(
+					categoryHierarchy,
+					Comparator.comparingInt(o -> categoryPositionIndex.get(o.getPrimaryKeyOrThrowException())),
+					categoryIndex
+				)
+			)
+			.flatMap(
+				catId -> ofNullable(productsInCategory.get(catId))
+					.stream()
+					.flatMapToInt(
+						categoryProducts -> {
+							final int[] orderedProducts = categoryProducts.stream()
+								.mapToInt(SealedEntity::getPrimaryKeyOrThrowException)
+								.toArray();
+							final Comparator<SealedEntity> comparator;
+							if (catId % 3 == 0) {
+								comparator = Comparator.comparing(
+									it -> it.getReference(Entities.CATEGORY, catId)
+										.map(ref -> ref.getAttribute(ATTRIBUTE_INCEPTION_YEAR, Integer.class))
+										.orElseThrow()
+								);
+							} else if (catId % 4 == 0) {
+								comparator = Comparator.comparing(
+									it -> it.getReference(Entities.CATEGORY, catId)
+										.map(ref -> ref.getAttribute(ATTRIBUTE_MARKET, String.class))
+										.orElseThrow()
+								);
+							} else if (catId % 7 == 0) {
+								comparator = Comparator.comparing(
+									it -> ArrayUtils.indexOf(it.getPrimaryKeyOrThrowException(), orderedProducts)
+								);
+							} else {
+								comparator = (o1, o2) -> {
+									productsWithMissingAttributes.add(o1.getPrimaryKeyOrThrowException());
+									productsWithMissingAttributes.add(o2.getPrimaryKeyOrThrowException());
+									return Integer.compare(o1.getPrimaryKeyOrThrowException(), o2.getPrimaryKeyOrThrowException());
+								};
+							}
+							return categoryProducts.stream()
+								.sorted(comparator)
+								.mapToInt(SealedEntity::getPrimaryKeyOrThrowException);
+						}
+					)
+			)
+			.toArray();
+		final int[] sortedProducts = new int[sortedProductsFirstRound.length];
+		int index = 0;
+		for (int pk : sortedProductsFirstRound) {
+			if (!productsWithMissingAttributes.contains(pk)) {
+				sortedProducts[index++] = pk;
+			}
+		}
+		for (IntCursor next : productsWithMissingAttributes) {
+			sortedProducts[index++] = next.value;
+		}
+		Arrays.sort(sortedProducts, sortedProductsFirstRound.length - productsWithMissingAttributes.size(), sortedProducts.length);
 
 		evita.queryCatalog(
 			TEST_CATALOG,

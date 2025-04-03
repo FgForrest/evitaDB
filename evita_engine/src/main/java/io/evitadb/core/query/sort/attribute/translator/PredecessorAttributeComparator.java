@@ -38,7 +38,7 @@ import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProv
 import io.evitadb.core.query.sort.attribute.PreSortedRecordsSorter;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.index.attribute.ChainIndex;
-import io.evitadb.index.attribute.ReferenceSortedRecordsSupplier;
+import io.evitadb.index.attribute.ReferenceSortedRecordsProvider;
 import io.evitadb.index.bitmap.Bitmap;
 import lombok.RequiredArgsConstructor;
 
@@ -214,8 +214,8 @@ public class PredecessorAttributeComparator implements EntityComparator {
 						// we rely on the fact that the sorted record providers are sorted by the deep-first search order
 						// of the hierarchy here (or other sort criteria user defined)
 						referenceKey = Arrays.stream(sortedRecordsProviders)
-							.filter(ReferenceSortedRecordsSupplier.class::isInstance)
-							.map(ReferenceSortedRecordsSupplier.class::cast)
+							.filter(ReferenceSortedRecordsProvider.class::isInstance)
+							.map(ReferenceSortedRecordsProvider.class::cast)
 							.filter(
 								rsrp -> {
 									final ReferenceKey theRefKey = rsrp.getReferenceKey();
@@ -224,7 +224,7 @@ public class PredecessorAttributeComparator implements EntityComparator {
 										.orElse(false);
 								})
 							.findFirst()
-							.map(ReferenceSortedRecordsSupplier::getReferenceKey)
+							.map(ReferenceSortedRecordsProvider::getReferenceKey)
 							.orElse(null);
 					} else {
 						referenceKey = references.stream()
@@ -237,7 +237,7 @@ public class PredecessorAttributeComparator implements EntityComparator {
 						// if the reference key is null, we can use the default predicate
 						srp -> true :
 						// otherwise we must accept only the sorted records provider that matches the reference key
-						srp -> srp instanceof ReferenceSortedRecordsSupplier rsrp && rsrp.getReferenceKey().equals(referenceKey);
+						srp -> srp instanceof ReferenceSortedRecordsProvider rsrp && rsrp.getReferenceKey().equals(referenceKey);
 				}
 				this.entityPredicateCache.put(entity.getPrimaryKeyOrThrowException(), calculatedPredicate);
 				return calculatedPredicate;

@@ -23,10 +23,9 @@
 
 package io.evitadb.core.query.sort.primaryKey;
 
-import io.evitadb.core.query.QueryExecutionContext;
-import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -45,58 +44,35 @@ public class ReversedPrimaryKeySorter implements Sorter {
 
 	@Nonnull
 	@Override
-	public Sorter andThen(@Nonnull Sorter sorterForUnknownRecords) {
-		// this sorter will always sort all records
-		return ReversedPrimaryKeySorter.INSTANCE;
-	}
-
-	@Nonnull
-	@Override
-	public Sorter cloneInstance() {
-		return ReversedPrimaryKeySorter.INSTANCE;
-	}
-
-	@Nullable
-	@Override
-	public Sorter getNextSorter() {
-		return null;
-	}
-
-	@Override
-	public int sortAndSlice(
-		@Nonnull QueryExecutionContext queryContext,
-		@Nonnull Formula input,
-		int startIndex,
-		int endIndex,
+	public SortingContext sortAndSlice(
+		@Nonnull SortingContext sortingContext,
 		@Nonnull int[] result,
-		int peak,
-		int skipped,
 		@Nullable IntConsumer skippedRecordsConsumer
 	) {
-		final Bitmap filteredRecordIdBitmap = input.compute();
-		if (filteredRecordIdBitmap.isEmpty()) {
-			return 0;
-		} else {
-			final int size = filteredRecordIdBitmap.size();
+		final Bitmap filteredRecordIdBitmap = sortingContext.nonSortedKeys();
+		final int size = filteredRecordIdBitmap.size();
 
-			final int recomputedStartIndex = Math.max(0, startIndex - peak - skipped);
-			final int recomputedEndIndex = Math.max(0, endIndex - peak - skipped);
+		final int recomputedStartIndex = sortingContext.recomputedStartIndex();
+		final int recomputedEndIndex = sortingContext.recomputedEndIndex();
+		final int peak = sortingContext.peak();
 
-			// copy the sorted data to result
-			final int length = recomputedEndIndex - recomputedStartIndex;
-			final int newPeak = Math.min(size, length);
 
-			// recalculate positions for reversed order
-			final int[] range = filteredRecordIdBitmap.getRange(
-				size - newPeak,
-				size - recomputedStartIndex
-			);
-			// and copy the range contents in reversed order
-			for (int i = range.length - 1; i >= 0; i--) {
-				result[peak++] = range[i];
-			}
-			return newPeak;
+		// recalculate positions for reversed order
+		final int length = recomputedEndIndex - recomputedStartIndex;
+		final int[] range = filteredRecordIdBitmap.getRange(
+			size - Math.min(size, length),
+			size - recomputedStartIndex
+		);
+		// and copy the range contents in reversed order
+		int newPeak = peak;
+		for (int i = range.length - 1; i >= 0; i--) {
+			result[newPeak++] = range[i];
 		}
+		return sortingContext.createResultContext(
+			EmptyBitmap.INSTANCE,
+			newPeak - peak,
+			0
+		);
 	}
 
 }

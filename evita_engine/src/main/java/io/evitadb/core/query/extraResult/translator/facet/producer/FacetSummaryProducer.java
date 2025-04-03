@@ -41,11 +41,9 @@ import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.AndFormula;
-import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.sort.NestedContextSorter;
-import io.evitadb.core.query.sort.utils.SortUtils;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.TriFunction;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -139,6 +137,32 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 	@Nullable
 	private DefaultFacetSummaryRequest defaultRequest;
 
+	/**
+	 * Returns a function that allows to fetch {@link EntityClassifier} for passed `entityType` and multiple `groupIds`
+	 * that represents primary keys of the group entity. The form and richness of the returned {@link EntityClassifier}
+	 * is controlled by the passed `groupFetch` argument.
+	 */
+	private static TriFunction<QueryExecutionContext, String, int[], EntityClassifier[]> createFetcherFunction(
+		@Nullable EntityGroupFetch groupFetch
+	) {
+		return groupFetch == null ?
+			ENTITY_REFERENCE_CONVERTER :
+			(context, entityType, groupIds) -> context.fetchEntities(entityType, groupIds, groupFetch).toArray(EntityClassifier[]::new);
+	}
+
+	/**
+	 * Returns a function that allows to fetch {@link EntityClassifier} for passed `entityType` and multiple `facetIds`
+	 * that represents primary keys of the group entity. The form and richness of the returned {@link EntityClassifier}
+	 * is controlled by the passed `entityFetch` argument.
+	 */
+	private static TriFunction<QueryExecutionContext, String, int[], EntityClassifier[]> createFetcherFunction(
+		@Nullable EntityFetch entityFetch
+	) {
+		return entityFetch == null ?
+			ENTITY_REFERENCE_CONVERTER :
+			(context, entityType, facetIds) -> context.fetchEntities(entityType, facetIds, entityFetch).toArray(EntityClassifier[]::new);
+	}
+
 	public FacetSummaryProducer(
 		@Nonnull Formula filterFormula,
 		@Nonnull Formula filterFormulaWithoutUserFilter,
@@ -216,7 +240,7 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 		// fabrication is a little transformation hell
 		final AtomicInteger counter = new AtomicInteger();
 		return new FacetSummary(
-			facetIndexes
+			this.facetIndexes
 				.stream()
 				// we need Stream<FacetReferenceIndex>
 				.flatMap(it -> it.values().stream())
@@ -232,24 +256,44 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 								context,
 								// translates Facet#type to EntitySchema#reference#groupType
 								referenceName -> context.getSchema().getReferenceOrThrowException(referenceName),
-								referenceSchema -> ofNullable(facetSummaryRequests.get(referenceSchema.getName()))
+								referenceSchema -> ofNullable(this.facetSummaryRequests.get(referenceSchema.getName()))
 									.map(referenceRequest -> {
-										if (defaultRequest == null) {
+										if (this.defaultRequest == null) {
 											return referenceRequest;
 										}
 										final EntityFetch combinedFacetEntityRequirement = ofNullable(referenceRequest.facetEntityRequirement())
-											.map(it -> it.combineWith(defaultRequest.facetEntityRequirement()))
-											.orElse(defaultRequest.facetEntityRequirement());
+											.map(it -> it.combineWith(this.defaultRequest.facetEntityRequirement()))
+											.orElse(this.defaultRequest.facetEntityRequirement());
 										final EntityGroupFetch combinedGroupEntityRequirement = ofNullable(referenceRequest.groupEntityRequirement())
-											.map(it -> it.combineWith(defaultRequest.groupEntityRequirement()))
-											.orElse(defaultRequest.groupEntityRequirement());
+											.map(it -> it.combineWith(this.defaultRequest.groupEntityRequirement()))
+											.orElse(this.defaultRequest.groupEntityRequirement());
 										return new FacetSummaryRequest(
 											referenceRequest.order(),
 											referenceRequest.referenceSchema(),
-											ofNullable(referenceRequest.facetPredicate()).orElseGet(() -> defaultRequest.facetPredicate().apply(referenceRequest.referenceSchema())),
-											ofNullable(referenceRequest.groupPredicate()).orElseGet(() -> defaultRequest.groupPredicate().apply(referenceRequest.referenceSchema())),
-											ofNullable(referenceRequest.facetSorter()).orElseGet(() -> defaultRequest.facetSorter().apply(referenceRequest.referenceSchema())),
-											ofNullable(referenceRequest.groupSorter()).orElseGet(() -> defaultRequest.groupSorter().apply(referenceRequest.referenceSchema())),
+											ofNullable(referenceRequest.facetPredicate())
+												.orElseGet(
+													() -> ofNullable(this.defaultRequest.facetPredicate())
+														.map(refPredicate -> refPredicate.apply(referenceRequest.referenceSchema()))
+														.orElse(null)
+												),
+											ofNullable(referenceRequest.groupPredicate())
+												.orElseGet(
+													() -> ofNullable(this.defaultRequest.groupPredicate())
+														.map(refPredicate -> refPredicate.apply(referenceRequest.referenceSchema()))
+														.orElse(null)
+												),
+											ofNullable(referenceRequest.facetSorter())
+												.orElseGet(
+													() -> ofNullable(this.defaultRequest.facetSorter())
+														.map(refPredicate -> refPredicate.apply(referenceRequest.referenceSchema()))
+														.orElse(null)
+												),
+											ofNullable(referenceRequest.groupSorter())
+												.orElseGet(
+													() -> ofNullable(this.defaultRequest.groupSorter())
+														.map(refPredicate -> refPredicate.apply(referenceRequest.referenceSchema()))
+														.orElse(null)
+												),
 											combinedFacetEntityRequirement,
 											combinedGroupEntityRequirement,
 											createFetcherFunction(combinedFacetEntityRequirement),
@@ -257,20 +301,44 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 											referenceRequest.facetStatisticsDepth()
 										);
 									})
-									.orElseGet(() -> new FacetSummaryRequest(
-										this.facetSummaryRequests.size() + counter.incrementAndGet(),
-										referenceSchema,
-										defaultRequest.facetPredicate().apply(referenceSchema),
-										defaultRequest.groupPredicate().apply(referenceSchema),
-										defaultRequest.facetSorter().apply(referenceSchema),
-										defaultRequest.groupSorter().apply(referenceSchema),
-										defaultRequest.facetEntityRequirement(),
-										defaultRequest.groupEntityRequirement,
-										createFetcherFunction(defaultRequest.facetEntityRequirement()),
-										createFetcherFunction(defaultRequest.groupEntityRequirement()),
-										defaultRequest.facetStatisticsDepth()
-									)),
-								requestedFacets,
+									.orElseGet(
+										() -> {
+											final Optional<DefaultFacetSummaryRequest> defaultRequestOpt = ofNullable(this.defaultRequest);
+											final EntityFetch facetEntityRequirement = defaultRequestOpt
+												.map(DefaultFacetSummaryRequest::facetEntityRequirement)
+												.orElse(null);
+											final EntityGroupFetch groupEntityRequirement = defaultRequestOpt
+												.map(DefaultFacetSummaryRequest::groupEntityRequirement)
+												.orElse(null);
+											return new FacetSummaryRequest(
+												this.facetSummaryRequests.size() + counter.incrementAndGet(),
+												referenceSchema,
+												defaultRequestOpt
+													.map(DefaultFacetSummaryRequest::facetPredicate)
+													.map(refPredicate -> refPredicate.apply(referenceSchema))
+													.orElse(null),
+												defaultRequestOpt
+													.map(DefaultFacetSummaryRequest::groupPredicate)
+													.map(refPredicate -> refPredicate.apply(referenceSchema))
+													.orElse(null),
+												defaultRequestOpt
+													.map(DefaultFacetSummaryRequest::facetSorter)
+													.map(refPredicate -> refPredicate.apply(referenceSchema))
+													.orElse(null),
+												defaultRequestOpt
+													.map(DefaultFacetSummaryRequest::groupSorter)
+													.map(refPredicate -> refPredicate.apply(referenceSchema))
+													.orElse(null),
+												facetEntityRequirement,
+												groupEntityRequirement,
+												createFetcherFunction(facetEntityRequirement),
+												createFetcherFunction(groupEntityRequirement),
+												defaultRequestOpt
+													.map(DefaultFacetSummaryRequest::facetStatisticsDepth)
+													.orElse(FacetStatisticsDepth.COUNTS)
+											);
+										}),
+								this.requestedFacets,
 								universalCalculator,
 								universalCalculator
 							)
@@ -284,36 +352,10 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 	@Override
 	public String getDescription() {
 		if (facetSummaryRequests.size() == 1) {
-			return "facet summary for `" + facetSummaryRequests.keySet().iterator().next() +"` references";
+			return "facet summary for `" + facetSummaryRequests.keySet().iterator().next() + "` references";
 		} else {
-			return "facet summary for " + facetSummaryRequests.keySet().stream().map(it -> '`' + it + '`').collect(Collectors.joining(" ,")) +" references";
+			return "facet summary for " + facetSummaryRequests.keySet().stream().map(it -> '`' + it + '`').collect(Collectors.joining(" ,")) + " references";
 		}
-	}
-
-	/**
-	 * Returns a function that allows to fetch {@link EntityClassifier} for passed `entityType` and multiple `groupIds`
-	 * that represents primary keys of the group entity. The form and richness of the returned {@link EntityClassifier}
-	 * is controlled by the passed `groupFetch` argument.
-	 */
-	private static TriFunction<QueryExecutionContext, String, int[], EntityClassifier[]> createFetcherFunction(
-		@Nullable EntityGroupFetch groupFetch
-	) {
-		return groupFetch == null ?
-			ENTITY_REFERENCE_CONVERTER :
-			(context, entityType, groupIds) -> context.fetchEntities(entityType, groupIds, groupFetch).toArray(EntityClassifier[]::new);
-	}
-
-	/**
-	 * Returns a function that allows to fetch {@link EntityClassifier} for passed `entityType` and multiple `facetIds`
-	 * that represents primary keys of the group entity. The form and richness of the returned {@link EntityClassifier}
-	 * is controlled by the passed `entityFetch` argument.
-	 */
-	private static TriFunction<QueryExecutionContext, String, int[], EntityClassifier[]> createFetcherFunction(
-		@Nullable EntityFetch entityFetch
-	) {
-		return entityFetch == null ?
-			ENTITY_REFERENCE_CONVERTER :
-			(context, entityType, facetIds) -> context.fetchEntities(entityType, facetIds, entityFetch).toArray(EntityClassifier[]::new);
 	}
 
 	/**
@@ -523,12 +565,7 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 			// collect all entity primary keys
 			theFacetStatistics.keySet().forEach(writer::add);
 			// create sorted array using the sorter
-			final ConstantFormula unsortedIds = new ConstantFormula(new BaseBitmap(writer.get()));
-			final Bitmap recordsToSort = unsortedIds.compute();
-			final int count = recordsToSort.size();
-			final int[] result = new int[count];
-			final int peak = sorter.sortAndSlice(unsortedIds, 0, count, result, 0, 0, null);
-			return SortUtils.asResult(result, peak);
+			return sorter.sortAndSlice(new BaseBitmap(writer.get()));
 		}
 
 		/**
@@ -558,19 +595,11 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 				final String referenceName = o1.getFacetSummaryRequest().referenceSchema().getName();
 				final int[] sortedEntities = sortedGroupIds.computeIfAbsent(
 					referenceName,
-					theReferenceName -> {
-						final ConstantFormula unsortedIds = new ConstantFormula(groupIdIndex.get(theReferenceName));
-						final Bitmap unsortedIdsBitmap = unsortedIds.compute();
-						final int[] result = new int[unsortedIdsBitmap.size()];
-						final int peak = sorter.sortAndSlice(
-							unsortedIds, 0, unsortedIdsBitmap.size(), result, 0, 0, null
-						);
-						return SortUtils.asResult(result, peak);
-					}
+					theReferenceName -> sorter.sortAndSlice(groupIdIndex.get(theReferenceName))
 				);
 				return Integer.compare(
-					ArrayUtils.indexOf(o1.getGroupId(), sortedEntities),
-					ArrayUtils.indexOf(o2.getGroupId(), sortedEntities)
+					ArrayUtils.indexOf(Objects.requireNonNull(o1.getGroupId()), sortedEntities),
+					ArrayUtils.indexOf(Objects.requireNonNull(o2.getGroupId()), sortedEntities)
 				);
 			} else {
 				if (o1.getGroupId() == null) {
@@ -981,8 +1010,8 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 			@Nonnull ReferenceSchemaContract referenceSchema
 		) {
 			return referenceSchema.isReferencedGroupTypeManaged() ?
-				groupIds -> groupEntityFetcher.apply(context, referenceSchema.getReferencedGroupType(), groupIds) :
-				groupIds -> ENTITY_REFERENCE_CONVERTER.apply(context, referenceSchema.getReferencedGroupType(), groupIds);
+				groupIds -> groupEntityFetcher.apply(context, Objects.requireNonNull(referenceSchema.getReferencedGroupType()), groupIds) :
+				groupIds -> ENTITY_REFERENCE_CONVERTER.apply(context, Objects.requireNonNull(referenceSchema.getReferencedGroupType()), groupIds);
 		}
 
 	}

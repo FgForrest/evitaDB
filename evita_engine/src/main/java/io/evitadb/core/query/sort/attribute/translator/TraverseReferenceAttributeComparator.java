@@ -27,10 +27,10 @@ import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.order.TraverseByEntityProperty;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.sort.EntityReferenceSensitiveComparator;
 import io.evitadb.core.query.sort.attribute.PreSortedRecordsSorter.MergeMode;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -58,7 +58,7 @@ public class TraverseReferenceAttributeComparator
 	/**
 	 * The id of the referenced entity that is being traversed.
 	 */
-	@Nullable private Integer referencedEntityId;
+	@Nullable private ReferenceKey referenceKey;
 
 	public TraverseReferenceAttributeComparator(
 		@Nonnull String attributeName,
@@ -77,30 +77,23 @@ public class TraverseReferenceAttributeComparator
 		this.referenceName = referenceSchema.getName();
 	}
 
-	/**
-	 * Temporarily sets the ID of a referenced entity, executes a given lambda expression,
-	 * and then resets the referenced entity ID to null to ensure proper cleanup.
-	 *
-	 * @param referencedEntityId the ID of the referenced entity to be temporarily set
-	 * @param lambda the lambda expression to execute while the referenced entity ID is set
-	 * @throws GenericEvitaInternalError if the referenced entity ID has already been set
-	 */
 	@Override
-	public void withReferencedEntityId(int referencedEntityId, @Nonnull Runnable lambda) {
+	public void withReferencedEntityId(@Nonnull ReferenceKey referenceKey, @Nonnull Runnable lambda) {
 		try {
-			Assert.isPremiseValid(this.referencedEntityId == null, "Cannot set referenced entity id twice!");
-			this.referencedEntityId = referencedEntityId;
+			Assert.isPremiseValid(this.referenceKey == null, "Cannot set referenced entity id twice!");
+			Assert.isPremiseValid(this.referenceName.equals(referenceKey.referenceName()), "Referenced entity id must be for the same reference!");
+			this.referenceKey = referenceKey;
 			lambda.run();
 		} finally {
-			this.referencedEntityId = null;
+			this.referenceKey = null;
 		}
 	}
 
 	@Nonnull
 	@Override
 	protected Optional<ReferenceContract> pickReference(@Nonnull EntityContract entity) {
-		Assert.isPremiseValid(this.referencedEntityId != null, "Referenced entity id must be set!");
-		return entity.getReference(this.referenceName, this.referencedEntityId);
+		Assert.isPremiseValid(this.referenceKey != null, "Referenced entity id must be set!");
+		return entity.getReference(this.referenceKey);
 	}
 
 	@Override

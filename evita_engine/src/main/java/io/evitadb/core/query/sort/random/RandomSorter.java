@@ -23,10 +23,9 @@
 
 package io.evitadb.core.query.sort.random;
 
-import io.evitadb.core.query.QueryExecutionContext;
-import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -44,7 +43,7 @@ public class RandomSorter implements Sorter {
 	public static final RandomSorter INSTANCE = new RandomSorter();
 	private final Long seed;
 
-	public RandomSorter() {
+	private RandomSorter() {
 		this.seed = null;
 	}
 
@@ -54,55 +53,35 @@ public class RandomSorter implements Sorter {
 
 	@Nonnull
 	@Override
-	public Sorter andThen(@Nonnull Sorter sorterForUnknownRecords) {
-		throw new UnsupportedOperationException("Random sorter cannot be chained!");
-	}
-
-	@Nonnull
-	@Override
-	public Sorter cloneInstance() {
-		return this;
-	}
-
-	@Nullable
-	@Override
-	public Sorter getNextSorter() {
-		return null;
-	}
-
-	@Override
-	public int sortAndSlice(
-		@Nonnull QueryExecutionContext queryContext,
-		@Nonnull Formula input,
-		int startIndex,
-		int endIndex,
+	public SortingContext sortAndSlice(
+		@Nonnull SortingContext sortingContext,
 		@Nonnull int[] result,
-		int peak,
-		int skipped,
 		@Nullable IntConsumer skippedRecordsConsumer
 	) {
-		final int recomputedStartIndex = Math.max(0, startIndex - peak - skipped);
-		final int recomputedEndIndex = Math.max(0, endIndex - peak - skipped);
+		final int recomputedStartIndex = sortingContext.recomputedStartIndex();
+		final int recomputedEndIndex = sortingContext.recomputedEndIndex();
+		final int peak = sortingContext.peak();
+		final Bitmap filteredRecordIdBitmap = sortingContext.nonSortedKeys();
 
-		final Bitmap filteredRecordIdBitmap = input.compute();
-		if (filteredRecordIdBitmap.isEmpty()) {
-			return 0;
-		} else {
-			final int[] filteredRecordIds = filteredRecordIdBitmap.getArray();
-			final int length = Math.min(filteredRecordIds.length, recomputedEndIndex - recomputedStartIndex);
-			if (length < 0) {
-				throw new IndexOutOfBoundsException("Index: " + recomputedStartIndex + ", Size: " + filteredRecordIds.length);
-			}
-			final Random random = seed == null ? queryContext.getRandom() : new Random(seed);
-			for (int i = 0; i < length; i++) {
-				final int tmp = filteredRecordIds[recomputedStartIndex + i];
-				final int swapPosition = random.nextInt(filteredRecordIds.length);
-				filteredRecordIds[recomputedStartIndex + i] = filteredRecordIds[swapPosition];
-				filteredRecordIds[swapPosition] = tmp;
-			}
-
-			System.arraycopy(filteredRecordIds, recomputedStartIndex, result, peak, length);
-			return peak + length;
+		final int[] filteredRecordIds = filteredRecordIdBitmap.getArray();
+		final int length = Math.min(filteredRecordIds.length, recomputedEndIndex - recomputedStartIndex);
+		if (length < 0) {
+			throw new IndexOutOfBoundsException("Index: " + recomputedStartIndex + ", Size: " + filteredRecordIds.length);
 		}
+		final Random random = seed == null ?
+			sortingContext.queryContext().getRandom() : new Random(seed);
+		for (int i = 0; i < length; i++) {
+			final int tmp = filteredRecordIds[recomputedStartIndex + i];
+			final int swapPosition = random.nextInt(filteredRecordIds.length);
+			filteredRecordIds[recomputedStartIndex + i] = filteredRecordIds[swapPosition];
+			filteredRecordIds[swapPosition] = tmp;
+		}
+
+		System.arraycopy(filteredRecordIds, recomputedStartIndex, result, peak, length);
+		return sortingContext.createResultContext(
+			EmptyBitmap.INSTANCE,
+			length,
+			0
+		);
 	}
 }

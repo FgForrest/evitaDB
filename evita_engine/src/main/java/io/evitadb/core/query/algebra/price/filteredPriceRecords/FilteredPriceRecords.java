@@ -250,6 +250,7 @@ public interface FilteredPriceRecords extends Serializable {
 		try {
 			// prepare writer for sorted output entity ids
 			final BatchArrayIterator entityIdIterator = new RoaringBitmapBatchArrayIterator(filterTo.getBatchIterator(), buffer);
+			/* TODO JNO - consider switching to writer and Bitmap */
 			final CompositeIntArray notFound = new CompositeIntArray();
 
 			// iterate through all entity ids

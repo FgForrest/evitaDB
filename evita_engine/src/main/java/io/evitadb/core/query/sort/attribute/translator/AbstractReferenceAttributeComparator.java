@@ -103,11 +103,18 @@ public abstract class AbstractReferenceAttributeComparator implements EntityComp
 				// find the reference contract that has the attribute we are looking for
 				final ReferenceAttributeValue calculatedValue = pickReference(entityContract)
 					.map(
-						it -> new ReferenceAttributeValue(
-							it.getReferencedPrimaryKey(),
-							(Comparable<?>) normalizer.apply(it.getAttribute(attributeName)),
-							valueComparator
-						)
+						it -> {
+							final Serializable storedAttributeValue = it.getAttribute(attributeName);
+							if (storedAttributeValue == null) {
+								return ReferenceAttributeValue.MISSING_VALUE;
+							} else {
+								return new ReferenceAttributeValue(
+									it.getReferencedPrimaryKey(),
+									(Comparable<?>) normalizer.apply(storedAttributeValue),
+									valueComparator
+								);
+							}
+						}
 					)
 					.orElse(ReferenceAttributeValue.MISSING_VALUE);
 

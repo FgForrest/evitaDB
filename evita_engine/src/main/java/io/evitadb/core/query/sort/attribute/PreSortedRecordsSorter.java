@@ -23,19 +23,14 @@
 
 package io.evitadb.core.query.sort.attribute;
 
-import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.sort.CacheableSorter;
-import io.evitadb.core.query.sort.ConditionalSorter;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.core.query.sort.Sorter;
-import io.evitadb.core.query.sort.generic.AbstractRecordsSorter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Comparator;
 import java.util.Objects;
-import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import java.util.function.Supplier;
 
@@ -51,15 +46,11 @@ import java.util.function.Supplier;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public class PreSortedRecordsSorter extends AbstractRecordsSorter implements ConditionalSorter {
+public class PreSortedRecordsSorter implements Sorter {
 	/**
 	 * Contains the mode for combining multiple {@link SortedRecordsProvider} together.
 	 */
 	private final MergeMode mergeMode;
-	/**
-	 * This callback will be called when this sorter is computed.
-	 */
-	private final Consumer<CacheableSorter> computationCallback;
 	/**
 	 * This instance will be used by this sorter to access pre sorted arrays of entities.
 	 */
@@ -69,10 +60,6 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter implements Con
 	 * {@link SortedRecordsProvider} are provided and needs to be merged together.
 	 */
 	@SuppressWarnings("rawtypes") private final Comparator comparator;
-	/**
-	 * This sorter instance will be used for sorting entities, that cannot be sorted by this sorter.
-	 */
-	private final Sorter unknownRecordIdsSorter;
 	/**
 	 * Field contains memoized value of {@link #getSortedRecordsProviders()} method.
 	 */
@@ -87,91 +74,55 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter implements Con
 		@SuppressWarnings("rawtypes") @Nullable Comparator comparator,
 		@Nonnull Supplier<SortedRecordsProvider[]> sortedRecordsSupplier
 	) {
-		this(null, mergeMode, comparator, sortedRecordsSupplier, null);
-	}
-
-	private PreSortedRecordsSorter(
-		@Nullable Consumer<CacheableSorter> computationCallback,
-		@Nonnull MergeMode mergeMode,
-		@SuppressWarnings("rawtypes") @Nullable Comparator comparator,
-		@Nonnull Supplier<SortedRecordsProvider[]> sortedRecordsSupplier,
-		@Nullable Sorter unknownRecordIdsSorter
-	) {
 		this.mergeMode = mergeMode;
 		this.comparator = comparator;
-		this.computationCallback = computationCallback;
 		this.sortedRecordsSupplier = sortedRecordsSupplier;
-		this.unknownRecordIdsSorter = unknownRecordIdsSorter;
 	}
 
 	@Nonnull
 	@Override
-	public Sorter cloneInstance() {
-		return new PreSortedRecordsSorter(
-			this.computationCallback,
-			this.mergeMode,
-			this.comparator,
-			this.sortedRecordsSupplier,
-			null
-		);
-	}
-
-	@Nonnull
-	@Override
-	public Sorter andThen(@Nonnull Sorter sorterForUnknownRecords) {
-		return new PreSortedRecordsSorter(
-			this.computationCallback,
-			this.mergeMode,
-			this.comparator,
-			this.sortedRecordsSupplier,
-			sorterForUnknownRecords
-		);
-	}
-
-	@Nullable
-	@Override
-	public Sorter getNextSorter() {
-		return this.unknownRecordIdsSorter;
-	}
-
-	@Override
-	public int sortAndSlice(
-		@Nonnull QueryExecutionContext queryContext,
-		@Nonnull Formula input,
-		int startIndex,
-		int endIndex,
+	public SortingContext sortAndSlice(
+		@Nonnull SortingContext sortingContext,
 		@Nonnull int[] result,
-		int peak,
-		int skipped,
 		@Nullable IntConsumer skippedRecordsConsumer
 	) {
-		return getMemoizedResult()
-			.sortAndSlice(queryContext, input, startIndex, endIndex, result, peak, skipped, skippedRecordsConsumer);
+		if (sortingContext.queryContext().getPrefetchedEntities() == null) {
+			return getMemoizedResult()
+				.sortAndSlice(sortingContext, result, skippedRecordsConsumer);
+		} else {
+			return sortingContext;
+		}
 	}
 
-	@Override
-	public boolean shouldApply(@Nonnull QueryExecutionContext queryContext) {
-		return queryContext.getPrefetchedEntities() == null;
-	}
-
+	/**
+	 * Retrieves the memoized result of the merged sorted records supplier. If the result is not memoized yet,
+	 * it initializes the memoized result based on the specified merge mode. When {@code MergeMode.APPEND_ALL}
+	 * is used, it creates a {@link MergedSortedRecordsSupplierSorter}. Otherwise, it initializes a
+	 * {@link MergedComparableSortedRecordsSupplierSorter} with the provided comparator and sorted records providers.
+	 *
+	 * @return a {@link MergedSortedRecordsSupplierContract} representing the memoized merged sorted records supplier.
+	 */
 	@Nonnull
-	public MergedSortedRecordsSupplierContract getMemoizedResult() {
+	private MergedSortedRecordsSupplierContract getMemoizedResult() {
 		if (this.memoizedResult == null) {
-			final SortedRecordsProvider[] sortedRecordsProviders = getSortedRecordsProviders();
 			this.memoizedResult = this.mergeMode == MergeMode.APPEND_ALL ?
 				new MergedSortedRecordsSupplierSorter(
-					sortedRecordsProviders,
-					this.unknownRecordIdsSorter
+					getSortedRecordsProviders()
 				) :
 				new MergedComparableSortedRecordsSupplierSorter(
 					Objects.requireNonNull(this.comparator),
-					sortedRecordsProviders,
-					this.unknownRecordIdsSorter
+					getSortedRecordsProviders()
 				);
 		}
 		return this.memoizedResult;
 	}
 
+	/**
+	 * Retrieves an array of sorted records providers. The result is memoized to ensure the sorted records
+	 * are only loaded once and reused on subsequent invocations.
+	 *
+	 * @return an array of {@link SortedRecordsProvider} containing the sorted records providers.
+	 */
 	@Nonnull
 	private SortedRecordsProvider[] getSortedRecordsProviders() {
 		if (this.memoizedSortedRecordsProviders == null) {

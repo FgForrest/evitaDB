@@ -39,6 +39,7 @@ import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProv
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.index.attribute.SortIndex.ComparableArray;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
+import io.evitadb.utils.ArrayUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -156,14 +157,18 @@ public abstract class AbstractReferenceCompoundAttributeComparator implements En
 						final AttributeElement attributeElement = this.attributeElements[i];
 						valueArray[i] = this.attributeValueFetcher.apply(reference, attributeElement.attributeName());
 					}
-					return new ReferenceAttributeValue(
-						reference.getReferencedPrimaryKey(),
-						new ComparableArray(
-							this.comparatorSource,
-							(Serializable[]) this.normalizer.apply(valueArray)
-						),
-						this.comparator
-					);
+					if (ArrayUtils.isEmptyOrItsValuesNull(valueArray)) {
+						return ReferenceAttributeValue.MISSING;
+					} else {
+						return new ReferenceAttributeValue(
+							reference.getReferencedPrimaryKey(),
+							new ComparableArray(
+								this.comparatorSource,
+								(Serializable[]) this.normalizer.apply(valueArray)
+							),
+							this.comparator
+						);
+					}
 				})
 				.orElse(ReferenceAttributeValue.MISSING);
 			this.memoizedValues.put(entity.getPrimaryKeyOrThrowException(), calculatedValue);

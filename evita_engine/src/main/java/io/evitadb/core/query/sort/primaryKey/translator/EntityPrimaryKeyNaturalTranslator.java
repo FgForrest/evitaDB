@@ -45,6 +45,7 @@ import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
+import io.evitadb.index.attribute.ReferenceSortedRecordsProvider;
 import io.evitadb.index.attribute.SortedRecordsSupplier;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
@@ -95,9 +96,10 @@ public class EntityPrimaryKeyNaturalTranslator implements OrderingConstraintTran
 									return null;
 								} else if (bitmap instanceof TransactionalBitmap txBitmap) {
 									if (discriminator instanceof ReferenceKey referenceKey) {
-										return new SortedRecordsSupplier(
+										return new ReferenceSortedRecordsProvider(
 											txBitmap.getId(), pkArray, createPositionArray(bitmap.size()), bitmap,
-											position -> referenceKey.primaryKey()
+											position -> referenceKey.primaryKey(),
+											referenceKey
 										);
 									} else {
 										throw new GenericEvitaInternalError(

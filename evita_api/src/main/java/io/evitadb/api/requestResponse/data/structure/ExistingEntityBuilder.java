@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.data.structure;
 
 import io.evitadb.api.exception.ContextMissingException;
+import io.evitadb.api.exception.ReferenceNotFoundException;
 import io.evitadb.api.exception.ReferenceNotKnownException;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.requestResponse.data.*;
@@ -344,18 +345,23 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	@Nonnull
 	@Override
 	public Optional<ReferenceContract> getReference(@Nonnull String referenceName, int referencedEntityId) {
-		if (!referencesAvailable(referenceName)) {
-			throw ContextMissingException.referenceContextMissing(referenceName);
+		return getReference(new ReferenceKey(referenceName, referencedEntityId));
+	}
+
+	@Nonnull
+	@Override
+	public Optional<ReferenceContract> getReference(@Nonnull ReferenceKey referenceKey) throws ContextMissingException, ReferenceNotFoundException {
+		if (!referencesAvailable(referenceKey.referenceName())) {
+			throw ContextMissingException.referenceContextMissing(referenceKey.referenceName());
 		}
-		final ReferenceKey entityReferenceContract = new ReferenceKey(referenceName, referencedEntityId);
-		final Optional<ReferenceContract> reference = this.baseEntity.getReference(referenceName, referencedEntityId)
-			.map(it -> ofNullable(this.referenceMutations.get(entityReferenceContract))
+		final Optional<ReferenceContract> reference = this.baseEntity.getReference(referenceKey)
+			.map(it -> ofNullable(this.referenceMutations.get(referenceKey))
 				.map(mutations -> evaluateReferenceMutations(it, mutations))
 				.orElseGet(() -> this.baseEntityDecorator == null ?
-					it : this.baseEntityDecorator.getReference(referenceName, referencedEntityId).orElse(it))
+					it : this.baseEntityDecorator.getReference(referenceKey).orElse(it))
 			)
 			.or(() ->
-				ofNullable(this.referenceMutations.get(entityReferenceContract))
+				ofNullable(this.referenceMutations.get(referenceKey))
 					.map(mutations -> evaluateReferenceMutations(null, mutations))
 			);
 		return reference.filter(this.referencePredicate);

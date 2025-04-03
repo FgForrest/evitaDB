@@ -1497,7 +1497,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 		} catch (UniqueValueViolationException ex) {
 			assertEquals(
-				"Unique value is already present for entity `PRODUCT` `name` key: `A` (existing: 1, new: 2)!",
+				"Unique constraint violation: attribute `name` value A` is already present for entity `PRODUCT` (existing entity PK: 1, newly inserted  entity PK: 2)!",
 				ex.getMessage()
 			);
 		}
@@ -1562,7 +1562,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 		} catch (UniqueValueViolationException ex) {
 			assertEquals(
-				"Unique value is already present for entity `PRODUCT` `name` key: `A` in locale `en` (existing: 1, new: 2)!",
+				"Unique constraint violation: attribute `name` value A` in locale `en` is already present for entity `PRODUCT` (existing entity PK: 1, newly inserted  entity PK: 2)!",
 				ex.getMessage()
 			);
 		}
@@ -1646,7 +1646,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 		} catch (UniqueValueViolationException ex) {
 			assertEquals(
-				"Unique value is already present for entity `PRODUCT` `name` key: `A` (existing: 1, new: 2 of entity `CATEGORY`)!",
+				"Unique constraint violation: attribute `name` value A` is already present for entity `PRODUCT` (existing entity PK: 1, newly inserted `CATEGORY` entity PK: 2)!",
 				ex.getMessage()
 			);
 		}
@@ -1730,7 +1730,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 		} catch (UniqueValueViolationException ex) {
 			assertEquals(
-				"Unique value is already present for entity `PRODUCT` `name` key: `A` in locale `en` (existing: 1, new: 2 of entity `CATEGORY`)!",
+				"Unique constraint violation: attribute `name` value A` in locale `en` is already present for entity `PRODUCT` (existing entity PK: 1, newly inserted `CATEGORY` entity PK: 2)!",
 				ex.getMessage()
 			);
 		}

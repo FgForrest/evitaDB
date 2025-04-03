@@ -560,7 +560,8 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 			@Override
 			public int getMissingComponentsPrice(@Nonnull IntCollection includedInnerRecordIds) {
 				// use the last index to locate the selling price record for comparison
-				PriceRecordContract priceRecord = this.sellingPriceRecords[this.lastIndex];
+				final PriceRecordContract priceRecord = this.lastIndex < this.sellingPriceRecords.length ?
+					this.sellingPriceRecords[this.lastIndex] : null;
 				if (priceRecord instanceof CumulatedVirtualPriceRecord cumulatedPriceRecord) {
 					final IntObjectMap<PriceRecordContract> sellingPrices = cumulatedPriceRecord.innerRecordPrices();
 					int omittedPrice = 0;
