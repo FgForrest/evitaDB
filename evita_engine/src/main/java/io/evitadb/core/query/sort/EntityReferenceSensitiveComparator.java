@@ -40,9 +40,9 @@ public interface EntityReferenceSensitiveComparator extends EntityComparator {
 	/**
 	 * Executes the provided {@code lambda} within the context of a specific referenced entity ID.
 	 *
-	 * @param referencedKey The identifier of the reference to be used as the context for the lambda execution.
+	 * @param referenceKey The identifier of the reference to be used as the context for the lambda execution.
 	 * @param lambda        The executable task to be performed within the context of the referenced entity ID.
 	 */
-	void withReferencedEntityId(@Nonnull ReferenceKey referencedKey, @Nonnull Runnable lambda);
+	void withReferencedEntityId(@Nonnull ReferenceKey referenceKey, @Nonnull Runnable lambda);
 
 }

@@ -28,7 +28,6 @@ import io.evitadb.api.query.order.AttributeNatural;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.structure.ReferenceComparator;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -119,8 +118,6 @@ public class AttributeNaturalTranslator
 		final EntityIndex[] indexesForSort = orderByVisitor.getIndexesForSort();
 		final NamedSchemaContract attributeOrCompoundSchema = processingScope.getAttributeSchemaOrSortableAttributeCompound(attributeOrCompoundName);
 		final ReferenceSchemaContract referenceSchema = processingScope.referenceSchema();
-		final EntitySchemaContract referencedEntitySchema = referenceSchema != null && referenceSchema.isReferencedEntityTypeManaged() ?
-			orderByVisitor.getSchema(referenceSchema.getReferencedEntityType()) : null;
 
 		if (attributeOrCompoundSchema instanceof AttributeSchemaContract attributeSchema && attributeSchema.isLocalized()) {
 			Assert.notNull(
@@ -165,17 +162,26 @@ public class AttributeNaturalTranslator
 		if (attributeOrCompoundSchema instanceof AttributeSchemaContract attributeSchema &&
 			(Predecessor.class.equals(attributeSchema.getPlainType()) || ReferencedEntityPredecessor.class.equals(attributeSchema.getPlainType()))) {
 			// we cannot use attribute comparator for predecessor attributes, we always need index here
-			entityComparator = new PredecessorAttributeComparator(
-				attributeOrCompoundName,
-				referenceSchema,
-				referencedEntitySchema,
-				sortedRecordsSupplier
-			);
-			Assert.isTrue(
-				mergeModeDefinition == null || mergeModeDefinition.mergeMode() == MergeMode.APPEND_ALL || mergeModeDefinition.implicit(),
-				attributeSchema.getPlainType() + " attribute `" + attributeOrCompoundName + "` " +
-					"is not comparable one with another and must use `traverseBy` approach for sorting!"
-			);
+			if (referenceSchema == null) {
+				entityComparator = new PredecessorAttributeComparator(
+					attributeOrCompoundName,
+					sortedRecordsSupplier
+				);
+			} else {
+				entityComparator = new TraverseReferencePredecessorAttributeComparator(
+					attributeOrCompoundName,
+					attributeSchema.getPlainType(),
+					referenceSchema,
+					locale,
+					orderDirection,
+					sortedRecordsSupplier
+				);
+				Assert.isTrue(
+					mergeModeDefinition == null || mergeModeDefinition.mergeMode() == MergeMode.APPEND_ALL || mergeModeDefinition.implicit(),
+					attributeSchema.getPlainType() + " attribute `" + attributeOrCompoundName + "` " +
+						"is not comparable one with another and must use `traverseBy` approach for sorting!"
+				);
+			}
 			mergeMode = MergeMode.APPEND_ALL;
 			valueComparator = null;
 		} else if (attributeOrCompoundSchema instanceof SortableAttributeCompoundSchemaContract compoundSchemaContract) {

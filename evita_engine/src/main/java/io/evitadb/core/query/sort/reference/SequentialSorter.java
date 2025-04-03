@@ -78,7 +78,6 @@ public class SequentialSorter implements Sorter {
 		SortingContext nextSortingContext = sortingContext;
 		top:
 		for (ReducedEntityIndex[] atomicBlock : this.atomicBlocks) {
-			// TODO JNO - handle comparators
 			final Bitmap limitedInput = FormulaFactory.or(
 				Arrays.stream(atomicBlock)
 					.map(

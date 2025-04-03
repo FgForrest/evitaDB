@@ -122,7 +122,8 @@ public interface Sorter {
 				this.startIndex,
 				this.endIndex,
 				this.peak + sortedCount,
-				this.skipped + skippedCount
+				this.skipped + skippedCount,
+				this.referenceKey
 			);
 		}
 

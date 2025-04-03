@@ -33,6 +33,7 @@ import io.evitadb.comparator.IntComparator;
 import io.evitadb.comparator.IntComparator.IntAscendingComparator;
 import io.evitadb.comparator.IntComparator.IntDescendingComparator;
 import io.evitadb.core.query.sort.EntityComparator;
+import io.evitadb.core.query.sort.EntityReferenceSensitiveComparator;
 import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.OrderByVisitor.MergeModeDefinition;
 import io.evitadb.core.query.sort.OrderByVisitor.ProcessingScope;
@@ -43,18 +44,20 @@ import io.evitadb.core.query.sort.generic.PrefetchedRecordsSorter;
 import io.evitadb.core.query.sort.primaryKey.ReversedPrimaryKeySorter;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
 import io.evitadb.dataType.array.CompositeObjectArray;
+import io.evitadb.dataType.iterator.EmptyIterator;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.attribute.ReferenceSortedRecordsProvider;
 import io.evitadb.index.attribute.SortedRecordsSupplier;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
+import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.Objects;
 import java.util.stream.Stream;
@@ -147,38 +150,66 @@ public class EntityPrimaryKeyNaturalTranslator implements OrderingConstraintTran
 	 */
 	@SuppressWarnings("ComparatorNotSerializable")
 	@RequiredArgsConstructor
-	private static class ReferencePrimaryKeyEntityComparator implements EntityComparator {
-		@Nonnull private final String referenceSchemaName;
+	private static class ReferencePrimaryKeyEntityComparator implements EntityComparator, EntityReferenceSensitiveComparator {
+		/**
+		 * The name of the reference that is being traversed.
+		 */
+		private final String referenceName;
+		/**
+		 * The id of the referenced entity that is being traversed.
+		 */
+		@Nullable private ReferenceKey referenceKey;
+		/**
+		 * The comparator used to compare the primary keys of the referenced entities.
+		 */
 		@Nonnull private final IntComparator comparator;
+		/**
+		 * The array that collects non-sorted entities.
+		 */
 		private CompositeObjectArray<EntityContract> nonSortedEntities;
 
 		@Nonnull
 		@Override
 		public Iterable<EntityContract> getNonSortedEntities() {
-			return nonSortedEntities;
+			return this.nonSortedEntities == null ?
+				EmptyIterator.iteratorInstance(EntityContract.class) :
+				this.nonSortedEntities;
+		}
+
+		@Override
+		public void withReferencedEntityId(@Nonnull ReferenceKey referenceKey, @Nonnull Runnable lambda) {
+			try {
+				Assert.isPremiseValid(this.referenceKey == null, "Cannot set referenced entity id twice!");
+				Assert.isPremiseValid(this.referenceName.equals(referenceKey.referenceName()), "Referenced entity id must be for the same reference!");
+				this.referenceKey = referenceKey;
+				lambda.run();
+			} finally {
+				this.referenceKey = null;
+			}
 		}
 
 		@Override
 		public int compare(EntityContract o1, EntityContract o2) {
-			final Collection<ReferenceContract> o1References = o1.getReferences(referenceSchemaName);
-			final Collection<ReferenceContract> o2References = o2.getReferences(referenceSchemaName);
-			if (o1References.isEmpty() && o2References.isEmpty()) {
+			Assert.isPremiseValid(this.referenceKey != null, "Referenced entity id must be set!");
+			final ReferenceContract o1Reference = o1.getReference(this.referenceKey).orElse(null);
+			final ReferenceContract o2Reference = o2.getReference(this.referenceKey).orElse(null);
+			if (o1Reference == null && o2Reference == null) {
 				this.nonSortedEntities = getOrCreatedNonSortedEntitiesCollector();
 				this.nonSortedEntities.add(o1);
 				this.nonSortedEntities.add(o2);
 				return 0;
-			} else if (o1References.isEmpty()) {
+			} else if (o1Reference == null) {
 				this.nonSortedEntities = getOrCreatedNonSortedEntitiesCollector();
 				this.nonSortedEntities.add(o1);
 				return 1;
-			} else if (o2References.isEmpty()) {
+			} else if (o2Reference == null) {
 				this.nonSortedEntities = getOrCreatedNonSortedEntitiesCollector();
 				this.nonSortedEntities.add(o2);
 				return -1;
 			} else {
 				return comparator.compare(
-					o1References.iterator().next().getReferencedPrimaryKey(),
-					o2References.iterator().next().getReferencedPrimaryKey()
+					o1Reference.getReferencedPrimaryKey(),
+					o2Reference.getReferencedPrimaryKey()
 				);
 			}
 		}

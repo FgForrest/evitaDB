@@ -65,6 +65,45 @@ public final class MergedSortedRecordsSupplierSorter implements Sorter, MergedSo
 	private final Map<ReferenceKey, OffsetAndLimit> referenceKeyIndexes;
 
 	/**
+	 * Creates a mapping of {@link ReferenceKey} objects to their corresponding {@link OffsetAndLimit} values,
+	 * indicating the positions and pagination limits of records in each sorted records provider.
+	 *
+	 * The method iterates through the provided sorted records providers and generates the mapping by identifying changes
+	 * in the {@link ReferenceKey} and calculating the appropriate offsets and limits for each key.
+	 *
+	 * @param sortedRecordsProviders an array of {@link SortedRecordsProvider} objects,
+	 *                               which serve as sources of pre-sorted records to process; must not be null.
+	 * @return a map of {@link ReferenceKey} to {@link OffsetAndLimit} providing positional and pagination data
+	 * for each reference key. Returns null if the input array does not contain instances of {@link ReferenceSortedRecordsProvider}.
+	 */
+	@Nullable
+	public static Map<ReferenceKey, OffsetAndLimit> createSortedRecordsOffsets(@Nonnull SortedRecordsProvider[] sortedRecordsProviders) {
+		final int srpCount = sortedRecordsProviders.length;
+		Map<ReferenceKey, OffsetAndLimit> referenceKeyIndexes = null;
+		ReferenceKey referenceKey = null;
+		OffsetAndLimit oal = null;
+		for (int i = 0; i < srpCount; i++) {
+			final SortedRecordsProvider sortedRecordsProvider = sortedRecordsProviders[i];
+			if (sortedRecordsProvider instanceof ReferenceSortedRecordsProvider rssp) {
+				if (!rssp.getReferenceKey().equals(referenceKey)) {
+					if (oal != null) {
+						referenceKeyIndexes.put(referenceKey, new OffsetAndLimit(oal.offset(), i, srpCount));
+					}
+					referenceKey = rssp.getReferenceKey();
+					oal = new OffsetAndLimit(i, 0, srpCount);
+					if (referenceKeyIndexes == null) {
+						referenceKeyIndexes = new HashMap<>(srpCount);
+					}
+				}
+			}
+		}
+		if (oal != null) {
+			referenceKeyIndexes.put(referenceKey, new OffsetAndLimit(oal.offset(), srpCount, srpCount));
+		}
+		return referenceKeyIndexes;
+	}
+
+	/**
 	 * Maps positions to the record ids in presorted set respecting start and end index.
 	 * Retrieves a slice of records from the sorted records based on the given parameters.
 	 * Handles skipping of records, filtering already processed records, and adds the resulting
@@ -210,29 +249,7 @@ public final class MergedSortedRecordsSupplierSorter implements Sorter, MergedSo
 
 	public MergedSortedRecordsSupplierSorter(@Nonnull SortedRecordsProvider[] sortedRecordsProviders) {
 		this.sortedRecordsProviders = sortedRecordsProviders;
-		final int srpCount = sortedRecordsProviders.length;
-		Map<ReferenceKey, OffsetAndLimit> referenceKeyIndexes = null;
-		ReferenceKey referenceKey = null;
-		OffsetAndLimit oal = null;
-		for (int i = 0; i < srpCount; i++) {
-			final SortedRecordsProvider sortedRecordsProvider = sortedRecordsProviders[i];
-			if (sortedRecordsProvider instanceof ReferenceSortedRecordsProvider rssp) {
-				if (!rssp.getReferenceKey().equals(referenceKey)) {
-					if (oal != null) {
-						referenceKeyIndexes.put(referenceKey, new OffsetAndLimit(oal.offset(), i, srpCount));
-					}
-					referenceKey = rssp.getReferenceKey();
-					oal = new OffsetAndLimit(i, 0, srpCount);
-					if (referenceKeyIndexes == null) {
-						referenceKeyIndexes = new HashMap<>(srpCount);
-					}
-				}
-			}
-		}
-		if (oal != null) {
-			referenceKeyIndexes.put(referenceKey, new OffsetAndLimit(oal.offset(), srpCount, srpCount));
-		}
-		this.referenceKeyIndexes = referenceKeyIndexes;
+		this.referenceKeyIndexes = createSortedRecordsOffsets(sortedRecordsProviders);
 	}
 
 	@Nonnull
@@ -305,7 +322,7 @@ public final class MergedSortedRecordsSupplierSorter implements Sorter, MergedSo
 	 * @param referenceKey the key used to lookup the associated {@link OffsetAndLimit};
 	 *                     must not be null.
 	 * @return the {@link OffsetAndLimit} associated with the provided {@link ReferenceKey},
-	 *         or a default {@link OffsetAndLimit} if no mapping exists.
+	 * or a default {@link OffsetAndLimit} if no mapping exists.
 	 */
 	@Nonnull
 	private OffsetAndLimit getOffsetAndLimit(@Nonnull ReferenceKey referenceKey) {
