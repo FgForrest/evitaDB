@@ -205,7 +205,6 @@ public final class MergedComparableSortedRecordsSupplierSorter implements Sorter
 							// it will produce next sorted PK in the next iteration
 							if (insertionPosition.position() > 0) {
 								if (insertionPosition.alreadyPresent()) {
-									/* TODO JNO - tohle je potřeba ověřit, tady mi to nehitlo! */
 									if (sortedRecordsProviderBuffers[insertionPosition.position() - 1].primaryKey() > sortedPk.primaryKey()) {
 										// otherwise we need to perform copy of the existing values first
 										System.arraycopy(sortedRecordsProviderBuffers, 1, sortedRecordsProviderBuffers, 0, insertionPosition.position() + 1);

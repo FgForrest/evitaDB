@@ -29,6 +29,7 @@ import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.sort.NoSorter;
 import io.evitadb.core.query.sort.Sorter;
+import io.evitadb.core.query.sort.attribute.PreSortedRecordsSorter.MergeMode;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -42,15 +43,27 @@ import java.util.List;
 import java.util.function.IntConsumer;
 
 /**
- * TODO JNO - document me
+ * Sequential sorter will apply {@link #embeddedSorters} one by one on the {@link #atomicBlocks}. The sorter is meant
+ * to be used when traversal sorting is required (i.e. {@link MergeMode#APPEND_ALL}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 public class SequentialSorter implements Sorter {
+	/**
+	 * Array of {@link ReducedEntityIndex} that are used to filter the input records. Each block is sorted
+	 * separately by {@link #embeddedSorters} and the order of the block matters (pk sorted earlier are not sorted
+	 * in later blocks even if they're present there as well - 1:N references).
+	 */
 	private final ReducedEntityIndex[][] atomicBlocks;
+	/**
+	 * Sorters that are applied on the {@link #atomicBlocks} one by one. The order of the sorters matters.
+	 */
 	private final List<Sorter> embeddedSorters;
 
-	public SequentialSorter(@Nonnull ReducedEntityIndex[][] atomicBlocks, @Nonnull List<Sorter> embeddedSorters) {
+	public SequentialSorter(
+		@Nonnull ReducedEntityIndex[][] atomicBlocks,
+		@Nonnull List<Sorter> embeddedSorters
+	) {
 		this.atomicBlocks = atomicBlocks;
 		this.embeddedSorters = embeddedSorters;
 		// ensure NoSorter is not present in the list of embedded sorters

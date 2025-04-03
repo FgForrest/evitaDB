@@ -32,11 +32,11 @@ import io.evitadb.core.query.algebra.price.FilteredPriceRecordsLookupResult;
 import io.evitadb.core.query.algebra.price.termination.SumPriceTerminationFormula;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.index.bitmap.BaseBitmap;
+import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
-import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import org.roaringbitmap.RoaringBitmap;
@@ -139,16 +139,20 @@ public class FilteredPricesSorter implements Sorter {
 		Arrays.sort(translatedResult, getPriceRecordComparator());
 
 		// determine the count and set of non-found (not-sorted) entities
-		/* TODO JNO - tohle by se pak nemuselo sortovat, kdybychom tam měli writer - a ani by se nemusely spojovat pole, lepší refaktorovat  */
-		int[] notFoundEntities = this.priceRecordsLookupResult.getNotFoundEntities();
+		Bitmap notFoundEntities = this.priceRecordsLookupResult.getNotFoundEntities();
 		if (this.priceRecordComparator instanceof NonSortedRecordsProvider notSortedRecordsProvider && notSortedRecordsProvider.getNonSortedRecords() != null) {
 			if (notFoundEntities == null) {
 				notFoundEntities = notSortedRecordsProvider.getNonSortedRecords();
 			} else {
-				notFoundEntities = ArrayUtils.mergeArrays(notFoundEntities, notSortedRecordsProvider.getNonSortedRecords());
+				notFoundEntities = new BaseBitmap(
+					RoaringBitmap.or(
+						RoaringBitmapBackedBitmap.getRoaringBitmap(notFoundEntities),
+						RoaringBitmapBackedBitmap.getRoaringBitmap(notSortedRecordsProvider.getNonSortedRecords())
+					)
+				);
 			}
 		}
-		final int notFoundEntitiesLength = notFoundEntities == null ? 0 : notFoundEntities.length;
+		final int notFoundEntitiesLength = notFoundEntities == null ? 0 : notFoundEntities.size();
 
 		final int recomputedStartIndex = sortingContext.recomputedStartIndex();
 		final int recomputedEndIndex = sortingContext.recomputedEndIndex();
@@ -234,7 +238,7 @@ public class FilteredPricesSorter implements Sorter {
 		 * @return an array of integers representing non-sorted record identifiers or null if no such records exist
 		 */
 		@Nullable
-		int[] getNonSortedRecords();
+		Bitmap getNonSortedRecords();
 
 	}
 
