@@ -48,6 +48,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferencePageDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceStripDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceForSaleDescriptor;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
@@ -3267,6 +3268,50 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(PRODUCT_LIST_PATH, hasSize(greaterThan(0)));
+	}
+
+	@DisplayName("Should order by price")
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@Test
+	void shouldOrderByPrice(Evita evita, GraphQLTester tester) {
+		final EvitaResponse<EntityClassifier> expectedEntities = queryEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					priceInPriceLists(PRICE_LIST_BASIC),
+					priceInCurrency(CURRENCY_CZK),
+					priceValidInNow()
+				),
+				orderBy(
+					priceNatural(DESC)
+				)
+			),
+			EntityClassifier.class
+		);
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					listProduct(
+						filterBy: {
+							priceInPriceLists: "basic",
+							priceInCurrency: CZK,
+							priceValidInNow: true
+						},
+						orderBy: {
+							priceNatural: DESC
+						}
+					) {
+						primaryKey
+					}
+				}
+				""")
+			.executeAndExpectOkAndThen()
+			.body(
+				resultPath(PRODUCT_LIST_PATH, GraphQLEntityDescriptor.PRIMARY_KEY.name()),
+				equalTo(expectedEntities.getRecordData().stream().map(EntityClassifier::getPrimaryKeyOrThrowException).toList())
+			);
 	}
 
 

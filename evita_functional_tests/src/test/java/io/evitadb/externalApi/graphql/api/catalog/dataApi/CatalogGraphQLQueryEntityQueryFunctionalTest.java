@@ -6811,6 +6811,54 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.body(resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.RECORD_PAGE, RecordPageDescriptor.TOTAL_RECORD_COUNT), greaterThan(0));
 	}
 
+	@DisplayName("Should order by price")
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@Test
+	void shouldOrderByPrice(Evita evita, GraphQLTester tester) {
+		final EvitaResponse<EntityClassifier> expectedEntities = queryEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					priceInPriceLists(PRICE_LIST_BASIC),
+					priceInCurrency(CURRENCY_CZK),
+					priceValidInNow()
+				),
+				orderBy(
+					priceNatural(DESC)
+				)
+			),
+			EntityClassifier.class
+		);
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryProduct(
+						filterBy: {
+							priceInPriceLists: "basic",
+							priceInCurrency: CZK,
+							priceValidInNow: true
+						},
+						orderBy: {
+							priceNatural: DESC
+						}
+					) {
+						recordPage {
+							data {
+								primaryKey
+							}
+						}
+					}
+				}
+				""")
+			.executeAndExpectOkAndThen()
+			.body(
+				resultPath(PRODUCT_QUERY_DATA_PATH, GraphQLEntityDescriptor.PRIMARY_KEY.name()),
+				equalTo(expectedEntities.getRecordData().stream().map(EntityClassifier::getPrimaryKeyOrThrowException).toList())
+			);
+	}
+
 	/**
 	 * Creates a query for retrieving paginated product entities with specified spacing conditions.
 	 *
