@@ -23,22 +23,18 @@
 
 package io.evitadb.api.requestResponse.schema.model;
 
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.PriceContract;
-import io.evitadb.api.requestResponse.data.annotation.AssociatedData;
-import io.evitadb.api.requestResponse.data.annotation.Attribute;
-import io.evitadb.api.requestResponse.data.annotation.Entity;
-import io.evitadb.api.requestResponse.data.annotation.ParentEntity;
-import io.evitadb.api.requestResponse.data.annotation.PriceForSale;
-import io.evitadb.api.requestResponse.data.annotation.PrimaryKey;
-import io.evitadb.api.requestResponse.data.annotation.Reference;
-import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
-import io.evitadb.api.requestResponse.data.annotation.ReferencedEntityGroup;
+import io.evitadb.api.requestResponse.data.annotation.*;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
+import io.evitadb.api.requestResponse.schema.OrderBehaviour;
+import io.evitadb.dataType.Scope;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
+import java.math.BigDecimal;
 
 /**
  * Example class for ClassSchemaAnalyzerTest.
@@ -52,6 +48,27 @@ import java.io.Serializable;
 		EvolutionMode.ADDING_CURRENCIES
 	}
 )
+@SortableAttributeCompounds({
+	@SortableAttributeCompound(
+		name = "compoundA",
+		description = "Compound A description",
+		attributeElements = {
+			@AttributeSource(attributeName = "code", orderDirection = OrderDirection.DESC, orderBehaviour = OrderBehaviour.NULLS_FIRST),
+			@AttributeSource(attributeName = "name")
+		},
+		scope = { Scope.LIVE }
+	),
+	@SortableAttributeCompound(
+		name = "compoundB",
+		description = "Compound B description",
+		deprecated = "Not used anymore",
+		attributeElements = {
+			@AttributeSource(attributeName = "ean"),
+			@AttributeSource(attributeName = "quantity", orderDirection = OrderDirection.DESC, orderBehaviour = OrderBehaviour.NULLS_FIRST)
+		},
+		scope = {}
+	)
+})
 @Data
 @NoArgsConstructor
 public class FieldBasedEntity {
@@ -62,6 +79,18 @@ public class FieldBasedEntity {
 	@Attribute
 	@Nonnull
 	private String code;
+
+	@Attribute(localized = true)
+	@Nonnull
+	private String name;
+
+	@Attribute
+	@Nonnull
+	private String ean;
+
+	@Attribute
+	@Nonnull
+	private BigDecimal quantity;
 
 	@Attribute
 	@Nonnull
@@ -85,6 +114,17 @@ public class FieldBasedEntity {
 
 	record ReferencedFiles(@Nonnull int... fileId) implements Serializable {}
 
+	@SortableAttributeCompounds({
+		@SortableAttributeCompound(
+			name = "compoundC",
+			description = "Compound C description",
+			attributeElements = {
+				@AttributeSource(attributeName = "market", orderDirection = OrderDirection.DESC, orderBehaviour = OrderBehaviour.NULLS_FIRST),
+				@AttributeSource(attributeName = "inceptionYear")
+			},
+			scope = { Scope.LIVE }
+		)
+	})
 	public static class Brand {
 
 		@ReferencedEntity
@@ -95,6 +135,9 @@ public class FieldBasedEntity {
 
 		@Attribute
 		private String market;
+
+		@Attribute
+		private int inceptionYear;
 
 	}
 
