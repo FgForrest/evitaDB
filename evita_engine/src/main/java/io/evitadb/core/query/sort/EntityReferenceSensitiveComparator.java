@@ -21,17 +21,28 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.query.sort.attribute;
+package io.evitadb.core.query.sort;
 
 
-import io.evitadb.core.query.sort.Sorter;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.core.query.sort.reference.translator.ReferencePropertyTranslator;
+
+import javax.annotation.Nonnull;
 
 /**
- * Generic interface for sorted records suppliers that merge multiple sorted records suppliers into one.
+ * This interface extends {@link EntityComparator} and allows to bind comparison with some specific referenced entity
+ * id. This context is used in {@link ReferencePropertyTranslator} when multiple references are traversed.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-public sealed interface MergedSortedRecordsSupplierContract extends Sorter
-	permits MergedComparableSortedRecordsSupplierSorter, MergedSortedRecordsSupplierSorter {
+public interface EntityReferenceSensitiveComparator extends EntityComparator {
+
+	/**
+	 * Executes the provided {@code lambda} within the context of a specific referenced entity ID.
+	 *
+	 * @param referenceKey The identifier of the reference to be used as the context for the lambda execution.
+	 * @param lambda        The executable task to be performed within the context of the referenced entity ID.
+	 */
+	void withReferencedEntityId(@Nonnull ReferenceKey referenceKey, @Nonnull Runnable lambda);
 
 }

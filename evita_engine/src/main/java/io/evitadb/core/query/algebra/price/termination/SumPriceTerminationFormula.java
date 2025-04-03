@@ -393,7 +393,7 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 							// we need to filter the price using individual price predicate
 							// this handles the situation when we want to consider only prices that relate
 							// for previously selected selling price (e.g. when we calculate the discount)
-							if (individualPricePredicate.test(value.value)) {
+							if (this.individualPricePredicate.test(value.value)) {
 								includedInnerRecordIds.put(
 									value.value.innerRecordId(),
 									value.value

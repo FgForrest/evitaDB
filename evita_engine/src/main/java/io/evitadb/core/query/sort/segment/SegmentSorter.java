@@ -29,18 +29,17 @@ import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
-import io.evitadb.core.query.sort.ConditionalSorter;
-import io.evitadb.core.query.sort.NoSorter;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import org.roaringbitmap.RoaringBitmap;
 import org.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Objects;
+import java.util.List;
 import java.util.function.IntConsumer;
 
 /**
@@ -53,14 +52,9 @@ import java.util.function.IntConsumer;
  */
 public class SegmentSorter implements Sorter {
 	/**
-	 * This sorter instance will be used for sorting entities, that cannot be sorted by this sorter.
-	 * Usually the next segment sorter.
-	 */
-	private final Sorter unknownRecordIdsSorter;
-	/**
 	 * The delegate sorter instance that will be used for actual sorting.
 	 */
-	private final Sorter delegateSorter;
+	private final List<Sorter> embeddedSorters;
 	/**
 	 * The filter that will be used to filter the input records prior to sorting.
 	 */
@@ -71,113 +65,101 @@ public class SegmentSorter implements Sorter {
 	 */
 	private final int limit;
 
-	public SegmentSorter(@Nonnull Sorter delegateSorter, @Nullable Formula filter, int limit) {
-		this.delegateSorter = delegateSorter;
+	public SegmentSorter(@Nonnull List<Sorter> embeddedSorters, @Nullable Formula filter, int limit) {
+		this.embeddedSorters = embeddedSorters;
 		this.filter = filter;
 		this.limit = limit;
-		this.unknownRecordIdsSorter = NoSorter.INSTANCE;
-	}
-
-	public SegmentSorter(@Nonnull Sorter delegateSorter, @Nullable Formula filter, int limit, @Nonnull Sorter unknownRecordIdsSorter) {
-		this.delegateSorter = delegateSorter;
-		this.filter = filter;
-		this.limit = limit;
-		this.unknownRecordIdsSorter = unknownRecordIdsSorter;
 	}
 
 	@Nonnull
 	@Override
-	public Sorter cloneInstance() {
-		return new SegmentSorter(
-			this.delegateSorter.cloneInstance(),
-			this.filter,
-			this.limit,
-			this.unknownRecordIdsSorter
-		);
-	}
-
-	@Nonnull
-	@Override
-	public Sorter andThen(Sorter sorterForUnknownRecords) {
-		return new SegmentSorter(this.delegateSorter, this.filter, this.limit, sorterForUnknownRecords);
-	}
-
-	@Nullable
-	@Override
-	public Sorter getNextSorter() {
-		return this.unknownRecordIdsSorter;
-	}
-
-	@Override
-	public int sortAndSlice(
-		@Nonnull QueryExecutionContext queryContext,
-		@Nonnull Formula input,
-		int startIndex,
-		int endIndex,
+	public SortingContext sortAndSlice(
+		@Nonnull SortingContext sortingContext,
 		@Nonnull int[] result,
-		int peak,
 		@Nullable IntConsumer skippedRecordsConsumer
 	) {
+		final QueryExecutionContext queryContext = sortingContext.queryContext();
+		final Bitmap nonSortedKeys = sortingContext.nonSortedKeys();
+		final ConstantFormula nonSortedKeysFormula = new ConstantFormula(nonSortedKeys);
+		final Bitmap keysToSort;
+
 		// if the filter is defined we need to narrow the input to only records that satisfy the filter
 		final Formula filterFormula;
 		if (this.filter == null) {
-			filterFormula = input;
+			keysToSort = nonSortedKeys;
 		} else {
-			filterFormula = FormulaFactory.and(input, this.filter);
+			filterFormula = FormulaFactory.and(
+				nonSortedKeysFormula,
+				this.filter
+			);
 			filterFormula.initialize(queryContext);
+			keysToSort = filterFormula.compute();
 		}
-		final Bitmap filteredRecordIdBitmap = filterFormula.compute();
 		// if there are no records to sort
-		if (filteredRecordIdBitmap.isEmpty()) {
-			// and even the non-filtered input is empty
-			if (input.compute().isEmpty()) {
-				return 0;
-			} else {
-				// otherwise, our filter is too strict and we need to pass the input to the next sorter
-				return unknownRecordIdsSorter.sortAndSlice(
-					queryContext,
-					// we may pass the complete input, since we didn't drained any records in this segment
-					input, startIndex, endIndex, result, peak
-				);
-			}
+		if (keysToSort.isEmpty()) {
+			// continue with the next sorter
+			return sortingContext;
 		} else {
-			final Sorter sorterToUse = Objects.requireNonNull(ConditionalSorter.getFirstApplicableSorter(queryContext, this.delegateSorter));
 			// otherwise, we need to fully calculate the segment to be able to exclude it from the next sorter
-			final int physicalLimit = Math.min(filteredRecordIdBitmap.size(), this.limit);
-			final int endIndexOrLimit = Math.min(physicalLimit, endIndex);
+			final int physicalLimit = Math.min(keysToSort.size(), this.limit);
+			final int recomputedEndIndex = Math.min(sortingContext.startIndex() + result.length, sortingContext.skipped() + sortingContext.peak() + physicalLimit);
 
 			// all the skipped records will be written to this bitmap
 			final RoaringBitmapWriter<RoaringBitmap> drainedRecordPks = RoaringBitmapBackedBitmap.buildWriter();
-			final int lastSortedItem = sorterToUse.sortAndSlice(
+			SortingContext subResult = new SortingContext(
 				queryContext,
-				filterFormula,
-				Math.min(startIndex, endIndexOrLimit),
-				endIndexOrLimit,
-				result,
-				peak,
-				drainedRecordPks::add
+				keysToSort,
+				Math.min(sortingContext.startIndex(), recomputedEndIndex),
+				recomputedEndIndex,
+				sortingContext.peak(),
+				sortingContext.skipped()
 			);
-			// now we have to manually add also all the records that were added to the result
-			// since the hadn't been passed to drained records via skipped records consumer
-			for (int i = peak; i < lastSortedItem; i++) {
-				drainedRecordPks.add(result[i]);
+			for (Sorter embeddedSorter : this.embeddedSorters) {
+				subResult = embeddedSorter.sortAndSlice(
+					subResult,
+					result,
+					skippedRecordsConsumer == null ?
+						drainedRecordPks::add :
+						pk -> {
+							skippedRecordsConsumer.accept(pk);
+							drainedRecordPks.add(pk);
+						}
+				);
+				if (result.length == subResult.peak()) {
+					break;
+				}
 			}
 
-			// recalculate indexes for the next sorter
-			final int recomputedStartIndex = Math.max(0, startIndex - physicalLimit);
-			final int recomputedEndIndex = Math.max(0, endIndex - physicalLimit);
-
-			if (recomputedStartIndex >= recomputedEndIndex || lastSortedItem - peak >= endIndex) {
+			if (result.length == subResult.peak()) {
 				// if the next sorter would receive empty input, we can skip it
-				return lastSortedItem;
+				return sortingContext.createResultContext(
+					EmptyBitmap.INSTANCE,
+					subResult.peak() - sortingContext.peak(),
+					subResult.skipped() - sortingContext.skipped()
+				);
 			} else {
-				final ConstantFormula drainedRecordsFormula = new ConstantFormula(new BaseBitmap(drainedRecordPks.get()));
-				return unknownRecordIdsSorter.sortAndSlice(
-					queryContext,
-					// and filter the filtered input to next query to avoid records that has been already consumed
-					// by this segment
-					FormulaFactory.not(drainedRecordsFormula, input),
-					recomputedStartIndex, recomputedEndIndex, result, lastSortedItem
+				// now we have to manually add also all the records that were added to the result
+				// since they hadn't been passed to drained records via skipped records consumer
+				for (int i = sortingContext.peak(); i < subResult.peak(); i++) {
+					drainedRecordPks.add(result[i]);
+				}
+
+				final int writtenRecords = subResult.peak() - sortingContext.peak();
+				final RoaringBitmap drainedRecordIds = drainedRecordPks.get();
+				int skippedRecords = drainedRecordIds.getCardinality() - (writtenRecords);
+				// and filter the filtered input to next query to avoid records that has been already consumed
+				// by this segment
+				final Bitmap nextInput = drainedRecordIds.isEmpty() ?
+					nonSortedKeys :
+					FormulaFactory.not(
+						new ConstantFormula(new BaseBitmap(drainedRecordIds)),
+						nonSortedKeysFormula
+					).compute();
+				return sortingContext.createResultContext(
+					nextInput.isEmpty() ?
+						EmptyBitmap.INSTANCE : nextInput,
+					writtenRecords,
+					skippedRecords
 				);
 			}
 		}

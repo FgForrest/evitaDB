@@ -38,11 +38,11 @@ import java.io.Serial;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-public class ReferenceSortedRecordsSupplier extends SortedRecordsSupplier {
+public class ReferenceSortedRecordsProvider extends SortedRecordsSupplier {
 	@Serial private static final long serialVersionUID = -3001386450022878707L;
 	@Getter @Nonnull private final ReferenceKey referenceKey;
 
-	public ReferenceSortedRecordsSupplier(
+	public ReferenceSortedRecordsProvider(
 		long transactionalId,
 		@Nonnull int[] sortedRecordIds,
 		@Nonnull int[] recordPositions,

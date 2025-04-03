@@ -26,11 +26,12 @@ package io.evitadb.core.query.sort.generic;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.QueryPlanningContext;
-import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.sort.ConditionalSorter;
 import io.evitadb.core.query.sort.EntityComparator;
+import io.evitadb.core.query.sort.EntityReferenceSensitiveComparator;
 import io.evitadb.core.query.sort.Sorter;
+import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
 import org.roaringbitmap.RoaringBitmap;
 
 import javax.annotation.Nonnull;
@@ -49,112 +50,83 @@ import java.util.function.IntConsumer;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public class PrefetchedRecordsSorter extends AbstractRecordsSorter implements ConditionalSorter {
-	/**
-	 * This sorter instance will be used for sorting entities, that cannot be sorted by this sorter.
-	 */
-	private final Sorter unknownRecordIdsSorter;
+public class PrefetchedRecordsSorter implements Sorter {
 	/**
 	 * This instance will be used by this sorter in case the {@link QueryPlanningContext} contains list of prefetched entities.
 	 */
 	private final EntityComparator entityComparator;
 
-	private PrefetchedRecordsSorter(@Nonnull EntityComparator entityComparator, @Nullable Sorter unknownRecordIdsSorter) {
-		this.unknownRecordIdsSorter = unknownRecordIdsSorter;
-		this.entityComparator = entityComparator;
-	}
-
 	public PrefetchedRecordsSorter(@Nonnull EntityComparator entityComparator) {
-		this.unknownRecordIdsSorter = null;
 		this.entityComparator = entityComparator;
 	}
 
 	@Nonnull
 	@Override
-	public Sorter andThen(Sorter sorterForUnknownRecords) {
-		return new PrefetchedRecordsSorter(
-			entityComparator, sorterForUnknownRecords
-		);
-	}
-
-	@Nonnull
-	@Override
-	public Sorter cloneInstance() {
-		return new PrefetchedRecordsSorter(
-			this.entityComparator, null
-		);
-	}
-
-	@Nullable
-	@Override
-	public Sorter getNextSorter() {
-		return unknownRecordIdsSorter;
-	}
-
-	@Override
-	public boolean shouldApply(@Nonnull QueryExecutionContext queryContext) {
-		return queryContext.getPrefetchedEntities() != null;
-	}
-
-	@Override
-	public int sortAndSlice(
-		@Nonnull QueryExecutionContext queryContext,
-		@Nonnull Formula input,
-		int startIndex,
-		int endIndex,
+	public SortingContext sortAndSlice(
+		@Nonnull SortingContext sortingContext,
 		@Nonnull int[] result,
-		int peak,
 		@Nullable IntConsumer skippedRecordsConsumer
 	) {
-		final Bitmap selectedRecordIds = input.compute();
-		final OfInt it = selectedRecordIds.iterator();
-		final List<EntityContract> entities = new ArrayList<>(selectedRecordIds.size());
-		while (it.hasNext()) {
-			int id = it.next();
-			entities.add(queryContext.translateToEntity(id));
-		}
-
-		this.entityComparator.prepareFor(endIndex - startIndex);
-		entities.sort(this.entityComparator);
-
-		int notFoundRecordsCnt = 0;
-		final RoaringBitmap notFoundRecords = new RoaringBitmap();
-		for (EntityContract entityContract : this.entityComparator.getNonSortedEntities()) {
-			if (notFoundRecords.checkedAdd(queryContext.translateEntity(entityContract))) {
-				notFoundRecordsCnt++;
+		final QueryExecutionContext queryContext = sortingContext.queryContext();
+		if (queryContext.getPrefetchedEntities() == null) {
+			return sortingContext;
+		} else {
+			final Bitmap selectedRecordIds = sortingContext.nonSortedKeys();
+			final OfInt it = selectedRecordIds.iterator();
+			final List<EntityContract> entities = new ArrayList<>(selectedRecordIds.size());
+			while (it.hasNext()) {
+				int id = it.next();
+				entities.add(queryContext.translateToEntity(id));
 			}
-		}
 
-		final AtomicInteger index = new AtomicInteger();
-		final int entitiesCount = selectedRecordIds.size() - notFoundRecordsCnt;
-		final List<EntityContract> entityContracts = entities.subList(0, entitiesCount);
-		final int skippedItems = Math.min(startIndex, entitiesCount);
-		final int appendedItems = Math.min(entitiesCount, endIndex);
-		if (skippedRecordsConsumer != null) {
-			for (int i = 0; i < skippedItems; i++) {
-				skippedRecordsConsumer.accept(queryContext.translateEntity(entityContracts.get(i)));
+			final int recomputedStartIndex = sortingContext.recomputedStartIndex();
+			final int recomputedEndIndex = sortingContext.recomputedEndIndex();
+			final int peak = sortingContext.peak();
+
+			this.entityComparator.prepareFor(recomputedEndIndex - recomputedStartIndex);
+
+			if (this.entityComparator instanceof EntityReferenceSensitiveComparator ersc && sortingContext.referenceKey() != null) {
+				ersc.withReferencedEntityId(
+					sortingContext.referenceKey(),
+					() -> entities.sort(this.entityComparator)
+				);
+			} else {
+				entities.sort(this.entityComparator);
 			}
-		}
-		for (int i = skippedItems; i < appendedItems; i++) {
-			result[peak + index.getAndIncrement()] = queryContext.translateEntity(entityContracts.get(i));
-		}
 
-		// pass them to another sorter
-		final int recomputedStartIndex = Math.max(0, startIndex - (index.get() + skippedItems));
-		final int recomputedEndIndex = Math.max(0, endIndex - (index.get() + skippedItems));
+			int notFoundRecordsCnt = 0;
+			final RoaringBitmap notFoundRecords = new RoaringBitmap();
+			for (EntityContract entityContract : this.entityComparator.getNonSortedEntities()) {
+				if (notFoundRecords.checkedAdd(queryContext.translateEntity(entityContract))) {
+					notFoundRecordsCnt++;
+				}
+			}
 
-		final int[] buffer = queryContext.borrowBuffer();
-		try {
-			return returnResultAppendingUnknown(
-				queryContext,
-				notFoundRecords,
-				this.unknownRecordIdsSorter,
-				recomputedStartIndex, recomputedEndIndex,
-				result, peak + index.get(),
-				buffer
-			);
-		} finally {
-			queryContext.returnBuffer(buffer);
+			final AtomicInteger index = new AtomicInteger();
+			final int entitiesCount = selectedRecordIds.size() - notFoundRecordsCnt;
+			final List<EntityContract> entityContracts = entities.subList(0, entitiesCount);
+			final int skippedItems = Math.min(recomputedStartIndex, entitiesCount);
+			final int appendedItems = Math.min(Math.min(recomputedEndIndex, entitiesCount), skippedItems + result.length - peak);
+			if (skippedRecordsConsumer != null) {
+				for (int i = 0; i < skippedItems; i++) {
+					skippedRecordsConsumer.accept(queryContext.translateEntity(entityContracts.get(i)));
+				}
+			}
+			for (int i = skippedItems; i < appendedItems; i++) {
+				result[peak + index.getAndIncrement()] = queryContext.translateEntity(entityContracts.get(i));
+			}
+
+			final int[] buffer = queryContext.borrowBuffer();
+			try {
+				return sortingContext.createResultContext(
+					notFoundRecords.isEmpty() ?
+						EmptyBitmap.INSTANCE : new BaseBitmap(notFoundRecords),
+					index.get(),
+					skippedItems
+				);
+			} finally {
+				queryContext.returnBuffer(buffer);
+			}
 		}
 	}
 }

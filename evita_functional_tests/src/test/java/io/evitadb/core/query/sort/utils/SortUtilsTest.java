@@ -23,11 +23,13 @@
 
 package io.evitadb.core.query.sort.utils;
 
+import io.evitadb.core.query.sort.Sorter.SortingContext;
+import io.evitadb.test.utils.SortUtils;
 import org.junit.jupiter.api.Test;
 import org.roaringbitmap.RoaringBitmap;
 
 import javax.annotation.Nonnull;
-import java.util.function.ToIntFunction;
+import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -42,16 +44,17 @@ public class SortUtilsTest {
 
 	public static final int[] BUFFER = new int[16];
 
-	public static int[] asResult(ToIntFunction<int[]> computer) {
+	public static int[] asResult(Function<int[], SortingContext> computer) {
 		final int[] result = new int[512];
-		return SortUtils.asResult(result, computer.applyAsInt(result));
+		final int peak = computer.apply(result).peak();
+		return SortUtils.asResult(result, peak);
 	}
 
 	@Test
 	void shouldReturnsResultsSliceBeginning() {
 		final int[] array = initArray();
 		final int[] result = new int[10];
-		final int written = SortUtils.appendNotFoundResult(result, 0, 0, 30, array);
+		final int written = SortUtils.appendNotFoundResult(result, 0, 0, 30, array, null);
 		assertEquals(10, written);
 		assertArrayEquals(new int[]{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}, result);
 	}
@@ -63,7 +66,7 @@ public class SortUtilsTest {
 		for (int i = 0; i < 5; i++) {
 			result[i] = 77 + i;
 		}
-		final int written = SortUtils.appendNotFoundResult(result, 5, 0, 30, array);
+		final int written = SortUtils.appendNotFoundResult(result, 5, 0, 30, array, null);
 		assertEquals(10, written);
 		assertArrayEquals(new int[]{77, 78, 79, 80, 81, 1, 2, 3, 4, 5}, result);
 	}
@@ -72,7 +75,7 @@ public class SortUtilsTest {
 	void shouldReturnsResultsSliceBeginningOffset() {
 		final int[] array = initArray();
 		final int[] result = new int[10];
-		final int written = SortUtils.appendNotFoundResult(result, 0, 20, 30, array);
+		final int written = SortUtils.appendNotFoundResult(result, 0, 20, 30, array, null);
 		assertEquals(10, written);
 		assertArrayEquals(new int[]{21, 22, 23, 24, 25, 26, 27, 28, 29, 30}, result);
 	}
@@ -81,7 +84,7 @@ public class SortUtilsTest {
 	void shouldReturnsResultsSliceMiddle() {
 		final int[] array = initArray();
 		final int[] result = new int[10];
-		final int written = SortUtils.appendNotFoundResult(result, 0, 510, 520, array);
+		final int written = SortUtils.appendNotFoundResult(result, 0, 510, 520, array, null);
 		assertEquals(10, written);
 		assertArrayEquals(new int[]{511, 512, 513, 514, 515, 516, 517, 518, 519, 520}, result);
 	}
@@ -90,7 +93,7 @@ public class SortUtilsTest {
 	void shouldReturnsResultsSliceEnd() {
 		final int[] array = initArray();
 		final int[] result = new int[10];
-		final int written = SortUtils.appendNotFoundResult(result, 0, 995, 1050, array);
+		final int written = SortUtils.appendNotFoundResult(result, 0, 995, 1050, array, null);
 		assertEquals(5, written);
 		assertArrayEquals(new int[]{996, 997, 998, 999, 1000, 0, 0, 0, 0, 0}, result);
 	}
@@ -99,7 +102,7 @@ public class SortUtilsTest {
 	void shouldReturnsResultsSliceBeginningBitmap() {
 		final RoaringBitmap bitmap = initRoaringBitmap();
 		final int[] result = new int[10];
-		final int written = SortUtils.appendNotFoundResult(result, 0, 0, 30, bitmap, BUFFER);
+		final int written = SortUtils.appendNotFoundResult(result, 0, 0, 30, bitmap, BUFFER, null);
 		assertEquals(10, written);
 		assertArrayEquals(new int[]{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}, result);
 	}
@@ -111,7 +114,7 @@ public class SortUtilsTest {
 		for (int i = 0; i < 5; i++) {
 			result[i] = 77 + i;
 		}
-		final int written = SortUtils.appendNotFoundResult(result, 5, 0, 30, bitmap, BUFFER);
+		final int written = SortUtils.appendNotFoundResult(result, 5, 0, 30, bitmap, BUFFER, null);
 		assertEquals(10, written);
 		assertArrayEquals(new int[]{77, 78, 79, 80, 81, 1, 2, 3, 4, 5}, result);
 	}
@@ -120,7 +123,7 @@ public class SortUtilsTest {
 	void shouldReturnsResultsSliceBeginningOffsetBitmap() {
 		final RoaringBitmap bitmap = initRoaringBitmap();
 		final int[] result = new int[10];
-		final int written = SortUtils.appendNotFoundResult(result, 0, 20, 30, bitmap, BUFFER);
+		final int written = SortUtils.appendNotFoundResult(result, 0, 20, 30, bitmap, BUFFER, null);
 		assertEquals(10, written);
 		assertArrayEquals(new int[]{21, 22, 23, 24, 25, 26, 27, 28, 29, 30}, result);
 	}
@@ -129,7 +132,7 @@ public class SortUtilsTest {
 	void shouldReturnsResultsSliceMiddleBitmap() {
 		final RoaringBitmap bitmap = initRoaringBitmap();
 		final int[] result = new int[10];
-		final int written = SortUtils.appendNotFoundResult(result, 0, 510, 520, bitmap, BUFFER);
+		final int written = SortUtils.appendNotFoundResult(result, 0, 510, 520, bitmap, BUFFER, null);
 		assertEquals(10, written);
 		assertArrayEquals(new int[]{511, 512, 513, 514, 515, 516, 517, 518, 519, 520}, result);
 	}
@@ -138,7 +141,7 @@ public class SortUtilsTest {
 	void shouldReturnsResultsSliceEndBitmap() {
 		final RoaringBitmap bitmap = initRoaringBitmap();
 		final int[] result = new int[10];
-		final int written = SortUtils.appendNotFoundResult(result, 0, 995, 1050, bitmap, BUFFER);
+		final int written = SortUtils.appendNotFoundResult(result, 0, 995, 1050, bitmap, BUFFER, null);
 		assertEquals(5, written);
 		assertArrayEquals(new int[]{996, 997, 998, 999, 1000, 0, 0, 0, 0, 0}, result);
 	}

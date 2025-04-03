@@ -46,14 +46,13 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.prefetch.PrefetchOrder;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
-import io.evitadb.core.query.sort.ConditionalSorter;
+import io.evitadb.core.query.sort.NoSorter;
 import io.evitadb.core.query.sort.Sorter;
-import io.evitadb.core.query.sort.utils.SortUtils;
+import io.evitadb.core.query.sort.Sorter.SortingContext;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.StripList;
 import io.evitadb.utils.ArrayUtils;
-import io.evitadb.utils.Assert;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.Delegate;
@@ -112,7 +111,7 @@ public class QueryPlan {
 	 */
 	@Getter
 	@Nonnull
-	private final Sorter sorter;
+	private final Collection<Sorter> sorters;
 	/**
 	 * Contains slicer implementation that calculates offset and limit for paginating the result.
 	 */
@@ -142,20 +141,33 @@ public class QueryPlan {
 		@Nonnull QueryExecutionContext queryContext,
 		int totalRecordCount,
 		@Nonnull Formula filteringFormula,
-		@Nonnull Sorter sorter,
+		@Nonnull Collection<Sorter> sorters,
 		@Nonnull OffsetAndLimit offsetAndLimit
 	) {
-		sorter = ConditionalSorter.getFirstApplicableSorter(queryContext, sorter);
-		Assert.isPremiseValid(sorter != null, "No applicable sorter found for the query.");
-		final int[] result = new int[Math.min(totalRecordCount, offsetAndLimit.limit())];
-		final int peak = sorter.sortAndSlice(
-			queryContext, filteringFormula,
-			offsetAndLimit.offset(),
-			offsetAndLimit.length(),
-			result,
-			0
-		);
-		return SortUtils.asResult(result, peak);
+		if (offsetAndLimit.offset() >= totalRecordCount) {
+			return ArrayUtils.EMPTY_INT_ARRAY;
+		} else {
+			final int[] result = new int[Math.min(totalRecordCount - offsetAndLimit.offset(), offsetAndLimit.limit())];
+			SortingContext sortingContext = new SortingContext(
+				queryContext,
+				filteringFormula.compute(),
+				offsetAndLimit.offset(),
+				offsetAndLimit.offset() + offsetAndLimit.limit(),
+				0,
+				0
+			);
+			for (Sorter sorter : sorters) {
+				sortingContext = sorter.sortAndSlice(sortingContext, result, null);
+				if (sortingContext.peak() == result.length) {
+					break;
+				}
+			}
+			// append the rest of the records if not all are sorted
+			if (sortingContext.peak() < result.length) {
+				NoSorter.INSTANCE.sortAndSlice(sortingContext, result, null);
+			}
+			return result;
+		}
 	}
 
 	/**
@@ -225,7 +237,7 @@ public class QueryPlan {
 					);
 					this.primaryKeys = sortAndSliceResult(
 						executionContext, this.totalRecordCount,
-						this.filter, this.sorter,
+						this.filter, this.sorters,
 						offsetAndLimit
 					);
 				} finally {
@@ -315,8 +327,8 @@ public class QueryPlan {
 				}
 
 				ofNullable(this.queryContext.getQueryFinishedEvent())
-					.ifPresent(it -> {
-						it.finish(
+					.ifPresent(
+						it -> it.finish(
 							prefetchedDataSuitableForFiltering,
 							this.filter.getEstimatedCardinality(),
 							this.primaryKeys == null ? 0 : this.primaryKeys.length,
@@ -325,9 +337,8 @@ public class QueryPlan {
 							result.getIoFetchedSizeBytes(),
 							this.filter.getEstimatedCost(),
 							this.filter.getCost()
-						).commit();
-					});
-
+						).commit()
+					);
 				return result;
 			} finally {
 				executionContext.popStep();
@@ -444,20 +455,6 @@ public class QueryPlan {
 	}
 
 	/**
-	 * Method initializes sorter and all its nested sorters.
-	 * @param executionContext the execution context to use
-	 */
-	private void initSorter(@Nonnull QueryExecutionContext executionContext) {
-		Sorter theSorter = this.sorter;
-		while (theSorter != null) {
-			if (theSorter instanceof TransactionalDataRelatedStructure tdrs) {
-				tdrs.initialize(executionContext);
-			}
-			theSorter = theSorter.getNextSorter();
-		}
-	}
-
-	/**
 	 * Method creates requested implementation of {@link DataChunk} with results.
 	 */
 	@Nonnull
@@ -485,22 +482,33 @@ public class QueryPlan {
 
 		final int limit = offsetAndLimit.limit();
 		return switch (resultForm) {
-			case PAGINATED_LIST ->
-				new PaginatedList<>(
-					limit == 0 ? 1 : offsetAndLimit.length() / limit,
-					offsetAndLimit.lastPageNumber(),
-					limit,
-					totalRecordCount,
-					data
-				);
-			case STRIP_LIST ->
-				new StripList<>(
-					offsetAndLimit.offset(),
-					limit,
-					totalRecordCount,
-					data
-				);
+			case PAGINATED_LIST -> new PaginatedList<>(
+				limit == 0 ? 1 : offsetAndLimit.length() / limit,
+				offsetAndLimit.lastPageNumber(),
+				limit,
+				totalRecordCount,
+				data
+			);
+			case STRIP_LIST -> new StripList<>(
+				offsetAndLimit.offset(),
+				limit,
+				totalRecordCount,
+				data
+			);
 		};
+	}
+
+	/**
+	 * Method initializes sorter and all its nested sorters.
+	 *
+	 * @param executionContext the execution context to use
+	 */
+	private void initSorter(@Nonnull QueryExecutionContext executionContext) {
+		for (Sorter theSorter : sorters) {
+			if (theSorter instanceof TransactionalDataRelatedStructure tdrs) {
+				tdrs.initialize(executionContext);
+			}
+		}
 	}
 
 }

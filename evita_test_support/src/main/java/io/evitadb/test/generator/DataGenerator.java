@@ -185,6 +185,10 @@ public class DataGenerator {
 	 */
 	private final Map<EntityAttribute, Function<Faker, Object>> valueGenerators = new ConcurrentHashMap<>();
 	/**
+	 * Holds custom generators for specific entity attributes depending on reference they're created for.
+	 */
+	private final Map<EntityAttribute, BiFunction<ReferenceKey, Faker, Object>> referenceValueGenerators = new ConcurrentHashMap<>();
+	/**
 	 * Holds information about created hierarchies for generated / modified entities indexed by their type.
 	 */
 	private final PMPTT hierarchies = new PMPTT(new MemoryStorage());
@@ -275,31 +279,43 @@ public class DataGenerator {
 		@Nonnull SortableAttributesChecker sortableAttributesHolder,
 		@Nonnull Predicate<String> attributeFilter, Function<Locale, Faker> localeFaker,
 		@Nonnull Map<EntityAttribute, Function<Faker, Object>> valueGenerators,
+		@Nonnull Map<EntityAttribute, BiFunction<ReferenceKey, Faker, Object>> referenceValueGenerators,
 		@Nonnull Faker genericFaker,
 		@Nonnull AttributesEditor<?, ?> attributesEditor,
 		@Nonnull Set<Currency> currencies,
 		@Nonnull Set<String> priceLists,
 		@Nonnull Collection<Locale> usedLocales,
-		@Nonnull Collection<Locale> allLocales
+		@Nonnull Collection<Locale> allLocales,
+		@Nullable ReferenceKey referenceKey
 	) {
 		for (AttributeSchemaContract attribute : attributeSchema) {
 			final Class<? extends Serializable> type = attribute.getType();
 			final String attributeName = attribute.getName();
-			if (!attributeFilter.test(attributeName)) {
-				continue;
-			}
-			if (!attribute.isUnique() && attribute.isNullable() && genericFaker.random().nextInt(10) == 0) {
-				// randomly skip attributes
-				continue;
+
+			final Function<Faker, Object> genericValueGenerator = valueGenerators.get(new EntityAttribute(entityType, attributeName));
+			final BiFunction<ReferenceKey, Faker, Object> referenceValueGenerator = referenceValueGenerators.get(new EntityAttribute(entityType, attributeName));
+			final Function<Faker, Object> valueGenerator = referenceKey != null && referenceValueGenerator != null ?
+				faker -> referenceValueGenerator.apply(referenceKey, faker) :
+				genericValueGenerator;
+
+			// if value generator is specified, the randomness should be implemented in the generator
+			if (valueGenerator == null) {
+				if (!attributeFilter.test(attributeName)) {
+					continue;
+				}
+				if (!attribute.isUnique() && attribute.isNullable() && genericFaker.random().nextInt(10) == 0) {
+					// randomly skip attributes
+					continue;
+				}
 			}
 
-			final Function<Faker, Object> valueGenerator = valueGenerators.get(new EntityAttribute(entityType, attributeName));
 			if (attribute.isLocalized()) {
 				final Collection<Locale> localesToGenerate = attribute.isNullable() ? usedLocales : allLocales;
 				for (Locale usedLocale : localesToGenerate) {
 					generateAndSetAttribute(
 						globalUniqueSequencer, uniqueSequencer, sortableAttributesHolder,
-						attributesEditor, attribute, currencies, priceLists, usedLocale, type, entityType, attributeName, valueGenerator,
+						attributesEditor, attribute, currencies, priceLists, usedLocale, type, entityType, attributeName,
+						valueGenerator,
 						localeFaker.apply(usedLocale),
 						value -> attributesEditor.setAttribute(attributeName, usedLocale, value)
 					);
@@ -307,7 +323,8 @@ public class DataGenerator {
 			} else {
 				generateAndSetAttribute(
 					globalUniqueSequencer, uniqueSequencer, sortableAttributesHolder,
-					attributesEditor, attribute, currencies, priceLists, null, type, entityType, attributeName, valueGenerator, genericFaker,
+					attributesEditor, attribute, currencies, priceLists, null, type, entityType, attributeName,
+					valueGenerator, genericFaker,
 					value -> attributesEditor.setAttribute(attributeName, value)
 				);
 			}
@@ -428,6 +445,7 @@ public class DataGenerator {
 		@Nonnull Map<String, Map<Integer, Integer>> parameterGroupIndex,
 		@Nonnull SortableAttributesChecker sortableAttributesHolder,
 		@Nonnull Map<EntityAttribute, Function<Faker, Object>> valueGenerators,
+		@Nonnull Map<EntityAttribute, BiFunction<ReferenceKey, Faker, Object>> referenceValueGenerators,
 		@Nonnull Function<Locale, Faker> localeFaker,
 		@Nonnull Faker genericFaker,
 		@Nonnull EntityBuilder detachedBuilder,
@@ -516,7 +534,9 @@ public class DataGenerator {
 									uniqueSequencer,
 									sortableAttributesHolder,
 									attributePredicate,
-									localeFaker, valueGenerators, genericFaker, thatIs, currencies, priceLists, usedLocales, allLocales
+									localeFaker, valueGenerators, referenceValueGenerators,
+									genericFaker, thatIs, currencies, priceLists, usedLocales, allLocales,
+									new ReferenceKey(referenceName, referencedEntity)
 								)
 							);
 						}
@@ -549,7 +569,12 @@ public class DataGenerator {
 			final Map<Object, Integer> chosenUniqueSequencer = attribute instanceof GlobalAttributeSchemaContract globalAttributeSchema && globalAttributeSchema.isUniqueGlobally() ?
 				globalUniqueSequencer : uniqueSequencer;
 			if (valueGenerator != null) {
-				value = valueGenerator.apply(fakerToUse);
+				final Object generatedValue = valueGenerator.apply(fakerToUse);
+				if (generatedValue == null) {
+					Assert.isPremiseValid(attribute.isNullable(), "Attribute " + attributeName + " cannot be null!");
+					return;
+				}
+				value = generatedValue;
 			} else if (String.class.equals(type)) {
 				value = generateRandomString(chosenUniqueSequencer, attributesBuilder, attribute, entityType, attributeName, priceLists, locale, fakerToUse);
 			} else if (type.isArray() && String.class.equals(type.getComponentType())) {
@@ -899,13 +924,15 @@ public class DataGenerator {
 		@Nonnull BiPredicate<String, Faker> priceIndexingDecider,
 		@Nonnull String[] priceLists,
 		@Nonnull Currency[] currencies,
-		@Nonnull Map<EntityAttribute, Function<Faker, Object>> valueGenerators
+		@Nonnull Map<EntityAttribute, Function<Faker, Object>> valueGenerators,
+		@Nonnull Map<EntityAttribute, BiFunction<ReferenceKey, Faker, Object>> referenceValueGenerators
 	) {
 		this.priceInnerRecordHandlingGenerator = priceInnerRecordHandlingGenerator;
 		this.priceIndexingDecider = priceIndexingDecider;
 		this.priceLists = priceLists;
 		this.currencies = currencies;
 		this.valueGenerators.putAll(valueGenerators);
+		this.referenceValueGenerators.putAll(referenceValueGenerators);
 	}
 
 	/**
@@ -968,8 +995,8 @@ public class DataGenerator {
 			generateRandomAttributes(
 				schema.getName(), schema.getAttributes().values(),
 				globalUniqueSequencer, uniqueSequencer, sortableAttributesHolder, TRUE_PREDICATE, localizedFakerFetcher,
-				this.valueGenerators,
-				genericFaker, detachedBuilder, allCurrencies, allPriceLists, usedLocales, allLocales
+				this.valueGenerators, this.referenceValueGenerators,
+				genericFaker, detachedBuilder, allCurrencies, allPriceLists, usedLocales, allLocales, null
 			);
 			generateRandomAssociatedData(schema, genericFaker, detachedBuilder, usedLocales, allLocales);
 
@@ -979,7 +1006,9 @@ public class DataGenerator {
 			);
 			generateRandomReferences(
 				schema, referencedEntityResolver, globalUniqueSequencer, uniqueSequencer, parameterIndex,
-				sortableAttributesHolder, valueGenerators, localizedFakerFetcher, genericFaker, detachedBuilder,
+				sortableAttributesHolder,
+				this.valueGenerators, this.referenceValueGenerators,
+				localizedFakerFetcher, genericFaker, detachedBuilder,
 				allCurrencies, allPriceLists, usedLocales, allLocales
 			);
 
@@ -1004,7 +1033,7 @@ public class DataGenerator {
 		return new ModificationFunction(
 			genericFaker, hierarchies, uniqueSequencer, sortableAttributesChecker, allCurrencies, allPriceLists,
 			priceInnerRecordHandlingGenerator, priceIndexingDecider, referencedEntityResolver, localizedFakerFetcher, parameterIndex,
-			valueGenerators
+			valueGenerators, referenceValueGenerators
 		);
 	}
 
@@ -1503,6 +1532,7 @@ public class DataGenerator {
 		private final Function<Locale, Faker> localizedFakerFetcher;
 		private final Map<String, Map<Integer, Integer>> parameterIndex;
 		private final Map<EntityAttribute, Function<Faker, Object>> valueGenerators;
+		private final Map<EntityAttribute, BiFunction<ReferenceKey, Faker, Object>> referenceValueGenerators;
 
 		@Override
 		public EntityBuilder apply(@Nonnull SealedEntity existingEntity) {
@@ -1541,7 +1571,8 @@ public class DataGenerator {
 			}
 			generateRandomAttributes(
 				schema.getName(), schema.getAttributes().values(), globalUniqueSequencer, uniqueSequencer, sortableAttributesHolder,
-				TRUE_PREDICATE, localizedFakerFetcher, valueGenerators, genericFaker, detachedBuilder, allCurrencies, allPriceLists, usedLocales, allLocales
+				TRUE_PREDICATE, localizedFakerFetcher, valueGenerators, referenceValueGenerators,
+				genericFaker, detachedBuilder, allCurrencies, allPriceLists, usedLocales, allLocales, null
 			);
 
 			// randomly delete associated data
@@ -1574,7 +1605,8 @@ public class DataGenerator {
 			}
 			generateRandomReferences(
 				schema, referencedEntityResolver, globalUniqueSequencer, uniqueSequencer, parameterIndex, sortableAttributesHolder,
-				valueGenerators, localizedFakerFetcher, genericFaker, detachedBuilder, allCurrencies, allPriceLists, usedLocales, allLocales
+				valueGenerators, referenceValueGenerators, localizedFakerFetcher, genericFaker, detachedBuilder,
+				allCurrencies, allPriceLists, usedLocales, allLocales
 			);
 
 			return detachedBuilder;
@@ -1599,6 +1631,7 @@ public class DataGenerator {
 		private String[] priceLists = PRICE_LIST_NAMES;
 		private Currency[] currencies = CURRENCIES;
 		private Map<EntityAttribute, Function<Faker, Object>> valueGenerators = new HashMap<>();
+		private Map<EntityAttribute, BiFunction<ReferenceKey, Faker, Object>> referenceValueGenerators = new HashMap<>();
 
 		/**
 		 * Sets the price inner record handling generator.
@@ -1662,6 +1695,20 @@ public class DataGenerator {
 		}
 
 		/**
+		 * Registers value generator for passed entity type / attribute combination that accepts {@link ReferenceKey}
+		 * as well.
+		 */
+		@Nonnull
+		public Builder registerValueGenerator(
+			@Nonnull String entityType,
+			@Nonnull String attributeName,
+			@Nonnull BiFunction<ReferenceKey, Faker, Object> referenceValueGenerator
+		) {
+			this.referenceValueGenerators.put(new EntityAttribute(entityType, attributeName), referenceValueGenerator);
+			return this;
+		}
+
+		/**
 		 * Builds and returns an instance of {@link DataGenerator}.
 		 *
 		 * @return a new {@link DataGenerator} instance configured with the current builder settings
@@ -1673,7 +1720,8 @@ public class DataGenerator {
 				this.priceIndexingDecider,
 				this.priceLists,
 				this.currencies,
-				this.valueGenerators
+				this.valueGenerators,
+				this.referenceValueGenerators
 			);
 		}
 

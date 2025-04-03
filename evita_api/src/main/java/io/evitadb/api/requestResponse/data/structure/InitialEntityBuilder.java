@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.data.structure;
 
 import io.evitadb.api.exception.ContextMissingException;
+import io.evitadb.api.exception.ReferenceNotFoundException;
 import io.evitadb.api.exception.ReferenceNotKnownException;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract;
 import io.evitadb.api.requestResponse.data.AttributesContract;
@@ -318,6 +319,12 @@ public class InitialEntityBuilder implements EntityBuilder {
 	@Override
 	public Optional<ReferenceContract> getReference(@Nonnull String referenceName, int referencedEntityId) {
 		return ofNullable(this.references.get(new ReferenceKey(referenceName, referencedEntityId)));
+	}
+
+	@Nonnull
+	@Override
+	public Optional<ReferenceContract> getReference(@Nonnull ReferenceKey referenceKey) throws ContextMissingException, ReferenceNotFoundException {
+		return ofNullable(this.references.get(referenceKey));
 	}
 
 	@Nonnull

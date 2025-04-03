@@ -173,6 +173,20 @@ public interface EntityContract extends EntityClassifierWithParent,
 		throws ContextMissingException, ReferenceNotFoundException;
 
 	/**
+	 * Returns single {@link Reference} instance that is referencing passed entity type with certain primary key.
+	 * The references represent relations to other evitaDB entities or external entities in different systems.
+	 *
+	 * @param referenceKey reference key combining both reference name and referenced entity id information
+	 *
+	 * @return reference to the entity or empty if the entity is not referenced
+	 * @throws ReferenceNotFoundException when reference with given name is not defined in the schema
+	 * @throws ContextMissingException    when {@link ReferenceContent} is not part of the query requirements
+	 */
+	@Nonnull
+	Optional<ReferenceContract> getReference(@Nonnull ReferenceKey referenceKey)
+		throws ContextMissingException, ReferenceNotFoundException;
+
+	/**
 	 * Returns collection of {@link Reference} to certain type of other entities. References represent relations to
 	 * other evitaDB entities or external entities in different systems.
 	 *

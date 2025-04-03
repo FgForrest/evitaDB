@@ -23,8 +23,11 @@
 
 package io.evitadb.core.query.sort;
 
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -39,78 +42,107 @@ import java.util.function.IntConsumer;
 public interface Sorter {
 
 	/**
-	 * Creates clone of this sorter instance.
-	 */
-	@Nonnull
-	Sorter cloneInstance();
-
-	/**
-	 * Method allows creating combined sorter from this instance and passed instance.
-	 * Creates new sorter that first sorts by this instance order and for rest records, that cannot be sorted by this
-	 * sorter, the passed sorter will be used.
-	 */
-	@Nonnull
-	Sorter andThen(Sorter sorterForUnknownRecords);
-
-	/**
-	 * Method returns next sorter in the sort chain. I.e. the sorter that will be applied on entity keys, that couldn't
-	 * have been sorted by this sorter (due to lack of information).
-	 */
-	@Nullable
-	Sorter getNextSorter();
-
-	/**
 	 * Sorts the data produced by the given {@link Formula}, slices the sorted data according to the provided
 	 * pagination parameters, and stores the result in the specified array.
 	 *
-	 * @param queryContext           The context of the query execution.
-	 * @param input                  The formula whose computed results need to be sorted.
-	 * @param startIndex             The starting index for the slicing (inclusive).
-	 * @param endIndex               The ending index for the slicing (exclusive).
 	 * @param result                 An array to store the sliced result.
-	 * @param peak                   A parameter to indicate last index of the result array where the data has been written.
 	 * @param skippedRecordsConsumer A consumer to handle the records that are skipped during the process.
 	 * @return The number of records that were processed and stored in the result array.
 	 */
-	int sortAndSlice(
-		@Nonnull QueryExecutionContext queryContext,
-		@Nonnull Formula input,
-		int startIndex,
-		int endIndex,
+	@Nonnull
+	SortingContext sortAndSlice(
+		@Nonnull SortingContext sortingContext,
 		@Nonnull int[] result,
-		int peak,
 		@Nullable IntConsumer skippedRecordsConsumer
 	);
 
 	/**
-	 * Sorts the data produced by the given {@link Formula}, slices the sorted data according to the provided
-	 * pagination parameters, and stores the result in the specified array.
+	 * Context for sorting and slicing operations by a single sorter. The sorter is expected to create another instance
+	 * of context as its result.
 	 *
-	 * @param queryContext           The context of the query execution.
-	 * @param input                  The formula whose computed results need to be sorted.
-	 * @param startIndex             The starting index for the slicing (inclusive).
-	 * @param endIndex               The ending index for the slicing (exclusive).
-	 * @param result                 An array to store the sliced result.
-	 * @param peak                   A parameter to indicate last index of the result array where the data has been written.
-	 * @return The number of records that were processed and stored in the result array.
+	 * @param queryContext  The context of the query execution.
+	 * @param nonSortedKeys The formula whose computed results need to be sorted.
+	 * @param startIndex    The starting index for the slicing (inclusive).
+	 * @param endIndex      The ending index for the slicing (exclusive).
+	 * @param peak          A parameter to indicate last index of the result array where the data has been written.
+	 * @param skipped       A parameter to indicate the number of skipped records by previous sorters.
 	 */
-	default int sortAndSlice(
+	record SortingContext(
 		@Nonnull QueryExecutionContext queryContext,
-		@Nonnull Formula input,
+		@Nonnull Bitmap nonSortedKeys,
 		int startIndex,
 		int endIndex,
-		@Nonnull int[] result,
-		int peak
+		int peak,
+		int skipped,
+		@Nullable ReferenceKey referenceKey
 	) {
-		return sortAndSlice(
-			queryContext,
-			input,
-			startIndex,
-			endIndex,
-			result,
-			peak,
-			null
-		);
+
+		public SortingContext(
+			@Nonnull QueryExecutionContext queryContext,
+			@Nonnull Bitmap nonSortedKeys,
+			int startIndex, int endIndex, int peak, int skipped
+		) {
+			this(
+				queryContext,
+				nonSortedKeys,
+				startIndex,
+				endIndex,
+				peak,
+				skipped,
+				null
+			);
+		}
+
+		/**
+		 * Creates and returns a new instance of the {@link SortingContext} using the current query context,
+		 * updated non-sorted keys, start and end indexes, and the specified sortedCount and skippedCount values.
+		 *
+		 * @param nonSortedKeys the formula containing results that need to be sorted
+		 * @param sortedCount count of the records sorted by this sorter
+		 * @param skippedCount count of the records skipped by this sorter
+		 * @return a new instance of the {@link SortingContext} with updated parameters
+		 */
+		@Nonnull
+		public SortingContext createResultContext(
+			@Nonnull Bitmap nonSortedKeys,
+			int sortedCount,
+			int skippedCount
+		) {
+			Assert.isPremiseValid(
+				// we've reached expected end index
+				(this.peak + sortedCount == Math.min(this.peak + this.skipped + this.nonSortedKeys.size(), this.endIndex) - this.startIndex) ||
+					// the number of keys to store is equivalent to original number of keys minus sorted and skipped records
+					(nonSortedKeys.size() == this.nonSortedKeys.size() - sortedCount - skippedCount),
+				"Some records were not sorted or skipped!"
+			);
+
+			return new SortingContext(
+				this.queryContext,
+				nonSortedKeys,
+				this.startIndex,
+				this.endIndex,
+				this.peak + sortedCount,
+				this.skipped + skippedCount,
+				this.referenceKey
+			);
+		}
+
+		/**
+		 * Returns calculated start index taking into account the already written and skipped records.
+		 * @return the calculated start index
+		 */
+		public int recomputedStartIndex() {
+			return Math.max(0, this.startIndex - this.peak - this.skipped);
+		}
+
+		/**
+		 * Returns calculated end index taking into account the already written and skipped records.
+		 * @return the calculated end index
+		 */
+		public int recomputedEndIndex() {
+			return Math.max(0, this.endIndex - this.peak - this.skipped);
+		}
+
 	}
 
 }

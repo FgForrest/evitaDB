@@ -25,30 +25,19 @@ package io.evitadb.core.query.sort.attribute.translator;
 
 import com.carrotsearch.hppc.IntIntHashMap;
 import com.carrotsearch.hppc.IntIntMap;
-import com.carrotsearch.hppc.IntObjectHashMap;
-import com.carrotsearch.hppc.IntObjectMap;
 import io.evitadb.api.requestResponse.data.EntityContract;
-import io.evitadb.api.requestResponse.data.ReferenceContract;
-import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
-import io.evitadb.api.requestResponse.schema.Cardinality;
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.sort.EntityComparator;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.core.query.sort.attribute.PreSortedRecordsSorter;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.index.attribute.ChainIndex;
-import io.evitadb.index.attribute.ReferenceSortedRecordsSupplier;
 import io.evitadb.index.bitmap.Bitmap;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.function.IntUnaryOperator;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
@@ -66,15 +55,6 @@ public class PredecessorAttributeComparator implements EntityComparator {
 	 */
 	private final String attributeName;
 	/**
-	 * Optional reference to reference schema, if the attribute is a reference attribute.
-	 */
-	@Nullable private final ReferenceSchemaContract referenceSchema;
-	/**
-	 * Optional reference to entity schema, the reference is targeting (null if the reference is null, or targets
-	 * non-managed entity type).
-	 */
-	@Nullable private final EntitySchemaContract referencedEntitySchema;
-	/**
 	 * Supplier providing an array of {@link SortedRecordsProvider} objects used for sorting.
 	 */
 	private final Supplier<SortedRecordsProvider[]> sortedRecordsSupplier;
@@ -85,16 +65,11 @@ public class PredecessorAttributeComparator implements EntityComparator {
 	/**
 	 * Container for entities that cannot be sorted using the resolved {@link SortedRecordsProvider}.
 	 */
-	private CompositeObjectArray<EntityContract> nonSortedEntities;
+	@Nullable private CompositeObjectArray<EntityContract> nonSortedEntities;
 	/**
 	 * Estimated count of entities used for initializing data structures such as cache.
 	 */
 	private int estimatedCount = 100;
-	/**
-	 * Cache for storing predicates that filter {@link SortedRecordsProvider} instances based on the
-	 * reference schema and attribute name.
-	 */
-	private IntObjectMap<Predicate<SortedRecordsProvider>> entityPredicateCache;
 	/**
 	 * Array of caches storing the index positions of entities for each {@link SortedRecordsProvider}.
 	 */
@@ -109,7 +84,6 @@ public class PredecessorAttributeComparator implements EntityComparator {
 	@Override
 	public void prepareFor(int entityCount) {
 		this.estimatedCount = entityCount;
-		this.entityPredicateCache = new IntObjectHashMap<>(entityCount);
 		this.nonSortedEntities = null;
 	}
 
@@ -119,9 +93,6 @@ public class PredecessorAttributeComparator implements EntityComparator {
 		int o1FoundInProvider = -1;
 		int o2FoundInProvider = -1;
 		int result = 0;
-
-		final Predicate<SortedRecordsProvider> srpPredicate1 = createSortedRecordsProviderPredicateFor(o1, sortedRecordsProviders);
-		final Predicate<SortedRecordsProvider> srpPredicate2 = createSortedRecordsProviderPredicateFor(o2, sortedRecordsProviders);
 
 		// scan all providers
 		if (this.cache == null) {
@@ -138,8 +109,8 @@ public class PredecessorAttributeComparator implements EntityComparator {
 			// and try to find primary keys of both entities in each provider
 			final Bitmap allRecords = sortedRecordsProvider.getAllRecords();
 			// predicates are used sort out the providers that are not relevant for the given entity
-			final int o1Index = o1FoundInProvider > -1 ? -1 : srpPredicate1.test(sortedRecordsProvider) ? computeIfAbsent(this.cache[i], o1.getPrimaryKeyOrThrowException(), allRecords::indexOf) : -1;
-			final int o2Index = o2FoundInProvider > -1 ? -1 : srpPredicate2.test(sortedRecordsProvider) ? computeIfAbsent(this.cache[i], o2.getPrimaryKeyOrThrowException(), allRecords::indexOf) : -1;
+			final int o1Index = o1FoundInProvider > -1 ? -1 : computeIfAbsent(this.cache[i], o1.getPrimaryKeyOrThrowException(), allRecords::indexOf);
+			final int o2Index = o2FoundInProvider > -1 ? -1 : computeIfAbsent(this.cache[i], o2.getPrimaryKeyOrThrowException(), allRecords::indexOf);
 			// if both entities are found in the same provider, compare their positions
 			if (o1Index >= 0 && o2Index >= 0) {
 				result = Integer.compare(
@@ -184,70 +155,6 @@ public class PredecessorAttributeComparator implements EntityComparator {
 	}
 
 	/**
-	 * Creates a predicate for filtering {@link SortedRecordsProvider} instances that should be applied
-	 * for the given {@link EntityContract} entity and the provided array of {@link SortedRecordsProvider}.
-	 * This method takes into account the reference schema's cardinality and the presence of the specified
-	 * attribute to determine which sorted records provider(s) to filter.
-	 *
-	 * @param entity the entity for which the predicate is being created
-	 * @param sortedRecordsProviders an array of {@link SortedRecordsProvider} instances to filter
-	 * @return a predicate that filters the {@link SortedRecordsProvider} instances based on the
-	 *         specified criteria for the given entity
-	 */
-	@Nonnull
-	private Predicate<SortedRecordsProvider> createSortedRecordsProviderPredicateFor(
-		@Nonnull EntityContract entity,
-		@Nonnull SortedRecordsProvider[] sortedRecordsProviders
-	) {
-		final Predicate<SortedRecordsProvider> cachedPredicate = this.entityPredicateCache.get(entity.getPrimaryKeyOrThrowException());
-		if (cachedPredicate == null) {
-			final Predicate<SortedRecordsProvider> calculatedPredicate;
-			if (this.referenceSchema == null || this.referenceSchema.getCardinality() == Cardinality.ZERO_OR_ONE || this.referenceSchema.getCardinality() == Cardinality.EXACTLY_ONE) {
-				return srp -> true;
-			} else {
-				final Collection<ReferenceContract> references = entity.getReferences(this.referenceSchema.getName());
-				if (references.size() <= 1) {
-					calculatedPredicate = srp -> true;
-				} else {
-					final ReferenceKey referenceKey;
-					if (this.referencedEntitySchema != null && this.referencedEntitySchema.isHierarchyIndexedInAnyScope()) {
-						// we rely on the fact that the sorted record providers are sorted by the deep-first search order
-						// of the hierarchy here (or other sort criteria user defined)
-						referenceKey = Arrays.stream(sortedRecordsProviders)
-							.filter(ReferenceSortedRecordsSupplier.class::isInstance)
-							.map(ReferenceSortedRecordsSupplier.class::cast)
-							.filter(
-								rsrp -> {
-									final ReferenceKey theRefKey = rsrp.getReferenceKey();
-									return entity.getReference(theRefKey.referenceName(), theRefKey.primaryKey())
-										.map(it -> it.getAttribute(this.attributeName) != null)
-										.orElse(false);
-								})
-							.findFirst()
-							.map(ReferenceSortedRecordsSupplier::getReferenceKey)
-							.orElse(null);
-					} else {
-						referenceKey = references.stream()
-							.filter(it -> it.getAttribute(this.attributeName) != null)
-							.map(ReferenceContract::getReferenceKey)
-							.findFirst()
-							.orElse(null);
-					}
-					calculatedPredicate = referenceKey == null ?
-						// if the reference key is null, we can use the default predicate
-						srp -> true :
-						// otherwise we must accept only the sorted records provider that matches the reference key
-						srp -> srp instanceof ReferenceSortedRecordsSupplier rsrp && rsrp.getReferenceKey().equals(referenceKey);
-				}
-				this.entityPredicateCache.put(entity.getPrimaryKeyOrThrowException(), calculatedPredicate);
-				return calculatedPredicate;
-			}
-		} else {
-			return cachedPredicate;
-		}
-	}
-
-	/**
 	 * Retrieves an array of {@link SortedRecordsProvider} instances from the {@code sortedRecordsSupplier}.
 	 * If the array is not already resolved, it initializes the array by invoking the supplier.
 	 *
@@ -270,7 +177,7 @@ public class PredecessorAttributeComparator implements EntityComparator {
 	 * @param indexLocator function to compute the index of the entity
 	 * @return index of the entity
 	 */
-	private static int computeIfAbsent(@Nonnull IntIntMap cache, @Nonnull Integer primaryKey, @Nonnull IntUnaryOperator indexLocator) {
+	static int computeIfAbsent(@Nonnull IntIntMap cache, @Nonnull Integer primaryKey, @Nonnull IntUnaryOperator indexLocator) {
 		final int result = cache.get(primaryKey);
 		// when the value was not found 0 is returned
 		if (result == 0) {

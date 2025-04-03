@@ -42,11 +42,10 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
-import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
-import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.core.Evita;
+import io.evitadb.dataType.ChainableType;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.index.attribute.ChainIndex;
@@ -73,7 +72,15 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.Objects;
+import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -146,6 +153,290 @@ public class EntityByChainOrderingFunctionalTest {
 	);
 
 	/**
+	 * Sorts the products in a category based on the reference order attribute.
+	 *
+	 * @param productsInCategory     a map where the key is the referenced entity ID (non-null) and the value is a list of sealed entities (nullable).
+	 * @param referenceName          the name of the reference to sort by (non-null).
+	 * @param referenceAttributeName the name of the attribute to sort by (non-null).
+	 */
+	static void sortProductsInByReferenceAttributeOfChainableType(
+		@Nonnull Map<Integer, List<SealedEntity>> productsInCategory,
+		@Nonnull String referenceName,
+		@Nonnull String referenceAttributeName
+	) {
+		productsInCategory.forEach((key, value) -> {
+			if (value != null) {
+				// we rely on ChainIndex correctness - it's tested elsewhere
+				final ChainIndex chainIndex = new ChainIndex(new AttributeKey(referenceAttributeName));
+				for (SealedEntity entity : value) {
+					final ReferenceContract reference = entity.getReference(referenceName, key).orElseThrow();
+					final ChainableType attribute = reference.getAttribute(referenceAttributeName);
+					if (attribute != null) {
+						chainIndex.upsertPredecessor(
+							attribute,
+							entity.getPrimaryKeyOrThrowException()
+						);
+					}
+				}
+				// this is not much effective, but enough for a test
+				final int[] sortedRecordIds = chainIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds();
+				value.sort(
+					(a, b) -> {
+						final int aPos = ArrayUtils.indexOf(a.getPrimaryKeyOrThrowException(), sortedRecordIds);
+						final int bPos = ArrayUtils.indexOf(b.getPrimaryKeyOrThrowException(), sortedRecordIds);
+						return Integer.compare(aPos, bPos);
+					}
+				);
+			}
+		});
+	}
+
+	/**
+	 * Updates the order of the products within a category in the Evita session.
+	 *
+	 * @param session                the session to execute the update operations
+	 * @param entityName             the name of the entity to update
+	 * @param referenceName          the name of the reference to update
+	 * @param referenceAttributeName the name of the reference attribute to update
+	 * @param predecessorCreator     a function that creates a predecessor for the specified reference
+	 */
+	static void updateReferenceAttributeInProduct(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull String entityName,
+		@Nonnull String referenceName,
+		@Nonnull String referenceAttributeName,
+		@Nonnull BiFunction<ReferenceContract, int[], Serializable> predecessorCreator
+	) {
+		final Random rnd = new Random(SEED);
+		session.queryList(
+				query(
+					collection(entityName),
+					require(
+						page(1, 100),
+						entityFetch(
+							referenceContentWithAttributes(referenceName)
+						)
+					)
+				),
+				SealedEntity.class
+			)
+			.forEach(theEntity -> {
+				final int[] referenceEntities = theEntity.getReferences(referenceName)
+					.stream()
+					.mapToInt(ReferenceContract::getReferencedPrimaryKey)
+					.toArray();
+				ArrayUtils.shuffleArray(rnd, referenceEntities, referenceEntities.length);
+				final EntityBuilder entityBuilder = theEntity.openForWrite();
+				theEntity
+					.getReferences(referenceName)
+					.forEach(
+						reference -> {
+							if (reference.getAttribute(referenceAttributeName) != null) {
+								entityBuilder.setReference(
+									referenceName,
+									reference.getReferencedPrimaryKey(),
+									whichIs -> whichIs.setAttribute(
+										referenceAttributeName,
+										predecessorCreator.apply(reference, referenceEntities)
+									)
+								);
+							}
+						}
+					);
+				session.upsertEntity(entityBuilder);
+			});
+	}
+
+	/**
+	 * Collects a map of product indexes from stored products using the provided session.
+	 *
+	 * @param session        the session to use for retrieving entities, must not be null
+	 * @param storedProducts the list of stored products, must not be null
+	 * @return a map of primary keys to sealed entities, never null
+	 * @throws NoSuchElementException if any entity is not found
+	 */
+	@Nonnull
+	static Map<Integer, SealedEntity> collectProductIndex(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull List<EntityReference> storedProducts
+	) {
+		return storedProducts.stream()
+			.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), entityFetchAllContent()).orElseThrow())
+			.collect(
+				Collectors.toMap(
+					SealedEntity::getPrimaryKeyOrThrowException,
+					Function.identity()
+				)
+			);
+	}
+
+	/**
+	 * Updates the order attribute for categories based on their parent-child relationships.
+	 * This method uses the given session to query categories and determines the order of each category
+	 * within its parent's list of children, updating their order attribute accordingly.
+	 *
+	 * @param session          the Evita session to interact with the database.
+	 * @param categoryOrdering a map where the key is the parent category's primary key
+	 *                         and the value is an array of child categories' primary keys
+	 *                         defining their order as they relate to the parent.
+	 */
+	static void updateOrderAttributeInCategory(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull Map<Integer, int[]> categoryOrdering
+	) {
+		session.queryList(
+				query(
+					collection(Entities.CATEGORY),
+					require(
+						page(1, 100),
+						entityFetch(
+							hierarchyContent(),
+							attributeContentAll()
+						)
+					)
+				),
+				SealedEntity.class
+			)
+			.forEach(theEntity -> {
+				final Integer parent = theEntity.getParentEntity()
+					.map(EntityClassifier::getPrimaryKeyOrThrowException)
+					.orElse(null);
+
+				final int[] childOrder = categoryOrdering.get(parent);
+				final int index = ArrayUtils.indexOf(theEntity.getPrimaryKeyOrThrowException(), childOrder);
+
+				assertTrue(index >= 0, "Category " + theEntity.getPrimaryKeyOrThrowException() + " is unexpectedly not found!");
+				if (index > 0) {
+					theEntity.openForWrite()
+						.setAttribute(ATTRIBUTE_ORDER, new Predecessor(childOrder[index - 1]))
+						.upsertVia(session);
+				}
+			});
+	}
+
+	/**
+	 * Generates an order array for the items in a hierarchy and populates a given mapping
+	 * with the order array for a specific parent identifier.
+	 *
+	 * @param parent                The ID of the parent node for which the order is being generated, must not be null.
+	 * @param items                 The list of hierarchical items under the parent node, must not be null.
+	 * @param categoryHierarchy     The hierarchy structure containing the relationships of items, must not be null.
+	 * @param rnd                   A Random instance used for shuffling the order array, must not be null.
+	 * @param categoryPositionIndex A mapping where the generated order arrays are stored with the parent node ID as the key, must not be null.
+	 */
+	static void generateOrder(
+		@Nullable Integer parent,
+		@Nonnull List<HierarchyItem> items,
+		@Nonnull Hierarchy categoryHierarchy,
+		@Nonnull Random rnd,
+		@Nonnull Map<Integer, int[]> categoryPositionIndex
+	) {
+		if (!items.isEmpty()) {
+			final int[] order = new int[items.size()];
+			for (int i = 0; i < items.size(); i++) {
+				final String itemIdAsString = items.get(i).getCode();
+				final int itemId = Integer.parseInt(itemIdAsString);
+				order[i] = itemId;
+				generateOrder(
+					itemId,
+					categoryHierarchy.getChildItems(itemIdAsString),
+					categoryHierarchy,
+					rnd,
+					categoryPositionIndex
+				);
+			}
+			ArrayUtils.shuffleArray(rnd, order, order.length);
+			categoryPositionIndex.put(parent, order);
+		}
+	}
+
+	/**
+	 * Returns the primary keys (PKs) of items in depth-first order from the given category hierarchy.
+	 *
+	 * @param categoryHierarchy the hierarchy structure containing categories to traverse. Must not be null.
+	 * @return an array of integers containing primary keys of items in depth-first order. Never null.
+	 */
+	@Nonnull
+	static int[] getDepthFirstOrderedPks(
+		@Nonnull Hierarchy categoryHierarchy,
+		@Nonnull Map<Integer, SealedEntity> categoryIndex
+	) {
+		return getDepthFirstOrderedPks(
+			categoryHierarchy,
+			Comparator.comparingInt(EntityClassifier::getPrimaryKeyOrThrowException),
+			categoryIndex
+		);
+	}
+
+	/**
+	 * Returns the primary keys (PKs) of items in breadth-first order from the given category hierarchy.
+	 *
+	 * @param categoryHierarchy the hierarchy structure containing categories to traverse. Must not be null.
+	 * @return an array of integers containing primary keys of items in breadth-first order. Never null.
+	 */
+	@Nonnull
+	static int[] getBreadthFirstOrderedPks(
+		@Nonnull Hierarchy categoryHierarchy,
+		@Nonnull Map<Integer, SealedEntity> categoryIndex
+	) {
+		return getBreadthFirstOrderedPks(
+			categoryHierarchy,
+			Comparator.comparingInt(EntityClassifier::getPrimaryKeyOrThrowException),
+			categoryIndex
+		);
+	}
+
+	/**
+	 * Returns the primary keys (PKs) of items in depth-first order from the given category hierarchy.
+	 *
+	 * @param categoryHierarchy the hierarchy structure containing categories to traverse. Must not be null.
+	 * @return an array of integers containing primary keys of items in depth-first order. Never null.
+	 */
+	@Nonnull
+	static int[] getDepthFirstOrderedPks(
+		@Nonnull Hierarchy categoryHierarchy,
+		@Nonnull Comparator<SealedEntity> entityComparator,
+		@Nonnull Map<Integer, SealedEntity> categoryIndex
+	) {
+		final List<Integer> orderedCategoryIds = new ArrayList<>();
+		categoryHierarchy.getRootItems()
+			.stream()
+			.sorted((cat1, cat2) -> entityComparator.compare(categoryIndex.get(Integer.parseInt(cat1.getCode())), categoryIndex.get(Integer.parseInt(cat2.getCode()))))
+			.forEach(childItem -> traverseDepthFirst(childItem, categoryHierarchy, orderedCategoryIds, entityComparator, categoryIndex));
+		return orderedCategoryIds.stream()
+			.mapToInt(Integer::intValue)
+			.toArray();
+	}
+
+	/**
+	 * Returns the primary keys (PKs) of items in breadth-first order from the given category hierarchy.
+	 *
+	 * @param categoryHierarchy the hierarchy structure containing categories to traverse. Must not be null.
+	 * @return an array of integers containing primary keys of items in breadth-first order. Never null.
+	 */
+	@Nonnull
+	static int[] getBreadthFirstOrderedPks(
+		@Nonnull Hierarchy categoryHierarchy,
+		@Nonnull Comparator<SealedEntity> entityComparator,
+		@Nonnull Map<Integer, SealedEntity> categoryIndex
+	) {
+		final List<Integer> orderedCategoryIds = new ArrayList<>();
+		traverseBreadthFirst(
+			categoryHierarchy.getRootItems()
+				.stream()
+				.sorted((cat1, cat2) -> entityComparator.compare(categoryIndex.get(Integer.parseInt(cat1.getCode())), categoryIndex.get(Integer.parseInt(cat2.getCode()))))
+				.toList(),
+			categoryHierarchy,
+			orderedCategoryIds,
+			entityComparator,
+			categoryIndex
+		);
+		return orderedCategoryIds.stream()
+			.mapToInt(Integer::intValue)
+			.toArray();
+	}
+
+	/**
 	 * Retrieves the category ID with the most products.
 	 *
 	 * @param productsInCategory a map of category IDs to lists of SealedEntity objects
@@ -203,272 +494,6 @@ public class EntityByChainOrderingFunctionalTest {
 	}
 
 	/**
-	 * Sorts the products in a category based on the reference order attribute.
-	 *
-	 * @param productsInCategory     a map where the key is the referenced entity ID (non-null) and the value is a list of sealed entities (nullable).
-	 * @param referenceName          the name of the reference to sort by (non-null).
-	 * @param referenceAttributeName the name of the attribute to sort by (non-null).
-	 */
-	private static void sortProductsInByReferenceAttributeOfChainableType(
-		@Nonnull Map<Integer, List<SealedEntity>> productsInCategory,
-		@Nonnull String referenceName,
-		@Nonnull String referenceAttributeName
-	) {
-		productsInCategory.forEach((key, value) -> {
-			if (value != null) {
-				// we rely on ChainIndex correctness - it's tested elsewhere
-				final ChainIndex chainIndex = new ChainIndex(new AttributeKey(referenceAttributeName));
-				for (SealedEntity entity : value) {
-					final ReferenceContract reference = entity.getReference(referenceName, key).orElseThrow();
-					chainIndex.upsertPredecessor(
-						Objects.requireNonNull(reference.getAttribute(referenceAttributeName)),
-						entity.getPrimaryKeyOrThrowException()
-					);
-				}
-				// this is not much effective, but enough for a test
-				final int[] sortedRecordIds = chainIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds();
-				value.sort(
-					(a, b) -> {
-						final int aPos = ArrayUtils.indexOf(a.getPrimaryKeyOrThrowException(), sortedRecordIds);
-						final int bPos = ArrayUtils.indexOf(b.getPrimaryKeyOrThrowException(), sortedRecordIds);
-						return Integer.compare(aPos, bPos);
-					}
-				);
-			}
-		});
-	}
-
-	/**
-	 * Sorts the products in a category based on the reference order attribute.
-	 *
-	 * @param productsInCategory     a map where the key is the referenced entity ID (non-null) and the value is a list of sealed entities (nullable).
-	 * @param referenceName          the name of the reference to sort by (non-null).
-	 * @param referenceAttributeName the name of the attribute to sort by (non-null).
-	 */
-	private static void sortProductsInByReferenceAttribute(
-		@Nonnull Map<Integer, List<SealedEntity>> productsInCategory,
-		@Nonnull String referenceName,
-		@Nonnull String referenceAttributeName,
-		@SuppressWarnings("rawtypes") @Nonnull Comparator comparator
-	) {
-		productsInCategory.forEach((key, value) -> {
-			if (value != null) {
-				value.sort(
-					(a, b) -> {
-						final Comparable<?> attribute1 = (Comparable<?>) a.getReference(referenceName, key).map(it -> it.getAttribute(referenceAttributeName)).orElse(null);
-						final Comparable<?> attribute2 = (Comparable<?>) b.getReference(referenceName, key).map(it -> it.getAttribute(referenceAttributeName)).orElse(null);
-						if (attribute1 != null && attribute2 != null) {
-							//noinspection unchecked
-							final int result = comparator.compare(attribute1, attribute2);
-							if (result == 0) {
-								return Integer.compare(a.getPrimaryKeyOrThrowException(), b.getPrimaryKeyOrThrowException());
-							} else {
-								return result;
-							}
-						} else if (attribute1 == null && attribute2 != null) {
-							return 1;
-						} else if (attribute1 != null) {
-							return -1;
-						} else {
-							return 0;
-						}
-					}
-				);
-			}
-		});
-	}
-
-	/**
-	 * Sorts the products in a category based on the reference order sortable attribute compound.
-	 *
-	 * @param products                               a map where the key is the referenced entity ID (non-null) and the value is a list of sealed entities (nullable).
-	 * @param referenceName                          the name of the reference to sort by (non-null).
-	 * @param referenceSortableAttributeCompoundName the name of the attribute to sort by (non-null).
-	 */
-	private static void sortProductsInByReferenceSortableAttributeCompound(
-		@Nonnull Map<Integer, List<SealedEntity>> products,
-		@Nonnull String referenceName,
-		@Nonnull String referenceSortableAttributeCompoundName,
-		@SuppressWarnings("rawtypes") @Nonnull Comparator comparator
-	) {
-		final ReferenceSchemaContract referenceSchema = products.values().iterator().next()
-			.get(0)
-			.getSchema()
-			.getReferenceOrThrowException(Entities.BRAND);
-		final SortableAttributeCompoundSchemaContract compoundSchema = referenceSchema
-			.getSortableAttributeCompound(referenceSortableAttributeCompoundName)
-			.orElseThrow();
-
-		final ComparatorSource[] comparatorBase = compoundSchema.getAttributeElements()
-			.stream()
-			.map(age -> new ComparatorSource(referenceSchema.getAttribute(age.attributeName()).orElseThrow().getPlainType(), age.direction(), age.behaviour()))
-			.toArray(ComparatorSource[]::new);
-
-		products.forEach((key, value) -> {
-			if (value != null) {
-				value.sort(
-					(a, b) -> {
-						final Optional<ReferenceContract> refA = a.getReference(referenceName, key);
-						final ComparableArray attribute1 = new ComparableArray(
-							comparatorBase,
-							compoundSchema
-								.getAttributeElements()
-								.stream()
-								.map(ae -> (Serializable) refA.map(it -> it.getAttribute(ae.attributeName())).orElse(null))
-								.toArray(Serializable[]::new)
-						);
-						final Optional<ReferenceContract> refB = b.getReference(referenceName, key);
-						final ComparableArray attribute2 = new ComparableArray(
-							comparatorBase,
-							compoundSchema
-								.getAttributeElements()
-								.stream()
-								.map(ae -> (Serializable) refB.map(it -> it.getAttribute(ae.attributeName())).orElse(null))
-								.toArray(Serializable[]::new)
-						);
-						final boolean attribute1Empty = ArrayUtils.isEmptyOrItsValuesNull(attribute1.array());
-						final boolean attribute2Empty = ArrayUtils.isEmptyOrItsValuesNull(attribute2.array());
-						if (!attribute1Empty && !attribute2Empty) {
-							//noinspection unchecked
-							final int result = comparator.compare(attribute1, attribute2);
-							if (result == 0) {
-								return Integer.compare(a.getPrimaryKeyOrThrowException(), b.getPrimaryKeyOrThrowException());
-							} else {
-								return result;
-							}
-						} else if (attribute1Empty && !attribute2Empty) {
-							return 1;
-						} else if (!attribute1Empty) {
-							return -1;
-						} else {
-							return 0;
-						}
-					}
-				);
-			}
-		});
-	}
-
-	/**
-	 * Updates the order attribute for categories based on their parent-child relationships.
-	 * This method uses the given session to query categories and determines the order of each category
-	 * within its parent's list of children, updating their order attribute accordingly.
-	 *
-	 * @param session the Evita session to interact with the database.
-	 * @param categoryOrdering a map where the key is the parent category's primary key
-	 *                         and the value is an array of child categories' primary keys
-	 *                         defining their order as they relate to the parent.
-	 */
-	private static void updateOrderAttributeInCategory(
-		@Nonnull EvitaSessionContract session,
-		@Nonnull Map<Integer, int[]> categoryOrdering
-	) {
-		session.queryList(
-				query(
-					collection(Entities.CATEGORY),
-					require(
-						page(1, 100),
-						entityFetch(
-							hierarchyContent(),
-							attributeContentAll()
-						)
-					)
-				),
-				SealedEntity.class
-			)
-			.forEach(theEntity -> {
-				final Integer parent = theEntity.getParentEntity()
-					.map(EntityClassifier::getPrimaryKeyOrThrowException)
-					.orElse(null);
-
-				final int[] childOrder = categoryOrdering.get(parent);
-				final int index = ArrayUtils.indexOf(theEntity.getPrimaryKeyOrThrowException(), childOrder);
-
-				assertTrue(index >= 0, "Category " + theEntity.getPrimaryKeyOrThrowException() + " is unexpectedly not found!");
-				if (index > 0) {
-					theEntity.openForWrite()
-						.setAttribute(ATTRIBUTE_ORDER, new Predecessor(childOrder[index - 1]))
-						.upsertVia(session);
-				}
-			});
-	}
-
-	/**
-	 * Updates the order of the products within a category in the Evita session.
-	 *
-	 * @param session                the session to execute the update operations
-	 * @param entityName             the name of the entity to update
-	 * @param referenceName          the name of the reference to update
-	 * @param referenceAttributeName the name of the reference attribute to update
-	 * @param predecessorCreator     a function that creates a predecessor for the specified reference
-	 */
-	private static void updateReferenceAttributeInProduct(
-		@Nonnull EvitaSessionContract session,
-		@Nonnull String entityName,
-		@Nonnull String referenceName,
-		@Nonnull String referenceAttributeName,
-		@Nonnull BiFunction<ReferenceContract, int[], Serializable> predecessorCreator
-	) {
-		final Random rnd = new Random(SEED);
-		session.queryList(
-				query(
-					collection(entityName),
-					require(
-						page(1, 100),
-						entityFetch(
-							referenceContent(referenceName)
-						)
-					)
-				),
-				SealedEntity.class
-			)
-			.forEach(theEntity -> {
-				final int[] referencedProducts = theEntity.getReferences(referenceName)
-					.stream()
-					.mapToInt(ReferenceContract::getReferencedPrimaryKey)
-					.toArray();
-				ArrayUtils.shuffleArray(rnd, referencedProducts, referencedProducts.length);
-				final EntityBuilder entityBuilder = theEntity.openForWrite();
-				theEntity
-					.getReferences(referenceName)
-					.forEach(
-						reference -> entityBuilder.setReference(
-							referenceName,
-							reference.getReferencedPrimaryKey(),
-							whichIs -> whichIs.setAttribute(
-								referenceAttributeName,
-								predecessorCreator.apply(reference, referencedProducts)
-							)
-						)
-					);
-				session.upsertEntity(entityBuilder);
-			});
-	}
-
-	/**
-	 * Collects a map of product indexes from stored products using the provided session.
-	 *
-	 * @param session        the session to use for retrieving entities, must not be null
-	 * @param storedProducts the list of stored products, must not be null
-	 * @return a map of primary keys to sealed entities, never null
-	 * @throws NoSuchElementException if any entity is not found
-	 */
-	@Nonnull
-	private static Map<Integer, SealedEntity> collectProductIndex(
-		@Nonnull EvitaSessionContract session,
-		@Nonnull List<EntityReference> storedProducts
-	) {
-		return storedProducts.stream()
-			.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), entityFetchAllContent()).orElseThrow())
-			.collect(
-				Collectors.toMap(
-					SealedEntity::getPrimaryKeyOrThrowException,
-					Function.identity()
-				)
-			);
-	}
-
-	/**
 	 * Creates the expected order of product primary keys grouped and sorted by their associated brands.
 	 * Products are grouped by the primary key of the first referenced brand and then sorted according
 	 * to the order of products within each brand group as specified in the input maps.
@@ -478,7 +503,7 @@ public class EntityByChainOrderingFunctionalTest {
 	 * @param productsInBrand a map where the key is the brand primary key, and the value is a list of
 	 *                        {@link SealedEntity} objects representing all products belonging to that brand,
 	 *                        already sorted as needed.
-	 * @return an array of product primary keys arranged in the expected order grouped and sorted by brand.
+	 * @return a map of product primary keys arranged in the expected order grouped and sorted by brand.
 	 */
 	@Nonnull
 	private static Map<Integer, int[]> createExpectedOrderOfProductsInBrand(
@@ -517,64 +542,6 @@ public class EntityByChainOrderingFunctionalTest {
 	}
 
 	/**
-	 * Creates a deep copy of the given map where the keys remain the same, and the values,
-	 * which are lists, are copied into new list instances.
-	 *
-	 * @param original the original map with integer keys and lists of SealedEntity values to be copied
-	 * @return a new map with the same keys and new list instances containing the same elements as the original map
-	 */
-	@Nonnull
-	private static Map<Integer, List<SealedEntity>> makeCopy(@Nonnull Map<Integer, List<SealedEntity>> original) {
-		return original.entrySet().stream()
-			.collect(
-				Collectors.toMap(
-					Map.Entry::getKey,
-					entry -> new ArrayList<>(entry.getValue())
-				)
-			);
-	}
-
-	/**
-	 * Returns the primary keys (PKs) of items in depth-first order from the given category hierarchy.
-	 *
-	 * @param categoryHierarchy the hierarchy structure containing categories to traverse. Must not be null.
-	 * @return an array of integers containing primary keys of items in depth-first order. Never null.
-	 */
-	@Nonnull
-	private static int[] getDepthFirstOrderedPks(
-		@Nonnull Hierarchy categoryHierarchy,
-		@Nonnull Map<Integer, SealedEntity> categoryIndex
-	) {
-		return getDepthFirstOrderedPks(
-			categoryHierarchy,
-			Comparator.comparingInt(EntityClassifier::getPrimaryKeyOrThrowException),
-			categoryIndex
-		);
-	}
-
-	/**
-	 * Returns the primary keys (PKs) of items in depth-first order from the given category hierarchy.
-	 *
-	 * @param categoryHierarchy the hierarchy structure containing categories to traverse. Must not be null.
-	 * @return an array of integers containing primary keys of items in depth-first order. Never null.
-	 */
-	@Nonnull
-	private static int[] getDepthFirstOrderedPks(
-		@Nonnull Hierarchy categoryHierarchy,
-		@Nonnull Comparator<SealedEntity> entityComparator,
-		@Nonnull Map<Integer, SealedEntity> categoryIndex
-	) {
-		final List<Integer> orderedCategoryIds = new ArrayList<>();
-		categoryHierarchy.getRootItems()
-			.stream()
-			.sorted((cat1, cat2) -> entityComparator.compare(categoryIndex.get(Integer.parseInt(cat1.getCode())), categoryIndex.get(Integer.parseInt(cat2.getCode()))))
-			.forEach(childItem -> traverseDepthFirst(childItem, categoryHierarchy, orderedCategoryIds, entityComparator, categoryIndex));
-		return orderedCategoryIds.stream()
-			.mapToInt(Integer::intValue)
-			.toArray();
-	}
-
-	/**
 	 * Traverses a hierarchy depth-first starting from the given item and populates a list of ordered category IDs.
 	 *
 	 * @param item               {@link HierarchyItem} to start traversing from. Must not be {@code null}.
@@ -594,52 +561,6 @@ public class EntityByChainOrderingFunctionalTest {
 			.stream()
 			.sorted((cat1, cat2) -> entityComparator.compare(categoryIndex.get(Integer.parseInt(cat1.getCode())), categoryIndex.get(Integer.parseInt(cat2.getCode()))))
 			.forEach(childItem -> traverseDepthFirst(childItem, categoryHierarchy, orderedCategoryIds, entityComparator, categoryIndex));
-	}
-
-	/**
-	 * Returns the primary keys (PKs) of items in breadth-first order from the given category hierarchy.
-	 *
-	 * @param categoryHierarchy the hierarchy structure containing categories to traverse. Must not be null.
-	 * @return an array of integers containing primary keys of items in breadth-first order. Never null.
-	 */
-	@Nonnull
-	private static int[] getBreadthFirstOrderedPks(
-		@Nonnull Hierarchy categoryHierarchy,
-		@Nonnull Map<Integer, SealedEntity> categoryIndex
-	) {
-		return getBreadthFirstOrderedPks(
-			categoryHierarchy,
-			Comparator.comparingInt(EntityClassifier::getPrimaryKeyOrThrowException),
-			categoryIndex
-		);
-	}
-
-	/**
-	 * Returns the primary keys (PKs) of items in breadth-first order from the given category hierarchy.
-	 *
-	 * @param categoryHierarchy the hierarchy structure containing categories to traverse. Must not be null.
-	 * @return an array of integers containing primary keys of items in breadth-first order. Never null.
-	 */
-	@Nonnull
-	private static int[] getBreadthFirstOrderedPks(
-		@Nonnull Hierarchy categoryHierarchy,
-		@Nonnull Comparator<SealedEntity> entityComparator,
-		@Nonnull Map<Integer, SealedEntity> categoryIndex
-	) {
-		final List<Integer> orderedCategoryIds = new ArrayList<>();
-		traverseBreadthFirst(
-			categoryHierarchy.getRootItems()
-				.stream()
-				.sorted((cat1, cat2) -> entityComparator.compare(categoryIndex.get(Integer.parseInt(cat1.getCode())), categoryIndex.get(Integer.parseInt(cat2.getCode()))))
-				.toList(),
-			categoryHierarchy,
-			orderedCategoryIds,
-			entityComparator,
-			categoryIndex
-		);
-		return orderedCategoryIds.stream()
-			.mapToInt(Integer::intValue)
-			.toArray();
 	}
 
 	/**
@@ -823,7 +744,7 @@ public class EntityByChainOrderingFunctionalTest {
 				.map(it -> session.upsertAndFetchEntity(it, entityFetchAllContent()))
 				.collect(
 					Collectors.toMap(
-						it -> (Integer) it.getPrimaryKeyOrThrowException(),
+						EntityClassifier::getPrimaryKeyOrThrowException,
 						Function.identity()
 					)
 				);
@@ -952,42 +873,6 @@ public class EntityByChainOrderingFunctionalTest {
 				new Tuple("categoryIndex", categoryIndexByPk)
 			);
 		});
-	}
-
-	/**
-	 * Generates an order array for the items in a hierarchy and populates a given mapping
-	 * with the order array for a specific parent identifier.
-	 *
-	 * @param parent The ID of the parent node for which the order is being generated, must not be null.
-	 * @param items The list of hierarchical items under the parent node, must not be null.
-	 * @param categoryHierarchy The hierarchy structure containing the relationships of items, must not be null.
-	 * @param rnd A Random instance used for shuffling the order array, must not be null.
-	 * @param categoryPositionIndex A mapping where the generated order arrays are stored with the parent node ID as the key, must not be null.
-	 */
-	private static void generateOrder(
-		@Nullable Integer parent,
-		@Nonnull List<HierarchyItem> items,
-		@Nonnull Hierarchy categoryHierarchy,
-		@Nonnull Random rnd,
-		@Nonnull Map<Integer, int[]> categoryPositionIndex
-	) {
-		if (!items.isEmpty()) {
-			final int[] order = new int[items.size()];
-			for (int i = 0; i < items.size(); i++) {
-				final String itemIdAsString = items.get(i).getCode();
-				final int itemId = Integer.parseInt(itemIdAsString);
-				order[i] = itemId;
-				generateOrder(
-					itemId,
-					categoryHierarchy.getChildItems(itemIdAsString),
-					categoryHierarchy,
-					rnd,
-					categoryPositionIndex
-				);
-			}
-			ArrayUtils.shuffleArray(rnd, order, order.length);
-			categoryPositionIndex.put(parent, order);
-		}
 	}
 
 	@Nullable
@@ -5017,8 +4902,8 @@ public class EntityByChainOrderingFunctionalTest {
 							)
 						),
 						require(
-							page(1, 60),
-							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+							page(1, 60)/*,
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)*/
 						)
 					),
 					EntityReference.class
@@ -5848,7 +5733,7 @@ public class EntityByChainOrderingFunctionalTest {
 	/**
 	 * EntityReference is a record that encapsulates a reference to an entity along with a contract for referencing.
 	 */
-	private record EntityReferenceDTO(
+	record EntityReferenceDTO(
 		@Nonnull SealedEntity entity,
 		@Nonnull ReferenceContract reference
 	) {

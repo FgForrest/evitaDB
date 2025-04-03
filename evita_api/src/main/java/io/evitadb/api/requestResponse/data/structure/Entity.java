@@ -1089,6 +1089,7 @@ public class Entity implements SealedEntity {
 		return ofNullable(this.references.get(referenceKey));
 	}
 
+	@Override
 	@Nonnull
 	public Optional<ReferenceContract> getReference(@Nonnull ReferenceKey referenceKey) {
 		checkReferenceName(referenceKey.referenceName());

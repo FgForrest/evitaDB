@@ -67,6 +67,7 @@ import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedList;
@@ -326,6 +327,7 @@ public class QueryPlanner {
 						final List<QueryPlanBuilder> alternativeBuilderInList = Collections.singletonList(alternativeBuilder);
 						createSorter(queryContext, targetIndexes, alternativeBuilderInList);
 						createExtraResultProducers(queryContext, alternativeBuilderInList);
+						ofNullable(sourcePlan.getSlicer()).ifPresent(alternativeBuilder::setSlicer);
 						return alternativeBuilder;
 					}
 				).toList();
@@ -358,8 +360,7 @@ public class QueryPlanner {
 						builder.getFilterFormula()
 					);
 					ofNullable(queryContext.getOrderBy()).ifPresent(orderByVisitor::visit);
-					final Sorter sorter = orderByVisitor.getSorter();
-					builder.appendSorter(replaceNoSorterIfNecessary(queryContext, sorter));
+					builder.setSorters(replaceNoSorterIfNecessary(queryContext, orderByVisitor.getSorters()));
 				} finally {
 					if (multipleAlternatives) {
 						queryContext.popStep();
@@ -397,22 +398,36 @@ public class QueryPlanner {
 	}
 
 	/**
-	 * This method replaces no sorter - which should always represent primary keys in ascending order - with the special
+	 * This method replaces no sorters - which should always represent primary keys in ascending order - with the special
 	 * implementation in case the entity is not known in the query. In such case the primary keys are translated
 	 * different ids and those ids are translated back at the end of the query. Unfortunately the order of the translated
 	 * keys might be different than the original order of the primary keys, so we need to sort them here according to
 	 * their original primary keys order in ascending fashion.
 	 *
 	 * @param queryContext query context
-	 * @param sorter       identified sorter
-	 * @return sorter in input or new implementation that ensures proper sorting by primary keys in ascending order
+	 * @param sorters       identified sorters
+	 * @return sorters in input or new implementation that ensures proper sorting by primary keys in ascending order
 	 */
 	@Nonnull
-	private static Sorter replaceNoSorterIfNecessary(@Nonnull QueryPlanningContext queryContext, @Nonnull Sorter sorter) {
-		if (sorter instanceof NoSorter && !queryContext.isEntityTypeKnown()) {
-			return TranslatedPrimaryKeySorter.INSTANCE;
+	private static List<Sorter> replaceNoSorterIfNecessary(@Nonnull QueryPlanningContext queryContext, @Nonnull List<Sorter> sorters) {
+		if (!queryContext.isEntityTypeKnown()) {
+			int index = -1;
+			for (int i = 0; i < sorters.size(); i++) {
+				final Sorter sorter = sorters.get(i);
+				if (sorter instanceof NoSorter) {
+					index = i;
+					break;
+				}
+			}
+			if (index > -1) {
+				final List<Sorter> result = new ArrayList<>(sorters);
+				result.set(index, TranslatedPrimaryKeySorter.INSTANCE);
+				return result;
+			} else {
+				return sorters;
+			}
 		} else {
-			return sorter;
+			return sorters;
 		}
 	}
 
@@ -440,10 +455,10 @@ public class QueryPlanner {
 							builder.getTargetIndexes(),
 							builder.getFilterFormula(),
 							builder.getFilterByVisitor(),
-							builder.getSorter()
+							builder.getSorters()
 						);
 						extraResultPlanner.visit(queryContext.getRequire());
-						builder.appendExtraResultProducers(extraResultPlanner.getExtraResultProducers());
+						builder.setExtraResultProducers(extraResultPlanner.getExtraResultProducers());
 					} finally {
 						if (multipleAlternatives) {
 							queryContext.popStep();

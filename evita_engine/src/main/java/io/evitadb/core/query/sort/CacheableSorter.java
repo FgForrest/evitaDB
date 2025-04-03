@@ -60,7 +60,7 @@ public interface CacheableSorter extends TransactionalDataRelatedStructure, Sort
 
 	/**
 	 * Returns copy of this computer with same configuration but new method handle that references callback that
-	 * will be called when {@link #sortAndSlice(QueryExecutionContext, Formula, int, int, int[], int)} method is first executed
+	 * will be called when {@link #sortAndSlice(QueryExecutionContext, Formula, int, int, int[], int, int)} method is first executed
 	 * and memoized result is available.
 	 */
 	@Nonnull
