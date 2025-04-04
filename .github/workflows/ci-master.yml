@@ -54,7 +54,7 @@ jobs:
 
     - name: Compilation Check
       run: |
-        mvn -T 1C -B -Dmaven.test.skip=true compile --file pom.xml
+        mvn -T 1C -B -Dmaven.test.skip=true install --file pom.xml
       env:
         MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
         MAVEN_CENTRAL_TOKEN: ${{ secrets.MAVEN_CENTRAL_TOKEN }}
