@@ -34,19 +34,6 @@ import lombok.NoArgsConstructor;
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class AdditionalHttpHeaderNames {
-
-	public static final AsciiString OPENTELEMETRY_TRACEPARENT = new AsciiString("traceparent");
-	/**
-	 * Header name for the client URI.
-	 */
-	public static final AsciiString X_FORWARDED_URI = new AsciiString("X-Forwarded-Uri");
-
-	public static final AsciiString X_EVITADB_CLIENTID = new AsciiString("X-EvitaDB-ClientID");
-
-	/**
-	 * Header name for meta labels that allow to set traffic recording labels via HTTP headers.
-	 */
-	public static final AsciiString X_EVITADB_META_LABEL = new AsciiString("X-Meta-Label");
-
 	public static final AsciiString INTERNAL_HEADER_PREFIX = new AsciiString("internal_");
+
 }

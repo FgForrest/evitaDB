@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,7 +28,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import io.evitadb.core.Evita;
-import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
+import io.evitadb.externalApi.configuration.AbstractApiOptions;
+import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.rest.api.Rest;
 import io.evitadb.externalApi.rest.api.Rest.Endpoint;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiComplexType;
@@ -74,8 +75,9 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  */
 public abstract class RestBuildingContext {
 
-	@Nonnull protected final AbstractApiConfiguration restConfig;
+	@Nonnull protected final AbstractApiOptions restConfig;
 	@Nonnull @Getter private final Evita evita;
+	@Nonnull private final HeaderOptions headers;
 
 	/**
 	 * This instance of object mapper is shared by all REST handlers registered via RoutingHandler.
@@ -92,8 +94,13 @@ public abstract class RestBuildingContext {
 	@Nonnull
 	private final Map<String, Class<? extends Enum<?>>> registeredCustomEnums = createHashMap(32);
 
-	protected RestBuildingContext(@Nonnull AbstractApiConfiguration restConfig, @Nonnull Evita evita) {
+	protected RestBuildingContext(
+		@Nonnull AbstractApiOptions restConfig,
+		@Nonnull HeaderOptions headerOptions,
+		@Nonnull Evita evita
+	) {
 		this.restConfig = restConfig;
+		this.headers = headerOptions;
 		this.evita = evita;
 		this.objectMapper = setupObjectMapper();
 	}
@@ -221,12 +228,12 @@ public abstract class RestBuildingContext {
 	@Nonnull
 	private List<Rest.Endpoint> buildEndpoints(@Nonnull OpenAPI openApi, @Nonnull Map<String, Class<? extends Enum<?>>> enumMapping) {
 		final List<Rest.Endpoint> builtEndpoints = new LinkedList<>();
-		registeredEndpoints.forEach((path, endpoints) ->
+		this.registeredEndpoints.forEach((path, endpoints) ->
 			endpoints.forEach((method, endpoint) ->
 				builtEndpoints.add(new Rest.Endpoint(
 					path,
 					com.linecorp.armeria.common.HttpMethod.valueOf(endpoint.getMethod().name()),
-					endpoint.toHandler(objectMapper, evita, openApi, enumMapping)
+					endpoint.toHandler(this.objectMapper, this.evita, this.headers, openApi, enumMapping)
 				))
 			)
 		);

@@ -68,6 +68,12 @@ api:
   requestTimeoutInMillis: ${api.requestTimeoutInMillis:2K}
   maxEntitySizeInBytes: ${api.maxEntitySizeInBytes:2MB}
   accessLog: ${api.accessLog:false}
+  headers:
+    forwardedUri: ${api.headers.forwardedUri:["X-Forwarded-Uri"]}
+    forwardedFor: ${api.headers.forwardedFor:["Forwarded", "X-Forwarded-For", "X-Real-IP"]}
+    label: ${api.headers.label:["X-EvitaDB-Label"]}
+    clientId: ${api.headers.clientId:["X-EvitaDB-ClientID"]}
+    traceParent: ${api.headers.traceParent:["traceparent"]}
   certificate:
     generateAndUseSelfSigned: ${api.certificate.generateAndUseSelfSigned:true}
     folderPath: ${api.certificate.folderPath:'./evita-server-certificates/'}

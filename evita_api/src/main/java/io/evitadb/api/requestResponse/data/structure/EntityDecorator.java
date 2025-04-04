@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.data.structure;
 
 import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.exception.EntityIsNotHierarchicalException;
+import io.evitadb.api.exception.ReferenceNotFoundException;
 import io.evitadb.api.exception.UnexpectedResultCountException;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.HierarchyContent;
@@ -687,6 +688,13 @@ public class EntityDecorator implements SealedEntity {
 	public Optional<ReferenceContract> getReference(@Nonnull String referenceName, int referencedEntityId) {
 		this.referencePredicate.checkFetched(referenceName);
 		return ofNullable(this.filteredReferences.get(new ReferenceKey(referenceName, referencedEntityId)));
+	}
+
+	@Nonnull
+	@Override
+	public Optional<ReferenceContract> getReference(@Nonnull ReferenceKey referenceKey) throws ContextMissingException, ReferenceNotFoundException {
+		this.referencePredicate.checkFetched(referenceKey.referenceName());
+		return ofNullable(this.filteredReferences.get(referenceKey));
 	}
 
 	@Nonnull

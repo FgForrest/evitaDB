@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -40,12 +40,12 @@ import static java.util.Optional.ofNullable;
 
 /**
  * This DTO contains basic configuration settings for different API endpoints.
- * By configuring {@link AbstractApiConfiguration#mtlsConfiguration}, additional security can be added to the API in
+ * By configuring {@link AbstractApiOptions#mtlsConfiguration}, additional security can be added to the API in
  * question by enabling mTLS and allowing only specific and verified client to connect.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public abstract class AbstractApiConfiguration {
+public abstract class AbstractApiOptions {
 	/**
 	 * Default API port.
 	 */
@@ -106,7 +106,7 @@ public abstract class AbstractApiConfiguration {
 		}
 	}
 
-	protected AbstractApiConfiguration() {
+	protected AbstractApiOptions() {
 		this.enabled = true;
 		this.tlsMode = TlsMode.RELAXED;
 		this.exposeOn = null;
@@ -122,7 +122,7 @@ public abstract class AbstractApiConfiguration {
 	 * @param host    defines the hostname and port the endpoints will listen on, use constant `localhost` for loopback
 	 *                (IPv4) host. Multiple values can be delimited by comma. Example: `localhost:5555,168.12.45.44:5555`
 	 */
-	protected AbstractApiConfiguration(@Nullable Boolean enabled, @Nonnull String host) {
+	protected AbstractApiOptions(@Nullable Boolean enabled, @Nonnull String host) {
 		this(enabled, host, null, null, null, null);
 	}
 
@@ -132,7 +132,7 @@ public abstract class AbstractApiConfiguration {
 	 *                   (IPv4) host. Multiple values can be delimited by comma. Example: `localhost:5555,168.12.45.44:5555`
 	 * @param tlsMode    allows the API to run with TLS encryption
 	 */
-	protected AbstractApiConfiguration(
+	protected AbstractApiOptions(
 		@Nullable Boolean enabled,
 		@Nonnull String host,
 		@Nullable String exposeOn,
@@ -143,7 +143,7 @@ public abstract class AbstractApiConfiguration {
 		this.enabled = ofNullable(enabled).orElse(true);
 		this.tlsMode = TlsMode.getByName(tlsMode);
 		this.host = Arrays.stream(host.split(","))
-			.map(AbstractApiConfiguration::parseHost)
+			.map(AbstractApiOptions::parseHost)
 			.flatMap(Arrays::stream)
 			.toArray(HostDefinition[]::new);
 		this.exposeOn = exposeOn;

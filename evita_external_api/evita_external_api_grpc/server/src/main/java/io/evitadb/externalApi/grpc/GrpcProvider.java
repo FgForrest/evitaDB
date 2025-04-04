@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ import io.evitadb.externalApi.configuration.TlsMode;
 import io.evitadb.externalApi.event.ReadinessEvent;
 import io.evitadb.externalApi.event.ReadinessEvent.Prospective;
 import io.evitadb.externalApi.event.ReadinessEvent.Result;
-import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
+import io.evitadb.externalApi.grpc.configuration.GrpcOptions;
 import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceBlockingStub;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.grpc.Status;
@@ -52,13 +52,13 @@ import javax.annotation.Nonnull;
  * @see GrpcProviderRegistrar
  */
 @Slf4j
-public class GrpcProvider implements ExternalApiProvider<GrpcConfig> {
+public class GrpcProvider implements ExternalApiProvider<GrpcOptions> {
 
 	public static final String CODE = "gRPC";
 
 	@Nonnull
 	@Getter
-	private final GrpcConfig configuration;
+	private final GrpcOptions configuration;
 
 	@Nonnull
 	@Getter
@@ -77,7 +77,7 @@ public class GrpcProvider implements ExternalApiProvider<GrpcConfig> {
 	 */
 	private final ClientFactory clientFactory;
 
-	public GrpcProvider(@Nonnull GrpcConfig configuration, @Nonnull HttpService apiHandler, long requestTimeout, long idleTimeout) {
+	public GrpcProvider(@Nonnull GrpcOptions configuration, @Nonnull HttpService apiHandler, long requestTimeout, long idleTimeout) {
 		this.configuration = configuration;
 		this.apiHandler = apiHandler;
 		this.requestTimeout = requestTimeout;

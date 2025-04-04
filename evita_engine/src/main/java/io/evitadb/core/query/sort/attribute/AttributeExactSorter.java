@@ -27,17 +27,13 @@ import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.ObjectIntMap;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.core.query.QueryExecutionContext;
-import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.base.ConstantFormula;
-import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.sort.EntityComparator;
-import io.evitadb.core.query.sort.NoSorter;
 import io.evitadb.core.query.sort.Sorter;
-import io.evitadb.core.query.sort.generic.AbstractRecordsSorter;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.ArrayUtils;
 import lombok.RequiredArgsConstructor;
@@ -63,7 +59,7 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public class AttributeExactSorter extends AbstractRecordsSorter {
+public class AttributeExactSorter implements Sorter {
 	/**
 	 * Name of the attribute the sorter sorts along.
 	 */
@@ -76,10 +72,6 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 	 * The attribute values whose order must be maintained in the sorted result.
 	 */
 	private final Serializable[] exactOrder;
-	/**
-	 * This sorter instance will be used for sorting entities, that cannot be sorted by this sorter.
-	 */
-	private final Sorter unknownRecordIdsSorter;
 
 	public AttributeExactSorter(
 		@Nonnull String attributeName,
@@ -89,81 +81,38 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 		this.attributeName = attributeName;
 		this.exactOrder = exactOrder;
 		this.sortIndex = sortIndex;
-		this.unknownRecordIdsSorter = NoSorter.INSTANCE;
-	}
-
-	public AttributeExactSorter(
-		@Nonnull String attributeName,
-		@Nonnull Serializable[] exactOrder,
-		@Nonnull SortIndex sortIndex,
-		@Nonnull Sorter unknownRecordIdsSorter
-	) {
-		this.attributeName = attributeName;
-		this.exactOrder = exactOrder;
-		this.sortIndex = sortIndex;
-		this.unknownRecordIdsSorter = unknownRecordIdsSorter;
 	}
 
 	@Nonnull
 	@Override
-	public Sorter cloneInstance() {
-		return new AttributeExactSorter(
-			attributeName,
-			exactOrder,
-			sortIndex
-		);
-	}
-
-	@Nonnull
-	@Override
-	public Sorter andThen(Sorter sorterForUnknownRecords) {
-		return new AttributeExactSorter(
-			this.attributeName,
-			this.exactOrder,
-			this.sortIndex,
-			sorterForUnknownRecords
-		);
-	}
-
-	@Nullable
-	@Override
-	public Sorter getNextSorter() {
-		return this.unknownRecordIdsSorter;
-	}
-
-	@Override
-	public int sortAndSlice(
-		@Nonnull QueryExecutionContext queryContext,
-		@Nonnull Formula input,
-		int startIndex,
-		int endIndex,
+	public SortingContext sortAndSlice(
+		@Nonnull SortingContext sortingContext,
 		@Nonnull int[] result,
-		int peak,
 		@Nullable IntConsumer skippedRecordsConsumer
 	) {
-		final Bitmap selectedRecordIds = input.compute();
-		if (selectedRecordIds.isEmpty()) {
-			return 0;
+		if (sortingContext.queryContext().getPrefetchedEntities() == null) {
+			return sortOutputBasedOnIndex(sortingContext, result, skippedRecordsConsumer);
 		} else {
-			if (queryContext.getPrefetchedEntities() == null) {
-				return sortOutputBasedOnIndex(queryContext, startIndex, endIndex, selectedRecordIds, result, peak);
-			} else {
-				return sortOutputByPrefetchedEntities(queryContext, startIndex, endIndex, selectedRecordIds, result, peak);
-			}
+			return sortOutputByPrefetchedEntities(sortingContext, result, skippedRecordsConsumer);
 		}
 	}
 
 	/**
 	 * Sorts the selected primary key ids by the order of attributes in {@link SortIndex}.
 	 */
-	private int sortOutputBasedOnIndex(
-		@Nonnull QueryExecutionContext queryContext, int startIndex, int endIndex, @Nonnull Bitmap selectedRecordIds,
-		@Nonnull int[] result, int peak
+	@Nonnull
+	private SortingContext sortOutputBasedOnIndex(
+		@Nonnull SortingContext sortingContext,
+		@Nonnull int[] result,
+		@Nullable IntConsumer skippedRecordsConsumer
 	) {
-		final int[] entireResult = selectedRecordIds.getArray();
-		final int length = Math.min(entireResult.length, endIndex - startIndex);
+		final int recomputedStartIndex = sortingContext.recomputedStartIndex();
+		final int recomputedEndIndex = sortingContext.recomputedEndIndex();
+
+		final int[] entireResult = sortingContext.nonSortedKeys().getArray();
+		final int length = Math.min(entireResult.length, recomputedEndIndex - recomputedStartIndex);
 		if (length < 0) {
-			throw new IndexOutOfBoundsException("Index: " + startIndex + ", Size: " + entireResult.length);
+			throw new IndexOutOfBoundsException("Index: " + recomputedStartIndex + ", Size: " + entireResult.length);
 		}
 
 		// retrieve array of "sorted" primary keys based on data from index
@@ -176,12 +125,21 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 		final int lastSortedItem = ArrayUtils.sortAlong(exactPkOrder, entireResult);
 
 		// copy the sorted data to result
-		final int toAppend = Math.min(lastSortedItem, endIndex - startIndex);
-		System.arraycopy(entireResult, startIndex, result, peak, toAppend);
+		final int toAppend = Math.min(lastSortedItem, recomputedEndIndex - recomputedStartIndex);
+		if (skippedRecordsConsumer != null) {
+			for (int i = 0; i < Math.min(recomputedStartIndex, entireResult.length); i++) {
+				skippedRecordsConsumer.accept(entireResult[i]);
+			}
+		}
+		System.arraycopy(entireResult, recomputedStartIndex, result, sortingContext.peak(), toAppend);
 
 		// if there are no more records to sort or no additional sorter is present, return entire result
-		if (lastSortedItem == selectedRecordIds.size()) {
-			return peak + toAppend;
+		if (lastSortedItem == entireResult.length) {
+			return sortingContext.createResultContext(
+				EmptyBitmap.INSTANCE,
+				toAppend,
+				recomputedStartIndex
+			);
 		} else {
 			// otherwise, collect the not sorted record ids
 			final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
@@ -189,12 +147,12 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 				writer.add(entireResult[i]);
 			}
 			// pass them to another sorter
-			final int recomputedStartIndex = Math.max(0, startIndex - lastSortedItem);
-			final int recomputedEndIndex = Math.max(0, endIndex - lastSortedItem);
 			final RoaringBitmap outputBitmap = writer.get();
-			return unknownRecordIdsSorter.sortAndSlice(
-				queryContext, outputBitmap.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(new BaseBitmap(outputBitmap)),
-				recomputedStartIndex, recomputedEndIndex, result, peak + toAppend
+			return sortingContext.createResultContext(
+				outputBitmap.isEmpty() ?
+					EmptyBitmap.INSTANCE : new BaseBitmap(outputBitmap),
+				toAppend,
+				recomputedStartIndex
 			);
 		}
 	}
@@ -203,13 +161,21 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 	 * Sorts the selected primary key ids by the order of attributes retrieved from prefetched entities and compared
 	 * by comparator in the place.
 	 */
-	private int sortOutputByPrefetchedEntities(
-		@Nonnull QueryExecutionContext queryContext, int startIndex, int endIndex, @Nonnull Bitmap selectedRecordIds,
-		@Nonnull int[] result, int peak
+	@Nonnull
+	private SortingContext sortOutputByPrefetchedEntities(
+		@Nonnull SortingContext sortingContext,
+		@Nonnull int[] result,
+		@Nullable IntConsumer skippedRecordsConsumer
 	) {
+		final int recomputedStartIndex = sortingContext.recomputedStartIndex();
+		final int recomputedEndIndex = sortingContext.recomputedEndIndex();
+		final int peak = sortingContext.peak();
+		final QueryExecutionContext queryContext = sortingContext.queryContext();
+
 		// collect entity primary keys
-		final OfInt it = selectedRecordIds.iterator();
-		final List<EntityContract> entities = new ArrayList<>(selectedRecordIds.size());
+		final Bitmap nonSortedKeys = sortingContext.nonSortedKeys();
+		final OfInt it = nonSortedKeys.iterator();
+		final List<EntityContract> entities = new ArrayList<>(nonSortedKeys.size());
 		while (it.hasNext()) {
 			int id = it.next();
 			entities.add(queryContext.translateToEntity(id));
@@ -234,31 +200,27 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 
 		// collect the result
 		final AtomicInteger index = new AtomicInteger();
-		entities.subList(0, selectedRecordIds.size() - notFoundRecordsCnt)
+		final List<EntityContract> finalEntities = entities.subList(0, nonSortedKeys.size() - notFoundRecordsCnt);
+		final int skippedRecords = Math.min(recomputedStartIndex, finalEntities.size());
+		if (skippedRecordsConsumer != null) {
+			for (int i = 0; i < skippedRecords; i++) {
+				skippedRecordsConsumer.accept(queryContext.translateEntity(finalEntities.get(i)));
+			}
+		}
+		finalEntities
 			.stream()
-			.skip(startIndex)
-			.limit((long) endIndex - startIndex)
+			.skip(recomputedStartIndex)
+			.limit((long) recomputedEndIndex - recomputedStartIndex)
 			.mapToInt(queryContext::translateEntity)
 			.forEach(pk -> result[peak + index.getAndIncrement()] = pk);
 
-		// pass them to another sorter
-		final int recomputedStartIndex = Math.max(0, startIndex - index.get());
-		final int recomputedEndIndex = Math.max(0, endIndex - index.get());
-
 		// and return appending the not sorted records
-		final int[] borrowedBuffer = queryContext.borrowBuffer();
-		try {
-			return returnResultAppendingUnknown(
-				queryContext,
-				notFoundRecords,
-				unknownRecordIdsSorter,
-				recomputedStartIndex, recomputedEndIndex,
-				result, peak + index.get(),
-				borrowedBuffer
-			);
-		} finally {
-			queryContext.returnBuffer(borrowedBuffer);
-		}
+		return sortingContext.createResultContext(
+			notFoundRecords.isEmpty() ?
+				EmptyBitmap.INSTANCE : new BaseBitmap(notFoundRecords),
+			index.get(),
+			skippedRecords
+		);
 	}
 
 	/**
@@ -272,7 +234,7 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 		private final Serializable[] attributeValues;
 		private int estimatedCount = 100;
 		private ObjectIntMap<Serializable> cache;
-		private CompositeObjectArray<EntityContract> nonSortedEntities;
+		@Nullable private CompositeObjectArray<EntityContract> nonSortedEntities;
 
 		@Override
 		public void prepareFor(int entityCount) {

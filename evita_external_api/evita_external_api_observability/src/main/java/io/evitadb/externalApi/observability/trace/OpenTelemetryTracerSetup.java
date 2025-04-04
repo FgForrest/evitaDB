@@ -23,7 +23,7 @@
 
 package io.evitadb.externalApi.observability.trace;
 
-import io.evitadb.externalApi.observability.configuration.ObservabilityConfig;
+import io.evitadb.externalApi.observability.configuration.ObservabilityOptions;
 import io.evitadb.externalApi.observability.configuration.TracingConfig;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.evitadb.utils.Assert;
@@ -50,8 +50,8 @@ import java.time.Duration;
 /**
  * This class is responsible for setting up the OpenTelemetry instance, the tracer and a propagator context.
  * It is used by the {@link JsonApiTracingContext} and {@link GrpcTracingContext} to create a tracing context.
- * Traces are exported to the configured endpoint that is set in the {@link ObservabilityConfig}. This config should be
- * set before working with the OpenTelemetry via {@link #setTracingConfig(TracingConfig)} (ObservabilityConfig)}.
+ * Traces are exported to the configured endpoint that is set in the {@link ObservabilityOptions}. This config should be
+ * set before working with the OpenTelemetry via {@link #setTracingConfig(TracingConfig)} (ObservabilityOptions)}.
  *
  * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
@@ -75,7 +75,7 @@ public class OpenTelemetryTracerSetup {
 	private static Tracer TRACER;
 
 	/**
-	 * Sets the {@link ObservabilityConfig} that is used to configure the OpenTelemetry. Should be set before working with
+	 * Sets the {@link ObservabilityOptions} that is used to configure the OpenTelemetry. Should be set before working with
 	 * the OpenTelemetry.
 	 */
 	public static void setTracingConfig(@Nonnull TracingConfig tracingConfig) {

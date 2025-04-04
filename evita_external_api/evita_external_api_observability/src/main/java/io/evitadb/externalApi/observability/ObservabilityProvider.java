@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,13 +28,12 @@ import io.evitadb.externalApi.event.ReadinessEvent;
 import io.evitadb.externalApi.event.ReadinessEvent.Prospective;
 import io.evitadb.externalApi.event.ReadinessEvent.Result;
 import io.evitadb.externalApi.http.ExternalApiProvider;
-import io.evitadb.externalApi.observability.configuration.ObservabilityConfig;
+import io.evitadb.externalApi.observability.configuration.ObservabilityOptions;
 import io.evitadb.utils.NetworkUtils;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
-import java.util.Optional;
 import java.util.function.Predicate;
 
 import static io.evitadb.externalApi.observability.ObservabilityManager.LIVENESS_SUFFIX;
@@ -46,12 +45,12 @@ import static io.evitadb.externalApi.observability.ObservabilityManager.LIVENESS
  * @see ObservabilityProviderRegistrar
  */
 @Slf4j
-public class ObservabilityProvider implements ExternalApiProvider<ObservabilityConfig> {
+public class ObservabilityProvider implements ExternalApiProvider<ObservabilityOptions> {
 	public static final String CODE = "observability";
 
 	@Nonnull
 	@Getter
-	private final ObservabilityConfig configuration;
+	private final ObservabilityOptions configuration;
 
 	@Nonnull
 	@Getter
@@ -73,7 +72,7 @@ public class ObservabilityProvider implements ExternalApiProvider<ObservabilityC
 	private String reachableUrl;
 
 	public ObservabilityProvider(
-		@Nonnull ObservabilityConfig configuration,
+		@Nonnull ObservabilityOptions configuration,
 		@Nonnull ObservabilityManager observabilityManager,
 		@Nonnull String[] serverNameUrls,
 		long requestTimeout

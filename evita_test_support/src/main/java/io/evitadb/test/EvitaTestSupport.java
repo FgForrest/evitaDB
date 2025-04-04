@@ -136,7 +136,7 @@ public interface EvitaTestSupport extends TestConstants {
 	/**
 	 * Removes test directory with its contents.
 	 */
-	default void cleanTestSubDirectory(String directory) throws IOException {
+	default void cleanTestSubDirectory(@Nonnull String directory) throws IOException {
 		// clear evitaDB directory
 		FileUtils.deleteDirectory(BASE_PATH.resolve(directory).toFile());
 	}

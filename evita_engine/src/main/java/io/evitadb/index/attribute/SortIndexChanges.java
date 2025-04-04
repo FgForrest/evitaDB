@@ -94,7 +94,7 @@ public class SortIndexChanges implements Serializable {
 	public SortedRecordsSupplier getAscendingOrderRecordsSupplier() {
 		return ofNullable(this.sortIndex.getReferenceKey())
 			.map(
-				referenceKey -> (SortedRecordsSupplier) new ReferenceSortedRecordsSupplier(
+				referenceKey -> (SortedRecordsSupplier) new ReferenceSortedRecordsProvider(
 					this.sortIndex.sortedRecords.getId(),
 					this.sortIndex.sortedRecords.getArray(),
 					this.sortIndex.sortedRecords.getPositions(),
@@ -122,7 +122,7 @@ public class SortIndexChanges implements Serializable {
 	public SortedRecordsSupplier getDescendingOrderRecordsSupplier() {
 		return ofNullable(this.sortIndex.getReferenceKey())
 			.map(
-				referenceKey -> (SortedRecordsSupplier) new ReferenceSortedRecordsSupplier(
+				referenceKey -> (SortedRecordsSupplier) new ReferenceSortedRecordsProvider(
 					this.sortIndex.getId(),
 					ArrayUtils.reverse(this.sortIndex.sortedRecords.getArray()),
 					invert(this.sortIndex.sortedRecords.getPositions()),

@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.query.sort.attribute.translator;
+package io.evitadb.core.query.sort.reference.translator;
 
 import com.carrotsearch.hppc.IntObjectHashMap;
 import com.carrotsearch.hppc.IntObjectMap;
@@ -40,6 +40,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
+import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.indexSelection.IndexSelectionVisitor;
@@ -50,6 +51,7 @@ import io.evitadb.core.query.sort.OrderByVisitor.MergeModeDefinition;
 import io.evitadb.core.query.sort.OrderByVisitor.ProcessingScope;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.attribute.PreSortedRecordsSorter.MergeMode;
+import io.evitadb.core.query.sort.reference.SequentialSorter;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -69,12 +71,13 @@ import org.roaringbitmap.RoaringBitmap;
 import org.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
+import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.UnaryOperator;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -90,11 +93,6 @@ import static io.evitadb.api.query.QueryConstraints.traverseByEntityProperty;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class ReferencePropertyTranslator implements OrderingConstraintTranslator<ReferenceProperty>, SelfTraversingTranslator {
-	private static final Comparator<EntityIndex> DEFAULT_COMPARATOR = (o1, o2) -> {
-		final int o1pk = Objects.requireNonNull((ReferenceKey) o1.getIndexKey().discriminator()).primaryKey();
-		final int o2pk = Objects.requireNonNull((ReferenceKey) o2.getIndexKey().discriminator()).primaryKey();
-		return Integer.compare(o1pk, o2pk);
-	};
 
 	/**
 	 * Method locates all {@link EntityIndex} from the resolved list of {@link TargetIndexes} which were identified
@@ -168,9 +166,9 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 	 * The created sorter effectively handles nested contexts and applies the specified sort order
 	 * for the referenced entity type.
 	 *
-	 * @param orderByVisitor The visitor containing the order-by constraints, locale, query context, and processing scope.
+	 * @param orderByVisitor  The visitor containing the order-by constraints, locale, query context, and processing scope.
 	 * @param referenceSchema The schema contract defining the referenced entity type and relationships to be used for sorting.
-	 * @param ordering An array of {@link OrderConstraint} specifying the constraints to determine the sort order.
+	 * @param ordering        An array of {@link OrderConstraint} specifying the constraints to determine the sort order.
 	 * @return An instance of {@link NestedContextSorter} configured with the given parameters.
 	 */
 	@Nonnull
@@ -197,11 +195,11 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 	 * the traversal mode, order constraints, and hierarchical sorting logic. It determines the sorting mechanism
 	 * based on the provided order constraints and traverses relevant scopes to aggregate the results.
 	 *
-	 * @param orderByVisitor The visitor handling the query context, locale, and processing scope for sorting and traversal.
-	 * @param referenceSchema The schema contract defining the entity references and relationships for sorting.
+	 * @param orderByVisitor           The visitor handling the query context, locale, and processing scope for sorting and traversal.
+	 * @param referenceSchema          The schema contract defining the entity references and relationships for sorting.
 	 * @param traverseByEntityProperty An array of {@link OrderConstraint}, specifying the constraints for traversing and sorting.
-	 * @param traversalMode The traversal mode dictating how the hierarchy nodes are processed.
-	 * @param referenceIndexIds A formula providing the set of indices to be traversed and sorted.
+	 * @param traversalMode            The traversal mode dictating how the hierarchy nodes are processed.
+	 * @param referenceIndexIds        A formula providing the set of indices to be traversed and sorted.
 	 * @return A stream of integers representing the traversed and sorted primary keys of reduced entity indices.
 	 */
 	@Nonnull
@@ -211,6 +209,43 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 		@Nonnull OrderConstraint[] traverseByEntityProperty,
 		@Nonnull TraversalMode traversalMode,
 		@Nonnull Formula referenceIndexIds
+	) {
+		final Set<Scope> allowedScopes = orderByVisitor.getProcessingScope().getScopes();
+		IntStream result = IntStream.empty();
+		for (Scope scope : Scope.values()) {
+			if (allowedScopes.contains(scope)) {
+				final Bitmap scopedResult = orderByVisitor.getGlobalEntityIndexIfExists(referenceSchema.getReferencedEntityType(), scope)
+					.map(
+						it -> it.listHierarchyNodesFromRoot(
+							traversalMode,
+							createLevelSorter(
+								orderByVisitor,
+								referenceSchema,
+								traverseByEntityProperty,
+								referenceIndexIds,
+								ids -> {
+									final Bitmap nodesWithParents = it.listNodesIncludingParents(ids.compute());
+									return nodesWithParents.isEmpty() ?
+										EmptyFormula.INSTANCE :
+										new ConstantFormula(nodesWithParents);
+								}
+							)
+						)
+					)
+					.orElse(EmptyBitmap.INSTANCE);
+				result = IntStream.concat(result, IntStream.of(scopedResult.getArray()));
+			}
+		}
+		return result;
+	}
+
+	@Nonnull
+	private static UnaryOperator<int[]> createLevelSorter(
+		@Nonnull OrderByVisitor orderByVisitor,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull OrderConstraint[] traverseByEntityProperty,
+		@Nonnull Formula referenceIndexIds,
+		@Nonnull UnaryOperator<Formula> parentIdsFormula
 	) {
 		final UnaryOperator<int[]> levelSorter;
 		if (traverseByEntityProperty.length == 1 && traverseByEntityProperty[0] instanceof EntityPrimaryKeyNatural epkn) {
@@ -222,32 +257,16 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 				if (input.length == 0) {
 					return ArrayUtils.EMPTY_INT_ARRAY;
 				} else {
-					final int[] output = new int[input.length];
-					final Formula filteringFormula = FormulaFactory.and(referenceIndexIds, new ConstantFormula(new BaseBitmap(input)));
-					final int sortedPeak = sorter.sortAndSlice(
-						filteringFormula,
-						0, input.length, output, 0
+					return sorter.sortAndSlice(
+						FormulaFactory.and(
+							parentIdsFormula.apply(referenceIndexIds),
+							new ConstantFormula(new BaseBitmap(input))
+						).compute()
 					);
-					Assert.isPremiseValid(
-						sortedPeak == filteringFormula.compute().size(),
-						"Unexpected number of sorted output: " + sortedPeak
-					);
-					return output;
 				}
 			};
 		}
-
-		final Set<Scope> allowedScopes = orderByVisitor.getProcessingScope().getScopes();
-		IntStream result = IntStream.empty();
-		for (Scope scope : Scope.values()) {
-			if (allowedScopes.contains(scope)) {
-				final Bitmap scopedResult = orderByVisitor.getGlobalEntityIndexIfExists(referenceSchema.getReferencedEntityType(), scope)
-					.map(it -> it.listHierarchyNodesFromRoot(traversalMode, levelSorter))
-					.orElse(EmptyBitmap.INSTANCE);
-				result = IntStream.concat(result, IntStream.of(scopedResult.getArray()));
-			}
-		}
-		return result;
+		return levelSorter;
 	}
 
 	/**
@@ -255,10 +274,10 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 	 * This method evaluates the provided order constraints and applies the appropriate sorting mechanism to
 	 * produce the desired order of primary keys.
 	 *
-	 * @param orderByVisitor The visitor used to handle the order-by constraints, query context, and processing scope.
-	 * @param referenceSchema The schema contract defining the referenced entity properties and relationships for sorting.
+	 * @param orderByVisitor            The visitor used to handle the order-by constraints, query context, and processing scope.
+	 * @param referenceSchema           The schema contract defining the referenced entity properties and relationships for sorting.
 	 * @param pickFirstByEntityProperty An array of {@link OrderConstraint} that specifies the constraints for sorting by entity properties.
-	 * @param referenceIndexIds A formula that provides the set of reference indices to be sorted.
+	 * @param referenceIndexIds         A formula that provides the set of reference indices to be sorted.
 	 * @return A stream of integers representing the sorted primary keys of the reduced index entities.
 	 */
 	@Nonnull
@@ -275,12 +294,35 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 			);
 		} else {
 			final NestedContextSorter sorter = createNestedContextSorter(orderByVisitor, referenceSchema, pickFirstByEntityProperty);
+			return IntStream.of(sorter.sortAndSlice(referenceIndexIds));
+		}
+	}
 
-			final int referenceIndexCount = referenceIndexIds.compute().size();
-			final int[] result = new int[referenceIndexCount];
-			final int sortedPeak = sorter.sortAndSlice(referenceIndexIds, 0, referenceIndexCount, result, 0);
-			Assert.isPremiseValid(sortedPeak == referenceIndexCount, "Unexpected number of sorted indexes: " + sortedPeak);
-			return IntStream.of(result);
+	/**
+	 * Traverses the child constraints within the provided {@link ReferenceProperty}
+	 * and applies the specified {@link OrderByVisitor} to handle the ordering constraints.
+	 * This method handles specific constraints such as {@link EntityProperty} with
+	 * {@link EntityPrimaryKeyNatural}, skipping unsupported or already processed types.
+	 *
+	 * @param referenceProperty The {@link ReferenceProperty} containing the order constraints to be traversed.
+	 * @param orderByVisitor    The {@link OrderByVisitor} responsible for handling and applying the ordering logic
+	 *                          during the traversal of constraints.
+	 */
+	private static void traverseChildConstraints(@Nonnull ReferenceProperty referenceProperty, @Nonnull OrderByVisitor orderByVisitor) {
+		for (OrderConstraint innerConstraint : referenceProperty.getOrderConstraints()) {
+			// explicit support for `entityProperty(entityPrimaryKeyNatural())` - other variants
+			// of `entityProperty` doesn't make sense in this context
+			if (innerConstraint instanceof EntityProperty entityProperty) {
+				final OrderConstraint[] childrenConstraints = entityProperty.getChildren();
+				if (childrenConstraints.length == 1 && childrenConstraints[0] instanceof EntityPrimaryKeyNatural primaryKeyNatural) {
+					primaryKeyNatural.accept(orderByVisitor);
+					continue;
+				}
+			} else if (innerConstraint instanceof TraverseByEntityProperty || innerConstraint instanceof PickFirstByEntityProperty) {
+				// skip this constraint as it is already handled by this translator
+				continue;
+			}
+			innerConstraint.accept(orderByVisitor);
 		}
 	}
 
@@ -313,13 +355,19 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 			reducedEntityIndexSet;
 
 		if (!referenceIndexes.isEmpty()) {
-			final IntObjectMap<ReducedEntityIndex> reducedIndexesMap = new IntObjectHashMap<>(referenceIndexes.size());
+			final IntObjectMap<Stream<ReducedEntityIndex>> reducedIndexesMap = new IntObjectHashMap<>(referenceIndexes.size());
 			final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
 			for (ReducedEntityIndex referenceIndex : referenceIndexes) {
 				final ReferenceKey discriminator = (ReferenceKey) Objects.requireNonNull(referenceIndex.getIndexKey().discriminator());
 				final int referencedPk = discriminator.primaryKey();
 				writer.add(referencedPk);
-				reducedIndexesMap.put(referencedPk, referenceIndex);
+				final Stream<ReducedEntityIndex> existingValue = reducedIndexesMap.get(referencedPk);
+				if (existingValue == null) {
+					reducedIndexesMap.put(referencedPk, Stream.of(referenceIndex));
+				} else {
+					// there should be at most 2 such indexes
+					reducedIndexesMap.put(referencedPk, Stream.concat(existingValue, Stream.of(referenceIndex)));
+				}
 			}
 			final Formula referenceIndexIds = new ConstantFormula(new BaseBitmap(writer.get()));
 
@@ -347,36 +395,57 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 			final ReducedEntityIndex[] sortedReducedIndexes = sortedReferencePks
 				.mapToObj(reducedIndexesMap::get)
 				.filter(Objects::nonNull)
+				.flatMap(Function.identity())
 				.toArray(ReducedEntityIndex[]::new);
 
-			orderByVisitor.executeInContext(
-				sortedReducedIndexes,
-				referenceSchema,
-				null,
-				processingScope.withReferenceSchemaAccessor(referenceName),
-				new MergeModeDefinition(mergeMode, orderingSpecificationRef.isEmpty()),
-				() -> {
-					for (OrderConstraint innerConstraint : referenceProperty.getOrderConstraints()) {
-						// explicit support for `entityProperty(entityPrimaryKeyNatural())` - other variants
-						// of `entityProperty` doesn't make sense in this context
-						if (innerConstraint instanceof EntityProperty entityProperty) {
-							final OrderConstraint[] childrenConstraints = entityProperty.getChildren();
-							if (childrenConstraints.length == 1 && childrenConstraints[0] instanceof EntityPrimaryKeyNatural primaryKeyNatural) {
-								primaryKeyNatural.accept(orderByVisitor);
-								continue;
-							}
-						} else if (innerConstraint instanceof TraverseByEntityProperty || innerConstraint instanceof PickFirstByEntityProperty) {
-							// skip this constraint as it is already handled by this translator
-							continue;
-						}
-						innerConstraint.accept(orderByVisitor);
+			if (mergeMode == MergeMode.APPEND_ALL) {
+				int start = 0;
+				ReferenceKey referenceKey = null;
+				int index = 0;
+				final ReducedEntityIndex[][] atomicBlocks = new ReducedEntityIndex[reducedIndexesMap.size()][];
+				for (int i = 0; i < sortedReducedIndexes.length; i++) {
+					final ReducedEntityIndex sortedReducedIndex = sortedReducedIndexes[i];
+					final ReferenceKey srpReferenceKey = sortedReducedIndex.getReferenceKey();
+					if (referenceKey != null && !referenceKey.equals(srpReferenceKey)) {
+						atomicBlocks[index++] = Arrays.copyOfRange(sortedReducedIndexes, start, i);
+						start = i;
 					}
-					return null;
+					referenceKey = srpReferenceKey;
 				}
-			);
+				atomicBlocks[index] = Arrays.copyOfRange(sortedReducedIndexes, start, sortedReducedIndexes.length);
+				Assert.isPremiseValid(index == atomicBlocks.length - 1, "Unexpected number of atomic blocks: " + index);
 
+				final List<Sorter> sorters = orderByVisitor.executeInContext(
+					sortedReducedIndexes,
+					referenceSchema,
+					null,
+					processingScope.withReferenceSchemaAccessor(referenceName),
+					new MergeModeDefinition(mergeMode, orderingSpecificationRef.isEmpty()),
+					() -> orderByVisitor.collectIsolatedSorters(
+						() -> traverseChildConstraints(referenceProperty, orderByVisitor)
+					)
+				);
+
+				return Stream.of(
+					new SequentialSorter(atomicBlocks, sorters)
+				);
+			} else {
+				orderByVisitor.executeInContext(
+					sortedReducedIndexes,
+					referenceSchema,
+					null,
+					processingScope.withReferenceSchemaAccessor(referenceName),
+					new MergeModeDefinition(mergeMode, orderingSpecificationRef.isEmpty()),
+					() -> {
+						traverseChildConstraints(referenceProperty, orderByVisitor);
+						return null;
+					}
+				);
+				return Stream.empty();
+			}
+		} else {
+			return Stream.empty();
 		}
-		return Stream.empty();
 	}
 
 }

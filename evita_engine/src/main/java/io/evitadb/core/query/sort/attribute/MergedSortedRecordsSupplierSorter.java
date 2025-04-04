@@ -25,16 +25,16 @@ package io.evitadb.core.query.sort.attribute;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
+import io.evitadb.api.requestResponse.chunk.OffsetAndLimit;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.core.query.QueryExecutionContext;
-import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.sort.ConditionalSorter;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.core.query.sort.Sorter;
-import io.evitadb.core.query.sort.generic.AbstractRecordsSorter;
+import io.evitadb.index.attribute.ReferenceSortedRecordsProvider;
+import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import org.roaringbitmap.BatchIterator;
 import org.roaringbitmap.RoaringBatchIterator;
 import org.roaringbitmap.RoaringBitmap;
@@ -42,9 +42,11 @@ import org.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.Serial;
-import java.io.Serializable;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.function.IntConsumer;
+
+import static java.util.Optional.ofNullable;
 
 /**
  * Implementation of the {@link SortedRecordsProvider} that merges multiple instances into a one discarding
@@ -52,16 +54,54 @@ import java.util.function.IntConsumer;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public final class MergedSortedRecordsSupplier extends AbstractRecordsSorter implements ConditionalSorter, Serializable, MergedSortedRecordsSupplierContract {
-	@Serial private static final long serialVersionUID = 6709519064291586499L;
+public final class MergedSortedRecordsSupplierSorter implements Sorter, MergedSortedRecordsSupplierContract {
 	/**
 	 * Contains the {@link SortedRecordsProvider} implementation with merged pre-sorted records.
 	 */
-	@Getter private final SortedRecordsProvider[] sortedRecordsProviders;
+	private final SortedRecordsProvider[] sortedRecordsProviders;
 	/**
-	 * This sorter instance will be used for sorting entities, that cannot be sorted by this sorter.
+	 * Contains the index of the {@link ReferenceKey} in the {@link #sortedRecordsProviders} that is used for sorting.
 	 */
-	private final Sorter unknownRecordIdsSorter;
+	private final Map<ReferenceKey, OffsetAndLimit> referenceKeyIndexes;
+
+	/**
+	 * Creates a mapping of {@link ReferenceKey} objects to their corresponding {@link OffsetAndLimit} values,
+	 * indicating the positions and pagination limits of records in each sorted records provider.
+	 *
+	 * The method iterates through the provided sorted records providers and generates the mapping by identifying changes
+	 * in the {@link ReferenceKey} and calculating the appropriate offsets and limits for each key.
+	 *
+	 * @param sortedRecordsProviders an array of {@link SortedRecordsProvider} objects,
+	 *                               which serve as sources of pre-sorted records to process; must not be null.
+	 * @return a map of {@link ReferenceKey} to {@link OffsetAndLimit} providing positional and pagination data
+	 * for each reference key. Returns null if the input array does not contain instances of {@link ReferenceSortedRecordsProvider}.
+	 */
+	@Nullable
+	public static Map<ReferenceKey, OffsetAndLimit> createSortedRecordsOffsets(@Nonnull SortedRecordsProvider[] sortedRecordsProviders) {
+		final int srpCount = sortedRecordsProviders.length;
+		Map<ReferenceKey, OffsetAndLimit> referenceKeyIndexes = null;
+		ReferenceKey referenceKey = null;
+		OffsetAndLimit oal = null;
+		for (int i = 0; i < srpCount; i++) {
+			final SortedRecordsProvider sortedRecordsProvider = sortedRecordsProviders[i];
+			if (sortedRecordsProvider instanceof ReferenceSortedRecordsProvider rssp) {
+				if (!rssp.getReferenceKey().equals(referenceKey)) {
+					if (oal != null) {
+						referenceKeyIndexes.put(referenceKey, new OffsetAndLimit(oal.offset(), i, srpCount));
+					}
+					referenceKey = rssp.getReferenceKey();
+					oal = new OffsetAndLimit(i, 0, srpCount);
+					if (referenceKeyIndexes == null) {
+						referenceKeyIndexes = new HashMap<>(srpCount);
+					}
+				}
+			}
+		}
+		if (oal != null) {
+			referenceKeyIndexes.put(referenceKey, new OffsetAndLimit(oal.offset(), srpCount, srpCount));
+		}
+		return referenceKeyIndexes;
+	}
 
 	/**
 	 * Maps positions to the record ids in presorted set respecting start and end index.
@@ -70,18 +110,17 @@ public final class MergedSortedRecordsSupplier extends AbstractRecordsSorter imp
 	 * records to the provided result array. It also accounts for skipped records using an
 	 * optional consumer.
 	 *
-	 * @param sortedRecordsProvider the provider that supplies access to sorted records
-	 * @param positions a bitmap indicating the positions of the records to retrieve
+	 * @param sortedRecordsProvider  the provider that supplies access to sorted records
+	 * @param positions              a bitmap indicating the positions of the records to retrieve
 	 * @param alreadySortedRecordIds a set of record IDs that have already been processed
-	 * @param skip the number of records to skip from the beginning of the positions bitmap
-	 * @param length the number of records to retrieve
-	 * @param result an array where the fetched record IDs will be stored
-	 * @param peak the index at which to start populating the result array
-	 * @param buffer an auxiliary buffer used to process record positions
+	 * @param skip                   the number of records to skip from the beginning of the positions bitmap
+	 * @param length                 the number of records to retrieve
+	 * @param result                 an array where the fetched record IDs will be stored
+	 * @param peak                   the index at which to start populating the result array
+	 * @param buffer                 an auxiliary buffer used to process record positions
 	 * @param skippedRecordsConsumer an optional consumer for processing skipped records
-	 *
 	 * @return a PartialSortResult object containing the number of skipped records,
-	 *         the number of records read, and the updated peak index in the result array
+	 * the number of records read, and the updated peak index in the result array
 	 */
 	@Nonnull
 	private static PartialSortResult fetchSlice(
@@ -108,22 +147,24 @@ public final class MergedSortedRecordsSupplier extends AbstractRecordsSorter imp
 			}
 
 			// skip previous pages quickly
+			final int skippedInBuffer;
 			if (toSkip > 0) {
+				skippedInBuffer = Math.max(0, Math.min(toSkip, bufferPeak));
 				if (skippedRecordsConsumer != null) {
 					// skip records in buffer, cap really read records in the buffer
-					final int skippedInBuffer = Math.max(0, Math.min(toSkip, bufferPeak));
 					for (int i = 0; i < skippedInBuffer; i++) {
 						skippedRecordsConsumer.accept(preSortedRecordIds[buffer[i]]);
 					}
 				}
 				toSkip -= bufferPeak;
+			} else {
+				skippedInBuffer = 0;
 			}
 
 			// now we are on the page
 			if (toSkip <= 0) {
 				// copy records for page
-				final int startIndex = toSkip == 0 ? 0 : bufferPeak + toSkip;
-				for (int i = startIndex; toRead > 0 && i < bufferPeak; i++) {
+				for (int i = skippedInBuffer; toRead > 0 && i < bufferPeak; i++) {
 					final int preSortedRecordId = preSortedRecordIds[buffer[i]];
 					if (!alreadySortedRecordIds.contains(preSortedRecordId)) {
 						result[peak++] = preSortedRecordId;
@@ -206,130 +247,92 @@ public final class MergedSortedRecordsSupplier extends AbstractRecordsSorter imp
 		}
 	}
 
-	public MergedSortedRecordsSupplier(
-		@Nonnull SortedRecordsProvider[] sortedRecordsProviders,
-		@Nullable Sorter unknownRecordIdsSorter
-	) {
+	public MergedSortedRecordsSupplierSorter(@Nonnull SortedRecordsProvider[] sortedRecordsProviders) {
 		this.sortedRecordsProviders = sortedRecordsProviders;
-		this.unknownRecordIdsSorter = unknownRecordIdsSorter;
+		this.referenceKeyIndexes = createSortedRecordsOffsets(sortedRecordsProviders);
 	}
 
 	@Nonnull
 	@Override
-	public Sorter cloneInstance() {
-		return new MergedSortedRecordsSupplier(
-			sortedRecordsProviders, null
-		);
-	}
-
-	@Nonnull
-	@Override
-	public Sorter andThen(Sorter sorterForUnknownRecords) {
-		return new MergedSortedRecordsSupplier(
-			sortedRecordsProviders, sorterForUnknownRecords
-		);
-	}
-
-	@Nullable
-	@Override
-	public Sorter getNextSorter() {
-		return unknownRecordIdsSorter;
-	}
-
-	@Override
-	public int sortAndSlice(
-		@Nonnull QueryExecutionContext queryContext,
-		@Nonnull Formula input,
-		int startIndex,
-		int endIndex,
+	public SortingContext sortAndSlice(
+		@Nonnull SortingContext sortingContext,
 		@Nonnull int[] result,
-		int peak,
 		@Nullable IntConsumer skippedRecordsConsumer
 	) {
-		final Bitmap selectedRecordIds = input.compute();
-		if (selectedRecordIds.size() < startIndex) {
-			throw new IndexOutOfBoundsException("Index: " + startIndex + ", Size: " + selectedRecordIds.size());
-		}
-		if (selectedRecordIds.isEmpty()) {
-			return 0;
-		} else {
+		final QueryExecutionContext queryContext = sortingContext.queryContext();
+		final OffsetAndLimit offsetAndLimit = ofNullable(sortingContext.referenceKey())
+			.map(this::getOffsetAndLimit)
+			.orElse(new OffsetAndLimit(0, this.sortedRecordsProviders.length, this.sortedRecordsProviders.length));
+
+		if (queryContext.getPrefetchedEntities() == null && offsetAndLimit.offset() >= 0) {
 			final int[] buffer = queryContext.borrowBuffer();
 			try {
-				final SkippingRecordConsumer delegateConsumer = new SkippingRecordConsumer(skippedRecordsConsumer);
-				final SortResult sortResult = collectPartialResults(
-					queryContext, selectedRecordIds, startIndex, endIndex, result, peak, buffer, delegateConsumer
-				);
-				return returnResultAppendingUnknown(
-					queryContext, sortResult.notSortedRecords(),
-					this.unknownRecordIdsSorter,
-					Math.max(0, startIndex - delegateConsumer.getCounter()),
-					Math.max(0, endIndex - delegateConsumer.getCounter()),
-					result, sortResult.peak(), buffer
+				final int startIndex = sortingContext.recomputedStartIndex();
+				final int endIndex = sortingContext.recomputedEndIndex();
+				final int peak = sortingContext.peak();
+				final Bitmap selectedRecordIds = sortingContext.nonSortedKeys();
+				final int toRead = endIndex - startIndex;
+				int alreadyRead = 0;
+				int skipped = 0;
+
+				RoaringBitmap recordsToSort = RoaringBitmapBackedBitmap.getRoaringBitmap(selectedRecordIds);
+				final IntSet alreadySortedRecordIds = new IntHashSet(selectedRecordIds.size());
+				int recordsToSortCount = selectedRecordIds.size();
+				for (int i = offsetAndLimit.offset(); i < offsetAndLimit.limit(); i++) {
+					final SortedRecordsProvider sortedRecordsProvider = this.sortedRecordsProviders[i];
+					final MaskResult maskResult = getMask(
+						queryContext, sortedRecordsProvider, recordsToSort, recordsToSortCount
+					);
+					final PartialSortResult currentResult = fetchSlice(
+						sortedRecordsProvider, maskResult.mask(), alreadySortedRecordIds,
+						startIndex - skipped,
+						toRead - alreadyRead,
+						result,
+						peak + alreadyRead,
+						buffer, skippedRecordsConsumer
+					);
+					skipped += currentResult.skipped();
+					alreadyRead += currentResult.read();
+					recordsToSort = maskResult.notFoundRecords();
+					recordsToSortCount = maskResult.notFoundRecordsCount();
+					if (alreadyRead >= toRead || recordsToSortCount == 0) {
+						break;
+					}
+				}
+
+				return sortingContext.createResultContext(
+					recordsToSort.isEmpty() ?
+						EmptyBitmap.INSTANCE : new BaseBitmap(recordsToSort),
+					alreadyRead,
+					skipped
 				);
 			} finally {
 				queryContext.returnBuffer(buffer);
 			}
+		} else {
+			return sortingContext;
 		}
-	}
-
-	@Override
-	public boolean shouldApply(@Nonnull QueryExecutionContext queryContext) {
-		return queryContext.getPrefetchedEntities() == null;
 	}
 
 	/**
-	 * Collects partially sorted results from multiple sorted record providers based on the specified
-	 * range and stores them in the provided result array. The method processes sorted records,
-	 * handles remaining unsorted records, and calculates the peak value of the sorted results.
+	 * Retrieves the {@link OffsetAndLimit} settings associated with the specified {@link ReferenceKey}.
+	 * If no mapping exists for the provided key, a default {@link OffsetAndLimit} is returned with an offset of -1,
+	 * a limit of 0, and the total record count based on the length of the {@code sortedRecordsProviders}.
 	 *
-	 * @param queryContext the execution context for the query being processed
-	 * @param selectedRecordIds a bitmap containing the IDs of the records to be sorted
-	 * @param startIndex the starting index in the sorted result range
-	 * @param endIndex the ending index in the sorted result range
-	 * @param result an array to store the sorted result
-	 * @param peak the current peak index in the result array
-	 * @param buffer an auxiliary buffer used for processing
-	 * @param skippedRecordsConsumer a consumer for handling skipped record counts, or null if not needed
-	 *
-	 * @return a SortResult containing information about the remaining unsorted records and the final peak index
+	 * @param referenceKey the key used to lookup the associated {@link OffsetAndLimit};
+	 *                     must not be null.
+	 * @return the {@link OffsetAndLimit} associated with the provided {@link ReferenceKey},
+	 * or a default {@link OffsetAndLimit} if no mapping exists.
 	 */
 	@Nonnull
-	private SortResult collectPartialResults(
-		@Nonnull QueryExecutionContext queryContext,
-		@Nonnull Bitmap selectedRecordIds,
-		int startIndex,
-		int endIndex,
-		@Nonnull int[] result,
-		int peak,
-		@Nonnull int[] buffer,
-		@Nullable IntConsumer skippedRecordsConsumer
-	) {
-		final int toRead = endIndex - startIndex;
-		int alreadyRead = 0;
-		int skip = startIndex;
-
-		RoaringBitmap recordsToSort = RoaringBitmapBackedBitmap.getRoaringBitmap(selectedRecordIds);
-		final IntSet alreadySortedRecordIds = new IntHashSet(selectedRecordIds.size());
-		int recordsToSortCount = selectedRecordIds.size();
-		for (final SortedRecordsProvider sortedRecordsProvider : this.sortedRecordsProviders) {
-			final MaskResult maskResult = getMask(
-				queryContext, sortedRecordsProvider, recordsToSort, recordsToSortCount
-			);
-			final PartialSortResult currentResult = fetchSlice(
-				sortedRecordsProvider, maskResult.mask(), alreadySortedRecordIds,
-				skip, toRead - alreadyRead,
-				result, peak, buffer, skippedRecordsConsumer
-			);
-			skip = skip - currentResult.skipped();
-			alreadyRead += currentResult.read();
-			recordsToSort = maskResult.notFoundRecords();
-			recordsToSortCount = maskResult.notFoundRecordsCount();
-			peak = currentResult.peak();
-			if (alreadyRead >= toRead || recordsToSortCount == 0) {
-				break;
+	private OffsetAndLimit getOffsetAndLimit(@Nonnull ReferenceKey referenceKey) {
+		if (this.referenceKeyIndexes != null) {
+			final OffsetAndLimit indexes = this.referenceKeyIndexes.getOrDefault(referenceKey, null);
+			if (indexes != null) {
+				return indexes;
 			}
 		}
-		return new SortResult(recordsToSort, peak);
+		return new OffsetAndLimit(-1, 0, this.sortedRecordsProviders.length);
 	}
 
 	/**
@@ -360,36 +363,4 @@ public final class MergedSortedRecordsSupplier extends AbstractRecordsSorter imp
 	) {
 	}
 
-	/**
-	 * This DTO allows to information collected from
-	 * {@link #collectPartialResults(QueryExecutionContext, Bitmap, int, int, int[], int, int[], IntConsumer) collectPartialResults}
-	 * method.
-	 *
-	 * @param notSortedRecords roaring bitmap with all records that hasn't been sorted yet
-	 * @param peak             current peak index in the result array
-	 */
-	private record SortResult(
-		@Nonnull RoaringBitmap notSortedRecords,
-		int peak
-	) {
-	}
-
-	/**
-	 * The SkippingRecordConsumer is an implementation of the {@link IntConsumer} interface that wraps an optional delegate
-	 * {@code IntConsumer} and tracks the count of records processed. This class is intended to be used for scenarios
-	 * where certain records need to be tracked, possibly skipped, or processed with optional side effects.
-	 */
-	@RequiredArgsConstructor
-	private static class SkippingRecordConsumer implements IntConsumer {
-		@Nullable private final IntConsumer delegate;
-		@Getter private int counter = 0;
-
-		@Override
-		public void accept(int value) {
-			if (this.delegate != null) {
-				this.delegate.accept(value);
-			}
-			this.counter++;
-		}
-	}
 }

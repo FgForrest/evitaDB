@@ -38,4 +38,5 @@ module evita.test.support {
 	requires org.bouncycastle.pkix;
 	requires org.bouncycastle.provider;
 	requires com.linecorp.armeria;
+	requires roaringbitmap;
 }

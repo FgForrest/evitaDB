@@ -66,6 +66,7 @@ import io.evitadb.core.query.sort.price.FilteredPricesSorter.NonSortedRecordsPro
 import io.evitadb.core.query.sort.price.FilteredPricesSorter.PriceRecordsLookupResultAware;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
 import io.evitadb.dataType.array.CompositeObjectArray;
+import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.price.model.priceRecord.CumulatedVirtualPriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
@@ -84,6 +85,7 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.Currency;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.ToIntFunction;
@@ -267,7 +269,7 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 				}
 				this.nonSortedEntities.add(o1);
 				this.nonSortedEntities.add(o2);
-				return Integer.compare(o1.getPrimaryKey(), o2.getPrimaryKey());
+				return Integer.compare(o1.getPrimaryKeyOrThrowException(), o2.getPrimaryKeyOrThrowException());
 			} else if (NEGATIVE_DISCOUNT == priceDiscount1) {
 				if (this.nonSortedEntities == null) {
 					this.nonSortedEntities = new CompositeObjectArray<>(EntityContract.class);
@@ -298,7 +300,7 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 		 */
 		@Nonnull
 		private BigDecimal getPriceDiscount(@Nonnull EntityContract entity) {
-			final BigDecimal memoizedResult = memoizedDiscounts.get(entity.getPrimaryKey());
+			final BigDecimal memoizedResult = memoizedDiscounts.get(entity.getPrimaryKeyOrThrowException());
 			if (memoizedResult != null) {
 				return memoizedResult;
 			}
@@ -321,7 +323,7 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 						.orElse(NEGATIVE_DISCOUNT);
 				})
 				.orElse(NEGATIVE_DISCOUNT);
-			memoizedDiscounts.put(entity.getPrimaryKey(), calculatedResult);
+			this.memoizedDiscounts.put(entity.getPrimaryKeyOrThrowException(), calculatedResult);
 			return calculatedResult;
 		}
 	}
@@ -337,8 +339,7 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 		implements Comparator<PriceRecordContract>,
 		PriceRecordsLookupResultAware,
 		NonSortedRecordsProvider,
-		Serializable
-	{
+		Serializable {
 		@Serial private static final long serialVersionUID = 3931269515511851166L;
 		/**
 		 * Constant representing that the discount cannot be calculated.
@@ -379,7 +380,7 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 		/**
 		 * Contains array of entity primary keys for which no reference {@link PriceRecord} was found.
 		 */
-		private int[] nonSortedEntities;
+		@Nullable private Bitmap nonSortedEntities;
 
 		public DiscountIndexComparator(
 			@Nonnull IntComparator priceComparator,
@@ -404,21 +405,23 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 			final Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors = this.referencePriceFormulas
 				.stream()
 				.map(
-					it -> FormulaCloner.clone(
-						it,
-						formula -> {
-							if (formula instanceof SumPriceTerminationFormula sptf) {
-								return sptf.withIndividualPricePredicate(
-									new InnerRecordInSellingPricesMatchingPredicate(this.sellingPriceRecords, this.priceExtractor)
-								);
-							} else if (formula instanceof LowestPriceTerminationFormula fvptf) {
-								return fvptf.withIndividualPricePredicate(
-									new InnerRecordInSellingPricesMatchingPredicate(this.sellingPriceRecords, this.priceExtractor)
-								);
-							} else {
-								return formula;
+					it -> Objects.requireNonNull(
+						FormulaCloner.clone(
+							it,
+							formula -> {
+								if (formula instanceof SumPriceTerminationFormula sptf) {
+									return sptf.withIndividualPricePredicate(
+										new InnerRecordInSellingPricesMatchingPredicate(this.sellingPriceRecords, this.priceExtractor)
+									);
+								} else if (formula instanceof LowestPriceTerminationFormula fvptf) {
+									return fvptf.withIndividualPricePredicate(
+										new InnerRecordInSellingPricesMatchingPredicate(this.sellingPriceRecords, this.priceExtractor)
+									);
+								} else {
+									return formula;
+								}
 							}
-						}
+						)
 					)
 				)
 				.flatMap(it -> FormulaFinder.find(it, FilteredPriceRecordAccessor.class, LookUp.SHALLOW).stream())
@@ -451,7 +454,7 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 
 		@Nullable
 		@Override
-		public int[] getNonSortedRecords() {
+		public Bitmap getNonSortedRecords() {
 			return this.nonSortedEntities;
 		}
 
@@ -544,8 +547,8 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 						// progress until we find the record with matching inner record id or reach the end
 						while (
 							priceRecord.innerRecordId() < examinedRecord.innerRecordId() &&
-							this.lastIndex + 1 < this.sellingPriceRecordsLength &&
-							this.sellingPriceRecords[this.lastIndex + 1].entityPrimaryKey() < examinedRecord.entityPrimaryKey()
+								this.lastIndex + 1 < this.sellingPriceRecordsLength &&
+								this.sellingPriceRecords[this.lastIndex + 1].entityPrimaryKey() < examinedRecord.entityPrimaryKey()
 						) {
 							priceRecord = this.sellingPriceRecords[++this.lastIndex];
 						}
@@ -560,7 +563,8 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 			@Override
 			public int getMissingComponentsPrice(@Nonnull IntCollection includedInnerRecordIds) {
 				// use the last index to locate the selling price record for comparison
-				PriceRecordContract priceRecord = this.sellingPriceRecords[this.lastIndex];
+				final PriceRecordContract priceRecord = this.lastIndex < this.sellingPriceRecords.length ?
+					this.sellingPriceRecords[this.lastIndex] : null;
 				if (priceRecord instanceof CumulatedVirtualPriceRecord cumulatedPriceRecord) {
 					final IntObjectMap<PriceRecordContract> sellingPrices = cumulatedPriceRecord.innerRecordPrices();
 					int omittedPrice = 0;

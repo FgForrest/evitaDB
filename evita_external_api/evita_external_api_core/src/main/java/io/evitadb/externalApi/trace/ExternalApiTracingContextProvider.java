@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.trace;
 
 import io.evitadb.api.observability.trace.TracingContext;
+import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 
@@ -42,9 +43,9 @@ public class ExternalApiTracingContextProvider {
 	 * Fetches the {@link TracingContext} implementation.
 	 */
 	@Nonnull
-	public static ExternalApiTracingContext<Object> getContext() {
+	public static <T> ExternalApiTracingContext<T> getContext(@Nonnull HeaderOptions headerOptions) {
 		//noinspection unchecked
-		return (ExternalApiTracingContext<Object>) loadContext();
+		return (ExternalApiTracingContext<T>) loadContext(headerOptions);
 	}
 
 	/**
@@ -57,11 +58,12 @@ public class ExternalApiTracingContextProvider {
 	 * @throws ExternalApiInternalError if multiple implementations of ExternalApiTracingContext are found
 	 */
 	@Nonnull
-	private static ExternalApiTracingContext<?> loadContext() {
+	private static ExternalApiTracingContext<?> loadContext(@Nonnull HeaderOptions headerOptions) {
 		//noinspection rawtypes
 		final List<ExternalApiTracingContext> collectedContexts = ServiceLoader.load(ExternalApiTracingContext.class)
 			.stream()
 			.map(Provider::get)
+			.peek(it -> it.configureHeaders(headerOptions))
 			.toList();
 		if (collectedContexts.size() > 1) {
 			throw new ExternalApiInternalError("There are multiple registered implementations of ExternalApiTracingContext.");

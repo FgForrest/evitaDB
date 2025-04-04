@@ -106,7 +106,7 @@ public class ChainIndexChanges implements Serializable {
 				.orElseGet(() -> new BaseBitmap(unorderedLookup.getRecordIds()));
 			this.recordIdToPositions = ofNullable(this.chainIndex.getReferenceKey())
 				.map(
-					referenceKey -> (SortedRecordsSupplier) new ReferenceSortedRecordsSupplier(
+					referenceKey -> (SortedRecordsSupplier) new ReferenceSortedRecordsProvider(
 						this.chainIndex.elementStates.getId(),
 						unorderedLookup.getArray(),
 						unorderedLookup.getPositions(),
@@ -141,7 +141,7 @@ public class ChainIndexChanges implements Serializable {
 				.orElseGet(() -> new BaseBitmap(unorderedLookup.getRecordIds()));
 			this.recordIdToPositionsReversed = ofNullable(this.chainIndex.getReferenceKey())
 				.map(
-					referenceKey -> (SortedRecordsSupplier) new ReferenceSortedRecordsSupplier(
+					referenceKey -> (SortedRecordsSupplier) new ReferenceSortedRecordsProvider(
 						this.chainIndex.getId(),
 						ArrayUtils.reverse(unorderedLookup.getArray()),
 						invert(unorderedLookup.getPositions()),

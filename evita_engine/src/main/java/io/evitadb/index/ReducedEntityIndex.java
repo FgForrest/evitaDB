@@ -66,6 +66,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.Collection;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -260,6 +261,18 @@ public class ReducedEntityIndex extends EntityIndex
 			originalAttributeIndexes, originalPriceIndexes, originalFacetIndexes
 		);
 		this.priceIndex = priceIndex;
+	}
+
+	/**
+	 * Retrieves the reference key associated with the current entity index.
+	 * The reference key is derived from the discriminator of the index key.
+	 *
+	 * @return the non-null {@link ReferenceKey} uniquely identifying a reference within the entity index.
+	 * @throws NullPointerException if the resolved reference key is null.
+	 */
+	@Nonnull
+	public ReferenceKey getReferenceKey() {
+		return Objects.requireNonNull((ReferenceKey) this.indexKey.discriminator());
 	}
 
 	@Override

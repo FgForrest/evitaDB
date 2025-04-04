@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ import io.evitadb.api.EvitaContract;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.graphql.api.GraphQLBuilder;
 import io.evitadb.externalApi.graphql.api.tracing.OperationTracingInstrumentation;
-import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
+import io.evitadb.externalApi.graphql.configuration.GraphQLOptions;
 import io.evitadb.externalApi.graphql.exception.EvitaDataFetcherExceptionHandler;
 import lombok.RequiredArgsConstructor;
 
@@ -50,7 +50,7 @@ public class SystemGraphQLBuilder implements GraphQLBuilder {
     private final GraphQLSchema graphQLSchema;
 
     @Override
-    public GraphQL build(@Nonnull GraphQLConfig config) {
+    public GraphQL build(@Nonnull GraphQLOptions config) {
         final Instrumentation instrumentation = new OperationTracingInstrumentation();
 
         final EvitaDataFetcherExceptionHandler dataFetcherExceptionHandler = new EvitaDataFetcherExceptionHandler();

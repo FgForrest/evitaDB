@@ -55,7 +55,6 @@ import io.evitadb.core.query.extraResult.translator.facet.producer.FilteringForm
 import io.evitadb.core.query.extraResult.translator.reference.EntityFetchTranslator;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.sort.NestedContextSorter;
-import io.evitadb.core.query.sort.NoSorter;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.bitmap.Bitmap;
@@ -70,6 +69,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.IntPredicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static io.evitadb.utils.Assert.isTrue;
@@ -189,13 +189,10 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 		} else if (!referenceSchema.isReferencedEntityTypeManaged()) {
 			return null;
 		}
+		final Supplier<String> descriptionSupplier = () -> "Facet summary `" + referenceSchema.getName() + "` facet ordering: " + orderBy;
 		return extraResultPlanner.getEntityCollection(referenceSchema.getReferencedEntityType())
-			.map(collection -> extraResultPlanner.createSorter(
-					orderBy, locale, collection,
-					() -> "Facet summary `" + referenceSchema.getName() + "` facet ordering: " + orderBy
-				)
-			)
-			.orElseGet(() -> new NestedContextSorter(extraResultPlanningVisitor.createExecutionContext(), NoSorter.INSTANCE));
+			.map(collection -> extraResultPlanner.createSorter(orderBy, locale, collection, descriptionSupplier))
+			.orElseGet(() -> new NestedContextSorter(extraResultPlanningVisitor.createExecutionContext(), descriptionSupplier));
 	}
 
 	/**
@@ -233,13 +230,10 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 			return null;
 		}
 
+		final Supplier<String> descriptionSupplier = () -> "Facet summary `" + referenceSchema.getName() + "` group ordering: " + orderBy;
 		return extraResultPlanner.getEntityCollection(referenceSchema.getReferencedGroupType())
-			.map(collection -> extraResultPlanner.createSorter(
-					orderBy, locale, collection,
-					() -> "Facet summary `" + referenceSchema.getName() + "` group ordering: " + orderBy
-				)
-			)
-			.orElseGet(() -> new NestedContextSorter(extraResultPlanningVisitor.createExecutionContext(), NoSorter.INSTANCE));
+			.map(collection -> extraResultPlanner.createSorter(orderBy, locale, collection, descriptionSupplier))
+			.orElseGet(() -> new NestedContextSorter(extraResultPlanningVisitor.createExecutionContext(), descriptionSupplier));
 	}
 
 	/**

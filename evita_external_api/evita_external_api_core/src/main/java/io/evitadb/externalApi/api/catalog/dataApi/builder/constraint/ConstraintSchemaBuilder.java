@@ -489,7 +489,7 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 			return List.of();
 		}
 		return buildBasicChildren(
-			buildContext, // price constraints doesn't support children, thus parent domain is used as the default
+			buildContext.switchToChildContext(buildContext.dataLocator()), // price constraints doesn't support children, thus parent domain is used as the default
 			allowedChildrenPredicate,
 			ConstraintPropertyType.PRICE
 		);

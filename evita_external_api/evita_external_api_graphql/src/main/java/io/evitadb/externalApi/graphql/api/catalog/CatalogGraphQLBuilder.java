@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ import io.evitadb.api.CatalogContract;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.graphql.api.GraphQLBuilder;
 import io.evitadb.externalApi.graphql.api.tracing.OperationTracingInstrumentation;
-import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
+import io.evitadb.externalApi.graphql.configuration.GraphQLOptions;
 import io.evitadb.externalApi.graphql.exception.EvitaDataFetcherExceptionHandler;
 import io.evitadb.externalApi.graphql.metric.event.request.RequestMetricInstrumentation;
 import io.evitadb.externalApi.graphql.traffic.SourceQueryRecordingInstrumentation;
@@ -58,7 +58,7 @@ public class CatalogGraphQLBuilder implements GraphQLBuilder {
     private final ObjectMapper objectMapper;
 
     @Override
-    public GraphQL build(@Nonnull GraphQLConfig config) {
+    public GraphQL build(@Nonnull GraphQLOptions config) {
         final Instrumentation instrumentation = new ChainedInstrumentation(
             new OperationTracingInstrumentation(),
             new RequestMetricInstrumentation(catalog.getName()),

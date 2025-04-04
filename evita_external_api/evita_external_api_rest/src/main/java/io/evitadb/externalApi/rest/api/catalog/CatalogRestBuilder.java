@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ package io.evitadb.externalApi.rest.api.catalog;
 
 import io.evitadb.api.CatalogContract;
 import io.evitadb.core.Evita;
+import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.rest.api.Rest;
 import io.evitadb.externalApi.rest.api.builder.FinalRestBuilder;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogEndpointBuilder;
@@ -32,11 +33,10 @@ import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContex
 import io.evitadb.externalApi.rest.api.catalog.dataApi.CatalogDataApiRestBuilder;
 import io.evitadb.externalApi.rest.api.catalog.schemaApi.CatalogSchemaApiRestBuilder;
 import io.evitadb.externalApi.rest.api.model.ErrorDescriptor;
-import io.evitadb.externalApi.rest.configuration.RestConfig;
+import io.evitadb.externalApi.rest.configuration.RestOptions;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 /**
  * Creates OpenAPI specification for Evita's catalog.
@@ -51,8 +51,13 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 	/**
 	 * Creates new builder.
 	 */
-	public CatalogRestBuilder(@Nullable String exposedOn, @Nonnull RestConfig restConfig, @Nonnull Evita evita, @Nonnull CatalogContract catalog) {
-		super(new CatalogRestBuildingContext(exposedOn, restConfig, evita, catalog));
+	public CatalogRestBuilder(
+		@Nonnull RestOptions restConfig,
+		@Nonnull HeaderOptions headerOptions,
+		@Nonnull Evita evita,
+		@Nonnull CatalogContract catalog
+	) {
+		super(new CatalogRestBuildingContext(restConfig, headerOptions, evita, catalog));
 		this.endpointBuilder = new CatalogEndpointBuilder();
 	}
 
@@ -61,6 +66,7 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 	 *
 	 * @return OpenAPI specification
 	 */
+	@Nonnull
 	public Rest build() {
 		buildCommonTypes();
 		buildEndpoints();

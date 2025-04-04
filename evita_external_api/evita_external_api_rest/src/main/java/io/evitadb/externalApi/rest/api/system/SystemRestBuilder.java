@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor
 import io.evitadb.externalApi.api.system.model.CatalogDescriptor;
 import io.evitadb.externalApi.api.system.model.CatalogUnionDescriptor;
 import io.evitadb.externalApi.api.system.model.CorruptedCatalogDescriptor;
+import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.rest.api.Rest;
 import io.evitadb.externalApi.rest.api.builder.FinalRestBuilder;
 import io.evitadb.externalApi.rest.api.model.ErrorDescriptor;
@@ -38,11 +39,10 @@ import io.evitadb.externalApi.rest.api.system.builder.SystemRestBuildingContext;
 import io.evitadb.externalApi.rest.api.system.model.CreateCatalogRequestDescriptor;
 import io.evitadb.externalApi.rest.api.system.model.LivenessDescriptor;
 import io.evitadb.externalApi.rest.api.system.model.UpdateCatalogRequestDescriptor;
-import io.evitadb.externalApi.rest.configuration.RestConfig;
+import io.evitadb.externalApi.rest.configuration.RestOptions;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference.typeRefTo;
 
@@ -59,9 +59,13 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 	/**
 	 * Creates new builder.
 	 */
-	public SystemRestBuilder(@Nullable String exposedOn, @Nonnull RestConfig restConfig, @Nonnull Evita evita) {
-		super(new SystemRestBuildingContext(exposedOn, restConfig, evita));
-		this.endpointBuilder = new SystemEndpointBuilder(operationPathParameterBuilderTransformer);
+	public SystemRestBuilder(
+		@Nonnull RestOptions restConfig,
+		@Nonnull HeaderOptions headerOptions,
+		@Nonnull Evita evita
+	) {
+		super(new SystemRestBuildingContext(restConfig, headerOptions, evita));
+		this.endpointBuilder = new SystemEndpointBuilder(this.operationPathParameterBuilderTransformer);
 	}
 
 	/**

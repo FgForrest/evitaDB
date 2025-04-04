@@ -27,8 +27,12 @@ package io.evitadb.index.array;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import org.junit.jupiter.api.Test;
 
+import java.util.Iterator;
+import java.util.Random;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * This test verifies {@link CompositeObjectArray} contract.
@@ -41,6 +45,98 @@ class CompositeObjectArrayTest {
 	void shouldIteratorCorrectlyBehaveWithEmptyArray() {
 		final CompositeObjectArray<Integer> array = new CompositeObjectArray<>(Integer.class);
 		assertFalse(array.iterator().hasNext());
+	}
+
+	@Test
+	void shouldReverseIteratorCorrectlyBehaveWithEmptyArray() {
+		final CompositeObjectArray<Integer> array = new CompositeObjectArray<>(Integer.class);
+		assertFalse(array.reverseIterator().hasNext());
+	}
+
+	@Test
+	void shouldReverseIteratorCorrectlyBehaveWithArrayOfSizeOne() {
+		final CompositeObjectArray<Integer> array = new CompositeObjectArray<>(Integer.class);
+		array.add(1);
+		final Iterator<Integer> it = array.reverseIterator();
+		assertTrue(it.hasNext());
+		assertEquals(1, it.next());
+		assertFalse(it.hasNext());
+	}
+
+	@Test
+	void shouldCorrectlyIterateCompositeArray() {
+		final CompositeObjectArray<Integer> array = new CompositeObjectArray<>(Integer.class);
+
+		final int limit = 2_048;
+		for (int i = 0; i < limit; i++) {
+			array.add(i);
+		}
+
+		int cnt = 0;
+		final Iterator<Integer> it = array.iterator();
+		while (it.hasNext()) {
+			Integer next = it.next();
+			assertEquals(cnt++, next);
+		}
+	}
+
+	@Test
+	void shouldCorrectlyIterateCompositeArrayFromRandomIndex() {
+		final CompositeObjectArray<Integer> array = new CompositeObjectArray<>(Integer.class);
+
+		final int limit = 2_048;
+		for (int i = 0; i < limit; i++) {
+			array.add(i);
+		}
+
+		final Random rnd = new Random();
+		for (int j = 0; j < 5; j++) {
+			int startIndex = rnd.nextInt(limit);
+			int cnt = startIndex;
+			final Iterator<Integer> it = array.iterator(startIndex);
+			while (it.hasNext()) {
+				Integer next = it.next();
+				assertEquals(cnt++, next);
+			}
+		}
+	}
+
+	@Test
+	void shouldCorrectlyIterateCompositeArrayInReverseOrder() {
+		final CompositeObjectArray<Integer> array = new CompositeObjectArray<>(Integer.class);
+
+		final int limit = 2_048;
+		for (int i = 0; i < limit; i++) {
+			array.add(i);
+		}
+
+		int cnt = 2_047;
+		final Iterator<Integer> it = array.reverseIterator();
+		while (it.hasNext()) {
+			Integer next = it.next();
+			assertEquals(cnt--, next);
+		}
+	}
+
+	@Test
+	void shouldCorrectlyIterateCompositeArrayInReverseOrderFromRandomIndex() {
+		final CompositeObjectArray<Integer> array = new CompositeObjectArray<>(Integer.class);
+
+		final int limit = 2_048;
+		for (int i = 0; i < limit; i++) {
+			array.add(i);
+		}
+
+		final Random rnd = new Random();
+		for (int j = 0; j < 5; j++) {
+			int startIndex = rnd.nextInt(limit);
+			int cnt = startIndex - 1;
+			final Iterator<Integer> it = array.reverseIterator(startIndex);
+			while (it.hasNext()) {
+				Integer next = it.next();
+				assertEquals(cnt--, next);
+			}
+		}
 	}
 
 	@Test

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.externalApi.rest.RestProvider;
 import io.evitadb.externalApi.rest.RestProviderRegistrar;
-import io.evitadb.externalApi.rest.configuration.RestConfig;
+import io.evitadb.externalApi.rest.configuration.RestOptions;
 import io.evitadb.performance.generators.TestDatasetGenerator;
 import io.evitadb.performance.setup.EvitaCatalogReusableSetup;
 import org.openjdk.jmh.annotations.Level;
@@ -86,7 +86,7 @@ public class RestArtificialFullDatabaseBenchmarkState extends RestArtificialBenc
 		server = new ExternalApiServer(
 			this.evita,
 			ApiOptions.builder()
-				.enable(RestProvider.CODE, new RestConfig())
+				.enable(RestProvider.CODE, new RestOptions())
 				.build(),
 			Collections.singleton(new RestProviderRegistrar())
 		);

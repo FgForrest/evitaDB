@@ -30,10 +30,10 @@ import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordsLookupResult;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
-import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.dataType.iterator.BatchArrayIterator;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.iterator.RoaringBitmapBatchArrayIterator;
@@ -43,6 +43,7 @@ import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import org.roaringbitmap.RoaringBitmap;
+import org.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -250,7 +251,7 @@ public interface FilteredPriceRecords extends Serializable {
 		try {
 			// prepare writer for sorted output entity ids
 			final BatchArrayIterator entityIdIterator = new RoaringBitmapBatchArrayIterator(filterTo.getBatchIterator(), buffer);
-			final CompositeIntArray notFound = new CompositeIntArray();
+			final RoaringBitmapWriter<RoaringBitmap> notFoundWriter = RoaringBitmapBackedBitmap.buildWriter();
 
 			// iterate through all entity ids
 			while (entityIdIterator.hasNext()) {
@@ -272,14 +273,15 @@ public interface FilteredPriceRecords extends Serializable {
 					}
 
 					if (noPriceFoundAtAll) {
-						notFound.add(entityId);
+						notFoundWriter.add(entityId);
 					}
 				}
 			}
 
+			final RoaringBitmap notFound = notFoundWriter.get();
 			return notFound.isEmpty() ?
 				new FilteredPriceRecordsLookupResult(collectedPriceRecords.toArray()) :
-				new FilteredPriceRecordsLookupResult(collectedPriceRecords.toArray(), notFound.toArray());
+				new FilteredPriceRecordsLookupResult(collectedPriceRecords.toArray(), new BaseBitmap(notFound));
 		} finally {
 			SharedBufferPool.INSTANCE.free(buffer);
 		}

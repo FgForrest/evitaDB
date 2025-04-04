@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuil
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor.ReferenceSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaEditor.ReflectedReferenceSchemaBuilder;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.builder.EntityAttributeSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.builder.GlobalAttributeSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
@@ -678,6 +679,9 @@ public class ClassSchemaAnalyzer {
 					analyzeGetterMethods(catalogBuilder, entityBuilder);
 				}
 
+				// define sortable attribute compounds
+				defineSortableAttributeCompounds(modelClass, entityBuilder);
+
 				// if the schema consumer is available invoke it
 				ofNullable(this.postProcessor)
 					.ifPresent(it -> it.postProcess(catalogBuilder, entityBuilder));
@@ -1095,6 +1099,8 @@ public class ClassSchemaAnalyzer {
 					analyzeReferenceMethods(examinedReferenceType, relationAttributes, editor);
 					analyzeReferenceFields(examinedReferenceType, relationAttributes, editor);
 				}
+
+				defineSortableAttributeCompounds(referenceType, editor);
 			}
 		};
 
@@ -1235,10 +1241,53 @@ public class ClassSchemaAnalyzer {
 				);
 			}
 
+			defineSortableAttributeCompounds(referenceType, editor);
 		};
 
 		entityBuilder.withReflectedReferenceToEntity(
 			referenceName, targetEntity.entityType(), reference.ofName(), reflectedReferenceBuilder
+		);
+	}
+
+	/**
+	 * Defines sortable attribute compounds for a given type using the provided schema editor.
+	 * This method collects all annotations of type {@link SortableAttributeCompounds} or
+	 * {@link SortableAttributeCompound} present on the specified class and processes them to
+	 * configure sortable attribute compounds within the provided editor.
+	 *
+	 * @param type the class type whose annotations are to be processed; must not be null
+	 * @param editor the schema editor responsible for handling sortable attribute compounds; must not be null
+	 */
+	private void defineSortableAttributeCompounds(
+		@Nonnull Class<?> type,
+		@Nonnull SortableAttributeCompoundSchemaProviderEditor<?,?> editor
+	) {
+		Stream.concat(
+			this.reflectionLookup.getClassAnnotations(type, SortableAttributeCompounds.class)
+				.stream()
+				.flatMap(it -> Arrays.stream(it.value())),
+			this.reflectionLookup.getClassAnnotations(type, SortableAttributeCompound.class)
+				.stream()
+		).forEach(
+			sortableAttributeCompound -> editor.withSortableAttributeCompound(
+				sortableAttributeCompound.name(),
+				Arrays.stream(sortableAttributeCompound.attributeElements())
+					.map(it -> new AttributeElement(it.attributeName(), it.orderDirection(), it.orderBehaviour()))
+					.toArray(AttributeElement[]::new),
+				whichIs -> {
+					whichIs.withDescription(sortableAttributeCompound.description());
+					if (sortableAttributeCompound.deprecated().isBlank()) {
+						whichIs.notDeprecatedAnymore();
+					} else {
+						whichIs.deprecated(sortableAttributeCompound.deprecated());
+					}
+					if (sortableAttributeCompound.scope().length == 0) {
+						whichIs.nonIndexed();
+					} else {
+						whichIs.indexedInScope(sortableAttributeCompound.scope());
+					}
+				}
+			)
 		);
 	}
 

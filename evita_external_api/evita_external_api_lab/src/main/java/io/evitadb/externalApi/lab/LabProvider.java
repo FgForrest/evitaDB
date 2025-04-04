@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,13 +29,12 @@ import io.evitadb.externalApi.event.ReadinessEvent;
 import io.evitadb.externalApi.event.ReadinessEvent.Prospective;
 import io.evitadb.externalApi.event.ReadinessEvent.Result;
 import io.evitadb.externalApi.http.ProxyingEndpointProvider;
-import io.evitadb.externalApi.lab.configuration.LabConfig;
+import io.evitadb.externalApi.lab.configuration.LabOptions;
 import io.evitadb.utils.NetworkUtils;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
-import java.util.Optional;
 import java.util.function.Predicate;
 
 /**
@@ -44,13 +43,13 @@ import java.util.function.Predicate;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @Slf4j
-public class LabProvider implements ProxyingEndpointProvider<LabConfig> {
+public class LabProvider implements ProxyingEndpointProvider<LabOptions> {
 
 	public static final String CODE = "lab";
 
 	@Nonnull
 	@Getter
-	private final LabConfig configuration;
+	private final LabOptions configuration;
 
 	@Nonnull
 	@Getter
@@ -67,7 +66,7 @@ public class LabProvider implements ProxyingEndpointProvider<LabConfig> {
 	 */
 	private String reachableUrl;
 
-	public LabProvider(@Nonnull LabConfig configuration, @Nonnull HttpService apiHandler, long requestTimeout) {
+	public LabProvider(@Nonnull LabOptions configuration, @Nonnull HttpService apiHandler, long requestTimeout) {
 		this.configuration = configuration;
 		this.apiHandler = apiHandler;
 		this.requestTimeout = requestTimeout;
