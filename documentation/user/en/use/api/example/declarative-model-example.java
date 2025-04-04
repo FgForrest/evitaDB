@@ -4,6 +4,15 @@
 		EvolutionMode.ADDING_CURRENCIES
 	}
 )
+@SortableAttributeCompound(
+	name = "nameCodeCompound",
+	description = "Compound attribute for sorting by name and code",
+	attributeElements = {
+		@AttributeSource(attributeName = "code", orderDirection = OrderDirection.DESC, orderBehaviour = OrderBehaviour.NULLS_FIRST),
+		@AttributeSource(attributeName = "name")
+	},
+	scope = { Scope.LIVE }
+)
 public interface Product extends Serializable {
 	@PrimaryKey
 	int getId();
@@ -11,6 +20,10 @@ public interface Product extends Serializable {
 	@Attribute
 	@Nonnull
 	String getCode();
+
+	@Attribute(localized = true)
+	@Nonnull
+	String getName();
 
 	@Attribute(
 		name = "manufacturedBefore",

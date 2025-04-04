@@ -50,18 +50,28 @@ The model is expected to be annotated with following annotations:
     <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/PrimaryKey.java</SourceClass></dt>
     <dd>
         Annotation can be placed on [int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)
-        field / getter method / record component and marks an entity [primary key](#primary-key-generation).
+        field / getter method / record component and marks an entity [primary key](../../use/schema.md#primary-key-generation).
     </dd>
     <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/Attribute.java</SourceClass></dt>
     <dd>
-        Annotation can be placed on field / getter method / record component and marks an entity [attribute](#attribute).
+        Annotation can be placed on field / getter method / record component and marks an entity [attribute](../../use/schema.md#attribute).
         Default values in case of interfaces can be provided using default method implementation (see the example
         below).
+    </dd>
+    <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/SortableAttributeCompound.java</SourceClass></dt>
+    <dd>
+        Annotation can be placed on a class / record and marks an entity [sortable attribute compound](../../use/schema.md#sortable-attribute-compounds),
+        which aggregated multiple attributes of the class into a sortable compound, that cannot be accessed only used in query
+        for the sorting.
+    </dd>
+    <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/SortableAttributeCompounds.java</SourceClass></dt>
+    <dd>
+        Annotation can be placed on a class / record as a container for multiple `@SortableAttributeCompound` annotations.
     </dd>
     <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/AssociatedData.java</SourceClass></dt>
     <dd>
         Annotation can be placed on field / getter method / record component and marks an entity
-        [associated data](#associated-data).
+        [associated data](../../use/schema.md#associated-data).
     </dd>
     <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/ParentEntity.java</SourceClass></dt>
     <dd>
@@ -74,26 +84,26 @@ The model is expected to be annotated with following annotations:
         Annotation can be placed on field / getter method / record component of collection / array of type
         <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/PriceContract.java</SourceClass>
         that provides access to all prices of the entity. Using this annotation in the entity model class enables
-        [prices](#prices) in the entity schema.
+        [prices](../../use/schema.md#prices) in the entity schema.
     </dd>
     <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/PriceForSale.java</SourceClass></dt>
     <dd>
         Annotation can be placed on field / getter method / record component of type
         <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/PriceContract.java</SourceClass>
         that provides access to price for sale of the entity. Using this annotation in the entity model class enables
-        [prices](#prices) in the entity schema.
+        [prices](../../use/schema.md#prices) in the entity schema.
     </dd>
     <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/Reference.java</SourceClass></dt>
     <dd>
         Annotation can be placed on field / getter method / record component and marks an entity as a
-        [reference](#reference) to another entity. It can point to another model class (interface/class/record)
+        [reference](../../use/schema.md#reference) to another entity. It can point to another model class (interface/class/record)
         that contains properties for `@ReferencedEntity` and `@ReferencedEntityGroup` annotations and relation
         attributes.
     </dd>
     <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/ReflectedReference.java</SourceClass></dt>
     <dd>
         <p>Annotation can be placed on field / getter method / record component and marks an entity as a 
-        [reflected reference](#reference) to another entity. It can point to another model class (interface/class/record)
+        [reflected reference](../../use/schema.md#reference) to another entity. It can point to another model class (interface/class/record)
         that contains properties for `@ReferencedEntity` and `@ReferencedEntityGroup` annotations and relation
         attributes.</p>
         <p>Original reference may not yet exists in the schema, but it must be defined before the transaction is committed

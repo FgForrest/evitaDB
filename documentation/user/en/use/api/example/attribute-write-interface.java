@@ -1,13 +1,4 @@
 @EntityRef("Product")
-@SortableAttributeCompound(
-	name = "nameCodeCompound",
-	description = "Compound attribute for sorting by name and code",
-	attributeElements = {
-		@AttributeSource(attributeName = "code", orderDirection = OrderDirection.DESC, orderBehaviour = OrderBehaviour.NULLS_FIRST),
-		@AttributeSource(attributeName = "name")
-	},
-	scope = { Scope.LIVE }
-)
 public interface MyEntityEditor extends MyEntity {
 
 	// sets localized attribute `name` in specified locale

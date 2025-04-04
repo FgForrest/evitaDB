@@ -777,22 +777,6 @@ using the `valueOf()` method.
 
 </Note>
 
-### Sortable attribute compound
-
-To set the entity or reference sortable attribute compound, you must use annotate class with with the
-<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/SortableAttributeCompound.java</SourceClass>
-annotation.
-
-If you need to define multiple sortable attribute compounds, you can wrap them in the
-<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/SortableAttributeCompounds.java</SourceClass>
-annotation.
-
-<SourceAlternativeTabs requires="documentation/user/en/use/api/example/attribute-read-interface.java" variants="interface|class">
-
-[Example interface with attribute modifier](/documentation/user/en/use/api/example/attribute-write-interface.java)
-
-</SourceAlternativeTabs>
-
 ### Associated Data
 
 To set the entity associated data, you must use the appropriate data type and annotate it with the
