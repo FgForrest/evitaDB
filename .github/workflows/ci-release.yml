@@ -39,9 +39,30 @@ jobs:
 
     steps:
 
+    - name: Download release branch info
+      uses: dawidd6/action-download-artifact@20319c5641d495c8a52e688b7dc5fada6c3a9fbc # v8
+      if: ${{ github.event.workflow_run.conclusion == 'success' }}
+      with:
+        workflow: ${{ github.event.workflow_run.workflow_id }}
+        run_id: ${{ github.event.workflow_run.id }}
+        name: workflow-data
+
+    - name: Read release branch name
+      id: read_branch
+      if: ${{ github.event.workflow_run.conclusion == 'success' }}
+      run: |
+        if [ -f "release_branch.txt" ]; then
+          RELEASE_BRANCH=$(cat release_branch.txt)
+          echo "branch=$RELEASE_BRANCH" >> $GITHUB_OUTPUT
+          echo "Using release branch: $RELEASE_BRANCH"
+        else
+          echo "release_branch.txt not found"
+          exit 1
+        fi
+
     - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2    # checkout sources
       with:
-        ref: ${{ github.ref }}
+        ref: ${{ github.event.workflow_run.conclusion == 'success' && steps.read_branch.outputs.branch || github.ref }}
         fetch-depth: 0
 
     - name: Resolve new release version
