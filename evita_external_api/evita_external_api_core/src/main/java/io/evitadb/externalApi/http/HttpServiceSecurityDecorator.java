@@ -32,9 +32,9 @@ import com.linecorp.armeria.server.DecoratingHttpServiceFunction;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
+import io.evitadb.externalApi.configuration.AbstractApiOptions;
 import io.evitadb.externalApi.configuration.ApiOptions;
-import io.evitadb.externalApi.configuration.CertificateSettings;
+import io.evitadb.externalApi.configuration.CertificateOptions;
 import io.evitadb.externalApi.configuration.HostDefinition;
 import io.evitadb.externalApi.configuration.MtlsConfiguration;
 import io.evitadb.externalApi.configuration.TlsMode;
@@ -94,7 +94,7 @@ public class HttpServiceSecurityDecorator implements DecoratingHttpServiceFuncti
 		.status(HttpStatus.FORBIDDEN)
 		.content(MediaType.PLAIN_TEXT, "Client certificate not allowed.");
 
-	public HttpServiceSecurityDecorator(@Nonnull ApiOptions apiOptions, @Nonnull AbstractApiConfiguration... configurations) {
+	public HttpServiceSecurityDecorator(@Nonnull ApiOptions apiOptions, @Nonnull AbstractApiOptions... configurations) {
 		final int hostsConfigs = Arrays.stream(configurations)
 			.mapToInt(config -> config.getHost().length)
 			.sum();
@@ -105,7 +105,7 @@ public class HttpServiceSecurityDecorator implements DecoratingHttpServiceFuncti
 		// only first configuration is the main configuration that carries the mTLS configuration
 		final MtlsConfiguration mtlsConfiguration = configurations[0].getMtlsConfiguration();
 		if (Boolean.TRUE.equals(mtlsConfiguration.enabled())) {
-			final CertificateSettings certificate = apiOptions.certificate();
+			final CertificateOptions certificate = apiOptions.certificate();
 			final Set<Certificate> allowedCertificates = getAllowedClientCertificatesFromPaths(mtlsConfiguration, certificate);
 			this.mtlsChecker = ctx -> {
 				try {
@@ -195,7 +195,7 @@ public class HttpServiceSecurityDecorator implements DecoratingHttpServiceFuncti
 	@Nonnull
 	private static Set<Certificate> getAllowedClientCertificatesFromPaths(
 		@Nonnull MtlsConfiguration mtlsConfig,
-		@Nonnull CertificateSettings certificateSettings
+		@Nonnull CertificateOptions certificateSettings
 	) {
 		final Set<Certificate> certificates = CollectionUtils.createHashSet(mtlsConfig.allowedClientCertificatePaths().size());
 
@@ -227,14 +227,14 @@ public class HttpServiceSecurityDecorator implements DecoratingHttpServiceFuncti
 	/**
 	 * Prepares security configurations based on the provided API configurations.
 	 *
-	 * @param configurations array of {@link AbstractApiConfiguration} objects containing the security setup
+	 * @param configurations array of {@link AbstractApiOptions} objects containing the security setup
 	 *                       for different API endpoints.
 	 * @return the peak index of the configurations
 	 */
-	private int prepareConfigurations(@Nonnull AbstractApiConfiguration... configurations) {
+	private int prepareConfigurations(@Nonnull AbstractApiOptions... configurations) {
 		final ArrayList<HostTriple> hostTriples = new ArrayList<>(32);
 		int index = 0;
-		for (final AbstractApiConfiguration config : configurations) {
+		for (final AbstractApiOptions config : configurations) {
 			final HostDefinition[] hosts = config.getHost();
 			for (final HostDefinition host : hosts) {
 				final TlsMode tlsMode = config.getTlsMode();

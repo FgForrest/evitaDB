@@ -66,14 +66,14 @@ import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.externalApi.configuration.ApiOptions;
-import io.evitadb.externalApi.configuration.CertificateSettings;
+import io.evitadb.externalApi.configuration.CertificateOptions;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
-import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
+import io.evitadb.externalApi.graphql.configuration.GraphQLOptions;
 import io.evitadb.externalApi.grpc.GrpcProvider;
-import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
+import io.evitadb.externalApi.grpc.configuration.GrpcOptions;
 import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.externalApi.rest.RestProvider;
-import io.evitadb.externalApi.rest.configuration.RestConfig;
+import io.evitadb.externalApi.rest.configuration.RestOptions;
 import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
@@ -2169,13 +2169,13 @@ class EvitaTest implements EvitaTestSupport {
 				evita,
 				ApiOptions.builder()
 					.certificate(
-						CertificateSettings.builder()
+						CertificateOptions.builder()
 							.folderPath(getEvitaTestDirectory() + "-certificates")
 							.build()
 					)
-					.enable(GraphQLProvider.CODE, new GraphQLConfig(":" + ports[0]))
-					.enable(GrpcProvider.CODE, new GrpcConfig(":" + ports[1]))
-					.enable(RestProvider.CODE, new RestConfig(":" + ports[2]))
+					.enable(GraphQLProvider.CODE, new GraphQLOptions(":" + ports[0]))
+					.enable(GrpcProvider.CODE, new GrpcOptions(":" + ports[1]))
+					.enable(RestProvider.CODE, new RestOptions(":" + ports[2]))
 					.build()
 			)) {
 				externalApiServer.start();
@@ -2281,13 +2281,13 @@ class EvitaTest implements EvitaTestSupport {
 				evita,
 				ApiOptions.builder()
 					.certificate(
-						CertificateSettings.builder()
+						CertificateOptions.builder()
 							.folderPath(getEvitaTestDirectory() + "-certificates")
 							.build()
 					)
-					.enable(GraphQLProvider.CODE, new GraphQLConfig(":" + ports[0]))
-					.enable(GrpcProvider.CODE, new GrpcConfig(":" + ports[1]))
-					.enable(RestProvider.CODE, new RestConfig(":" + ports[2]))
+					.enable(GraphQLProvider.CODE, new GraphQLOptions(":" + ports[0]))
+					.enable(GrpcProvider.CODE, new GrpcOptions(":" + ports[1]))
+					.enable(RestProvider.CODE, new RestOptions(":" + ports[2]))
 					.build()
 			)) {
 				externalApiServer.start();
@@ -2371,13 +2371,13 @@ class EvitaTest implements EvitaTestSupport {
 				evita,
 				ApiOptions.builder()
 					.certificate(
-						CertificateSettings.builder()
+						CertificateOptions.builder()
 							.folderPath(getEvitaTestDirectory() + "-certificates")
 							.build()
 					)
-					.enable(GraphQLProvider.CODE, new GraphQLConfig(":" + ports[0]))
-					.enable(GrpcProvider.CODE, new GrpcConfig(":" + ports[1]))
-					.enable(RestProvider.CODE, new RestConfig(":" + ports[2]))
+					.enable(GraphQLProvider.CODE, new GraphQLOptions(":" + ports[0]))
+					.enable(GrpcProvider.CODE, new GrpcOptions(":" + ports[1]))
+					.enable(RestProvider.CODE, new RestOptions(":" + ports[2]))
 					.build()
 			)) {
 				externalApiServer.start();

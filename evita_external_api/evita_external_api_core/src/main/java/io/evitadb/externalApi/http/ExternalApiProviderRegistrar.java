@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,21 +24,21 @@
 package io.evitadb.externalApi.http;
 
 import io.evitadb.core.Evita;
-import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
+import io.evitadb.externalApi.configuration.AbstractApiOptions;
 import io.evitadb.externalApi.configuration.ApiOptions;
 
 import javax.annotation.Nonnull;
 
 /**
  * Configures and registers provider of particular external API to HTTP server ({@link ExternalApiServer}).
- * Each provider have to have unique code and have to implement {@link #register(Evita, ExternalApiServer, ApiOptions, AbstractApiConfiguration, AbstractApiConfiguration[])}
+ * Each provider have to have unique code and have to implement {@link #register(Evita, ExternalApiServer, ApiOptions, AbstractApiOptions, AbstractApiOptions[])}
  * method which registers provider to the server to be later started by the server.
  *
  * It is based on {@link java.util.ServiceLoader} which requires appropriate registration of implementation of this interface.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public interface ExternalApiProviderRegistrar<T extends AbstractApiConfiguration> {
+public interface ExternalApiProviderRegistrar<T extends AbstractApiOptions> {
 
 	/**
 	 * Returns unique identification code of the API registrar.

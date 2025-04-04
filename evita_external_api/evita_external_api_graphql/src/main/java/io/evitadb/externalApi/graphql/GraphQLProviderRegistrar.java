@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ package io.evitadb.externalApi.graphql;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.graphql.api.catalog.CatalogGraphQLRefreshingObserver;
-import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
+import io.evitadb.externalApi.graphql.configuration.GraphQLOptions;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.http.ExternalApiServer;
@@ -39,7 +39,7 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class GraphQLProviderRegistrar implements ExternalApiProviderRegistrar<GraphQLConfig> {
+public class GraphQLProviderRegistrar implements ExternalApiProviderRegistrar<GraphQLOptions> {
 
     @Nonnull
     @Override
@@ -49,14 +49,19 @@ public class GraphQLProviderRegistrar implements ExternalApiProviderRegistrar<Gr
 
     @Nonnull
     @Override
-    public Class<GraphQLConfig> getConfigurationClass() {
-        return GraphQLConfig.class;
+    public Class<GraphQLOptions> getConfigurationClass() {
+        return GraphQLOptions.class;
     }
 
     @Nonnull
     @Override
-    public ExternalApiProvider<GraphQLConfig> register(@Nonnull Evita evita, @Nonnull ExternalApiServer externalApiServer, @Nonnull ApiOptions apiOptions, @Nonnull GraphQLConfig graphQLConfig) {
-        final GraphQLManager graphQLManager = new GraphQLManager(evita, graphQLConfig);
+    public ExternalApiProvider<GraphQLOptions> register(
+        @Nonnull Evita evita,
+        @Nonnull ExternalApiServer externalApiServer,
+        @Nonnull ApiOptions apiOptions,
+        @Nonnull GraphQLOptions graphQLConfig
+    ) {
+        final GraphQLManager graphQLManager = new GraphQLManager(evita, apiOptions.headers(), graphQLConfig);
         evita.registerStructuralChangeObserver(new CatalogGraphQLRefreshingObserver(graphQLManager));
         return new GraphQLProvider(graphQLConfig, graphQLManager, apiOptions.requestTimeoutInMillis());
     }

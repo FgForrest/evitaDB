@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -121,15 +121,18 @@ public class ServerSessionInterceptor implements ServerInterceptor {
 	 */
 	@Override
 	public <ReqT, RespT> ServerCall.Listener<ReqT> interceptCall(ServerCall<ReqT, RespT> serverCall, Metadata metadata, ServerCallHandler<ReqT, RespT> serverCallHandler) {
-		if (serverCall.getMethodDescriptor().getServiceName().equals("grpc.reflection.v1alpha.ServerReflection")) {
+		if ("grpc.reflection.v1alpha.ServerReflection".equals(serverCall.getMethodDescriptor().getServiceName())) {
 			return serverCallHandler.startCall(serverCall, metadata);
 		}
 
 		// initialize method name header
-		metadata.put(
-			Metadata.Key.of(METHOD_NAME_HEADER, Metadata.ASCII_STRING_MARSHALLER),
-			serverCall.getMethodDescriptor().getBareMethodName()
-		);
+		final String bareMethodName = serverCall.getMethodDescriptor().getBareMethodName();
+		if (bareMethodName != null) {
+			metadata.put(
+				Metadata.Key.of(METHOD_NAME_HEADER, Metadata.ASCII_STRING_MARSHALLER),
+				bareMethodName
+			);
+		}
 
 		final Metadata.Key<String> sessionMetadata = Metadata.Key.of(SESSION_ID_HEADER, Metadata.ASCII_STRING_MARSHALLER);
 		final String sessionId = metadata.get(sessionMetadata);

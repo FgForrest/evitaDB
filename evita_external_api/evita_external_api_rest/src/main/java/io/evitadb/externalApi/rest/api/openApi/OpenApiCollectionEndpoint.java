@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.Evita;
+import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.EndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.CollectionRestHandlingContext;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiEndpointParameter.ParameterLocation;
@@ -66,23 +67,6 @@ public class OpenApiCollectionEndpoint extends OpenApiEndpoint<CollectionRestHan
 	@Nonnull protected final CatalogSchemaContract catalogSchema;
 	@Nonnull private final EntitySchemaContract entitySchema;
 
-	private OpenApiCollectionEndpoint(@Nonnull CatalogSchemaContract catalogSchema,
-	                                  @Nonnull EntitySchemaContract entitySchema,
-	                                  @Nonnull PathItem.HttpMethod method,
-	                                  @Nonnull UriPath path,
-	                                  boolean localized,
-	                                  @Nonnull String operationId,
-	                                  @Nonnull String description,
-	                                  @Nullable String deprecationNotice,
-	                                  @Nonnull List<OpenApiEndpointParameter> parameters,
-	                                  @Nullable OpenApiSimpleType requestBody,
-	                                  @Nonnull OpenApiSimpleType successResponse,
-	                                  @Nonnull Function<CollectionRestHandlingContext, RestEndpointHandler<CollectionRestHandlingContext>> handlerBuilder) {
-		super(method, path, localized, operationId, description, deprecationNotice, parameters, requestBody, successResponse, handlerBuilder);
-		this.catalogSchema = catalogSchema;
-		this.entitySchema = entitySchema;
-	}
-
 	/**
 	 * Creates builder for new collection endpoint.
 	 */
@@ -92,23 +76,46 @@ public class OpenApiCollectionEndpoint extends OpenApiEndpoint<CollectionRestHan
 		return new Builder(catalogSchema, entitySchema);
 	}
 
+	private OpenApiCollectionEndpoint(
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull PathItem.HttpMethod method,
+		@Nonnull UriPath path,
+		boolean localized,
+		@Nonnull String operationId,
+		@Nonnull String description,
+		@Nullable String deprecationNotice,
+		@Nonnull List<OpenApiEndpointParameter> parameters,
+		@Nullable OpenApiSimpleType requestBody,
+		@Nonnull OpenApiSimpleType successResponse,
+		@Nonnull Function<CollectionRestHandlingContext, RestEndpointHandler<CollectionRestHandlingContext>> handlerBuilder
+	) {
+		super(method, path, localized, operationId, description, deprecationNotice, parameters, requestBody, successResponse, handlerBuilder);
+		this.catalogSchema = catalogSchema;
+		this.entitySchema = entitySchema;
+	}
+
 	@Nonnull
 	@Override
-	public RestEndpointHandler<CollectionRestHandlingContext> toHandler(@Nonnull ObjectMapper objectMapper,
-	                                                                       @Nonnull Evita evita,
-	                                                                       @Nonnull OpenAPI openApi,
-	                                                                       @Nonnull Map<String, Class<? extends Enum<?>>> enumMapping) {
+	public RestEndpointHandler<CollectionRestHandlingContext> toHandler(
+		@Nonnull ObjectMapper objectMapper,
+		@Nonnull Evita evita,
+		@Nonnull HeaderOptions headerOptions,
+		@Nonnull OpenAPI openApi,
+		@Nonnull Map<String, Class<? extends Enum<?>>> enumMapping
+	) {
 		final CollectionRestHandlingContext context = new CollectionRestHandlingContext(
 			objectMapper,
 			evita,
-			catalogSchema,
-			entitySchema,
+			headerOptions,
+			this.catalogSchema,
+			this.entitySchema,
 			openApi,
 			enumMapping,
 			toOperation(),
-			localized
+			this.localized
 		);
-		return handlerBuilder.apply(context);
+		return this.handlerBuilder.apply(context);
 	}
 
 
@@ -116,16 +123,13 @@ public class OpenApiCollectionEndpoint extends OpenApiEndpoint<CollectionRestHan
 
 		@Nonnull private final CatalogSchemaContract catalogSchema;
 		@Nonnull private final EntitySchemaContract entitySchema;
-
+		@Nonnull private final List<OpenApiEndpointParameter> parameters;
 		@Nullable private PathItem.HttpMethod method;
 		@Nullable private UriPath path;
 		private boolean localized;
-
 		@Nullable private String operationId;
 		@Nullable private String description;
 		@Nullable private String deprecationNotice;
-		@Nonnull private final List<OpenApiEndpointParameter> parameters;
-
 		@Nullable private OpenApiSimpleType requestBody;
 		@Nullable private OpenApiSimpleType successResponse;
 

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ import io.evitadb.externalApi.event.ReadinessEvent.Prospective;
 import io.evitadb.externalApi.event.ReadinessEvent.Result;
 import io.evitadb.externalApi.http.ExternalApiProviderWithConsoleOutput;
 import io.evitadb.externalApi.http.ExternalApiServer;
-import io.evitadb.externalApi.system.configuration.SystemConfig;
+import io.evitadb.externalApi.system.configuration.SystemOptions;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ConsoleWriter;
 import io.evitadb.utils.ConsoleWriter.ConsoleColor;
@@ -54,7 +54,7 @@ import static io.evitadb.externalApi.system.SystemProviderRegistrar.ENDPOINT_SER
  * @see SystemProviderRegistrar
  */
 @Slf4j
-public class SystemProvider implements ExternalApiProviderWithConsoleOutput<SystemConfig> {
+public class SystemProvider implements ExternalApiProviderWithConsoleOutput<SystemOptions> {
 	public static final String CODE = "system";
 	public static final String SERVER_CERTIFICATE_URL = "serverCertificateUrl";
 	public static final String CLIENT_CERTIFICATE_URL = "clientCertificateUrl";
@@ -63,7 +63,7 @@ public class SystemProvider implements ExternalApiProviderWithConsoleOutput<Syst
 
 	@Nonnull
 	@Getter
-	private final SystemConfig configuration;
+	private final SystemOptions configuration;
 
 	@Nonnull
 	@Getter
@@ -84,7 +84,7 @@ public class SystemProvider implements ExternalApiProviderWithConsoleOutput<Syst
 	private String reachableUrl;
 
 	public SystemProvider(
-		@Nonnull SystemConfig configuration,
+		@Nonnull SystemOptions configuration,
 		@Nonnull HttpService apiHandler,
 		@Nonnull LinkedHashMap<String, String[]> endpoints,
 		long requestTimeoutInMillis

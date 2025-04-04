@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.http;
 
-import com.linecorp.armeria.common.HttpHeaderNames;
 import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.common.MediaType;
 import com.linecorp.armeria.common.SessionProtocol;
@@ -49,11 +48,11 @@ import io.evitadb.externalApi.certificate.DynamicTlsProvider;
 import io.evitadb.externalApi.certificate.LoadedCertificates;
 import io.evitadb.externalApi.certificate.ServerCertificateManager;
 import io.evitadb.externalApi.certificate.ServerCertificateManager.CertificateType;
-import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
+import io.evitadb.externalApi.configuration.AbstractApiOptions;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.ApiWithSpecificPrefix;
+import io.evitadb.externalApi.configuration.CertificateOptions;
 import io.evitadb.externalApi.configuration.CertificatePath;
-import io.evitadb.externalApi.configuration.CertificateSettings;
 import io.evitadb.externalApi.configuration.HostDefinition;
 import io.evitadb.externalApi.configuration.TlsMode;
 import io.evitadb.externalApi.http.ExternalApiProvider.HttpServiceDefinition;
@@ -276,7 +275,7 @@ public class ExternalApiServer implements AutoCloseable {
 			.stream()
 			.sorted(Comparator.comparingInt(ExternalApiProviderRegistrar::getOrder))
 			.map(registrar -> {
-				final AbstractApiConfiguration apiProviderConfiguration = apiOptions.endpoints().get(registrar.getExternalApiCode());
+				final AbstractApiOptions apiProviderConfiguration = apiOptions.endpoints().get(registrar.getExternalApiCode());
 				if (apiProviderConfiguration == null || !apiProviderConfiguration.isEnabled()) {
 					return null;
 				}
@@ -334,7 +333,7 @@ public class ExternalApiServer implements AutoCloseable {
 	private static void logStatusToConsole(
 		@Nonnull ExternalApiProvider<?> registeredApiProvider
 	) {
-		final AbstractApiConfiguration configuration = registeredApiProvider.getConfiguration();
+		final AbstractApiOptions configuration = registeredApiProvider.getConfiguration();
 		ConsoleWriter.write(
 			StringUtils.rightPad("API `" + registeredApiProvider.getCode() + "` listening on ", " ", PADDING_START_UP)
 		);
@@ -378,7 +377,7 @@ public class ExternalApiServer implements AutoCloseable {
 		}
 
 		try {
-			final CertificateSettings certificateSettings = apiOptions.certificate();
+			final CertificateOptions certificateSettings = apiOptions.certificate();
 			final ServerCertificateManager serverCertificateManager = new ServerCertificateManager(certificateSettings);
 			final CertificatePath certificatePath = certificateSettings.generateAndUseSelfSigned() ?
 				initCertificate(apiOptions, serverCertificateManager) :
@@ -508,10 +507,14 @@ public class ExternalApiServer implements AutoCloseable {
 			// but without trusting all client IP addresses the client address source wouldn't be evaluated
 			.clientAddressTrustedProxyFilter(inetAddress -> true)
 			.clientAddressSources(
-				ClientAddressSource.ofHeader(HttpHeaderNames.FORWARDED),
-				ClientAddressSource.ofHeader(HttpHeaderNames.X_FORWARDED_FOR),
-				ClientAddressSource.ofHeader("X-Real-IP"),
-				ClientAddressSource.ofProxyProtocol()
+				Stream.concat(
+					apiOptions
+						.headers()
+						.forwardedFor()
+						.stream()
+						.map(ClientAddressSource::ofHeader),
+					Stream.of(ClientAddressSource.ofProxyProtocol())
+				).toArray(ClientAddressSource[]::new)
 			)
 			.decorator(DecodingService.newDecorator())
 			.decorator(EncodingService.builder()
@@ -548,16 +551,16 @@ public class ExternalApiServer implements AutoCloseable {
 		PathHandlingService dynamicPathHandlingService = null;
 
 		// list of proxy provider configurations
-		final AbstractApiConfiguration[] proxyConfigs = registeredApiProviders.values()
+		final AbstractApiOptions[] proxyConfigs = registeredApiProviders.values()
 			.stream()
 			.filter(ProxyingEndpointProvider.class::isInstance)
 			.map(it -> apiOptions.endpoints().get(it.getCode()))
-			.filter(AbstractApiConfiguration::isEnabled)
-			.toArray(AbstractApiConfiguration[]::new);
+			.filter(AbstractApiOptions::isEnabled)
+			.toArray(AbstractApiOptions[]::new);
 
 		// for each API provider do
 		for (ExternalApiProvider<?> registeredApiProvider : registeredApiProviders.values()) {
-			final AbstractApiConfiguration configuration = apiOptions.endpoints().get(registeredApiProvider.getCode());
+			final AbstractApiOptions configuration = apiOptions.endpoints().get(registeredApiProvider.getCode());
 			// ok, only for those that are actually enabled ;)
 			if (configuration.isEnabled()) {
 				for (HostDefinition host : configuration.getHost()) {
@@ -604,7 +607,7 @@ public class ExternalApiServer implements AutoCloseable {
 								new HttpServiceSecurityDecorator(
 									apiOptions,
 									ArrayUtils.mergeArrays(
-										new AbstractApiConfiguration[]{configuration},
+										new AbstractApiOptions[]{configuration},
 										proxyConfigs
 									)
 								)

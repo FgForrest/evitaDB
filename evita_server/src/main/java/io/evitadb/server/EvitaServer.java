@@ -36,7 +36,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator.Feature;
 import com.fasterxml.jackson.module.paramnames.ParameterNamesModule;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.core.Evita;
-import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
+import io.evitadb.externalApi.configuration.AbstractApiOptions;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.http.ExternalApiServer;
@@ -695,8 +695,8 @@ public class EvitaServer {
 	@Nonnull
 	private SimpleModule createAbstractApiConfigModule(@Nullable UnknownPropertyProblemHandler unknownPropertyProblemHandler) {
 		final SimpleModule module = new SimpleModule();
-		final AbstractClassDeserializer<AbstractApiConfiguration> deserializer = new AbstractClassDeserializer<>(
-			AbstractApiConfiguration.class, unknownPropertyProblemHandler
+		final AbstractClassDeserializer<AbstractApiOptions> deserializer = new AbstractClassDeserializer<>(
+			AbstractApiOptions.class, unknownPropertyProblemHandler
 		);
 		for (ExternalApiProviderRegistrar<?> apiProviderRegistrar : this.externalApiProviders) {
 			deserializer.registerConcreteClass(
@@ -704,7 +704,7 @@ public class EvitaServer {
 				apiProviderRegistrar.getConfigurationClass()
 			);
 		}
-		module.addDeserializer(AbstractApiConfiguration.class, deserializer);
+		module.addDeserializer(AbstractApiOptions.class, deserializer);
 		return module;
 	}
 

@@ -26,7 +26,7 @@ package io.evitadb.externalApi.http;
 import com.linecorp.armeria.common.HttpHeaderNames;
 import com.linecorp.armeria.common.HttpMethod;
 import com.linecorp.armeria.server.HttpService;
-
+import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.netty.util.AsciiString;
 
 import javax.annotation.Nonnull;
@@ -44,13 +44,11 @@ public class CorsEndpoint {
 	@Nonnull private final Set<HttpMethod> allowedMethods = createHashSet(HttpMethod.values().length);
 	@Nonnull private final Set<AsciiString> allowedHeaders = createHashSet(4);
 
-	public CorsEndpoint() {
+	public CorsEndpoint(@Nonnull HeaderOptions headerOptions) {
 		// default headers for tracing that are allowed on every endpoint by default
-		this.allowedHeaders.add(AdditionalHttpHeaderNames.OPENTELEMETRY_TRACEPARENT);
-		this.allowedHeaders.add(AdditionalHttpHeaderNames.X_EVITADB_CLIENTID);
-		this.allowedHeaders.add(AdditionalHttpHeaderNames.X_EVITADB_META_LABEL);
-		this.allowedHeaders.add(AdditionalHttpHeaderNames.X_FORWARDED_URI);
-		this.allowedHeaders.add(HttpHeaderNames.X_FORWARDED_FOR);
+		headerOptions.allHeaders()
+			.map(AsciiString::new)
+			.forEach(allowedHeaders::add);
 	}
 
 	/**
@@ -67,12 +65,12 @@ public class CorsEndpoint {
 	public void addMetadata(@Nonnull Set<HttpMethod> supportedHttpMethods,
 	                        boolean supportsRequestContentType,
 	                        boolean supportsResponseContentType) {
-		allowedMethods.addAll(supportedHttpMethods);
+		this.allowedMethods.addAll(supportedHttpMethods);
 		if (supportsRequestContentType) {
-			allowedHeaders.add(HttpHeaderNames.CONTENT_TYPE);
+			this.allowedHeaders.add(HttpHeaderNames.CONTENT_TYPE);
 		}
 		if (supportsResponseContentType) {
-			allowedHeaders.add(HttpHeaderNames.ACCEPT);
+			this.allowedHeaders.add(HttpHeaderNames.ACCEPT);
 		}
 	}
 
@@ -81,13 +79,13 @@ public class CorsEndpoint {
 	 * Creates CORS preflight handler
 	 */
 	public HttpService toHandler() {
-		return CorsService.preflightHandler(allowedMethods, allowedHeaders);
+		return CorsService.preflightHandler(this.allowedMethods, this.allowedHeaders);
 	}
 
 	/**
 	 * Creates CORS preflight handler. Non-preflight requests are delegated to the passed delegate.
 	 */
 	public HttpService toHandler(@Nonnull HttpService delegate) {
-		return CorsService.filter(delegate, allowedMethods, allowedHeaders);
+		return CorsService.filter(delegate, this.allowedMethods, this.allowedHeaders);
 	}
 }

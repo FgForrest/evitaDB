@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,14 +29,15 @@ import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.ServiceRequestContext;
+import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.http.CorsEndpoint;
 import io.evitadb.externalApi.http.CorsService;
 import io.evitadb.externalApi.rest.api.Rest;
-import io.evitadb.externalApi.rest.configuration.RestConfig;
+import io.evitadb.externalApi.rest.configuration.RestOptions;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
+import io.evitadb.externalApi.utils.UriPath;
 import io.evitadb.externalApi.utils.path.PathHandlingService;
 import io.evitadb.externalApi.utils.path.RoutingHandlerService;
-import io.evitadb.externalApi.utils.UriPath;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
@@ -61,7 +62,8 @@ public class RestRouter implements HttpService {
 	 * Common object mapper for endpoints
 	 */
 	@Nonnull private final ObjectMapper objectMapper;
-	@Nonnull private final RestConfig restConfig;
+	@Nonnull private final HeaderOptions headers;
+	@Nonnull private final RestOptions restConfig;
 	private final PathHandlingService delegateRouter = new PathHandlingService();
 
 	@Nonnull private final Set<String> registeredApis = createHashSet(20);
@@ -91,7 +93,7 @@ public class RestRouter implements HttpService {
 	 */
 	private void registerApi(@Nonnull String apiName, @Nonnull Rest api) {
 		Assert.isPremiseValid(
-			!registeredApis.contains(apiName),
+			!this.registeredApis.contains(apiName),
 			() -> new RestInternalError("API `" + apiName + "` has been already registered.")
 		);
 
@@ -99,15 +101,15 @@ public class RestRouter implements HttpService {
 		final Map<UriPath, CorsEndpoint> corsEndpoints = createConcurrentHashMap(20);
 
 		api.endpoints().forEach(endpoint -> {
-			final CorsEndpoint corsEndpoint = corsEndpoints.computeIfAbsent(endpoint.path(), p -> new CorsEndpoint());
+			final CorsEndpoint corsEndpoint = corsEndpoints.computeIfAbsent(endpoint.path(), p -> new CorsEndpoint(this.headers));
 			registerEndpoint(apiRouter, corsEndpoint, endpoint);
 		});
 		corsEndpoints.forEach((path, endpoint) -> apiRouter.add(HttpMethod.OPTIONS, path.toString(), endpoint.toHandler()));
 
 		//fix router hierarchical inputs
-		delegateRouter.addPrefixPath(constructApiPath(apiName).toString(), apiRouter);
+		this.delegateRouter.addPrefixPath(constructApiPath(apiName).toString(), apiRouter);
 
-		registeredApis.add(apiName);
+		this.registeredApis.add(apiName);
 	}
 
 	/**

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ package io.evitadb.externalApi.observability.configuration;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
+import io.evitadb.externalApi.configuration.AbstractApiOptions;
 import io.evitadb.externalApi.configuration.ApiWithSpecificPrefix;
 import io.evitadb.externalApi.configuration.MtlsConfiguration;
 import lombok.Getter;
@@ -40,7 +40,7 @@ import java.util.Optional;
  *
  * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
-public class ObservabilityConfig extends AbstractApiConfiguration implements ApiWithSpecificPrefix {
+public class ObservabilityOptions extends AbstractApiOptions implements ApiWithSpecificPrefix {
 	/**
 	 * Port on which will server be run and on which will channel be opened.
 	 */
@@ -56,14 +56,14 @@ public class ObservabilityConfig extends AbstractApiConfiguration implements Api
 
 	@Getter @Nullable private final List<String> allowedEvents;
 
-	public ObservabilityConfig() {
+	public ObservabilityOptions() {
 		super(true, "0.0.0.0:" + DEFAULT_OBSERVABILITY_PORT, null, null, null, null);
 		this.prefix = BASE_OBSERVABILITY_PATH;
 		this.tracing = new TracingConfig();
 		this.allowedEvents = null;
 	}
 
-	public ObservabilityConfig(@Nonnull String host) {
+	public ObservabilityOptions(@Nonnull String host) {
 		super(true, host, null, null, null, null);
 		this.prefix = BASE_OBSERVABILITY_PATH;
 		this.tracing = new TracingConfig();
@@ -71,15 +71,15 @@ public class ObservabilityConfig extends AbstractApiConfiguration implements Api
 	}
 
 	@JsonCreator
-	public ObservabilityConfig(@Nullable @JsonProperty("enabled") Boolean enabled,
-	                           @Nonnull @JsonProperty("host") String host,
-	                           @Nullable @JsonProperty("exposeOn") String exposeOn,
-	                           @Nullable @JsonProperty("tlsMode") String tlsMode,
-	                           @Nullable @JsonProperty("keepAlive") Boolean keepAlive,
-	                           @Nullable @JsonProperty("prefix") String prefix,
-							   @Nullable @JsonProperty("tracing") TracingConfig tracing,
-	                           @Nullable @JsonProperty("allowedEvents") List<String> allowedEvents,
-	                           @Nullable @JsonProperty("mTLS") MtlsConfiguration mtlsConfiguration
+	public ObservabilityOptions(@Nullable @JsonProperty("enabled") Boolean enabled,
+	                            @Nonnull @JsonProperty("host") String host,
+	                            @Nullable @JsonProperty("exposeOn") String exposeOn,
+	                            @Nullable @JsonProperty("tlsMode") String tlsMode,
+	                            @Nullable @JsonProperty("keepAlive") Boolean keepAlive,
+	                            @Nullable @JsonProperty("prefix") String prefix,
+	                            @Nullable @JsonProperty("tracing") TracingConfig tracing,
+	                            @Nullable @JsonProperty("allowedEvents") List<String> allowedEvents,
+	                            @Nullable @JsonProperty("mTLS") MtlsConfiguration mtlsConfiguration
 	) {
 		super(enabled, host, exposeOn, tlsMode, keepAlive, mtlsConfiguration);
 		this.prefix = Optional.ofNullable(prefix).orElse(BASE_OBSERVABILITY_PATH);

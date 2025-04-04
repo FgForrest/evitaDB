@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@ import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.graphql.api.builder.GraphQLSchemaBuildingContext;
-import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
+import io.evitadb.externalApi.graphql.configuration.GraphQLOptions;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -56,7 +56,7 @@ public class CatalogGraphQLSchemaBuildingContext extends GraphQLSchemaBuildingCo
 	@Getter @Nonnull private final Set<EntitySchemaContract> entitySchemas;
 	@Getter @Nonnull private final Map<String, GraphQLObjectType> entityTypeToEntityObject;
 
-	public CatalogGraphQLSchemaBuildingContext(@Nonnull GraphQLConfig config,
+	public CatalogGraphQLSchemaBuildingContext(@Nonnull GraphQLOptions config,
 	                                           @Nonnull Evita evita,
 	                                           @Nonnull CatalogContract catalog) {
 		super(config, evita);

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -44,18 +44,19 @@ import static java.util.Optional.ofNullable;
 /**
  * This DTO record encapsulates common settings shared among all the API endpoints.
  *
- * @param accessLog                 defines whether the access logs will be enabled or not
- * @param endpoints                 contains specific configuration for all the API endpoints
- * @param certificate               defines the certificate settings that will be used to secure connections to the web servers providing APIs
- * @param workerGroupThreads        defines the number of IO threads
- * @param idleTimeoutInMillis       The amount of time a connection can be idle for before it is timed out. An idle connection is a
- *                                  connection that has had no data transfer in the idle timeout period. Note that this is a fairly coarse
- *                                  grained approach, and small values will cause problems for requests with a long processing time.
- * @param requestTimeoutInMillis    The amount of time a connection can sit idle without processing a request, before it is closed by
- *                                  the server.
- * @param maxEntitySizeInBytes      The default maximum size of a request entity. If entity body is larger than this limit then a
- *                                  java.io.IOException will be thrown at some point when reading the request (on the first read for fixed
- *                                  length requests, when too much data has been read for chunked requests).
+ * @param accessLog              defines whether the access logs will be enabled or not
+ * @param endpoints              contains specific configuration for all the API endpoints
+ * @param headers                contains header names configuration (overrides and support for client defined headers)
+ * @param certificate            defines the certificate settings that will be used to secure connections to the web servers providing APIs
+ * @param workerGroupThreads     defines the number of IO threads
+ * @param idleTimeoutInMillis    The amount of time a connection can be idle for before it is timed out. An idle connection is a
+ *                               connection that has had no data transfer in the idle timeout period. Note that this is a fairly coarse
+ *                               grained approach, and small values will cause problems for requests with a long processing time.
+ * @param requestTimeoutInMillis The amount of time a connection can sit idle without processing a request, before it is closed by
+ *                               the server.
+ * @param maxEntitySizeInBytes   The default maximum size of a request entity. If entity body is larger than this limit then a
+ *                               java.io.IOException will be thrown at some point when reading the request (on the first read for fixed
+ *                               length requests, when too much data has been read for chunked requests).
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public record ApiOptions(
@@ -64,8 +65,9 @@ public record ApiOptions(
 	int requestTimeoutInMillis,
 	long maxEntitySizeInBytes,
 	boolean accessLog,
-	@Nonnull CertificateSettings certificate,
-	@Nonnull Map<String, AbstractApiConfiguration> endpoints
+	@Nonnull HeaderOptions headers,
+	@Nonnull CertificateOptions certificate,
+	@Nonnull Map<String, AbstractApiOptions> endpoints
 ) {
 	public static final int DEFAULT_WORKER_GROUP_THREADS = Runtime.getRuntime().availableProcessors();
 	public static final int DEFAULT_IDLE_TIMEOUT = 20 * 1000;
@@ -83,24 +85,25 @@ public record ApiOptions(
 		@Nullable Integer workerGroupThreads,
 		int idleTimeoutInMillis, int requestTimeoutInMillis,
 		long maxEntitySizeInBytes, boolean accessLog,
-		@Nonnull CertificateSettings certificate,
-		@Nonnull Map<String, AbstractApiConfiguration> endpoints
+		@Nonnull HeaderOptions headers,
+		@Nonnull CertificateOptions certificate,
+		@Nonnull Map<String, AbstractApiOptions> endpoints
 	) {
 		this.workerGroupThreads = ofNullable(workerGroupThreads).orElse(DEFAULT_WORKER_GROUP_THREADS);
 		this.idleTimeoutInMillis = idleTimeoutInMillis <= 0 ? DEFAULT_IDLE_TIMEOUT : idleTimeoutInMillis;
 		this.requestTimeoutInMillis = requestTimeoutInMillis <= 0 ? DEFAULT_REQUEST_TIMEOUT : requestTimeoutInMillis;
 		this.maxEntitySizeInBytes = maxEntitySizeInBytes <= 0 ? DEFAULT_MAX_ENTITY_SIZE : maxEntitySizeInBytes;
 		this.accessLog = accessLog;
+		this.headers = headers;
 		this.certificate = certificate;
 		this.endpoints = endpoints;
-
 	}
 
 	public ApiOptions() {
 		this(
 			DEFAULT_WORKER_GROUP_THREADS, DEFAULT_IDLE_TIMEOUT, DEFAULT_REQUEST_TIMEOUT,
 			DEFAULT_MAX_ENTITY_SIZE, false,
-			new CertificateSettings(), new HashMap<>(8)
+			new HeaderOptions(), new CertificateOptions(), new HashMap<>(8)
 		);
 	}
 
@@ -109,7 +112,7 @@ public record ApiOptions(
 	 */
 	@SuppressWarnings("unchecked")
 	@Nullable
-	public <T extends AbstractApiConfiguration> T getEndpointConfiguration(@Nonnull String endpointCode) {
+	public <T extends AbstractApiOptions> T getEndpointConfiguration(@Nonnull String endpointCode) {
 		return (T) this.endpoints.get(endpointCode);
 	}
 
@@ -124,6 +127,7 @@ public record ApiOptions(
 
 	/**
 	 * Returns true if at least one endpoint requires TLS.
+	 *
 	 * @return true if at least one endpoint requires TLS
 	 */
 	public boolean atLeastOneEndpointRequiresTls() {
@@ -135,6 +139,7 @@ public record ApiOptions(
 
 	/**
 	 * Returns true if at least one endpoint requires TLS.
+	 *
 	 * @return true if at least one endpoint requires TLS
 	 */
 	public boolean atLeastOneEndpointRequiresTls(@Nonnull HostDefinition host) {
@@ -147,6 +152,7 @@ public record ApiOptions(
 
 	/**
 	 * Returns true if at least one endpoint requires mutual TLS.
+	 *
 	 * @return true if at least one endpoint requires mutual TLS
 	 */
 	public boolean atLeastOnEndpointRequiresMtls() {
@@ -187,11 +193,12 @@ public record ApiOptions(
 	@ToString
 	public static class Builder {
 		private final Map<String, Class<?>> apiProviders;
-		private final Map<String, AbstractApiConfiguration> enabledProviders;
+		private final Map<String, AbstractApiOptions> enabledProviders;
 		private int idleTimeoutInMillis = DEFAULT_IDLE_TIMEOUT;
 		private int requestTimeoutInMillis = DEFAULT_REQUEST_TIMEOUT;
 		private long maxEntitySizeInBytes = DEFAULT_MAX_ENTITY_SIZE;
-		private CertificateSettings certificate;
+		private HeaderOptions headers;
+		private CertificateOptions certificate;
 		private int workerGroupThreads = DEFAULT_WORKER_GROUP_THREADS;
 		private boolean accessLog;
 
@@ -206,7 +213,8 @@ public record ApiOptions(
 					)
 				);
 			this.enabledProviders = CollectionUtils.createHashMap(this.apiProviders.size());
-			this.certificate = new CertificateSettings.Builder().build();
+			this.headers = new HeaderOptions.Builder().build();
+			this.certificate = new CertificateOptions.Builder().build();
 		}
 
 		@Nonnull
@@ -240,19 +248,24 @@ public record ApiOptions(
 		}
 
 		@Nonnull
-		public ApiOptions.Builder certificate(@Nonnull CertificateSettings certificate) {
-			this.certificate = certificate;
+		public ApiOptions.Builder headers(@Nonnull HeaderOptions headers) {
+			this.headers = headers;
 			return this;
 		}
 
+		@Nonnull
+		public ApiOptions.Builder certificate(@Nonnull CertificateOptions certificate) {
+			this.certificate = certificate;
+			return this;
+		}
 
 		@Nonnull
 		public ApiOptions.Builder enable(@Nonnull String apiCode) {
 			final Class<?> configurationClass = ofNullable(this.apiProviders.get(apiCode))
 				.orElseThrow(() -> new ApiNotFoundOnClasspath(apiCode));
-			final AbstractApiConfiguration cfg;
+			final AbstractApiOptions cfg;
 			try {
-				cfg = (AbstractApiConfiguration) configurationClass.getDeclaredConstructor().newInstance();
+				cfg = (AbstractApiOptions) configurationClass.getDeclaredConstructor().newInstance();
 			} catch (Exception ex) {
 				throw new GenericEvitaInternalError(
 					"Failed to instantiate default configuration of `" + apiCode + "` API: " + ex.getMessage(),
@@ -265,7 +278,7 @@ public record ApiOptions(
 		}
 
 		@Nonnull
-		public <T extends AbstractApiConfiguration> ApiOptions.Builder enable(@Nonnull String apiCode, @Nonnull T configuration) {
+		public <T extends AbstractApiOptions> ApiOptions.Builder enable(@Nonnull String apiCode, @Nonnull T configuration) {
 			final Class<?> configurationClass = ofNullable(this.apiProviders.get(apiCode))
 				.orElseThrow(() -> new ApiNotFoundOnClasspath(apiCode));
 			Assert.isTrue(
@@ -281,7 +294,11 @@ public record ApiOptions(
 			return new ApiOptions(
 				this.workerGroupThreads,
 				this.idleTimeoutInMillis, this.requestTimeoutInMillis,
-				this.maxEntitySizeInBytes, this.accessLog, this.certificate, this.enabledProviders
+				this.maxEntitySizeInBytes,
+				this.accessLog,
+				this.headers,
+				this.certificate,
+				this.enabledProviders
 			);
 		}
 	}

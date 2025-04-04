@@ -36,7 +36,7 @@ import io.evitadb.core.Evita;
 import io.evitadb.core.async.ClientRunnableTask;
 import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
-import io.evitadb.externalApi.observability.configuration.ObservabilityConfig;
+import io.evitadb.externalApi.observability.configuration.ObservabilityOptions;
 import io.evitadb.function.ChainableConsumer;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ReflectionLookup;
@@ -130,7 +130,7 @@ public class MetricHandler {
 		);
 	}
 
-	private final ObservabilityConfig observabilityConfig;
+	private final ObservabilityOptions observabilityConfig;
 
 	/**
 	 * Composes the name of the metric from the event class, export metric and field name.
@@ -328,7 +328,7 @@ public class MetricHandler {
 		}
 	}
 
-	public MetricHandler(@Nonnull ObservabilityConfig observabilityConfig) {
+	public MetricHandler(@Nonnull ObservabilityOptions observabilityConfig) {
 		this.observabilityConfig = observabilityConfig;
 	}
 

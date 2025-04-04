@@ -37,10 +37,10 @@ import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.core.Evita;
 import io.evitadb.driver.EvitaClient;
 import io.evitadb.driver.config.EvitaClientConfiguration;
-import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
+import io.evitadb.externalApi.configuration.AbstractApiOptions;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.ApiOptions.Builder;
-import io.evitadb.externalApi.configuration.CertificateSettings;
+import io.evitadb.externalApi.configuration.CertificateOptions;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.externalApi.grpc.GrpcProvider;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
@@ -414,18 +414,18 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 				// 10 s request timeout - tests are highly parallel, squeezing our CI infrastructure
 				.requestTimeoutInMillis(10_000)
 				.certificate(
-					CertificateSettings.builder()
+					CertificateOptions.builder()
 						.folderPath(evita.getConfiguration().storage().storageDirectory().toString() + "-certificates")
 						.build()
 				);
 			final int[] ports = portManager.allocatePorts(datasetName, dataSetInfo.webApi().length);
 			int portIndex = 0;
 			for (String webApiCode : dataSetInfo.webApi()) {
-				final AbstractApiConfiguration webApiConfig;
+				final AbstractApiOptions webApiConfig;
 				final Class<?> configurationClass = AVAILABLE_PROVIDERS.get(webApiCode).getConfigurationClass();
 				try {
 					final Constructor<?> hostConstructor = configurationClass.getConstructor(String.class);
-					webApiConfig = (AbstractApiConfiguration) hostConstructor.newInstance(
+					webApiConfig = (AbstractApiOptions) hostConstructor.newInstance(
 						"localhost:" + ports[portIndex++]
 					);
 				} catch (InvocationTargetException | NoSuchMethodException | InstantiationException |
@@ -462,7 +462,7 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 		final EvitaServer evitaServer = new EvitaServer(evita, apiOptions);
 		evitaServer.run();
 
-		final AbstractApiConfiguration cfg = apiOptions.getEndpointConfiguration(SystemProvider.CODE);
+		final AbstractApiOptions cfg = apiOptions.getEndpointConfiguration(SystemProvider.CODE);
 		if (cfg == null) {
 			// system provider was not initialized
 			return evitaServer;
@@ -623,13 +623,13 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 			// return new evita client
 			return dataSetInfo.evitaClient(
 				evitaServer -> {
-					final AbstractApiConfiguration grpcConfig = evitaServer.getExternalApiServer()
+					final AbstractApiOptions grpcConfig = evitaServer.getExternalApiServer()
 						.getApiOptions()
 						.getEndpointConfiguration(GrpcProvider.CODE);
 					if (grpcConfig == null) {
 						throw new ParameterResolutionException("gRPC web API was not opened for the dataset `" + useDataSet.value() + "`!");
 					}
-					final AbstractApiConfiguration systemConfig = evitaServer.getExternalApiServer()
+					final AbstractApiOptions systemConfig = evitaServer.getExternalApiServer()
 						.getApiOptions()
 						.getEndpointConfiguration(SystemProvider.CODE);
 					if (systemConfig == null) {
@@ -665,7 +665,7 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 			// return new GraphQL tester
 			return dataSetInfo.graphQLTester(
 				evitaServer -> {
-					final AbstractApiConfiguration gqlConfig = evitaServer.getExternalApiServer()
+					final AbstractApiOptions gqlConfig = evitaServer.getExternalApiServer()
 						.getApiOptions()
 						.getEndpointConfiguration(GraphQLProvider.CODE);
 					if (gqlConfig == null) {
@@ -680,7 +680,7 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 			// return new GraphQL schema tester
 			return dataSetInfo.graphQLSchemaTester(
 				evitaServer -> {
-					final AbstractApiConfiguration gqlConfig = evitaServer.getExternalApiServer()
+					final AbstractApiOptions gqlConfig = evitaServer.getExternalApiServer()
 						.getApiOptions()
 						.getEndpointConfiguration(GraphQLProvider.CODE);
 					if (gqlConfig == null) {
@@ -695,7 +695,7 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 			// return new Lab API tester
 			return dataSetInfo.labApiTester(
 				evitaServer -> {
-					final AbstractApiConfiguration labApiConfig = evitaServer.getExternalApiServer()
+					final AbstractApiOptions labApiConfig = evitaServer.getExternalApiServer()
 						.getApiOptions()
 						.getEndpointConfiguration(LabProvider.CODE);
 					if (labApiConfig == null) {
@@ -710,7 +710,7 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 			// return new Rest tester
 			return dataSetInfo.restTester(
 				evitaServer -> {
-					final AbstractApiConfiguration restConfig = evitaServer.getExternalApiServer()
+					final AbstractApiOptions restConfig = evitaServer.getExternalApiServer()
 						.getApiOptions()
 						.getEndpointConfiguration(RestProvider.CODE);
 					if (restConfig == null) {
