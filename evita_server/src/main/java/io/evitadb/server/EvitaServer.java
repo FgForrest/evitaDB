@@ -121,15 +121,15 @@ public class EvitaServer {
 	/**
 	 * Pattern for matching Java arguments `-Dname=value`
 	 */
-	private static final Pattern OPTION_JAVA_ARGUMENT = Pattern.compile("-D(\\S+)=(\\S+)");
+	private static final Pattern OPTION_JAVA_ARGUMENT = Pattern.compile("-D(\\S+)=(.+)");
 	/**
 	 * Pattern for matching Unix like arguments `--name=value`
 	 */
-	private static final Pattern OPTION_GNU_ARGUMENT = Pattern.compile("--(\\S+)=(\\S+)");
+	private static final Pattern OPTION_GNU_ARGUMENT = Pattern.compile("--(\\S+)=(.+)");
 	/**
 	 * Pattern for matching simple arguments `name=value`
 	 */
-	private static final Pattern OPTION_SIMPLE_ARGUMENT = Pattern.compile("(\\S+)=(\\S+)");
+	private static final Pattern OPTION_SIMPLE_ARGUMENT = Pattern.compile("(\\S+)=(.+)");
 	/**
 	 * Classpath location of the default evita configuration file.
 	 */
