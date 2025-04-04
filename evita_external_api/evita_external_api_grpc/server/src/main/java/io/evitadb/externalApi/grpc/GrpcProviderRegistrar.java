@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ import com.linecorp.armeria.server.grpc.GrpcService;
 import com.linecorp.armeria.server.grpc.GrpcServiceBuilder;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.configuration.ApiOptions;
-import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
+import io.evitadb.externalApi.grpc.configuration.GrpcOptions;
 import io.evitadb.externalApi.grpc.services.EvitaManagementService;
 import io.evitadb.externalApi.grpc.services.EvitaService;
 import io.evitadb.externalApi.grpc.services.EvitaSessionService;
@@ -52,7 +52,7 @@ import javax.annotation.Nonnull;
  *
  * @author Tomáš Pozler, 2022
  */
-public class GrpcProviderRegistrar implements ExternalApiProviderRegistrar<GrpcConfig> {
+public class GrpcProviderRegistrar implements ExternalApiProviderRegistrar<GrpcOptions> {
 
 	@Nonnull
 	@Override
@@ -62,23 +62,23 @@ public class GrpcProviderRegistrar implements ExternalApiProviderRegistrar<GrpcC
 
 	@Nonnull
 	@Override
-	public Class<GrpcConfig> getConfigurationClass() {
-		return GrpcConfig.class;
+	public Class<GrpcOptions> getConfigurationClass() {
+		return GrpcOptions.class;
 	}
 
 	@Nonnull
 	@Override
-	public ExternalApiProvider<GrpcConfig> register(
+	public ExternalApiProvider<GrpcOptions> register(
 		@Nonnull Evita evita,
 		@Nonnull ExternalApiServer externalApiServer,
 		@Nonnull ApiOptions apiOptions,
-		@Nonnull GrpcConfig grpcAPIConfig
+		@Nonnull GrpcOptions grpcAPIConfig
 	) {
 		final GrpcServiceBuilder grpcServiceBuilder = GrpcService.builder()
-			.addService(new EvitaService(evita))
-			.addService(new EvitaManagementService(evita, externalApiServer))
-			.addService(new EvitaSessionService(evita))
-			.addService(new EvitaTrafficRecordingService(evita))
+			.addService(new EvitaService(evita, apiOptions.headers()))
+			.addService(new EvitaManagementService(evita, externalApiServer, apiOptions.headers()))
+			.addService(new EvitaSessionService(evita, apiOptions.headers()))
+			.addService(new EvitaTrafficRecordingService(evita, apiOptions.headers()))
 			.addService(ProtoReflectionService.newInstance())
 			.intercept(new ServerSessionInterceptor(evita))
 			.intercept(new GlobalExceptionHandlerInterceptor())

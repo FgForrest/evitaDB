@@ -29,12 +29,13 @@ import com.linecorp.armeria.common.RequestHeaders;
 import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.api.observability.trace.TracingContext.SpanAttribute;
 import io.evitadb.api.query.head.Label;
-import io.evitadb.externalApi.http.AdditionalHttpHeaderNames;
+import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.netty.util.AsciiString;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.context.Scope;
 import io.opentelemetry.context.propagation.TextMapGetter;
+import lombok.Setter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -74,12 +75,23 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpRequ
 		};
 
 	/**
+	 * Header configuration. Initialized with default settings that gets overwritten once the context is prepared.
+	 */
+	@Setter private HeaderOptions headerOptions = HeaderOptions.builder().build();
+	/**
 	 * Tracing context for handling the actual tracing logic.
 	 */
 	private final TracingContext tracingContext;
 
-	public JsonApiTracingContext(@Nonnull TracingContext tracingContext) {
+	public JsonApiTracingContext(
+		@Nonnull TracingContext tracingContext
+	) {
 		this.tracingContext = tracingContext;
+	}
+
+	@Override
+	public void configureHeaders(@Nonnull HeaderOptions headerOptions) {
+		this.headerOptions = headerOptions;
 	}
 
 	@Override
@@ -94,7 +106,7 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpRequ
 			return;
 		}
 		try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
-			tracingContext.executeWithinBlock(
+			this.tracingContext.executeWithinBlock(
 				protocolName,
 				runnable,
 				attributes
@@ -176,12 +188,22 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpRequ
 
 	@Nullable
 	@Override
-	public <T> T executeWithinBlock(@Nonnull String protocolName, @Nonnull HttpRequest context, @Nonnull Supplier<T> lambda) {
+	public <T> T executeWithinBlock(
+		@Nonnull String protocolName,
+		@Nonnull HttpRequest context,
+		@Nonnull Supplier<T> lambda
+	) {
 		final RequestHeaders headers = context.headers();
 		final String clientIpAddress = headers.get(HttpHeaderNames.X_FORWARDED_FOR);
-		final String clientUri = headers.get(AdditionalHttpHeaderNames.X_FORWARDED_URI);
-		final Label[] labels = headers.getAll(AdditionalHttpHeaderNames.X_EVITADB_META_LABEL)
+		final String clientUri = this.headerOptions.forwardedUri()
 			.stream()
+			.map(headers::get)
+			.filter(Objects::nonNull)
+			.findFirst()
+			.orElse(null);
+		final Label[] labels = this.headerOptions.forwardedFor()
+			.stream()
+			.flatMap(name -> headers.getAll(name).stream())
 			.map(header -> {
 				final int index = header.indexOf('=');
 				if (index < 0) {
@@ -223,7 +245,12 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpRequ
 			.extract(Context.current(), headers, CONTEXT_GETTER);
 		final String clientId = convertClientId(
 			protocolName,
-			headers.get(AdditionalHttpHeaderNames.X_EVITADB_CLIENTID)
+			this.headerOptions.clientId()
+				.stream()
+				.map(headers::get)
+				.filter(Objects::nonNull)
+				.findFirst()
+				.orElse(null)
 		);
 		return context.with(OpenTelemetryTracerSetup.CONTEXT_KEY, clientId);
 	}

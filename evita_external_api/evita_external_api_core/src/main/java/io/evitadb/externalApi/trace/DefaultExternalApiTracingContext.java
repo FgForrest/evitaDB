@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.trace;
 
 import io.evitadb.api.observability.trace.TracingContext.SpanAttribute;
+import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import lombok.NoArgsConstructor;
 
@@ -39,6 +40,11 @@ import java.util.function.Supplier;
 @NoArgsConstructor(access = lombok.AccessLevel.PRIVATE)
 public class DefaultExternalApiTracingContext implements ExternalApiTracingContext<Object> {
 	public final static DefaultExternalApiTracingContext INSTANCE = new DefaultExternalApiTracingContext();
+
+	@Override
+	public void configureHeaders(@Nonnull HeaderOptions headerOptions) {
+		// do nothing
+	}
 
 	@Override
 	public void executeWithinBlock(@Nonnull String protocolName, @Nonnull Object context, @Nonnull Runnable runnable, @Nullable SpanAttribute... attributes) {

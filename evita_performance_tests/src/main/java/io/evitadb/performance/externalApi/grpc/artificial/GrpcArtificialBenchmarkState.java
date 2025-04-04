@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,16 +29,15 @@ import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
 import com.linecorp.armeria.client.grpc.GrpcClients;
 import com.linecorp.armeria.common.grpc.GrpcSerializationFormats;
 import io.evitadb.externalApi.grpc.certificate.ClientCertificateManager;
-import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
+import io.evitadb.externalApi.grpc.configuration.GrpcOptions;
 import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc;
 import io.evitadb.externalApi.grpc.generated.EvitaSessionServiceGrpc;
 import io.evitadb.externalApi.grpc.generated.EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub;
 import io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest;
 import io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse;
-import io.evitadb.externalApi.system.configuration.SystemConfig;
+import io.evitadb.externalApi.system.configuration.SystemOptions;
 import io.evitadb.performance.artificial.AbstractArtificialBenchmarkState;
 
-import java.nio.file.Path;
 import java.util.function.Supplier;
 
 /**
@@ -49,13 +48,13 @@ import java.util.function.Supplier;
 public abstract class GrpcArtificialBenchmarkState extends AbstractArtificialBenchmarkState<EvitaSessionServiceBlockingStub> {
 
 	private static final String HOST = "localhost";
-	private static final int PORT = GrpcConfig.DEFAULT_GRPC_PORT;
+	private static final int PORT = GrpcOptions.DEFAULT_GRPC_PORT;
 
 	private ClientCertificateManager clientCertificateManager;
 
 	public void setUp() {
 		clientCertificateManager = new ClientCertificateManager.Builder()
-			.useGeneratedCertificate(true, HOST, SystemConfig.DEFAULT_SYSTEM_PORT)
+			.useGeneratedCertificate(true, HOST, SystemOptions.DEFAULT_SYSTEM_PORT)
 			.build();
 	}
 

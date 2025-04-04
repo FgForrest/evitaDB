@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.externalApi.graphql.GraphQLProviderRegistrar;
-import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
+import io.evitadb.externalApi.graphql.configuration.GraphQLOptions;
 import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.performance.generators.TestDatasetGenerator;
 import io.evitadb.performance.setup.EvitaCatalogReusableSetup;
@@ -85,7 +85,7 @@ public class GraphQLArtificialFullDatabaseBenchmarkState extends GraphQLArtifici
 		server = new ExternalApiServer(
 			this.evita,
 			ApiOptions.builder()
-				.enable(GraphQLProvider.CODE, new GraphQLConfig())
+				.enable(GraphQLProvider.CODE, new GraphQLOptions())
 				.build(),
 			Collections.singleton(new GraphQLProviderRegistrar())
 		);

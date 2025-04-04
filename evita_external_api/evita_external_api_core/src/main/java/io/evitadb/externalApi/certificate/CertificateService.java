@@ -28,8 +28,8 @@ import io.evitadb.core.async.Scheduler;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.configuration.ApiOptions;
+import io.evitadb.externalApi.configuration.CertificateOptions;
 import io.evitadb.externalApi.configuration.CertificatePath;
-import io.evitadb.externalApi.configuration.CertificateSettings;
 import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 
@@ -37,7 +37,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.cert.CertificateException;
@@ -57,7 +56,7 @@ import java.util.stream.Collectors;
 public class CertificateService {
 	private final AtomicReference<LoadedCertificates> loadedCertificates = new AtomicReference<>();
 	private final CertificatesLoader certificatesLoader;
-	private final CertificateSettings certificateSettings;
+	private final CertificateOptions certificateSettings;
 
 	private long lastModifiedTime = System.currentTimeMillis();
 

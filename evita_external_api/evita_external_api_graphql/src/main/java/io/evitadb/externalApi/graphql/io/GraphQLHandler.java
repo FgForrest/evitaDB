@@ -44,6 +44,7 @@ import io.evitadb.api.observability.trace.TracingBlockReference;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
 import io.evitadb.externalApi.exception.HttpExchangeException;
@@ -104,13 +105,14 @@ public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExecutionCont
 
 	public GraphQLHandler(
         @Nonnull Evita evita,
+        @Nonnull HeaderOptions headers,
 		@Nonnull ObjectMapper objectMapper,
 		@Nonnull GraphQLInstanceType instanceType,
 		@Nonnull AtomicReference<GraphQL> graphQL
 	) {
         this.evita = evita;
 		this.objectMapper = objectMapper;
-		this.tracingContext = ExternalApiTracingContextProvider.getContext();
+		this.tracingContext = ExternalApiTracingContextProvider.getContext(headers);
 		this.instanceType = instanceType;
 		this.graphQL = graphQL;
 	}

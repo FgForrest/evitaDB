@@ -36,9 +36,9 @@ import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.externalApi.certificate.LoadedCertificates;
 import io.evitadb.externalApi.certificate.ServerCertificateManager;
 import io.evitadb.externalApi.certificate.ServerCertificateManager.CertificateType;
-import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
+import io.evitadb.externalApi.configuration.AbstractApiOptions;
+import io.evitadb.externalApi.configuration.CertificateOptions;
 import io.evitadb.externalApi.configuration.CertificatePath;
-import io.evitadb.externalApi.configuration.CertificateSettings;
 import io.evitadb.externalApi.configuration.TlsMode;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.externalApi.grpc.GrpcProvider;
@@ -613,7 +613,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 			assertFalse(externalApiServer.reloadCertificatesIfAnyModified());
 
 			final ServerCertificateManager serverCertificateManager = new ServerCertificateManager(
-				new CertificateSettings(true, "./evita-server-certificates/", new CertificatePath(null, null, null))
+				new CertificateOptions(true, "./evita-server-certificates/", new CertificatePath(null, null, null))
 			);
 			serverCertificateManager.generateSelfSignedCertificate(CertificateType.CLIENT, CertificateType.SERVER);
 
@@ -898,20 +898,20 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 			evitaServer.run();
 
 			final ExternalApiServer externalApiServer = evitaServer.getExternalApiServer();
-			final AbstractApiConfiguration systemConfig = externalApiServer.getExternalApiProviderByCode(SystemProvider.CODE).getConfiguration();
+			final AbstractApiOptions systemConfig = externalApiServer.getExternalApiProviderByCode(SystemProvider.CODE).getConfiguration();
 			assertEquals(TlsMode.FORCE_NO_TLS, systemConfig.getTlsMode());
 			assertFalse(systemConfig.isKeepAlive());
-			final AbstractApiConfiguration graphQLConfig = externalApiServer.getExternalApiProviderByCode(GraphQLProvider.CODE).getConfiguration();
+			final AbstractApiOptions graphQLConfig = externalApiServer.getExternalApiProviderByCode(GraphQLProvider.CODE).getConfiguration();
 			assertEquals(TlsMode.FORCE_NO_TLS, graphQLConfig.getTlsMode());
 			assertFalse(graphQLConfig.isKeepAlive());
-			final AbstractApiConfiguration restConfig = externalApiServer.getExternalApiProviderByCode(RestProvider.CODE).getConfiguration();
+			final AbstractApiOptions restConfig = externalApiServer.getExternalApiProviderByCode(RestProvider.CODE).getConfiguration();
 			assertEquals(TlsMode.FORCE_NO_TLS, restConfig.getTlsMode());
 			assertFalse(restConfig.isKeepAlive());
-			final AbstractApiConfiguration grpcConfig = externalApiServer.getExternalApiProviderByCode(GrpcProvider.CODE).getConfiguration();
+			final AbstractApiOptions grpcConfig = externalApiServer.getExternalApiProviderByCode(GrpcProvider.CODE).getConfiguration();
 			assertEquals(TlsMode.FORCE_NO_TLS, grpcConfig.getTlsMode());
 			// gRPC is always keep-alive - it is a requirement, WARNING is logged when it is set to false
 			assertTrue(grpcConfig.isKeepAlive());
-			final AbstractApiConfiguration observabilityConfig = externalApiServer.getExternalApiProviderByCode(ObservabilityProvider.CODE).getConfiguration();
+			final AbstractApiOptions observabilityConfig = externalApiServer.getExternalApiProviderByCode(ObservabilityProvider.CODE).getConfiguration();
 			assertEquals(TlsMode.FORCE_TLS, observabilityConfig.getTlsMode());
 			assertFalse(observabilityConfig.isKeepAlive());
 

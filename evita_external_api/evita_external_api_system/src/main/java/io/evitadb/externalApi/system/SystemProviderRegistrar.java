@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -39,8 +39,8 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.api.system.ProbesProvider.ApiState;
 import io.evitadb.externalApi.api.system.ProbesProvider.Readiness;
 import io.evitadb.externalApi.configuration.ApiOptions;
+import io.evitadb.externalApi.configuration.CertificateOptions;
 import io.evitadb.externalApi.configuration.CertificatePath;
-import io.evitadb.externalApi.configuration.CertificateSettings;
 import io.evitadb.externalApi.event.ReadinessEvent;
 import io.evitadb.externalApi.event.ReadinessEvent.Prospective;
 import io.evitadb.externalApi.event.ReadinessEvent.Result;
@@ -48,7 +48,7 @@ import io.evitadb.externalApi.http.CorsService;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.http.ExternalApiServer;
-import io.evitadb.externalApi.system.configuration.SystemConfig;
+import io.evitadb.externalApi.system.configuration.SystemOptions;
 import io.evitadb.externalApi.utils.path.RoutingHandlerService;
 import io.evitadb.utils.CertificateUtils;
 import io.evitadb.utils.StringUtils;
@@ -70,7 +70,7 @@ import java.util.stream.Collectors;
  *
  * @author Tomáš Pozler, 2023
  */
-public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<SystemConfig> {
+public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<SystemOptions> {
 	public static final String ENDPOINT_SERVER_NAME = "server-name";
 	public static final String ENDPOINT_SYSTEM_STATUS = "status";
 	public static final String ENDPOINT_SYSTEM_LIVENESS = "liveness";
@@ -261,17 +261,17 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 
 	@Nonnull
 	@Override
-	public Class<SystemConfig> getConfigurationClass() {
-		return SystemConfig.class;
+	public Class<SystemOptions> getConfigurationClass() {
+		return SystemOptions.class;
 	}
 
 	@Nonnull
 	@Override
-	public ExternalApiProvider<SystemConfig> register(
+	public ExternalApiProvider<SystemOptions> register(
 		@Nonnull Evita evita,
 		@Nonnull ExternalApiServer externalApiServer,
 		@Nonnull ApiOptions apiOptions,
-		@Nonnull SystemConfig systemConfig
+		@Nonnull SystemOptions systemConfig
 	) {
 		final RoutingHandlerService router = new RoutingHandlerService();
 		router.add(
@@ -318,7 +318,7 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 		);
 
 		final String fileName;
-		final CertificateSettings certificateSettings = apiOptions.certificate();
+		final CertificateOptions certificateSettings = apiOptions.certificate();
 
 		final boolean atLeastOnEndpointRequiresTls = apiOptions.atLeastOneEndpointRequiresTls();
 		if (atLeastOnEndpointRequiresTls) {

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,6 +31,7 @@ import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import graphql.GraphQL;
 import io.evitadb.core.Evita;
+import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.http.CorsEndpoint;
 import io.evitadb.externalApi.http.CorsService;
@@ -74,6 +75,10 @@ public class GraphQLRouter implements HttpService {
 	 * Provides access to Evita private API
 	 */
 	@Nonnull private final Evita evita;
+	/**
+	 * Provides access to headers configuration.
+	 */
+	@Nonnull private final HeaderOptions headers;
 
 	private final PathHandlingService delegateRouter = new PathHandlingService();
 	private boolean systemApiRegistered = false;
@@ -153,7 +158,7 @@ public class GraphQLRouter implements HttpService {
 	 * Registers all needed endpoints for a single API into a passed router.
 	 */
 	private void registerApi(@Nonnull RoutingHandlerService apiRouter, @Nonnull RegisteredApi registeredApi) {
-		final CorsEndpoint corsEndpoint = new CorsEndpoint();
+		final CorsEndpoint corsEndpoint = new CorsEndpoint(this.headers);
 		corsEndpoint.addMetadata(Set.of(HttpMethod.GET, HttpMethod.POST), true, true);
 
 		// actual GraphQL query handler
@@ -161,7 +166,7 @@ public class GraphQLRouter implements HttpService {
 			HttpMethod.POST,
 			registeredApi.path().toString(),
 			CorsService.standaloneFilter(
-				new GraphQLHandler(this.evita, this.objectMapper, registeredApi.instanceType(), registeredApi.graphQLReference())
+				new GraphQLHandler(this.evita, this.headers, this.objectMapper, registeredApi.instanceType(), registeredApi.graphQLReference())
 					.decorate(service -> new GraphQLExceptionHandler(this.objectMapper, service))
 			)
 		);

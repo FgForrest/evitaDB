@@ -81,6 +81,12 @@ api:                                              # [see API configuration](#api
   requestTimeoutInMillis: 2K  
   maxEntitySizeInBytes: 2MB
   accessLog: false
+  headers:
+    forwardedUri: ["X-Forwarded-Uri"]
+    forwardedFor: ["Forwarded", "X-Forwarded-For", "X-Real-IP"]
+    label: ["X-EvitaDB-Label"]
+    clientId: ["X-EvitaDB-ClientID"]
+    traceParent: ["traceparent"]
   certificate:                                    # [see TLS configuration](#tls-configuration) 
     generateAndUseSelfSigned: true
     folderPath: './evita-server-certificates/'
@@ -723,7 +729,7 @@ is resolved.
         <Note type="question">
 
         <NoteTitle toggles="true">
-    
+
         ##### How do we measure the object size?
         </NoteTitle>
 
@@ -767,6 +773,47 @@ This section of the configuration allows you to selectively enable, disable, and
     <dd>
         <p>**Default:** `false`</p>
         <p>It enables / disables access log messages logging for all APIs.</p>
+    </dd> 
+</dl>
+
+### Headers configuration
+
+The headers contain sensible defaults, but you may want to override them in some cases (for example, 
+the `X-Forwarded-For` header is sometimes used by proxy servers between the client and the server).
+
+A common configuration is in the `headers` subsection of the `api`.
+It allows you to configure these settings:
+
+<dl>
+    <dd>
+        <p>This section contains configuration for HTTP header names that are recognized by evitaDB.</p>
+        <dl>
+            <dt>forwardedUri</dt>
+            <dd>
+                <p>**Default:** `["X-Forwarded-Uri"]`</p>
+                <p>Array of header names that are recognized as forwarded URI headers. These headers are used when evitaDB is behind a proxy to determine the original URI requested by the client.</p>
+            </dd>
+            <dt>forwardedFor</dt>
+            <dd>
+                <p>**Default:** `["Forwarded", "X-Forwarded-For", "X-Real-IP"]`</p>
+                <p>Array of header names that are recognized as forwarded client IP headers. These headers are used when evitaDB is behind a proxy to determine the original client IP address.</p>
+            </dd>
+            <dt>label</dt>
+            <dd>
+                <p>**Default:** `["X-EvitaDB-Label"]`</p>
+                <p>Array of header names for meta labels that allow to set traffic recording labels via HTTP headers.</p>
+            </dd>
+            <dt>clientId</dt>
+            <dd>
+                <p>**Default:** `["X-EvitaDB-ClientID"]`</p>
+                <p>Array of header names that are recognized as client identifier headers. These headers can be used to identify the client application making the request.</p>
+            </dd>
+            <dt>traceParent</dt>
+            <dd>
+                <p>**Default:** `["traceparent"]`</p>
+                <p>Array of header names that are recognized as trace parent headers. These headers are used for distributed tracing to correlate requests across different services.</p>
+            </dd>
+        </dl>
     </dd>
 </dl>
 
@@ -801,6 +848,7 @@ It allows configuring these settings:
       - **`certificate`**: path to the public part of the certificate file (*.crt)
       - **`privateKey`**: path to the private key of the certificate (*.key)
       - **`privateKeyPassword`**: password for the private key
+
     <Note type="info">
 
     <NoteTitle toggles="false">
@@ -818,6 +866,7 @@ It allows configuring these settings:
     <NoteTitle toggles="true">
     
     ##### Is there an alternative to this manual configuration?
+
     </NoteTitle>
 
     Yes there is. You can use standardized way importing the 

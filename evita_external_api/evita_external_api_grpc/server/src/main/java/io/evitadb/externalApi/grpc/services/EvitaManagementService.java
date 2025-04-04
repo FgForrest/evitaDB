@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -45,18 +45,22 @@ import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.externalApi.api.system.ProbesProvider.ApiState;
 import io.evitadb.externalApi.api.system.ProbesProvider.Readiness;
-import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
+import io.evitadb.externalApi.configuration.AbstractApiOptions;
+import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse.Builder;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.http.ExternalApiServer;
+import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
+import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.evitadb.store.spi.CatalogPersistenceServiceFactory.FileIdCarrier;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassifierUtils;
 import io.evitadb.utils.ClassifierUtils.Keyword;
 import io.evitadb.utils.UUIDUtil;
+import io.grpc.Metadata;
 import io.grpc.stub.StreamObserver;
 import lombok.extern.slf4j.Slf4j;
 
@@ -98,6 +102,10 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 	 */
 	@Nonnull private final Evita evita;
 	/**
+	 * Tracing context to be used for gRPC calls.
+	 */
+	@Nonnull private final ExternalApiTracingContext<Metadata> context;
+	/**
 	 * Instance of {@link ExternalApiServer} that is used to handle HTTP requests - for the sake of checking the status.
 	 */
 	@Nonnull private final ExternalApiServer externalApiServer;
@@ -133,10 +141,11 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 			fileIdCarrier.fileId().equals(theFileId);
 	}
 
-	public EvitaManagementService(@Nonnull Evita evita, @Nonnull ExternalApiServer externalApiServer) {
+	public EvitaManagementService(@Nonnull Evita evita, @Nonnull ExternalApiServer externalApiServer, HeaderOptions headers) {
 		this.evita = evita;
 		this.externalApiServer = externalApiServer;
 		this.management = evita.management();
+		this.context = ExternalApiTracingContextProvider.getContext(headers);
 	}
 
 	/**
@@ -149,12 +158,12 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 	public void serverStatus(Empty request, StreamObserver<GrpcEvitaServerStatusResponse> responseObserver) {
 		executeWithClientContext(
 			() -> {
-				final SystemStatus systemStatus = management.getSystemStatus();
+				final SystemStatus systemStatus = this.management.getSystemStatus();
 
-				final String[] enabledApiEndpoints = externalApiServer.getApiOptions().getEnabledApiEndpoints();
-				final Optional<Readiness> readiness = externalApiServer.getProbeProviders().stream()
+				final String[] enabledApiEndpoints = this.externalApiServer.getApiOptions().getEnabledApiEndpoints();
+				final Optional<Readiness> readiness = this.externalApiServer.getProbeProviders().stream()
 					.findFirst()
-					.map(it -> it.getReadiness(evita, externalApiServer, enabledApiEndpoints));
+					.map(it -> it.getReadiness(this.evita, this.externalApiServer, enabledApiEndpoints));
 
 				final GrpcEvitaServerStatusResponse.Builder responseBuilder = GrpcEvitaServerStatusResponse
 					.newBuilder()
@@ -167,8 +176,8 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 					.setReadiness(toGrpcReadinessState(readiness.map(Readiness::state).orElse(ReadinessState.UNKNOWN)))
 					.setReadOnly(evita.getConfiguration().server().readOnly());
 
-				externalApiServer.getProbeProviders().stream()
-					.flatMap(probe -> probe.getHealthProblems(evita, externalApiServer, enabledApiEndpoints).stream())
+				this.externalApiServer.getProbeProviders().stream()
+					.flatMap(probe -> probe.getHealthProblems(this.evita, this.externalApiServer, enabledApiEndpoints).stream())
 					.distinct()
 					.forEach(problem -> responseBuilder.addHealthProblems(toGrpcHealthProblem(problem)));
 
@@ -184,10 +193,10 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 								).orElse(false)
 							);
 
-						final Optional<ExternalApiProvider<?>> externalApiProviderByCode = ofNullable(externalApiServer.getExternalApiProviderByCode(apiRegistrar.getExternalApiCode()));
+						final Optional<ExternalApiProvider<?>> externalApiProviderByCode = ofNullable(this.externalApiServer.getExternalApiProviderByCode(apiRegistrar.getExternalApiCode()));
 						externalApiProviderByCode
 							.ifPresent(provider -> {
-								final AbstractApiConfiguration configuration = provider.getConfiguration();
+								final AbstractApiOptions configuration = provider.getConfiguration();
 								Arrays.stream(configuration.getBaseUrls())
 									.forEach(apiBuilder::addBaseUrl);
 
@@ -215,8 +224,9 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 				responseObserver.onNext(responseBuilder.build());
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor(),
-			responseObserver
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
 		);
 	}
 
@@ -231,21 +241,23 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 		executeWithClientContext(
 			() -> {
 				/* TOBEDONE JNO #25 - handle differently */
-				if (evita.getConfiguration().server().readOnly()) {
+				if (this.evita.getConfiguration().server().readOnly()) {
 					responseObserver.onError(
 						new ReadOnlyException()
 					);
 				} else {
 					responseObserver.onNext(
 						GrpcEvitaConfigurationResponse.newBuilder()
-							.setConfiguration(management.getConfiguration())
+							.setConfiguration(this.management.getConfiguration())
 							.build()
 					);
 					responseObserver.onCompleted();
 				}
 			},
-			evita.getRequestExecutor(),
-			responseObserver);
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
+		);
 	}
 
 	/**
@@ -258,7 +270,7 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 	public void getCatalogStatistics(Empty request, StreamObserver<GrpcEvitaCatalogStatisticsResponse> responseObserver) {
 		executeWithClientContext(
 			() -> {
-				final CatalogStatistics[] catalogStatistics = management.getCatalogStatistics();
+				final CatalogStatistics[] catalogStatistics = this.management.getCatalogStatistics();
 				responseObserver.onNext(
 					GrpcEvitaCatalogStatisticsResponse.newBuilder()
 						.addAllCatalogStatistics(
@@ -270,8 +282,9 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 				);
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor(),
-			responseObserver
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
 		);
 	}
 
@@ -286,7 +299,7 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 		Path backupFilePath = null;
 		try {
 			try {
-				final Path workDirectory = evita.getConfiguration().transaction().transactionWorkDirectory();
+				final Path workDirectory = this.evita.getConfiguration().transaction().transactionWorkDirectory();
 				if (!workDirectory.toFile().exists()) {
 					Assert.isTrue(workDirectory.toFile().mkdirs(), "Failed to create work directory for catalog restore.");
 				}
@@ -330,9 +343,9 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 					public void onCompleted() {
 						try {
 							outputStream.close();
-							Assert.isPremiseValid(catalogNameToRestore != null, "Catalog name to restore must be provided.");
-							final Task<?, Void> restorationTask = management.restoreCatalog(
-								catalogNameToRestore,
+							Assert.isPremiseValid(this.catalogNameToRestore != null, "Catalog name to restore must be provided.");
+							final Task<?, Void> restorationTask = EvitaManagementService.this.management.restoreCatalog(
+								this.catalogNameToRestore,
 								Files.size(finalBackupFilePath),
 								Files.newInputStream(finalBackupFilePath, StandardOpenOption.READ)
 							);
@@ -438,8 +451,9 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 					);
 				}
 			},
-			evita.getTransactionExecutor(),
-			responseObserver
+			this.evita.getTransactionExecutor(),
+			responseObserver,
+			this.context
 		);
 	}
 
@@ -453,7 +467,7 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 	public void restoreCatalogFromServerFile(GrpcRestoreCatalogFromServerFileRequest request, StreamObserver<GrpcRestoreCatalogResponse> responseObserver) {
 		executeWithClientContext(
 			() -> {
-				final Task<?, Void> restorationTask = management.restoreCatalog(
+				final Task<?, Void> restorationTask = this.management.restoreCatalog(
 					request.getCatalogName(), toUuid(request.getFileId())
 				);
 				responseObserver.onNext(
@@ -463,8 +477,10 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 				);
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor(),
-			responseObserver);
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
+		);
 	}
 
 	/**
@@ -474,7 +490,7 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 	public void listTaskStatuses(GrpcTaskStatusesRequest request, StreamObserver<GrpcTaskStatusesResponse> responseObserver) {
 		executeWithClientContext(
 			() -> {
-				final PaginatedList<TaskStatus<?, ?>> taskStatuses = management.listTaskStatuses(
+				final PaginatedList<TaskStatus<?, ?>> taskStatuses = this.management.listTaskStatuses(
 					request.getPageNumber(),
 					request.getPageSize(),
 					request.getTaskTypeList()
@@ -499,8 +515,9 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 				);
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor(),
-			responseObserver
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
 		);
 	}
 
@@ -511,7 +528,7 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 	public void getTaskStatus(GrpcTaskStatusRequest request, StreamObserver<GrpcTaskStatusResponse> responseObserver) {
 		executeWithClientContext(
 			() -> {
-				management.getTaskStatus(toUuid(request.getTaskId()))
+				this.management.getTaskStatus(toUuid(request.getTaskId()))
 					.ifPresent(
 						it -> responseObserver.onNext(GrpcTaskStatusResponse.newBuilder()
 							.setTaskStatus(toGrpcTaskStatus(it))
@@ -520,8 +537,10 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 					);
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor(),
-			responseObserver);
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
+		);
 	}
 
 	/**
@@ -532,13 +551,15 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 		executeWithClientContext(
 			() -> {
 				final GrpcSpecifiedTaskStatusesResponse.Builder builder = GrpcSpecifiedTaskStatusesResponse.newBuilder();
-				management.getTaskStatuses(request.getTaskIdsList().stream().map(EvitaDataTypesConverter::toUuid).toArray(UUID[]::new))
+				this.management.getTaskStatuses(request.getTaskIdsList().stream().map(EvitaDataTypesConverter::toUuid).toArray(UUID[]::new))
 					.forEach(status -> builder.addTaskStatus(toGrpcTaskStatus(status)));
 				responseObserver.onNext(builder.build());
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor(),
-			responseObserver);
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
+		);
 	}
 
 	/**
@@ -549,7 +570,7 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 	public void cancelTask(GrpcCancelTaskRequest request, StreamObserver<GrpcCancelTaskResponse> responseObserver) {
 		executeWithClientContext(
 			() -> {
-				final boolean canceled = management.cancelTask(
+				final boolean canceled = this.management.cancelTask(
 					toUuid(request.getTaskId())
 				);
 				responseObserver.onNext(
@@ -559,8 +580,10 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 				);
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor(),
-			responseObserver);
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
+		);
 	}
 
 	/**
@@ -570,7 +593,7 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 	public void listFilesToFetch(GrpcFilesToFetchRequest request, StreamObserver<GrpcFilesToFetchResponse> responseObserver) {
 		executeWithClientContext(
 			() -> {
-				final PaginatedList<FileForFetch> filesToFetch = management.listFilesToFetch(
+				final PaginatedList<FileForFetch> filesToFetch = this.management.listFilesToFetch(
 					request.getPageNumber(),
 					request.getPageSize(),
 					request.hasOrigin() ? request.getOrigin().getValue() : null
@@ -590,8 +613,10 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor(),
-			responseObserver);
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
+		);
 	}
 
 	/**
@@ -604,7 +629,7 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 	public void getFileToFetch(GrpcFileToFetchRequest request, StreamObserver<GrpcFileToFetchResponse> responseObserver) {
 		executeWithClientContext(
 			() -> {
-				management.getFileToFetch(toUuid(request.getFileId()))
+				this.management.getFileToFetch(toUuid(request.getFileId()))
 					.ifPresentOrElse(
 						file -> responseObserver.onNext(
 							GrpcFileToFetchResponse.newBuilder()
@@ -617,8 +642,10 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 					);
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor(),
-			responseObserver);
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
+		);
 	}
 
 	/**
@@ -629,12 +656,12 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 		executeWithClientContext(
 			() -> {
 				final UUID fileId = toUuid(request.getFileId());
-				final Optional<FileForFetch> fileToFetch = management.getFileToFetch(fileId);
+				final Optional<FileForFetch> fileToFetch = this.management.getFileToFetch(fileId);
 				if (fileToFetch.isEmpty()) {
 					sendErrorToClient(new FileForFetchNotFoundException(fileId), responseObserver);
 				} else {
 					try (
-						final InputStream inputStream = management.fetchFile(
+						final InputStream inputStream = this.management.fetchFile(
 							fileId
 						)
 					) {
@@ -658,8 +685,9 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 					responseObserver.onCompleted();
 				}
 			},
-			evita.getRequestExecutor(),
-			responseObserver
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
 		);
 	}
 
@@ -675,15 +703,16 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 			() -> {
 				final UUID fileId = toUuid(request.getFileId());
 				try {
-					management.deleteFile(fileId);
+					this.management.deleteFile(fileId);
 					responseObserver.onNext(GrpcDeleteFileToFetchResponse.newBuilder().setSuccess(true).build());
 				} catch (FileForFetchNotFoundException ex) {
 					responseObserver.onNext(GrpcDeleteFileToFetchResponse.newBuilder().setSuccess(false).build());
 				}
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor(),
-			responseObserver
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
 		);
 	}
 
@@ -715,8 +744,9 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 				);
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor(),
-			responseObserver
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
 		);
 	}
 

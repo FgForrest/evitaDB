@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@ import com.linecorp.armeria.common.ServerCacheControl;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import com.linecorp.armeria.server.file.HttpFile;
-import io.evitadb.externalApi.lab.configuration.LabConfig;
+import io.evitadb.externalApi.lab.configuration.LabOptions;
 import io.evitadb.externalApi.lab.gui.dto.EvitaDBConnection;
 
 import javax.annotation.Nonnull;
@@ -63,7 +63,7 @@ public class GuiHandler implements HttpService {
 	private static final Pattern ASSETS_PATTERN = Pattern.compile("/assets/([a-zA-Z0-9\\-]+/)*[a-zA-Z0-9\\-]+\\.[a-z0-9]+");
 	private static final Pattern ROOT_ASSETS_PATTERN = Pattern.compile("(/logo)?/[a-zA-Z0-9\\-]+\\.[a-z0-9]+");
 
-	@Nonnull private final LabConfig labConfig;
+	@Nonnull private final LabOptions labConfig;
 	@Nonnull private final String serverName;
 	@Nonnull private final ObjectMapper objectMapper;
 
@@ -71,14 +71,14 @@ public class GuiHandler implements HttpService {
 
 	@Nonnull
 	public static GuiHandler create(
-		@Nonnull LabConfig labConfig,
+		@Nonnull LabOptions labConfig,
 		@Nonnull String serverName,
 		@Nonnull ObjectMapper objectMapper
 	) {
 		return new GuiHandler(labConfig, serverName, objectMapper);
 	}
 
-	private GuiHandler(@Nonnull LabConfig labConfig,
+	private GuiHandler(@Nonnull LabOptions labConfig,
 	                   @Nonnull String serverName,
 	                   @Nonnull ObjectMapper objectMapper) {
 		this.labConfig = labConfig;

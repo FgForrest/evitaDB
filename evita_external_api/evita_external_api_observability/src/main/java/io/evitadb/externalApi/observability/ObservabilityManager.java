@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -39,13 +39,14 @@ import io.evitadb.core.Evita;
 import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.UnexpectedIOException;
+import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.event.ReadinessEvent;
 import io.evitadb.externalApi.event.ReadinessEvent.Prospective;
 import io.evitadb.externalApi.event.ReadinessEvent.Result;
 import io.evitadb.externalApi.http.CorsEndpoint;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.observability.agent.ErrorMonitor;
-import io.evitadb.externalApi.observability.configuration.ObservabilityConfig;
+import io.evitadb.externalApi.observability.configuration.ObservabilityOptions;
 import io.evitadb.externalApi.observability.exception.JfRException;
 import io.evitadb.externalApi.observability.io.ObservabilityExceptionHandler;
 import io.evitadb.externalApi.observability.logging.CheckJfrRecordingHandler;
@@ -152,7 +153,11 @@ public class ObservabilityManager {
 	/**
 	 * Observability API config.
 	 */
-	private final ObservabilityConfig config;
+	private final ObservabilityOptions config;
+	/**
+	 * Headers configuration.
+	 */
+	private final HeaderOptions headers;
 	/**
 	 * Evita instance.
 	 */
@@ -181,7 +186,12 @@ public class ObservabilityManager {
 		EVITA_ERRORS.incrementAndGet();
 	}
 
-	public ObservabilityManager(ObservabilityConfig config, Evita evita) {
+	public ObservabilityManager(
+		@Nonnull HeaderOptions headers,
+		@Nonnull ObservabilityOptions config,
+		@Nonnull Evita evita
+	) {
+		this.headers = headers;
 		this.config = config;
 		this.evita = evita;
 		this.objectMapper = new ObjectMapper();
@@ -294,7 +304,7 @@ public class ObservabilityManager {
 				allowedEvents, maxSizeInBytes, maxAgeInSeconds,
 				this.evita.management().exportFileService()
 			);
-			evita.getServiceExecutor().submit(jfrRecorderTask);
+			this.evita.getServiceExecutor().submit(jfrRecorderTask);
 			return jfrRecorderTask;
 		}
 	}
@@ -305,7 +315,7 @@ public class ObservabilityManager {
 	@Nonnull
 	public TaskStatus<?, ?> stop() throws JfRException {
 		Assert.isTrue(
-			!evita.getConfiguration().server().readOnly(),
+			!this.evita.getConfiguration().server().readOnly(),
 			ReadOnlyException::new
 		);
 
@@ -389,7 +399,7 @@ public class ObservabilityManager {
 		final CheckJfrRecordingHandler checkJfrRecordingHandler = new CheckJfrRecordingHandler(this.evita, this);
 		final GetJfrRecordingEventTypesHandler getJfrRecordingEventTypesHandler = new GetJfrRecordingEventTypesHandler(this.evita, this);
 
-		final CorsEndpoint corsEndpoint = new CorsEndpoint();
+		final CorsEndpoint corsEndpoint = new CorsEndpoint(this.headers);
 		corsEndpoint.addMetadataFromEndpoint(startLoggingHandler);
 		corsEndpoint.addMetadataFromEndpoint(stopLoggingHandler);
 		corsEndpoint.addMetadataFromEndpoint(checkJfrRecordingHandler);
@@ -397,19 +407,19 @@ public class ObservabilityManager {
 
 		this.observabilityRouter.addExactPath(
 			"/startRecording",
-			corsEndpoint.toHandler(new ObservabilityExceptionHandler(objectMapper, startLoggingHandler))
+			corsEndpoint.toHandler(new ObservabilityExceptionHandler(this.objectMapper, startLoggingHandler))
 		);
 		this.observabilityRouter.addExactPath(
 			"/stopRecording",
-			corsEndpoint.toHandler(new ObservabilityExceptionHandler(objectMapper, stopLoggingHandler))
+			corsEndpoint.toHandler(new ObservabilityExceptionHandler(this.objectMapper, stopLoggingHandler))
 		);
 		this.observabilityRouter.addExactPath(
 			"/checkRecording",
-			corsEndpoint.toHandler(new ObservabilityExceptionHandler(objectMapper, checkJfrRecordingHandler))
+			corsEndpoint.toHandler(new ObservabilityExceptionHandler(this.objectMapper, checkJfrRecordingHandler))
 		);
 		this.observabilityRouter.addExactPath(
 			"/getRecordingEventTypes",
-			corsEndpoint.toHandler(new ObservabilityExceptionHandler(objectMapper, getJfrRecordingEventTypesHandler))
+			corsEndpoint.toHandler(new ObservabilityExceptionHandler(this.objectMapper, getJfrRecordingEventTypesHandler))
 		);
 		this.observabilityRouter.addExactPath(
 			"/" + LIVENESS_SUFFIX,

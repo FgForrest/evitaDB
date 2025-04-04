@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,53 +21,60 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.configuration;
+package io.evitadb.externalApi.lab.configuration;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
+import io.evitadb.externalApi.configuration.AbstractApiOptions;
 import io.evitadb.externalApi.configuration.ApiWithSpecificPrefix;
 import io.evitadb.externalApi.configuration.MtlsConfiguration;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Optional;
+
+import static java.util.Optional.ofNullable;
 
 /**
- * REST API specific configuration.
+ * Configuration for lab API and GUI.
  *
- * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class RestConfig extends AbstractApiConfiguration implements ApiWithSpecificPrefix {
-	private static final String BASE_REST_PATH = "rest";
+public class LabOptions extends AbstractApiOptions implements ApiWithSpecificPrefix {
+	private static final String BASE_LAB_PATH = "lab";
 
 	/**
-	 * Controls the prefix REST API will react on.
-	 * Default value is `rest`.
+	 * Controls the prefix lab will react on.
+	 * Default value is `gql`.
 	 */
 	@Getter private final String prefix;
+	@Getter private final GuiConfig gui;
 
-	public RestConfig() {
+	public LabOptions() {
 		super();
-		this.prefix = BASE_REST_PATH;
+		this.prefix = BASE_LAB_PATH;
+		this.gui = new GuiConfig();
 	}
 
-	public RestConfig(@Nonnull String host) {
+	public LabOptions(@Nonnull String host) {
 		super(true, host);
-		this.prefix = BASE_REST_PATH;
+		this.prefix = BASE_LAB_PATH;
+		this.gui = new GuiConfig();
 	}
 
 	@JsonCreator
-	public RestConfig(@Nullable @JsonProperty("enabled") Boolean enabled,
-	                  @Nonnull @JsonProperty("host") String host,
-	                  @Nullable @JsonProperty("exposeOn") String exposeOn,
-	                  @Nullable @JsonProperty("tlsMode") String tlsMode,
-	                  @Nullable @JsonProperty("keepAlive") Boolean keepAlive,
-	                  @Nullable @JsonProperty("prefix") String prefix,
-	                  @Nullable @JsonProperty("mTLS") MtlsConfiguration mtlsConfiguration
+	public LabOptions(
+		@Nullable @JsonProperty("enabled") Boolean enabled,
+		@Nonnull @JsonProperty("host") String host,
+		@Nullable @JsonProperty("exposeOn") String exposeOn,
+		@Nullable @JsonProperty("tlsMode") String tlsMode,
+		@Nullable @JsonProperty("keepAlive") Boolean keepAlive,
+		@Nullable @JsonProperty("prefix") String prefix,
+		@Nullable @JsonProperty("gui") GuiConfig gui,
+		@Nullable @JsonProperty("mTLS") MtlsConfiguration mtlsConfiguration
 	) {
 		super(enabled, host, exposeOn, tlsMode, keepAlive, mtlsConfiguration);
-		this.prefix = Optional.ofNullable(prefix).orElse(BASE_REST_PATH);
+		this.prefix = ofNullable(prefix).orElse(BASE_LAB_PATH);
+		this.gui = ofNullable(gui).orElse(new GuiConfig());
 	}
 }

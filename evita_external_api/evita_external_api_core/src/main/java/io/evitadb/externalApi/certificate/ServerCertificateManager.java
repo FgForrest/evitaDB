@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,9 +24,9 @@
 package io.evitadb.externalApi.certificate;
 
 import com.linecorp.armeria.common.TlsKeyPair;
-import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
+import io.evitadb.externalApi.configuration.AbstractApiOptions;
+import io.evitadb.externalApi.configuration.CertificateOptions;
 import io.evitadb.externalApi.configuration.CertificatePath;
-import io.evitadb.externalApi.configuration.CertificateSettings;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CertificateUtils;
@@ -70,12 +70,12 @@ public class ServerCertificateManager {
 	/**
 	 * Gets the path of the certificate and private key that should be used.
 	 *
-	 * @param certificateSettings part of {@link AbstractApiConfiguration} that contains information about certificates
+	 * @param certificateSettings part of {@link AbstractApiOptions} that contains information about certificates
 	 *                            settings.
 	 * @return {@link CertificatePath} object that contains paths to the certificate and private key.
 	 */
 	@Nonnull
-	public static Optional<CertificatePath> getCertificatePath(@Nonnull CertificateSettings certificateSettings) {
+	public static Optional<CertificatePath> getCertificatePath(@Nonnull CertificateOptions certificateSettings) {
 		final Path certPath;
 		final Path certPrivateKeyPath;
 		final String certPrivateKeyPassword;
@@ -108,7 +108,7 @@ public class ServerCertificateManager {
 	 * Creates a new instance of {@link ServerCertificateManager} with the default path to the folder where the certificate
 	 * related files will be stored.
 	 */
-	public ServerCertificateManager(@Nonnull CertificateSettings certificateSettings) {
+	public ServerCertificateManager(@Nonnull CertificateOptions certificateSettings) {
 		this.certificateFolderPath = certificateSettings.getFolderPath();
 		final File file = this.certificateFolderPath.toFile();
 		if (!file.exists()) {
