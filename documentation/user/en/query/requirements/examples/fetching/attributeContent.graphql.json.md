@@ -1,11 +1,11 @@
 ```json
 {
-  "data": [
+  "data" : [
     {
-      "primaryKey": 64703,
-      "attributes": {
-        "code": "samsung",
-        "name": "Samsung"
+      "primaryKey" : 64703,
+      "attributes" : {
+        "code" : "samsung",
+        "name" : "Samsung"
       }
     }
   ]

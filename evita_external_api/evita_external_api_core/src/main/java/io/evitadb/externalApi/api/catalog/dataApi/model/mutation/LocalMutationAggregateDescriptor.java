@@ -30,6 +30,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.Apply
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.RemoveAttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.UpsertAttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity.RemoveParentMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity.SetEntityScopeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity.SetParentMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price.RemovePriceMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price.SetPriceInnerRecordHandlingMutationDescriptor;
@@ -71,6 +72,7 @@ public interface LocalMutationAggregateDescriptor {
 	PropertyDescriptor REMOVE_PARENT_MUTATION = PropertyDescriptor.nullableFromObject(RemoveParentMutationDescriptor.THIS);
 	PropertyDescriptor SET_PARENT_MUTATION = PropertyDescriptor.nullableFromObject(SetParentMutationDescriptor.THIS);
 
+	PropertyDescriptor SET_ENTITY_SCOPE_MUTATION = PropertyDescriptor.nullableFromObject(SetEntityScopeMutationDescriptor.THIS);
 	PropertyDescriptor SET_PRICE_INNER_RECORD_HANDLING_MUTATION = PropertyDescriptor.nullableFromObject(SetPriceInnerRecordHandlingMutationDescriptor.THIS);
 	PropertyDescriptor REMOVE_PRICE_MUTATION = PropertyDescriptor.nullableFromObject(RemovePriceMutationDescriptor.THIS);
 	PropertyDescriptor UPSERT_PRICE_MUTATION = PropertyDescriptor.nullableFromObject(UpsertPriceMutationDescriptor.THIS);

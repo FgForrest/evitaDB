@@ -592,7 +592,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcTaskStatus.Builder getTaskStatusBuilder() {
-
+      
       onChanged();
       return getTaskStatusFieldBuilder().getBuilder();
     }
@@ -619,7 +619,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcTaskStatus, io.evitadb.externalApi.grpc.generated.GrpcTaskStatus.Builder, io.evitadb.externalApi.grpc.generated.GrpcTaskStatusOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcTaskStatus, io.evitadb.externalApi.grpc.generated.GrpcTaskStatus.Builder, io.evitadb.externalApi.grpc.generated.GrpcTaskStatusOrBuilder> 
         getTaskStatusFieldBuilder() {
       if (taskStatusBuilder_ == null) {
         taskStatusBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<

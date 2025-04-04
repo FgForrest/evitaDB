@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -36,8 +36,9 @@ import io.evitadb.store.offsetIndex.exception.CorruptedRecordException;
 import io.evitadb.store.offsetIndex.exception.IncompleteSerializationException;
 import io.evitadb.store.offsetIndex.model.RecordKey;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
+import io.evitadb.store.offsetIndex.model.StorageRecord.RawRecord;
 import io.evitadb.store.offsetIndex.model.VersionedValue;
-import io.evitadb.store.offsetIndex.stream.RandomAccessFileInputStream;
+import io.evitadb.stream.RandomAccessFileInputStream;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.BitUtils;
 
@@ -78,13 +79,17 @@ import static java.util.Optional.ofNullable;
 @ThreadSafe
 public class OffsetIndexSerializationService {
 	/**
-	 * Length of single mem table record is 12B: startingPosition (long), length (int)
+	 * Length of single mem table record is 12B (old format): startingPosition (long), length (int)
 	 */
 	public static final int PREVIOUS_MEM_TABLE_FRAGMENT_POINTER_SIZE = 8 + 4;
 	/**
+	 * Length of single mem table record is 16B: startingPosition (long), length (int), recordCount (int)
+	 */
+	public static final int MEM_TABLE_FRAGMENT_HEADER_SIZE = 4 + PREVIOUS_MEM_TABLE_FRAGMENT_POINTER_SIZE;
+	/**
 	 * Length of single mem table record is 21B: primaryKey (long), class (byte), startingPosition (long), length (int)
 	 */
-	public static final int MEM_TABLE_RECORD_SIZE = 8 + 1 + 8 + 4;
+	public static final int MEM_TABLE_RECORD_SIZE = 8 + 8 + 1 + 4;
 
 	/**
 	 * Estimates the size of the offset index file record based on the number of records.
@@ -97,7 +102,8 @@ public class OffsetIndexSerializationService {
 		@Nonnull StorageOptions storageOptions
 	) {
 		final long estimatedSize = (long) recordCount * (MEM_TABLE_RECORD_SIZE);
-		return estimatedSize + (long) StorageRecord.getOverheadSize() * (PREVIOUS_MEM_TABLE_FRAGMENT_POINTER_SIZE + computeExpectedRecordCount(storageOptions, recordCount).fragments());
+		final int fragments = computeExpectedRecordCount(storageOptions, recordCount).fragments();
+		return estimatedSize + ((long) StorageRecord.getOverheadSize() + MEM_TABLE_FRAGMENT_HEADER_SIZE) * (long) fragments;
 	}
 
 	/**
@@ -109,6 +115,7 @@ public class OffsetIndexSerializationService {
 	 * @param fileLength  The length of the offset index file.
 	 * @return The statistics about the offset index file after verification.
 	 */
+	@SuppressWarnings("StringConcatenationMissingWhitespace")
 	@Nonnull
 	public static FileOffsetIndexStatistics verify(
 		@Nonnull OffsetIndex offsetIndex,
@@ -125,9 +132,9 @@ public class OffsetIndexSerializationService {
 		byte[] buffer = new byte[inputStream.getBuffer().length];
 		int recCount = 0;
 		long startPosition = 0;
-		long prevTransactionId = 0;
-		boolean firstTransaction = true;
-		boolean transactionCleared = true;
+		long prevGenerationId = 0;
+		boolean firstGeneration = true;
+		boolean generationCleared = true;
 		int accumulatedRecordLength = 0;
 		do {
 			recCount++;
@@ -135,24 +142,26 @@ public class OffsetIndexSerializationService {
 
 			try {
 				inputStream.resetToPosition(startPosition);
+				inputStream.markStart();
 				// computed record length without CRC32 checksum
 				int recordLength = inputStream.readInt();
 				final byte control = inputStream.readByte();
 				final long catalogVersion = inputStream.readLong();
+				inputStream.markPayloadStart(recordLength, control);
 				final long finalStartPosition = startPosition;
 
-				// verify that transactional id is monotonically increasing
-				if (!firstTransaction && !(catalogVersion >= prevTransactionId)) {
+				// verify that generation id is monotonically increasing
+				if (!firstGeneration && !(catalogVersion >= prevGenerationId)) {
 					throw new CorruptedRecordException(
-						"Transaction id record monotonic row is violated in record no. " + finalRecCount + " file position: [" + finalStartPosition + ", length " + recordLength + "B], previous transaction id is " + prevTransactionId + ", current is " + catalogVersion,
-						prevTransactionId, catalogVersion
+						"Generation id record monotonic row is violated in record no. " + finalRecCount + " file position: [" + finalStartPosition + ", length " + recordLength + "B], previous transaction id is " + prevGenerationId + ", current is " + catalogVersion,
+						prevGenerationId, catalogVersion
 					);
 				}
-				// verify that transaction id stays the same within transaction block
-				if (!transactionCleared && catalogVersion != prevTransactionId) {
+				// verify that generation id stays the same within generation block
+				if (!generationCleared && catalogVersion != prevGenerationId) {
 					throw new CorruptedRecordException(
-						"Transaction id was not cleared with control bit record id in record no. " + finalRecCount + " file position: [" + finalStartPosition + ", length " + recordLength + "B], previous transaction id is " + prevTransactionId + ", current is " + catalogVersion,
-						prevTransactionId, catalogVersion
+						"Generation id was not cleared with a control bit record id in record no. " + finalRecCount + " file position: [" + finalStartPosition + ", length " + recordLength + "B], previous generation id is " + prevGenerationId + ", current is " + catalogVersion,
+						prevGenerationId, catalogVersion
 					);
 				}
 
@@ -187,10 +196,10 @@ public class OffsetIndexSerializationService {
 				}
 
 				startPosition += recordLength;
-				prevTransactionId = catalogVersion;
-				transactionCleared = BitUtils.isBitSet(control, StorageRecord.TRANSACTION_CLOSING_BIT);
-				if (transactionCleared && catalogVersion > 0L) {
-					firstTransaction = false;
+				prevGenerationId = catalogVersion;
+				generationCleared = BitUtils.isBitSet(control, StorageRecord.GENERATION_CLOSING_BIT);
+				if (generationCleared && catalogVersion > 0L) {
+					firstGeneration = false;
 				}
 				accumulatedRecordLength += recordLength;
 				if (!BitUtils.isBitSet(control, StorageRecord.CONTINUATION_BIT)) {
@@ -214,7 +223,7 @@ public class OffsetIndexSerializationService {
 	 * @param offsetIndex    The original offset index to copy.
 	 * @param inputStream    The input stream containing the offset index file.
 	 * @param outputStream   The output stream to copy the snapshot to.
-	 * @param catalogVersion The transaction ID of the snapshot.
+	 * @param catalogVersion The generation ID of the snapshot.
 	 * @return The length of the copied snapshot.
 	 */
 	@Nonnull
@@ -231,12 +240,15 @@ public class OffsetIndexSerializationService {
 		// input stream is still used in callee and the output stream is managed by the callee
 		final ObservableOutput<OutputStream> output = new ObservableOutput<>(
 			outputStream,
-			offsetIndex.getStorageOptions().outputBufferSize(),
+			Math.min(StorageOptions.DEFAULT_OUTPUT_BUFFER_SIZE, offsetIndex.getStorageOptions().outputBufferSize()),
 			offsetIndex.getStorageOptions().outputBufferSize(),
 			0
 		);
 		if (offsetIndex.getStorageOptions().computeCRC32C()) {
 			output.computeCRC32();
+		}
+		if (offsetIndex.getStorageOptions().compress()) {
+			output.compress();
 		}
 		final Collection<Entry<RecordKey, FileLocation>> entries = offsetIndex.getEntries();
 		final Collection<VersionedValue> nonFlushedValues = new ArrayList<>(entries.size());
@@ -254,26 +266,57 @@ public class OffsetIndexSerializationService {
 				if (volatileValue.removed() || volatileValue.addedInFuture()) {
 					continue;
 				} else {
-					fileLocation = volatileValue.versionedValue().fileLocation();
+					final VersionedValue versionedValue = volatileValue.versionedValue();
+					Assert.isPremiseValid(versionedValue != null, "Versioned value must be present!");
+					fileLocation = versionedValue.fileLocation();
 				}
 			} else {
 				fileLocation = entry.getValue();
 			}
 
-			final StorageRecord<byte[]> theRecord = StorageRecord.read(
-				inputStream,
-				fileLocation,
-				(stream, recordLength) -> stream.readBytes(recordLength - StorageRecord.OVERHEAD_SIZE)
-			);
+			final byte[] overriddenValue = valuesToOverride.get(entry.getKey());
+			final FileLocation copiedRecordLocation;
+			if (overriddenValue == null) {
+				inputStream.seekWithUnknownLength(fileLocation.startingPosition());
+				long startPosition = -1;
+				int recordLength = 0;
+				byte control;
+				RawRecord sourceRecord;
+				do {
+					sourceRecord = StorageRecord.readRaw(inputStream);
+					control = sourceRecord.control();
 
-			final StorageRecord<byte[]> storageRecord = new StorageRecord<>(
-				output, catalogVersion, !it.hasNext(),
-				theOutput -> {
-					final byte[] payload = valuesToOverride.getOrDefault(entry.getKey(), theRecord.payload());
-					theOutput.write(payload);
-					return payload;
-				}
-			);
+					// write original value in raw form
+					byte[] rawData = sourceRecord.rawData();
+
+					final FileLocation recordLocation = StorageRecord.writeRaw(output, control, catalogVersion, rawData);
+					if (startPosition == -1) {
+						startPosition = recordLocation.startingPosition();
+					}
+					recordLength += recordLocation.recordLength();
+				} while (BitUtils.isBitSet(control, StorageRecord.CONTINUATION_BIT));
+
+				Assert.isPremiseValid(
+					startPosition >= 0,
+					"Start position must be greater than 0!"
+				);
+				Assert.isPremiseValid(
+					recordLength > 0,
+					"Record length must be greater than 0!"
+				);
+
+				copiedRecordLocation = new FileLocation(startPosition, recordLength);
+			} else {
+				// write overridden value
+				copiedRecordLocation = new StorageRecord<>(
+					output, catalogVersion, !it.hasNext(),
+					theOutput -> {
+						theOutput.write(overriddenValue);
+						return overriddenValue;
+					}
+				).fileLocation();
+			}
+
 			counter++;
 			if (progressConsumer != null) {
 				progressConsumer.accept(counter);
@@ -283,7 +326,7 @@ public class OffsetIndexSerializationService {
 			final RecordKey key = entry.getKey();
 			nonFlushedValues.add(
 				new VersionedValue(
-					key.primaryKey(), key.recordType(), storageRecord.fileLocation()
+					key.primaryKey(), key.recordType(), copiedRecordLocation
 				)
 			);
 		}
@@ -293,7 +336,7 @@ public class OffsetIndexSerializationService {
 			output,
 			catalogVersion,
 			nonFlushedValues,
-			null,
+			FileLocation.EMPTY,
 			offsetIndex.getStorageOptions()
 		);
 	}
@@ -306,10 +349,9 @@ public class OffsetIndexSerializationService {
 		@Nonnull ObservableOutput<?> output,
 		long catalogVersion,
 		@Nonnull Collection<VersionedValue> nonFlushedEntries,
-		@Nullable FileLocation lastFileOffsetIndexLocation,
+		@Nonnull FileLocation lastFileOffsetIndexLocation,
 		@Nonnull StorageOptions storageOptions
 	) {
-		final int totalEntryCount = nonFlushedEntries.size();
 		final Iterator<VersionedValue> entries = nonFlushedEntries.iterator();
 
 		// start with full buffer
@@ -317,40 +359,63 @@ public class OffsetIndexSerializationService {
 		// this holds file location pointer to the last stored OffsetIndex fragment and is used to allow single direction pointing
 		final AtomicReference<FileLocation> lastStorageRecordLocation = new AtomicReference<>(lastFileOffsetIndexLocation);
 		final ExpectedCounts fileOffsetIndexRecordCount = computeExpectedRecordCount(storageOptions, nonFlushedEntries.size());
-		for (int i = 0; i < fileOffsetIndexRecordCount.fragments; i++) {
+		if (fileOffsetIndexRecordCount.fragments == 0 && lastFileOffsetIndexLocation == FileLocation.EMPTY) {
+			// no previous offset index fragment and no new entries - serialize empty record at least
 			lastStorageRecordLocation.set(
 				new StorageRecord<>(
 					output,
 					catalogVersion,
-					i + 1 == fileOffsetIndexRecordCount.fragments(),
+					true,
 					stream -> {
-						final FileLocation lsrl = lastStorageRecordLocation.get();
-						if (lsrl == null) {
-							// if no last record location is known - this is root mem table fragment
-							stream.writeLong(-1);
-							stream.writeInt(-1);
-						} else {
-							// if last record location is known - refer to it (chain the fragments)
-							stream.writeLong(lsrl.startingPosition());
-							stream.writeInt(lsrl.recordLength());
-						}
-						// iterate over entries (iterator is global and continues where last fragment finished)
-						// we need to stop at the point when we know we would not be able to store any more records
-						int cnt = 0;
-						while (entries.hasNext() && cnt++ < fileOffsetIndexRecordCount.recordsInFragment()) {
-							final VersionedValue nonFlushedValue = entries.next();
-							stream.writeLong(nonFlushedValue.primaryKey());
-							stream.writeByte(nonFlushedValue.recordType());
-							final FileLocation fileLocation = nonFlushedValue.fileLocation();
-							stream.writeLong(fileLocation.startingPosition());
-							stream.writeInt(fileLocation.recordLength());
-						}
+						// if no last record location is known - this is root mem table fragment
+						stream.writeLong(-1L);
+						stream.writeInt(-1);
+						// write number of records in this fragment
+						stream.writeInt(0);
 						return null;
 					}
 				).fileLocation()
 			);
+		} else {
+			for (int i = 0; i < fileOffsetIndexRecordCount.fragments; i++) {
+				int fragmentNo = i;
+				lastStorageRecordLocation.set(
+					new StorageRecord<>(
+						output,
+						catalogVersion,
+						i + 1 == fileOffsetIndexRecordCount.fragments(),
+						stream -> {
+							final FileLocation lsrl = lastStorageRecordLocation.get();
+							if (lsrl == FileLocation.EMPTY) {
+								// if no last record location is known - this is root mem table fragment
+								stream.writeLong(-1);
+								stream.writeInt(-1);
+							} else {
+								// if last record location is known - refer to it (chain the fragments)
+								stream.writeLong(lsrl.startingPosition());
+								stream.writeInt(lsrl.recordLength());
+							}
+							// write number of records in this fragment
+							final int recordsToWrite = nonFlushedEntries.size() - fileOffsetIndexRecordCount.recordsInFragment() * fragmentNo;
+							final int recordsInSegment = Math.min(fileOffsetIndexRecordCount.recordsInFragment(), recordsToWrite);
+							stream.writeInt(recordsInSegment);
+							// iterate over entries (iterator is global and continues where last fragment finished)
+							// we need to stop at the point when we know we would not be able to store any more records
+							int cnt = 0;
+							while (entries.hasNext() && cnt++ < fileOffsetIndexRecordCount.recordsInFragment()) {
+								final VersionedValue nonFlushedValue = entries.next();
+								stream.writeLong(nonFlushedValue.primaryKey());
+								stream.writeByte(nonFlushedValue.recordType());
+								final FileLocation fileLocation = nonFlushedValue.fileLocation();
+								stream.writeLong(fileLocation.startingPosition());
+								stream.writeInt(fileLocation.recordLength());
+							}
+							return null;
+						}
+					).fileLocation()
+				);
+			}
 		}
-
 
 		Assert.isPremiseValid(
 			!entries.hasNext(),
@@ -361,42 +426,58 @@ public class OffsetIndexSerializationService {
 		output.flush();
 
 		// return location of the last stored memory fragment file
+		final FileLocation fileLocation = lastStorageRecordLocation.get();
+		Assert.isPremiseValid(fileLocation != null, "No file location was stored!");
 		return new FileLocationAndWrittenBytes(
-			lastStorageRecordLocation.get(),
-			output.total()
+			fileLocation,
+			output.getWrittenBytesSinceReset()
 		);
 	}
 
 	/**
 	 * Deserializes {@link OffsetIndex} from the fragment identified by `fileLocation`.
 	 */
-	public static void deserialize(@Nonnull ObservableInput<?> input, @Nonnull FileLocation fileLocation, @Nonnull OffsetIndexBuilder OffsetIndexBuilder) {
+	public static void deserialize(
+		@Nonnull ObservableInput<?> input,
+		@Nonnull FileLocation fileLocation,
+		@Nonnull OffsetIndexBuilder offsetIndexBuilder
+	) {
 		// this set holds all record keys that were removed
 		final Set<RecordKey> removedEntries = new HashSet<>(16_384);
 		// this variable holds location of the previous mem table fragment
 		final AtomicReference<FileLocation> fileOffsetIndexFragmentLocation = new AtomicReference<>(fileLocation);
 		boolean head = true;
-		Long transactionId = null;
+		Long generationId = null;
 		do {
 			final StorageRecord<Object> readRecord = StorageRecord.read(
 				input,
 				fileOffsetIndexFragmentLocation.get(),
-				(stream, length) -> {
+				(stream, length, control) -> {
 					// compute the length of the payload - this determines the moment when to stop reading
-					final int effectiveLength = length - ObservableOutput.TAIL_MANDATORY_SPACE;
+					final int effectiveLength = length - StorageRecord.OVERHEAD_SIZE;
 					// read previous memory fragment locations
 					final long previousFileOffsetIndexFragmentPosition = stream.readLong();
 					final int previousFileOffsetIndexFragmentLength = stream.readInt();
 					if (previousFileOffsetIndexFragmentPosition == -1) {
 						// if previous fragment position is -1, it means this fragment is root one
-						fileOffsetIndexFragmentLocation.set(null);
+						fileOffsetIndexFragmentLocation.set(FileLocation.EMPTY);
 					} else {
 						fileOffsetIndexFragmentLocation.set(
 							new FileLocation(previousFileOffsetIndexFragmentPosition, previousFileOffsetIndexFragmentLength)
 						);
 					}
 
-					do {
+					// calculate or read number of records in fragment
+					int recordsInFragment;
+					if (!BitUtils.isBitSet(control, StorageRecord.COMPRESSION_BIT) && (effectiveLength - PREVIOUS_MEM_TABLE_FRAGMENT_POINTER_SIZE) % MEM_TABLE_RECORD_SIZE == 0) {
+						// old format is always uncompressed and the number of records can be calculated form length
+						recordsInFragment = (effectiveLength - PREVIOUS_MEM_TABLE_FRAGMENT_POINTER_SIZE) / MEM_TABLE_RECORD_SIZE;
+					} else {
+						// new format of the fragment contains this information in the header
+						recordsInFragment = stream.readInt();
+					}
+
+					for (int i = 0; i < recordsInFragment; i++) {
 						// read mem table records
 						final long primaryKey = stream.readLong();
 						final byte recordType = stream.readByte();
@@ -409,37 +490,35 @@ public class OffsetIndexSerializationService {
 						} else {
 							final RecordKey recordKey = new RecordKey(recordType, primaryKey);
 							final boolean wasRemoved = removedEntries.contains(recordKey);
-							final boolean wasUpdated = OffsetIndexBuilder.contains(recordKey);
+							final boolean wasUpdated = offsetIndexBuilder.contains(recordKey);
 							if (!wasRemoved && !wasUpdated) {
-								OffsetIndexBuilder.register(
+								offsetIndexBuilder.register(
 									recordKey,
 									new FileLocation(startingPosition, recordLength)
 								);
 							}
 						}
-
-						// until we read as many bytes as effective fragment size
-					} while (input.total() < effectiveLength);
+					}
 
 					return null;
 				});
 
 			if (head) {
 				Assert.isTrue(
-					readRecord.closesTransaction(),
-					"Head OffsetIndex must have a transaction finalization flag set, but it has not!"
+					readRecord.closesGeneration(),
+					"Head OffsetIndex must have a generation finalization flag set, but it has not!"
 				);
 				head = false;
 			} else {
 				Assert.isTrue(
-					readRecord.transactionId() <= transactionId,
-					"Transaction ids must compose a monotonic row - but they don't: `" + transactionId + "` vs `" + readRecord.transactionId() + "`!"
+					readRecord.generationId() <= generationId,
+					"Generation ids must compose a monotonic row - but they don't: `" + generationId + "` vs `" + readRecord.generationId() + "`!"
 				);
 			}
-			transactionId = readRecord.transactionId();
+			generationId = readRecord.generationId();
 
 			// repeat reading fragments until root fragment is found
-		} while (fileOffsetIndexFragmentLocation.get() != null);
+		} while (fileOffsetIndexFragmentLocation.get() != FileLocation.EMPTY);
 	}
 
 	/**
@@ -447,7 +526,7 @@ public class OffsetIndexSerializationService {
 	 */
 	@Nonnull
 	static ExpectedCounts computeExpectedRecordCount(@Nonnull StorageOptions storageOptions, int recordCount) {
-		final int maxRecordCountPerStorageRecords = (storageOptions.outputBufferSize() - StorageRecord.getOverheadSize() - PREVIOUS_MEM_TABLE_FRAGMENT_POINTER_SIZE) / MEM_TABLE_RECORD_SIZE;
+		final int maxRecordCountPerStorageRecords = (storageOptions.outputBufferSize() - StorageRecord.getOverheadSize() - MEM_TABLE_FRAGMENT_HEADER_SIZE) / MEM_TABLE_RECORD_SIZE;
 		return new ExpectedCounts(
 			maxRecordCountPerStorageRecords == 0 ? 0 : (recordCount + maxRecordCountPerStorageRecords - 1) / maxRecordCountPerStorageRecords,
 			maxRecordCountPerStorageRecords

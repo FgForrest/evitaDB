@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,52 +25,18 @@ package io.evitadb.externalApi.api.catalog.dataApi.model;
 
 import io.evitadb.dataType.StripList;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
-import io.evitadb.externalApi.api.model.PropertyDescriptor;
-
-import java.util.List;
-
-import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
- * Represents {@link StripList}
+ * Represents {@link StripList} for entities.
  *
  * Note: this descriptor is meant be template for generated specific entity DTOs base on internal data. Fields in this
  * descriptor are supposed to be dynamically registered to target generated entity DTO.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public interface RecordStripDescriptor extends DataChunkDescriptor {
+public interface RecordStripDescriptor extends StripListDescriptor {
 
-	PropertyDescriptor OFFSET = PropertyDescriptor.builder()
-		.name("offset")
-		.description("""
-			Returns current offset (indexed from 0).
-			""")
-		.type(nonNull(Integer.class))
-		.build();
-	PropertyDescriptor LIMIT = PropertyDescriptor.builder()
-		.name("limit")
-		.description("""
-			Returns limit - i.e. maximal number of records that are requested after offset.
-			""")
-		.type(nonNull(Integer.class))
-		.build();
-
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
+	ObjectDescriptor THIS = ObjectDescriptor.extend(StripListDescriptor.THIS)
 		.name("*RecordStrip")
-		.description("""
-			Strip of records according to offset and limit rules in input query.
-			""")
-		.staticFields(List.of(
-			OFFSET,
-			LIMIT,
-			TOTAL_RECORD_COUNT,
-			FIRST,
-			LAST,
-			HAS_PREVIOUS,
-			HAS_NEXT,
-			SINGLE_PAGE,
-			EMPTY
-		))
 		.build();
 }

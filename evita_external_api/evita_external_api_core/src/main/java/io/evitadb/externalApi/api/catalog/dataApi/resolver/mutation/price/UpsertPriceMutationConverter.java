@@ -61,7 +61,7 @@ public class UpsertPriceMutationConverter extends PriceMutationConverter<UpsertP
 			input.getProperty(UpsertPriceMutationDescriptor.TAX_RATE),
 			input.getProperty(UpsertPriceMutationDescriptor.PRICE_WITH_TAX),
 			input.getProperty(UpsertPriceMutationDescriptor.VALIDITY),
-			input.getProperty(UpsertPriceMutationDescriptor.SELLABLE)
+			input.getProperty(UpsertPriceMutationDescriptor.INDEXED)
 		);
 	}
 
@@ -72,7 +72,7 @@ public class UpsertPriceMutationConverter extends PriceMutationConverter<UpsertP
 		output.setProperty(UpsertPriceMutationDescriptor.TAX_RATE, mutation.getTaxRate());
 		output.setProperty(UpsertPriceMutationDescriptor.PRICE_WITH_TAX, mutation.getPriceWithTax());
 		output.setProperty(UpsertPriceMutationDescriptor.VALIDITY, mutation.getValidity());
-		output.setProperty(UpsertPriceMutationDescriptor.SELLABLE, mutation.isSellable());
+		output.setProperty(UpsertPriceMutationDescriptor.INDEXED, mutation.isIndexed());
 		super.convertToOutput(mutation, output);
 	}
 }

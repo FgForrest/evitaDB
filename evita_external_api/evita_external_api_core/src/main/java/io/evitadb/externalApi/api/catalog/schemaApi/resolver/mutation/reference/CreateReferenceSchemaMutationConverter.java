@@ -27,8 +27,6 @@ import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceS
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.CreateReferenceSchemaMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ReferenceSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
 
 import javax.annotation.Nonnull;
@@ -54,7 +52,8 @@ public class CreateReferenceSchemaMutationConverter extends ReferenceSchemaMutat
 	@Nonnull
 	@Override
 	protected CreateReferenceSchemaMutation convertFromInput(@Nonnull Input input) {
-		return new CreateReferenceSchemaMutation(
+		/* TODO JNO - consult with LHO */
+		/*return new CreateReferenceSchemaMutation(
 			input.getProperty(ReferenceSchemaMutationDescriptor.NAME),
 			input.getProperty(CreateReferenceSchemaMutationDescriptor.DESCRIPTION),
 			input.getProperty(CreateReferenceSchemaMutationDescriptor.DEPRECATION_NOTICE),
@@ -63,8 +62,9 @@ public class CreateReferenceSchemaMutationConverter extends ReferenceSchemaMutat
 			input.getProperty(CreateReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE_MANAGED),
 			input.getProperty(CreateReferenceSchemaMutationDescriptor.REFERENCED_GROUP_TYPE),
 			input.getProperty(CreateReferenceSchemaMutationDescriptor.REFERENCED_GROUP_TYPE_MANAGED, false),
-			input.getProperty(CreateReferenceSchemaMutationDescriptor.INDEXED, false),
-			input.getProperty(CreateReferenceSchemaMutationDescriptor.FACETED, false)
-		);
+			input.getProperty(CreateReferenceSchemaMutationDescriptor.INDEXED_IN_SCOPES),
+			input.getProperty(CreateReferenceSchemaMutationDescriptor.FACETED_IN_SCOPES)
+		);*/
+		return null;
 	}
 }

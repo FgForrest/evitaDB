@@ -98,6 +98,15 @@ public interface PriceContract extends Versioned, Droppable, Serializable, Compa
 	Integer innerRecordId();
 
 	/**
+	 * Method allow to check if the price relates to the another price in terms of the inner record ID equality.
+	 * Some price implementation might implement more complex logic to determine the relation.
+	 *
+	 * @param anotherPrice another price to check relation with
+	 * @return true if the price relates to the another price
+	 */
+	boolean relatesTo(@Nonnull PriceContract anotherPrice);
+
+	/**
 	 * Price without tax.
 	 */
 	@Nonnull
@@ -134,7 +143,15 @@ public interface PriceContract extends Versioned, Droppable, Serializable, Compa
 	 * used for "informational" prices such as reference price (the crossed out price often found on e-commerce sites
 	 * as "usual price") but are not used as the "selling" price.
 	 */
-	boolean sellable();
+	boolean indexed();
+
+	/**
+	 * Renamed to {@link #indexed()}.
+	 */
+	@Deprecated
+	default boolean sellable() {
+		return indexed();
+	}
 
 	/**
 	 * Method returns gross estimation of the in-memory size of this instance. The estimation is expected not to be
@@ -161,8 +178,7 @@ public interface PriceContract extends Versioned, Droppable, Serializable, Compa
 		if (!Objects.equals(priceWithTax(), otherPrice.priceWithTax())) return true;
 		if (!Objects.equals(taxRate(), otherPrice.taxRate())) return true;
 		if (!Objects.equals(validity(), otherPrice.validity())) return true;
-		if (sellable() != otherPrice.sellable()) return true;
+		if (indexed() != otherPrice.indexed()) return true;
 		return dropped() != otherPrice.dropped();
 	}
-
 }

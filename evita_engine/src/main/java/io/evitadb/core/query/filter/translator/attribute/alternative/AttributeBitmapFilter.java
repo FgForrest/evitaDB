@@ -82,6 +82,10 @@ public class AttributeBitmapFilter implements EntityToBitmapFilter {
 	 * Contains array of all attribute required traits.
 	 */
 	private final AttributeTrait[] requiredAttributeTraits;
+	/**
+	 * Contains the Bitmap result that has been memoized for efficiency.
+	 */
+	private Bitmap memoizedResult;
 
 	public AttributeBitmapFilter(
 		@Nonnull String attributeName,
@@ -108,38 +112,41 @@ public class AttributeBitmapFilter implements EntityToBitmapFilter {
 	@Nonnull
 	@Override
 	public Bitmap filter(@Nonnull QueryExecutionContext context) {
-		final List<ServerEntityDecorator> prefetchedEntities = context.getPrefetchedEntities();
-		if (prefetchedEntities == null) {
-			return EmptyBitmap.INSTANCE;
-		} else {
-			String entityType = null;
-			Predicate<Stream<Optional<AttributeValue>>> filter = null;
-			final BaseBitmap result = new BaseBitmap();
-			// iterate over all entities
-			for (SealedEntity entity : prefetchedEntities) {
-			/* we can be sure entities are sorted by type because:
-			   1. all entities share the same type
-			   2. or entities are fetched via {@link QueryPlanningContext#prefetchEntities(EntityReference[], EntityContentRequire[])}
-			      that fetches them by entity type in bulk
-			*/
-				final EntitySchemaContract entitySchema = entity.getSchema();
-				if (!Objects.equals(entityType, entitySchema.getName())) {
-					entityType = entitySchema.getName();
-					final AttributeSchemaContract attributeSchema = attributeSchemaAccessor.apply(
-						entitySchema, attributeName, requiredAttributeTraits
-					);
-					filter = filterFactory.apply(attributeSchema);
-				}
-				// and filter by predicate
-				if (filter != null) {
-					final Stream<Optional<AttributeValue>> valueStream = attributeValueAccessor.apply(entity, attributeName);
-					if (valueStream != null && filter.test(valueStream)) {
-						result.add(context.translateEntity(entity));
+		if (this.memoizedResult == null) {
+			final List<ServerEntityDecorator> prefetchedEntities = context.getPrefetchedEntities();
+			if (prefetchedEntities == null) {
+				this.memoizedResult = EmptyBitmap.INSTANCE;
+			} else {
+				String entityType = null;
+				Predicate<Stream<Optional<AttributeValue>>> filter = null;
+				final BaseBitmap result = new BaseBitmap();
+				// iterate over all entities
+				for (SealedEntity entity : prefetchedEntities) {
+					/* we can be sure entities are sorted by type because:
+					   1. all entities share the same type
+					   2. or entities are fetched via {@link QueryPlanningContext#prefetchEntities(EntityReference[], EntityContentRequire[])}
+					      that fetches them by entity type in bulk
+					*/
+					final EntitySchemaContract entitySchema = entity.getSchema();
+					if (!Objects.equals(entityType, entitySchema.getName())) {
+						entityType = entitySchema.getName();
+						final AttributeSchemaContract attributeSchema = attributeSchemaAccessor.apply(
+							entitySchema, attributeName, requiredAttributeTraits
+						);
+						filter = filterFactory.apply(attributeSchema);
+					}
+					// and filter by predicate
+					if (filter != null) {
+						final Stream<Optional<AttributeValue>> valueStream = attributeValueAccessor.apply(entity, attributeName);
+						if (valueStream != null && filter.test(valueStream)) {
+							result.add(context.translateEntity(entity));
+						}
 					}
 				}
+				this.memoizedResult = result;
 			}
-			return result;
 		}
+		return this.memoizedResult;
 	}
 
 }

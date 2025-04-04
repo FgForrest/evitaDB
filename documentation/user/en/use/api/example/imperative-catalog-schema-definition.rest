@@ -51,13 +51,15 @@ PUT /rest/evita/schema
           // products are not organized in the tree
           {
             "setEntitySchemaWithHierarchyMutation": {
-              "withHierarchy": false
+              "withHierarchy": false,
+              "indexedInScopes": ["LIVE"]
             }
           },
           // prices are referencing another entity stored in Evita
           {
             "setEntitySchemaWithPriceMutation": {
               "withPrice": true,
+              "indexedInScopes": ["LIVE"],
               "indexedPricePlaces": 2
             }
           },
@@ -72,14 +74,20 @@ PUT /rest/evita/schema
             "createAttributeSchemaMutation": {
               "name": "code",
               "type": "String",
-              "uniquenessType": "UNIQUE_WITHIN_COLLECTION"
+              "uniqueInScopes": [{
+                "scope": "LIVE",
+                "uniquenessType": "UNIQUE_WITHIN_COLLECTION"
+              }]
             }
           },
           {
             "createAttributeSchemaMutation": {
               "name": "url",
               "type": "String",
-              "uniquenessType": "UNIQUE_WITHIN_COLLECTION",
+              "uniqueInScopes": [{
+                "scope": "LIVE",
+                "uniquenessType": "UNIQUE_WITHIN_COLLECTION"
+              }],
               "localized": true
             }
           },
@@ -87,7 +95,7 @@ PUT /rest/evita/schema
             "createAttributeSchemaMutation": {
               "name": "oldEntityUrls",
               "type": "StringArray",
-              "filterable": true,
+              "filterableInScopes": ["LIVE"],
               "localized": true
             }
           },
@@ -95,36 +103,36 @@ PUT /rest/evita/schema
             "createAttributeSchemaMutation": {
               "name": "name",
               "type": "String",
-              "filterable": true,
-              "sortable": true
+              "filterableInScopes": ["LIVE"],
+              "sortableInScopes": ["LIVE"]
             }
           },
           {
             "createAttributeSchemaMutation": {
               "name": "ean",
               "type": "String",
-              "filterable": true
+              "filterableInScopes": ["LIVE"]
             }
           },
           {
             "createAttributeSchemaMutation": {
               "name": "priority",
               "type": "Long",
-              "sortable": true
+              "sortableInScopes": ["LIVE"]
             }
           },
           {
             "createAttributeSchemaMutation": {
               "name": "validity",
               "type": "DateTimeRange",
-              "filterable": true
+              "filterableInScopes": ["LIVE"]
             }
           },
           {
             "createAttributeSchemaMutation": {
               "name": "quantity",
               "type": "BigDecimal",
-              "filterable": true,
+              "filterableInScopes": ["LIVE"],
               "indexedDecimalPlaces": 2
             }
           },
@@ -132,7 +140,7 @@ PUT /rest/evita/schema
             "createAttributeSchemaMutation": {
               "name": "alias",
               "type": "Boolean",
-              "filterable": true
+              "filterableInScopes": ["LIVE"]
             }
           },
           // here we define set of associated data, that can be stored along with entity
@@ -156,7 +164,7 @@ PUT /rest/evita/schema
               "referencedEntityType": "Category",
               "referencedEntityTypeManaged": true,
               "cardinality": "ZERO_OR_MORE",
-              "indexed": true
+              "indexedInScopes": ["LIVE"]
             }
           },
           {
@@ -166,7 +174,7 @@ PUT /rest/evita/schema
                 "createAttributeSchemaMutation": {
                   "name": "categoryPriority",
                   "type": "Long",
-                  "sortable": true
+                  "sortableInScopes": ["LIVE"]
                 }
               }
             }
@@ -178,8 +186,8 @@ PUT /rest/evita/schema
               "referencedEntityType": "Brand",
               "referencedEntityTypeManaged": true,
               "cardinality": "ZERO_OR_ONE",
-              "indexed": true,
-              "faceted": true
+              "indexedInScopes": ["LIVE"],
+              "facetedInScopes": ["LIVE"]
             }
           },
           // references may be also represented be entities unknown to Evita
@@ -187,10 +195,10 @@ PUT /rest/evita/schema
             "createReferenceSchemaMutation": {
               "name": "stock",
               "referencedEntityType": "Stock",
-              "referencedEntityTypeManaged": false,
+              "referencedEntityTypeManaged": true,
               "cardinality": "ZERO_OR_MORE",
-              "indexed": true,
-              "faceted": true
+              "indexedInScopes": ["LIVE"],
+              "facetedInScopes": ["LIVE"]
             }
           }
         ]

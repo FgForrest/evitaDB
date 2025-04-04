@@ -130,9 +130,12 @@ public class EntityFetchTranslator implements RequireConstraintTranslator<Entity
 
 	@Nullable
 	@Override
-	public ExtraResultProducer apply(EntityFetch entityFetch, ExtraResultPlanningVisitor extraResultPlanningVisitor) {
+	public ExtraResultProducer createProducer(@Nonnull EntityFetch entityFetch, @Nonnull ExtraResultPlanningVisitor extraResultPlanningVisitor) {
+		if (extraResultPlanningVisitor.isRootScope()) {
+			extraResultPlanningVisitor.addRequirementToPrefetch(entityFetch.getRequirements());
+		}
 		if (extraResultPlanningVisitor.isEntityTypeKnown()) {
-			final EntitySchemaContract schema = extraResultPlanningVisitor.isScopeEmpty() ?
+			final EntitySchemaContract schema = extraResultPlanningVisitor.isRootScope() ?
 				extraResultPlanningVisitor.getSchema() :
 				getReferencedSchema(extraResultPlanningVisitor)
 					.orElseGet(() -> extraResultPlanningVisitor.getCurrentEntitySchema()

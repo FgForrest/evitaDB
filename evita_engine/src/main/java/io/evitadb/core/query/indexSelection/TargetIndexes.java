@@ -45,9 +45,21 @@ import java.util.stream.Stream;
 @Data
 public class TargetIndexes<T extends Index<?>> {
 	public static final TargetIndexes<GlobalEntityIndex> EMPTY = new TargetIndexes<>("EMPTY", GlobalEntityIndex.class, Collections.emptyList());
+	/**
+	 * Human readable description for the index set.
+	 */
 	private final String indexDescription;
+	/**
+	 * The filtering constraint instance from the input query the indexes are related to.
+	 */
 	private final FilterConstraint representedConstraint;
+	/**
+	 * The type of the indexes.
+	 */
 	private final Class<T> indexType;
+	/**
+	 * The list of indexes themselves.
+	 */
 	private final List<T> indexes;
 
 	public TargetIndexes(@Nonnull String indexDescription, @Nonnull Class<T> indexType, @Nonnull List<T> indexes) {
@@ -87,7 +99,7 @@ public class TargetIndexes<T extends Index<?>> {
 	 * Returns true if the largest global index was selected.
 	 */
 	public boolean isGlobalIndex() {
-		return this.indexes.size() == 1 && this.indexes.get(0) instanceof GlobalEntityIndex;
+		return this.indexes.stream().allMatch(GlobalEntityIndex.class::isInstance);
 	}
 
 	/**

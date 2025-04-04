@@ -1,108 +1,114 @@
 ```json
 [
   {
-    "entity": {
-      "primaryKey": 66466,
-      "type": "Category",
-      "version": 1,
-      "allLocales": [
+    "entity" : {
+      "primaryKey" : 66466,
+      "type" : "Category",
+      "version" : 1,
+      "scope" : "LIVE",
+      "allLocales" : [
         "en"
       ],
-      "attributes": {
-        "global": {
-          "code": "portables"
+      "attributes" : {
+        "global" : {
+          "code" : "portables"
         }
       }
     },
-    "requested": false,
-    "childrenCount": 3
+    "requested" : false,
+    "childrenCount" : 3
   },
   {
-    "entity": {
-      "primaryKey": 66467,
-      "type": "Category",
-      "version": 1,
-      "allLocales": [
+    "entity" : {
+      "primaryKey" : 66467,
+      "type" : "Category",
+      "version" : 1,
+      "scope" : "LIVE",
+      "allLocales" : [
         "en"
       ],
-      "attributes": {
-        "global": {
-          "code": "laptops"
+      "attributes" : {
+        "global" : {
+          "code" : "laptops"
         }
       }
     },
-    "requested": false,
-    "childrenCount": 6
+    "requested" : false,
+    "childrenCount" : 6
   },
   {
-    "entity": {
-      "primaryKey": 66468,
-      "type": "Category",
-      "version": 1,
-      "allLocales": [
+    "entity" : {
+      "primaryKey" : 66468,
+      "type" : "Category",
+      "version" : 1,
+      "scope" : "LIVE",
+      "allLocales" : [
         "cs",
         "de",
         "en"
       ],
-      "attributes": {
-        "global": {
-          "code": "accessories"
+      "attributes" : {
+        "global" : {
+          "code" : "accessories"
         }
       }
     },
-    "requested": false,
-    "childrenCount": 6
+    "requested" : false,
+    "childrenCount" : 6
   },
   {
-    "entity": {
-      "primaryKey": 66469,
-      "type": "Category",
-      "version": 1,
-      "allLocales": [
+    "entity" : {
+      "primaryKey" : 66469,
+      "type" : "Category",
+      "version" : 1,
+      "scope" : "LIVE",
+      "allLocales" : [
         "en"
       ],
-      "attributes": {
-        "global": {
-          "code": "vouchers"
+      "attributes" : {
+        "global" : {
+          "code" : "vouchers"
         }
       }
     },
-    "requested": false,
-    "childrenCount": 1
+    "requested" : false,
+    "childrenCount" : 1
   },
   {
-    "entity": {
-      "primaryKey": 66470,
-      "type": "Category",
-      "version": 1,
-      "allLocales": [
+    "entity" : {
+      "primaryKey" : 66470,
+      "type" : "Category",
+      "version" : 1,
+      "scope" : "LIVE",
+      "allLocales" : [
         "en"
       ],
-      "attributes": {
-        "global": {
-          "code": "prepared-products"
+      "attributes" : {
+        "global" : {
+          "code" : "prepared-products"
         }
       }
     },
-    "requested": false,
-    "childrenCount": 0
+    "requested" : false,
+    "childrenCount" : 0
   },
   {
-    "entity": {
-      "primaryKey": 347154,
-      "type": "Category",
-      "version": 1,
-      "allLocales": [
+    "entity" : {
+      "primaryKey" : 347154,
+      "type" : "Category",
+      "version" : 1,
+      "scope" : "LIVE",
+      "allLocales" : [
         "en"
       ],
-      "attributes": {
-        "global": {
-          "code": "bargain-bundles"
+      "attributes" : {
+        "global" : {
+          "code" : "bargain-bundles"
         }
       }
     },
-    "requested": false,
-    "childrenCount": 0
+    "requested" : false,
+    "childrenCount" : 0
   }
 ]
 ```

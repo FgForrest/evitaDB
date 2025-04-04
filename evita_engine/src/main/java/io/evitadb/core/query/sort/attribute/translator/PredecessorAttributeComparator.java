@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -35,6 +35,7 @@ import io.evitadb.index.bitmap.Bitmap;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.function.IntUnaryOperator;
 import java.util.function.Supplier;
@@ -49,81 +50,122 @@ import java.util.function.Supplier;
 @SuppressWarnings("ComparatorNotSerializable")
 @RequiredArgsConstructor
 public class PredecessorAttributeComparator implements EntityComparator {
+	/**
+	 * Name of the attribute this comparator is used for.
+	 */
+	private final String attributeName;
+	/**
+	 * Supplier providing an array of {@link SortedRecordsProvider} objects used for sorting.
+	 */
 	private final Supplier<SortedRecordsProvider[]> sortedRecordsSupplier;
+	/**
+	 * Cached array of resolved {@link SortedRecordsProvider} objects to avoid repeatedly invoking the supplier.
+	 */
 	private SortedRecordsProvider[] resolvedSortedRecordsProviders;
-	private CompositeObjectArray<EntityContract> nonSortedEntities;
+	/**
+	 * Container for entities that cannot be sorted using the resolved {@link SortedRecordsProvider}.
+	 */
+	@Nullable private CompositeObjectArray<EntityContract> nonSortedEntities;
+	/**
+	 * Estimated count of entities used for initializing data structures such as cache.
+	 */
 	private int estimatedCount = 100;
-	private IntIntMap cache;
+	/**
+	 * Array of caches storing the index positions of entities for each {@link SortedRecordsProvider}.
+	 */
+	private IntIntMap[] cache;
 
 	@Nonnull
 	@Override
 	public Iterable<EntityContract> getNonSortedEntities() {
-		return nonSortedEntities == null ? Collections.emptyList() : nonSortedEntities;
+		return this.nonSortedEntities == null ? Collections.emptyList() : this.nonSortedEntities;
 	}
 
 	@Override
 	public void prepareFor(int entityCount) {
 		this.estimatedCount = entityCount;
+		this.nonSortedEntities = null;
 	}
 
 	@Override
 	public int compare(EntityContract o1, EntityContract o2) {
 		final SortedRecordsProvider[] sortedRecordsProviders = getSortedRecordsProviders();
-		boolean o1Found = false;
-		boolean o2Found = false;
+		int o1FoundInProvider = -1;
+		int o2FoundInProvider = -1;
 		int result = 0;
+
 		// scan all providers
-		for (SortedRecordsProvider sortedRecordsProvider : sortedRecordsProviders) {
-			if (cache == null) {
+		if (this.cache == null) {
+			//noinspection ObjectInstantiationInEqualsHashCode
+			this.cache = new IntIntMap[sortedRecordsProviders.length];
+		}
+		for (int i = 0; i < sortedRecordsProviders.length; i++) {
+			final SortedRecordsProvider sortedRecordsProvider = sortedRecordsProviders[i];
+			if (this.cache[i] == null) {
 				// let's create the cache with estimated size multiply 5 expected steps for binary search
-				cache = new IntIntHashMap(estimatedCount * 5);
+				//noinspection ObjectAllocationInLoop,ObjectInstantiationInEqualsHashCode
+				this.cache[i] = new IntIntHashMap(this.estimatedCount * 5);
 			}
 			// and try to find primary keys of both entities in each provider
 			final Bitmap allRecords = sortedRecordsProvider.getAllRecords();
-			final int o1Index = o1Found ? -1 : computeIfAbsent(cache, o1.getPrimaryKey(), allRecords::indexOf);
-			final int o2Index = o2Found ? -1 : computeIfAbsent(cache, o2.getPrimaryKey(), allRecords::indexOf);
+			// predicates are used sort out the providers that are not relevant for the given entity
+			final int o1Index = o1FoundInProvider > -1 ? -1 : computeIfAbsent(this.cache[i], o1.getPrimaryKeyOrThrowException(), allRecords::indexOf);
+			final int o2Index = o2FoundInProvider > -1 ? -1 : computeIfAbsent(this.cache[i], o2.getPrimaryKeyOrThrowException(), allRecords::indexOf);
 			// if both entities are found in the same provider, compare their positions
 			if (o1Index >= 0 && o2Index >= 0) {
 				result = Integer.compare(
 					sortedRecordsProvider.getRecordPositions()[o1Index],
 					sortedRecordsProvider.getRecordPositions()[o2Index]
 				);
-				o1Found = true;
-				o2Found = true;
+				o1FoundInProvider = i;
+				o2FoundInProvider = i;
 			} else if (o1Index >= 0) {
 				// if only one entity is found, it is considered to be smaller than the other one
 				result = result == 0 ? 1 : result;
-				o1Found = true;
+				o1FoundInProvider = i;
 			} else if (o2Index >= 0) {
 				// if only one entity is found, it is considered to be smaller than the other one
 				result = result == 0 ? -1 : result;
-				o2Found = true;
+				o2FoundInProvider = i;
 			}
 			// if both entities are found, we can stop searching
-			if (o1Found && o2Found) {
+			if (o1FoundInProvider > -1 && o2FoundInProvider > -1) {
 				break;
 			}
 		}
-		if (!(o1Found || o2Found) && nonSortedEntities == null) {
+		if (o1FoundInProvider == -1 || o2FoundInProvider == -1 && this.nonSortedEntities == null) {
 			// if any of the entities is not found, and we don't have the container to store them, create it
-			nonSortedEntities = new CompositeObjectArray<>(EntityContract.class);
+			//noinspection ObjectInstantiationInEqualsHashCode
+			this.nonSortedEntities = new CompositeObjectArray<>(EntityContract.class);
 		}
 		// if any of the entities is not found, store it in the container
-		if (!o1Found) {
-			nonSortedEntities.add(o1);
+		if (o1FoundInProvider == -1) {
+			this.nonSortedEntities.add(o1);
 		}
-		if (!o2Found) {
-			nonSortedEntities.add(o2);
+		if (o2FoundInProvider == -1) {
+			this.nonSortedEntities.add(o2);
+		}
+		// when both entities are not found in the same provider, the result is invalid
+		if (o1FoundInProvider != o2FoundInProvider) {
+			// we need to prefer the provider that was found first
+			result = Integer.compare(o1FoundInProvider, o2FoundInProvider);
 		}
 		// return the result
 		return result;
 	}
 
+	/**
+	 * Retrieves an array of {@link SortedRecordsProvider} instances from the {@code sortedRecordsSupplier}.
+	 * If the array is not already resolved, it initializes the array by invoking the supplier.
+	 *
+	 * @return an array of {@link SortedRecordsProvider} containing sorted records
+	 */
+	@Nonnull
 	private SortedRecordsProvider[] getSortedRecordsProviders() {
-		if (resolvedSortedRecordsProviders == null) {
-			resolvedSortedRecordsProviders = sortedRecordsSupplier.get();
+		if (this.resolvedSortedRecordsProviders == null) {
+			this.resolvedSortedRecordsProviders = this.sortedRecordsSupplier.get();
 		}
-		return resolvedSortedRecordsProviders;
+		return this.resolvedSortedRecordsProviders;
 	}
 
 	/**
@@ -135,7 +177,7 @@ public class PredecessorAttributeComparator implements EntityComparator {
 	 * @param indexLocator function to compute the index of the entity
 	 * @return index of the entity
 	 */
-	private static int computeIfAbsent(@Nonnull IntIntMap cache, @Nonnull Integer primaryKey, @Nonnull IntUnaryOperator indexLocator) {
+	static int computeIfAbsent(@Nonnull IntIntMap cache, @Nonnull Integer primaryKey, @Nonnull IntUnaryOperator indexLocator) {
 		final int result = cache.get(primaryKey);
 		// when the value was not found 0 is returned
 		if (result == 0) {

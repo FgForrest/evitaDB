@@ -44,7 +44,7 @@ public class PredecessorCoercing implements Coercing<Predecessor, Integer> {
         if (!(dataFetcherResult instanceof Predecessor)) {
             throw new CoercingSerializeException("Predecessor data fetcher result is not a Predecessor.");
         }
-        return ((Predecessor)dataFetcherResult).predecessorId();
+        return ((Predecessor)dataFetcherResult).predecessorPk();
     }
 
     @Nonnull

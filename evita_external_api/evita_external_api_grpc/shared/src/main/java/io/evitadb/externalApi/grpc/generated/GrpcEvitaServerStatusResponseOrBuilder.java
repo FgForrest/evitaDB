@@ -126,4 +126,136 @@ public interface GrpcEvitaServerStatusResponseOrBuilder extends
    * @return The catalogsOk.
    */
   int getCatalogsOk();
+
+  /**
+   * <pre>
+   * Health problems
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
+   * @return A list containing the healthProblems.
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcHealthProblem> getHealthProblemsList();
+  /**
+   * <pre>
+   * Health problems
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
+   * @return The count of healthProblems.
+   */
+  int getHealthProblemsCount();
+  /**
+   * <pre>
+   * Health problems
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
+   * @param index The index of the element to return.
+   * @return The healthProblems at the given index.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcHealthProblem getHealthProblems(int index);
+  /**
+   * <pre>
+   * Health problems
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
+   * @return A list containing the enum numeric values on the wire for healthProblems.
+   */
+  java.util.List<java.lang.Integer>
+  getHealthProblemsValueList();
+  /**
+   * <pre>
+   * Health problems
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
+   * @param index The index of the value to return.
+   * @return The enum numeric value on the wire of healthProblems at the given index.
+   */
+  int getHealthProblemsValue(int index);
+
+  /**
+   * <pre>
+   * Overall readiness of the evitaDB server
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcReadiness readiness = 8;</code>
+   * @return The enum numeric value on the wire for readiness.
+   */
+  int getReadinessValue();
+  /**
+   * <pre>
+   * Overall readiness of the evitaDB server
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcReadiness readiness = 8;</code>
+   * @return The readiness.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcReadiness getReadiness();
+
+  /**
+   * <pre>
+   * Information about all available APIs
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcApiStatus&gt; api = 9;</code>
+   */
+  int getApiCount();
+  /**
+   * <pre>
+   * Information about all available APIs
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcApiStatus&gt; api = 9;</code>
+   */
+  boolean containsApi(
+      java.lang.String key);
+  /**
+   * Use {@link #getApiMap()} instead.
+   */
+  @java.lang.Deprecated
+  java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcApiStatus>
+  getApi();
+  /**
+   * <pre>
+   * Information about all available APIs
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcApiStatus&gt; api = 9;</code>
+   */
+  java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcApiStatus>
+  getApiMap();
+  /**
+   * <pre>
+   * Information about all available APIs
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcApiStatus&gt; api = 9;</code>
+   */
+
+  io.evitadb.externalApi.grpc.generated.GrpcApiStatus getApiOrDefault(
+      java.lang.String key,
+      io.evitadb.externalApi.grpc.generated.GrpcApiStatus defaultValue);
+  /**
+   * <pre>
+   * Information about all available APIs
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcApiStatus&gt; api = 9;</code>
+   */
+
+  io.evitadb.externalApi.grpc.generated.GrpcApiStatus getApiOrThrow(
+      java.lang.String key);
+
+  /**
+   * <pre>
+   * Flag indicating that the server is in read-only mode
+   * </pre>
+   *
+   * <code>bool readOnly = 10;</code>
+   * @return The readOnly.
+   */
+  boolean getReadOnly();
 }

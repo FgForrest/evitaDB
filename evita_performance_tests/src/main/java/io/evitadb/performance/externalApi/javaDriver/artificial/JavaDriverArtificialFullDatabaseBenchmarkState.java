@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,15 +28,14 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.driver.EvitaClient;
 import io.evitadb.driver.config.EvitaClientConfiguration;
-import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.grpc.GrpcProvider;
 import io.evitadb.externalApi.grpc.GrpcProviderRegistrar;
-import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
+import io.evitadb.externalApi.grpc.configuration.GrpcOptions;
 import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.externalApi.system.SystemProvider;
 import io.evitadb.externalApi.system.SystemProviderRegistrar;
-import io.evitadb.externalApi.system.configuration.SystemConfig;
+import io.evitadb.externalApi.system.configuration.SystemOptions;
 import io.evitadb.performance.generators.TestDatasetGenerator;
 import io.evitadb.performance.setup.EvitaCatalogReusableSetup;
 import io.evitadb.utils.CertificateUtils;
@@ -92,8 +91,8 @@ public class JavaDriverArtificialFullDatabaseBenchmarkState extends JavaDriverAr
 		server = new ExternalApiServer(
 			this.evita,
 			ApiOptions.builder()
-				.enable(SystemProvider.CODE, new SystemConfig(AbstractApiConfiguration.LOCALHOST + ":" + SystemConfig.DEFAULT_SYSTEM_PORT))
-				.enable(GrpcProvider.CODE, new GrpcConfig())
+				.enable(SystemProvider.CODE, new SystemOptions(":" + SystemOptions.DEFAULT_SYSTEM_PORT))
+				.enable(GrpcProvider.CODE, new GrpcOptions())
 				.build(),
 			List.of(new SystemProviderRegistrar(), new GrpcProviderRegistrar())
 		);
@@ -101,9 +100,8 @@ public class JavaDriverArtificialFullDatabaseBenchmarkState extends JavaDriverAr
 
 		this.driver = new EvitaClient(
 			EvitaClientConfiguration.builder()
-				.host(AbstractApiConfiguration.LOCALHOST)
-				.port(GrpcConfig.DEFAULT_GRPC_PORT)
-				.systemApiPort(SystemConfig.DEFAULT_SYSTEM_PORT)
+				.port(GrpcOptions.DEFAULT_GRPC_PORT)
+				.systemApiPort(SystemOptions.DEFAULT_SYSTEM_PORT)
 				.mtlsEnabled(false)
 				.certificateFileName(Path.of(CertificateUtils.getGeneratedClientCertificateFileName()))
 				.certificateKeyFileName(Path.of(CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()))

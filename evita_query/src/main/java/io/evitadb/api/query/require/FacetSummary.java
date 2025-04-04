@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.ConstraintWithDefaults;
 import io.evitadb.api.query.FacetConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.annotation.AliasForParameter;
@@ -133,7 +134,7 @@ import java.util.Optional;
 	userDocsLink = "/documentation/query/requirements/facet#facet-summary"
 )
 public class FacetSummary extends AbstractRequireConstraintContainer
-	implements FacetConstraint<RequireConstraint>, SeparateEntityContentRequireContainer, ExtraResultRequireConstraint {
+	implements ConstraintWithDefaults<RequireConstraint>, FacetConstraint<RequireConstraint>, SeparateEntityContentRequireContainer, ExtraResultRequireConstraint {
 	@Serial private static final long serialVersionUID = 2377379601711709241L;
 
 	private FacetSummary(@Nonnull Serializable[] arguments, @Nonnull RequireConstraint[] children, @Nonnull Constraint<?>... additionalChildren) {
@@ -172,27 +173,31 @@ public class FacetSummary extends AbstractRequireConstraintContainer
 		super(new Serializable[]{FacetStatisticsDepth.COUNTS}, new EntityContentRequire[0]);
 	}
 
-	public FacetSummary(@Nonnull FacetStatisticsDepth statisticsDepth) {
-		super(new Serializable[]{statisticsDepth});
+	public FacetSummary(@Nullable FacetStatisticsDepth statisticsDepth) {
+		super(new Serializable[]{Optional.ofNullable(statisticsDepth).orElse(FacetStatisticsDepth.COUNTS)});
 	}
 
 	@Creator
 	public FacetSummary(
-		@Nonnull FacetStatisticsDepth statisticsDepth,
-		@Nonnull @Child(uniqueChildren = true) EntityRequire... requirements) {
-		this(new Serializable[]{statisticsDepth}, requirements);
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nonnull @Child(uniqueChildren = true) EntityFetchRequire... requirements
+	) {
+		this(
+			new Serializable[]{Optional.ofNullable(statisticsDepth).orElse(FacetStatisticsDepth.COUNTS)},
+			requirements
+		);
 	}
 
 	public FacetSummary(
-		@Nonnull FacetStatisticsDepth statisticsDepth,
+		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterBy filterBy,
 		@Nullable FilterGroupBy filterGroupBy,
 		@Nullable OrderBy orderBy,
 		@Nullable OrderGroupBy orderGroupBy,
-		@Nonnull EntityRequire... requirements
+		@Nonnull EntityFetchRequire... requirements
 	) {
 		super(
-			new Serializable[]{statisticsDepth},
+			new Serializable[]{Optional.ofNullable(statisticsDepth).orElse(FacetStatisticsDepth.COUNTS)},
 			requirements,
 			filterBy,
 			filterGroupBy,
@@ -301,9 +306,14 @@ public class FacetSummary extends AbstractRequireConstraintContainer
 	@Nonnull
 	@Override
 	public Serializable[] getArgumentsExcludingDefaults() {
-		return Arrays.stream(super.getArgumentsExcludingDefaults())
+		return Arrays.stream(getArguments())
 			.filter(it -> it != FacetStatisticsDepth.COUNTS)
 			.toArray(Serializable[]::new);
+	}
+
+	@Override
+	public boolean isArgumentImplicit(@Nonnull Serializable serializable) {
+		return serializable == FacetStatisticsDepth.COUNTS;
 	}
 
 	@Nonnull

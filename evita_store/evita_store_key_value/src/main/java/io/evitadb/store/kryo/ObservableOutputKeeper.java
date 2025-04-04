@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -42,7 +42,6 @@ import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -92,7 +91,7 @@ public class ObservableOutputKeeper implements AutoCloseable {
 	 * in the {@link WriteOnlyFileHandle} class.
 	 */
 	public long getLockTimeoutSeconds() {
-		return options.lockTimeoutSeconds();
+		return this.options.lockTimeoutSeconds();
 	}
 
 	public ObservableOutputKeeper(@Nonnull String catalogName, @Nonnull StorageOptions options, @Nonnull Scheduler scheduler) {
@@ -112,7 +111,7 @@ public class ObservableOutputKeeper implements AutoCloseable {
 	 */
 	public <T> T executeWithOutput(
 		@Nonnull Path targetFile,
-		@Nonnull BiFunction<Path, StorageOptions, ObservableOutput<FileOutputStream>> createFct,
+		@Nonnull Function<Path, ObservableOutput<FileOutputStream>> createFct,
 		@Nonnull Function<ObservableOutput<FileOutputStream>, T> lambda
 	) {
 		final OpenedOutputToFile openedOutputToFile = getOpenedOutputToFile(targetFile, createFct);
@@ -131,7 +130,7 @@ public class ObservableOutputKeeper implements AutoCloseable {
 	 */
 	public void executeWithOutput(
 		@Nonnull Path targetFile,
-		@Nonnull BiFunction<Path, StorageOptions, ObservableOutput<FileOutputStream>> createFct,
+		@Nonnull Function<Path, ObservableOutput<FileOutputStream>> createFct,
 		@Nonnull Consumer<ObservableOutput<FileOutputStream>> lambda
 	) {
 		final OpenedOutputToFile openedOutputToFile = getOpenedOutputToFile(targetFile, createFct);
@@ -150,7 +149,7 @@ public class ObservableOutputKeeper implements AutoCloseable {
 	@Nonnull
 	public ObservableOutput<FileOutputStream> getObservableOutputOrCreate(
 		@Nonnull Path targetFile,
-		@Nonnull BiFunction<Path, StorageOptions, ObservableOutput<FileOutputStream>> createFct
+		@Nonnull Function<Path, ObservableOutput<FileOutputStream>> createFct
 	) {
 		return getOpenedOutputToFile(targetFile, createFct).leaseOutput();
 	}
@@ -194,8 +193,8 @@ public class ObservableOutputKeeper implements AutoCloseable {
 		if (!this.cachedOutputToFiles.isEmpty()) {
 			log.error(
 				"Failed to close all cached outputs in {} seconds, {} outputs left",
-				options.waitOnCloseSeconds(),
-				cachedOutputToFiles.size()
+				this.options.waitOnCloseSeconds(),
+				this.cachedOutputToFiles.size()
 			);
 		}
 	}
@@ -206,11 +205,11 @@ public class ObservableOutputKeeper implements AutoCloseable {
 	@Nonnull
 	private OpenedOutputToFile getOpenedOutputToFile(
 		@Nonnull Path targetFile,
-		@Nonnull BiFunction<Path, StorageOptions, ObservableOutput<FileOutputStream>> createFct
+		@Nonnull Function<Path, ObservableOutput<FileOutputStream>> createFct
 	) {
 		this.cutTask.schedule();
 		return cachedOutputToFiles
-			.computeIfAbsent(targetFile, path -> new OpenedOutputToFile(createFct.apply(path, options)));
+			.computeIfAbsent(targetFile, path -> new OpenedOutputToFile(createFct.apply(path)));
 	}
 
 	/**

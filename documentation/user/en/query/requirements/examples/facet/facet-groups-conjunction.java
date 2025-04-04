@@ -45,7 +45,7 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 							attributeContent("code")
 						)
 					),
-					facetGroupsConjunction("groups")
+					facetGroupsConjunction("groups", WITH_DIFFERENT_FACETS_IN_GROUP)
 				)
 			)
 		);

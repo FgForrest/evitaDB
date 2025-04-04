@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -38,16 +38,13 @@ import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.EntityCollection;
-import io.evitadb.core.buffer.DataStoreIndexChanges;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
 import io.evitadb.dataType.PaginatedList;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.InvalidClassifierFormatException;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.index.CatalogIndex;
-import io.evitadb.index.CatalogIndexKey;
-import io.evitadb.index.EntityIndex;
-import io.evitadb.index.EntityIndexKey;
 import io.evitadb.store.exception.InvalidStoragePathException;
 import io.evitadb.store.spi.exception.DirectoryNotEmptyException;
 import io.evitadb.store.spi.model.CatalogHeader;
@@ -63,6 +60,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.LongConsumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -74,7 +72,7 @@ import java.util.stream.Stream;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public non-sealed interface CatalogPersistenceService extends PersistenceService<CatalogIndexKey, CatalogIndex> {
+public non-sealed interface CatalogPersistenceService extends PersistenceService {
 	/**
 	 * This constant represents the current version of the storage protocol. The version is changed everytime
 	 * the storage protocol on disk changes and the data with the old protocol version cannot be read by the new
@@ -82,7 +80,7 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 *
 	 * This means that the data needs to be converted from old to new protocol version first.
 	 */
-	int STORAGE_PROTOCOL_VERSION = 2;
+	int STORAGE_PROTOCOL_VERSION = 3;
 	String BOOT_FILE_SUFFIX = ".boot";
 	String CATALOG_FILE_SUFFIX = ".catalog";
 	String ENTITY_COLLECTION_FILE_SUFFIX = ".collection";
@@ -208,7 +206,7 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 * Method for internal use - allows emitting start events when observability facilities are already initialized.
 	 * If we didn't postpone this initialization, events would become lost.
 	 */
-	void emitStartObservabilityEvents();
+	void emitObservabilityEvents();
 
 	/**
 	 * Method for internal use. Allows to emit events clearing the information about deleted catalog.
@@ -254,7 +252,10 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 * Method reconstructs catalog index from underlying containers.
 	 */
 	@Nonnull
-	CatalogIndex readCatalogIndex(@Nonnull Catalog catalog);
+	Optional<CatalogIndex> readCatalogIndex(
+		@Nonnull Catalog catalog,
+		@Nonnull Scope scope
+	);
 
 	/**
 	 * Serializes all {@link EntityCollection} of the catalog to the persistent storage.
@@ -276,7 +277,7 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 		int lastEntityCollectionPrimaryKey,
 		@Nullable TransactionMutation lastProcessedTransaction,
 		@Nonnull List<EntityCollectionHeader> entityHeaders,
-		@Nonnull DataStoreMemoryBuffer<CatalogIndexKey, CatalogIndex> dataStoreBuffer
+		@Nonnull DataStoreMemoryBuffer dataStoreBuffer
 	) throws InvalidStoragePathException, DirectoryNotEmptyException, UnexpectedIOException;
 
 	/**
@@ -305,7 +306,7 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 		long catalogVersion,
 		@Nonnull HeaderInfoSupplier headerInfoSupplier,
 		@Nonnull EntityCollectionHeader entityCollectionHeader,
-		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex> dataStoreBuffer
+		@Nonnull DataStoreMemoryBuffer dataStoreBuffer
 	);
 
 	/**
@@ -372,7 +373,7 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 		@Nonnull String catalogNameToBeReplaced,
 		@Nonnull Map<NamingConvention, String> catalogNameVariationsToBeReplaced,
 		@Nonnull CatalogSchema catalogSchema,
-		@Nonnull DataStoreMemoryBuffer<CatalogIndexKey, CatalogIndex> dataStoreMemoryBuffer
+		@Nonnull DataStoreMemoryBuffer dataStoreMemoryBuffer
 	);
 
 	/**
@@ -428,8 +429,8 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 * the catalog to the given version. This method differs from {@link #getCommittedMutationStream(long)} in that
 	 * it expects the WAL is being actively written to and the returned stream may be potentially infinite.
 	 *
-	 * @param startCatalogVersion             the catalog version to start reading from
-	 * @param requestedCatalogVersion         the minimal catalog version to finish reading
+	 * @param startCatalogVersion     the catalog version to start reading from
+	 * @param requestedCatalogVersion the minimal catalog version to finish reading
 	 * @return a stream containing committed mutations
 	 */
 	@Nonnull
@@ -497,18 +498,26 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	/**
 	 * Creates a backup of the specified catalog and returns an InputStream to read the binary data of the zip file.
 	 *
-	 * @param pastMoment      leave null for creating backup for actual dataset, or specify past moment to create backup for
-	 *                        the dataset as it was at that moment
-	 * @param includingWAL    if true, the backup will include the Write-Ahead Log (WAL) file and when the catalog is
-	 *                        restored, it'll replay the WAL contents locally to bring the catalog to the current state
+	 * @param pastMoment   leave null for creating backup for actual dataset, or specify past moment to create backup for
+	 *                     the dataset as it was at that moment
+	 * @param includingWAL if true, the backup will include the Write-Ahead Log (WAL) file and when the catalog is
+	 *                     restored, it'll replay the WAL contents locally to bring the catalog to the current state
+	 * @param onStart      callback that is called before the backup starts
+	 * @param onComplete   callback that is called when the backup is finished (either successfully or with an error)
 	 * @return path to the file where the backup was created
 	 * @throws TemporalDataNotAvailableException when the past data is not available
 	 */
 	@Nonnull
-	ServerTask<?, FileForFetch> createBackupTask(@Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException;
+	ServerTask<?, FileForFetch> createBackupTask(
+		@Nullable OffsetDateTime pastMoment,
+		boolean includingWAL,
+		@Nullable LongConsumer onStart,
+		@Nullable LongConsumer onComplete
+	) throws TemporalDataNotAvailableException;
 
 	/**
 	 * Returns size taken by all catalog data structures in bytes.
+	 *
 	 * @return size taken by all catalog data structures in bytes
 	 */
 	long getSizeOnDiskInBytes();

@@ -96,6 +96,7 @@ class EvitaDataTypesConverterTest {
 		Assertions.assertEquals(
 			GrpcEvitaAssociatedDataValue.newBuilder()
 				.setJsonValue(ComplexDataObjectConverter.convertComplexDataObjectToJson(complexDataObjectValue).toString())
+				.setType(GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType.COMPLEX_DATA_OBJECT)
 				.setVersion(Int32Value.of(1))
 				.build(),
 			EvitaDataTypesConverter.toGrpcEvitaAssociatedDataValue(complexDataObjectValue, 1)

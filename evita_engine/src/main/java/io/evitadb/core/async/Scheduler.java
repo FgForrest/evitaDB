@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,24 +28,27 @@ import io.evitadb.api.task.InternallyScheduledTask;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
-import io.evitadb.api.task.TaskStatus.State;
+import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.dataType.PaginatedList;
+import io.evitadb.dataType.array.CompositeObjectArray;
+import io.evitadb.utils.ArrayUtils;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import lombok.experimental.Delegate;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -56,11 +59,21 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 public class Scheduler implements ObservableExecutorService, ScheduledExecutorService {
-	private static final int FINISHED_TASKS_KEEP_INTERVAL_MILLIS = 120_000;
+	private static final int FINISHED_TASKS_KEEP_INTERVAL_MILLIS = 300_000; // 5 minutes
+	private static final int WAITING_TASKS_KEEP_INTERVAL_MILLIS = 600_000; // 10 minutes
+	private static final int BUFFER_CAPACITY = 512;
+	/**
+	 * Buffer used for purging finished tasks.
+	 */
+	private final ArrayList<ServerTask<?, ?>> buffer = new ArrayList<>(BUFFER_CAPACITY);
+	/**
+	 * Lock synchronizing access to the buffer and purge operation.
+	 */
+	private final ReentrantLock bufferLock = new ReentrantLock();
 	/**
 	 * Java based scheduled executor service.
 	 */
-	private final ScheduledExecutorService executorService;
+	private final ScheduledThreadPoolExecutor executorService;
 	/**
 	 * Counter monitoring the number of tasks submitted to the executor service.
 	 */
@@ -70,14 +83,46 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	 */
 	private final AtomicLong rejectedTaskCount = new AtomicLong();
 	/**
+	 * Flag indicating whether the scheduler is in the process of shutting down.
+	 */
+	private final AtomicBoolean shutdownInProgress = new AtomicBoolean(false);
+	/**
 	 * Queue that holds the tasks that are currently being executed or waiting to be executed. It could also contain
 	 * already finished tasks that are subject to be removed.
 	 */
 	private final ArrayBlockingQueue<ServerTask<?, ?>> queue;
 	/**
+	 * Maximum number of tasks that can be stored in the queue.
+	 */
+	private final int queueCapacity;
+	/**
 	 * Rejected execution handler that is called when the queue is full and a new task cannot be added.
 	 */
 	private final EvitaRejectingExecutorHandler rejectingExecutorHandler;
+
+	/**
+	 * Creates a predicate to evaluate {@link TaskStatus} objects based on the specified task types and simplified states.
+	 *
+	 * @param taskType an array of task type strings to filter by; can be null or empty to ignore task type filtering
+	 * @param stateSet a set of {@link TaskSimplifiedState} enums to filter by; cannot be null, but can be empty to ignore state filtering
+	 * @return a {@link Predicate} that filters {@link TaskStatus} objects based on the provided task types and simplified states;
+	 * returns null if neither taskType nor stateSet contain filtering criteria
+	 */
+	@Nullable
+	private static Predicate<TaskStatus<?, ?>> getTaskStatusPredicate(
+		@Nullable String[] taskType,
+		@Nonnull EnumSet<TaskSimplifiedState> stateSet
+	) {
+		final Predicate<TaskStatus<?, ?>> typePredicate = ArrayUtils.isEmpty(taskType) ?
+			null :
+			status -> Arrays.stream(taskType)
+				.anyMatch(it -> Arrays.stream(status.taskType().split(","))
+					.map(String::trim)
+					.anyMatch(tt -> tt.equals(it))
+				);
+		final Predicate<TaskStatus<?, ?>> statePredicate = stateSet.isEmpty() ? null : status -> stateSet.contains(status.simplifiedState());
+		return statePredicate == null ? typePredicate : (typePredicate == null ? statePredicate : typePredicate.and(statePredicate));
+	}
 
 	public Scheduler(@Nonnull ThreadPoolOptions options) {
 		this.rejectingExecutorHandler = new EvitaRejectingExecutorHandler("service", this.rejectedTaskCount::incrementAndGet);
@@ -90,13 +135,14 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 		theExecutor.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
 		this.executorService = theExecutor;
 		// create queue with double the size of the configured queue size to have some breathing room
-		this.queue = new ArrayBlockingQueue<>(options.queueSize() << 1);
+		this.queueCapacity = options.queueSize();
+		this.queue = new ArrayBlockingQueue<>(queueCapacity << 1);
 		// schedule automatic purging task
 		new DelayedAsyncTask(
 			null,
 			"Scheduler queue purging task",
 			this,
-			this::purgeFinishedTasks,
+			this::purgeFinishedAndLongWaitingTasks,
 			1, TimeUnit.MINUTES
 		).schedule();
 	}
@@ -106,10 +152,46 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	 *
 	 * @param executorService to be used for scheduling tasks
 	 */
-	public Scheduler(@Nonnull ScheduledExecutorService executorService) {
+	public Scheduler(@Nonnull ScheduledThreadPoolExecutor executorService) {
 		this.executorService = executorService;
 		this.queue = new ArrayBlockingQueue<>(64);
+		this.queueCapacity = 64;
 		this.rejectingExecutorHandler = null;
+	}
+
+	/**
+	 * Returns the internal executor service used by the scheduler. This method is intended for observability purposes
+	 * and should not be used for task scheduling.
+	 *
+	 * @return the internal executor service
+	 */
+	@Nonnull
+	public ScheduledThreadPoolExecutor getExecutorServiceInternal() {
+		return executorService;
+	}
+
+	@Nonnull
+	@Override
+	public ScheduledFuture<?> schedule(@Nonnull Runnable lambda, long delay, @Nonnull TimeUnit delayUnits) {
+		if (!this.executorService.isShutdown()) {
+			return this.executorService.schedule(lambda, delay, delayUnits);
+		} else if (!this.shutdownInProgress.get()) {
+			throw new RejectedExecutionException("Scheduler is already shut down.");
+		} else {
+			return NonScheduledFuture.instance();
+		}
+	}
+
+	@Nonnull
+	@Override
+	public <V> ScheduledFuture<V> schedule(@Nonnull Callable<V> callable, long delay, @Nonnull TimeUnit unit) {
+		if (!this.executorService.isShutdown()) {
+			return this.executorService.schedule(callable, delay, unit);
+		} else if (!this.shutdownInProgress.get()) {
+			throw new RejectedExecutionException("Scheduler is already shut down.");
+		} else {
+			return NonScheduledFuture.instance();
+		}
 	}
 
 	@Nonnull
@@ -124,8 +206,10 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 			);
 			this.submittedTaskCount.incrementAndGet();
 			return scheduledFuture;
-		} else {
+		} else if (!this.shutdownInProgress.get()) {
 			throw new RejectedExecutionException("Scheduler is already shut down.");
+		} else {
+			return NonScheduledFuture.instance();
 		}
 	}
 
@@ -141,28 +225,10 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 			);
 			this.submittedTaskCount.incrementAndGet();
 			return scheduledFuture;
-		} else {
+		} else if (!this.shutdownInProgress.get()) {
 			throw new RejectedExecutionException("Scheduler is already shut down.");
-		}
-	}
-
-	@Nonnull
-	@Override
-	public <V> ScheduledFuture<V> schedule(@Nonnull Callable<V> callable, long delay, @Nonnull TimeUnit unit) {
-		if (!this.executorService.isShutdown()) {
-			return this.executorService.schedule(callable, delay, unit);
 		} else {
-			throw new RejectedExecutionException("Scheduler is already shut down.");
-		}
-	}
-
-	@Nonnull
-	@Override
-	public ScheduledFuture<?> schedule(@Nonnull Runnable lambda, long delay, @Nonnull TimeUnit delayUnits) {
-		if (!this.executorService.isShutdown()) {
-			return this.executorService.schedule(lambda, delay, delayUnits);
-		} else {
-			throw new RejectedExecutionException("Scheduler is already shut down.");
+			return NonScheduledFuture.instance();
 		}
 	}
 
@@ -179,6 +245,8 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 		if (!this.executorService.isShutdown()) {
 			this.executorService.submit(runnable);
 			this.submittedTaskCount.incrementAndGet();
+		} else if (!this.shutdownInProgress.get()) {
+			throw new RejectedExecutionException("Scheduler is already shut down.");
 		}
 	}
 
@@ -194,96 +262,173 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 
 	@Override
 	public void shutdown() {
-		executorService.shutdown();
+		// cancel all tasks in the queue
+		for (ServerTask<?, ?> serverTask : this.queue) {
+			serverTask.cancel();
+		}
+		this.executorService.shutdown();
 	}
 
 	@Nonnull
 	@Override
 	public List<Runnable> shutdownNow() {
-		return executorService.shutdownNow();
+		// cancel all tasks in the queue
+		for (ServerTask<?, ?> serverTask : this.queue) {
+			serverTask.cancel();
+		}
+		return this.executorService.shutdownNow();
 	}
 
 	@Override
 	public boolean isShutdown() {
-		return executorService.isShutdown();
+		return this.shutdownInProgress.get() || this.executorService.isShutdown();
 	}
 
 	@Override
 	public boolean isTerminated() {
-		return executorService.isTerminated();
+		return this.executorService.isTerminated();
 	}
 
 	@Override
 	public boolean awaitTermination(long timeout, @Nonnull TimeUnit unit) throws InterruptedException {
-		return executorService.awaitTermination(timeout, unit);
+		return this.executorService.awaitTermination(timeout, unit);
 	}
 
 	@Nonnull
 	@Override
 	public <T> Future<T> submit(@Nonnull Callable<T> task) {
-		final Future<T> future = executorService.submit(task);
-		this.submittedTaskCount.incrementAndGet();
-		return future;
+		if (!this.executorService.isShutdown()) {
+			if (task instanceof ServerTask<?, ?> st) {
+				st.transitionToIssued();
+			}
+			final Future<T> future = executorService.submit(task);
+			this.submittedTaskCount.incrementAndGet();
+			return future;
+		} else if (!this.shutdownInProgress.get()) {
+			throw new RejectedExecutionException("Scheduler is already shut down.");
+		} else {
+			return NonScheduledFuture.instance();
+		}
 	}
 
 	@Nonnull
 	@Override
 	public <T> Future<T> submit(@Nonnull Runnable task, T result) {
-		final Future<T> future = executorService.submit(task, result);
-		this.submittedTaskCount.incrementAndGet();
-		return future;
+		if (!this.executorService.isShutdown()) {
+			if (task instanceof ServerTask<?, ?> st) {
+				st.transitionToIssued();
+			}
+			final Future<T> future = executorService.submit(task, result);
+			this.submittedTaskCount.incrementAndGet();
+			return future;
+		} else if (!this.shutdownInProgress.get()) {
+			throw new RejectedExecutionException("Scheduler is already shut down.");
+		} else {
+			return NonScheduledFuture.instance();
+		}
 	}
 
 	@Nonnull
 	@Override
 	public Future<?> submit(@Nonnull Runnable task) {
-		final Future<?> future = executorService.submit(task);
-		this.submittedTaskCount.incrementAndGet();
-		return future;
+		if (!this.executorService.isShutdown()) {
+			if (task instanceof ServerTask<?, ?> st) {
+				st.transitionToIssued();
+			}
+			final Future<?> future = executorService.submit(task);
+			this.submittedTaskCount.incrementAndGet();
+			return future;
+		} else if (!this.shutdownInProgress.get()) {
+			throw new RejectedExecutionException("Scheduler is already shut down.");
+		} else {
+			return NonScheduledFuture.instance();
+		}
 	}
 
 	@Nonnull
 	@Override
 	public <T> List<Future<T>> invokeAll(@Nonnull Collection<? extends Callable<T>> tasks) throws InterruptedException {
-		final List<Future<T>> futures = executorService.invokeAll(tasks);
-		this.submittedTaskCount.addAndGet(futures.size());
-		return futures;
+		if (!this.executorService.isShutdown()) {
+			for (Callable<T> task : tasks) {
+				if (task instanceof ServerTask<?, ?> st) {
+					st.transitionToIssued();
+				}
+			}
+			final List<Future<T>> futures = executorService.invokeAll(tasks);
+			this.submittedTaskCount.addAndGet(futures.size());
+			return futures;
+		} else if (!this.shutdownInProgress.get()) {
+			throw new RejectedExecutionException("Scheduler is already shut down.");
+		} else {
+			return List.of(NonScheduledFuture.instance());
+		}
 	}
 
 	@Nonnull
 	@Override
 	public <T> List<Future<T>> invokeAll(@Nonnull Collection<? extends Callable<T>> tasks, long timeout, @Nonnull TimeUnit unit) throws InterruptedException {
-		final List<Future<T>> futures = executorService.invokeAll(tasks, timeout, unit);
-		this.submittedTaskCount.addAndGet(futures.size());
-		return futures;
+		if (!this.executorService.isShutdown()) {
+			for (Callable<T> task : tasks) {
+				if (task instanceof ServerTask<?, ?> st) {
+					st.transitionToIssued();
+				}
+			}
+			final List<Future<T>> futures = executorService.invokeAll(tasks, timeout, unit);
+			this.submittedTaskCount.addAndGet(futures.size());
+			return futures;
+		} else if (!this.shutdownInProgress.get()) {
+			throw new RejectedExecutionException("Scheduler is already shut down.");
+		} else {
+			return List.of(NonScheduledFuture.instance());
+		}
 	}
 
 	@Nonnull
 	@Override
 	public <T> T invokeAny(@Nonnull Collection<? extends Callable<T>> tasks) throws InterruptedException, ExecutionException {
-		final T result = executorService.invokeAny(tasks);
-		this.submittedTaskCount.incrementAndGet();
-		return result;
+		if (!this.executorService.isShutdown()) {
+			for (Callable<T> task : tasks) {
+				if (task instanceof ServerTask<?, ?> st) {
+					st.transitionToIssued();
+				}
+			}
+			final T result = executorService.invokeAny(tasks);
+			this.submittedTaskCount.incrementAndGet();
+			return result;
+		} else {
+			throw new RejectedExecutionException("Scheduler is already shut down.");
+		}
 	}
 
+	@Nullable
 	@Override
 	public <T> T invokeAny(@Nonnull Collection<? extends Callable<T>> tasks, long timeout, @Nonnull TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
-		final T result = executorService.invokeAny(tasks, timeout, unit);
-		this.submittedTaskCount.incrementAndGet();
-		return result;
+		if (!this.executorService.isShutdown()) {
+			for (Callable<T> task : tasks) {
+				if (task instanceof AbstractServerTask<?, ?> ast) {
+					ast.transitionToIssued();
+				}
+			}
+			final T result = executorService.invokeAny(tasks, timeout, unit);
+			this.submittedTaskCount.incrementAndGet();
+			return result;
+		} else if (!this.shutdownInProgress.get()) {
+			throw new RejectedExecutionException("Scheduler is already shut down.");
+		} else {
+			return null;
+		}
 	}
 
 	@Nonnull
 	public <T> CompletableFuture<T> submit(@Nonnull ServerTask<?, T> task) {
-		addTaskToQueue(task);
-		if (task.getClass().isAnnotationPresent(InternallyScheduledTask.class)) {
-			// if the task is internally scheduled, we can execute it immediately
-			task.execute();
+		if (!this.executorService.isShutdown()) {
+			addTaskToQueue(task);
+			return submitTaskInQueue(task);
+		} else if (!this.shutdownInProgress.get()) {
+			throw new RejectedExecutionException("Scheduler is already shut down.");
 		} else {
-			this.executorService.submit(task::execute);
+			return NonScheduledFuture.<T>instance().getFuture();
 		}
-		this.submittedTaskCount.incrementAndGet();
-		return task.getFutureResult();
 	}
 
 	/**
@@ -292,14 +437,29 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	 *
 	 * @param page     the page number (starting from 1)
 	 * @param pageSize the size of the page
+	 * @param taskType allows limiting result statuses to those of a particular type
+	 * @param states   allows limiting result statuses to those of a particular simplified state
 	 * @return the paginated list of tasks
 	 */
 	@Nonnull
-	public PaginatedList<TaskStatus<?, ?>> listTaskStatuses(int page, int pageSize) {
+	public PaginatedList<TaskStatus<?, ?>> listTaskStatuses(
+		int page,
+		int pageSize,
+		@Nullable String[] taskType,
+		@Nonnull TaskSimplifiedState... states
+	) {
+
+		final EnumSet<TaskSimplifiedState> stateSet = EnumSet.noneOf(TaskSimplifiedState.class);
+		Collections.addAll(stateSet, states);
+
+		final Predicate<TaskStatus<?, ?>> finalPredicate = getTaskStatusPredicate(taskType, stateSet);
+
+		final Collection<ServerTask<?, ?>> tasks = finalPredicate == null ?
+			this.queue : this.queue.stream().filter(it -> finalPredicate.test(it.getStatus())).toList();
 		return new PaginatedList<>(
-			page, pageSize, this.queue.size(),
-			this.queue.stream()
-				.sorted((o1, o2) -> o2.getStatus().issued().compareTo(o1.getStatus().issued()))
+			page, pageSize, tasks.size(),
+			tasks.stream()
+				.sorted((o1, o2) -> o2.getStatus().created().compareTo(o1.getStatus().created()))
 				.skip(PaginatedList.getFirstItemNumberForPage(page, pageSize))
 				.limit(pageSize)
 				.map(Task::getStatus)
@@ -309,9 +469,10 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 
 	/**
 	 * Returns the tasks of the given task type.
+	 *
 	 * @param taskType the type of the task
+	 * @param <T>      the type of the task
 	 * @return the list of matching tasks
-	 * @param <T> the type of the task
 	 */
 	@Nonnull
 	public <T extends ServerTask<?, ?>> Collection<T> getTasks(@Nonnull Class<T> taskType) {
@@ -334,12 +495,13 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 		return this.queue
 			.stream()
 			.filter(it -> uuids.contains(it.getStatus().taskId()))
-			.map(it -> (TaskStatus<?,?>)it.getStatus())
+			.map(it -> (TaskStatus<?, ?>) it.getStatus())
 			.collect(Collectors.toCollection(ArrayList::new));
 	}
 
 	/**
 	 * Returns job status for the specified jobId or empty if the job is not found.
+	 *
 	 * @param jobId jobId of the job
 	 * @return job status
 	 */
@@ -367,6 +529,68 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	}
 
 	/**
+	 * Registers a task to be kept in the waiting queue until it can be executed.
+	 *
+	 * @param task The task to be registered and added to the waiting queue.
+	 */
+	public void registerWaitingTask(@Nonnull ServerTask<?, ?> task) {
+		if (!this.executorService.isShutdown()) {
+			this.addTaskToQueue(task);
+		} else if (!this.shutdownInProgress.get()) {
+			throw new RejectedExecutionException("Scheduler is already shut down.");
+		}
+	}
+
+	/**
+	 * Retrieves a task from the waiting queue based on the provided registration identifier.
+	 *
+	 * @param taskPredicate predicate to filter the task
+	 * @return An {@link Optional} containing the {@link ServerTask} if found, otherwise an empty {@link Optional}.
+	 */
+	public Optional<ServerTask<?, ?>> findTask(@Nonnull Predicate<ServerTask<?, ?>> taskPredicate) {
+		return this.queue.stream().filter(task -> task.matches(taskPredicate)).findFirst();
+	}
+
+	/**
+	 * Submits a task from the waiting queue based on the provided registration identifier.
+	 *
+	 * @param taskPredicate predicate to filter the task
+	 */
+	public void submitWaitingTask(@Nonnull Predicate<ServerTask<?, ?>> taskPredicate) {
+		if (!this.executorService.isShutdown()) {
+			this.queue.stream().filter(task -> task.matches(taskPredicate)).findFirst()
+				.ifPresent(this::submitTaskInQueue);
+		} else if (!this.shutdownInProgress.get()) {
+			throw new RejectedExecutionException("Scheduler is already shut down.");
+		}
+	}
+
+	/**
+	 * Method might be called before the scheduler is shut down to stop accepting new scheduled tasks.
+	 */
+	public void prepareForBeingShutdown() {
+		this.shutdownInProgress.set(true);
+	}
+
+	/**
+	 * Submits a given server task to the internal queue for execution.
+	 *
+	 * @param task The server task to be submitted. Must not be null.
+	 * @return A CompletableFuture representing the result of the submitted task.
+	 */
+	private <T> @Nonnull CompletableFuture<T> submitTaskInQueue(@Nonnull ServerTask<?, T> task) {
+		task.transitionToIssued();
+		if (task.getClass().isAnnotationPresent(InternallyScheduledTask.class)) {
+			// if the task is internally scheduled, we can execute it immediately
+			task.execute();
+		} else {
+			this.executorService.submit(task::execute);
+		}
+		this.submittedTaskCount.incrementAndGet();
+		return task.getFutureResult();
+	}
+
+	/**
 	 * Wraps the task into an observable task and adds it to the queue. Returns the same type as the input argument
 	 * to allow for fluent chaining.
 	 *
@@ -381,7 +605,7 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 			this.queue.add(task);
 		} catch (IllegalStateException e) {
 			// this means the queue is full, so we need to remove some tasks
-			this.purgeFinishedTasks();
+			this.purgeFinishedAndLongWaitingTasks();
 			// and try adding the task again
 			try {
 				this.queue.add(task);
@@ -402,30 +626,65 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	 * Iterates over all tasks in {@link #queue} in a batch manner and removes all finished tasks. Tasks that are
 	 * still waiting or running are added to the tail of the queue again.
 	 */
-	private long purgeFinishedTasks() {
-		// go through the entire queue, but only once
-		final int bufferSize = 512;
-		final ArrayList<ServerTask<?, ?>> buffer = new ArrayList<>(bufferSize);
-		final int queueSize = this.queue.size();
-		final OffsetDateTime threshold = OffsetDateTime.now().minus(FINISHED_TASKS_KEEP_INTERVAL_MILLIS, ChronoUnit.MILLIS);
-		for (int i = 0; i < queueSize; i++) {
-			// effectively withdraw first block of tasks from the queue
-			this.queue.drainTo(buffer, bufferSize);
-			// now go through all of them
-			final Iterator<ServerTask<?, ?>> it = buffer.iterator();
-			while (it.hasNext()) {
-				final Task<?, ?> task = it.next();
-				final TaskStatus<?, ?> status = task.getStatus();
-				final State taskState = status.state();
-				if ((taskState == State.FINISHED || taskState == State.FAILED) && status.finished().isBefore(threshold)) {
-					// if task is finished and it's defense period has perished, remove it from the queue
-					it.remove();
+	private long purgeFinishedAndLongWaitingTasks() {
+		if (this.bufferLock.tryLock()) {
+			try {
+				// go through the entire queue, but only once
+				final int queueSize = this.queue.size();
+				//noinspection rawtypes
+				CompositeObjectArray<Task> finishedTaskInDefensePeriod = null;
+				final OffsetDateTime waitingThreshold = OffsetDateTime.now().minus(FINISHED_TASKS_KEEP_INTERVAL_MILLIS, ChronoUnit.MILLIS);
+				final OffsetDateTime threshold = OffsetDateTime.now().minus(WAITING_TASKS_KEEP_INTERVAL_MILLIS, ChronoUnit.MILLIS);
+				final int batches = queueSize / BUFFER_CAPACITY + 1;
+				for (int i = 0; i < batches; i++) {
+					// effectively withdraw first block of tasks from the queue
+					this.queue.drainTo(this.buffer, BUFFER_CAPACITY);
+					// now go through all of them
+					final Iterator<ServerTask<?, ?>> it = this.buffer.iterator();
+					while (it.hasNext()) {
+						final Task<?, ?> task = it.next();
+						final TaskStatus<?, ?> status = task.getStatus();
+						final TaskSimplifiedState taskState = status.simplifiedState();
+						if (taskState == TaskSimplifiedState.WAITING_FOR_PRECONDITION && status.created().isBefore(waitingThreshold)) {
+							// if task is waiting for precondition and its issued time is older than the threshold, remove it
+							log.info("Task {} is waiting for precondition for too long, removing it from the queue.", status.taskId());
+							it.remove();
+						} else if (taskState == TaskSimplifiedState.FINISHED || taskState == TaskSimplifiedState.FAILED) {
+							it.remove();
+							// if its defense period hasn't perished add it to list, that might end up in the queue again
+							if (status.finished() != null && status.finished().isAfter(threshold)) {
+								if (finishedTaskInDefensePeriod == null) {
+									finishedTaskInDefensePeriod = new CompositeObjectArray<>(Task.class);
+								}
+								finishedTaskInDefensePeriod.add(task);
+							}
+						}
+					}
+					// add the remaining tasks back to the queue in an effective way
+					this.queue.addAll(this.buffer);
+					// clear the buffer for the next iteration
+					this.buffer.clear();
 				}
+				// now add the tasks that are still in defense period back to the queue, but keep at least 1/3 of the queue empty
+				final int requiredEmptyBlock = Math.min(1, this.queueCapacity / 3);
+				final int remainingCapacity = this.queueCapacity - this.queue.size();
+				if (remainingCapacity > requiredEmptyBlock && finishedTaskInDefensePeriod != null) {
+					//noinspection rawtypes
+					final Iterator<Task> it = finishedTaskInDefensePeriod.iterator();
+					final int currentCapacity = this.queue.size();
+					for (int i = currentCapacity; i < this.queueCapacity - requiredEmptyBlock && i < remainingCapacity && it.hasNext(); i++) {
+						this.queue.add((ServerTask<?, ?>) it.next());
+					}
+				}
+			} finally {
+				this.bufferLock.unlock();
 			}
-			// add the remaining tasks back to the queue in an effective way
-			this.queue.addAll(buffer);
-			// clear the buffer for the next iteration
-			buffer.clear();
+		} else {
+			// someone else is currently purging the queue
+			// we need to wait until he's done and then the queue should have enough free room
+			while (this.bufferLock.isLocked()) {
+				Thread.onSpinWait();
+			}
 		}
 		// plan to next standard time
 		return 0L;
@@ -462,6 +721,36 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 			}
 			return thread;
 		}
+	}
+
+	/**
+	 * Return value for all scheduled tasks issued after the scheduler is shut down.
+	 * @param <T>
+	 */
+	@RequiredArgsConstructor
+	@EqualsAndHashCode
+	private static class NonScheduledFuture<T> implements ScheduledFuture<T> {
+		public static final NonScheduledFuture<?> INSTANCE = new NonScheduledFuture<>();
+		private final IllegalStateException exception = new IllegalStateException("Scheduler is being shut down!");
+		@Delegate @Getter private final CompletableFuture<T> future = CompletableFuture.failedFuture(exception);
+
+		@Nonnull
+		public static <T> NonScheduledFuture<T> instance() {
+			//noinspection unchecked
+			return (NonScheduledFuture<T>) INSTANCE;
+		}
+
+
+		@Override
+		public long getDelay(@Nonnull TimeUnit delay) {
+			return Long.MIN_VALUE;
+		}
+
+		@Override
+		public int compareTo(@Nonnull Delayed o) {
+			throw new UnsupportedOperationException();
+		}
+
 	}
 
 }

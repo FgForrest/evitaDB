@@ -23,7 +23,7 @@
 
 package io.evitadb.api.requestResponse.data.mutation;
 
-import io.evitadb.api.requestResponse.cdc.CaptureContent;
+import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
@@ -36,7 +36,6 @@ import io.evitadb.api.requestResponse.data.mutation.attribute.RemoveAttributeMut
 import io.evitadb.api.requestResponse.data.mutation.parent.RemoveParentMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.RemovePriceMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.SetPriceInnerRecordHandlingMutation;
-import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMutation;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
@@ -51,7 +50,6 @@ import lombok.EqualsAndHashCode;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -78,6 +76,43 @@ public class EntityRemoveMutation implements EntityMutation {
 	 */
 	@Nonnull
 	private final String entityType;
+
+	/**
+	 * Method will collect all necessary local mutations to completely remove passed entity.
+	 */
+	@Nonnull
+	public static List<? extends LocalMutation<?, ?>> computeLocalMutationsForEntityRemoval(@Nonnull Entity entity) {
+		return Stream.of(
+				(entity.parentAvailable() ? entity.getParent() : OptionalInt.empty())
+					.stream()
+					.mapToObj(it -> new RemoveParentMutation()),
+				entity.getReferences()
+					.stream()
+					.filter(Droppable::exists)
+					/* attributes, are removed implicitly along with the reference */
+					.map(it -> new RemoveReferenceMutation(it.getReferenceKey())),
+				entity.getAttributeValues()
+					.stream()
+					.filter(Droppable::exists)
+					.map(AttributeValue::key)
+					.map(RemoveAttributeMutation::new),
+				entity.getAssociatedDataValues()
+					.stream()
+					.filter(Droppable::exists)
+					.map(AssociatedDataValue::key)
+					.map(RemoveAssociatedDataMutation::new),
+				Stream.of(
+					new SetPriceInnerRecordHandlingMutation(PriceInnerRecordHandling.NONE)
+				),
+				(entity.pricesAvailable() ? entity.getPrices() : Collections.<PriceContract>emptyList())
+					.stream()
+					.filter(Droppable::exists)
+					.map(it -> new RemovePriceMutation(it.priceKey()))
+			)
+			.flatMap(it -> it)
+			.filter(Objects::nonNull)
+			.toList();
+	}
 
 	public EntityRemoveMutation(
 		@Nonnull String entityType,
@@ -129,56 +164,8 @@ public class EntityRemoveMutation implements EntityMutation {
 
 	@Nonnull
 	@Override
-	public Collection<? extends LocalMutation<?, ?>> getLocalMutations() {
+	public List<? extends LocalMutation<?, ?>> getLocalMutations() {
 		return Collections.emptyList();
-	}
-
-	/**
-	 * Method will collect all necessary local mutations to completely remove passed entity.
-	 */
-	@Nonnull
-	public List<? extends LocalMutation<?, ?>> computeLocalMutationsForEntityRemoval(@Nonnull Entity entity) {
-		return Stream.of(
-				(entity.parentAvailable() ? entity.getParent() : OptionalInt.empty())
-					.stream()
-					.mapToObj(it -> new RemoveParentMutation()),
-				entity.getReferences()
-					.stream()
-					.filter(Droppable::exists)
-					.flatMap(it -> Stream.concat(
-							it.getAttributeValues()
-								.stream()
-								.filter(Droppable::exists)
-								.map(x ->
-									new ReferenceAttributeMutation(
-										it.getReferenceKey(),
-										new RemoveAttributeMutation(x.key())
-									)
-								),
-							Stream.of(new RemoveReferenceMutation(it.getReferenceKey()))
-						)
-					),
-				entity.getAttributeValues()
-					.stream()
-					.filter(Droppable::exists)
-					.map(AttributeValue::key)
-					.map(RemoveAttributeMutation::new),
-				entity.getAssociatedDataValues()
-					.stream()
-					.filter(Droppable::exists)
-					.map(AssociatedDataValue::key)
-					.map(RemoveAssociatedDataMutation::new),
-				Stream.of(
-					new SetPriceInnerRecordHandlingMutation(PriceInnerRecordHandling.NONE)
-				),
-				(entity.pricesAvailable() ? entity.getPrices() : Collections.<PriceContract>emptyList())
-					.stream()
-					.filter(Droppable::exists)
-					.map(it -> new RemovePriceMutation(it.priceKey()))
-			)
-			.flatMap(it -> it)
-			.filter(Objects::nonNull)
-			.toList();
 	}
 
 	@Nonnull
@@ -191,16 +178,18 @@ public class EntityRemoveMutation implements EntityMutation {
 	@Override
 	public Stream<ChangeCatalogCapture> toChangeCatalogCapture(
 		@Nonnull MutationPredicate predicate,
-		@Nonnull CaptureContent content
+		@Nonnull ChangeCaptureContent content
 	) {
 		if (predicate.test(this)) {
 			final MutationPredicateContext context = predicate.getContext();
+			context.setEntityType(this.entityType);
+			context.setPrimaryKey(this.entityPrimaryKey);
 			context.advance();
 			return Stream.of(
 				ChangeCatalogCapture.dataCapture(
 					context,
 					operation(),
-					content == CaptureContent.BODY ? this : null
+					content == ChangeCaptureContent.BODY ? this : null
 				)
 			);
 		} else {

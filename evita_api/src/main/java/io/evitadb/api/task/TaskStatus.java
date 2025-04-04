@@ -24,6 +24,8 @@
 package io.evitadb.api.task;
 
 import io.evitadb.exception.EvitaError;
+import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -31,6 +33,7 @@ import java.io.PrintWriter;
 import java.io.Serializable;
 import java.io.StringWriter;
 import java.time.OffsetDateTime;
+import java.util.EnumSet;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
 
@@ -56,15 +59,17 @@ public record TaskStatus<S, T>(
 	@Nonnull String taskName,
 	@Nonnull UUID taskId,
 	@Nullable String catalogName,
-	@Nonnull OffsetDateTime issued,
+	@Nonnull OffsetDateTime created,
+	@Nullable OffsetDateTime issued,
 	@Nullable OffsetDateTime started,
 	@Nullable OffsetDateTime finished,
 	int progress,
 	@Nonnull S settings,
 	@Nullable T result,
 	@Nullable String publicExceptionMessage,
-	@Nullable String exceptionWithStackTrace
-) implements Serializable {
+	@Nullable String exceptionWithStackTrace,
+	@Nonnull EnumSet<TaskTrait> traits
+	) implements Serializable {
 
 	/**
 	 * Returns the shortened state of the task.
@@ -72,15 +77,17 @@ public record TaskStatus<S, T>(
 	 * @return The state of the task.
 	 */
 	@Nonnull
-	public State state() {
+	public TaskSimplifiedState simplifiedState() {
 		if (exceptionWithStackTrace != null || publicExceptionMessage != null) {
-			return State.FAILED;
+			return TaskSimplifiedState.FAILED;
 		} else if (finished != null) {
-			return State.FINISHED;
+			return TaskSimplifiedState.FINISHED;
 		} else if (started != null) {
-			return State.RUNNING;
+			return TaskSimplifiedState.RUNNING;
+		} else if (issued != null) {
+			return TaskSimplifiedState.QUEUED;
 		} else {
-			return State.QUEUED;
+			return TaskSimplifiedState.WAITING_FOR_PRECONDITION;
 		}
 	}
 
@@ -98,6 +105,7 @@ public record TaskStatus<S, T>(
 				this.taskName,
 				this.taskId,
 				this.catalogName,
+				this.created,
 				this.issued,
 				this.started,
 				this.finished,
@@ -105,11 +113,71 @@ public record TaskStatus<S, T>(
 				this.settings,
 				this.result,
 				this.publicExceptionMessage,
-				this.exceptionWithStackTrace
+				this.exceptionWithStackTrace,
+				this.traits
 			);
 		} else {
 			return this;
 		}
+	}
+
+	/**
+	 * Updates the name of the task and returns a new instance of {@link TaskStatus}
+	 * with the updated task name, if the new name is different from the current name.
+	 *
+	 * @param taskName The new name for the task.
+	 * @param traits  The traits of the task.
+	 * @return The new instance of {@link TaskStatus} with the updated task name.
+	 */
+	@Nonnull
+	public TaskStatus<S, T> updateTaskNameAndTraits(@Nonnull String taskName, @Nonnull TaskTrait... traits) {
+		if (!taskName.equals(this.taskName) || !ArrayUtils.equals(traits, this.traits)) {
+			return new TaskStatus<>(
+				this.taskType,
+				taskName,
+				this.taskId,
+				this.catalogName,
+				this.created,
+				this.issued,
+				this.started,
+				this.finished,
+				this.progress,
+				this.settings,
+				this.result,
+				this.publicExceptionMessage,
+				this.exceptionWithStackTrace,
+				ArrayUtils.isEmpty(traits) ?
+					EnumSet.noneOf(TaskTrait.class) : EnumSet.of(traits[0], traits)
+			);
+		} else {
+			return this;
+		}
+	}
+
+	/**
+	 * Returns new instance of {@link TaskStatus} with updated issue time.
+	 *
+	 * @return The new instance of {@link TaskStatus} with updated issue time.
+	 */
+	@Nonnull
+	public TaskStatus<S, T> transitionToIssued() {
+		Assert.isTrue(this.issued == null, "Task is already issued.");
+		return new TaskStatus<>(
+			this.taskType,
+			this.taskName,
+			this.taskId,
+			this.catalogName,
+			this.created,
+			OffsetDateTime.now(),
+			null,
+			null,
+			0,
+			this.settings,
+			this.result,
+			this.publicExceptionMessage,
+			this.exceptionWithStackTrace,
+			this.traits
+		);
 	}
 
 	/**
@@ -124,6 +192,7 @@ public record TaskStatus<S, T>(
 			this.taskName,
 			this.taskId,
 			this.catalogName,
+			this.created,
 			this.issued,
 			OffsetDateTime.now(),
 			null,
@@ -131,7 +200,8 @@ public record TaskStatus<S, T>(
 			this.settings,
 			this.result,
 			this.publicExceptionMessage,
-			this.exceptionWithStackTrace
+			this.exceptionWithStackTrace,
+			this.traits
 		);
 	}
 
@@ -148,6 +218,7 @@ public record TaskStatus<S, T>(
 			this.taskName,
 			this.taskId,
 			this.catalogName,
+			this.created,
 			this.issued,
 			this.started,
 			OffsetDateTime.now(),
@@ -155,7 +226,8 @@ public record TaskStatus<S, T>(
 			this.settings,
 			result,
 			null,
-			null
+			null,
+			this.traits
 		);
 	}
 
@@ -185,6 +257,7 @@ public record TaskStatus<S, T>(
 			this.taskName,
 			this.taskId,
 			this.catalogName,
+			this.created,
 			this.issued,
 			this.started,
 			OffsetDateTime.now(),
@@ -192,14 +265,19 @@ public record TaskStatus<S, T>(
 			this.settings,
 			null,
 			publicException,
-			exception.getClass().getName() + ": " + exception.getMessage() + "\n" + sw
+			exception.getClass().getName() + ": " + exception.getMessage() + "\n" + sw,
+			this.traits
 		);
 	}
 
 	/**
 	 * State aggregates the possible states of a task into a simple enumeration.
 	 */
-	public enum State {
+	public enum TaskSimplifiedState {
+		/**
+		 * Task is waiting in for precondition to be fulfilled.
+		 */
+		WAITING_FOR_PRECONDITION,
 		/**
 		 * Task is waiting in the queue to be executed.
 		 */
@@ -216,6 +294,28 @@ public record TaskStatus<S, T>(
 		 * Task has failed.
 		 */
 		FAILED
+	}
+
+	/**
+	 * Enum describes traits of a {@link ServerTask} task.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
+	 */
+	public enum TaskTrait {
+
+		/**
+		 * Task can be manually started by the user.
+		 */
+		CAN_BE_STARTED,
+		/**
+		 * Task can be manually cancelled by the user.
+		 */
+		CAN_BE_CANCELLED,
+		/**
+		 * Task needs to be manually stopped by the user (otherwise it will run indefinitely).
+		 */
+		NEEDS_TO_BE_STOPPED
+
 	}
 
 }

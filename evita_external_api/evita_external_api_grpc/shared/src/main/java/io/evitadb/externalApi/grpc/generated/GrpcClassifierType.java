@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,69 +27,143 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Enum describes possible classifier types used in reserved keywords listing
+ * </pre>
+ *
  * Protobuf enum {@code io.evitadb.externalApi.grpc.generated.GrpcClassifierType}
  */
 public enum GrpcClassifierType
     implements com.google.protobuf.ProtocolMessageEnum {
   /**
-   * <code>SERVER_NAME = 0;</code>
+   * <pre>
+   **
+   * Identification of the server instance.
+   * </pre>
+   *
+   * <code>CLASSIFIER_TYPE_SERVER_NAME = 0;</code>
    */
-  SERVER_NAME(0),
+  CLASSIFIER_TYPE_SERVER_NAME(0),
   /**
-   * <code>CATALOG = 1;</code>
+   * <pre>
+   **
+   * Identification of the catalog.
+   * </pre>
+   *
+   * <code>CLASSIFIER_TYPE_CATALOG = 1;</code>
    */
-  CATALOG(1),
+  CLASSIFIER_TYPE_CATALOG(1),
   /**
-   * <code>ENTITY = 2;</code>
+   * <pre>
+   **
+   * Identification of the entity type.
+   * </pre>
+   *
+   * <code>CLASSIFIER_TYPE_ENTITY = 2;</code>
    */
-  ENTITY(2),
+  CLASSIFIER_TYPE_ENTITY(2),
   /**
-   * <code>ATTRIBUTE = 3;</code>
+   * <pre>
+   **
+   * Identification of the attribute.
+   * </pre>
+   *
+   * <code>CLASSIFIER_TYPE_ATTRIBUTE = 3;</code>
    */
-  ATTRIBUTE(3),
+  CLASSIFIER_TYPE_ATTRIBUTE(3),
   /**
-   * <code>ASSOCIATED_DATA = 4;</code>
+   * <pre>
+   **
+   * Identification of the associated data (rich content).
+   * </pre>
+   *
+   * <code>CLASSIFIER_TYPE_ASSOCIATED_DATA = 4;</code>
    */
-  ASSOCIATED_DATA(4),
+  CLASSIFIER_TYPE_ASSOCIATED_DATA(4),
   /**
-   * <code>REFERENCE = 5;</code>
+   * <pre>
+   **
+   * Identification of the reference.
+   * </pre>
+   *
+   * <code>CLASSIFIER_TYPE_REFERENCE = 5;</code>
    */
-  REFERENCE(5),
+  CLASSIFIER_TYPE_REFERENCE(5),
   /**
-   * <code>REFERENCE_ATTRIBUTE = 6;</code>
+   * <pre>
+   **
+   * Identification of the reference attribute.
+   * </pre>
+   *
+   * <code>CLASSIFIER_TYPE_REFERENCE_ATTRIBUTE = 6;</code>
    */
-  REFERENCE_ATTRIBUTE(6),
+  CLASSIFIER_TYPE_REFERENCE_ATTRIBUTE(6),
   UNRECOGNIZED(-1),
   ;
 
   /**
-   * <code>SERVER_NAME = 0;</code>
+   * <pre>
+   **
+   * Identification of the server instance.
+   * </pre>
+   *
+   * <code>CLASSIFIER_TYPE_SERVER_NAME = 0;</code>
    */
-  public static final int SERVER_NAME_VALUE = 0;
+  public static final int CLASSIFIER_TYPE_SERVER_NAME_VALUE = 0;
   /**
-   * <code>CATALOG = 1;</code>
+   * <pre>
+   **
+   * Identification of the catalog.
+   * </pre>
+   *
+   * <code>CLASSIFIER_TYPE_CATALOG = 1;</code>
    */
-  public static final int CATALOG_VALUE = 1;
+  public static final int CLASSIFIER_TYPE_CATALOG_VALUE = 1;
   /**
-   * <code>ENTITY = 2;</code>
+   * <pre>
+   **
+   * Identification of the entity type.
+   * </pre>
+   *
+   * <code>CLASSIFIER_TYPE_ENTITY = 2;</code>
    */
-  public static final int ENTITY_VALUE = 2;
+  public static final int CLASSIFIER_TYPE_ENTITY_VALUE = 2;
   /**
-   * <code>ATTRIBUTE = 3;</code>
+   * <pre>
+   **
+   * Identification of the attribute.
+   * </pre>
+   *
+   * <code>CLASSIFIER_TYPE_ATTRIBUTE = 3;</code>
    */
-  public static final int ATTRIBUTE_VALUE = 3;
+  public static final int CLASSIFIER_TYPE_ATTRIBUTE_VALUE = 3;
   /**
-   * <code>ASSOCIATED_DATA = 4;</code>
+   * <pre>
+   **
+   * Identification of the associated data (rich content).
+   * </pre>
+   *
+   * <code>CLASSIFIER_TYPE_ASSOCIATED_DATA = 4;</code>
    */
-  public static final int ASSOCIATED_DATA_VALUE = 4;
+  public static final int CLASSIFIER_TYPE_ASSOCIATED_DATA_VALUE = 4;
   /**
-   * <code>REFERENCE = 5;</code>
+   * <pre>
+   **
+   * Identification of the reference.
+   * </pre>
+   *
+   * <code>CLASSIFIER_TYPE_REFERENCE = 5;</code>
    */
-  public static final int REFERENCE_VALUE = 5;
+  public static final int CLASSIFIER_TYPE_REFERENCE_VALUE = 5;
   /**
-   * <code>REFERENCE_ATTRIBUTE = 6;</code>
+   * <pre>
+   **
+   * Identification of the reference attribute.
+   * </pre>
+   *
+   * <code>CLASSIFIER_TYPE_REFERENCE_ATTRIBUTE = 6;</code>
    */
-  public static final int REFERENCE_ATTRIBUTE_VALUE = 6;
+  public static final int CLASSIFIER_TYPE_REFERENCE_ATTRIBUTE_VALUE = 6;
 
 
   public final int getNumber() {
@@ -116,13 +190,13 @@ public enum GrpcClassifierType
    */
   public static GrpcClassifierType forNumber(int value) {
     switch (value) {
-      case 0: return SERVER_NAME;
-      case 1: return CATALOG;
-      case 2: return ENTITY;
-      case 3: return ATTRIBUTE;
-      case 4: return ASSOCIATED_DATA;
-      case 5: return REFERENCE;
-      case 6: return REFERENCE_ATTRIBUTE;
+      case 0: return CLASSIFIER_TYPE_SERVER_NAME;
+      case 1: return CLASSIFIER_TYPE_CATALOG;
+      case 2: return CLASSIFIER_TYPE_ENTITY;
+      case 3: return CLASSIFIER_TYPE_ATTRIBUTE;
+      case 4: return CLASSIFIER_TYPE_ASSOCIATED_DATA;
+      case 5: return CLASSIFIER_TYPE_REFERENCE;
+      case 6: return CLASSIFIER_TYPE_REFERENCE_ATTRIBUTE;
       default: return null;
     }
   }
@@ -153,7 +227,7 @@ public enum GrpcClassifierType
   }
   public static final com.google.protobuf.Descriptors.EnumDescriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(27);
+    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(30);
   }
 
   private static final GrpcClassifierType[] VALUES = values();

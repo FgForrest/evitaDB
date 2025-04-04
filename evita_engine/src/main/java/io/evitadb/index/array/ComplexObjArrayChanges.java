@@ -92,7 +92,7 @@ class ComplexObjArrayChanges<T extends TransactionalObject<T, ?> & Comparable<T>
 	/**
 	 * Array of positions (indexes) in delegate array where insertions are expected to occur.
 	 */
-	private int[] insertions = new int[0];
+	private int[] insertions = ArrayUtils.EMPTY_INT_ARRAY;
 	/**
 	 * Two-dimensional array where there are recordIds (in second dimension) expected to be inserted at particular
 	 * position in delegate. The position is retrieved from {@link #insertions} on the same index as index of first
@@ -102,7 +102,7 @@ class ComplexObjArrayChanges<T extends TransactionalObject<T, ?> & Comparable<T>
 	/**
 	 * Array of positions (indexes) in delegate array where removals are expected to occur.
 	 */
-	private int[] removals = new int[0];
+	private int[] removals = ArrayUtils.EMPTY_INT_ARRAY;
 	/**
 	 * Array of entirely removed records. Their order conform to the order of the {@link #removals} indexes.
 	 */
@@ -612,7 +612,7 @@ class ComplexObjArrayChanges<T extends TransactionalObject<T, ?> & Comparable<T>
 			}
 		} else {
 			// there is no existing record, add it on the target place
-			final T[] newInsertedValues = ArrayUtils.insertRecordIntoArray(recordId, insertedValuesBefore, innerPosition.position());
+			final T[] newInsertedValues = ArrayUtils.insertRecordIntoArrayOnIndex(recordId, insertedValuesBefore, innerPosition.position());
 			insertedValues[index] = newInsertedValues;
 		}
 		return innerPosition.position();

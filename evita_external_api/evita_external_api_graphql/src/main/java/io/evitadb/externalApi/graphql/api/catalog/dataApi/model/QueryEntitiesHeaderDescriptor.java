@@ -32,22 +32,9 @@ import io.evitadb.externalApi.api.model.PropertyDescriptor;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public interface QueryEntitiesHeaderDescriptor {
+public interface QueryEntitiesHeaderDescriptor
+	extends HeadAwareFieldHeaderDescriptor, FilterByAwareFieldHeaderDescriptor, OrderByAwareFieldHeaderDescriptor {
 
-	PropertyDescriptor FILTER_BY = PropertyDescriptor.builder()
-		.name("filterBy")
-		.description("""
-			Complex filter query to filter result entities by.
-			""")
-		// type is expected to be tree of filter constraints
-		.build();
-	PropertyDescriptor ORDER_BY = PropertyDescriptor.builder()
-		.name("orderBy")
-		.description("""
-			Complex order query to order result entities by.
-			""")
-		// type is expected to be tree of order constraints
-		.build();
 	PropertyDescriptor REQUIRE = PropertyDescriptor.builder()
 		.name("require")
 		.description("""

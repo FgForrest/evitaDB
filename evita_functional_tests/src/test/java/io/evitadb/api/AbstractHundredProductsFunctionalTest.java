@@ -63,7 +63,11 @@ public class AbstractHundredProductsFunctionalTest {
 	public static final String ATTRIBUTE_OPTIONAL_AVAILABILITY = "optionalAvailability";
 	public static final String ASSOCIATED_DATA_MARKETS = "markets";
 	private static final int SEED = 40;
-	protected final DataGenerator dataGenerator = new DataGenerator();
+	protected final DataGenerator dataGenerator = new DataGenerator.Builder()
+		.registerValueGenerator(
+			Entities.PRODUCT, ATTRIBUTE_ENUM,
+			faker -> TestEnum.values()[faker.random().nextInt(TestEnum.values().length)].name()
+		).build();
 
 	@Nonnull
 	protected BiFunction<String, Faker, Integer> getRandomEntityPicker(EvitaSessionContract session) {
@@ -169,11 +173,6 @@ public class AbstractHundredProductsFunctionalTest {
 				.map(session::upsertEntity)
 				.toList();
 
-			dataGenerator.registerValueGenerator(
-				Entities.PRODUCT, ATTRIBUTE_ENUM,
-				faker -> TestEnum.values()[faker.random().nextInt(TestEnum.values().length)].name()
-			);
-
 			final List<EntityReference> storedProducts = dataGenerator.generateEntities(
 					dataGenerator.getSampleProductSchema(
 						session,
@@ -197,7 +196,7 @@ public class AbstractHundredProductsFunctionalTest {
 									Entities.PARAMETER, Entities.PARAMETER, Cardinality.ONE_OR_MORE,
 									whichIs -> whichIs.indexed().faceted()
 										.withGroupTypeRelatedToEntity(Entities.PARAMETER_GROUP)
-										.withAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class, thatIs -> thatIs.filterable())
+										.withAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class, thatIs -> thatIs.sortable().filterable())
 								)
 								.withReferenceToEntity(Entities.PRICE_LIST, Entities.PRICE_LIST, Cardinality.ZERO_OR_MORE)
 								.withReferenceToEntity(

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.kryo.VersionedKryo;
 import io.evitadb.store.kryo.VersionedKryoKeyInputs;
+import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.offsetIndex.OffsetIndex;
 import io.evitadb.store.offsetIndex.OffsetIndexDescriptor;
@@ -206,7 +207,7 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 
 	@Override
 	public <T extends StoragePart> int countStorageParts(long catalogVersion) {
-		if (offsetIndex.isOperative()) {
+		if (this.offsetIndex.isOperative()) {
 			return this.offsetIndex.count(catalogVersion);
 		} else {
 			throw new PersistenceServiceClosed();
@@ -338,16 +339,16 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 	@Override
 	public boolean isNew() {
 		if (offsetIndex.isOperative()) {
-			return this.offsetIndex.getFileOffsetIndexLocation() == null;
+			return this.offsetIndex.getFileOffsetIndexLocation() == FileLocation.EMPTY;
 		} else {
 			throw new PersistenceServiceClosed();
 		}
 	}
 
 	@Override
-	public void purgeHistoryEqualAndLaterThan(@Nullable Long minimalActiveCatalogVersion) {
-		if (offsetIndex.isOperative()) {
-			this.offsetIndex.purge(catalogVersion);
+	public void purgeHistoryOlderThan(long lastKnownMinimalActiveVersion) {
+		if (this.offsetIndex.isOperative()) {
+			this.offsetIndex.purge(lastKnownMinimalActiveVersion - 1L);
 		}
 	}
 

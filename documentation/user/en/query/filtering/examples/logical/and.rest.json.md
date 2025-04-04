@@ -1,25 +1,25 @@
 ```json
 {
-  "recordPage": {
-    "data": [
+  "recordPage" : {
+    "data" : [
       {
-        "primaryKey": 106742,
-        "type": "Product"
+        "primaryKey" : 106742,
+        "type" : "Product"
       }
     ],
-    "empty": false,
-    "first": true,
-    "firstPageItemNumber": 0,
-    "hasNext": false,
-    "hasPrevious": false,
-    "last": true,
-    "lastPageItemNumber": 1,
-    "lastPageNumber": 1,
-    "pageNumber": 1,
-    "pageSize": 20,
-    "singlePage": true,
-    "totalRecordCount": 1,
-    "type": "PAGE"
+    "type" : "PAGE",
+    "totalRecordCount" : 1,
+    "first" : true,
+    "last" : true,
+    "hasPrevious" : false,
+    "hasNext" : false,
+    "singlePage" : true,
+    "empty" : false,
+    "pageSize" : 20,
+    "pageNumber" : 1,
+    "lastPageNumber" : 1,
+    "firstPageItemNumber" : 0,
+    "lastPageItemNumber" : 1
   }
 }
 ```

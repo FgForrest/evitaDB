@@ -30,7 +30,6 @@ import io.evitadb.core.query.extraResult.translator.RequireTranslator;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
-import java.util.List;
 
 /**
  * Interface encloses the "execution" part of the {@link EvitaResponseExtraResult} data structures computation.
@@ -46,7 +45,7 @@ public interface ExtraResultProducer {
 	 * creates the producer instance.
 	 */
 	@Nullable
-	<T extends Serializable> EvitaResponseExtraResult fabricate(@Nonnull QueryExecutionContext context, @Nonnull List<T> entities);
+	<T extends Serializable> EvitaResponseExtraResult fabricate(@Nonnull QueryExecutionContext context);
 
 	/**
 	 * Returns the description of the producer in human-readable form without any sensitive data that can be logged

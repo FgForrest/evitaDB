@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,19 +28,23 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.io.BufferedOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
+import java.util.zip.ZipOutputStream;
 
 /**
  * FileUtils contains various utility methods for work with file system.
@@ -110,6 +114,51 @@ public class FileUtils {
 			}
 		}
 	}
+
+	/**
+	 * Renames source folder to target folder including all subfolders and files within.
+	 *
+	 * @param source the source folder path to rename
+	 * @param target the target folder path
+	 * @throws UnexpectedIOException if an I/O error occurs during the renaming process
+	 */
+	public static void renameFolder(@Nonnull Path source, @Nonnull Path target) throws UnexpectedIOException {
+		if (!Files.exists(source)) {
+			throw new UnexpectedIOException("Source path does not exist: " + source);
+		}
+
+		// Copy recursively from source to target
+		try (final Stream<Path> fileWalker = Files.walk(source)) {
+			fileWalker
+				.forEach(path -> {
+					try {
+						final Path relativePath = source.relativize(path);
+						final Path targetPath = target.resolve(relativePath);
+
+						if (Files.isDirectory(path)) {
+							Files.createDirectories(targetPath);
+						} else {
+							Files.copy(path, targetPath, StandardCopyOption.REPLACE_EXISTING);
+						}
+					} catch (IOException e) {
+						throw new UnexpectedIOException(
+							"Failed to copy file: " + path,
+							"Failed to copy file!", e
+						);
+					}
+				});
+		} catch (IOException e) {
+			throw new UnexpectedIOException(
+				"Failed to walk through source directory: " + source,
+				"Failed to walk through source directory!",
+				e
+			);
+		}
+
+		// Delete the original source folder recursively
+		deleteDirectory(source);
+	}
+
 
 	/**
 	 * Checks whether the directory is empty or contains any file.
@@ -192,7 +241,26 @@ public class FileUtils {
 	}
 
 	/**
+	 * Deletes the specified file.
+	 *
+	 * @param file The path to the file to be deleted.
+	 * @throws UnexpectedIOException If an I/O error occurs during file deletion.
+	 */
+	public static void deleteFileIfExists(@Nonnull Path file) {
+		try {
+			Files.deleteIfExists(file);
+		} catch (IOException e) {
+			throw new UnexpectedIOException(
+				"Cannot delete file: " + file,
+				"Cannot delete file!",
+				e
+			);
+		}
+	}
+
+	/**
 	 * Returns the size of the specified directory in bytes.
+	 *
 	 * @param directory The path to the directory.
 	 * @return The size of the directory in bytes.
 	 */
@@ -228,6 +296,7 @@ public class FileUtils {
 
 	/**
 	 * Returns the extension of the file.
+	 *
 	 * @param fileName The name of the file.
 	 * @return The extension of the file.
 	 */
@@ -238,19 +307,97 @@ public class FileUtils {
 	}
 
 	/**
+	 * Returns the file name without its extension.
+	 *
+	 * @param name the full name of the file, including its extension
+	 * @return the name of the file without the extension
+	 */
+	@Nonnull
+	public static String getFileNameWithoutExtension(@Nonnull String name) {
+		final int i = name.lastIndexOf('.');
+		return i > 0 ? name.substring(0, i) : name;
+	}
+
+	/**
 	 * Converts name with potentially unsupported characters to a name that is supported by all file systems.
+	 *
 	 * @param name The name to convert.
 	 * @return The name with unsupported characters replaced by a dash.
 	 */
 	@Nonnull
 	public static String convertToSupportedName(@Nonnull String name) {
 		return Arrays.stream(
-			name.split("\\.", 2)
-		)
+				name.split("\\.", 2)
+			)
 			.map(String::trim)
 			.map(it -> WHITESPACE_FILE_NAME_CHARACTERS_PATTERN.matcher(it).replaceAll("_"))
 			.map(it -> UNSUPPORTED_FILE_NAME_CHARACTERS_PATTERN.matcher(it).replaceAll("-"))
 			.map(it -> COLLAPSE_PATTERN.matcher(it).replaceAll("-"))
 			.collect(Collectors.joining("."));
+	}
+
+	/**
+	 * Retrieves the last modified time of the specified file.
+	 *
+	 * @param pathToFile the path to the file
+	 * @return an Optional containing the last modified time of the file as an OffsetDateTime, or an empty Optional if an IOException occurs
+	 */
+	@Nonnull
+	public static Optional<OffsetDateTime> getFileLastModifiedTime(@Nonnull Path pathToFile) {
+		try {
+			return Optional.of(
+				OffsetDateTime.ofInstant(
+					Files.getLastModifiedTime(pathToFile).toInstant(),
+					OffsetDateTime.now().getOffset()
+				)
+			);
+		} catch (IOException e) {
+			return Optional.empty();
+		}
+	}
+
+	/**
+	 * Compresses the contents of the given directory and writes the compressed data
+	 * to the provided output stream. The method ensures that all files and subdirectories
+	 * in the specified directory are included in the compressed output.
+	 *
+	 * @param directory    The path of the directory to be compressed. This must not be null.
+	 * @param outputStream The output stream where the compressed data will be written. This must not be null.
+	 */
+	public static void compressDirectory(
+		@Nonnull Path directory,
+		@Nonnull OutputStream outputStream
+	) {
+		try (
+			final ZipOutputStream zipOutputStream = new ZipOutputStream(new BufferedOutputStream(outputStream, 8192));
+			final Stream<Path> streamWalker = Files.walk(directory);
+		) {
+			streamWalker
+				.forEach(path -> {
+					try {
+						var zipFilePath = directory.relativize(path).toString();
+						if (Files.isDirectory(path)) {
+							if (!zipFilePath.isEmpty()) {
+								zipOutputStream.putNextEntry(new java.util.zip.ZipEntry(zipFilePath + "/"));
+								zipOutputStream.closeEntry();
+							}
+						} else {
+							zipOutputStream.putNextEntry(new java.util.zip.ZipEntry(zipFilePath));
+							Files.copy(path, zipOutputStream);
+							zipOutputStream.closeEntry();
+						}
+					} catch (IOException e) {
+						throw new UnexpectedIOException(
+							"Failed to compress directory: " + directory,
+							"Failed to compress directory!", e
+						);
+					}
+				});
+		} catch (IOException e) {
+			throw new UnexpectedIOException(
+				"Failed to open or write to the output stream during directory compression.",
+				"Failed to compress directory!", e
+			);
+		}
 	}
 }

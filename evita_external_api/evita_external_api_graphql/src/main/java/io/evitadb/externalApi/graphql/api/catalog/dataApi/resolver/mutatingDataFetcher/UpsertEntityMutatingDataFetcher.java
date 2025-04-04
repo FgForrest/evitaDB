@@ -47,7 +47,6 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.mutation.Grap
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
 import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.WriteDataFetcher;
 import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -64,14 +63,12 @@ import java.util.concurrent.atomic.AtomicReference;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @Slf4j
-@RequiredArgsConstructor
 public class UpsertEntityMutatingDataFetcher implements DataFetcher<DataFetcherResult<EntityClassifier>>, WriteDataFetcher {
-
 
 	/**
 	 * Schema of collection to which this fetcher is mapped to.
 	 */
-	@Nonnull private EntitySchemaContract entitySchema;
+	@Nonnull private final EntitySchemaContract entitySchema;
 
 	@Nonnull private final GraphQLEntityUpsertMutationConverter entityUpsertMutationResolver;
 	@Nonnull private final EntityFetchRequireResolver entityFetchRequireResolver;
@@ -82,7 +79,10 @@ public class UpsertEntityMutatingDataFetcher implements DataFetcher<DataFetcherR
 		this.entitySchema = entitySchema;
 		this.entityUpsertMutationResolver = new GraphQLEntityUpsertMutationConverter(objectMapper, entitySchema);
 		final FilterConstraintResolver filterConstraintResolver = new FilterConstraintResolver(catalogSchema);
-		final OrderConstraintResolver orderConstraintResolver = new OrderConstraintResolver(catalogSchema);
+		final OrderConstraintResolver orderConstraintResolver = new OrderConstraintResolver(
+			catalogSchema,
+			new AtomicReference<>(filterConstraintResolver)
+		);
 		final RequireConstraintResolver requireConstraintResolver = new RequireConstraintResolver(
 			catalogSchema,
 			new AtomicReference<>(filterConstraintResolver)
@@ -97,7 +97,7 @@ public class UpsertEntityMutatingDataFetcher implements DataFetcher<DataFetcherR
 
 	@Nonnull
 	@Override
-	public DataFetcherResult<EntityClassifier> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+	public DataFetcherResult<EntityClassifier> get(DataFetchingEnvironment environment) throws Exception {
 		final Arguments arguments = Arguments.from(environment);
 		final ExecutedEvent requestExecutedEvent = environment.getGraphQlContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
 

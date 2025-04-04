@@ -34,6 +34,7 @@ import java.util.Map;
 
 /**
  * Convenient map builder that uses {@link LinkedHashMap} to preserve order of keys. It is alternative to {@link Map#of()}.
+ * It is directly compatible with {@link ListBuilder}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
@@ -42,17 +43,22 @@ public class MapBuilder {
 
 	private final Map<String, Object> map = new LinkedHashMap<>();
 
+	@Nonnull
 	public static MapBuilder map() {
 		return new MapBuilder();
 	}
 
+	@Nullable
 	public Object get(@Nonnull String key) {
 		return map.get(key);
 	}
 
+	@Nonnull
 	public MapBuilder e(@Nonnull String key, @Nullable Object value) {
 		if (value instanceof MapBuilder mapBuilder) {
 			map.put(key, mapBuilder.build());
+		} else if (value instanceof ListBuilder listBuilder) {
+			map.put(key, listBuilder.build());
 		} else {
 			map.put(key, value);
 		}
@@ -67,6 +73,7 @@ public class MapBuilder {
 		return map.isEmpty();
 	}
 
+	@Nonnull
 	public Map<String, Object> build() {
 		return Collections.unmodifiableMap(map);
 	}

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,26 +30,31 @@ import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.core.exception.HierarchyNotIndexedException;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
-import io.evitadb.core.query.algebra.infra.SkipFormula;
+import io.evitadb.core.query.algebra.hierarchy.HierarchyFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
+import io.evitadb.index.EntityIndexKey;
+import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.stream.StreamSupport;
+import java.util.Set;
 
 import static io.evitadb.api.query.QueryConstraints.entityLocaleEquals;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
@@ -80,7 +85,13 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 			.map(it -> filterByVisitor.getSchema(it.getReferencedEntityType()))
 			.orElse(entitySchema);
 
-		return queryContext.getGlobalEntityIndexIfExists(targetEntitySchema.getName())
+		// we use only the first applicable scope here - if LIVE scope is present it always takes precedence
+		final Set<Scope> scopesToLookup = filterByVisitor.getProcessingScope().getScopes();
+		return Arrays.stream(Scope.values())
+			.filter(scopesToLookup::contains)
+			.map(scope -> queryContext.getIndex(targetEntitySchema.getName(), new EntityIndexKey(EntityIndexType.GLOBAL, scope), EntityIndex.class))
+			.filter(Optional::isPresent)
+			.map(Optional::get)
 			.map(
 				targetEntityIndex -> queryContext.computeOnlyOnce(
 					Collections.singletonList(targetEntityIndex),
@@ -94,9 +105,15 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 							)
 						);
 
+						Assert.isTrue(
+							scopesToLookup.stream().allMatch(targetEntitySchema::isHierarchyIndexedInScope),
+							() -> new HierarchyNotIndexedException(targetEntitySchema)
+						);
+
 						final FilterConstraint parentFilter = hierarchyWithin.getParentFilter();
 						final Formula hierarchyParentFormula = createFormulaForTheFilter(
 							queryContext,
+							scopesToLookup,
 							createFilter(queryContext, parentFilter),
 							targetEntitySchema.getName(),
 							() -> "Finding hierarchy parent node: " + parentFilter
@@ -107,45 +124,91 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 
 						queryContext.setRootHierarchyNodesFormula(hierarchyParentFormula);
 
-						return FormulaFactory.or(
-							StreamSupport.stream(hierarchyParentFormula.compute().spliterator(), false)
-								.map(
-									nodeId -> createFormulaFromHierarchyIndex(
-										nodeId,
-										createAndStoreHavingPredicate(
-											nodeId,
-											queryContext,
-											of(new FilterBy(hierarchyWithin.getHavingChildrenFilter()))
-												.filter(ConstraintContainer::isApplicable)
-												.orElse(null),
-											of(new FilterBy(hierarchyWithin.getExcludedChildrenFilter()))
-												.filter(ConstraintContainer::isApplicable)
-												.orElse(null),
-											referenceSchema
-										),
-										hierarchyWithin.isDirectRelation(),
-										hierarchyWithin.isExcludingRoot(),
-										targetEntitySchema,
-										targetEntityIndex,
-										queryContext
-									)
-								)
-								.toArray(Formula[]::new)
+						final int[] nodeIds = hierarchyParentFormula.compute().stream().toArray();
+						return createFormulaFromHierarchyIndex(
+							hierarchyWithin,
+							targetEntityIndex,
+							nodeIds,
+							queryContext,
+							scopesToLookup,
+							referenceSchema,
+							targetEntitySchema
 						);
 					}
 				))
+			.filter(it -> it != EmptyFormula.INSTANCE)
+			.findFirst()
 			.orElse(EmptyFormula.INSTANCE);
 	}
 
+	/**
+	 * Creates a {@link Formula} for a given hierarchy index based on the provided parameters.
+	 * The formula represents computational logic to handle hierarchical relationships,
+	 * filtering, and scope constraints for entities within a hierarchy.
+	 *
+	 * @param hierarchyWithin the hierarchy-related constraints to process, containing filtering rules and relational settings.
+	 * @param targetEntityIndex the target {@link EntityIndex} where the computations will run.
+	 * @param nodeIds an array of node identifiers representing hierarchical nodes to be processed.
+	 * @param queryContext the context of the query, providing access to query-level configurations and dependencies.
+	 * @param scopesToLookup a set of {@link Scope} objects representing specific query scopes to consider.
+	 * @param referenceSchema the schema of the reference entity defining structural rules and constraints.
+	 * @param targetEntitySchema the schema of the target entity defining the structure and constraints for the target entity.
+	 * @return the constructed {@link Formula} representing the computation logic for the hierarchy index.
+	 */
 	@Nonnull
-	private static FilterBy createFilter(QueryPlanningContext queryContext, FilterConstraint parentFilter) {
+	public static Formula createFormulaFromHierarchyIndex(
+		@Nonnull HierarchyWithin hierarchyWithin,
+		@Nonnull EntityIndex targetEntityIndex,
+		@Nonnull int[] nodeIds,
+		@Nonnull QueryPlanningContext queryContext,
+		@Nonnull Set<Scope> scopesToLookup,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull EntitySchemaContract targetEntitySchema
+	) {
+		return createFormulaFromHierarchyIndex(
+			nodeIds,
+			createAndStoreHavingPredicate(
+				nodeIds,
+				queryContext,
+				scopesToLookup,
+				of(new FilterBy(hierarchyWithin.getHavingChildrenFilter()))
+					.filter(ConstraintContainer::isApplicable)
+					.orElse(null),
+				of(new FilterBy(hierarchyWithin.getExcludedChildrenFilter()))
+					.filter(ConstraintContainer::isApplicable)
+					.orElse(null),
+				referenceSchema
+			),
+			hierarchyWithin.isDirectRelation(),
+			hierarchyWithin.isExcludingRoot(),
+			targetEntitySchema,
+			targetEntityIndex,
+			queryContext
+		);
+	}
+
+	/**
+	 * Creates a {@link FilterBy} instance based on the provided query context and parent filter constraint.
+	 * This method generates a filter by incorporating a locale-specific filter when the query context
+	 * has a defined locale. If no locale is specified in the query context, it uses the parent filter directly.
+	 *
+	 * @param queryContext the context of the query, used to access configurations, dependencies, and the locale (if available).
+	 * @param parentFilter the parent {@link FilterConstraint} that serves as the base for building the filter structure.
+	 * @return a {@link FilterBy} instance containing the constructed filter constraints.
+	 */
+	@Nonnull
+	private static FilterBy createFilter(@Nonnull QueryPlanningContext queryContext, @Nonnull FilterConstraint parentFilter) {
 		return ofNullable(queryContext.getLocale())
 			.map(locale -> filterBy(parentFilter, entityLocaleEquals(locale)))
 			.orElseGet(() -> filterBy(parentFilter));
 	}
 
+	/**
+	 * Creates a {@link Formula} from a hierarchy index based on the provided inputs.
+	 **/
+	@Nonnull
 	private static Formula createFormulaFromHierarchyIndex(
-		int parentId,
+		@Nonnull int[] parentIds,
 		@Nullable HierarchyFilteringPredicate excludedChildren,
 		boolean directRelation,
 		boolean excludingRoot,
@@ -157,26 +220,54 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 			// if the hierarchy entity is the same as queried entity
 			if (Objects.equals(queryContext.getSchema().getName(), targetEntitySchema.getName())) {
 				if (excludedChildren == null) {
-					return entityIndex.getHierarchyNodesForParentFormula(parentId);
+					return FormulaFactory.or(
+						Arrays.stream(parentIds).mapToObj(
+							entityIndex::getHierarchyNodesForParentFormula
+						).toArray(Formula[]::new)
+					);
 				} else {
-					return entityIndex.getHierarchyNodesForParentFormula(parentId, excludedChildren);
+					return FormulaFactory.or(
+						Arrays.stream(parentIds).mapToObj(
+							parentId -> entityIndex.getHierarchyNodesForParentFormula(parentId, excludedChildren)
+						).toArray(Formula[]::new)
+					);
 				}
 			} else {
 				if (excludedChildren == null) {
-					return new ConstantFormula(new BaseBitmap(parentId));
+					return new ConstantFormula(new BaseBitmap(parentIds));
 				} else {
-					return excludedChildren.test(parentId) ? EmptyFormula.INSTANCE : new ConstantFormula(new BaseBitmap(parentId));
+					final int[] filteredParents = Arrays.stream(parentIds)
+						.filter(excludedChildren::test)
+						.toArray();
+					return filteredParents.length == 0 ?
+						EmptyFormula.INSTANCE : new ConstantFormula(new BaseBitmap(filteredParents));
 				}
 			}
 		} else {
 			if (excludedChildren == null) {
 				return excludingRoot ?
-					entityIndex.getListHierarchyNodesFromParentFormula(parentId) :
-					entityIndex.getListHierarchyNodesFromParentIncludingItselfFormula(parentId);
+					FormulaFactory.or(
+						Arrays.stream(parentIds).mapToObj(
+							entityIndex::getListHierarchyNodesFromParentFormula
+						).toArray(Formula[]::new)
+					) :
+					FormulaFactory.or(
+						Arrays.stream(parentIds).mapToObj(
+							entityIndex::getListHierarchyNodesFromParentIncludingItselfFormula
+						).toArray(Formula[]::new)
+					);
 			} else {
 				return excludingRoot ?
-					entityIndex.getListHierarchyNodesFromParentFormula(parentId, excludedChildren) :
-					entityIndex.getListHierarchyNodesFromParentIncludingItselfFormula(parentId, excludedChildren);
+					FormulaFactory.or(
+						Arrays.stream(parentIds).mapToObj(
+							parentId -> entityIndex.getListHierarchyNodesFromParentFormula(parentId, excludedChildren)
+						).toArray(Formula[]::new)
+					) :
+					FormulaFactory.or(
+						Arrays.stream(parentIds).mapToObj(
+							parentId -> entityIndex.getListHierarchyNodesFromParentIncludingItselfFormula(parentId, excludedChildren)
+						).toArray(Formula[]::new)
+					);
 			}
 		}
 	}
@@ -190,21 +281,24 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 		// but! we can't do this when reference related constraints are found within the query because they'd use
 		// the record sets from different indexes than it's our hierarchy index (i.e. not subset)
 		if (filterByVisitor.isTargetIndexRepresentingConstraint(hierarchyWithin) &&
-			filterByVisitor.isTargetIndexQueriedByOtherConstraints() &&
 			!filterByVisitor.isReferenceQueriedByOtherConstraints()
 		) {
-			return SkipFormula.INSTANCE;
+			filterByVisitor.registerFormulaPostProcessor(
+				HierarchyOptimizingPostProcessor.class, HierarchyOptimizingPostProcessor::new
+			);
+		}
+
+		final Formula matchingHierarchyNodeIds = createFormulaFromHierarchyIndex(hierarchyWithin, filterByVisitor);
+		if (hierarchyWithin.getReferenceName().isEmpty()) {
+			return new HierarchyFormula(matchingHierarchyNodeIds);
 		} else {
-			final Formula matchingHierarchyNodeIds = createFormulaFromHierarchyIndex(hierarchyWithin, filterByVisitor);
-			if (hierarchyWithin.getReferenceName().isEmpty()) {
-				return matchingHierarchyNodeIds;
-			} else {
-				return createFormulaForReferencingEntities(
+			return new HierarchyFormula(
+				createFormulaForReferencingEntities(
 					hierarchyWithin,
 					filterByVisitor,
 					() -> matchingHierarchyNodeIds
-				);
-			}
+				)
+			);
 		}
 	}
 

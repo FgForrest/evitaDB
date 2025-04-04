@@ -243,7 +243,7 @@ public class FullResponseObjectBuilder {
 			.getAttributes()
 			.values()
 			.stream()
-			.filter(attributeSchema -> attributeSchema.isFilterable() &&
+			.filter(attributeSchema -> attributeSchema.isFilterableInAnyScope() &&
 				Number.class.isAssignableFrom(attributeSchema.getPlainType()))
 			.toList();
 
@@ -298,7 +298,7 @@ public class FullResponseObjectBuilder {
 			.getReferences()
 			.values()
 			.stream()
-			.filter(ReferenceSchemaContract::isFaceted)
+			.filter(ReferenceSchemaContract::isFacetedInAnyScope)
 			.toList();
 
 		if (referenceSchemas.isEmpty()) {

@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.data.EntityContract;
 import lombok.ToString;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * Record contains base server wide settings for the evitaDB.
@@ -46,6 +47,7 @@ import javax.annotation.Nonnull;
  *                                              read-write session requests should timeout and abort their execution.
  * @param closeSessionsAfterSecondsOfInactivity Sets the timeout in seconds after which the session is automatically
  *                                              closed if no activity is observed on it.
+ * @param trafficRecording 			    Defines settings for traffic recording.
  * @param readOnly                              starts the database in full read-only mode, prohibiting write operations
  *                                              on {@link EntityContract} level and open read-write {@link EvitaSessionContract}.
  * @param quiet                                 If true, all output to the system console is suppressed.
@@ -58,6 +60,7 @@ public record ServerOptions(
 	long queryTimeoutInMilliseconds,
 	long transactionTimeoutInMilliseconds,
 	int closeSessionsAfterSecondsOfInactivity,
+	@Nonnull TrafficRecordingOptions trafficRecording,
 	boolean readOnly,
 	boolean quiet
 ) {
@@ -81,6 +84,28 @@ public record ServerOptions(
 		return new Builder(serverOptions);
 	}
 
+	public ServerOptions(
+		@Nullable ThreadPoolOptions requestThreadPool,
+		@Nullable ThreadPoolOptions transactionThreadPool,
+		@Nullable ThreadPoolOptions serviceThreadPool,
+		long queryTimeoutInMilliseconds,
+		long transactionTimeoutInMilliseconds,
+		int closeSessionsAfterSecondsOfInactivity,
+		@Nullable TrafficRecordingOptions trafficRecording,
+		boolean readOnly,
+		boolean quiet
+	) {
+		this.requestThreadPool = requestThreadPool == null ? ThreadPoolOptions.requestThreadPoolBuilder().build() : requestThreadPool;
+		this.transactionThreadPool = transactionThreadPool == null ? ThreadPoolOptions.transactionThreadPoolBuilder().build() : transactionThreadPool;
+		this.serviceThreadPool = serviceThreadPool == null ? ThreadPoolOptions.serviceThreadPoolBuilder().build() : serviceThreadPool;
+		this.queryTimeoutInMilliseconds = queryTimeoutInMilliseconds;
+		this.transactionTimeoutInMilliseconds = transactionTimeoutInMilliseconds;
+		this.closeSessionsAfterSecondsOfInactivity = closeSessionsAfterSecondsOfInactivity;
+		this.trafficRecording = trafficRecording == null ? TrafficRecordingOptions.builder().build() : trafficRecording;
+		this.readOnly = readOnly;
+		this.quiet = quiet;
+	}
+
 	public ServerOptions() {
 		this(
 			ThreadPoolOptions.requestThreadPoolBuilder().build(),
@@ -89,6 +114,7 @@ public record ServerOptions(
 			DEFAULT_QUERY_TIMEOUT_IN_MILLISECONDS,
 			DEFAULT_TRANSACTION_TIMEOUT_IN_MILLISECONDS,
 			DEFAULT_CLOSE_SESSIONS_AFTER_SECONDS_OF_INACTIVITY,
+			TrafficRecordingOptions.builder().build(),
 			DEFAULT_READ_ONLY,
 			DEFAULT_QUIET
 		);
@@ -105,6 +131,7 @@ public record ServerOptions(
 		private long queryTimeoutInMilliseconds = DEFAULT_QUERY_TIMEOUT_IN_MILLISECONDS;
 		private long transactionTimeoutInMilliseconds = DEFAULT_TRANSACTION_TIMEOUT_IN_MILLISECONDS;
 		private int closeSessionsAfterSecondsOfInactivity = DEFAULT_CLOSE_SESSIONS_AFTER_SECONDS_OF_INACTIVITY;
+		private TrafficRecordingOptions trafficRecording = TrafficRecordingOptions.builder().build();
 		private boolean readOnly = DEFAULT_READ_ONLY;
 		private boolean quiet = DEFAULT_QUIET;
 
@@ -159,6 +186,12 @@ public record ServerOptions(
 		}
 
 		@Nonnull
+		public ServerOptions.Builder trafficRecording(@Nonnull TrafficRecordingOptions trafficRecording) {
+			this.trafficRecording = trafficRecording;
+			return this;
+		}
+
+		@Nonnull
 		public ServerOptions.Builder readOnly(boolean readOnly) {
 			this.readOnly = readOnly;
 			return this;
@@ -179,6 +212,7 @@ public record ServerOptions(
 				queryTimeoutInMilliseconds,
 				transactionTimeoutInMilliseconds,
 				closeSessionsAfterSecondsOfInactivity,
+				trafficRecording,
 				readOnly,
 				quiet
 			);

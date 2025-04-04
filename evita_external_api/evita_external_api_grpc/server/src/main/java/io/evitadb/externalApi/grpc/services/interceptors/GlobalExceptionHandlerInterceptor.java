@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -40,6 +40,7 @@ import io.grpc.stub.StreamObserver;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import java.util.concurrent.CompletionException;
 
 /**
  * Centralized interceptor that handles all kinds of possible exceptions that could be emitted by evitaDB for input
@@ -59,11 +60,11 @@ public class GlobalExceptionHandlerInterceptor implements ServerInterceptor {
 	 * @param exception exception that occurred
 	 * @param responseObserver response observer to send the error to
 	 */
-	public static void sendErrorToClient(@Nonnull RuntimeException exception, @Nonnull StreamObserver<?> responseObserver) {
+	public static void sendErrorToClient(@Nonnull Throwable exception, @Nonnull StreamObserver<?> responseObserver) {
 		final com.google.rpc.Status errorStatus = createErrorStatus(exception);
 		final StatusRuntimeException statusRuntimeException = StatusProto.toStatusRuntimeException(errorStatus);
 		final Metadata newHeaders = statusRuntimeException.getTrailers();
-		final Status newStatus = Status.fromThrowable(statusRuntimeException);
+		final Status newStatus = Status.fromThrowable(statusRuntimeException).withCause(exception);
 		responseObserver.onError(newStatus.asRuntimeException(newHeaders));
 	}
 
@@ -73,9 +74,16 @@ public class GlobalExceptionHandlerInterceptor implements ServerInterceptor {
 	 * @return unified error status
 	 */
 	@Nonnull
-	private static com.google.rpc.Status createErrorStatus(@Nonnull RuntimeException exception) {
+	private static com.google.rpc.Status createErrorStatus(@Nonnull Throwable exception) {
 		final com.google.rpc.Status rpcStatus;
-		if (exception instanceof EvitaInvalidUsageException invalidUsageException) {
+
+		if (exception instanceof CompletionException completionException) {
+			return createErrorStatus(completionException.getCause());
+		} else if (exception instanceof EvitaInvalidUsageException invalidUsageException) {
+			if (log.isDebugEnabled()) {
+				log.debug("Invalid usage exception gRPC call: " + exception.getMessage(), exception);
+			}
+
 			final ErrorInfo errorInfo = ErrorInfo.newBuilder()
 				.setReason(invalidUsageException.getErrorCode() + ": " + invalidUsageException.getPublicMessage())
 				.setDomain(invalidUsageException.getClass().getSimpleName())
@@ -87,6 +95,8 @@ public class GlobalExceptionHandlerInterceptor implements ServerInterceptor {
 				.addDetails(Any.pack(errorInfo))
 				.build();
 		} else if (exception instanceof EvitaInternalError internalError) {
+			log.error("Internal error occurred during processing of gRPC call: " + exception.getMessage(), exception);
+
 			final ErrorInfo errorInfo = ErrorInfo.newBuilder()
 				.setReason(internalError.getErrorCode() + ": " + internalError.getPublicMessage())
 				.setDomain(internalError.getClass().getSimpleName())
@@ -98,6 +108,8 @@ public class GlobalExceptionHandlerInterceptor implements ServerInterceptor {
 				.addDetails(Any.pack(errorInfo))
 				.build();
 		} else {
+			log.error("Internal error occurred during processing of gRPC call: " + exception.getMessage(), exception);
+
 			rpcStatus = com.google.rpc.Status.newBuilder()
 				.setCode(Code.INTERNAL.value())
 				.build();
@@ -124,6 +136,11 @@ public class GlobalExceptionHandlerInterceptor implements ServerInterceptor {
 		public void onHalfClose() {
 			try {
 				super.onHalfClose();
+			} catch (EvitaInvalidUsageException ex) {
+				// log as debug, the problem is probably on the client side
+				log.debug("Exception occurred during processing of gRPC call", ex);
+				handleException(ex, delegate);
+				throw ex;
 			} catch (RuntimeException ex) {
 				// we're responsible for logging the exception here
 				log.error("Exception occurred during processing of gRPC call", ex);
@@ -138,7 +155,7 @@ public class GlobalExceptionHandlerInterceptor implements ServerInterceptor {
 
 				final StatusRuntimeException statusRuntimeException = StatusProto.toStatusRuntimeException(rpcStatus);
 				final Metadata newHeaders = statusRuntimeException.getTrailers();
-				final Status newStatus = Status.fromThrowable(statusRuntimeException);
+				final Status newStatus = Status.fromThrowable(statusRuntimeException).withCause(exception);
 				serverCall.close(newStatus, newHeaders);
 			}
 		}

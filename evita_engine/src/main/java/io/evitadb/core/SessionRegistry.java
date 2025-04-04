@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@
 
 package io.evitadb.core;
 
-import com.esotericsoftware.kryo.util.Null;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.ConcurrentInitializationException;
@@ -57,15 +56,20 @@ import java.lang.reflect.Parameter;
 import java.lang.reflect.Proxy;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Optional.ofNullable;
@@ -100,11 +104,6 @@ final class SessionRegistry {
 	 */
 	private final ConcurrentLinkedQueue<EvitaSessionTuple> sessionsFifoQueue = new ConcurrentLinkedQueue<>();
 	/**
-	 * Keeps information about count of currently active sessions. Counter is used to safely control single session
-	 * limits in parallel execution.
-	 */
-	private final AtomicInteger activeSessionsCounter = new AtomicInteger();
-	/**
 	 * The catalogConsumedVersions variable is used to keep track of consumed versions along with number of sessions
 	 * tied to them indexed by catalog names.
 	 */
@@ -124,19 +123,37 @@ final class SessionRegistry {
 	 * All changes are rolled back.
 	 */
 	public void closeAllActiveSessions() {
-		for (EvitaSessionTuple sessionTuple : activeSessions.values()) {
+		final List<CompletableFuture<Long>> futures = new LinkedList<>();
+		for (EvitaSessionTuple sessionTuple : this.activeSessions.values()) {
 			final EvitaSession activeSession = sessionTuple.plainSession();
 			if (activeSession.isActive()) {
 				if (activeSession.isTransactionOpen()) {
 					activeSession.setRollbackOnly();
 				}
-				activeSession.closeNow(CommitBehavior.WAIT_FOR_WAL_PERSISTENCE);
+				futures.add(activeSession.closeNow(CommitBehavior.WAIT_FOR_WAL_PERSISTENCE));
 				log.info("There is still active session {} - terminating.", activeSession.getId());
 			}
 		}
+		// wait for all futures to complete
+		CompletableFuture
+			.allOf(futures.toArray(new CompletableFuture[0]))
+			.join();
+
+		// check that all sessions were closed, and wait for concurrent operations to finish 20ms
+		final long start = System.currentTimeMillis();
+		while (!this.activeSessions.isEmpty() && System.currentTimeMillis() - start < 20) {
+			Thread.onSpinWait();
+		}
+
 		Assert.isPremiseValid(
-			activeSessionsCounter.get() == 0,
-			"Some of the sessions didn't decrement the session counter!"
+			this.activeSessions.isEmpty(),
+			"Some of the sessions didn't clean themselves (" +
+				this.activeSessions.values()
+					.stream()
+					.map(EvitaSessionTuple::plainSession)
+					.map(it -> it.getId() + ((it.isActive()) ? ": active" : ": closed"))
+					.collect(Collectors.joining(", "))
+				+ ")!"
 		);
 	}
 
@@ -145,10 +162,8 @@ final class SessionRegistry {
 	 * Method checks that there is only a single active session when catalog is in warm-up mode.
 	 */
 	@Nonnull
-	public EvitaInternalSessionContract addSession(boolean warmUp, @Nonnull Supplier<EvitaSession> sessionSupplier) {
-		if (warmUp) {
-			this.activeSessionsCounter.incrementAndGet();
-		} else if (!this.activeSessionsCounter.compareAndSet(0, 1)) {
+	public EvitaInternalSessionContract addSession(boolean transactional, @Nonnull Supplier<EvitaSession> sessionSupplier) {
+		if (!transactional && !this.activeSessions.isEmpty()) {
 			throw new ConcurrentInitializationException(this.activeSessions.keySet().iterator().next());
 		}
 
@@ -181,7 +196,6 @@ final class SessionRegistry {
 				this.activeSessions.remove(session.getId()) == activeSession,
 				"Session instance doesn't match the information found in the registry."
 			);
-			this.activeSessionsCounter.decrementAndGet();
 			Assert.isPremiseValid(this.sessionsFifoQueue.remove(activeSession), "Session not found in the queue.");
 
 			session.getTransaction().ifPresent(transaction -> {
@@ -197,15 +211,9 @@ final class SessionRegistry {
 						transaction.isRollbackOnly() ? TransactionResolution.ROLLBACK : TransactionResolution.COMMIT
 					).commit();
 			});
-			final SessionFinalizationResult finalizationResult = catalogConsumedVersions.get(session.getCatalogName())
-				.unregisterSessionConsumingCatalogInVersion(session.getCatalogVersion());
-			if (finalizationResult.lastReader()) {
-				// notify listeners that the catalog version is no longer used
-				final Catalog theCatalog = this.catalog.get();
-				theCatalog.catalogVersionBeyondTheHorizon(
-					finalizationResult.minimalActiveCatalogVersion()
-				);
-			}
+
+			this.catalogConsumedVersions.get(session.getCatalogName())
+				.unregisterSessionConsumingCatalogInVersion(session.getCatalogVersion(), this.catalog);
 
 			// emit event
 			//noinspection CastToIncompatibleInterface,resource
@@ -214,9 +222,23 @@ final class SessionRegistry {
 					ofNullable(this.sessionsFifoQueue.peek())
 						.map(it -> it.plainSession().getCreated())
 						.orElse(null),
-					this.activeSessionsCounter.get()
+					this.activeSessions.size()
 				);
 		}
+	}
+
+	/**
+	 * Returns control object that allows external objects signalize work with the catalog of particular version.
+	 *
+	 * @param catalogName the name of the catalog
+	 * @return the control object
+	 */
+	@Nonnull
+	public CatalogConsumerControl createCatalogConsumerControl(@Nonnull String catalogName) {
+		return new CatalogConsumerControlInternal(
+			this.catalogConsumedVersions.computeIfAbsent(catalogName, k -> new VersionConsumingSessions()),
+			this.catalog
+		);
 	}
 
 	/**
@@ -230,7 +252,7 @@ final class SessionRegistry {
 		 * @param oldestSessionTimestamp the oldest active session timestamp
 		 * @param activeSessions         the number of still active sessions
 		 */
-		void finish(@Null OffsetDateTime oldestSessionTimestamp, int activeSessions);
+		void finish(@Nullable OffsetDateTime oldestSessionTimestamp, int activeSessions);
 
 	}
 
@@ -243,9 +265,22 @@ final class SessionRegistry {
 	 * supports JDK proxies out-of-the-box so this shouldn't be a problem in the future.
 	 */
 	private static class EvitaSessionProxy implements InvocationHandler {
+		private final static Method IS_METHOD_RUNNING;
+		private final static Method INACTIVITY_IN_SECONDS;
 		private final EvitaSession evitaSession;
 		private final TracingContext tracingContext;
 		@Getter private final ClosedEvent sessionClosedEvent;
+		private final AtomicInteger insideInvocation = new AtomicInteger(0);
+		private final AtomicLong lastCall = new AtomicLong(System.currentTimeMillis());
+
+		static {
+			try {
+				IS_METHOD_RUNNING = EvitaInternalSessionContract.class.getMethod("methodIsRunning");
+				INACTIVITY_IN_SECONDS = EvitaInternalSessionContract.class.getMethod("getInactivityDurationInSeconds");
+			} catch (NoSuchMethodException ex) {
+				throw new GenericEvitaInternalError("Method not found.", ex);
+			}
+		}
 
 		/**
 		 * Handles arguments printing.
@@ -295,6 +330,10 @@ final class SessionRegistry {
 					.finish((OffsetDateTime) args[0], (int) args[1])
 					.commit();
 				return null;
+			} else if (method.equals(INACTIVITY_IN_SECONDS)) {
+				return (System.currentTimeMillis() - this.lastCall.get()) / 1000;
+			} else if (method.equals(IS_METHOD_RUNNING)) {
+				return this.insideInvocation.get() > 0;
 			} else {
 				try {
 					this.evitaSession.increaseNestLevel();
@@ -304,6 +343,8 @@ final class SessionRegistry {
 						() -> {
 							final Supplier<Object> invocation = () -> {
 								try {
+									this.insideInvocation.incrementAndGet();
+									this.lastCall.set(System.currentTimeMillis());
 									return method.invoke(evitaSession, args);
 								} catch (InvocationTargetException ex) {
 									// handle the error
@@ -353,6 +394,9 @@ final class SessionRegistry {
 										"Unexpected system error occurred.",
 										ex
 									);
+								} finally {
+									this.insideInvocation.decrementAndGet();
+									this.lastCall.set(System.currentTimeMillis());
 								}
 							};
 							if (method.isAnnotationPresent(RepresentsQuery.class)) {
@@ -427,8 +471,8 @@ final class SessionRegistry {
 		 *
 		 * @param version the version of the catalog
 		 */
-		void registerSessionConsumingCatalogInVersion(@Nonnull Long version) {
-			versionConsumingSessions.compute(
+		void registerSessionConsumingCatalogInVersion(long version) {
+			this.versionConsumingSessions.compute(
 				version,
 				(k, v) -> v == null ? 1 : v + 1
 			);
@@ -438,34 +482,41 @@ final class SessionRegistry {
 		 * Unregisters a session that is consuming a catalog in the specified version.
 		 *
 		 * @param version the version of the catalog
-		 * @return the result of the finalization of the session
+		 * @param catalog the supplier of currently active catalog instance
 		 */
-		@Nonnull
-		SessionFinalizationResult unregisterSessionConsumingCatalogInVersion(long version) {
-			final Integer readerCount = versionConsumingSessions.compute(
+		void unregisterSessionConsumingCatalogInVersion(long version, @Nonnull Supplier<Catalog> catalog) {
+			final Integer readerCount = this.versionConsumingSessions.compute(
 				version,
-				(k, v) -> v == 1 ? null : v - 1
+				(k, v) -> v== null || v == 1 ? null : v - 1
 			);
+
+			// the minimal active catalog version used by another session now
+			final OptionalLong minimalActiveCatalogVersion;
+			// TRUE when the session was the last reader
+			final boolean lastReader;
 			if (readerCount == null) {
-				final OptionalLong minimalVersion = this.versionConsumingSessions.keySet().stream().mapToLong(Long::longValue).min();
-				return new SessionFinalizationResult(minimalVersion.isEmpty() ? null : minimalVersion.getAsLong(), true);
+				minimalActiveCatalogVersion = this.versionConsumingSessions.keySet().stream().mapToLong(Long::longValue).min();
+				lastReader = true;
 			} else {
-				return new SessionFinalizationResult(version, false);
+				minimalActiveCatalogVersion = OptionalLong.of(version);
+				lastReader = false;
+			}
+
+			if (lastReader) {
+				// notify listeners that the catalog version is no longer used
+				final Catalog theCatalog = catalog.get();
+				if (theCatalog != null) {
+					final long minimalActiveVersion = minimalActiveCatalogVersion.orElse(theCatalog.getVersion());
+					theCatalog.consumersLeft(minimalActiveVersion);
+				} else {
+					log.error(
+						"Catalog is not available for the session finalization.",
+						new GenericEvitaInternalError("Catalog is not available for the session finalization.")
+					);
+				}
 			}
 		}
 
-	}
-
-	/**
-	 * The result of the finalization of the session.
-	 *
-	 * @param minimalActiveCatalogVersion the minimal active catalog version used by another session now
-	 * @param lastReader                  TRUE when the session was the last reader
-	 */
-	public record SessionFinalizationResult(
-		@Nullable Long minimalActiveCatalogVersion,
-		boolean lastReader
-	) {
 	}
 
 	public static class SessionRegistryDataStore {
@@ -510,6 +561,26 @@ final class SessionRegistry {
 				.stream()
 				.map(EvitaSessionTuple::proxySession);
 		}
+	}
+
+	/**
+	 * This interface allows external objects signalize work with the catalog of particular version.
+	 */
+	@RequiredArgsConstructor
+	private static class CatalogConsumerControlInternal implements CatalogConsumerControl {
+		private final VersionConsumingSessions versionConsumingSessions;
+		private final Supplier<Catalog> catalog;
+
+		@Override
+		public void registerConsumerOfCatalogInVersion(long version) {
+			this.versionConsumingSessions.registerSessionConsumingCatalogInVersion(version);
+		}
+
+		@Override
+		public void unregisterConsumerOfCatalogInVersion(long version) {
+			this.versionConsumingSessions.unregisterSessionConsumingCatalogInVersion(version, this.catalog);
+		}
+
 	}
 
 }

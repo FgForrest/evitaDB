@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,7 +23,10 @@
 
 package io.evitadb.core.async;
 
+import io.evitadb.core.metric.event.system.BackgroundTaskFinishedEvent;
+import io.evitadb.core.metric.event.system.BackgroundTaskStartedEvent;
 import io.evitadb.utils.Assert;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -67,10 +70,12 @@ public class DelayedAsyncTask {
 	/**
 	 * Name of the catalog that the task belongs to (may be NULL if the task is not bound to any particular catalog).
 	 */
+	@Getter
 	private final String catalogName;
 	/**
 	 * The name of the task.
 	 */
+	@Getter
 	private final String taskName;
 	/**
 	 * The task that is executed asynchronously after the specified delay and returns negative value when it should be
@@ -82,6 +87,10 @@ public class DelayedAsyncTask {
 	 * the time is stored here to avoid scheduling the same action multiple times.
 	 */
 	private final AtomicReference<OffsetDateTime> nextPlannedExecution = new AtomicReference<>(OffsetDateTime.MIN);
+	/**
+	 * The time of the last finished execution.
+	 */
+	private final AtomicReference<OffsetDateTime> lastFinishedExecution = new AtomicReference<>(OffsetDateTime.MIN);
 	/**
 	 * The flag indicating whether the task is currently running.
 	 */
@@ -123,17 +132,41 @@ public class DelayedAsyncTask {
 	}
 
 	/**
+	 * Schedules the execution of the task immediately if it has not been scheduled already.
+	 * The task is scheduled using the scheduler's schedule method.
+	 */
+	public void scheduleImmediately() {
+		final OffsetDateTime now = OffsetDateTime.now();
+		if (this.nextPlannedExecution.compareAndExchange(OffsetDateTime.MIN, now) == OffsetDateTime.MIN) {
+			this.scheduler.schedule(
+				this.lambda,
+				computeMinimalSchedulingGap(now.toInstant().toEpochMilli()),
+				TimeUnit.MILLISECONDS
+			);
+		} else if (this.running.get()) {
+			// if this task is currently running, we need to schedule it again after it finishes
+			this.reSchedule.set(true);
+		}
+	}
+
+	/**
 	 * Schedules the execution of the task if it has not been scheduled already.
 	 * It calculates the next planned execution time based on the specified delay and delay units.
 	 * The task is scheduled using the scheduler's schedule method.
 	 */
 	public void schedule() {
+		if (this.delay == Long.MAX_VALUE) {
+			// the task is manual task and will never be scheduled
+			return;
+		}
+
 		final OffsetDateTime now = OffsetDateTime.now();
 		final OffsetDateTime nextTick = now.plus(this.delay, this.delayUnits.toChronoUnit());
 		if (this.nextPlannedExecution.compareAndExchange(OffsetDateTime.MIN, nextTick) == OffsetDateTime.MIN) {
+			final long nowMillis = now.toInstant().toEpochMilli();
 			final long computedDelay = Math.max(
-				nextTick.toInstant().toEpochMilli() - now.toInstant().toEpochMilli(),
-				this.minimalSchedulingGap
+				nextTick.toInstant().toEpochMilli() - nowMillis,
+				computeMinimalSchedulingGap(nowMillis)
 			);
 			this.scheduler.schedule(
 				this.lambda,
@@ -143,6 +176,21 @@ public class DelayedAsyncTask {
 		} else if (this.running.get()) {
 			// if this task is currently running, we need to schedule it again after it finishes
 			this.reSchedule.set(true);
+		}
+	}
+
+	/**
+	 * Computes the minimal scheduling gap required based on the last finished execution time and the current time in milliseconds.
+	 *
+	 * @param nowMillis the current time in milliseconds
+	 * @return the computed minimal scheduling gap in milliseconds; returns 0 if the last finished execution time is at its minimum value
+	 */
+	private long computeMinimalSchedulingGap(long nowMillis) {
+		final OffsetDateTime lastFinishedExecutionTime = this.lastFinishedExecution.get();
+		if (lastFinishedExecutionTime.equals(OffsetDateTime.MIN)) {
+			return 0;
+		} else {
+			return Math.max(0, this.minimalSchedulingGap - (nowMillis - lastFinishedExecutionTime.toInstant().toEpochMilli()));
 		}
 	}
 
@@ -165,9 +213,10 @@ public class DelayedAsyncTask {
 		);
 		// re-plan the scheduled cut to the moment when the next entry should be cut down
 		final OffsetDateTime now = OffsetDateTime.now();
+		final long nowMillis = now.toInstant().toEpochMilli();
 		final long computedDelay = Math.max(
-			nextTick.toInstant().toEpochMilli() - now.toInstant().toEpochMilli(),
-			this.minimalSchedulingGap
+			nextTick.toInstant().toEpochMilli() - nowMillis,
+			computeMinimalSchedulingGap(nowMillis)
 		);
 		this.scheduler.schedule(
 			this.lambda,
@@ -181,16 +230,20 @@ public class DelayedAsyncTask {
 	 */
 	private void runTask(@Nonnull LongSupplier runnable) {
 		final long planWithShorterDelay;
+		final BackgroundTaskFinishedEvent finishEvent = new BackgroundTaskFinishedEvent(this.catalogName, this.taskName);
 		try {
 			Assert.isPremiseValid(
 				this.running.compareAndSet(false, true),
 				"Task is already running."
 			);
+			new BackgroundTaskStartedEvent(this.catalogName, this.taskName).commit();
 			planWithShorterDelay = runnable.getAsLong();
+			this.lastFinishedExecution.set(OffsetDateTime.now());
 		} catch (RuntimeException ex) {
 			log.error("Error while running task: {}", this.taskName, ex);
 			throw ex;
 		} finally {
+			finishEvent.commit();
 			Assert.isPremiseValid(
 				this.running.compareAndSet(true, false),
 				"Task is not running."

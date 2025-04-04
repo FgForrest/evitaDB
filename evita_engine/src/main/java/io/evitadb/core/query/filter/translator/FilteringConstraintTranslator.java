@@ -26,6 +26,7 @@ package io.evitadb.core.query.filter.translator;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.infra.SkipFormula;
 import io.evitadb.core.query.filter.FilterByVisitor;
 
 import javax.annotation.Nonnull;
@@ -44,5 +45,18 @@ public interface FilteringConstraintTranslator<T extends FilterConstraint> {
 	 */
 	@Nonnull
 	Formula translate(@Nonnull T t, @Nonnull FilterByVisitor filterByVisitor);
+
+	/**
+	 * Provides a no-operation translator for filter constraints. This translator returns a SkipFormula instance
+	 * which acts as a placeholder formula, indicating that the constraint should be skipped and excluded from
+	 * the computational tree.
+	 *
+	 * @param <T> the type of filter constraint
+	 * @return a no-operation translator for the specified filter constraint type
+	 */
+	@Nonnull
+	static <T extends FilterConstraint> FilteringConstraintTranslator<T> noOpTranslator() {
+		return (constraint, filterByVisitor) -> SkipFormula.INSTANCE;
+	}
 
 }

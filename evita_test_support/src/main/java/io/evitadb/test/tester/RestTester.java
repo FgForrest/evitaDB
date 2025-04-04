@@ -147,6 +147,36 @@ public class RestTester extends JsonExternalApiTester<Request> {
 			return this;
 		}
 
+		public Request post(String urlPathSuffix) {
+			this.urlPathSuffix(urlPathSuffix);
+			this.httpMethod(METHOD_POST);
+			return this;
+		}
+
+		public Request get(String urlPathSuffix) {
+			this.urlPathSuffix(urlPathSuffix);
+			this.httpMethod(METHOD_GET);
+			return this;
+		}
+
+		public Request delete(String urlPathSuffix) {
+			this.urlPathSuffix(urlPathSuffix);
+			this.httpMethod(METHOD_DELETE);
+			return this;
+		}
+
+		public Request put(String urlPathSuffix) {
+			this.urlPathSuffix(urlPathSuffix);
+			this.httpMethod(METHOD_PUT);
+			return this;
+		}
+
+		public Request patch(String urlPathSuffix) {
+			this.urlPathSuffix(urlPathSuffix);
+			this.httpMethod(METHOD_PATCH);
+			return this;
+		}
+
 		public Request contentTypeHeader(@Nonnull String value) {
 			this.headers.put(CONTENT_TYPE_HEADER, new Header(CONTENT_TYPE_HEADER, value));
 			return this;

@@ -153,7 +153,7 @@ public interface GrpcCatalogStatisticsOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 9;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics>
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics> 
       getEntityCollectionStatisticsList();
   /**
    * <pre>
@@ -178,7 +178,7 @@ public interface GrpcCatalogStatisticsOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 9;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsOrBuilder>
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsOrBuilder> 
       getEntityCollectionStatisticsOrBuilderList();
   /**
    * <pre>

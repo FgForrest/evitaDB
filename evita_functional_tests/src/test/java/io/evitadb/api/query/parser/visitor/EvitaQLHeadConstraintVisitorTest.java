@@ -28,13 +28,15 @@ import io.evitadb.api.query.parser.ParseContext;
 import io.evitadb.api.query.parser.ParseMode;
 import io.evitadb.api.query.parser.ParserExecutor;
 import io.evitadb.api.query.parser.ParserFactory;
-import io.evitadb.api.query.parser.error.EvitaQLInvalidQueryError;
+import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
 
 import static io.evitadb.api.query.QueryConstraints.collection;
+import static io.evitadb.api.query.QueryConstraints.head;
+import static io.evitadb.api.query.QueryConstraints.label;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -59,14 +61,54 @@ class EvitaQLHeadConstraintVisitorTest {
 
     @Test
     void shouldNotParseCollectionConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseHeadConstraint("collection"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseHeadConstraint("collection()"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseHeadConstraint("collection('product')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseHeadConstraint("collection(?)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseHeadConstraint("collection(@col)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseHeadConstraint("collection('product','variant')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseHeadConstraint("collection"));
+        assertThrows(EvitaSyntaxException.class, () -> parseHeadConstraint("collection()"));
+        assertThrows(EvitaSyntaxException.class, () -> parseHeadConstraint("collection('product')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseHeadConstraint("collection(?)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseHeadConstraint("collection(@col)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseHeadConstraint("collection('product','variant')"));
     }
 
+    @Test
+    void shouldParseHeadConstraint() {
+        final HeadConstraint constraint1 = parseHeadConstraintUnsafe("head(collection('product'))");
+        assertEquals(head(collection("product")), constraint1);
+    }
+
+    @Test
+    void shouldNotParseHeadConstraint() {
+        assertThrows(EvitaSyntaxException.class, () -> parseHeadConstraint("head"));
+        assertThrows(EvitaSyntaxException.class, () -> parseHeadConstraint("head()"));
+        assertThrows(EvitaSyntaxException.class, () -> parseHeadConstraint("head('product')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseHeadConstraint("head(?)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseHeadConstraint("head(@col)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseHeadConstraint("head('product','variant')"));
+    }
+
+    @Test
+    void shouldParseLabelConstraint() {
+        final HeadConstraint constraint1 = parseHeadConstraintUnsafe("label('url', '/cs/product')");
+        assertEquals(label("url", "/cs/product"), constraint1);
+
+        final HeadConstraint constraint2 = parseHeadConstraintUnsafe("label('id', 1)");
+        assertEquals(label("id", 1L), constraint2);
+
+        final HeadConstraint constraint3 = parseHeadConstraint("label(?,?)", "url", "/cs/product");
+        assertEquals(label("url", "/cs/product"), constraint3);
+
+        final HeadConstraint constraint4 = parseHeadConstraint("label(@key, @val)", Map.of("key", "url", "val", "/cs/product"));
+        assertEquals(label("url", "/cs/product"), constraint4);
+    }
+
+    @Test
+    void shouldNotParseLabelConstraint() {
+        assertThrows(EvitaSyntaxException.class, () -> parseHeadConstraint("label"));
+        assertThrows(EvitaSyntaxException.class, () -> parseHeadConstraint("label()"));
+        assertThrows(EvitaSyntaxException.class, () -> parseHeadConstraint("label('product')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseHeadConstraint("label(?)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseHeadConstraint("label(@col)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseHeadConstraint("label('product','variant')"));
+    }
 
     /**
      * Using generated EvitaQL parser tries to parse string as grammar rule "headingConstraint"
@@ -75,7 +117,7 @@ class EvitaQLHeadConstraintVisitorTest {
      * @param positionalArguments positional arguments to substitute
      * @return parsed constraint
      */
-    private HeadConstraint parseHeadConstraint(@Nonnull String string, @Nonnull Object... positionalArguments) {
+    private static HeadConstraint parseHeadConstraint(@Nonnull String string, @Nonnull Object... positionalArguments) {
         return ParserExecutor.execute(
             new ParseContext(positionalArguments),
             () -> ParserFactory.getParser(string).headConstraint().accept(new EvitaQLHeadConstraintVisitor())
@@ -89,7 +131,7 @@ class EvitaQLHeadConstraintVisitorTest {
      * @param namedArguments named arguments to substitute
      * @return parsed constraint
      */
-    private HeadConstraint parseHeadConstraint(@Nonnull String string, @Nonnull Map<String, Object> namedArguments) {
+    private static HeadConstraint parseHeadConstraint(@Nonnull String string, @Nonnull Map<String, Object> namedArguments) {
         return ParserExecutor.execute(
             new ParseContext(namedArguments),
             () -> ParserFactory.getParser(string).headConstraint().accept(new EvitaQLHeadConstraintVisitor())
@@ -102,7 +144,7 @@ class EvitaQLHeadConstraintVisitorTest {
      * @param string string to parse
      * @return parsed constraint
      */
-    private HeadConstraint parseHeadConstraintUnsafe(@Nonnull String string) {
+    private static HeadConstraint parseHeadConstraintUnsafe(@Nonnull String string) {
         final ParseContext context = new ParseContext();
         context.setMode(ParseMode.UNSAFE);
         return ParserExecutor.execute(

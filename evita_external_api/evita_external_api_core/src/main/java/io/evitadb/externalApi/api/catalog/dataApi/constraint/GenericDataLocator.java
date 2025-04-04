@@ -32,7 +32,7 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public record GenericDataLocator(@Nonnull String entityType) implements DataLocator {
+public record GenericDataLocator(@Nonnull EntityTypePointer entityTypePointer) implements DataLocator {
 
 	@Nonnull
 	@Override

@@ -368,7 +368,7 @@ public class PriceListAndCurrencyPriceSuperIndex implements VoidTransactionMemor
 
 	@Override
 	public String toString() {
-		return priceIndexKey.toString();
+		return priceIndexKey.toString() + (terminated.isTrue() ? " (TERMINATED)" : "");
 	}
 
 	@Override

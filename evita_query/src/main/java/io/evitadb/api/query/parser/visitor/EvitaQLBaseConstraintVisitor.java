@@ -24,7 +24,7 @@
 package io.evitadb.api.query.parser.visitor;
 
 import io.evitadb.api.query.Constraint;
-import io.evitadb.api.query.parser.error.EvitaQLInvalidQueryError;
+import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
 import io.evitadb.utils.Assert;
 import org.antlr.v4.runtime.ParserRuleContext;
 
@@ -53,7 +53,7 @@ public abstract class EvitaQLBaseConstraintVisitor<T extends Constraint<?>> exte
 	                                     @Nonnull Class<C> constraintClass) {
 		Assert.isTrue(
 			constraintClass.isAssignableFrom(constraint.getClass()),
-			() -> new EvitaQLInvalidQueryError(ctx, "Invalid child constraint `" + constraint.getName() + "`.")
+			() -> new EvitaSyntaxException(ctx, "Invalid child constraint `" + constraint.getName() + "`.")
 		);
 		//noinspection unchecked
 		return (C) constraint;
@@ -88,10 +88,10 @@ public abstract class EvitaQLBaseConstraintVisitor<T extends Constraint<?>> exte
 	                                     @Nonnull ParserRuleContext arg,
 	                                     @Nonnull Class<C> constraintClass) {
 		final Constraint<?> constraint = arg.accept(visitor);
-		Assert.notNull(constraint, () -> new EvitaQLInvalidQueryError(arg, "Child constraint is required."));
+		Assert.notNull(constraint, () -> new EvitaSyntaxException(arg, "Child constraint is required."));
 		Assert.isTrue(
 			constraintClass.isAssignableFrom(constraint.getClass()),
-			() -> new EvitaQLInvalidQueryError(arg, "Invalid child constraint `" + constraint.getName() + "`.")
+			() -> new EvitaSyntaxException(arg, "Invalid child constraint `" + constraint.getName() + "`.")
 		);
 		//noinspection unchecked
 		return (C) constraint;
@@ -126,11 +126,11 @@ public abstract class EvitaQLBaseConstraintVisitor<T extends Constraint<?>> exte
 	                                     @Nonnull ParserRuleContext arg,
 	                                     @Nonnull Class<?>... constraintClasses) {
 		final Constraint<?> constraint = arg.accept(visitor);
-		Assert.notNull(constraint, () -> new EvitaQLInvalidQueryError(arg, "Child constraint is required."));
+		Assert.notNull(constraint, () -> new EvitaSyntaxException(arg, "Child constraint is required."));
 		Assert.isTrue(
 			Arrays.stream(constraintClasses)
 				.anyMatch(c -> c.isAssignableFrom(constraint.getClass())),
-			() -> new EvitaQLInvalidQueryError(arg, "Invalid child constraint `" + constraint.getName() + "`.")
+			() -> new EvitaSyntaxException(arg, "Invalid child constraint `" + constraint.getName() + "`.")
 		);
 		//noinspection unchecked
 		return (C) constraint;

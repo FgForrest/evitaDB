@@ -23,14 +23,19 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound;
 
+import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
-import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
+import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutator;
 import io.evitadb.api.requestResponse.schema.mutation.SortableAttributeCompoundSchemaMutation;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import java.util.Collections;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -40,7 +45,58 @@ import java.util.stream.Stream;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public interface ReferenceSortableAttributeCompoundSchemaMutation extends SortableAttributeCompoundSchemaMutation, ReferenceSchemaMutation {
+public interface ReferenceSortableAttributeCompoundSchemaMutation extends SortableAttributeCompoundSchemaMutation, ReferenceSchemaMutator {
+
+	/**
+	 * Retrieves the sortable attribute compound schema of a given attribute name from a reference schema.
+	 *
+	 * @param referenceSchema       The reference schema to retrieve the sortable attribute compound schema from.
+	 * @param attributeCompoundName The name of the sortable attribute compound.
+	 * @return The sortable attribute compound schema of the specified sortable attribute compound name, or null if not found.
+	 */
+	@Nonnull
+	default Optional<SortableAttributeCompoundSchemaContract> getReferenceSortableAttributeCompoundSchema(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull String attributeCompoundName
+	) {
+		if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema) {
+			final Optional<SortableAttributeCompoundSchemaContract> result = reflectedReferenceSchema.getDeclaredSortableAttributeCompound(attributeCompoundName);
+			if (result.isEmpty() && reflectedReferenceSchema.isReflectedReferenceAvailable()) {
+				Assert.isTrue(
+					reflectedReferenceSchema.getSortableAttributeCompound(attributeCompoundName).isEmpty(),
+					() -> new InvalidSchemaMutationException(
+						"Sortable attribute compound inherited from original reference `" + reflectedReferenceSchema.getReflectedReferenceName() +
+							"` in entity type `" + reflectedReferenceSchema.getReferencedEntityType() + "` " +
+							"cannot be modified directly via. reflected reference schema!"
+					)
+				);
+			}
+			return result;
+		} else {
+			return referenceSchema.getSortableAttributeCompound(attributeCompoundName);
+		}
+	}
+
+	/**
+	 * Retrieves the sortable attribute compound schema of a given attribute name from a reference schema.
+	 *
+	 * @param entitySchema    The entity schema where the reference schema is present.
+	 * @param referenceSchema       The reference schema to retrieve the sortable attribute compound schema from.
+	 * @param attributeCompoundName The name of the sortable attribute compound.
+	 * @return The sortable attribute compound schema of the specified sortable attribute compound name, or null if not found.
+	 */
+	@Nonnull
+	default SortableAttributeCompoundSchemaContract getReferenceSortableAttributeCompoundSchemaOrThrow(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull String attributeCompoundName
+	) {
+		return getReferenceSortableAttributeCompoundSchema(referenceSchema, attributeCompoundName)
+			.orElseThrow(() -> new InvalidSchemaMutationException(
+				"The sortable attribute compound `" + attributeCompoundName + "` is not defined in entity `" + entitySchema.getName() +
+					"` schema for reference with name `" + referenceSchema.getName() + "`!"
+			));
+	}
 
 	/**
 	 * Replaces existing sortable attribute compound schema with updated one but only when those schemas differ.
@@ -56,32 +112,50 @@ public interface ReferenceSortableAttributeCompoundSchemaMutation extends Sortab
 			// we don't need to update entity schema - the associated data already contains the requested change
 			return referenceSchema;
 		} else {
-			return ReferenceSchema._internalBuild(
-				referenceSchema.getName(),
-				referenceSchema.getNameVariants(),
-				referenceSchema.getDescription(),
-				referenceSchema.getDeprecationNotice(),
-				referenceSchema.getReferencedEntityType(),
-				referenceSchema.isReferencedEntityTypeManaged() ? Collections.emptyMap() : referenceSchema.getEntityTypeNameVariants(s -> null),
-				referenceSchema.isReferencedEntityTypeManaged(),
-				referenceSchema.getCardinality(),
-				referenceSchema.getReferencedGroupType(),
-				referenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
-				referenceSchema.isReferencedGroupTypeManaged(),
-				referenceSchema.isIndexed(),
-				referenceSchema.isFaceted(),
-				referenceSchema.getAttributes(),
-				Stream.concat(
-						referenceSchema.getSortableAttributeCompounds().values().stream().filter(it -> !updatedSchema.getName().equals(it.getName())),
-						Stream.of(updatedSchema)
-					)
-					.collect(
-						Collectors.toMap(
-							SortableAttributeCompoundSchemaContract::getName,
-							Function.identity()
+			if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema) {
+				return reflectedReferenceSchema
+					.withDeclaredSortableAttributeCompounds(
+						Stream.concat(
+								reflectedReferenceSchema.getDeclaredSortableAttributeCompounds().values().stream().filter(it -> !updatedSchema.getName().equals(it.getName())),
+								Stream.of(updatedSchema)
+							)
+							.collect(
+								Collectors.toMap(
+									SortableAttributeCompoundSchemaContract::getName,
+									Function.identity()
+								)
+							)
+					);
+			} else {
+				return ReferenceSchema._internalBuild(
+					referenceSchema.getName(),
+					referenceSchema.getNameVariants(),
+					referenceSchema.getDescription(),
+					referenceSchema.getDeprecationNotice(),
+					referenceSchema.getCardinality(),
+					referenceSchema.getReferencedEntityType(),
+					referenceSchema.isReferencedEntityTypeManaged() ?
+						Collections.emptyMap() : referenceSchema.getEntityTypeNameVariants(s -> null),
+					referenceSchema.isReferencedEntityTypeManaged(),
+					referenceSchema.getReferencedGroupType(),
+					referenceSchema.isReferencedGroupTypeManaged() ?
+						Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
+					referenceSchema.isReferencedGroupTypeManaged(),
+					referenceSchema.getIndexedInScopes(),
+					referenceSchema.getFacetedInScopes(),
+					referenceSchema.getAttributes(),
+					Stream.concat(
+							referenceSchema.getSortableAttributeCompounds().values().stream().filter(it -> !updatedSchema.getName().equals(it.getName())),
+							Stream.of(updatedSchema)
 						)
-					)
-			);
+						.collect(
+							Collectors.toMap(
+								SortableAttributeCompoundSchemaContract::getName,
+								Function.identity()
+							)
+						)
+				);
+			}
 		}
 	}
 

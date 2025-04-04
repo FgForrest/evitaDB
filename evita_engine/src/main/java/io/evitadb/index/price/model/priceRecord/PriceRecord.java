@@ -66,6 +66,11 @@ public record PriceRecord(
 	}
 
 	@Override
+	public boolean relatesTo(@Nonnull PriceRecordContract anotherPriceRecord) {
+		throw new UnsupportedOperationException("PriceRecord does not represent inner record id");
+	}
+
+	@Override
 	public int compareTo(@Nonnull PriceRecordContract other) {
 		return PRICE_RECORD_COMPARATOR.compare(this, other);
 	}

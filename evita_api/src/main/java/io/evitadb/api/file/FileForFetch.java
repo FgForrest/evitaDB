@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -101,24 +101,6 @@ public record FileForFetch(
 	}
 
 	/**
-	 * Returns new instance of the record with updated total size in bytes.
-	 * @param actualSize Actual size of the file in bytes.
-	 * @return New instance of the record with updated total size in bytes.
-	 */
-	@Nonnull
-	public FileForFetch withTotalSizeInBytes(long actualSize) {
-		return new FileForFetch(
-			this.fileId,
-			this.name,
-			this.description,
-			this.contentType,
-			actualSize,
-			this.created,
-			this.origin
-		);
-	}
-
-	/**
 	 * Creates new instance of the record from the metadata lines.
 	 * Might throw exception and in that case metadata file is corrupted.
 	 *
@@ -152,6 +134,19 @@ public record FileForFetch(
 			created.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
 			origin == null ? "" : String.join(",", origin)
 		);
+	}
+
+	@Override
+	public String toString() {
+		return "FileForFetch{" +
+			"fileId=" + fileId +
+			", name='" + name + '\'' +
+			", description='" + description + '\'' +
+			", contentType='" + contentType + '\'' +
+			", totalSizeInBytes=" + totalSizeInBytes +
+			", created=" + created +
+			", origin=" + Arrays.toString(origin) +
+			'}';
 	}
 
 	@Override

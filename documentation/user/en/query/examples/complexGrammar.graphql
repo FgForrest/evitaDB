@@ -1,33 +1,182 @@
 {
   queryProduct(
     filterBy: {
-      entityPrimaryKeyInSet: [1, 2, 3],
-      attributeStatusEquals: "ACTIVE"
+      and: [
+        {
+          entityPrimaryKeyInSet: [
+            1,
+            2,
+            3
+          ],
+          attributeStatusEquals: "ACTIVE"
+        }
+      ]
     },
     orderBy: [
-      { attributeCodeNatural: ASC },
-      { attributeCatalogNumberNatural: DESC }
+      {
+        attributeCodeNatural: ASC
+      },
+      {
+        attributeCatalogNumberNatural: DESC
+      }
     ]
   ) {
     recordPage {
       data {
         primaryKey
         attributes {
+          batteryCapacity
+          ratingVotes
+          thickness
+          totalPerformanceSet
+          widthSourceA
+          totalWeight
+          rating
+          catalogNumber
+          isBookAsSet
+          stepOrderQuantity
+          weightMerge
+          brandCode
+          order
+          height
+          totalBatteryLife
+          connectionLength
+          weight
+          displaySize
+          depthInMm
+          codeShort
+          published
+          unit
+          isAlias
+          saleEnded
+          minOrderQuantity
+          heightSourceA
+          heightInMm
+          maxOrderQuantity
+          changed
+          status
+          relatedFiles
+          widthMerge
           code
+          batteryLifeHeadset
+          frequencyFrom
+          heightMerge
+          batteryLife
           availability
+          supplierCode
+          saleRestriction
+          warrantyPeriod
+          cpuFrequency
+          ean
+          depthSourceA
+          productType
+          batteryLifeCase
+          weightSourceA
+          frequencyTo
+          orderedQuantity
+          length
+          weightInKg
+          responseTime
+          refreshRate
+          frontCameraResolut
+          depth
+          ratingUsers
+          snr
+          stockItemPrimaryKey
+          width
+          snippetExpirationDateTime
+          validity
+          rearCameraResoluti
+          widthInMm
         }
         prices {
+          priceId
           priceList
-          priceWithTax
           currency
+          innerRecordId
+          indexed
+          validity
+          priceWithoutTax
+          priceWithTax
+          taxRate
         }
       }
     }
     extraResults {
       facetSummary {
+        groups {
+          count
+          facetStatistics {
+            requested
+            count
+            facetEntity {
+              primaryKey
+            }
+          }
+        }
+        variantParameters {
+          count
+          facetStatistics {
+            requested
+            count
+            facetEntity {
+              primaryKey
+            }
+          }
+        }
+        stocks {
+          count
+          groupEntity {
+            primaryKey
+          }
+          facetStatistics {
+            requested
+            count
+            facetEntity {
+              primaryKey
+            }
+          }
+        }
+        tags {
+          count
+          groupEntity {
+            primaryKey
+          }
+          facetStatistics {
+            requested
+            count
+            facetEntity {
+              primaryKey
+            }
+          }
+        }
+        categories {
+          count
+          facetStatistics {
+            requested
+            count
+            facetEntity {
+              primaryKey
+            }
+          }
+        }
         brand {
           count
           facetStatistics {
+            requested
+            count
+            facetEntity {
+              primaryKey
+            }
+          }
+        }
+        parameterValues {
+          count
+          groupEntity {
+            primaryKey
+          }
+          facetStatistics {
+            requested
             count
             facetEntity {
               primaryKey

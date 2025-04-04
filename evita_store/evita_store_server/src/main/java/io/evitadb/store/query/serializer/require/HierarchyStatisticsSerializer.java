@@ -32,7 +32,7 @@ import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
 import lombok.RequiredArgsConstructor;
 
-import java.util.EnumSet;
+import java.util.Arrays;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link HierarchyStatistics} from/to binary format.
@@ -44,9 +44,12 @@ public class HierarchyStatisticsSerializer extends Serializer<HierarchyStatistic
 
 	@Override
 	public void write(Kryo kryo, Output output, HierarchyStatistics object) {
-		kryo.writeClassAndObject(output, object.getStatisticsBase());
-		final EnumSet<StatisticsType> statisticsType = object.getStatisticsType();
-		output.writeVarInt(statisticsType.size(), true);
+		kryo.writeObject(output, object.getStatisticsBase());
+		final StatisticsType[] statisticsType = Arrays.stream(object.getArguments())
+				.filter(StatisticsType.class::isInstance)
+				.map(StatisticsType.class::cast)
+				.toArray(StatisticsType[]::new);
+		output.writeVarInt(statisticsType.length, true);
 		for (StatisticsType type : statisticsType) {
 			kryo.writeObject(output, type);
 		}

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -97,6 +97,13 @@ public class ConsoleWriter {
 	}
 
 	/**
+	 * Writes passed text in console followed by a line separator.
+	 */
+	public static void writeLine(@Nonnull String theString) {
+		write(theString + System.lineSeparator(), (Object[]) null, null);
+	}
+
+	/**
 	 * Writes passed text in console.
 	 */
 	public static void write(@Nonnull String theString, @Nullable Object[] arguments) {
@@ -104,36 +111,56 @@ public class ConsoleWriter {
 	}
 
 	/**
+	 * Writes passed text in console followed by a line separator.
+	 */
+	public static void writeLine(@Nonnull String theString, @Nullable Object[] arguments) {
+		write(theString + System.lineSeparator(), arguments, null);
+	}
+
+	/**
 	 * Writes passed text in console in designated color.
-	 * @param theString
-	 * @param color
 	 */
 	public static void write(@Nonnull String theString, @Nullable ConsoleColor color) {
 		write(theString, null, color);
 	}
 
 	/**
+	 * Writes passed text in console in designated color followed by a line separator.
+	 */
+	public static void writeLine(@Nonnull String theString, @Nullable ConsoleColor color) {
+		write(theString + System.lineSeparator(), null, color);
+	}
+
+	/**
 	 * Writes passed text in console in designated color.
-	 * @param theString
-	 * @param color
 	 */
 	public static void write(@Nonnull String theString, @Nullable Object[] arguments, @Nullable ConsoleColor color) {
 		write(theString, arguments, color, (ConsoleDecoration[]) null);
 	}
 
 	/**
+	 * Writes passed text in console in designated color followed by a line separator.
+	 */
+	public static void writeLine(@Nonnull String theString, @Nullable Object[] arguments, @Nullable ConsoleColor color) {
+		write(theString + System.lineSeparator(), arguments, color, (ConsoleDecoration[]) null);
+	}
+
+	/**
 	 * Writes passed text in console in designated color and format.
-	 * @param theString
-	 * @param color
 	 */
 	public static void write(@Nonnull String theString, @Nullable ConsoleColor color, @Nullable ConsoleDecoration... decoration) {
 		write(theString, null, color, decoration);
 	}
 
 	/**
+	 * Writes passed text in console in designated color and format followed by a line separator.
+	 */
+	public static void writeLine(@Nonnull String theString, @Nullable ConsoleColor color, @Nullable ConsoleDecoration... decoration) {
+		write(theString + System.lineSeparator(), null, color, decoration);
+	}
+
+	/**
 	 * Writes passed text in console in designated color and format.
-	 * @param theString
-	 * @param color
 	 */
 	public static void write(@Nonnull String theString, @Nullable Object[] arguments, @Nullable ConsoleColor color, @Nullable ConsoleDecoration... decoration) {
 		if (Boolean.TRUE.equals(isQuiet)) {
@@ -145,4 +172,14 @@ public class ConsoleWriter {
 		System.out.printf(theString, arguments);
 		System.out.print(ANSI_RESET);
 	}
+
+	/**
+	 * Writes passed text in console in designated color and format followed by a line separator.
+	 */
+	public static void writeLine(@Nonnull String theString, @Nullable Object[] arguments, @Nullable ConsoleColor color, @Nullable ConsoleDecoration... decoration) {
+		write(theString + System.lineSeparator(), arguments, color, decoration);
+	}
+
+
+
 }

@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.utils.Assert;
@@ -80,36 +81,41 @@ public class ModifyReferenceSchemaNameMutation
 
 	@Nonnull
 	@Override
-	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema) {
+	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
-		return ReferenceSchema._internalBuild(
-			newName,
-			referenceSchema.getNameVariants(),
-			referenceSchema.getDescription(),
-			referenceSchema.getDeprecationNotice(),
-			referenceSchema.getReferencedEntityType(),
-			referenceSchema.isReferencedEntityTypeManaged() ? Collections.emptyMap() : referenceSchema.getEntityTypeNameVariants(s -> null),
-			referenceSchema.isReferencedEntityTypeManaged(),
-			referenceSchema.getCardinality(),
-			referenceSchema.getReferencedGroupType(),
-			referenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
-			referenceSchema.isReferencedGroupTypeManaged(),
-			referenceSchema.isIndexed(),
-			referenceSchema.isFaceted(),
-			referenceSchema.getAttributes(),
-			referenceSchema.getSortableAttributeCompounds()
-		);
+		if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema) {
+			return reflectedReferenceSchema
+				.withName(this.newName);
+		} else {
+			return ReferenceSchema._internalBuild(
+				this.newName,
+				referenceSchema.getNameVariants(),
+				referenceSchema.getDescription(),
+				referenceSchema.getDeprecationNotice(),
+				referenceSchema.getCardinality(),
+				referenceSchema.getReferencedEntityType(),
+				referenceSchema.isReferencedEntityTypeManaged() ? Collections.emptyMap() : referenceSchema.getEntityTypeNameVariants(s -> null),
+				referenceSchema.isReferencedEntityTypeManaged(),
+				referenceSchema.getReferencedGroupType(),
+				referenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
+				referenceSchema.isReferencedGroupTypeManaged(),
+				referenceSchema.getIndexedInScopes(),
+				referenceSchema.getFacetedInScopes(),
+				referenceSchema.getAttributes(),
+				referenceSchema.getSortableAttributeCompounds()
+			);
+		}
 	}
 
-	@Nullable
+	@Nonnull
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		final Optional<ReferenceSchemaContract> existingReferenceSchema = entitySchema.getReference(name);
+		final Optional<ReferenceSchemaContract> existingReferenceSchema = entitySchema.getReference(this.name);
 		if (existingReferenceSchema.isEmpty()) {
 			// ups, the associated data is missing
 			throw new InvalidSchemaMutationException(
-				"The reference `" + name + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
+				"The reference `" + this.name + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
 			);
 		} else {
 			final ReferenceSchemaContract theSchema = existingReferenceSchema.get();
@@ -120,7 +126,7 @@ public class ModifyReferenceSchemaNameMutation
 
 	@Override
 	public String toString() {
-		return "Modify entity reference `" + name + "` schema: " +
-			"newName='" + newName + '\'';
+		return "Modify entity reference `" + this.name + "` schema: " +
+			"newName='" + this.newName + '\'';
 	}
 }

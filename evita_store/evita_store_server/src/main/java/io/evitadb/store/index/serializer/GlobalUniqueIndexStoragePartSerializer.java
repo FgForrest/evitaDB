@@ -28,6 +28,8 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
+import io.evitadb.dataType.Scope;
+import io.evitadb.index.attribute.GlobalUniqueIndex;
 import io.evitadb.index.attribute.GlobalUniqueIndex.EntityWithTypeTuple;
 import io.evitadb.store.service.KeyCompressor;
 import io.evitadb.store.spi.model.storageParts.index.GlobalUniqueIndexStoragePart;
@@ -42,7 +44,7 @@ import java.util.Map.Entry;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
- * This {@link Serializer} implementation reads/writes {@link io.evitadb.index.attribute.GlobalUniqueIndex} from/to binary format.
+ * This {@link Serializer} implementation reads/writes {@link GlobalUniqueIndex} from/to binary format.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -55,7 +57,8 @@ public class GlobalUniqueIndexStoragePartSerializer extends Serializer<GlobalUni
 		final Long uniquePartId = uniqueIndex.getStoragePartPK();
 		Assert.notNull(uniquePartId, "Unique part id should have been computed by now!");
 		output.writeVarLong(uniquePartId, true);
-		output.writeVarInt(keyCompressor.getId(uniqueIndex.getAttributeKey()), true);
+		kryo.writeObject(output, uniqueIndex.getScope());
+		output.writeVarInt(this.keyCompressor.getId(uniqueIndex.getAttributeKey()), true);
 		final Class plainType = uniqueIndex.getType().isArray() ? uniqueIndex.getType().getComponentType() : uniqueIndex.getType();
 		kryo.writeClass(output, plainType);
 
@@ -80,7 +83,8 @@ public class GlobalUniqueIndexStoragePartSerializer extends Serializer<GlobalUni
 	@Override
 	public GlobalUniqueIndexStoragePart read(Kryo kryo, Input input, Class<? extends GlobalUniqueIndexStoragePart> type) {
 		final long uniquePartId = input.readVarLong(true);
-		final AttributeKey attributeKey = keyCompressor.getKeyForId(input.readVarInt(true));
+		final Scope scope = kryo.readObject(input, Scope.class);
+		final AttributeKey attributeKey = this.keyCompressor.getKeyForId(input.readVarInt(true));
 		@SuppressWarnings("unchecked") final Class<? extends Serializable> attributeType = kryo.readClass(input).getType();
 
 		final int uniqueValueCount = input.readVarInt(true);
@@ -103,7 +107,7 @@ public class GlobalUniqueIndexStoragePartSerializer extends Serializer<GlobalUni
 		}
 
 		return new GlobalUniqueIndexStoragePart(
-			attributeKey, attributeType, uniqueIndex, localeIndex, uniquePartId
+			scope, attributeKey, attributeType, uniqueIndex, localeIndex, uniquePartId
 		);
 	}
 

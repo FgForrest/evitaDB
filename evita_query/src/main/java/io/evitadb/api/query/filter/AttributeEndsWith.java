@@ -68,7 +68,7 @@ import java.io.Serializable;
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE },
 	supportedValues = @ConstraintSupportedValues(supportedTypes = String.class, arraysSupported = true)
 )
-public class AttributeEndsWith extends AbstractAttributeFilterConstraintLeaf {
+public class AttributeEndsWith extends AbstractAttributeFilterStringSearchConstraintLeaf {
 	@Serial private static final long serialVersionUID = -8551542903236177197L;
 
 	private AttributeEndsWith(Serializable... arguments) {
@@ -81,9 +81,7 @@ public class AttributeEndsWith extends AbstractAttributeFilterConstraintLeaf {
 		super(attributeName, textToSearch);
 	}
 
-	/**
-	 * Returns part of attribute value that needs to be looked up for.
-	 */
+	@Override
 	@Nonnull
 	public String getTextToSearch() {
 		return (String) getArguments()[1];

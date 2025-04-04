@@ -53,6 +53,7 @@ import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Objects;
 
 /**
  * Mutation is responsible for setting value to a {@link AttributeSchemaContract#getDefaultValue()}
@@ -107,55 +108,58 @@ public class ModifyAttributeSchemaDefaultValueMutation
 	@Override
 	public <S extends AttributeSchemaContract> S mutate(@Nullable CatalogSchemaContract catalogSchema, @Nullable S attributeSchema, @Nonnull Class<S> schemaType) {
 		Assert.isPremiseValid(attributeSchema != null, "Attribute schema is mandatory!");
-		if (attributeSchema instanceof GlobalAttributeSchema globalAttributeSchema) {
+		final Serializable theDefaultValue = EvitaDataTypes.toTargetType(this.defaultValue, attributeSchema.getType());
+		if (Objects.equals(attributeSchema.getDefaultValue(), theDefaultValue)) {
+			return attributeSchema;
+		} else if (attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema) {
 			//noinspection unchecked,rawtypes
 			return (S) GlobalAttributeSchema._internalBuild(
-				name,
+				this.name,
 				globalAttributeSchema.getNameVariants(),
 				globalAttributeSchema.getDescription(),
 				globalAttributeSchema.getDeprecationNotice(),
-				globalAttributeSchema.getUniquenessType(),
-				globalAttributeSchema.getGlobalUniquenessType(),
-				globalAttributeSchema.isFilterable(),
-				globalAttributeSchema.isSortable(),
+				globalAttributeSchema.getUniquenessTypeInScopes(),
+				globalAttributeSchema.getGlobalUniquenessTypeInScopes(),
+				globalAttributeSchema.getFilterableInScopes(),
+				globalAttributeSchema.getSortableInScopes(),
 				globalAttributeSchema.isLocalized(),
 				globalAttributeSchema.isNullable(),
 				globalAttributeSchema.isRepresentative(),
 				(Class) globalAttributeSchema.getType(),
-				EvitaDataTypes.toTargetType(defaultValue, globalAttributeSchema.getType()),
+				theDefaultValue,
 				globalAttributeSchema.getIndexedDecimalPlaces()
 			);
-		} else if (attributeSchema instanceof EntityAttributeSchema entityAttributeSchema) {
+		} else if (attributeSchema instanceof EntityAttributeSchemaContract entityAttributeSchema) {
 			//noinspection unchecked,rawtypes
 			return (S) EntityAttributeSchema._internalBuild(
-				name,
+				this.name,
 				entityAttributeSchema.getNameVariants(),
 				entityAttributeSchema.getDescription(),
 				entityAttributeSchema.getDeprecationNotice(),
-				entityAttributeSchema.getUniquenessType(),
-				entityAttributeSchema.isFilterable(),
-				entityAttributeSchema.isSortable(),
+				entityAttributeSchema.getUniquenessTypeInScopes(),
+				entityAttributeSchema.getFilterableInScopes(),
+				entityAttributeSchema.getSortableInScopes(),
 				entityAttributeSchema.isLocalized(),
 				entityAttributeSchema.isNullable(),
 				entityAttributeSchema.isRepresentative(),
 				(Class) entityAttributeSchema.getType(),
-				EvitaDataTypes.toTargetType(defaultValue, entityAttributeSchema.getType()),
+				theDefaultValue,
 				entityAttributeSchema.getIndexedDecimalPlaces()
 			);
-		} else {
+		} else  {
 			//noinspection unchecked,rawtypes
 			return (S) AttributeSchema._internalBuild(
-				name,
+				this.name,
 				attributeSchema.getNameVariants(),
 				attributeSchema.getDescription(),
 				attributeSchema.getDeprecationNotice(),
-				attributeSchema.getUniquenessType(),
-				attributeSchema.isFilterable(),
-				attributeSchema.isSortable(),
+				attributeSchema.getUniquenessTypeInScopes(),
+				attributeSchema.getFilterableInScopes(),
+				attributeSchema.getSortableInScopes(),
 				attributeSchema.isLocalized(),
 				attributeSchema.isNullable(),
 				(Class) attributeSchema.getType(),
-				EvitaDataTypes.toTargetType(defaultValue, attributeSchema.getType()),
+				theDefaultValue,
 				attributeSchema.getIndexedDecimalPlaces()
 			);
 		}
@@ -165,9 +169,9 @@ public class ModifyAttributeSchemaDefaultValueMutation
 	@Override
 	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
 		Assert.isPremiseValid(catalogSchema != null, "Catalog schema is mandatory!");
-		final GlobalAttributeSchemaContract existingAttributeSchema = catalogSchema.getAttribute(name)
+		final GlobalAttributeSchemaContract existingAttributeSchema = catalogSchema.getAttribute(this.name)
 			.orElseThrow(() -> new InvalidSchemaMutationException(
-				"The attribute `" + name + "` is not defined in catalog `" + catalogSchema.getName() + "` schema!"
+				"The attribute `" + this.name + "` is not defined in catalog `" + catalogSchema.getName() + "` schema!"
 			));
 
 		try {
@@ -177,36 +181,38 @@ public class ModifyAttributeSchemaDefaultValueMutation
 			);
 		} catch (UnsupportedDataTypeException ex) {
 			throw new InvalidSchemaMutationException(
-				"The value `" + defaultValue + "` cannot be automatically converted to " +
-					"attribute `" + name + "` type `" + existingAttributeSchema.getType() +
+				"The value `" + this.defaultValue + "` cannot be automatically converted to " +
+					"attribute `" + this.name + "` type `" + existingAttributeSchema.getType() +
 					"` in catalog `" + catalogSchema.getName() + "`!"
 			);
 		}
 	}
 
-	@Nullable
+	@Nonnull
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		final EntityAttributeSchemaContract existingAttributeSchema = entitySchema.getAttribute(name)
+		final EntityAttributeSchema existingAttributeSchema = entitySchema.getAttribute(this.name)
+			.map(EntityAttributeSchema.class::cast)
 			.orElseThrow(() -> new InvalidSchemaMutationException(
-				"The attribute `" + name + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
+				"The attribute `" + this.name + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
 			));
 		try {
+			final Serializable theDefaultValue = EvitaDataTypes.toTargetType(this.defaultValue, existingAttributeSchema.getType());
 			@SuppressWarnings({"unchecked", "rawtypes"})
 			final EntityAttributeSchema updatedAttributeSchema = EntityAttributeSchema._internalBuild(
-				name,
+				this.name,
 				existingAttributeSchema.getNameVariants(),
 				existingAttributeSchema.getDescription(),
 				existingAttributeSchema.getDeprecationNotice(),
-				existingAttributeSchema.getUniquenessType(),
-				existingAttributeSchema.isFilterable(),
-				existingAttributeSchema.isSortable(),
+				existingAttributeSchema.getUniquenessTypeInScopes(),
+				existingAttributeSchema.getFilterableInScopes(),
+				existingAttributeSchema.getSortableInScopes(),
 				existingAttributeSchema.isLocalized(),
 				existingAttributeSchema.isNullable(),
 				existingAttributeSchema.isRepresentative(),
 				(Class) existingAttributeSchema.getType(),
-				EvitaDataTypes.toTargetType(defaultValue, existingAttributeSchema.getType()),
+				theDefaultValue,
 				existingAttributeSchema.getIndexedDecimalPlaces()
 			);
 			return replaceAttributeIfDifferent(
@@ -214,8 +220,8 @@ public class ModifyAttributeSchemaDefaultValueMutation
 			);
 		} catch (UnsupportedDataTypeException ex) {
 			throw new InvalidSchemaMutationException(
-				"The value `" + defaultValue + "` cannot be automatically converted to " +
-					"attribute `" + name + "` type `" + existingAttributeSchema.getType() +
+				"The value `" + this.defaultValue + "` cannot be automatically converted to " +
+					"attribute `" + this.name + "` type `" + existingAttributeSchema.getType() +
 					"` in entity `" + entitySchema.getName() + "` schema!"
 			);
 		}
@@ -223,28 +229,26 @@ public class ModifyAttributeSchemaDefaultValueMutation
 
 	@Nullable
 	@Override
-	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema) {
+	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
-		final AttributeSchemaContract existingAttributeSchema = referenceSchema.getAttribute(name)
-			.orElseThrow(() -> new InvalidSchemaMutationException(
-				"The attribute `" + name + "` is not defined in entity `" + entitySchema.getName() +
-					"` schema for reference with name `" + referenceSchema.getName() + "`!"
-			));
-
+		final AttributeSchema existingAttributeSchema = (AttributeSchema) getReferenceAttributeSchemaOrThrow(
+			entitySchema, referenceSchema, this.name
+		);
 		try {
+			final Serializable theDefaultValue = EvitaDataTypes.toTargetType(this.defaultValue, existingAttributeSchema.getType());
 			@SuppressWarnings({"unchecked", "rawtypes"})
 			final AttributeSchema updatedAttributeSchema = AttributeSchema._internalBuild(
-				name,
+				this.name,
 				existingAttributeSchema.getNameVariants(),
 				existingAttributeSchema.getDescription(),
 				existingAttributeSchema.getDeprecationNotice(),
-				existingAttributeSchema.getUniquenessType(),
-				existingAttributeSchema.isFilterable(),
-				existingAttributeSchema.isSortable(),
+				existingAttributeSchema.getUniquenessTypeInScopes(),
+				existingAttributeSchema.getFilterableInScopes(),
+				existingAttributeSchema.getSortableInScopes(),
 				existingAttributeSchema.isLocalized(),
 				existingAttributeSchema.isNullable(),
 				(Class) existingAttributeSchema.getType(),
-				EvitaDataTypes.toTargetType(defaultValue, existingAttributeSchema.getType()),
+				theDefaultValue,
 				existingAttributeSchema.getIndexedDecimalPlaces()
 			);
 			return replaceAttributeIfDifferent(
@@ -252,8 +256,8 @@ public class ModifyAttributeSchemaDefaultValueMutation
 			);
 		} catch (UnsupportedDataTypeException ex) {
 			throw new InvalidSchemaMutationException(
-				"The value `" + defaultValue + "` cannot be automatically converted to " +
-					"attribute `" + name + "` type `" + existingAttributeSchema.getType() +
+				"The value `" + this.defaultValue + "` cannot be automatically converted to " +
+					"attribute `" + this.name + "` type `" + existingAttributeSchema.getType() +
 					"` in entity `" + entitySchema.getName() + "` schema!"
 			);
 		}

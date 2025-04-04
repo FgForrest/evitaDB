@@ -77,7 +77,7 @@ import java.util.Locale;
 	supportedIn = ConstraintDomain.ENTITY
 )
 public class EntityLocaleEquals extends AbstractFilterConstraintLeaf
-	implements EntityConstraint<FilterConstraint>, IndexUsingConstraint, FilterConstraint {
+	implements EntityConstraint<FilterConstraint>, FilterConstraint {
 
 	@Serial private static final long serialVersionUID = 4716406488516855299L;
 

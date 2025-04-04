@@ -73,7 +73,7 @@ public record EndpointDescriptor(@Nonnull String operation,
 			() -> new ExternalApiInternalError("Operation name supports only one wildcard.")
 		);
 
-		if (classifier() != null) {
+		if (classifier != null) {
 			Assert.isPremiseValid(
 				!classifier.isEmpty(),
 				() -> new ExternalApiInternalError("Classifier of endpoint can be missing but cannot be empty.")
@@ -91,22 +91,14 @@ public record EndpointDescriptor(@Nonnull String operation,
 	 */
 	@Nonnull
 	public String operation() {
-		if (hasClassifier()) {
-			return constructOperationName(classifier(PROPERTY_NAME_NAMING_CONVENTION), null);
-		} else {
-			Assert.isPremiseValid(
-				!operation.contains(OPERATION_NAME_WILDCARD),
-				() -> new ExternalApiInternalError("Operation `" + operation + "` contains wildcard, and thus needs classifier")
-			);
-		}
-		return operation;
+		return operation((String) null);
 	}
 
 	/**
 	 * Returns operation name. If static classifier is specified, it is appended as suffix to operation name.
 	 */
 	@Nonnull
-	public String operation(@Nonnull String suffix) {
+	public String operation(@Nullable String suffix) {
 		if (hasClassifier()) {
 			return constructOperationName(classifier(PROPERTY_NAME_NAMING_CONVENTION), suffix);
 		} else {
@@ -183,10 +175,13 @@ public record EndpointDescriptor(@Nonnull String operation,
 		return urlPathItem;
 	}
 
-	@Nullable
+	/**
+	 * Returns classifier in specified naming convention. If classifier is not defined, throw error.
+	 */
+	@Nonnull
 	public String classifier(@Nonnull NamingConvention namingConvention) {
 		if (classifier() == null) {
-			return null;
+			throw new NullPointerException("Classifier is not defined.");
 		}
 		return StringUtils.toSpecificCase(classifier(), namingConvention);
 	}

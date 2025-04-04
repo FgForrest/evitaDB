@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
@@ -57,6 +58,7 @@ import javax.annotation.Nullable;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
@@ -172,6 +174,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 				catalogName,
 				FileType.CATALOG,
 				catalogName,
+				storageOptions,
 				catalogFilePath,
 				observableOutputKeeper
 			),
@@ -200,6 +203,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 	 */
 	@Nonnull
 	public static CatalogHeader readCatalogHeader(
+		@Nonnull StorageOptions storageOptions,
 		@Nonnull Path catalogFilePath,
 		@Nonnull CatalogBootstrap catalogBootstrap,
 		@Nonnull OffsetIndexRecordTypeRegistry recordRegistry
@@ -208,6 +212,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		Assert.isPremiseValid(fileLocation != null, "File location must be present for catalog");
 		final RecordKey catalogHeaderRecord = new RecordKey(recordRegistry.idFor(CatalogHeader.class), 1L);
 		return OffsetIndex.readSingleRecord(
+			storageOptions,
 			catalogFilePath,
 			fileLocation,
 			catalogHeaderRecord,
@@ -227,7 +232,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 				return ofNullable(
 					StorageRecord.read(
 						theInput, catalogHeaderLocation,
-						(input, recordLength) -> kryo.readObject(input, CatalogHeader.class)
+						(input, recordLength, control) -> kryo.readObject(input, CatalogHeader.class)
 					).payload()
 				)
 					.orElseThrow(() -> new GenericEvitaInternalError(
@@ -273,10 +278,12 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		final Kryo kryo = KryoFactory.createKryo(
 			SharedClassesConfigurer.INSTANCE.andThen(CatalogHeaderKryoConfigurer.INSTANCE)
 		);
-		final CatalogHeader theCatalogHeader = StorageRecord.read(
-			theInput, catalogHeaderLocation,
-			(input, recordLength) -> kryo.readObject(input, CatalogHeader.class)
-		).payload();
+		final CatalogHeader theCatalogHeader = Objects.requireNonNull(
+			StorageRecord.read(
+				theInput, catalogHeaderLocation,
+				(input, recordLength, control) -> kryo.readObject(input, CatalogHeader.class)
+			).payload()
+		);
 
 		catalogHeaderConsumer.accept(theCatalogHeader);
 		return new OffsetIndexDescriptor(
@@ -323,7 +330,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 				catalogBootstrap.catalogVersion(),
 				new OffsetIndexDescriptor(
 					0L,
-					null,
+					FileLocation.EMPTY,
 					Map.of(),
 					kryoFactory,
 					// we don't know here yet - this will be recomputed on first flush
@@ -335,6 +342,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 					catalogName,
 					FileType.CATALOG,
 					catalogName,
+					storageOptions,
 					catalogFilePath,
 					observableOutputKeeper
 				),
@@ -346,6 +354,13 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 			catalogHeaderConsumer.accept(newHeader);
 			return newOffsetIndex;
 		} else {
+			Assert.isPremiseValid(
+				catalogFilePath.toFile().exists(),
+				() -> new UnexpectedIOException(
+					"Catalog file `" + catalogFilePath + "` does not exist!",
+					"Catalog file does not exist!"
+				)
+			);
 			// load existing offset index
 			return new OffsetIndex(
 				catalogBootstrap.catalogVersion(),
@@ -357,6 +372,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 					catalogName,
 					FileType.CATALOG,
 					catalogName,
+					storageOptions,
 					catalogFilePath,
 					observableOutputKeeper
 				),
@@ -372,7 +388,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 
 	private CatalogOffsetIndexStoragePartPersistenceService(
 		long catalogVersion,
-		@Nullable CatalogHeader catalogHeader,
+		@Nonnull CatalogHeader catalogHeader,
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull OffsetIndex offsetIndex,
 		@Nonnull OffHeapMemoryManager offHeapMemoryManager,
@@ -396,10 +412,12 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 	@Nonnull
 	@Override
 	public CatalogHeader getCatalogHeader(long catalogVersion) {
-		if (currentCatalogHeader == null) {
-			currentCatalogHeader = offsetIndex.get(catalogVersion, 1L, CatalogHeader.class);
+		if (this.currentCatalogHeader == null) {
+			this.currentCatalogHeader = Objects.requireNonNull(
+				this.offsetIndex.get(catalogVersion, 1L, CatalogHeader.class)
+			);
 		}
-		return currentCatalogHeader;
+		return this.currentCatalogHeader;
 	}
 
 	@Override
@@ -431,9 +449,9 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 	}
 
 	@Override
-	public void purgeHistoryEqualAndLaterThan(@Nullable Long minimalActiveCatalogVersion) {
+	public void purgeHistoryOlderThan(long lastKnownMinimalActiveVersion) {
 		if (this.offsetIndex.isOperative()) {
-			this.offsetIndex.purge(minimalActiveCatalogVersion);
+			this.offsetIndex.purge(lastKnownMinimalActiveVersion - 1L);
 		}
 	}
 

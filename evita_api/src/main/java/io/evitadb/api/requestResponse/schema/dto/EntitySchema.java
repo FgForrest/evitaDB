@@ -35,7 +35,12 @@ import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
+import io.evitadb.dataType.ReferencedEntityPredecessor;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ComparatorUtils;
 import io.evitadb.utils.NamingConvention;
@@ -47,6 +52,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
+import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.util.*;
 import java.util.Map.Entry;
@@ -54,6 +60,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static io.evitadb.utils.Assert.isTrue;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -63,7 +70,7 @@ import static java.util.Optional.ofNullable;
 @ThreadSafe
 @EqualsAndHashCode(of = {"version", "name"})
 public final class EntitySchema implements EntitySchemaContract {
-	@Serial private static final long serialVersionUID = -209500573660545111L;
+	@Serial private static final long serialVersionUID = -7519764827214964135L;
 
 	private final int version;
 	@Getter @Nonnull private final String name;
@@ -72,7 +79,9 @@ public final class EntitySchema implements EntitySchemaContract {
 	@Getter @Nullable private final String deprecationNotice;
 	@Getter private final boolean withGeneratedPrimaryKey;
 	@Getter private final boolean withHierarchy;
+	@Getter @Nonnull private final Set<Scope> hierarchyIndexedInScopes;
 	@Getter private final boolean withPrice;
+	@Getter @Nonnull private final Set<Scope> priceIndexedInScopes;
 	@Getter private final int indexedPricePlaces;
 	@Getter @Nonnull private final Set<Locale> locales;
 	@Getter @Nonnull private final Set<Currency> currencies;
@@ -122,13 +131,17 @@ public final class EntitySchema implements EntitySchemaContract {
 	 */
 	private final Map<String, ReferenceSchema[]> referenceNameIndex;
 	/**
+	 * List of all reflected reference schemas within {@link #references}, prepared for quick lookup.
+	 */
+	private final Map<EntityTypeReference, ReflectedReferenceSchema> reflectedReferences;
+	/**
 	 * Contains allowed evolution modes for the entity schema.
 	 */
 	@Getter private final Set<EvolutionMode> evolutionMode;
 	/**
 	 * Contains all definitions of the attributes that return false in method {@link AttributeSchema#isNullable()}.
 	 */
-	@Getter private final Collection<EntityAttributeSchemaContract> nonNullableAttributes;
+	@Getter private final Collection<EntityAttributeSchemaContract> nonNullableOrDefaultValueAttributes;
 	/**
 	 * Contains all definitions of the associated data that return false in method {@link AssociatedDataSchema#isNullable()}.
 	 */
@@ -138,10 +151,16 @@ public final class EntitySchema implements EntitySchemaContract {
 	 * to a key of this index.
 	 */
 	@Nonnull private final Map<String, Collection<SortableAttributeCompoundSchemaContract>> attributeToSortableAttributeCompoundIndex;
+	/**
+	 * Memoized value that reflects whether entity has at least one localized attribute or associated data. Since
+	 * the calculation is expensive, it is memoized.
+	 */
+	private Boolean memoizedLocalized;
 
 	/**
 	 * Method generates name variant index used for quickly looking up for schemas by name in specific name convention.
 	 */
+	@Nonnull
 	public static <T> Map<String, T[]> _internalGenerateNameVariantIndex(
 		@Nonnull Collection<T> items,
 		@Nonnull Function<T, Map<NamingConvention, String>> nameVariantsFetcher
@@ -162,11 +181,16 @@ public final class EntitySchema implements EntitySchemaContract {
 	 *
 	 * Do not use this method from in the client code!
 	 */
+	@Nonnull
 	public static EntitySchema _internalBuild(@Nonnull String name) {
 		return new EntitySchema(
 			1,
 			name, NamingConvention.generate(name),
-			null, null, false, false, false,
+			null, null, false,
+			false,
+			null,
+			false,
+			null,
 			2,
 			Collections.emptySet(),
 			Collections.emptySet(),
@@ -184,6 +208,7 @@ public final class EntitySchema implements EntitySchemaContract {
 	 *
 	 * Do not use this method from in the client code!
 	 */
+	@Nonnull
 	public static EntitySchema _internalBuild(
 		int version,
 		@Nonnull String name,
@@ -191,7 +216,9 @@ public final class EntitySchema implements EntitySchemaContract {
 		@Nullable String deprecationNotice,
 		boolean withGeneratedPrimaryKey,
 		boolean withHierarchy,
+		@Nullable Scope[] hierarchyIndexedInScopes,
 		boolean withPrice,
+		@Nullable Scope[] priceIndexedInScopes,
 		int indexedPricePlaces,
 		@Nonnull Set<Locale> locales,
 		@Nonnull Set<Currency> currencies,
@@ -204,7 +231,11 @@ public final class EntitySchema implements EntitySchemaContract {
 		return new EntitySchema(
 			version, name, NamingConvention.generate(name),
 			description, deprecationNotice,
-			withGeneratedPrimaryKey, withHierarchy, withPrice,
+			withGeneratedPrimaryKey,
+			withHierarchy,
+			ArrayUtils.toEnumSet(Scope.class, hierarchyIndexedInScopes),
+			withPrice,
+			ArrayUtils.toEnumSet(Scope.class, priceIndexedInScopes),
 			indexedPricePlaces,
 			locales,
 			currencies,
@@ -216,6 +247,13 @@ public final class EntitySchema implements EntitySchemaContract {
 		);
 	}
 
+	/**
+	 * This method is for internal purposes only. It could be used for reconstruction of original Entity from different
+	 * package than current, but still internal code of the Evita ecosystems.
+	 *
+	 * Do not use this method from in the client code!
+	 */
+	@Nonnull
 	public static EntitySchema _internalBuild(
 		int version,
 		@Nonnull String name,
@@ -224,7 +262,9 @@ public final class EntitySchema implements EntitySchemaContract {
 		@Nullable String deprecationNotice,
 		boolean withGeneratedPrimaryKey,
 		boolean withHierarchy,
+		@Nullable Set<Scope> hierarchyIndexedInScopes,
 		boolean withPrice,
+		@Nullable Set<Scope> priceIndexedInScopes,
 		int indexedPricePlaces,
 		@Nonnull Set<Locale> locales,
 		@Nonnull Set<Currency> currencies,
@@ -237,7 +277,11 @@ public final class EntitySchema implements EntitySchemaContract {
 		return new EntitySchema(
 			version, name, nameVariants,
 			description, deprecationNotice,
-			withGeneratedPrimaryKey, withHierarchy, withPrice,
+			withGeneratedPrimaryKey,
+			withHierarchy,
+			hierarchyIndexedInScopes,
+			withPrice,
+			priceIndexedInScopes,
 			indexedPricePlaces,
 			locales,
 			currencies,
@@ -246,6 +290,73 @@ public final class EntitySchema implements EntitySchemaContract {
 			references,
 			evolutionMode,
 			sortableAttributeCompounds
+		);
+	}
+
+	/**
+	 * This method is for internal purposes only. It could be used for reconstruction of original Entity from different
+	 * package than current, but still internal code of the Evita ecosystems.
+	 *
+	 * Do not use this method from in the client code!
+	 */
+	@Nonnull
+	public static EntitySchema _internalBuild(
+		int version,
+		@Nonnull String name,
+		@Nonnull Map<NamingConvention, String> nameVariants,
+		@Nullable String description,
+		@Nullable String deprecationNotice,
+		boolean withGeneratedPrimaryKey,
+		boolean withHierarchy,
+		@Nullable Scope[] hierarchyIndexedInScopes,
+		boolean withPrice,
+		@Nullable Scope[] priceIndexedInScopes,
+		int indexedPricePlaces,
+		@Nonnull Set<Locale> locales,
+		@Nonnull Set<Currency> currencies,
+		@Nonnull Map<String, EntityAttributeSchemaContract> attributes,
+		@Nonnull Map<String, AssociatedDataSchemaContract> associatedData,
+		@Nonnull Map<String, ReferenceSchemaContract> references,
+		@Nonnull Set<EvolutionMode> evolutionMode,
+		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds
+	) {
+		return new EntitySchema(
+			version, name, nameVariants,
+			description, deprecationNotice,
+			withGeneratedPrimaryKey,
+			withHierarchy,
+			ArrayUtils.toEnumSet(Scope.class, hierarchyIndexedInScopes),
+			withPrice,
+			ArrayUtils.toEnumSet(Scope.class, priceIndexedInScopes),
+			indexedPricePlaces,
+			locales,
+			currencies,
+			attributes,
+			associatedData,
+			references,
+			evolutionMode,
+			sortableAttributeCompounds
+		);
+	}
+
+	/**
+	 * Ensures that the specified attribute is not of type {@link ReferencedEntityPredecessor}. This type is allowed
+	 * only on references.
+	 *
+	 * @param attributeName The name of the attribute being checked.
+	 * @param theType       The type of the attribute being checked.
+	 */
+	public static void assertNotReferencedEntityPredecessor(
+		@Nonnull String attributeName,
+		@Nonnull Class<? extends Serializable> theType
+	) {
+		final Class<?> plainType = theType.isArray() ?
+			theType.getComponentType() : theType;
+		isTrue(
+			!ReferencedEntityPredecessor.class.equals(plainType),
+			() -> new InvalidSchemaMutationException(
+				"Attribute " + attributeName + " cannot be of type " + theType + "!"
+			)
 		);
 	}
 
@@ -287,9 +398,19 @@ public final class EntitySchema implements EntitySchemaContract {
 				attributeSchemaContract.getNameVariants(),
 				attributeSchemaContract.getDescription(),
 				attributeSchemaContract.getDeprecationNotice(),
-				attributeSchemaContract.getUniquenessType(),
-				attributeSchemaContract.isFilterable(),
-				attributeSchemaContract.isSortable(),
+				Arrays.stream(Scope.values())
+					.map(
+						scope -> new ScopedAttributeUniquenessType(scope, attributeSchemaContract.getUniquenessType(scope))
+					)
+					// filter default settings
+					.filter(it -> it.uniquenessType() != AttributeUniquenessType.NOT_UNIQUE)
+					.toArray(ScopedAttributeUniquenessType[]::new),
+				Arrays.stream(Scope.values())
+					.filter(attributeSchemaContract::isFilterableInScope)
+					.toArray(Scope[]::new),
+				Arrays.stream(Scope.values())
+					.filter(attributeSchemaContract::isSortableInScope)
+					.toArray(Scope[]::new),
 				attributeSchemaContract.isLocalized(),
 				attributeSchemaContract.isNullable(),
 				attributeSchemaContract.isRepresentative(),
@@ -314,9 +435,17 @@ public final class EntitySchema implements EntitySchemaContract {
 				attributeSchemaContract.getNameVariants(),
 				attributeSchemaContract.getDescription(),
 				attributeSchemaContract.getDeprecationNotice(),
-				attributeSchemaContract.getUniquenessType(),
-				attributeSchemaContract.isFilterable(),
-				attributeSchemaContract.isSortable(),
+				Arrays.stream(Scope.values())
+					.map(scope -> new ScopedAttributeUniquenessType(scope, attributeSchemaContract.getUniquenessType(scope)))
+					// filter default settings
+					.filter(it -> it.uniquenessType() != AttributeUniquenessType.NOT_UNIQUE)
+					.toArray(ScopedAttributeUniquenessType[]::new),
+				Arrays.stream(Scope.values())
+					.filter(attributeSchemaContract::isFilterableInScope)
+					.toArray(Scope[]::new),
+				Arrays.stream(Scope.values())
+					.filter(attributeSchemaContract::isSortableInScope)
+					.toArray(Scope[]::new),
 				attributeSchemaContract.isLocalized(),
 				attributeSchemaContract.isNullable(),
 				(Class) attributeSchemaContract.getType(),
@@ -330,7 +459,9 @@ public final class EntitySchema implements EntitySchemaContract {
 	 * {@link SortableAttributeCompoundSchema} so that the entity schema can access the internal API of it.
 	 */
 	@Nonnull
-	static SortableAttributeCompoundSchema toSortableAttributeCompoundSchema(@Nonnull SortableAttributeCompoundSchemaContract sortableAttributeCompoundSchemaContract) {
+	static SortableAttributeCompoundSchema toSortableAttributeCompoundSchema(
+		@Nonnull SortableAttributeCompoundSchemaContract sortableAttributeCompoundSchemaContract
+	) {
 		return sortableAttributeCompoundSchemaContract instanceof SortableAttributeCompoundSchema sortableAttributeCompoundSchema ?
 			sortableAttributeCompoundSchema :
 			SortableAttributeCompoundSchema._internalBuild(
@@ -338,6 +469,9 @@ public final class EntitySchema implements EntitySchemaContract {
 				sortableAttributeCompoundSchemaContract.getNameVariants(),
 				sortableAttributeCompoundSchemaContract.getDescription(),
 				sortableAttributeCompoundSchemaContract.getDeprecationNotice(),
+				Arrays.stream(Scope.values())
+					.filter(sortableAttributeCompoundSchemaContract::isIndexedInScope)
+					.toArray(Scope[]::new),
 				sortableAttributeCompoundSchemaContract.getAttributeElements()
 			);
 	}
@@ -381,8 +515,12 @@ public final class EntitySchema implements EntitySchemaContract {
 				referenceSchemaContract.getReferencedGroupType(),
 				referenceSchemaContract.getGroupTypeNameVariants(entityType -> null),
 				referenceSchemaContract.isReferencedGroupTypeManaged(),
-				referenceSchemaContract.isIndexed(),
-				referenceSchemaContract.isFaceted(),
+				Arrays.stream(Scope.values())
+					.filter(referenceSchemaContract::isIndexedInScope)
+					.toArray(Scope[]::new),
+				Arrays.stream(Scope.values())
+					.filter(referenceSchemaContract::isFacetedInScope)
+					.toArray(Scope[]::new),
 				referenceSchemaContract.getAttributes(),
 				referenceSchemaContract.getSortableAttributeCompounds()
 			);
@@ -396,7 +534,9 @@ public final class EntitySchema implements EntitySchemaContract {
 		@Nullable String deprecationNotice,
 		boolean withGeneratedPrimaryKey,
 		boolean withHierarchy,
+		@Nullable Set<Scope> hierarchyIndexedInScopes,
 		boolean withPrice,
+		@Nullable Set<Scope> priceIndexedInScopes,
 		int indexedPricePlaces,
 		@Nonnull Set<Locale> locales,
 		@Nonnull Set<Currency> currencies,
@@ -413,7 +553,21 @@ public final class EntitySchema implements EntitySchemaContract {
 		this.deprecationNotice = deprecationNotice;
 		this.withGeneratedPrimaryKey = withGeneratedPrimaryKey;
 		this.withHierarchy = withHierarchy;
+		this.hierarchyIndexedInScopes = CollectionUtils.toUnmodifiableSet(
+			hierarchyIndexedInScopes == null ? EnumSet.noneOf(Scope.class) : hierarchyIndexedInScopes
+		);
+		Assert.isPremiseValid(
+			!this.withHierarchy || !this.hierarchyIndexedInScopes.isEmpty(),
+			"Entity schema `" + this.name + "` cannot have hierarchy indexing scopes when the entity is not hierarchical!"
+		);
 		this.withPrice = withPrice;
+		this.priceIndexedInScopes = CollectionUtils.toUnmodifiableSet(
+			priceIndexedInScopes == null ? EnumSet.noneOf(Scope.class) : priceIndexedInScopes
+		);
+		Assert.isPremiseValid(
+			!this.withPrice || !this.priceIndexedInScopes.isEmpty(),
+			"Entity schema `" + this.name + "` cannot have price indexing scopes when prices are not available for the entity!"
+		);
 		this.indexedPricePlaces = indexedPricePlaces;
 		this.locales = Collections.unmodifiableSet(locales.stream().collect(Collectors.toCollection(() -> new TreeSet<>(ComparatorUtils.localeComparator()))));
 		this.currencies = Collections.unmodifiableSet(currencies.stream().collect(Collectors.toCollection(() -> new TreeSet<>(ComparatorUtils.currencyComparator()))));
@@ -461,13 +615,24 @@ public final class EntitySchema implements EntitySchemaContract {
 					)
 				)
 		);
-		;
+
 		this.referenceNameIndex = _internalGenerateNameVariantIndex(this.references.values(), ReferenceSchemaContract::getNameVariants);
-		this.evolutionMode = Collections.unmodifiableSet(evolutionMode);
-		this.nonNullableAttributes = this.attributes
+		this.reflectedReferences = this.references
 			.values()
 			.stream()
-			.filter(it -> !it.isNullable())
+			.filter(ReflectedReferenceSchema.class::isInstance)
+			.map(ReflectedReferenceSchema.class::cast)
+			.collect(
+				Collectors.toMap(
+					it -> new EntityTypeReference(it.getReferencedEntityType(), it.getReflectedReferenceName()),
+					Function.identity()
+				)
+			);
+		this.evolutionMode = Collections.unmodifiableSet(evolutionMode);
+		this.nonNullableOrDefaultValueAttributes = this.attributes
+			.values()
+			.stream()
+			.filter(it -> !it.isNullable() || it.getDefaultValue() != null)
 			.toList();
 		this.nonNullableAssociatedData = this.associatedData
 			.values()
@@ -507,6 +672,29 @@ public final class EntitySchema implements EntitySchemaContract {
 	@Override
 	public String getNameVariant(@Nonnull NamingConvention namingConvention) {
 		return this.nameVariants.get(namingConvention);
+	}
+
+	@Override
+	public boolean isLocalized() {
+		if (this.memoizedLocalized == null) {
+			this.memoizedLocalized = this.attributes.values().stream().anyMatch(AttributeSchemaContract::isLocalized) ||
+				this.associatedData.values().stream().anyMatch(AssociatedDataSchemaContract::isLocalized) ||
+				this.references.values()
+					.stream()
+					.flatMap(it -> it.getAttributes().values().stream())
+					.anyMatch(AttributeSchemaContract::isLocalized);
+		}
+		return this.memoizedLocalized;
+	}
+
+	@Override
+	public boolean isHierarchyIndexedInScope(@Nonnull Scope scope) {
+		return this.hierarchyIndexedInScopes.contains(scope);
+	}
+
+	@Override
+	public boolean isPriceIndexedInScope(@Nonnull Scope scope) {
+		return this.priceIndexedInScopes.contains(scope);
 	}
 
 	@Override
@@ -642,27 +830,25 @@ public final class EntitySchema implements EntitySchemaContract {
 
 	@Override
 	public void validate(@Nonnull CatalogSchemaContract catalogSchema) throws SchemaAlteringException {
+		for (EntityAttributeSchemaContract attribute : attributes.values()) {
+			assertNotReferencedEntityPredecessor(attribute.getName(), attribute.getType());
+		}
 		final List<String> errors = getReferences()
 			.values()
 			.stream()
 			.flatMap(ref -> {
-				Stream<String> referenceErrors = Stream.empty();
-				if (ref.isReferencedEntityTypeManaged() && catalogSchema.getEntitySchema(ref.getReferencedEntityType()).isEmpty()) {
-					referenceErrors = Stream.concat(
-						referenceErrors,
-						Stream.of("Referenced entity type `" + ref.getReferencedEntityType() + "` is not present in catalog `" + catalogSchema.getName() + "` schema!"));
+				try {
+					ref.validate(catalogSchema, this);
+					return Stream.empty();
+				} catch (SchemaAlteringException e) {
+					return Stream.of(e.getMessage());
 				}
-				if (ref.isReferencedGroupTypeManaged() && catalogSchema.getEntitySchema(ref.getReferencedGroupType()).isEmpty()) {
-					referenceErrors = Stream.concat(
-						referenceErrors,
-						Stream.of("Referenced group entity type `" + ref.getReferencedGroupType() + "` is not present in catalog `" + catalogSchema.getName() + "` schema!"));
-				}
-				return referenceErrors;
 			})
+			.map(it -> "\t" + it)
 			.toList();
 		if (!errors.isEmpty()) {
 			throw new InvalidSchemaMutationException(
-				"Schema `" + getName() + "` contains validation errors: " + String.join(", ", errors)
+				"Schema `" + getName() + "` contains validation errors:\n" + String.join("\n", errors)
 			);
 		}
 	}
@@ -709,6 +895,77 @@ public final class EntitySchema implements EntitySchemaContract {
 	}
 
 	/**
+	 * Replaces the given reference schema in the current EntitySchema.
+	 *
+	 * @param referenceSchema the reference schema to replace
+	 * @return a new instance of EntitySchema with the replaced reference schema
+	 */
+	@Nonnull
+	public EntitySchema withReplacedReferenceSchema(@Nonnull ReferenceSchemaContract... referenceSchema) {
+		final Stream<ReferenceSchemaContract> newSchemaStream;
+		if (referenceSchema.length == 1) {
+			newSchemaStream = Stream.concat(
+				this.references.values().stream().filter(it -> !it.getName().equals(referenceSchema[0].getName())),
+				Stream.of(referenceSchema)
+			);
+		} else if (referenceSchema.length == 0) {
+			return this;
+		} else {
+			final Set<String> reflectedReferenceSchemaNames = Arrays.stream(referenceSchema)
+				.map(ReferenceSchemaContract::getName)
+				.collect(Collectors.toSet());
+			newSchemaStream = Stream.concat(
+				this.references.values().stream().filter(it -> !reflectedReferenceSchemaNames.contains(it.getName())),
+				Stream.of(referenceSchema)
+			);
+		}
+		final Map<String, ReferenceSchemaContract> replacedReferenceIndex = newSchemaStream.collect(
+			Collectors.toMap(
+				ReferenceSchemaContract::getName,
+				Function.identity()
+			)
+		);
+		// sanity check
+		Assert.isPremiseValid(
+			this.references.size() == replacedReferenceIndex.size(),
+			"Reflected reference schema was not found in the current EntitySchema!"
+		);
+		return new EntitySchema(
+			this.version,
+			this.name,
+			this.nameVariants,
+			this.description,
+			this.deprecationNotice,
+			this.withGeneratedPrimaryKey,
+			this.withHierarchy,
+			this.hierarchyIndexedInScopes,
+			this.withPrice,
+			this.priceIndexedInScopes,
+			this.indexedPricePlaces,
+			this.locales,
+			this.currencies,
+			this.attributes,
+			this.getAssociatedData(),
+			replacedReferenceIndex,
+			this.evolutionMode,
+			this.getSortableAttributeCompounds()
+		);
+	}
+
+	/**
+	 * Retrieves the reflected reference schema for the given reference name.
+	 *
+	 * @param referenceName The name of the reference for which to retrieve the reflected reference schema.
+	 *                      Must not be null.
+	 * @return The optional reflected reference schema for the given reference name. If the reference name is not found,
+	 * an empty optional is returned.
+	 */
+	@Nonnull
+	public Optional<ReflectedReferenceSchema> getReflectedReferenceFor(@Nonnull String entityType, @Nonnull String referenceName) {
+		return ofNullable(this.reflectedReferences.get(new EntityTypeReference(entityType, referenceName)));
+	}
+
+	/**
 	 * Helper DTO to envelope relation between {@link AttributeElement} and {@link SortableAttributeCompoundSchemaContract}.
 	 *
 	 * @param attribute      {@link SortableAttributeCompoundSchemaContract#getAttributeElements()} item
@@ -719,4 +976,11 @@ public final class EntitySchema implements EntitySchemaContract {
 		@Nonnull SortableAttributeCompoundSchema compoundSchema
 	) {
 	}
+
+	private record EntityTypeReference(
+		@Nonnull String entityType,
+		@Nonnull String referenceName
+	) {
+	}
+
 }

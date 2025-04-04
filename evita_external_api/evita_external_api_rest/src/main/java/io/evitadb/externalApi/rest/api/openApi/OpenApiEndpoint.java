@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ package io.evitadb.externalApi.rest.api.openApi;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linecorp.armeria.common.HttpStatus;
 import io.evitadb.core.Evita;
+import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.http.MimeTypes;
 import io.evitadb.externalApi.rest.api.model.ErrorDescriptor;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiEndpointParameter.ParameterLocation;
@@ -115,10 +116,13 @@ public abstract class OpenApiEndpoint<HC extends RestHandlingContext> {
 	 * @return ready-to-handle endpoint handler
 	 */
 	@Nonnull
-	public abstract RestEndpointHandler<HC> toHandler(@Nonnull ObjectMapper objectMapper,
-	                                                  @Nonnull Evita evita,
-	                                                  @Nonnull OpenAPI openApi,
-	                                                  @Nonnull Map<String, Class<? extends Enum<?>>> enumMapping);
+	public abstract RestEndpointHandler<HC> toHandler(
+		@Nonnull ObjectMapper objectMapper,
+		@Nonnull Evita evita,
+		@Nonnull HeaderOptions headers,
+		@Nonnull OpenAPI openApi,
+		@Nonnull Map<String, Class<? extends Enum<?>>> enumMapping
+	);
 
 	/**
 	 * Build {@link Operation} describing this endpoint in OpenAPI.

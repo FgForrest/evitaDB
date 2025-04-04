@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,13 +25,15 @@ package io.evitadb.driver;
 
 import io.evitadb.api.EvitaManagementContract;
 import io.evitadb.api.task.TaskStatus;
-import io.evitadb.api.task.TaskStatus.State;
+import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
+import io.evitadb.api.task.TaskStatus.TaskTrait;
 import io.evitadb.test.TestConstants;
 import io.evitadb.utils.UUIDUtil;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import java.time.OffsetDateTime;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
@@ -49,7 +51,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class ClientTaskTrackerTest implements TestConstants {
 	final EvitaManagementContract evitaClientMock = Mockito.mock(EvitaManagementContract.class);
-	private ClientTaskTracker tested = new ClientTaskTracker(evitaClientMock, 100, 1);
+	private final ClientTaskTracker tested = new ClientTaskTracker(evitaClientMock, 100, 1);
 
 	@Test
 	void shouldTrackTaskUntilFinished() throws ExecutionException, InterruptedException, TimeoutException {
@@ -60,18 +62,20 @@ class ClientTaskTrackerTest implements TestConstants {
 		final ClientTask<Void, Boolean> task = tested.createTask(
 			new TaskStatus<>(
 				"whatever", "whatever", UUIDUtil.randomUUID(), TEST_CATALOG,
-				OffsetDateTime.now(), null, null, 0,
-				null, null, null, null
+				OffsetDateTime.now(), OffsetDateTime.now(), null, null, 0,
+				null, null, null, null,
+				EnumSet.noneOf(TaskTrait.class)
 			)
 		);
-		assertEquals(State.QUEUED, task.getStatus().state());
+		assertEquals(TaskSimplifiedState.QUEUED, task.getStatus().simplifiedState());
 
 		Mockito.doAnswer(
 			invocation -> List.of(
 				new TaskStatus<>(
 					"whatever", "whatever", task.getStatus().taskId(), TEST_CATALOG,
-					OffsetDateTime.now(), OffsetDateTime.now(), OffsetDateTime.now(), 0,
-					null, true, null, null
+					OffsetDateTime.now(), OffsetDateTime.now(), OffsetDateTime.now(), OffsetDateTime.now(), 0,
+					null, true, null, null,
+					EnumSet.noneOf(TaskTrait.class)
 				)
 			)
 		).when(evitaClientMock).getTaskStatuses(Mockito.any());
@@ -88,11 +92,12 @@ class ClientTaskTrackerTest implements TestConstants {
 		final ClientTask<Void, Boolean> task = tested.createTask(
 			new TaskStatus<>(
 				"whatever", "whatever", UUIDUtil.randomUUID(), TEST_CATALOG,
-				OffsetDateTime.now(), null, null, 0,
-				null, null, null, null
+				OffsetDateTime.now(), OffsetDateTime.now(), null, null, 0,
+				null, null, null, null,
+				EnumSet.noneOf(TaskTrait.class)
 			)
 		);
-		assertEquals(State.QUEUED, task.getStatus().state());
+		assertEquals(TaskSimplifiedState.QUEUED, task.getStatus().simplifiedState());
 		task.cancel();
 
 		// cancelling on the client should trigger cancelling the task on the server

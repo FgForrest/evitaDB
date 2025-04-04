@@ -57,7 +57,7 @@ public interface GrpcRegisterChangeCatalogCaptureResponseOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture>
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture> 
       getCaptureList();
   /**
    * <pre>
@@ -82,7 +82,7 @@ public interface GrpcRegisterChangeCatalogCaptureResponseOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCaptureOrBuilder>
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCaptureOrBuilder> 
       getCaptureOrBuilderList();
   /**
    * <pre>

@@ -26,6 +26,8 @@ package io.evitadb.dataType;
 import io.evitadb.dataType.data.DataItem;
 import io.evitadb.dataType.exception.InconvertibleDataTypeException;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
+import io.evitadb.dataType.expression.Expression;
+import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.MemoryMeasuringConstants;
@@ -521,6 +523,8 @@ public class EvitaDataTypes {
 		queryDataTypes.add(Currency.class);
 		queryDataTypes.add(UUID.class);
 		queryDataTypes.add(Predecessor.class);
+		queryDataTypes.add(ReferencedEntityPredecessor.class);
+		queryDataTypes.add(Expression.class);
 		SUPPORTED_QUERY_DATA_TYPES = Collections.unmodifiableSet(queryDataTypes);
 
 		final LinkedHashMap<Class<?>, Class<?>> primitiveWrappers = new LinkedHashMap<>();
@@ -719,8 +723,10 @@ public class EvitaDataTypes {
 			return value.toString();
 		} else if (value instanceof UUID) {
 			return CHAR_STRING_DELIMITER + value.toString() + CHAR_STRING_DELIMITER;
-		} else if (value instanceof Predecessor) {
+		} else if (value instanceof Predecessor || value instanceof ReferencedEntityPredecessor) {
 			return value.toString();
+		} else if (value instanceof ExpressionNode expressionNode) {
+			return expressionNode.toString();
 		} else if (value == null) {
 			throw new GenericEvitaInternalError(
 				"Null argument value should never ever happen. Null values are excluded in constructor of the class!"
@@ -796,7 +802,7 @@ public class EvitaDataTypes {
 			return 0;
 		} else if (unknownObject instanceof UUID) {
 			return MemoryMeasuringConstants.OBJECT_HEADER_SIZE + 2 * MemoryMeasuringConstants.LONG_SIZE;
-		} else if (unknownObject instanceof Predecessor) {
+		} else if (unknownObject instanceof Predecessor || unknownObject instanceof ReferencedEntityPredecessor) {
 			return MemoryMeasuringConstants.OBJECT_HEADER_SIZE + MemoryMeasuringConstants.INT_SIZE;
 		} else if (unknownObject instanceof final ComplexDataObject complexDataObject) {
 			return MemoryMeasuringConstants.REFERENCE_SIZE + complexDataObject.estimateSize();
@@ -845,7 +851,7 @@ public class EvitaDataTypes {
 			result = LOCALE_FUNCTION.apply(requestedType, unknownObject);
 		} else if (Currency.class.equals(requestedType)) {
 			result = CURRENCY_FUNCTION.apply(requestedType, unknownObject);
-		} else if (Predecessor.class.equals(requestedType)) {
+		} else if (Predecessor.class.equals(requestedType) || ReferencedEntityPredecessor.class.equals(requestedType)) {
 			throw new InconvertibleDataTypeException(requestedType, unknownObject);
 		} else if (UUID.class.equals(requestedType)) {
 			result = UUID_FUNCTION.apply(requestedType, unknownObject);

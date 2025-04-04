@@ -38,14 +38,28 @@ import javax.annotation.Nonnull;
 public class CreateSortableAttributeCompoundSchemaMutationConverter
 	extends SortableAttributeCompoundSchemaMutationConverter<CreateSortableAttributeCompoundSchemaMutation> {
 
-	public CreateSortableAttributeCompoundSchemaMutationConverter(@Nonnull MutationObjectParser objectParser,
-	                                                              @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
+	public CreateSortableAttributeCompoundSchemaMutationConverter(@Nonnull MutationObjectParser objectParser, @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
 		super(objectParser, exceptionFactory);
 	}
 
 	@Nonnull
 	@Override
 	protected Class<CreateSortableAttributeCompoundSchemaMutation> getMutationClass() {
+		/* TODO JNO - vyřešit s LHO */
+		/*final AttributeElement[] attributeElements = input.getRequiredField(
+			CreateSortableAttributeCompoundSchemaMutationDescriptor.ATTRIBUTE_ELEMENTS.name(),
+			new FieldObjectListMapper<>(
+				getMutationName(),
+				getExceptionFactory(),
+				CreateSortableAttributeCompoundSchemaMutationDescriptor.ATTRIBUTE_ELEMENTS,
+				AttributeElement.class,
+				nestedInput -> new AttributeElement(
+					nestedInput.getRequiredField(AttributeElementDescriptor.ATTRIBUTE_NAME),
+					nestedInput.getRequiredField(AttributeElementDescriptor.DIRECTION),
+					nestedInput.getRequiredField(AttributeElementDescriptor.BEHAVIOUR)
+				)
+			)
+		);*/
 		return CreateSortableAttributeCompoundSchemaMutation.class;
 	}
 

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.index.array;
 
+import javax.annotation.Nullable;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
@@ -32,12 +33,12 @@ import java.util.NoSuchElementException;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
-class TransactionalObjArrayIterator<T extends Comparable<T>> implements Iterator<T> {
+class TransactionalObjArrayIterator<T> implements Iterator<T> {
 	private final T[] original;
 	private final ObjArrayChanges<T> changes;
-	private T nextRecord;
+	@Nullable private T nextRecord;
 	private int position;
-	private T[] insertion;
+	@Nullable private T[] insertion;
 	private int insertionPosition = -1;
 
 	public TransactionalObjArrayIterator(T[] original, ObjArrayChanges<T> changes) {
@@ -64,8 +65,9 @@ class TransactionalObjArrayIterator<T extends Comparable<T>> implements Iterator
 
 	/**
 	 * Computes next record to be returned from the iterator.
-	 * @return
+	 * @return next record or null if there are no more records
 	 */
+	@Nullable
 	private T computeNextRecord() {
 		// if insertion happens on this spot - first exhaust the insertion
 		if (this.insertion != null) {

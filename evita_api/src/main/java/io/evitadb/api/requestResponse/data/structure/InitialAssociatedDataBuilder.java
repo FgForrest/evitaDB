@@ -356,7 +356,7 @@ class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull String associatedDataName,
 		@Nullable Class<? extends Serializable> aClass,
-		@Nonnull Locale locale
+		@Nullable Locale locale
 	) {
 		verifyAssociatedDataIsInSchemaAndTypeMatch(
 			entitySchema, associatedDataName, aClass, locale,

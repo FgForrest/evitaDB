@@ -53,6 +53,7 @@ public class EntityContractAdvice implements Advice<SealedEntityProxy> {
 			GetLocalesMethodClassifier.INSTANCE,
 			GetEntitySchemaMethodClassifier.INSTANCE,
 			GetVersionMethodClassifier.INSTANCE,
+			GetScopeMethodClassifier.INSTANCE,
 			GetEntityTypeMethodClassifier.INSTANCE,
 			GetAttributeMethodClassifier.INSTANCE,
 			GetAssociatedDataMethodClassifier.INSTANCE,

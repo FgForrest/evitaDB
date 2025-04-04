@@ -23,7 +23,9 @@
 
 package io.evitadb.store.model;
 
+import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.store.service.KeyCompressor;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -42,6 +44,21 @@ public interface StoragePart extends Serializable {
 	 */
 	@Nullable
 	Long getStoragePartPK();
+
+	/**
+	 * Retrieves the primary key of the storage part or throws an exception if it is not assigned.
+	 *
+	 * @return the primary key of the storage part
+	 * @throws EvitaInternalError if the storage part primary key is not assigned
+	 */
+	default long getStoragePartPKOrElseThrowException() {
+		final Long storagePartPK = getStoragePartPK();
+		Assert.isPremiseValid(
+			storagePartPK != null,
+			"Storage part is expected to be assigned by now."
+		);
+		return storagePartPK;
+	}
 
 	/**
 	 * Returns TRUE if the storage part is new and has never been stored to persistent storage (yet).

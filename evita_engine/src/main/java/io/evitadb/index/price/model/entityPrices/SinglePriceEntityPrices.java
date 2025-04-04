@@ -25,6 +25,7 @@ package io.evitadb.index.price.model.entityPrices;
 
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -40,7 +41,7 @@ import javax.annotation.concurrent.ThreadSafe;
  */
 @ThreadSafe
 class SinglePriceEntityPrices extends EntityPrices {
-	private static final int[] NO_PRICE_IDS = new int[0];
+	private static final int[] NO_PRICE_IDS = ArrayUtils.EMPTY_INT_ARRAY;
 	private static final PriceRecordContract[] NO_PRICES = new PriceRecordContract[0];
 	public static final EntityPrices EMPTY = new SinglePriceEntityPrices(null);
 

@@ -31,13 +31,13 @@ public interface GrpcRegisterSystemChangeCaptureRequestOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureContent content = 1;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 1;</code>
    * @return The enum numeric value on the wire for content.
    */
   int getContentValue();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureContent content = 1;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 1;</code>
    * @return The content.
    */
-  io.evitadb.externalApi.grpc.generated.GrpcCaptureContent getContent();
+  io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent getContent();
 }

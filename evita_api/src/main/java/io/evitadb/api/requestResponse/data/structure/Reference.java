@@ -136,7 +136,7 @@ public class Reference implements ReferenceContract {
 		return ReferenceSchema._internalBuild(
 			referenceName, referencedEntityType, false, cardinality,
 			ofNullable(group).map(GroupEntityReference::getType).orElse(null), false,
-			false, false
+			null, null
 		);
 	}
 

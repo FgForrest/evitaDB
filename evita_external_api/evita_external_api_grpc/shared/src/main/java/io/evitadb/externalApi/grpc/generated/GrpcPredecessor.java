@@ -538,7 +538,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setHead(boolean value) {
-
+      
       head_ = value;
       onChanged();
       return this;
@@ -552,7 +552,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearHead() {
-
+      
       head_ = false;
       onChanged();
       return this;
@@ -673,7 +673,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value predecessorId = 2;</code>
      */
     public com.google.protobuf.Int32Value.Builder getPredecessorIdBuilder() {
-
+      
       onChanged();
       return getPredecessorIdFieldBuilder().getBuilder();
     }
@@ -700,7 +700,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value predecessorId = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> 
         getPredecessorIdFieldBuilder() {
       if (predecessorIdBuilder_ == null) {
         predecessorIdBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<

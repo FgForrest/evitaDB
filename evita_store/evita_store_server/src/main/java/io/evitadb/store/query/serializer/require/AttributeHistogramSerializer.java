@@ -28,6 +28,7 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.query.require.AttributeHistogram;
+import io.evitadb.api.query.require.HistogramBehavior;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -41,6 +42,7 @@ public class AttributeHistogramSerializer extends Serializer<AttributeHistogram>
 	@Override
 	public void write(Kryo kryo, Output output, AttributeHistogram object) {
 		output.writeVarInt(object.getRequestedBucketCount(), true);
+		kryo.writeObject(output, object.getBehavior());
 		final String[] attributeNames = object.getAttributeNames();
 		output.writeVarInt(attributeNames.length, true);
 		for (String attributeName : attributeNames) {
@@ -51,12 +53,13 @@ public class AttributeHistogramSerializer extends Serializer<AttributeHistogram>
 	@Override
 	public AttributeHistogram read(Kryo kryo, Input input, Class<? extends AttributeHistogram> type) {
 		final int requestedBucketCount = input.readVarInt(true);
+		final HistogramBehavior histogramBehavior = kryo.readObject(input, HistogramBehavior.class);
 		final int attributeCount = input.readVarInt(true);
 		final String[] attributeNames = new String[attributeCount];
 		for (int i = 0; i < attributeCount; i++) {
 			attributeNames[i] = input.readString();
 		}
-		return new AttributeHistogram(requestedBucketCount, attributeNames);
+		return new AttributeHistogram(requestedBucketCount, histogramBehavior, attributeNames);
 	}
 
 }

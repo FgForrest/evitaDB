@@ -27,8 +27,11 @@ import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Collection;
 
 /**
@@ -36,7 +39,19 @@ import java.util.Collection;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class AllAssociatedDataSchemasDataFetcher implements DataFetcher<Collection<AssociatedDataSchemaContract>> {
+
+	@Nullable
+	private static AllAssociatedDataSchemasDataFetcher INSTANCE;
+
+	@Nonnull
+	public static AllAssociatedDataSchemasDataFetcher getInstance() {
+		if (INSTANCE == null) {
+			INSTANCE = new AllAssociatedDataSchemasDataFetcher();
+		}
+		return INSTANCE;
+	}
 
 	@Nonnull
 	@Override

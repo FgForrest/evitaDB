@@ -8,6 +8,7 @@ import "google/protobuf/empty.proto";
 import "google/protobuf/wrappers.proto";
 import "GrpcEntity.proto";
 import "GrpcEvitaDataTypes.proto";
+import "GrpcQueryParam.proto";
 import "GrpcExtraResults.proto";
 import "GrpcEnums.proto";
 import "GrpcCatalogSchema.proto";
@@ -48,9 +49,9 @@ message GetMutationsHistoryPageRequest {
   // Starting point for the search (index of the mutation within catalog version)
   int32 sinceIndex = 4;
   // The criteria of the capture, allows to define constraints on the returned mutations
-  repeated GrpcCaptureCriteria criteria = 5;
+  repeated GrpcChangeCaptureCriteria criteria = 5;
   // The scope of the returned data - either header of the mutation, or the whole mutation
-  GrpcCaptureContent content = 6;
+  GrpcChangeCaptureContent content = 6;
 }
 
 // Response to GetMutationsHistoryPage request.
@@ -66,9 +67,9 @@ message GetMutationsHistoryRequest {
   // Starting point for the search (index of the mutation within catalog version)
   google.protobuf.Int32Value sinceIndex = 2;
   // The criteria of the capture, allows to define constraints on the returned mutations
-  repeated GrpcCaptureCriteria criteria = 3;
+  repeated GrpcChangeCaptureCriteria criteria = 3;
   // The scope of the returned data - either header of the mutation, or the whole mutation
-  GrpcCaptureContent content = 4;
+  GrpcChangeCaptureContent content = 4;
 }
 
 // Response to GetMutationsHistory request.
@@ -84,9 +85,9 @@ message GrpcRegisterChangeCatalogCaptureRequest {
   // Starting point for the search (index of the mutation within catalog version)
   google.protobuf.Int32Value sinceIndex = 2;
   // The criteria of the capture, allows to define constraints on the returned mutations
-  repeated GrpcCaptureCriteria criteria = 3;
+  repeated GrpcChangeCaptureCriteria criteria = 3;
   // The scope of the returned data - either header of the mutation, or the whole mutation
-  GrpcCaptureContent content = 4;
+  GrpcChangeCaptureContent content = 4;
 }
 
 // Response to RegisterChangeCatalogCapture request.
@@ -187,6 +188,8 @@ message GrpcEntityRequest {
   repeated GrpcQueryParam positionalQueryParams = 4;
   // The named query parameters.
   map<string, GrpcQueryParam> namedQueryParams = 5;
+  // The set of scopes to search for the entity.
+  repeated GrpcEntityScope scopes = 6;
 }
 
 // Response to GetEntity request.
@@ -201,6 +204,8 @@ message GrpcPaginatedList {
   int32 pageSize = 1;
   // The number of the page.
   int32 pageNumber = 2;
+  // The number of the last page.
+  int32 lastPageNumber = 3;
 }
 
 // Structure that represents a strip within a data chunk.
@@ -402,6 +407,34 @@ message GrpcDeleteEntityRequest {
   map<string, GrpcQueryParam> namedQueryParams = 5;
 }
 
+// Request for deleting an entity that should return the archived entity with required richness.
+message GrpcArchiveEntityRequest {
+  // Entity type of the entity to be archived.
+  string entityType = 1;
+  // Primary key of the entity to be archived.
+  google.protobuf.Int32Value primaryKey = 2;
+  // The string part of the parametrised query require part.
+  string require = 3;
+  // The positional query parameters.
+  repeated GrpcQueryParam positionalQueryParams = 4;
+  // The named query parameters.
+  map<string, GrpcQueryParam> namedQueryParams = 5;
+}
+
+// Request for deleting an entity that should return the restored entity with required richness.
+message GrpcRestoreEntityRequest {
+  // Entity type of the entity to be restored.
+  string entityType = 1;
+  // Primary key of the entity to be restored.
+  google.protobuf.Int32Value primaryKey = 2;
+  // The string part of the parametrised query require part.
+  string require = 3;
+  // The positional query parameters.
+  repeated GrpcQueryParam positionalQueryParams = 4;
+  // The named query parameters.
+  map<string, GrpcQueryParam> namedQueryParams = 5;
+}
+
 // Request for deleting a collection of entities specified by a query.
 message GrpcDeleteEntitiesRequest {
   // The string part of the parametrised query.
@@ -434,6 +467,28 @@ message GrpcDeleteEntityResponse {
   }
 }
 
+// Response to ArchiveEntity request.
+message GrpcArchiveEntityResponse {
+  // The archived entity. The used field is decided by the require block in the query.
+  oneof response {
+    // The archived entity reference.
+    GrpcEntityReference entityReference = 1;
+    // The archived entity.
+    GrpcSealedEntity entity = 2;
+  }
+}
+
+// Response to RestoreEntity request.
+message GrpcRestoreEntityResponse {
+  // The restored entity. The used field is decided by the require block in the query.
+  oneof response {
+    // The restored entity reference.
+    GrpcEntityReference entityReference = 1;
+    // The restored entity.
+    GrpcSealedEntity entity = 2;
+  }
+}
+
 // Response to DeleteEntity request when hierarchy has been specified in filter.
 message GrpcDeleteEntityAndItsHierarchyResponse {
   // Count of deleted entities.
@@ -444,6 +499,8 @@ message GrpcDeleteEntityAndItsHierarchyResponse {
     // The deleted root entity.
     GrpcSealedEntity deletedRootEntity = 3;
   }
+  // Deleted entity primary keys.
+  repeated int32 deletedEntityPrimaryKeys = 4;
 }
 
 // Response to DeleteEntities request that deletes all entities that match the sent query..
@@ -460,99 +517,6 @@ message GrpcTransactionResponse {
   int64 catalogVersion = 1;
   // The id of the opened transaction.
   GrpcUuid transactionId = 2;
-}
-
-// Structure that supports storing all possible parameters that could be used within query.
-message GrpcQueryParam {
-  // The value of the parameter.
-  oneof queryParam {
-    // The string value.
-    string stringValue = 1;
-    // The integer value.
-    int32 integerValue = 2;
-    // The long value.
-    int64 longValue = 3;
-    // The boolean value.
-    bool booleanValue = 4;
-    // The big decimal value.
-    GrpcBigDecimal bigDecimalValue = 5;
-    // The date time range value.
-    GrpcDateTimeRange dateTimeRangeValue = 6;
-    // The integer number range value.
-    GrpcIntegerNumberRange integerNumberRangeValue = 7;
-    // The long number range value.
-    GrpcLongNumberRange longNumberRangeValue = 8;
-    // The big decimal number range value.
-    GrpcBigDecimalNumberRange bigDecimalNumberRangeValue = 9;
-    // The offset date time value.
-    GrpcOffsetDateTime offsetDateTimeValue = 10;
-    // The locale value.
-    GrpcLocale localeValue = 11;
-    // The currency value.
-    GrpcCurrency currencyValue = 12;
-    // The facet statistics depth enum value.
-    GrpcFacetStatisticsDepth facetStatisticsDepthValue = 13;
-    // The query price mode enum value.
-    GrpcQueryPriceMode queryPriceModelValue = 14;
-    // The price content mode enum value.
-    GrpcPriceContentMode priceContentModeValue = 15;
-    // The attribute special value enum value.
-    GrpcAttributeSpecialValue attributeSpecialValue = 16;
-    // The order direction enum value.
-    GrpcOrderDirection orderDirectionValue = 17;
-    // The empty hierarchical entity behaviour enum value.
-    GrpcEmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour = 18;
-    // The statistics base enum value.
-    GrpcStatisticsBase statisticsBase = 19;
-    // The statistics type enum value.
-    GrpcStatisticsType statisticsType = 20;
-    // The histogram behavior enum value.
-    GrpcHistogramBehavior histogramBehavior = 21;
-    // The managed references behaviour
-    GrpcManagedReferencesBehaviour managedReferencesBehaviour = 22;
-
-    // The string array value.
-    GrpcStringArray stringArrayValue = 101;
-    // The integer array value.
-    GrpcIntegerArray integerArrayValue = 102;
-    // The long array value.
-    GrpcLongArray longArrayValue = 103;
-    // The boolean array value.
-    GrpcBooleanArray booleanArrayValue = 104;
-    // The big decimal array value.
-    GrpcBigDecimalArray bigDecimalArrayValue = 105;
-    // The date time range array value.
-    GrpcDateTimeRangeArray dateTimeRangeArrayValue = 106;
-    // The integer number range array value.
-    GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 107;
-    // The long number range array value.
-    GrpcLongNumberRangeArray longNumberRangeArrayValue = 108;
-    // The big decimal number range array value.
-    GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 109;
-    // The offset date time array value.
-    GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 110;
-    // The locale array value.
-    GrpcLocaleArray localeArrayValue = 111;
-    // The currency array value.
-    GrpcCurrencyArray currencyArrayValue = 112;
-    // The facet statistics depth array value.
-    GrpcFacetStatisticsDepthArray facetStatisticsDepthArrayValue = 113;
-    // The query price mode array value.
-    GrpcQueryPriceModeArray queryPriceModelArrayValue = 114;
-    // The price content mode array value.
-    GrpcPriceContentModeArray priceContentModeArrayValue = 115;
-    // The attribute special value array value.
-    GrpcAttributeSpecialValueArray attributeSpecialArrayValue = 116;
-    // The order direction array value.
-    GrpcOrderDirectionArray orderDirectionArrayValue = 117;
-    // The empty hierarchical entity behaviour array value.
-    GrpcEmptyHierarchicalEntityBehaviourArray emptyHierarchicalEntityBehaviourArrayValue = 118;
-    GrpcStatisticsBaseArray statisticsBaseArrayValue = 119;
-    // The statistics type array value.
-    GrpcStatisticsTypeArray statisticsTypeArrayValue = 120;
-    // The histogram behavior enum value.
-    GrpcHistogramBehaviorTypeArray histogramBehaviorTypeArrayValue = 121;
-  }
 }
 
 // This service contains RPCs that could be called by gRPC clients on evitaDB's catalog by usage of a before created session.
@@ -630,6 +594,10 @@ service EvitaSessionService {
   rpc DeleteEntityAndItsHierarchy(GrpcDeleteEntityRequest) returns (GrpcDeleteEntityAndItsHierarchyResponse);
   // Procedure that deletes all entities that match the sent query and returns their bodies.
   rpc DeleteEntities(GrpcDeleteEntitiesRequest) returns (GrpcDeleteEntitiesResponse);
+  // Procedure that archives an entity and returns it with required richness.
+  rpc ArchiveEntity(GrpcArchiveEntityRequest) returns (GrpcArchiveEntityResponse);
+  // Procedure that restores an entity and returns it with required richness.
+  rpc RestoreEntity(GrpcRestoreEntityRequest) returns (GrpcRestoreEntityResponse);
 
   // Procedure that opens a transaction.
   rpc GetTransactionId(google.protobuf.Empty) returns (GrpcTransactionResponse);

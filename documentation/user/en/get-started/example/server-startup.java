@@ -9,7 +9,7 @@ final Evita evita = new Evita(
 		.storage(
 			// configure additional storage options, or let the defaults apply
 			StorageOptions.builder()
-				.storageDirectory(Path.of("/data"))
+				.storageDirectory(Path.of("./data"))
 				.build()
 		)
 		.cache(

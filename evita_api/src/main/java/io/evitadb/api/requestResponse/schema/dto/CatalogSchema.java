@@ -30,6 +30,9 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaDecorator;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
+import io.evitadb.dataType.Scope;
 import io.evitadb.utils.NamingConvention;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -39,6 +42,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
@@ -182,6 +186,28 @@ public final class CatalogSchema implements CatalogSchemaContract {
 	}
 
 	/**
+	 * This method is for internal purposes only. It could be used for reconstruction of CatalogSchema from
+	 * different package than current, but still internal code of the Evita ecosystems.
+	 *
+	 * Do not use this method from in the client code!
+	 */
+	@Nonnull
+	public static CatalogSchema _internalBuildWithUpdatedEntitySchemaAccessor(
+		@Nonnull CatalogSchemaContract baseSchema,
+		@Nonnull EntitySchemaProvider entitySchemaAccessor
+	) {
+		return new CatalogSchema(
+			baseSchema.version(),
+			baseSchema.getName(),
+			baseSchema.getNameVariants(),
+			baseSchema.getDescription(),
+			baseSchema.getCatalogEvolutionMode(),
+			baseSchema.getAttributes(),
+			entitySchemaAccessor
+		);
+	}
+
+	/**
 	 * Method converts the "unknown" contract implementation and converts it to the "known" {@link GlobalAttributeSchema}
 	 * so that the catalog schema can access the internal API of it.
 	 */
@@ -195,10 +221,22 @@ public final class CatalogSchema implements CatalogSchemaContract {
 				attributeSchemaContract.getNameVariants(),
 				attributeSchemaContract.getDescription(),
 				attributeSchemaContract.getDeprecationNotice(),
-				attributeSchemaContract.getUniquenessType(),
-				attributeSchemaContract.getGlobalUniquenessType(),
-				attributeSchemaContract.isFilterable(),
-				attributeSchemaContract.isSortable(),
+				Arrays.stream(Scope.values())
+					.map(scope -> new ScopedAttributeUniquenessType(scope, attributeSchemaContract.getUniquenessType(scope)))
+					// filter default values
+					.filter(it -> it.uniquenessType() != AttributeUniquenessType.NOT_UNIQUE)
+					.toArray(ScopedAttributeUniquenessType[]::new),
+				Arrays.stream(Scope.values())
+					.map(scope -> new ScopedGlobalAttributeUniquenessType(scope, attributeSchemaContract.getGlobalUniquenessType(scope)))
+					// filter default values
+					.filter(it -> it.uniquenessType() != GlobalAttributeUniquenessType.NOT_UNIQUE)
+					.toArray(ScopedGlobalAttributeUniquenessType[]::new),
+				Arrays.stream(Scope.values())
+					.filter(attributeSchemaContract::isFilterableInScope)
+					.toArray(Scope[]::new),
+				Arrays.stream(Scope.values())
+					.filter(attributeSchemaContract::isSortableInScope)
+					.toArray(Scope[]::new),
 				attributeSchemaContract.isLocalized(),
 				attributeSchemaContract.isNullable(),
 				attributeSchemaContract.isRepresentative(),
@@ -230,7 +268,7 @@ public final class CatalogSchema implements CatalogSchemaContract {
 					it -> toAttributeSchema(it.getValue())
 				)
 			);
-		;
+
 		this.attributeNameIndex = _internalGenerateNameVariantIndex(this.attributes.values(), GlobalAttributeSchema::getNameVariants);
 		this.entitySchemaAccessor = entitySchemaAccessor;
 	}
@@ -299,4 +337,5 @@ public final class CatalogSchema implements CatalogSchemaContract {
 			entitySchema.validate(this);
 		}
 	}
+
 }

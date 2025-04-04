@@ -26,6 +26,7 @@ package io.evitadb.api.requestResponse;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.dataType.DataChunk;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
@@ -36,15 +37,25 @@ import java.io.Serializable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public final class EvitaEntityResponse<T extends Serializable> extends EvitaResponse<T> {
+	@Getter private final int[] primaryKeys;
 
-	public EvitaEntityResponse(@Nonnull Query sourceQuery, @Nonnull DataChunk<T> recordPage) {
+	public EvitaEntityResponse(
+		@Nonnull Query sourceQuery,
+		@Nonnull DataChunk<T> recordPage,
+		@Nonnull int[] primaryKeys
+	) {
 		super(sourceQuery, recordPage);
+		this.primaryKeys = primaryKeys;
 	}
 
-	public EvitaEntityResponse(@Nonnull Query sourceQuery,
-	                           @Nonnull DataChunk<T> recordPage,
-	                           @Nonnull EvitaResponseExtraResult... extraResults) {
+	public EvitaEntityResponse(
+		@Nonnull Query sourceQuery,
+		@Nonnull DataChunk<T> recordPage,
+		@Nonnull int[] primaryKeys,
+		@Nonnull EvitaResponseExtraResult... extraResults
+	) {
 		super(sourceQuery, recordPage, extraResults);
+		this.primaryKeys = primaryKeys;
 	}
 
 }

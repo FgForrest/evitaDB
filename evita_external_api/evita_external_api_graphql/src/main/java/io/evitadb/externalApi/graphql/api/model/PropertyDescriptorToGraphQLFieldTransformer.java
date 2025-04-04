@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -57,13 +57,15 @@ public class PropertyDescriptorToGraphQLFieldTransformer implements PropertyDesc
 	@Override
 	public GraphQLFieldDefinition.Builder apply(@Nonnull PropertyDescriptor propertyDescriptor) {
 		final GraphQLFieldDefinition.Builder fieldBuilder = GraphQLFieldDefinition.newFieldDefinition()
-			.name(propertyDescriptor.name())
 			.description(propertyDescriptor.description());
 		Assert.isPremiseValid(
 			propertyDescriptor.defaultValue() == null,
 			() -> new GraphQLSchemaBuildingError("GraphQL fields do not support default values but property `" +  propertyDescriptor.name() + "` has one.")
 		);
 
+		if (propertyDescriptor.isNameStatic()) {
+			fieldBuilder.name(propertyDescriptor.name());
+		}
 		if (propertyDescriptor.deprecate() != null) {
 			fieldBuilder.deprecate(propertyDescriptor.deprecate());
 		}

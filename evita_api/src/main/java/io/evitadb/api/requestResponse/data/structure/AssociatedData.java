@@ -347,7 +347,6 @@ public class AssociatedData implements AssociatedDataContract {
 			this.filteredAssociatedDataValues = this.associatedDataValues
 				.values()
 				.stream()
-				.filter(ad -> ad.value() != null)
 				.filter(ad -> associatedDataTypes.get(ad.key().associatedDataName()) != null)
 				.collect(Collectors.toList());
 		}

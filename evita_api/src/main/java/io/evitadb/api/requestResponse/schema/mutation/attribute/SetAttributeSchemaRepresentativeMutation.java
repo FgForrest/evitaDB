@@ -102,41 +102,49 @@ public class SetAttributeSchemaRepresentativeMutation
 	@Override
 	public <S extends AttributeSchemaContract> S mutate(@Nullable CatalogSchemaContract catalogSchema, @Nullable S attributeSchema, @Nonnull Class<S> schemaType) {
 		Assert.isPremiseValid(attributeSchema != null, "Attribute schema is mandatory!");
-		if (attributeSchema instanceof GlobalAttributeSchema globalAttributeSchema) {
-			//noinspection unchecked,rawtypes
-			return (S) GlobalAttributeSchema._internalBuild(
-				name,
-				globalAttributeSchema.getNameVariants(),
-				globalAttributeSchema.getDescription(),
-				globalAttributeSchema.getDeprecationNotice(),
-				globalAttributeSchema.getUniquenessType(),
-				globalAttributeSchema.getGlobalUniquenessType(),
-				globalAttributeSchema.isFilterable(),
-				globalAttributeSchema.isSortable(),
-				globalAttributeSchema.isLocalized(),
-				globalAttributeSchema.isNullable(),
-				representative,
-				(Class) globalAttributeSchema.getType(),
-				globalAttributeSchema.getDefaultValue(),
-				globalAttributeSchema.getIndexedDecimalPlaces()
-			);
-		} else if (attributeSchema instanceof EntityAttributeSchema entityAttributeSchema) {
-			//noinspection unchecked,rawtypes
-			return (S) EntityAttributeSchema._internalBuild(
-				name,
-				entityAttributeSchema.getNameVariants(),
-				entityAttributeSchema.getDescription(),
-				entityAttributeSchema.getDeprecationNotice(),
-				entityAttributeSchema.getUniquenessType(),
-				entityAttributeSchema.isFilterable(),
-				entityAttributeSchema.isSortable(),
-				entityAttributeSchema.isLocalized(),
-				entityAttributeSchema.isNullable(),
-				representative,
-				(Class)entityAttributeSchema.getType(),
-				entityAttributeSchema.getDefaultValue(),
-				entityAttributeSchema.getIndexedDecimalPlaces()
-			);
+		if (attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema) {
+			if (globalAttributeSchema.isRepresentative() == this.representative) {
+				return attributeSchema;
+			} else {
+				//noinspection unchecked,rawtypes
+				return (S) GlobalAttributeSchema._internalBuild(
+					this.name,
+					globalAttributeSchema.getNameVariants(),
+					globalAttributeSchema.getDescription(),
+					globalAttributeSchema.getDeprecationNotice(),
+					globalAttributeSchema.getUniquenessTypeInScopes(),
+					globalAttributeSchema.getGlobalUniquenessTypeInScopes(),
+					globalAttributeSchema.getFilterableInScopes(),
+					globalAttributeSchema.getSortableInScopes(),
+					globalAttributeSchema.isLocalized(),
+					globalAttributeSchema.isNullable(),
+					this.representative,
+					(Class) globalAttributeSchema.getType(),
+					globalAttributeSchema.getDefaultValue(),
+					globalAttributeSchema.getIndexedDecimalPlaces()
+				);
+			}
+		} else if (attributeSchema instanceof EntityAttributeSchemaContract entityAttributeSchema) {
+			if (entityAttributeSchema.isRepresentative() == this.representative) {
+				return attributeSchema;
+			} else {
+				//noinspection unchecked,rawtypes
+				return (S) EntityAttributeSchema._internalBuild(
+					this.name,
+					entityAttributeSchema.getNameVariants(),
+					entityAttributeSchema.getDescription(),
+					entityAttributeSchema.getDeprecationNotice(),
+					entityAttributeSchema.getUniquenessTypeInScopes(),
+					entityAttributeSchema.getFilterableInScopes(),
+					entityAttributeSchema.getSortableInScopes(),
+					entityAttributeSchema.isLocalized(),
+					entityAttributeSchema.isNullable(),
+					this.representative,
+					(Class)entityAttributeSchema.getType(),
+					entityAttributeSchema.getDefaultValue(),
+					entityAttributeSchema.getIndexedDecimalPlaces()
+				);
+			}
 		} else {
 			throw new InvalidSchemaMutationException(
 				"Reference attribute cannot be made representative!"
@@ -159,7 +167,7 @@ public class SetAttributeSchemaRepresentativeMutation
 		);
 	}
 
-	@Nullable
+	@Nonnull
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
@@ -176,14 +184,9 @@ public class SetAttributeSchemaRepresentativeMutation
 
 	@Nullable
 	@Override
-	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema) {
+	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
-		final AttributeSchemaContract existingAttributeSchema = referenceSchema.getAttribute(name)
-			.orElseThrow(() -> new InvalidSchemaMutationException(
-				"The attribute `" + name + "` is not defined in entity `" + entitySchema.getName() +
-					"` schema for reference with name `" + referenceSchema.getName() + "`!"
-			));
-
+		final AttributeSchemaContract existingAttributeSchema = getReferenceAttributeSchemaOrThrow(entitySchema, referenceSchema, name);
 		final AttributeSchemaContract updatedAttributeSchema = mutate(null, existingAttributeSchema, AttributeSchemaContract.class);
 		return replaceAttributeIfDifferent(
 			referenceSchema, existingAttributeSchema, updatedAttributeSchema

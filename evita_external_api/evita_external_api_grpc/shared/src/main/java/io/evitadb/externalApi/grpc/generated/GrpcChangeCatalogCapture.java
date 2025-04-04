@@ -266,7 +266,7 @@ private static final long serialVersionUID = 0L;
    * the area of the operation
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureArea area = 3;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureArea area = 3;</code>
    * @return The enum numeric value on the wire for area.
    */
   @java.lang.Override public int getAreaValue() {
@@ -277,13 +277,13 @@ private static final long serialVersionUID = 0L;
    * the area of the operation
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureArea area = 3;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureArea area = 3;</code>
    * @return The area.
    */
-  @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcCaptureArea getArea() {
+  @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureArea getArea() {
     @SuppressWarnings("deprecation")
-    io.evitadb.externalApi.grpc.generated.GrpcCaptureArea result = io.evitadb.externalApi.grpc.generated.GrpcCaptureArea.valueOf(area_);
-    return result == null ? io.evitadb.externalApi.grpc.generated.GrpcCaptureArea.UNRECOGNIZED : result;
+    io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureArea result = io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureArea.valueOf(area_);
+    return result == null ? io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureArea.UNRECOGNIZED : result;
   }
 
   public static final int ENTITYTYPE_FIELD_NUMBER = 4;
@@ -334,7 +334,7 @@ private static final long serialVersionUID = 0L;
    * the operation that was performed
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation operation = 5;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 5;</code>
    * @return The enum numeric value on the wire for operation.
    */
   @java.lang.Override public int getOperationValue() {
@@ -345,13 +345,13 @@ private static final long serialVersionUID = 0L;
    * the operation that was performed
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation operation = 5;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 5;</code>
    * @return The operation.
    */
-  @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation getOperation() {
+  @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation getOperation() {
     @SuppressWarnings("deprecation")
-    io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation result = io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation.valueOf(operation_);
-    return result == null ? io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation.UNRECOGNIZED : result;
+    io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation result = io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation.valueOf(operation_);
+    return result == null ? io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation.UNRECOGNIZED : result;
   }
 
   public static final int SCHEMAMUTATION_FIELD_NUMBER = 6;
@@ -467,13 +467,13 @@ private static final long serialVersionUID = 0L;
     if (index_ != 0) {
       output.writeInt32(2, index_);
     }
-    if (area_ != io.evitadb.externalApi.grpc.generated.GrpcCaptureArea.SCHEMA.getNumber()) {
+    if (area_ != io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureArea.SCHEMA.getNumber()) {
       output.writeEnum(3, area_);
     }
     if (entityType_ != null) {
       output.writeMessage(4, getEntityType());
     }
-    if (operation_ != io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation.UPSERT.getNumber()) {
+    if (operation_ != io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation.UPSERT.getNumber()) {
       output.writeEnum(5, operation_);
     }
     if (bodyCase_ == 6) {
@@ -502,7 +502,7 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeInt32Size(2, index_);
     }
-    if (area_ != io.evitadb.externalApi.grpc.generated.GrpcCaptureArea.SCHEMA.getNumber()) {
+    if (area_ != io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureArea.SCHEMA.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
         .computeEnumSize(3, area_);
     }
@@ -510,7 +510,7 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(4, getEntityType());
     }
-    if (operation_ != io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation.UPSERT.getNumber()) {
+    if (operation_ != io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation.UPSERT.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
         .computeEnumSize(5, operation_);
     }
@@ -966,7 +966,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setVersion(long value) {
-
+      
       version_ = value;
       onChanged();
       return this;
@@ -980,7 +980,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearVersion() {
-
+      
       version_ = 0L;
       onChanged();
       return this;
@@ -1009,7 +1009,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setIndex(int value) {
-
+      
       index_ = value;
       onChanged();
       return this;
@@ -1023,7 +1023,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearIndex() {
-
+      
       index_ = 0;
       onChanged();
       return this;
@@ -1035,7 +1035,7 @@ private static final long serialVersionUID = 0L;
      * the area of the operation
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureArea area = 3;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureArea area = 3;</code>
      * @return The enum numeric value on the wire for area.
      */
     @java.lang.Override public int getAreaValue() {
@@ -1046,12 +1046,12 @@ private static final long serialVersionUID = 0L;
      * the area of the operation
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureArea area = 3;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureArea area = 3;</code>
      * @param value The enum numeric value on the wire for area to set.
      * @return This builder for chaining.
      */
     public Builder setAreaValue(int value) {
-
+      
       area_ = value;
       onChanged();
       return this;
@@ -1061,29 +1061,29 @@ private static final long serialVersionUID = 0L;
      * the area of the operation
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureArea area = 3;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureArea area = 3;</code>
      * @return The area.
      */
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcCaptureArea getArea() {
+    public io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureArea getArea() {
       @SuppressWarnings("deprecation")
-      io.evitadb.externalApi.grpc.generated.GrpcCaptureArea result = io.evitadb.externalApi.grpc.generated.GrpcCaptureArea.valueOf(area_);
-      return result == null ? io.evitadb.externalApi.grpc.generated.GrpcCaptureArea.UNRECOGNIZED : result;
+      io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureArea result = io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureArea.valueOf(area_);
+      return result == null ? io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureArea.UNRECOGNIZED : result;
     }
     /**
      * <pre>
      * the area of the operation
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureArea area = 3;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureArea area = 3;</code>
      * @param value The area to set.
      * @return This builder for chaining.
      */
-    public Builder setArea(io.evitadb.externalApi.grpc.generated.GrpcCaptureArea value) {
+    public Builder setArea(io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureArea value) {
       if (value == null) {
         throw new NullPointerException();
       }
-
+      
       area_ = value.getNumber();
       onChanged();
       return this;
@@ -1093,11 +1093,11 @@ private static final long serialVersionUID = 0L;
      * the area of the operation
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureArea area = 3;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureArea area = 3;</code>
      * @return This builder for chaining.
      */
     public Builder clearArea() {
-
+      
       area_ = 0;
       onChanged();
       return this;
@@ -1225,7 +1225,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue entityType = 4;</code>
      */
     public com.google.protobuf.StringValue.Builder getEntityTypeBuilder() {
-
+      
       onChanged();
       return getEntityTypeFieldBuilder().getBuilder();
     }
@@ -1254,7 +1254,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue entityType = 4;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
         getEntityTypeFieldBuilder() {
       if (entityTypeBuilder_ == null) {
         entityTypeBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1273,7 +1273,7 @@ private static final long serialVersionUID = 0L;
      * the operation that was performed
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation operation = 5;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 5;</code>
      * @return The enum numeric value on the wire for operation.
      */
     @java.lang.Override public int getOperationValue() {
@@ -1284,12 +1284,12 @@ private static final long serialVersionUID = 0L;
      * the operation that was performed
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation operation = 5;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 5;</code>
      * @param value The enum numeric value on the wire for operation to set.
      * @return This builder for chaining.
      */
     public Builder setOperationValue(int value) {
-
+      
       operation_ = value;
       onChanged();
       return this;
@@ -1299,29 +1299,29 @@ private static final long serialVersionUID = 0L;
      * the operation that was performed
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation operation = 5;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 5;</code>
      * @return The operation.
      */
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation getOperation() {
+    public io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation getOperation() {
       @SuppressWarnings("deprecation")
-      io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation result = io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation.valueOf(operation_);
-      return result == null ? io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation.UNRECOGNIZED : result;
+      io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation result = io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation.valueOf(operation_);
+      return result == null ? io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation.UNRECOGNIZED : result;
     }
     /**
      * <pre>
      * the operation that was performed
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation operation = 5;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 5;</code>
      * @param value The operation to set.
      * @return This builder for chaining.
      */
-    public Builder setOperation(io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation value) {
+    public Builder setOperation(io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation value) {
       if (value == null) {
         throw new NullPointerException();
       }
-
+      
       operation_ = value.getNumber();
       onChanged();
       return this;
@@ -1331,11 +1331,11 @@ private static final long serialVersionUID = 0L;
      * the operation that was performed
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation operation = 5;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 5;</code>
      * @return This builder for chaining.
      */
     public Builder clearOperation() {
-
+      
       operation_ = 0;
       onChanged();
       return this;
@@ -1464,7 +1464,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation schemaMutation = 6;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutationOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutationOrBuilder> 
         getSchemaMutationFieldBuilder() {
       if (schemaMutationBuilder_ == null) {
         if (!(bodyCase_ == 6)) {
@@ -1605,7 +1605,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityMutation entityMutation = 7;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcEntityMutation, io.evitadb.externalApi.grpc.generated.GrpcEntityMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityMutationOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcEntityMutation, io.evitadb.externalApi.grpc.generated.GrpcEntityMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityMutationOrBuilder> 
         getEntityMutationFieldBuilder() {
       if (entityMutationBuilder_ == null) {
         if (!(bodyCase_ == 7)) {
@@ -1746,7 +1746,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalMutation localMutation = 8;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcLocalMutation, io.evitadb.externalApi.grpc.generated.GrpcLocalMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocalMutationOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcLocalMutation, io.evitadb.externalApi.grpc.generated.GrpcLocalMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocalMutationOrBuilder> 
         getLocalMutationFieldBuilder() {
       if (localMutationBuilder_ == null) {
         if (!(bodyCase_ == 8)) {

@@ -23,7 +23,7 @@
 
 package io.evitadb.core.query.algebra.prefetch;
 
-import io.evitadb.api.query.require.EntityRequire;
+import io.evitadb.api.query.require.EntityFetchRequire;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
@@ -45,6 +45,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -73,7 +74,7 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 	/**
 	 * Memoized predicate stored upon first calculation to lower computational resources.
 	 */
-	private PriceAmountPredicate memoizedPredicate;
+	@Nullable private PriceAmountPredicate memoizedPredicate;
 	/**
 	 * Memoized clone stored upon first calculation to lower computational resources.
 	 */
@@ -81,11 +82,11 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 	/**
 	 * Updated cardinality based on current execution context.
 	 */
-	private Integer prefetchEstimatedCardinality;
+	@Nullable private Integer prefetchEstimatedCardinality;
 	/**
 	 * Updated cost based on current execution context.
 	 */
-	private Long prefetchEstimatedCost;
+	@Nullable private Long prefetchEstimatedCost;
 
 	public SelectionFormula(@Nonnull Formula delegate, @Nonnull EntityToBitmapFilter alternative) {
 		Assert.notNull(!(delegate instanceof SkipFormula), "The delegate formula cannot be a skip formula!");
@@ -95,7 +96,7 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 
 	@Nullable
 	@Override
-	public EntityRequire getEntityRequire() {
+	public EntityFetchRequire getEntityRequire() {
 		return alternative.getEntityRequire();
 	}
 
@@ -177,7 +178,7 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 							predicate = filteredOutPriceRecordAccessor.getRequestedPredicate();
 						} else {
 							Assert.isPremiseValid(
-								predicate.equals(filteredOutPriceRecordAccessor.getRequestedPredicate()),
+								Objects.equals(predicate, filteredOutPriceRecordAccessor.getRequestedPredicate()),
 								"All filtered out price record accessors must have the same predicate!"
 							);
 						}
@@ -219,18 +220,20 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 
 	@Nonnull
 	@Override
-	public FilteredPriceRecords getFilteredPriceRecords() {
-		Assert.isPremiseValid(this.executionContext != null, "The formula hasn't been initialized!");
+	public FilteredPriceRecords getFilteredPriceRecords(@Nonnull QueryExecutionContext context) {
 		// if the entities were prefetched we passed the "is it worthwhile" check
-		return Optional.ofNullable(executionContext.getPrefetchedEntities())
+		return Optional.ofNullable(this.executionContext.getPrefetchedEntities())
 			// ask the alternative solution for filtered price records
-			.map(it ->
-				alternative instanceof FilteredPriceRecordAccessor ?
-					((FilteredPriceRecordAccessor) alternative).getFilteredPriceRecords() :
-					new ResolvedFilteredPriceRecords()
+			.map(it -> {
+					if (this.alternative instanceof FilteredPriceRecordAccessor fpra) {
+						return fpra.getFilteredPriceRecords(context);
+					} else {
+						return new ResolvedFilteredPriceRecords();
+					}
+				}
 			)
 			// otherwise collect the filtered records from the delegate
-			.orElseGet(() -> FilteredPriceRecords.createFromFormulas(this, this.compute()));
+			.orElseGet(() -> FilteredPriceRecords.createFromFormulas(this, this.compute(), this.executionContext));
 	}
 
 	@Override
@@ -276,9 +279,11 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 	protected Bitmap computeInternal() {
 		Assert.isPremiseValid(this.executionContext != null, "The formula hasn't been initialized!");
 		// if the entities were prefetched we passed the "is it worthwhile" check
-		return Optional.ofNullable(this.executionContext.getPrefetchedEntities())
-			.map(it -> alternative.filter(this.executionContext))
-			.orElseGet(() -> getDelegate().compute());
+		if (this.executionContext.isPrefetchExecution()) {
+			return this.alternative.filter(this.executionContext);
+		} else {
+			return getDelegate().compute();
+		}
 	}
 
 }

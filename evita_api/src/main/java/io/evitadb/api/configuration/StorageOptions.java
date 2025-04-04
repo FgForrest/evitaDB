@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -52,7 +52,16 @@ import java.util.Optional;
  *                                           purposes. The size of the buffer limits the maximum size of an individual record in the
  *                                           key/value data store.
  * @param maxOpenedReadHandles               Maximum number of simultaneously opened {@link java.io.InputStream} to file offset index file.
- * @param computeCRC32C                      Contains setting that determined whether CRC32C checksums will be computed for written
+ * @param syncWrites                         Determines whether the storage layer forces the operating system to flush
+ *                                           the internal buffers to disk at regular "safe points" or not. The default
+ *                                           is true, so that data is not lost in the event of a power failure. There
+ *                                           are situations where disabling this feature can improve performance and
+ *                                           the client can accept the risk of data loss (e.g. when running automated
+ *                                           tests, etc.).
+ * @param compress                           Specifies whether or not to compress the data. If set to true, all data
+ *                                           will be compressed, but only those whose compressed size is less than
+ *                                           the original size will be saved in compressed form. The default is false.
+ * @param computeCRC32C                      Determines whether CRC32C checksums will be computed for written
  *                                           records and also whether the CRC32C checksum will be checked on record read.
  * @param minimalActiveRecordShare           Minimal share of active records in the file. If the share is lower, the file will
  *                                           be compacted.
@@ -73,12 +82,14 @@ import java.util.Optional;
  */
 @Builder
 public record StorageOptions(
-	@Nullable Path storageDirectory,
-	@Nullable Path exportDirectory,
+	@Nonnull Path storageDirectory,
+	@Nonnull Path exportDirectory,
 	long lockTimeoutSeconds,
 	long waitOnCloseSeconds,
 	int outputBufferSize,
 	int maxOpenedReadHandles,
+	boolean syncWrites,
+	boolean compress,
 	boolean computeCRC32C,
 	double minimalActiveRecordShare,
 	long fileSizeCompactionThresholdBytes,
@@ -87,28 +98,33 @@ public record StorageOptions(
 	long exportFileHistoryExpirationSeconds
 ) {
 
-	public static final int DEFAULT_OUTPUT_BUFFER_SIZE = 2_097_152;
+	public static final int DEFAULT_OUTPUT_BUFFER_SIZE = 2_097_152; // 2MB
 	public static final Path DEFAULT_DATA_DIRECTORY = Paths.get("").resolve("data");
 	public static final Path DEFAULT_EXPORT_DIRECTORY = Paths.get("").resolve("export");
 	public static final int DEFAULT_LOCK_TIMEOUT_SECONDS = 5;
 	public static final int DEFAULT_WAIT_ON_CLOSE_SECONDS = 5;
 	public static final int DEFAULT_MAX_OPENED_READ_HANDLES = Runtime.getRuntime().availableProcessors();
+	public static final boolean DEFAULT_SYNC_WRITES = true;
+	public static final boolean DEFAULT_COMPRESS = false;
 	public static final boolean DEFAULT_COMPUTE_CRC = true;
 	public static final double DEFAULT_MINIMAL_ACTIVE_RECORD_SHARE = 0.5;
-	public static final long DEFAULT_MINIMAL_FILE_SIZE_COMPACTION_THRESHOLD = 104_857_600L;
-	public static final boolean DEFAULT_TIME_TRAVEL_ENABLED = true;
-	public static final long DEFAULT_EXPORT_DIRECTORY_SIZE_LIMIT_BYTES = 1_073_741_824L;
-	public static final long DEFAULT_EXPORT_FILE_HISTORY_EXPIRATION_SECONDS = 604_800L;
+	public static final long DEFAULT_MINIMAL_FILE_SIZE_COMPACTION_THRESHOLD = 104_857_600L; // 100MB
+	public static final boolean DEFAULT_TIME_TRAVEL_ENABLED = false;
+	public static final long DEFAULT_EXPORT_DIRECTORY_SIZE_LIMIT_BYTES = 1_073_741_824L; // 1GB
+	public static final long DEFAULT_EXPORT_FILE_HISTORY_EXPIRATION_SECONDS = 604_800L; // 7 days
 
 	/**
 	 * Builder method is planned to be used only in tests.
 	 */
+	@Nonnull
 	public static StorageOptions temporary() {
 		return new StorageOptions(
 			Path.of(System.getProperty("java.io.tmpdir"), "evita/data"),
 			Path.of(System.getProperty("java.io.tmpdir"), "evita/export"),
 			5, 5, DEFAULT_OUTPUT_BUFFER_SIZE,
 			Runtime.getRuntime().availableProcessors(),
+			false,
+			false,
 			true,
 			DEFAULT_MINIMAL_ACTIVE_RECORD_SHARE,
 			DEFAULT_MINIMAL_FILE_SIZE_COMPACTION_THRESHOLD,
@@ -121,6 +137,7 @@ public record StorageOptions(
 	/**
 	 * Builder for the storage options. Recommended to use to avoid binary compatibility problems in the future.
 	 */
+	@Nonnull
 	public static StorageOptions.Builder builder() {
 		return new StorageOptions.Builder();
 	}
@@ -128,6 +145,7 @@ public record StorageOptions(
 	/**
 	 * Builder for the storage options. Recommended to use to avoid binary compatibility problems in the future.
 	 */
+	@Nonnull
 	public static StorageOptions.Builder builder(@Nonnull StorageOptions storageOptions) {
 		return new StorageOptions.Builder(storageOptions);
 	}
@@ -140,6 +158,8 @@ public record StorageOptions(
 			DEFAULT_WAIT_ON_CLOSE_SECONDS,
 			DEFAULT_OUTPUT_BUFFER_SIZE,
 			DEFAULT_MAX_OPENED_READ_HANDLES,
+			DEFAULT_SYNC_WRITES,
+			DEFAULT_COMPRESS,
 			DEFAULT_COMPUTE_CRC,
 			DEFAULT_MINIMAL_ACTIVE_RECORD_SHARE,
 			DEFAULT_MINIMAL_FILE_SIZE_COMPACTION_THRESHOLD,
@@ -156,6 +176,8 @@ public record StorageOptions(
 		long waitOnCloseSeconds,
 		int outputBufferSize,
 		int maxOpenedReadHandles,
+		boolean syncWrites,
+		boolean compress,
 		boolean computeCRC32C,
 		double minimalActiveRecordShare,
 		long fileSizeCompactionThresholdBytes,
@@ -169,30 +191,14 @@ public record StorageOptions(
 		this.waitOnCloseSeconds = waitOnCloseSeconds;
 		this.outputBufferSize = outputBufferSize;
 		this.maxOpenedReadHandles = maxOpenedReadHandles;
+		this.syncWrites = syncWrites;
+		this.compress = compress;
 		this.computeCRC32C = computeCRC32C;
 		this.minimalActiveRecordShare = minimalActiveRecordShare;
 		this.fileSizeCompactionThresholdBytes = fileSizeCompactionThresholdBytes;
 		this.timeTravelEnabled = timeTravelEnabled;
 		this.exportDirectorySizeLimitBytes = exportDirectorySizeLimitBytes;
 		this.exportFileHistoryExpirationSeconds = exportFileHistoryExpirationSeconds;
-	}
-
-	/**
-	 * Method returns null safe data directory.
-	 */
-	@Nonnull
-	public Path storageDirectoryOrDefault() {
-		return storageDirectory == null ?
-			DEFAULT_DATA_DIRECTORY : storageDirectory;
-	}
-
-	/**
-	 * Method returns null safe export directory.
-	 */
-	@Nonnull
-	public Path exportDirectoryOrDefault() {
-		return exportDirectory == null ?
-			DEFAULT_EXPORT_DIRECTORY : exportDirectory;
 	}
 
 	/**
@@ -206,6 +212,8 @@ public record StorageOptions(
 		private long waitOnCloseSeconds = DEFAULT_WAIT_ON_CLOSE_SECONDS;
 		private int outputBufferSize = DEFAULT_OUTPUT_BUFFER_SIZE;
 		private int maxOpenedReadHandles = DEFAULT_MAX_OPENED_READ_HANDLES;
+		private boolean syncWrites = DEFAULT_SYNC_WRITES;
+		private boolean compression = DEFAULT_COMPRESS;
 		private boolean computeCRC32C = DEFAULT_COMPUTE_CRC;
 		private double minimalActiveRecordShare = DEFAULT_MINIMAL_ACTIVE_RECORD_SHARE;
 		private long fileSizeCompactionThresholdBytes = DEFAULT_MINIMAL_FILE_SIZE_COMPACTION_THRESHOLD;
@@ -223,6 +231,8 @@ public record StorageOptions(
 			this.waitOnCloseSeconds = storageOptions.waitOnCloseSeconds;
 			this.outputBufferSize = storageOptions.outputBufferSize;
 			this.maxOpenedReadHandles = storageOptions.maxOpenedReadHandles;
+			this.syncWrites = storageOptions.syncWrites;
+			this.compression = storageOptions.compress;
 			this.computeCRC32C = storageOptions.computeCRC32C;
 			this.minimalActiveRecordShare = storageOptions.minimalActiveRecordShare;
 			this.fileSizeCompactionThresholdBytes = storageOptions.fileSizeCompactionThresholdBytes;
@@ -233,13 +243,15 @@ public record StorageOptions(
 
 		@Nonnull
 		public Builder storageDirectory(@Nonnull Path storageDirectory) {
-			this.storageDirectory = storageDirectory;
+			//noinspection ConstantValue
+			this.storageDirectory = storageDirectory == null ? DEFAULT_DATA_DIRECTORY : storageDirectory;
 			return this;
 		}
 
 		@Nonnull
 		public Builder exportDirectory(@Nonnull Path exportDirectory) {
-			this.exportDirectory = exportDirectory;
+			//noinspection ConstantValue
+			this.exportDirectory = exportDirectory == null ? DEFAULT_EXPORT_DIRECTORY : exportDirectory;
 			return this;
 		}
 
@@ -264,6 +276,18 @@ public record StorageOptions(
 		@Nonnull
 		public Builder maxOpenedReadHandles(int maxOpenedReadHandles) {
 			this.maxOpenedReadHandles = maxOpenedReadHandles;
+			return this;
+		}
+
+		@Nonnull
+		public Builder syncWrites(boolean syncWrites) {
+			this.syncWrites = syncWrites;
+			return this;
+		}
+
+		@Nonnull
+		public Builder compress(boolean compress) {
+			this.compression = compress;
 			return this;
 		}
 
@@ -312,6 +336,8 @@ public record StorageOptions(
 				waitOnCloseSeconds,
 				outputBufferSize,
 				maxOpenedReadHandles,
+				syncWrites,
+				compression,
 				computeCRC32C,
 				minimalActiveRecordShare,
 				fileSizeCompactionThresholdBytes,

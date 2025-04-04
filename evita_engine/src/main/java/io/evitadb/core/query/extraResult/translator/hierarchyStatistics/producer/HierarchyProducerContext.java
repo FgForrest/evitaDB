@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,15 +26,15 @@ package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.produce
 import io.evitadb.api.query.filter.HierarchyFilterConstraint;
 import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.filter.HierarchyWithinRoot;
+import io.evitadb.api.query.require.FetchRequirementCollector;
 import io.evitadb.api.query.require.HierarchyOfReference;
 import io.evitadb.api.query.require.HierarchyOfSelf;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.AttributeSchemaAccessor;
-import io.evitadb.core.query.PrefetchRequirementCollector;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.function.IntBiFunction;
+import io.evitadb.function.IntObjBiFunction;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.bitmap.Bitmap;
@@ -54,7 +54,7 @@ import java.util.function.Supplier;
  * @param referenceSchema                        Target entity schema of the entity.
  * @param hierarchyFilter                        Contains {@link HierarchyWithin} or {@link HierarchyWithinRoot} filtering query if it was part of the query filter.
  * @param entityIndex                            Contains reference to the owner {@link EntityIndex} of the {@link HierarchyIndex}.
- * @param prefetchRequirementCollector           Reference to the collector of requirements for entity prefetch phase.
+ * @param fetchRequirementCollector              Reference to the collector of requirements for entity prefetch phase.
  * @param directlyQueriedEntitiesFormulaProducer Contains a function that produces bitmap of queried entity ids connected with particular hierarchical entity.
  * @param hierarchyFilterPredicateProducer       lambda that creates a {@link HierarchyFilteringPredicate} based respecting the statistics base
  * @param removeEmptyResults                     Contains true if hierarchy statistics should be stripped of results with zero occurrences.
@@ -66,8 +66,8 @@ public record HierarchyProducerContext(
 	@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
 	@Nullable HierarchyFilterConstraint hierarchyFilter,
 	@Nonnull GlobalEntityIndex entityIndex,
-	@Nullable PrefetchRequirementCollector prefetchRequirementCollector,
-	@Nonnull IntBiFunction<StatisticsBase, Formula> directlyQueriedEntitiesFormulaProducer,
+	@Nullable FetchRequirementCollector fetchRequirementCollector,
+	@Nonnull IntObjBiFunction<StatisticsBase, Formula> directlyQueriedEntitiesFormulaProducer,
 	@Nullable Function<StatisticsBase, HierarchyFilteringPredicate> hierarchyFilterPredicateProducer,
 	boolean removeEmptyResults
 ) {

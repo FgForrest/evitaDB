@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Entity reference which contains information about parent entity.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent}
  */
 public final class GrpcEntityReferenceWithParent extends
@@ -136,6 +140,12 @@ private static final long serialVersionUID = 0L;
   public static final int ENTITYTYPE_FIELD_NUMBER = 1;
   private volatile java.lang.Object entityType_;
   /**
+   * <pre>
+   * Type of entity.
+   * Entity type is main sharding key - all data of entities with same type are stored in separated collections. Within the
+   * entity type entity is uniquely represented by primary key.
+   * </pre>
+   *
    * <code>string entityType = 1;</code>
    * @return The entityType.
    */
@@ -145,7 +155,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs =
+      com.google.protobuf.ByteString bs = 
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       entityType_ = s;
@@ -153,6 +163,12 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * Type of entity.
+   * Entity type is main sharding key - all data of entities with same type are stored in separated collections. Within the
+   * entity type entity is uniquely represented by primary key.
+   * </pre>
+   *
    * <code>string entityType = 1;</code>
    * @return The bytes for entityType.
    */
@@ -161,7 +177,7 @@ private static final long serialVersionUID = 0L;
       getEntityTypeBytes() {
     java.lang.Object ref = entityType_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b =
+      com.google.protobuf.ByteString b = 
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       entityType_ = b;
@@ -174,6 +190,11 @@ private static final long serialVersionUID = 0L;
   public static final int PRIMARYKEY_FIELD_NUMBER = 2;
   private int primaryKey_;
   /**
+   * <pre>
+   * Unique Integer positive number representing the entity. Can be used for fast lookup for
+   * entity (entities). Primary key must be unique within the same entity type.
+   * </pre>
+   *
    * <code>int32 primaryKey = 2;</code>
    * @return The primaryKey.
    */
@@ -185,17 +206,29 @@ private static final long serialVersionUID = 0L;
   public static final int VERSION_FIELD_NUMBER = 3;
   private int version_;
   /**
-   * <code>int32 version = 3;</code>
+   * <pre>
+   * Contains version of this entity and gets increased with any entity type update. Allows to execute
+   * optimistic locking i.e. avoiding parallel modifications.
+   * value is deprecated, it was never available in the first place - it was a mistake in the design.
+   * in order to get the entity version you need to fetch the entity itself (with entity body).
+   * </pre>
+   *
+   * <code>int32 version = 3 [deprecated = true];</code>
+   * @deprecated
    * @return The version.
    */
   @java.lang.Override
-  public int getVersion() {
+  @java.lang.Deprecated public int getVersion() {
     return version_;
   }
 
   public static final int PARENT_FIELD_NUMBER = 4;
   private io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parent_;
   /**
+   * <pre>
+   * Recursive pointer to parent entity.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parent = 4;</code>
    * @return Whether the parent field is set.
    */
@@ -204,6 +237,10 @@ private static final long serialVersionUID = 0L;
     return parent_ != null;
   }
   /**
+   * <pre>
+   * Recursive pointer to parent entity.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parent = 4;</code>
    * @return The parent.
    */
@@ -212,6 +249,10 @@ private static final long serialVersionUID = 0L;
     return parent_ == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent.getDefaultInstance() : parent_;
   }
   /**
+   * <pre>
+   * Recursive pointer to parent entity.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parent = 4;</code>
    */
   @java.lang.Override
@@ -412,6 +453,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Entity reference which contains information about parent entity.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent}
    */
   public static final class Builder extends
@@ -587,6 +632,12 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object entityType_ = "";
     /**
+     * <pre>
+     * Type of entity.
+     * Entity type is main sharding key - all data of entities with same type are stored in separated collections. Within the
+     * entity type entity is uniquely represented by primary key.
+     * </pre>
+     *
      * <code>string entityType = 1;</code>
      * @return The entityType.
      */
@@ -603,6 +654,12 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Type of entity.
+     * Entity type is main sharding key - all data of entities with same type are stored in separated collections. Within the
+     * entity type entity is uniquely represented by primary key.
+     * </pre>
+     *
      * <code>string entityType = 1;</code>
      * @return The bytes for entityType.
      */
@@ -610,7 +667,7 @@ private static final long serialVersionUID = 0L;
         getEntityTypeBytes() {
       java.lang.Object ref = entityType_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b =
+        com.google.protobuf.ByteString b = 
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         entityType_ = b;
@@ -620,6 +677,12 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Type of entity.
+     * Entity type is main sharding key - all data of entities with same type are stored in separated collections. Within the
+     * entity type entity is uniquely represented by primary key.
+     * </pre>
+     *
      * <code>string entityType = 1;</code>
      * @param value The entityType to set.
      * @return This builder for chaining.
@@ -629,22 +692,34 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-
+  
       entityType_ = value;
       onChanged();
       return this;
     }
     /**
+     * <pre>
+     * Type of entity.
+     * Entity type is main sharding key - all data of entities with same type are stored in separated collections. Within the
+     * entity type entity is uniquely represented by primary key.
+     * </pre>
+     *
      * <code>string entityType = 1;</code>
      * @return This builder for chaining.
      */
     public Builder clearEntityType() {
-
+      
       entityType_ = getDefaultInstance().getEntityType();
       onChanged();
       return this;
     }
     /**
+     * <pre>
+     * Type of entity.
+     * Entity type is main sharding key - all data of entities with same type are stored in separated collections. Within the
+     * entity type entity is uniquely represented by primary key.
+     * </pre>
+     *
      * <code>string entityType = 1;</code>
      * @param value The bytes for entityType to set.
      * @return This builder for chaining.
@@ -655,7 +730,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-
+      
       entityType_ = value;
       onChanged();
       return this;
@@ -663,6 +738,11 @@ private static final long serialVersionUID = 0L;
 
     private int primaryKey_ ;
     /**
+     * <pre>
+     * Unique Integer positive number representing the entity. Can be used for fast lookup for
+     * entity (entities). Primary key must be unique within the same entity type.
+     * </pre>
+     *
      * <code>int32 primaryKey = 2;</code>
      * @return The primaryKey.
      */
@@ -671,22 +751,32 @@ private static final long serialVersionUID = 0L;
       return primaryKey_;
     }
     /**
+     * <pre>
+     * Unique Integer positive number representing the entity. Can be used for fast lookup for
+     * entity (entities). Primary key must be unique within the same entity type.
+     * </pre>
+     *
      * <code>int32 primaryKey = 2;</code>
      * @param value The primaryKey to set.
      * @return This builder for chaining.
      */
     public Builder setPrimaryKey(int value) {
-
+      
       primaryKey_ = value;
       onChanged();
       return this;
     }
     /**
+     * <pre>
+     * Unique Integer positive number representing the entity. Can be used for fast lookup for
+     * entity (entities). Primary key must be unique within the same entity type.
+     * </pre>
+     *
      * <code>int32 primaryKey = 2;</code>
      * @return This builder for chaining.
      */
     public Builder clearPrimaryKey() {
-
+      
       primaryKey_ = 0;
       onChanged();
       return this;
@@ -694,30 +784,54 @@ private static final long serialVersionUID = 0L;
 
     private int version_ ;
     /**
-     * <code>int32 version = 3;</code>
+     * <pre>
+     * Contains version of this entity and gets increased with any entity type update. Allows to execute
+     * optimistic locking i.e. avoiding parallel modifications.
+     * value is deprecated, it was never available in the first place - it was a mistake in the design.
+     * in order to get the entity version you need to fetch the entity itself (with entity body).
+     * </pre>
+     *
+     * <code>int32 version = 3 [deprecated = true];</code>
+     * @deprecated
      * @return The version.
      */
     @java.lang.Override
-    public int getVersion() {
+    @java.lang.Deprecated public int getVersion() {
       return version_;
     }
     /**
-     * <code>int32 version = 3;</code>
+     * <pre>
+     * Contains version of this entity and gets increased with any entity type update. Allows to execute
+     * optimistic locking i.e. avoiding parallel modifications.
+     * value is deprecated, it was never available in the first place - it was a mistake in the design.
+     * in order to get the entity version you need to fetch the entity itself (with entity body).
+     * </pre>
+     *
+     * <code>int32 version = 3 [deprecated = true];</code>
+     * @deprecated
      * @param value The version to set.
      * @return This builder for chaining.
      */
-    public Builder setVersion(int value) {
-
+    @java.lang.Deprecated public Builder setVersion(int value) {
+      
       version_ = value;
       onChanged();
       return this;
     }
     /**
-     * <code>int32 version = 3;</code>
+     * <pre>
+     * Contains version of this entity and gets increased with any entity type update. Allows to execute
+     * optimistic locking i.e. avoiding parallel modifications.
+     * value is deprecated, it was never available in the first place - it was a mistake in the design.
+     * in order to get the entity version you need to fetch the entity itself (with entity body).
+     * </pre>
+     *
+     * <code>int32 version = 3 [deprecated = true];</code>
+     * @deprecated
      * @return This builder for chaining.
      */
-    public Builder clearVersion() {
-
+    @java.lang.Deprecated public Builder clearVersion() {
+      
       version_ = 0;
       onChanged();
       return this;
@@ -727,6 +841,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParentOrBuilder> parentBuilder_;
     /**
+     * <pre>
+     * Recursive pointer to parent entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parent = 4;</code>
      * @return Whether the parent field is set.
      */
@@ -734,6 +852,10 @@ private static final long serialVersionUID = 0L;
       return parentBuilder_ != null || parent_ != null;
     }
     /**
+     * <pre>
+     * Recursive pointer to parent entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parent = 4;</code>
      * @return The parent.
      */
@@ -745,6 +867,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Recursive pointer to parent entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parent = 4;</code>
      */
     public Builder setParent(io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent value) {
@@ -761,6 +887,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Recursive pointer to parent entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parent = 4;</code>
      */
     public Builder setParent(
@@ -775,6 +905,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Recursive pointer to parent entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parent = 4;</code>
      */
     public Builder mergeParent(io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent value) {
@@ -793,6 +927,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Recursive pointer to parent entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parent = 4;</code>
      */
     public Builder clearParent() {
@@ -807,14 +945,22 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Recursive pointer to parent entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parent = 4;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent.Builder getParentBuilder() {
-
+      
       onChanged();
       return getParentFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Recursive pointer to parent entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parent = 4;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParentOrBuilder getParentOrBuilder() {
@@ -826,10 +972,14 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Recursive pointer to parent entity.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parent = 4;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParentOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParentOrBuilder> 
         getParentFieldBuilder() {
       if (parentBuilder_ == null) {
         parentBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<

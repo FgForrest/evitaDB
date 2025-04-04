@@ -32,9 +32,11 @@ import io.evitadb.api.requestResponse.data.structure.ReferenceDecorator;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.AttributesFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityQueryContext;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
-import lombok.RequiredArgsConstructor;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Locale;
 
 /**
@@ -43,8 +45,19 @@ import java.util.Locale;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-@RequiredArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class AttributesDataFetcher implements DataFetcher<DataFetcherResult<AttributesContract>> {
+
+    @Nullable
+    private static AttributesDataFetcher INSTANCE;
+
+    @Nonnull
+    public static AttributesDataFetcher getInstance() {
+        if (INSTANCE == null) {
+            INSTANCE = new AttributesDataFetcher();
+        }
+        return INSTANCE;
+    }
 
     @Nonnull
     @Override

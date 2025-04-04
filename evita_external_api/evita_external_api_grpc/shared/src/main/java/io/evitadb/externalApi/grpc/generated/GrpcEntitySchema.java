@@ -56,6 +56,8 @@ private static final long serialVersionUID = 0L;
     currencies_ = java.util.Collections.emptyList();
     evolutionMode_ = java.util.Collections.emptyList();
     nameVariant_ = java.util.Collections.emptyList();
+    hierarchyIndexedInScopes_ = java.util.Collections.emptyList();
+    priceIndexedInScopes_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -248,6 +250,52 @@ private static final long serialVersionUID = 0L;
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcNameVariant.parser(), extensionRegistry));
             break;
           }
+          case 136: {
+            int rawValue = input.readEnum();
+            if (!((mutable_bitField0_ & 0x00000100) != 0)) {
+              hierarchyIndexedInScopes_ = new java.util.ArrayList<java.lang.Integer>();
+              mutable_bitField0_ |= 0x00000100;
+            }
+            hierarchyIndexedInScopes_.add(rawValue);
+            break;
+          }
+          case 138: {
+            int length = input.readRawVarint32();
+            int oldLimit = input.pushLimit(length);
+            while(input.getBytesUntilLimit() > 0) {
+              int rawValue = input.readEnum();
+              if (!((mutable_bitField0_ & 0x00000100) != 0)) {
+                hierarchyIndexedInScopes_ = new java.util.ArrayList<java.lang.Integer>();
+                mutable_bitField0_ |= 0x00000100;
+              }
+              hierarchyIndexedInScopes_.add(rawValue);
+            }
+            input.popLimit(oldLimit);
+            break;
+          }
+          case 144: {
+            int rawValue = input.readEnum();
+            if (!((mutable_bitField0_ & 0x00000200) != 0)) {
+              priceIndexedInScopes_ = new java.util.ArrayList<java.lang.Integer>();
+              mutable_bitField0_ |= 0x00000200;
+            }
+            priceIndexedInScopes_.add(rawValue);
+            break;
+          }
+          case 146: {
+            int length = input.readRawVarint32();
+            int oldLimit = input.pushLimit(length);
+            while(input.getBytesUntilLimit() > 0) {
+              int rawValue = input.readEnum();
+              if (!((mutable_bitField0_ & 0x00000200) != 0)) {
+                priceIndexedInScopes_ = new java.util.ArrayList<java.lang.Integer>();
+                mutable_bitField0_ |= 0x00000200;
+              }
+              priceIndexedInScopes_.add(rawValue);
+            }
+            input.popLimit(oldLimit);
+            break;
+          }
           default: {
             if (!parseUnknownField(
                 input, unknownFields, extensionRegistry, tag)) {
@@ -274,6 +322,12 @@ private static final long serialVersionUID = 0L;
       }
       if (((mutable_bitField0_ & 0x00000080) != 0)) {
         nameVariant_ = java.util.Collections.unmodifiableList(nameVariant_);
+      }
+      if (((mutable_bitField0_ & 0x00000100) != 0)) {
+        hierarchyIndexedInScopes_ = java.util.Collections.unmodifiableList(hierarchyIndexedInScopes_);
+      }
+      if (((mutable_bitField0_ & 0x00000200) != 0)) {
+        priceIndexedInScopes_ = java.util.Collections.unmodifiableList(priceIndexedInScopes_);
       }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
@@ -327,7 +381,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs =
+      com.google.protobuf.ByteString bs = 
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       name_ = s;
@@ -348,7 +402,7 @@ private static final long serialVersionUID = 0L;
       getNameBytes() {
     java.lang.Object ref = name_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b =
+      com.google.protobuf.ByteString b = 
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       name_ = b;
@@ -563,7 +617,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 9;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder>
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder> 
       getLocalesOrBuilderList() {
     return locales_;
   }
@@ -626,7 +680,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 10;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder>
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder> 
       getCurrenciesOrBuilderList() {
     return currencies_;
   }
@@ -671,7 +725,7 @@ private static final long serialVersionUID = 0L;
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcAttributeSchema> defaultEntry =
             com.google.protobuf.MapEntry
             .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcAttributeSchema>newDefaultInstance(
-                io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntitySchema_AttributesEntry_descriptor,
+                io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntitySchema_AttributesEntry_descriptor, 
                 com.google.protobuf.WireFormat.FieldType.STRING,
                 "",
                 com.google.protobuf.WireFormat.FieldType.MESSAGE,
@@ -804,7 +858,7 @@ private static final long serialVersionUID = 0L;
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcAssociatedDataSchema> defaultEntry =
             com.google.protobuf.MapEntry
             .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcAssociatedDataSchema>newDefaultInstance(
-                io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntitySchema_AssociatedDataEntry_descriptor,
+                io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntitySchema_AssociatedDataEntry_descriptor, 
                 com.google.protobuf.WireFormat.FieldType.STRING,
                 "",
                 com.google.protobuf.WireFormat.FieldType.MESSAGE,
@@ -925,7 +979,7 @@ private static final long serialVersionUID = 0L;
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema> defaultEntry =
             com.google.protobuf.MapEntry
             .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema>newDefaultInstance(
-                io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntitySchema_ReferencesEntry_descriptor,
+                io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntitySchema_ReferencesEntry_descriptor, 
                 com.google.protobuf.WireFormat.FieldType.STRING,
                 "",
                 com.google.protobuf.WireFormat.FieldType.MESSAGE,
@@ -1162,7 +1216,7 @@ private static final long serialVersionUID = 0L;
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema> defaultEntry =
             com.google.protobuf.MapEntry
             .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema>newDefaultInstance(
-                io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntitySchema_SortableAttributeCompoundsEntry_descriptor,
+                io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntitySchema_SortableAttributeCompoundsEntry_descriptor, 
                 com.google.protobuf.WireFormat.FieldType.STRING,
                 "",
                 com.google.protobuf.WireFormat.FieldType.MESSAGE,
@@ -1274,7 +1328,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 16;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder> 
       getNameVariantOrBuilderList() {
     return nameVariant_;
   }
@@ -1312,6 +1366,197 @@ private static final long serialVersionUID = 0L;
       int index) {
     return nameVariant_.get(index);
   }
+
+  public static final int HIERARCHYINDEXEDINSCOPES_FIELD_NUMBER = 17;
+  private java.util.List<java.lang.Integer> hierarchyIndexedInScopes_;
+  private static final com.google.protobuf.Internal.ListAdapter.Converter<
+      java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope> hierarchyIndexedInScopes_converter_ =
+          new com.google.protobuf.Internal.ListAdapter.Converter<
+              java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope>() {
+            public io.evitadb.externalApi.grpc.generated.GrpcEntityScope convert(java.lang.Integer from) {
+              @SuppressWarnings("deprecation")
+              io.evitadb.externalApi.grpc.generated.GrpcEntityScope result = io.evitadb.externalApi.grpc.generated.GrpcEntityScope.valueOf(from);
+              return result == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityScope.UNRECOGNIZED : result;
+            }
+          };
+  /**
+   * <pre>
+   * Contains set of all scopes the entity is indexed in and can be used for filtering entities and computation of
+   * extra data. If the hierarchy information is not indexed, it is still available on the entity itself (i.e. entity
+   * can define its parent entity), but it is not possible to work with the hierarchy information in any other way
+   * (calculating parent chain, children, siblings, etc.).
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope hierarchyIndexedInScopes = 17;</code>
+   * @return A list containing the hierarchyIndexedInScopes.
+   */
+  @java.lang.Override
+  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getHierarchyIndexedInScopesList() {
+    return new com.google.protobuf.Internal.ListAdapter<
+        java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope>(hierarchyIndexedInScopes_, hierarchyIndexedInScopes_converter_);
+  }
+  /**
+   * <pre>
+   * Contains set of all scopes the entity is indexed in and can be used for filtering entities and computation of
+   * extra data. If the hierarchy information is not indexed, it is still available on the entity itself (i.e. entity
+   * can define its parent entity), but it is not possible to work with the hierarchy information in any other way
+   * (calculating parent chain, children, siblings, etc.).
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope hierarchyIndexedInScopes = 17;</code>
+   * @return The count of hierarchyIndexedInScopes.
+   */
+  @java.lang.Override
+  public int getHierarchyIndexedInScopesCount() {
+    return hierarchyIndexedInScopes_.size();
+  }
+  /**
+   * <pre>
+   * Contains set of all scopes the entity is indexed in and can be used for filtering entities and computation of
+   * extra data. If the hierarchy information is not indexed, it is still available on the entity itself (i.e. entity
+   * can define its parent entity), but it is not possible to work with the hierarchy information in any other way
+   * (calculating parent chain, children, siblings, etc.).
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope hierarchyIndexedInScopes = 17;</code>
+   * @param index The index of the element to return.
+   * @return The hierarchyIndexedInScopes at the given index.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcEntityScope getHierarchyIndexedInScopes(int index) {
+    return hierarchyIndexedInScopes_converter_.convert(hierarchyIndexedInScopes_.get(index));
+  }
+  /**
+   * <pre>
+   * Contains set of all scopes the entity is indexed in and can be used for filtering entities and computation of
+   * extra data. If the hierarchy information is not indexed, it is still available on the entity itself (i.e. entity
+   * can define its parent entity), but it is not possible to work with the hierarchy information in any other way
+   * (calculating parent chain, children, siblings, etc.).
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope hierarchyIndexedInScopes = 17;</code>
+   * @return A list containing the enum numeric values on the wire for hierarchyIndexedInScopes.
+   */
+  @java.lang.Override
+  public java.util.List<java.lang.Integer>
+  getHierarchyIndexedInScopesValueList() {
+    return hierarchyIndexedInScopes_;
+  }
+  /**
+   * <pre>
+   * Contains set of all scopes the entity is indexed in and can be used for filtering entities and computation of
+   * extra data. If the hierarchy information is not indexed, it is still available on the entity itself (i.e. entity
+   * can define its parent entity), but it is not possible to work with the hierarchy information in any other way
+   * (calculating parent chain, children, siblings, etc.).
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope hierarchyIndexedInScopes = 17;</code>
+   * @param index The index of the value to return.
+   * @return The enum numeric value on the wire of hierarchyIndexedInScopes at the given index.
+   */
+  @java.lang.Override
+  public int getHierarchyIndexedInScopesValue(int index) {
+    return hierarchyIndexedInScopes_.get(index);
+  }
+  private int hierarchyIndexedInScopesMemoizedSerializedSize;
+
+  public static final int PRICEINDEXEDINSCOPES_FIELD_NUMBER = 18;
+  private java.util.List<java.lang.Integer> priceIndexedInScopes_;
+  private static final com.google.protobuf.Internal.ListAdapter.Converter<
+      java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope> priceIndexedInScopes_converter_ =
+          new com.google.protobuf.Internal.ListAdapter.Converter<
+              java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope>() {
+            public io.evitadb.externalApi.grpc.generated.GrpcEntityScope convert(java.lang.Integer from) {
+              @SuppressWarnings("deprecation")
+              io.evitadb.externalApi.grpc.generated.GrpcEntityScope result = io.evitadb.externalApi.grpc.generated.GrpcEntityScope.valueOf(from);
+              return result == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityScope.UNRECOGNIZED : result;
+            }
+          };
+  /**
+   * <pre>
+   * Contains set of all scopes the price information is indexed in and can be used for filtering entities and computation
+   * of extra data. If the price information is not indexed, it is still available on the entity itself (i.e. entity
+   * can define its price), but it is not possible to work with the price information in any other way (calculating
+   * price histogram, filtering, sorting by price, etc.).
+   * Prices can be also set as non-indexed individually by setting {&#64;link PriceContract#indexed()} to false.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope priceIndexedInScopes = 18;</code>
+   * @return A list containing the priceIndexedInScopes.
+   */
+  @java.lang.Override
+  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getPriceIndexedInScopesList() {
+    return new com.google.protobuf.Internal.ListAdapter<
+        java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope>(priceIndexedInScopes_, priceIndexedInScopes_converter_);
+  }
+  /**
+   * <pre>
+   * Contains set of all scopes the price information is indexed in and can be used for filtering entities and computation
+   * of extra data. If the price information is not indexed, it is still available on the entity itself (i.e. entity
+   * can define its price), but it is not possible to work with the price information in any other way (calculating
+   * price histogram, filtering, sorting by price, etc.).
+   * Prices can be also set as non-indexed individually by setting {&#64;link PriceContract#indexed()} to false.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope priceIndexedInScopes = 18;</code>
+   * @return The count of priceIndexedInScopes.
+   */
+  @java.lang.Override
+  public int getPriceIndexedInScopesCount() {
+    return priceIndexedInScopes_.size();
+  }
+  /**
+   * <pre>
+   * Contains set of all scopes the price information is indexed in and can be used for filtering entities and computation
+   * of extra data. If the price information is not indexed, it is still available on the entity itself (i.e. entity
+   * can define its price), but it is not possible to work with the price information in any other way (calculating
+   * price histogram, filtering, sorting by price, etc.).
+   * Prices can be also set as non-indexed individually by setting {&#64;link PriceContract#indexed()} to false.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope priceIndexedInScopes = 18;</code>
+   * @param index The index of the element to return.
+   * @return The priceIndexedInScopes at the given index.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcEntityScope getPriceIndexedInScopes(int index) {
+    return priceIndexedInScopes_converter_.convert(priceIndexedInScopes_.get(index));
+  }
+  /**
+   * <pre>
+   * Contains set of all scopes the price information is indexed in and can be used for filtering entities and computation
+   * of extra data. If the price information is not indexed, it is still available on the entity itself (i.e. entity
+   * can define its price), but it is not possible to work with the price information in any other way (calculating
+   * price histogram, filtering, sorting by price, etc.).
+   * Prices can be also set as non-indexed individually by setting {&#64;link PriceContract#indexed()} to false.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope priceIndexedInScopes = 18;</code>
+   * @return A list containing the enum numeric values on the wire for priceIndexedInScopes.
+   */
+  @java.lang.Override
+  public java.util.List<java.lang.Integer>
+  getPriceIndexedInScopesValueList() {
+    return priceIndexedInScopes_;
+  }
+  /**
+   * <pre>
+   * Contains set of all scopes the price information is indexed in and can be used for filtering entities and computation
+   * of extra data. If the price information is not indexed, it is still available on the entity itself (i.e. entity
+   * can define its price), but it is not possible to work with the price information in any other way (calculating
+   * price histogram, filtering, sorting by price, etc.).
+   * Prices can be also set as non-indexed individually by setting {&#64;link PriceContract#indexed()} to false.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope priceIndexedInScopes = 18;</code>
+   * @param index The index of the value to return.
+   * @return The enum numeric value on the wire of priceIndexedInScopes at the given index.
+   */
+  @java.lang.Override
+  public int getPriceIndexedInScopesValue(int index) {
+    return priceIndexedInScopes_.get(index);
+  }
+  private int priceIndexedInScopesMemoizedSerializedSize;
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
@@ -1391,6 +1636,20 @@ private static final long serialVersionUID = 0L;
         15);
     for (int i = 0; i < nameVariant_.size(); i++) {
       output.writeMessage(16, nameVariant_.get(i));
+    }
+    if (getHierarchyIndexedInScopesList().size() > 0) {
+      output.writeUInt32NoTag(138);
+      output.writeUInt32NoTag(hierarchyIndexedInScopesMemoizedSerializedSize);
+    }
+    for (int i = 0; i < hierarchyIndexedInScopes_.size(); i++) {
+      output.writeEnumNoTag(hierarchyIndexedInScopes_.get(i));
+    }
+    if (getPriceIndexedInScopesList().size() > 0) {
+      output.writeUInt32NoTag(146);
+      output.writeUInt32NoTag(priceIndexedInScopesMemoizedSerializedSize);
+    }
+    for (int i = 0; i < priceIndexedInScopes_.size(); i++) {
+      output.writeEnumNoTag(priceIndexedInScopes_.get(i));
     }
     unknownFields.writeTo(output);
   }
@@ -1496,6 +1755,30 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(16, nameVariant_.get(i));
     }
+    {
+      int dataSize = 0;
+      for (int i = 0; i < hierarchyIndexedInScopes_.size(); i++) {
+        dataSize += com.google.protobuf.CodedOutputStream
+          .computeEnumSizeNoTag(hierarchyIndexedInScopes_.get(i));
+      }
+      size += dataSize;
+      if (!getHierarchyIndexedInScopesList().isEmpty()) {  size += 2;
+        size += com.google.protobuf.CodedOutputStream
+          .computeUInt32SizeNoTag(dataSize);
+      }hierarchyIndexedInScopesMemoizedSerializedSize = dataSize;
+    }
+    {
+      int dataSize = 0;
+      for (int i = 0; i < priceIndexedInScopes_.size(); i++) {
+        dataSize += com.google.protobuf.CodedOutputStream
+          .computeEnumSizeNoTag(priceIndexedInScopes_.get(i));
+      }
+      size += dataSize;
+      if (!getPriceIndexedInScopesList().isEmpty()) {  size += 2;
+        size += com.google.protobuf.CodedOutputStream
+          .computeUInt32SizeNoTag(dataSize);
+      }priceIndexedInScopesMemoizedSerializedSize = dataSize;
+    }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
     return size;
@@ -1548,6 +1831,8 @@ private static final long serialVersionUID = 0L;
         other.internalGetSortableAttributeCompounds())) return false;
     if (!getNameVariantList()
         .equals(other.getNameVariantList())) return false;
+    if (!hierarchyIndexedInScopes_.equals(other.hierarchyIndexedInScopes_)) return false;
+    if (!priceIndexedInScopes_.equals(other.priceIndexedInScopes_)) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -1613,6 +1898,14 @@ private static final long serialVersionUID = 0L;
     if (getNameVariantCount() > 0) {
       hash = (37 * hash) + NAMEVARIANT_FIELD_NUMBER;
       hash = (53 * hash) + getNameVariantList().hashCode();
+    }
+    if (getHierarchyIndexedInScopesCount() > 0) {
+      hash = (37 * hash) + HIERARCHYINDEXEDINSCOPES_FIELD_NUMBER;
+      hash = (53 * hash) + hierarchyIndexedInScopes_.hashCode();
+    }
+    if (getPriceIndexedInScopesCount() > 0) {
+      hash = (37 * hash) + PRICEINDEXEDINSCOPES_FIELD_NUMBER;
+      hash = (53 * hash) + priceIndexedInScopes_.hashCode();
     }
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
@@ -1844,6 +2137,10 @@ private static final long serialVersionUID = 0L;
       } else {
         nameVariantBuilder_.clear();
       }
+      hierarchyIndexedInScopes_ = java.util.Collections.emptyList();
+      bitField0_ = (bitField0_ & ~0x00000100);
+      priceIndexedInScopes_ = java.util.Collections.emptyList();
+      bitField0_ = (bitField0_ & ~0x00000200);
       return this;
     }
 
@@ -1927,6 +2224,16 @@ private static final long serialVersionUID = 0L;
       } else {
         result.nameVariant_ = nameVariantBuilder_.build();
       }
+      if (((bitField0_ & 0x00000100) != 0)) {
+        hierarchyIndexedInScopes_ = java.util.Collections.unmodifiableList(hierarchyIndexedInScopes_);
+        bitField0_ = (bitField0_ & ~0x00000100);
+      }
+      result.hierarchyIndexedInScopes_ = hierarchyIndexedInScopes_;
+      if (((bitField0_ & 0x00000200) != 0)) {
+        priceIndexedInScopes_ = java.util.Collections.unmodifiableList(priceIndexedInScopes_);
+        bitField0_ = (bitField0_ & ~0x00000200);
+      }
+      result.priceIndexedInScopes_ = priceIndexedInScopes_;
       onBuilt();
       return result;
     }
@@ -2018,7 +2325,7 @@ private static final long serialVersionUID = 0L;
             localesBuilder_ = null;
             locales_ = other.locales_;
             bitField0_ = (bitField0_ & ~0x00000001);
-            localesBuilder_ =
+            localesBuilder_ = 
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getLocalesFieldBuilder() : null;
           } else {
@@ -2044,7 +2351,7 @@ private static final long serialVersionUID = 0L;
             currenciesBuilder_ = null;
             currencies_ = other.currencies_;
             bitField0_ = (bitField0_ & ~0x00000002);
-            currenciesBuilder_ =
+            currenciesBuilder_ = 
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getCurrenciesFieldBuilder() : null;
           } else {
@@ -2088,13 +2395,33 @@ private static final long serialVersionUID = 0L;
             nameVariantBuilder_ = null;
             nameVariant_ = other.nameVariant_;
             bitField0_ = (bitField0_ & ~0x00000080);
-            nameVariantBuilder_ =
+            nameVariantBuilder_ = 
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getNameVariantFieldBuilder() : null;
           } else {
             nameVariantBuilder_.addAllMessages(other.nameVariant_);
           }
         }
+      }
+      if (!other.hierarchyIndexedInScopes_.isEmpty()) {
+        if (hierarchyIndexedInScopes_.isEmpty()) {
+          hierarchyIndexedInScopes_ = other.hierarchyIndexedInScopes_;
+          bitField0_ = (bitField0_ & ~0x00000100);
+        } else {
+          ensureHierarchyIndexedInScopesIsMutable();
+          hierarchyIndexedInScopes_.addAll(other.hierarchyIndexedInScopes_);
+        }
+        onChanged();
+      }
+      if (!other.priceIndexedInScopes_.isEmpty()) {
+        if (priceIndexedInScopes_.isEmpty()) {
+          priceIndexedInScopes_ = other.priceIndexedInScopes_;
+          bitField0_ = (bitField0_ & ~0x00000200);
+        } else {
+          ensurePriceIndexedInScopesIsMutable();
+          priceIndexedInScopes_.addAll(other.priceIndexedInScopes_);
+        }
+        onChanged();
       }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
@@ -2161,7 +2488,7 @@ private static final long serialVersionUID = 0L;
         getNameBytes() {
       java.lang.Object ref = name_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b =
+        com.google.protobuf.ByteString b = 
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         name_ = b;
@@ -2185,7 +2512,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-
+  
       name_ = value;
       onChanged();
       return this;
@@ -2200,7 +2527,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearName() {
-
+      
       name_ = getDefaultInstance().getName();
       onChanged();
       return this;
@@ -2221,7 +2548,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-
+      
       name_ = value;
       onChanged();
       return this;
@@ -2252,7 +2579,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setVersion(int value) {
-
+      
       version_ = value;
       onChanged();
       return this;
@@ -2267,7 +2594,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearVersion() {
-
+      
       version_ = 0;
       onChanged();
       return this;
@@ -2395,7 +2722,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue description = 3;</code>
      */
     public com.google.protobuf.StringValue.Builder getDescriptionBuilder() {
-
+      
       onChanged();
       return getDescriptionFieldBuilder().getBuilder();
     }
@@ -2424,7 +2751,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue description = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
         getDescriptionFieldBuilder() {
       if (descriptionBuilder_ == null) {
         descriptionBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -2566,7 +2893,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue deprecationNotice = 4;</code>
      */
     public com.google.protobuf.StringValue.Builder getDeprecationNoticeBuilder() {
-
+      
       onChanged();
       return getDeprecationNoticeFieldBuilder().getBuilder();
     }
@@ -2597,7 +2924,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue deprecationNotice = 4;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
         getDeprecationNoticeFieldBuilder() {
       if (deprecationNoticeBuilder_ == null) {
         deprecationNoticeBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -2639,7 +2966,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setWithGeneratedPrimaryKey(boolean value) {
-
+      
       withGeneratedPrimaryKey_ = value;
       onChanged();
       return this;
@@ -2656,7 +2983,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearWithGeneratedPrimaryKey() {
-
+      
       withGeneratedPrimaryKey_ = false;
       onChanged();
       return this;
@@ -2699,7 +3026,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setWithHierarchy(boolean value) {
-
+      
       withHierarchy_ = value;
       onChanged();
       return this;
@@ -2720,7 +3047,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearWithHierarchy() {
-
+      
       withHierarchy_ = false;
       onChanged();
       return this;
@@ -2765,7 +3092,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setWithPrice(boolean value) {
-
+      
       withPrice_ = value;
       onChanged();
       return this;
@@ -2787,7 +3114,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearWithPrice() {
-
+      
       withPrice_ = false;
       onChanged();
       return this;
@@ -2822,7 +3149,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setIndexedPricePlaces(int value) {
-
+      
       indexedPricePlaces_ = value;
       onChanged();
       return this;
@@ -2839,7 +3166,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearIndexedPricePlaces() {
-
+      
       indexedPricePlaces_ = 0;
       onChanged();
       return this;
@@ -3115,7 +3442,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 9;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder>
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder> 
          getLocalesOrBuilderList() {
       if (localesBuilder_ != null) {
         return localesBuilder_.getMessageOrBuilderList();
@@ -3156,12 +3483,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 9;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder>
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder> 
          getLocalesBuilderList() {
       return getLocalesFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcLocale, io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcLocale, io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder> 
         getLocalesFieldBuilder() {
       if (localesBuilder_ == null) {
         localesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
@@ -3430,7 +3757,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 10;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder>
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder> 
          getCurrenciesOrBuilderList() {
       if (currenciesBuilder_ != null) {
         return currenciesBuilder_.getMessageOrBuilderList();
@@ -3468,12 +3795,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 10;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder>
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder> 
          getCurrenciesBuilderList() {
       return getCurrenciesFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcCurrency, io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder, io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcCurrency, io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder, io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder> 
         getCurrenciesFieldBuilder() {
       if (currenciesBuilder_ == null) {
         currenciesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
@@ -4786,7 +5113,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 16;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder> 
          getNameVariantOrBuilderList() {
       if (nameVariantBuilder_ != null) {
         return nameVariantBuilder_.getMessageOrBuilderList();
@@ -4824,12 +5151,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 16;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder>
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder> 
          getNameVariantBuilderList() {
       return getNameVariantFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcNameVariant, io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder, io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcNameVariant, io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder, io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder> 
         getNameVariantFieldBuilder() {
       if (nameVariantBuilder_ == null) {
         nameVariantBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
@@ -4841,6 +5168,466 @@ private static final long serialVersionUID = 0L;
         nameVariant_ = null;
       }
       return nameVariantBuilder_;
+    }
+
+    private java.util.List<java.lang.Integer> hierarchyIndexedInScopes_ =
+      java.util.Collections.emptyList();
+    private void ensureHierarchyIndexedInScopesIsMutable() {
+      if (!((bitField0_ & 0x00000100) != 0)) {
+        hierarchyIndexedInScopes_ = new java.util.ArrayList<java.lang.Integer>(hierarchyIndexedInScopes_);
+        bitField0_ |= 0x00000100;
+      }
+    }
+    /**
+     * <pre>
+     * Contains set of all scopes the entity is indexed in and can be used for filtering entities and computation of
+     * extra data. If the hierarchy information is not indexed, it is still available on the entity itself (i.e. entity
+     * can define its parent entity), but it is not possible to work with the hierarchy information in any other way
+     * (calculating parent chain, children, siblings, etc.).
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope hierarchyIndexedInScopes = 17;</code>
+     * @return A list containing the hierarchyIndexedInScopes.
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getHierarchyIndexedInScopesList() {
+      return new com.google.protobuf.Internal.ListAdapter<
+          java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope>(hierarchyIndexedInScopes_, hierarchyIndexedInScopes_converter_);
+    }
+    /**
+     * <pre>
+     * Contains set of all scopes the entity is indexed in and can be used for filtering entities and computation of
+     * extra data. If the hierarchy information is not indexed, it is still available on the entity itself (i.e. entity
+     * can define its parent entity), but it is not possible to work with the hierarchy information in any other way
+     * (calculating parent chain, children, siblings, etc.).
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope hierarchyIndexedInScopes = 17;</code>
+     * @return The count of hierarchyIndexedInScopes.
+     */
+    public int getHierarchyIndexedInScopesCount() {
+      return hierarchyIndexedInScopes_.size();
+    }
+    /**
+     * <pre>
+     * Contains set of all scopes the entity is indexed in and can be used for filtering entities and computation of
+     * extra data. If the hierarchy information is not indexed, it is still available on the entity itself (i.e. entity
+     * can define its parent entity), but it is not possible to work with the hierarchy information in any other way
+     * (calculating parent chain, children, siblings, etc.).
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope hierarchyIndexedInScopes = 17;</code>
+     * @param index The index of the element to return.
+     * @return The hierarchyIndexedInScopes at the given index.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcEntityScope getHierarchyIndexedInScopes(int index) {
+      return hierarchyIndexedInScopes_converter_.convert(hierarchyIndexedInScopes_.get(index));
+    }
+    /**
+     * <pre>
+     * Contains set of all scopes the entity is indexed in and can be used for filtering entities and computation of
+     * extra data. If the hierarchy information is not indexed, it is still available on the entity itself (i.e. entity
+     * can define its parent entity), but it is not possible to work with the hierarchy information in any other way
+     * (calculating parent chain, children, siblings, etc.).
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope hierarchyIndexedInScopes = 17;</code>
+     * @param index The index to set the value at.
+     * @param value The hierarchyIndexedInScopes to set.
+     * @return This builder for chaining.
+     */
+    public Builder setHierarchyIndexedInScopes(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcEntityScope value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      ensureHierarchyIndexedInScopesIsMutable();
+      hierarchyIndexedInScopes_.set(index, value.getNumber());
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains set of all scopes the entity is indexed in and can be used for filtering entities and computation of
+     * extra data. If the hierarchy information is not indexed, it is still available on the entity itself (i.e. entity
+     * can define its parent entity), but it is not possible to work with the hierarchy information in any other way
+     * (calculating parent chain, children, siblings, etc.).
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope hierarchyIndexedInScopes = 17;</code>
+     * @param value The hierarchyIndexedInScopes to add.
+     * @return This builder for chaining.
+     */
+    public Builder addHierarchyIndexedInScopes(io.evitadb.externalApi.grpc.generated.GrpcEntityScope value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      ensureHierarchyIndexedInScopesIsMutable();
+      hierarchyIndexedInScopes_.add(value.getNumber());
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains set of all scopes the entity is indexed in and can be used for filtering entities and computation of
+     * extra data. If the hierarchy information is not indexed, it is still available on the entity itself (i.e. entity
+     * can define its parent entity), but it is not possible to work with the hierarchy information in any other way
+     * (calculating parent chain, children, siblings, etc.).
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope hierarchyIndexedInScopes = 17;</code>
+     * @param values The hierarchyIndexedInScopes to add.
+     * @return This builder for chaining.
+     */
+    public Builder addAllHierarchyIndexedInScopes(
+        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityScope> values) {
+      ensureHierarchyIndexedInScopesIsMutable();
+      for (io.evitadb.externalApi.grpc.generated.GrpcEntityScope value : values) {
+        hierarchyIndexedInScopes_.add(value.getNumber());
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains set of all scopes the entity is indexed in and can be used for filtering entities and computation of
+     * extra data. If the hierarchy information is not indexed, it is still available on the entity itself (i.e. entity
+     * can define its parent entity), but it is not possible to work with the hierarchy information in any other way
+     * (calculating parent chain, children, siblings, etc.).
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope hierarchyIndexedInScopes = 17;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearHierarchyIndexedInScopes() {
+      hierarchyIndexedInScopes_ = java.util.Collections.emptyList();
+      bitField0_ = (bitField0_ & ~0x00000100);
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains set of all scopes the entity is indexed in and can be used for filtering entities and computation of
+     * extra data. If the hierarchy information is not indexed, it is still available on the entity itself (i.e. entity
+     * can define its parent entity), but it is not possible to work with the hierarchy information in any other way
+     * (calculating parent chain, children, siblings, etc.).
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope hierarchyIndexedInScopes = 17;</code>
+     * @return A list containing the enum numeric values on the wire for hierarchyIndexedInScopes.
+     */
+    public java.util.List<java.lang.Integer>
+    getHierarchyIndexedInScopesValueList() {
+      return java.util.Collections.unmodifiableList(hierarchyIndexedInScopes_);
+    }
+    /**
+     * <pre>
+     * Contains set of all scopes the entity is indexed in and can be used for filtering entities and computation of
+     * extra data. If the hierarchy information is not indexed, it is still available on the entity itself (i.e. entity
+     * can define its parent entity), but it is not possible to work with the hierarchy information in any other way
+     * (calculating parent chain, children, siblings, etc.).
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope hierarchyIndexedInScopes = 17;</code>
+     * @param index The index of the value to return.
+     * @return The enum numeric value on the wire of hierarchyIndexedInScopes at the given index.
+     */
+    public int getHierarchyIndexedInScopesValue(int index) {
+      return hierarchyIndexedInScopes_.get(index);
+    }
+    /**
+     * <pre>
+     * Contains set of all scopes the entity is indexed in and can be used for filtering entities and computation of
+     * extra data. If the hierarchy information is not indexed, it is still available on the entity itself (i.e. entity
+     * can define its parent entity), but it is not possible to work with the hierarchy information in any other way
+     * (calculating parent chain, children, siblings, etc.).
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope hierarchyIndexedInScopes = 17;</code>
+     * @param index The index of the value to return.
+     * @return The enum numeric value on the wire of hierarchyIndexedInScopes at the given index.
+     * @return This builder for chaining.
+     */
+    public Builder setHierarchyIndexedInScopesValue(
+        int index, int value) {
+      ensureHierarchyIndexedInScopesIsMutable();
+      hierarchyIndexedInScopes_.set(index, value);
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains set of all scopes the entity is indexed in and can be used for filtering entities and computation of
+     * extra data. If the hierarchy information is not indexed, it is still available on the entity itself (i.e. entity
+     * can define its parent entity), but it is not possible to work with the hierarchy information in any other way
+     * (calculating parent chain, children, siblings, etc.).
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope hierarchyIndexedInScopes = 17;</code>
+     * @param value The enum numeric value on the wire for hierarchyIndexedInScopes to add.
+     * @return This builder for chaining.
+     */
+    public Builder addHierarchyIndexedInScopesValue(int value) {
+      ensureHierarchyIndexedInScopesIsMutable();
+      hierarchyIndexedInScopes_.add(value);
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains set of all scopes the entity is indexed in and can be used for filtering entities and computation of
+     * extra data. If the hierarchy information is not indexed, it is still available on the entity itself (i.e. entity
+     * can define its parent entity), but it is not possible to work with the hierarchy information in any other way
+     * (calculating parent chain, children, siblings, etc.).
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope hierarchyIndexedInScopes = 17;</code>
+     * @param values The enum numeric values on the wire for hierarchyIndexedInScopes to add.
+     * @return This builder for chaining.
+     */
+    public Builder addAllHierarchyIndexedInScopesValue(
+        java.lang.Iterable<java.lang.Integer> values) {
+      ensureHierarchyIndexedInScopesIsMutable();
+      for (int value : values) {
+        hierarchyIndexedInScopes_.add(value);
+      }
+      onChanged();
+      return this;
+    }
+
+    private java.util.List<java.lang.Integer> priceIndexedInScopes_ =
+      java.util.Collections.emptyList();
+    private void ensurePriceIndexedInScopesIsMutable() {
+      if (!((bitField0_ & 0x00000200) != 0)) {
+        priceIndexedInScopes_ = new java.util.ArrayList<java.lang.Integer>(priceIndexedInScopes_);
+        bitField0_ |= 0x00000200;
+      }
+    }
+    /**
+     * <pre>
+     * Contains set of all scopes the price information is indexed in and can be used for filtering entities and computation
+     * of extra data. If the price information is not indexed, it is still available on the entity itself (i.e. entity
+     * can define its price), but it is not possible to work with the price information in any other way (calculating
+     * price histogram, filtering, sorting by price, etc.).
+     * Prices can be also set as non-indexed individually by setting {&#64;link PriceContract#indexed()} to false.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope priceIndexedInScopes = 18;</code>
+     * @return A list containing the priceIndexedInScopes.
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getPriceIndexedInScopesList() {
+      return new com.google.protobuf.Internal.ListAdapter<
+          java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope>(priceIndexedInScopes_, priceIndexedInScopes_converter_);
+    }
+    /**
+     * <pre>
+     * Contains set of all scopes the price information is indexed in and can be used for filtering entities and computation
+     * of extra data. If the price information is not indexed, it is still available on the entity itself (i.e. entity
+     * can define its price), but it is not possible to work with the price information in any other way (calculating
+     * price histogram, filtering, sorting by price, etc.).
+     * Prices can be also set as non-indexed individually by setting {&#64;link PriceContract#indexed()} to false.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope priceIndexedInScopes = 18;</code>
+     * @return The count of priceIndexedInScopes.
+     */
+    public int getPriceIndexedInScopesCount() {
+      return priceIndexedInScopes_.size();
+    }
+    /**
+     * <pre>
+     * Contains set of all scopes the price information is indexed in and can be used for filtering entities and computation
+     * of extra data. If the price information is not indexed, it is still available on the entity itself (i.e. entity
+     * can define its price), but it is not possible to work with the price information in any other way (calculating
+     * price histogram, filtering, sorting by price, etc.).
+     * Prices can be also set as non-indexed individually by setting {&#64;link PriceContract#indexed()} to false.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope priceIndexedInScopes = 18;</code>
+     * @param index The index of the element to return.
+     * @return The priceIndexedInScopes at the given index.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcEntityScope getPriceIndexedInScopes(int index) {
+      return priceIndexedInScopes_converter_.convert(priceIndexedInScopes_.get(index));
+    }
+    /**
+     * <pre>
+     * Contains set of all scopes the price information is indexed in and can be used for filtering entities and computation
+     * of extra data. If the price information is not indexed, it is still available on the entity itself (i.e. entity
+     * can define its price), but it is not possible to work with the price information in any other way (calculating
+     * price histogram, filtering, sorting by price, etc.).
+     * Prices can be also set as non-indexed individually by setting {&#64;link PriceContract#indexed()} to false.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope priceIndexedInScopes = 18;</code>
+     * @param index The index to set the value at.
+     * @param value The priceIndexedInScopes to set.
+     * @return This builder for chaining.
+     */
+    public Builder setPriceIndexedInScopes(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcEntityScope value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      ensurePriceIndexedInScopesIsMutable();
+      priceIndexedInScopes_.set(index, value.getNumber());
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains set of all scopes the price information is indexed in and can be used for filtering entities and computation
+     * of extra data. If the price information is not indexed, it is still available on the entity itself (i.e. entity
+     * can define its price), but it is not possible to work with the price information in any other way (calculating
+     * price histogram, filtering, sorting by price, etc.).
+     * Prices can be also set as non-indexed individually by setting {&#64;link PriceContract#indexed()} to false.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope priceIndexedInScopes = 18;</code>
+     * @param value The priceIndexedInScopes to add.
+     * @return This builder for chaining.
+     */
+    public Builder addPriceIndexedInScopes(io.evitadb.externalApi.grpc.generated.GrpcEntityScope value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      ensurePriceIndexedInScopesIsMutable();
+      priceIndexedInScopes_.add(value.getNumber());
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains set of all scopes the price information is indexed in and can be used for filtering entities and computation
+     * of extra data. If the price information is not indexed, it is still available on the entity itself (i.e. entity
+     * can define its price), but it is not possible to work with the price information in any other way (calculating
+     * price histogram, filtering, sorting by price, etc.).
+     * Prices can be also set as non-indexed individually by setting {&#64;link PriceContract#indexed()} to false.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope priceIndexedInScopes = 18;</code>
+     * @param values The priceIndexedInScopes to add.
+     * @return This builder for chaining.
+     */
+    public Builder addAllPriceIndexedInScopes(
+        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityScope> values) {
+      ensurePriceIndexedInScopesIsMutable();
+      for (io.evitadb.externalApi.grpc.generated.GrpcEntityScope value : values) {
+        priceIndexedInScopes_.add(value.getNumber());
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains set of all scopes the price information is indexed in and can be used for filtering entities and computation
+     * of extra data. If the price information is not indexed, it is still available on the entity itself (i.e. entity
+     * can define its price), but it is not possible to work with the price information in any other way (calculating
+     * price histogram, filtering, sorting by price, etc.).
+     * Prices can be also set as non-indexed individually by setting {&#64;link PriceContract#indexed()} to false.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope priceIndexedInScopes = 18;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearPriceIndexedInScopes() {
+      priceIndexedInScopes_ = java.util.Collections.emptyList();
+      bitField0_ = (bitField0_ & ~0x00000200);
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains set of all scopes the price information is indexed in and can be used for filtering entities and computation
+     * of extra data. If the price information is not indexed, it is still available on the entity itself (i.e. entity
+     * can define its price), but it is not possible to work with the price information in any other way (calculating
+     * price histogram, filtering, sorting by price, etc.).
+     * Prices can be also set as non-indexed individually by setting {&#64;link PriceContract#indexed()} to false.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope priceIndexedInScopes = 18;</code>
+     * @return A list containing the enum numeric values on the wire for priceIndexedInScopes.
+     */
+    public java.util.List<java.lang.Integer>
+    getPriceIndexedInScopesValueList() {
+      return java.util.Collections.unmodifiableList(priceIndexedInScopes_);
+    }
+    /**
+     * <pre>
+     * Contains set of all scopes the price information is indexed in and can be used for filtering entities and computation
+     * of extra data. If the price information is not indexed, it is still available on the entity itself (i.e. entity
+     * can define its price), but it is not possible to work with the price information in any other way (calculating
+     * price histogram, filtering, sorting by price, etc.).
+     * Prices can be also set as non-indexed individually by setting {&#64;link PriceContract#indexed()} to false.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope priceIndexedInScopes = 18;</code>
+     * @param index The index of the value to return.
+     * @return The enum numeric value on the wire of priceIndexedInScopes at the given index.
+     */
+    public int getPriceIndexedInScopesValue(int index) {
+      return priceIndexedInScopes_.get(index);
+    }
+    /**
+     * <pre>
+     * Contains set of all scopes the price information is indexed in and can be used for filtering entities and computation
+     * of extra data. If the price information is not indexed, it is still available on the entity itself (i.e. entity
+     * can define its price), but it is not possible to work with the price information in any other way (calculating
+     * price histogram, filtering, sorting by price, etc.).
+     * Prices can be also set as non-indexed individually by setting {&#64;link PriceContract#indexed()} to false.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope priceIndexedInScopes = 18;</code>
+     * @param index The index of the value to return.
+     * @return The enum numeric value on the wire of priceIndexedInScopes at the given index.
+     * @return This builder for chaining.
+     */
+    public Builder setPriceIndexedInScopesValue(
+        int index, int value) {
+      ensurePriceIndexedInScopesIsMutable();
+      priceIndexedInScopes_.set(index, value);
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains set of all scopes the price information is indexed in and can be used for filtering entities and computation
+     * of extra data. If the price information is not indexed, it is still available on the entity itself (i.e. entity
+     * can define its price), but it is not possible to work with the price information in any other way (calculating
+     * price histogram, filtering, sorting by price, etc.).
+     * Prices can be also set as non-indexed individually by setting {&#64;link PriceContract#indexed()} to false.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope priceIndexedInScopes = 18;</code>
+     * @param value The enum numeric value on the wire for priceIndexedInScopes to add.
+     * @return This builder for chaining.
+     */
+    public Builder addPriceIndexedInScopesValue(int value) {
+      ensurePriceIndexedInScopesIsMutable();
+      priceIndexedInScopes_.add(value);
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains set of all scopes the price information is indexed in and can be used for filtering entities and computation
+     * of extra data. If the price information is not indexed, it is still available on the entity itself (i.e. entity
+     * can define its price), but it is not possible to work with the price information in any other way (calculating
+     * price histogram, filtering, sorting by price, etc.).
+     * Prices can be also set as non-indexed individually by setting {&#64;link PriceContract#indexed()} to false.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope priceIndexedInScopes = 18;</code>
+     * @param values The enum numeric values on the wire for priceIndexedInScopes to add.
+     * @return This builder for chaining.
+     */
+    public Builder addAllPriceIndexedInScopesValue(
+        java.lang.Iterable<java.lang.Integer> values) {
+      ensurePriceIndexedInScopesIsMutable();
+      for (int value : values) {
+        priceIndexedInScopes_.add(value);
+      }
+      onChanged();
+      return this;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

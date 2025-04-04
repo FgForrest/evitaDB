@@ -15,7 +15,6 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 				require(
 					facetSummaryOfReference(
 						"brand",
-						COUNTS,
 						orderBy(
 							attributeNatural("name", ASC)
 						),
@@ -25,7 +24,6 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 					),
 					facetSummaryOfReference(
 						"parameterValues",
-						COUNTS,
 						filterGroupBy(
 							attributeEquals("isVisibleInFilter", true)
 						),

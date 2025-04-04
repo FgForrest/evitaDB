@@ -27,7 +27,6 @@ import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.index.price.model.PriceIndexKey;
-import io.evitadb.store.entity.model.entity.price.PriceInternalIdContainer;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -75,10 +74,9 @@ public interface PriceIndexContract {
 	/**
 	 * Method registers new price to the index.
 	 */
-	@Nonnull
-	PriceInternalIdContainer addPrice(
+	int addPrice(
 		int entityPrimaryKey,
-		@Nullable Integer internalPriceId,
+		int internalPriceId,
 		@Nonnull PriceKey priceKey,
 		@Nonnull PriceInnerRecordHandling innerRecordHandling,
 		@Nullable Integer innerRecordId,

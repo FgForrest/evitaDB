@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -45,6 +45,8 @@ public class CollectionDataApiRestBuildingContext {
 	@Nonnull private final CatalogRestBuildingContext catalogCtx;
 	@Nonnull private final EntitySchemaContract schema;
 
+	private OpenApiSimpleType headerObject;
+
 	private OpenApiSimpleType filterByObject;
 	private OpenApiSimpleType localizedFilterByObject;
 
@@ -66,6 +68,20 @@ public class CollectionDataApiRestBuildingContext {
 	 */
 	public boolean isLocalizedEntity() {
 		return !schema.getLocales().isEmpty();
+	}
+
+	public void setHeaderObject(OpenApiSimpleType headerObject) {
+		Assert.isPremiseValid(
+			this.headerObject == null,
+			() -> new OpenApiBuildingError("Header object for schema `" + schema.getName() + "` has been already initialized.")
+		);
+		this.headerObject = headerObject;
+	}
+
+	@Nonnull
+	public OpenApiSimpleType getHeaderObject() {
+		return Optional.ofNullable(headerObject)
+			.orElseThrow(() -> new OpenApiBuildingError("Header object for schema `" + schema.getName() + "` has not been initialized."));
 	}
 
 	public void setFilterByObject(@Nonnull OpenApiSimpleType filterByObject) {

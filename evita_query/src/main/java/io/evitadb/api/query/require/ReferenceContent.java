@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.ConstraintContainerWithSuffix;
+import io.evitadb.api.query.ConstraintWithDefaults;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.ReferenceConstraint;
@@ -32,6 +33,7 @@ import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.AdditionalChild;
 import io.evitadb.api.query.descriptor.annotation.AliasForParameter;
+import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.Classifier;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
@@ -51,6 +53,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Stream;
 
+import static io.evitadb.api.query.require.EntityFetchRequire.combineRequirements;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
@@ -181,12 +184,12 @@ import static java.util.Optional.ofNullable;
 	supportedIn = ConstraintDomain.ENTITY
 )
 public class ReferenceContent extends AbstractRequireConstraintContainer
-	implements ReferenceConstraint<RequireConstraint>, SeparateEntityContentRequireContainer, EntityContentRequire, ConstraintContainerWithSuffix {
+	implements ConstraintWithDefaults<RequireConstraint>, ReferenceConstraint<RequireConstraint>, SeparateEntityContentRequireContainer, EntityContentRequire, ConstraintContainerWithSuffix {
+	public static final ReferenceContent ALL_REFERENCES = new ReferenceContent(AttributeContent.ALL_ATTRIBUTES);
 	@Serial private static final long serialVersionUID = 3374240925555151814L;
 	private static final String SUFFIX_ALL = "all";
 	private static final String SUFFIX_WITH_ATTRIBUTES = "withAttributes";
 	private static final String SUFFIX_ALL_WITH_ATTRIBUTES = "allWithAttributes";
-	public static final ReferenceContent ALL_REFERENCES = new ReferenceContent(AttributeContent.ALL_ATTRIBUTES);
 
 	private ReferenceContent(
 		@Nonnull ManagedReferencesBehaviour managedReferences,
@@ -196,7 +199,7 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	) {
 		super(
 			ArrayUtils.mergeArrays(
-				new Serializable[] { managedReferences },
+				new Serializable[]{managedReferences},
 				referenceName
 			),
 			requirements, additionalChildren
@@ -206,14 +209,22 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	@Creator(suffix = SUFFIX_ALL)
 	public ReferenceContent() {
 		super(
-			new Serializable[] { ManagedReferencesBehaviour.ANY }
+			new Serializable[]{ManagedReferencesBehaviour.ANY}
+		);
+	}
+
+	@Creator(suffix = SUFFIX_ALL_WITH_ATTRIBUTES)
+	public ReferenceContent(@Nullable AttributeContent attributeContent) {
+		super(
+			new Serializable[]{ManagedReferencesBehaviour.ANY},
+			attributeContent == null ? AttributeContent.ALL_ATTRIBUTES : attributeContent
 		);
 	}
 
 	public ReferenceContent(@Nonnull String... referenceName) {
 		super(
 			ArrayUtils.mergeArrays(
-				new Serializable[] { ManagedReferencesBehaviour.ANY },
+				new Serializable[]{ManagedReferencesBehaviour.ANY},
 				referenceName
 			)
 		);
@@ -221,15 +232,8 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 
 	public ReferenceContent(@Nonnull String referenceName, @Nullable AttributeContent attributeContent) {
 		super(
-			new Serializable[] { ManagedReferencesBehaviour.ANY, referenceName },
-			ofNullable(attributeContent).orElse(new AttributeContent()));
-	}
-
-	@Creator(suffix = SUFFIX_ALL_WITH_ATTRIBUTES)
-	public ReferenceContent(@Nullable AttributeContent attributeContent) {
-		super(
-			new Serializable[] { ManagedReferencesBehaviour.ANY },
-			ofNullable(attributeContent).orElse(new AttributeContent())
+			new Serializable[]{ManagedReferencesBehaviour.ANY, referenceName},
+			attributeContent
 		);
 	}
 
@@ -240,7 +244,7 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	) {
 		super(
 			ArrayUtils.mergeArrays(
-				new Serializable[] { ManagedReferencesBehaviour.ANY },
+				new Serializable[]{ManagedReferencesBehaviour.ANY},
 				referenceNames
 			),
 			entityRequirement,
@@ -254,14 +258,17 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 		@Nullable @AdditionalChild(domain = ConstraintDomain.INLINE_REFERENCE) FilterBy filterBy,
 		@Nullable @AdditionalChild(domain = ConstraintDomain.INLINE_REFERENCE) OrderBy orderBy,
 		@Nullable EntityFetch entityFetch,
-		@Nullable EntityGroupFetch entityGroupFetch
+		@Nullable EntityGroupFetch entityGroupFetch,
+		@Nullable @Child(uniqueChildren = true) ChunkingRequireConstraint chunking
 	) {
 		super(
 			ArrayUtils.mergeArrays(
-				new Serializable[] { ManagedReferencesBehaviour.ANY },
+				new Serializable[]{ManagedReferencesBehaviour.ANY},
 				ofNullable(referenceName).map(it -> new Serializable[]{it}).orElse(NO_ARGS)
 			),
-			new RequireConstraint[]{entityFetch, entityGroupFetch}, filterBy, orderBy
+			new RequireConstraint[]{entityFetch, entityGroupFetch, chunking},
+			filterBy,
+			orderBy
 		);
 	}
 
@@ -272,17 +279,19 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 		@Nullable @AdditionalChild(domain = ConstraintDomain.INLINE_REFERENCE) OrderBy orderBy,
 		@Nullable AttributeContent attributeContent,
 		@Nullable EntityFetch entityFetch,
-		@Nullable EntityGroupFetch entityGroupFetch
+		@Nullable EntityGroupFetch entityGroupFetch,
+		@Nullable ChunkingRequireConstraint chunking
 	) {
 		super(
 			ArrayUtils.mergeArrays(
-				new Serializable[] { ManagedReferencesBehaviour.ANY },
+				new Serializable[]{ManagedReferencesBehaviour.ANY},
 				ofNullable(referenceName).map(it -> new Serializable[]{it}).orElse(NO_ARGS)
 			),
-			new RequireConstraint[] {
-				ofNullable(attributeContent).orElse(new AttributeContent()),
+			new RequireConstraint[]{
+				attributeContent,
 				entityFetch,
-				entityGroupFetch
+				entityGroupFetch,
+				chunking
 			},
 			filterBy,
 			orderBy
@@ -291,16 +300,20 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 
 	public ReferenceContent(@Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
 		super(
-			new Serializable[] { ManagedReferencesBehaviour.ANY},
+			new Serializable[]{ManagedReferencesBehaviour.ANY},
 			entityRequirement,
 			groupEntityRequirement
 		);
 	}
 
-	public ReferenceContent(@Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
+	public ReferenceContent(
+		@Nullable AttributeContent attributeContent,
+		@Nullable EntityFetch entityRequirement,
+		@Nullable EntityGroupFetch groupEntityRequirement
+	) {
 		super(
-			new Serializable[] { ManagedReferencesBehaviour.ANY},
-			ofNullable(attributeContent).orElse(new AttributeContent()),
+			new Serializable[]{ManagedReferencesBehaviour.ANY},
+			attributeContent,
 			entityRequirement,
 			groupEntityRequirement
 		);
@@ -308,14 +321,14 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 
 	public ReferenceContent(@Nullable ManagedReferencesBehaviour managedReferences) {
 		super(
-			new Serializable[] { ofNullable(managedReferences).orElse(ManagedReferencesBehaviour.ANY) }
+			new Serializable[]{ofNullable(managedReferences).orElse(ManagedReferencesBehaviour.ANY)}
 		);
 	}
 
 	public ReferenceContent(@Nullable ManagedReferencesBehaviour managedReferences, @Nonnull String... referenceName) {
 		super(
 			ArrayUtils.mergeArrays(
-				new Serializable[] { ofNullable(managedReferences).orElse(ManagedReferencesBehaviour.ANY) },
+				new Serializable[]{ofNullable(managedReferences).orElse(ManagedReferencesBehaviour.ANY)},
 				referenceName
 			)
 		);
@@ -323,15 +336,15 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 
 	public ReferenceContent(@Nullable ManagedReferencesBehaviour managedReferences, @Nonnull String referenceName, @Nullable AttributeContent attributeContent) {
 		super(
-			new Serializable[] { ofNullable(managedReferences).orElse(ManagedReferencesBehaviour.ANY), referenceName },
-			ofNullable(attributeContent).orElse(new AttributeContent())
+			new Serializable[]{ofNullable(managedReferences).orElse(ManagedReferencesBehaviour.ANY), referenceName},
+			attributeContent
 		);
 	}
 
 	public ReferenceContent(@Nullable ManagedReferencesBehaviour managedReferences, @Nullable AttributeContent attributeContent) {
 		super(
-			new Serializable[] { ofNullable(managedReferences).orElse(ManagedReferencesBehaviour.ANY) },
-			ofNullable(attributeContent).orElse(new AttributeContent())
+			new Serializable[]{ofNullable(managedReferences).orElse(ManagedReferencesBehaviour.ANY)},
+			attributeContent
 		);
 	}
 
@@ -343,7 +356,7 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	) {
 		super(
 			ArrayUtils.mergeArrays(
-				new Serializable[] { ofNullable(managedReferences).orElse(ManagedReferencesBehaviour.ANY) },
+				new Serializable[]{ofNullable(managedReferences).orElse(ManagedReferencesBehaviour.ANY)},
 				referenceNames
 			),
 			entityRequirement,
@@ -353,52 +366,11 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 
 	public ReferenceContent(
 		@Nullable ManagedReferencesBehaviour managedReferences,
-		@Nonnull String referenceName,
-		@Nullable FilterBy filterBy,
-		@Nullable OrderBy orderBy,
-		@Nullable EntityFetch entityFetch,
-		@Nullable EntityGroupFetch entityGroupFetch
-	) {
-		super(
-			ArrayUtils.mergeArrays(
-				new Serializable[] { ofNullable(managedReferences).orElse(ManagedReferencesBehaviour.ANY) },
-				new String[] { referenceName }
-			),
-			new RequireConstraint[]{entityFetch, entityGroupFetch}, filterBy, orderBy
-		);
-	}
-
-	public ReferenceContent(
-		@Nullable ManagedReferencesBehaviour managedReferences,
-		@Nonnull String referenceName,
-		@Nullable FilterBy filterBy,
-		@Nullable OrderBy orderBy,
-		@Nullable AttributeContent attributeContent,
-		@Nullable EntityFetch entityFetch,
-		@Nullable EntityGroupFetch entityGroupFetch
-	) {
-		super(
-			ArrayUtils.mergeArrays(
-				new Serializable[] { ofNullable(managedReferences).orElse(ManagedReferencesBehaviour.ANY) },
-				new String[] { referenceName }
-			),
-			new RequireConstraint[] {
-				ofNullable(attributeContent).orElse(new AttributeContent()),
-				entityFetch,
-				entityGroupFetch
-			},
-			filterBy,
-			orderBy
-		);
-	}
-
-	public ReferenceContent(
-		@Nullable ManagedReferencesBehaviour managedReferences,
 		@Nullable EntityFetch entityRequirement,
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
 		super(
-			new Serializable[] { ofNullable(managedReferences).orElse(ManagedReferencesBehaviour.ANY) },
+			new Serializable[]{ofNullable(managedReferences).orElse(ManagedReferencesBehaviour.ANY)},
 			entityRequirement, groupEntityRequirement
 		);
 	}
@@ -410,10 +382,249 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 		@Nullable EntityGroupFetch groupEntityRequirement
 	) {
 		super(
-			new Serializable[] { ofNullable(managedReferences).orElse(ManagedReferencesBehaviour.ANY) },
+			new Serializable[]{ofNullable(managedReferences).orElse(ManagedReferencesBehaviour.ANY)},
 			ofNullable(attributeContent).orElse(new AttributeContent()),
 			entityRequirement,
 			groupEntityRequirement
+		);
+	}
+
+	public ReferenceContent(@Nullable ChunkingRequireConstraint chunking) {
+		super(
+			new Serializable[]{ManagedReferencesBehaviour.ANY},
+			chunking
+		);
+	}
+
+	public ReferenceContent(
+		@Nonnull String referenceName,
+		@Nullable AttributeContent attributeContent,
+		@Nullable ChunkingRequireConstraint chunking
+	) {
+		super(
+			new Serializable[]{ManagedReferencesBehaviour.ANY, referenceName},
+			attributeContent,
+			chunking
+		);
+	}
+
+	public ReferenceContent(
+		@Nonnull String[] referenceNames,
+		@Nullable EntityFetch entityRequirement,
+		@Nullable EntityGroupFetch groupEntityRequirement,
+		@Nullable ChunkingRequireConstraint chunking
+	) {
+		super(
+			ArrayUtils.mergeArrays(
+				new Serializable[]{ManagedReferencesBehaviour.ANY},
+				referenceNames
+			),
+			entityRequirement,
+			groupEntityRequirement,
+			chunking
+		);
+	}
+
+	public ReferenceContent(
+		@Nullable EntityFetch entityRequirement,
+		@Nullable EntityGroupFetch groupEntityRequirement,
+		@Nullable ChunkingRequireConstraint chunking
+	) {
+		super(
+			new Serializable[]{ManagedReferencesBehaviour.ANY},
+			entityRequirement,
+			groupEntityRequirement,
+			chunking
+		);
+	}
+
+	public ReferenceContent(
+		@Nullable AttributeContent attributeContent,
+		@Nullable EntityFetch entityRequirement,
+		@Nullable EntityGroupFetch groupEntityRequirement,
+		@Nullable ChunkingRequireConstraint chunking
+	) {
+		super(
+			new Serializable[]{ManagedReferencesBehaviour.ANY},
+			attributeContent,
+			entityRequirement,
+			groupEntityRequirement,
+			chunking
+		);
+	}
+
+	public ReferenceContent(
+		@Nullable ManagedReferencesBehaviour managedReferences,
+		@Nullable ChunkingRequireConstraint chunking
+	) {
+		super(
+			new Serializable[]{ofNullable(managedReferences).orElse(ManagedReferencesBehaviour.ANY)},
+			chunking
+		);
+	}
+
+	public ReferenceContent(
+		@Nullable ManagedReferencesBehaviour managedReferences,
+		@Nullable ChunkingRequireConstraint chunking,
+		@Nonnull String... referenceName
+	) {
+		super(
+			ArrayUtils.mergeArrays(
+				new Serializable[]{ofNullable(managedReferences).orElse(ManagedReferencesBehaviour.ANY)},
+				referenceName
+			),
+			chunking
+		);
+	}
+
+	public ReferenceContent(
+		@Nullable ManagedReferencesBehaviour managedReferences,
+		@Nonnull String referenceName,
+		@Nullable AttributeContent attributeContent,
+		@Nullable ChunkingRequireConstraint chunking
+	) {
+		super(
+			new Serializable[]{ofNullable(managedReferences).orElse(ManagedReferencesBehaviour.ANY), referenceName},
+			attributeContent,
+			chunking
+		);
+	}
+
+	public ReferenceContent(
+		@Nullable ManagedReferencesBehaviour managedReferences,
+		@Nullable AttributeContent attributeContent,
+		@Nullable ChunkingRequireConstraint chunking
+	) {
+		super(
+			new Serializable[]{ofNullable(managedReferences).orElse(ManagedReferencesBehaviour.ANY)},
+			attributeContent,
+			chunking
+		);
+	}
+
+	public ReferenceContent(
+		@Nullable ManagedReferencesBehaviour managedReferences,
+		@Nonnull String[] referenceNames,
+		@Nullable EntityFetch entityRequirement,
+		@Nullable EntityGroupFetch groupEntityRequirement,
+		@Nullable ChunkingRequireConstraint chunking
+	) {
+		super(
+			ArrayUtils.mergeArrays(
+				new Serializable[]{ofNullable(managedReferences).orElse(ManagedReferencesBehaviour.ANY)},
+				referenceNames
+			),
+			entityRequirement,
+			groupEntityRequirement,
+			chunking
+		);
+	}
+
+	public ReferenceContent(
+		@Nullable ManagedReferencesBehaviour managedReferences,
+		@Nonnull String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable EntityFetch entityFetch,
+		@Nullable EntityGroupFetch entityGroupFetch,
+		@Nullable ChunkingRequireConstraint chunking
+	) {
+		super(
+			ArrayUtils.mergeArrays(
+				new Serializable[]{ofNullable(managedReferences).orElse(ManagedReferencesBehaviour.ANY)},
+				new String[]{referenceName}
+			),
+			new RequireConstraint[]{entityFetch, entityGroupFetch, chunking},
+			filterBy,
+			orderBy
+		);
+	}
+
+	/**
+	 * This constructor causes ambiguity with the constructor that takes {@link AttributeContent} as the first parameter
+	 * and is there only for backward compatibility and will be removed.
+	 *
+	 * @deprecated will be removed in the future
+	 */
+	@Deprecated
+	public ReferenceContent(
+		@Nullable ManagedReferencesBehaviour managedReferences,
+		@Nonnull String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable AttributeContent attributeContent,
+		@Nullable EntityFetch entityFetch,
+		@Nullable EntityGroupFetch entityGroupFetch
+	) {
+		super(
+			ArrayUtils.mergeArrays(
+				new Serializable[]{ofNullable(managedReferences).orElse(ManagedReferencesBehaviour.ANY)},
+				new String[]{referenceName}
+			),
+			new RequireConstraint[]{
+				attributeContent,
+				entityFetch,
+				entityGroupFetch,
+				null
+			},
+			filterBy,
+			orderBy
+		);
+	}
+
+	public ReferenceContent(
+		@Nullable ManagedReferencesBehaviour managedReferences,
+		@Nonnull String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable AttributeContent attributeContent,
+		@Nullable EntityFetch entityFetch,
+		@Nullable EntityGroupFetch entityGroupFetch,
+		@Nullable ChunkingRequireConstraint chunking
+	) {
+		super(
+			ArrayUtils.mergeArrays(
+				new Serializable[]{ofNullable(managedReferences).orElse(ManagedReferencesBehaviour.ANY)},
+				new String[]{referenceName}
+			),
+			new RequireConstraint[]{
+				attributeContent,
+				entityFetch,
+				entityGroupFetch,
+				chunking
+			},
+			filterBy,
+			orderBy
+		);
+	}
+
+	public ReferenceContent(
+		@Nullable ManagedReferencesBehaviour managedReferences,
+		@Nullable EntityFetch entityRequirement,
+		@Nullable EntityGroupFetch groupEntityRequirement,
+		@Nullable ChunkingRequireConstraint chunking
+	) {
+		super(
+			new Serializable[]{ofNullable(managedReferences).orElse(ManagedReferencesBehaviour.ANY)},
+			entityRequirement,
+			groupEntityRequirement,
+			chunking
+		);
+	}
+
+	public ReferenceContent(
+		@Nullable ManagedReferencesBehaviour managedReferences,
+		@Nullable AttributeContent attributeContent,
+		@Nullable EntityFetch entityRequirement,
+		@Nullable EntityGroupFetch groupEntityRequirement,
+		@Nullable ChunkingRequireConstraint chunking
+	) {
+		super(
+			new Serializable[]{ofNullable(managedReferences).orElse(ManagedReferencesBehaviour.ANY)},
+			attributeContent,
+			entityRequirement,
+			groupEntityRequirement,
+			chunking
 		);
 	}
 
@@ -462,7 +673,7 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	public Optional<AttributeContent> getAttributeContent() {
 		return Arrays.stream(getChildren())
 			.filter(it -> AttributeContent.class.isAssignableFrom(it.getClass()))
-			.map(it -> (AttributeContent) it)
+			.map(AttributeContent.class::cast)
 			.findFirst();
 	}
 
@@ -474,7 +685,7 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	public Optional<EntityFetch> getEntityRequirement() {
 		return Arrays.stream(getChildren())
 			.filter(it -> EntityFetch.class.isAssignableFrom(it.getClass()))
-			.map(it -> (EntityFetch) it)
+			.map(EntityFetch.class::cast)
 			.findFirst();
 	}
 
@@ -486,7 +697,42 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	public Optional<EntityGroupFetch> getGroupEntityRequirement() {
 		return Arrays.stream(getChildren())
 			.filter(it -> EntityGroupFetch.class.isAssignableFrom(it.getClass()))
-			.map(it -> (EntityGroupFetch) it)
+			.map(EntityGroupFetch.class::cast)
+			.findFirst();
+	}
+
+	/**
+	 * Returns requirements for reference paging.
+	 */
+	@Nonnull
+	public Optional<ChunkingRequireConstraint> getChunking() {
+		return Arrays.stream(getChildren())
+			.filter(it -> ChunkingRequireConstraint.class.isAssignableFrom(it.getClass()))
+			.map(ChunkingRequireConstraint.class::cast)
+			.findFirst();
+	}
+
+	/**
+	 * Returns requirements for reference paging.
+	 */
+	@AliasForParameter("page")
+	@Nonnull
+	public Optional<Page> getPage() {
+		return Arrays.stream(getChildren())
+			.filter(it -> Page.class.isAssignableFrom(it.getClass()))
+			.map(Page.class::cast)
+			.findFirst();
+	}
+
+	/**
+	 * Returns requirements for reference paging.
+	 */
+	@AliasForParameter("strip")
+	@Nonnull
+	public Optional<Strip> getStrip() {
+		return Arrays.stream(getChildren())
+			.filter(it -> Strip.class.isAssignableFrom(it.getClass()))
+			.map(Strip.class::cast)
 			.findFirst();
 	}
 
@@ -516,9 +762,40 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	@Nonnull
 	@Override
 	public Serializable[] getArgumentsExcludingDefaults() {
-		return Arrays.stream(super.getArgumentsExcludingDefaults())
+		return Arrays.stream(getArguments())
 			.filter(it -> it != ManagedReferencesBehaviour.ANY)
 			.toArray(Serializable[]::new);
+	}
+
+	@Override
+	public boolean isArgumentImplicit(@Nonnull Serializable serializable) {
+		return serializable == ManagedReferencesBehaviour.ANY;
+	}
+
+	@Override
+	public boolean isArgumentImplicitForSuffix(@Nonnull Serializable argument) {
+		return argument instanceof ManagedReferencesBehaviour mrb &&
+			mrb == ManagedReferencesBehaviour.ANY;
+	}
+
+	@Nonnull
+	@Override
+	public RequireConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
+		final ManagedReferencesBehaviour thisBehaviour = getManagedReferencesBehaviour();
+		final ManagedReferencesBehaviour thatBehaviour = Arrays.stream(newArguments)
+			.filter(ManagedReferencesBehaviour.class::isInstance)
+			.map(ManagedReferencesBehaviour.class::cast)
+			.findFirst()
+			.orElse(ManagedReferencesBehaviour.ANY);
+		return new ReferenceContent(
+			thisBehaviour == thatBehaviour ? thisBehaviour : ManagedReferencesBehaviour.EXISTING,
+			Arrays.stream(newArguments)
+				.filter(String.class::isInstance)
+				.map(String.class::cast)
+				.toArray(String[]::new),
+			getChildren(),
+			getAdditionalChildren()
+		);
 	}
 
 	@Nonnull
@@ -548,6 +825,68 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	}
 
 	@Nonnull
+	@Override
+	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+		if (additionalChildren.length > 2 || (additionalChildren.length == 2 && !FilterConstraint.class.isAssignableFrom(additionalChildren[0].getType()) && !OrderConstraint.class.isAssignableFrom(additionalChildren[1].getType()))) {
+			throw new EvitaInvalidUsageException("Expected single or no additional filter and order child query.");
+		}
+		return new ReferenceContent(getManagedReferencesBehaviour(), getReferenceNames(), children, additionalChildren);
+	}
+
+	@Override
+	public <T extends EntityContentRequire> boolean isCombinableWith(@Nonnull T anotherRequirement) {
+		return anotherRequirement instanceof ReferenceContent referenceContent &&
+			this.isSingleReference() && referenceContent.isSingleReference() &&
+			this.getReferenceName().equals(referenceContent.getReferenceName());
+	}
+
+	@Override
+	public <T extends EntityContentRequire> boolean isFullyContainedWithin(@Nonnull T anotherRequirement) {
+		if (anotherRequirement instanceof ReferenceContent referenceContent) {
+			final String[] thatReferenceNames = referenceContent.getReferenceNames();
+			if (thatReferenceNames.length > 0) {
+				for (String referenceName : getReferenceNames()) {
+					if (Arrays.stream(thatReferenceNames).noneMatch(referenceName::equals)) {
+						return false;
+					}
+				}
+			}
+			final Optional<AttributeContent> thatContent = referenceContent.getAttributeContent();
+			final Optional<AttributeContent> thisContent = getAttributeContent();
+			if (thisContent.isPresent()) {
+				if (thatContent.isEmpty() || !thisContent.get().isFullyContainedWithin(thatContent.get())) {
+					return false;
+				}
+			}
+			final Optional<EntityFetch> thatEntityRequirement = referenceContent.getEntityRequirement();
+			final Optional<EntityFetch> thisEntityRequirement = getEntityRequirement();
+			if (thisEntityRequirement.isPresent()) {
+				if (thatEntityRequirement.isEmpty() || !thisEntityRequirement.get().isFullyContainedWithin(thatEntityRequirement.get())) {
+					return false;
+				}
+			}
+			final Optional<EntityGroupFetch> thatGroupEntityRequirement = referenceContent.getGroupEntityRequirement();
+			final Optional<EntityGroupFetch> thisGroupEntityRequirement = getGroupEntityRequirement();
+			if (thisGroupEntityRequirement.isPresent()) {
+				if (thatGroupEntityRequirement.isEmpty() || !thisGroupEntityRequirement.get().isFullyContainedWithin(thatGroupEntityRequirement.get())) {
+					return false;
+				}
+			}
+			final Optional<FilterBy> thatFilterBy = referenceContent.getFilterBy();
+			final Optional<FilterBy> thisFilterBy = getFilterBy();
+			if (!Objects.equals(thisFilterBy.orElse(null), thatFilterBy.orElse(null))) {
+				return false;
+			}
+			final Optional<OrderBy> thatOrderBy = referenceContent.getOrderBy();
+			final Optional<OrderBy> thisOrderBy = getOrderBy();
+			if (!Objects.equals(thisOrderBy.orElse(null), thatOrderBy.orElse(null))) {
+				return false;
+			}
+		}
+		return false;
+	}
+
+	@Nonnull
 	@SuppressWarnings("unchecked")
 	@Override
 	public <T extends EntityContentRequire> T combineWith(@Nonnull T anotherRequirement) {
@@ -565,27 +904,77 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 					);
 				}
 			} else {
-				final EntityFetch combinedEntityRequirement = combineRequirements(getEntityRequirement().orElse(null), anotherReferenceContent.getEntityRequirement().orElse(null));
-				final EntityGroupFetch combinedGroupEntityRequirement = combineRequirements(getGroupEntityRequirement().orElse(null), anotherReferenceContent.getGroupEntityRequirement().orElse(null));
 				final ManagedReferencesBehaviour managedReferencesBehaviour = getManagedReferencesBehaviour() == anotherReferenceContent.getManagedReferencesBehaviour() ?
 					getManagedReferencesBehaviour() : ManagedReferencesBehaviour.EXISTING;
-				final String[] referenceNames = Stream.concat(
-						Arrays.stream(getReferenceNames()),
-						Arrays.stream(((ReferenceContent) anotherRequirement).getReferenceNames())
-					)
-					.distinct()
-					.toArray(String[]::new);
+				final String[] referenceNames = isAllRequested() || anotherReferenceContent.isAllRequested() ?
+					new String[0] :
+					Stream.concat(
+							Arrays.stream(getReferenceNames()),
+							Arrays.stream(((ReferenceContent) anotherRequirement).getReferenceNames())
+						)
+						.distinct()
+						.toArray(String[]::new);
+				final EntityFetch combinedEntityRequirement;
+				final EntityGroupFetch combinedGroupEntityRequirement;
+				final AttributeContent combinedAttributeRequirement;
+				if (referenceNames.length == 1) {
+					combinedAttributeRequirement = EntityContentRequire.combineRequirements(
+						getAttributeContent().orElse(null),
+						anotherReferenceContent.getAttributeContent().orElse(null)
+					);
+					combinedEntityRequirement = combineRequirements(
+						getEntityRequirement().orElse(null),
+						anotherReferenceContent.getEntityRequirement().orElse(null)
+					);
+					combinedGroupEntityRequirement = combineRequirements(
+						getGroupEntityRequirement().orElse(null),
+						anotherReferenceContent.getGroupEntityRequirement().orElse(null)
+					);
+				} else if (
+					!this.getAttributeContent().map(AttributeContent::isAllRequested).orElse(true) ||
+						!anotherReferenceContent.getAttributeContent().map(AttributeContent::isAllRequested).orElse(true)) {
+					throw new EvitaInvalidUsageException(
+						"Cannot combine multiple attribute content requirements: " + this + " and " + anotherRequirement,
+						"Cannot combine multiple attribute content requirements."
+					);
+				} else if (this.getFilterBy().isPresent() || anotherReferenceContent.getFilterBy().isPresent()) {
+					throw new EvitaInvalidUsageException(
+						"Cannot combine multiple filtered requirements: " + this + " and " + anotherRequirement,
+						"Cannot combine multiple filtered requirements."
+					);
+				} else if (this.getOrderBy().isPresent() || anotherReferenceContent.getOrderBy().isPresent()) {
+					throw new EvitaInvalidUsageException(
+						"Cannot combine multiple ordered requirements: " + this + " and " + anotherRequirement,
+						"Cannot combine multiple ordered requirements."
+					);
+				} else if (this.getEntityRequirement().isPresent() || anotherReferenceContent.getEntityRequirement().isPresent()) {
+					throw new EvitaInvalidUsageException(
+						"Cannot combine multiple requirements with entity fetch: " + this + " and " + anotherRequirement,
+						"Cannot combine multiple requirements with entity fetch."
+					);
+				} else if (this.getGroupEntityRequirement().isPresent() || anotherReferenceContent.getGroupEntityRequirement().isPresent()) {
+					throw new EvitaInvalidUsageException(
+						"Cannot combine multiple requirements with entity group fetch: " + this + " and " + anotherRequirement,
+						"Cannot combine multiple requirements with entity group fetch."
+					);
+				} else {
+					combinedAttributeRequirement = null;
+					combinedEntityRequirement = null;
+					combinedGroupEntityRequirement = null;
+				}
+
 				return (T) new ReferenceContent(
 					managedReferencesBehaviour,
 					referenceNames,
 					Arrays.stream(
 						new RequireConstraint[] {
+							combinedAttributeRequirement,
 							combinedEntityRequirement,
 							combinedGroupEntityRequirement
 						}
 					).filter(Objects::nonNull).toArray(RequireConstraint[]::new),
 					Arrays.stream(
-						new Constraint<?>[] {
+						new Constraint<?>[]{
 							getFilterBy().orElse(null),
 							getOrderBy().orElse(null)
 						}
@@ -595,54 +984,12 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 		}
 	}
 
-	@Nullable
-	private static EntityFetch combineRequirements(@Nullable EntityFetch a, @Nullable EntityFetch b) {
-		if (a == null) {
-			return b;
-		} else if (b == null) {
-			return a;
-		} else {
-			return a.combineWith(b);
-		}
-	}
-
-	@Nullable
-	private static EntityGroupFetch combineRequirements(@Nullable EntityGroupFetch a, @Nullable EntityGroupFetch b) {
-		if (a == null) {
-			return b;
-		} else if (b == null) {
-			return a;
-		} else {
-			return a.combineWith(b);
-		}
-	}
-
-	@Nonnull
-	@Override
-	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
-		if (additionalChildren.length > 2 || (additionalChildren.length == 2 && !FilterConstraint.class.isAssignableFrom(additionalChildren[0].getType()) && !OrderConstraint.class.isAssignableFrom(additionalChildren[1].getType()))) {
-			throw new EvitaInvalidUsageException("Expected single or no additional filter and order child query.");
-		}
-		return new ReferenceContent(getManagedReferencesBehaviour(), getReferenceNames(), children, additionalChildren);
-	}
-
-	@Nonnull
-	@Override
-	public RequireConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
-		final ManagedReferencesBehaviour thisBehaviour = getManagedReferencesBehaviour();
-		final ManagedReferencesBehaviour thatBehaviour = Arrays.stream(newArguments)
-			.filter(ManagedReferencesBehaviour.class::isInstance)
-			.map(ManagedReferencesBehaviour.class::cast)
-			.findFirst()
-			.orElse(ManagedReferencesBehaviour.ANY);
-		return new ReferenceContent(
-			thisBehaviour == thatBehaviour ? thisBehaviour : ManagedReferencesBehaviour.EXISTING,
-			Arrays.stream(newArguments)
-				.filter(String.class::isInstance)
-				.map(String.class::cast)
-				.toArray(String[]::new),
-			getChildren(),
-			getAdditionalChildren()
-		);
+	/**
+	 * Determines whether the reference content has a single reference name.
+	 *
+	 * @return true if there is exactly one reference name, false otherwise.
+	 */
+	private boolean isSingleReference() {
+		return this.getReferenceNames().length == 1;
 	}
 }

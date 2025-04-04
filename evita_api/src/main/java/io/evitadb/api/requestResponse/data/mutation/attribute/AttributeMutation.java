@@ -36,7 +36,6 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuil
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.dataType.ContainerType;
 import io.evitadb.dataType.EvitaDataTypes;
-import io.evitadb.dataType.Predecessor;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -104,13 +103,6 @@ public abstract class AttributeMutation implements NamedLocalMutation<AttributeV
 	) throws InvalidMutationException {
 		// when attribute definition is known execute first encounter formal verification
 		if (attributeSchema != null) {
-			// we need to unwrap array classes - we need to check base class for compatibility with Comparable
-			final Class<?> attributeClass;
-			if (attributeValue instanceof Object[]) {
-				attributeClass = attributeValue.getClass().getComponentType();
-			} else {
-				attributeClass = attributeValue.getClass();
-			}
 			Assert.isTrue(
 				(attributeSchema.getType().isPrimitive() ?
 					EvitaDataTypes.getWrappingPrimitiveClass(attributeSchema.getType()) : attributeSchema.getType())
@@ -121,15 +113,6 @@ public abstract class AttributeMutation implements NamedLocalMutation<AttributeV
 						"All values of attribute `" + attributeKey.attributeName() + "` must respect this data type!"
 				)
 			);
-			if (attributeSchema.isSortable()) {
-				Assert.isTrue(
-					Comparable.class.isAssignableFrom(attributeClass) || attributeValue instanceof Predecessor,
-					() -> new InvalidMutationException(
-						"Attribute `" + attributeKey.attributeName() + "` in schema `" + entitySchemaBuilder.getName() + "` is sortable and needs to implement " +
-							"Comparable interface (or be Predecessor), but it doesn't: `" + attributeValue.getClass() + "`!"
-					)
-				);
-			}
 			if (attributeSchema.isLocalized()) {
 				Assert.isTrue(
 					attributeKey.localized(),

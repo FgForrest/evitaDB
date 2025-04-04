@@ -28,6 +28,7 @@ import io.evitadb.utils.ArrayUtils;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 
 /**
@@ -53,8 +54,8 @@ public class EntityLocaleMissingException extends EvitaInvalidUsageException {
 	}
 
 	public EntityLocaleMissingException(
-		@Nonnull String[] attributeNames,
-		@Nonnull String[] associatedDataNames
+		@Nullable String[] attributeNames,
+		@Nullable String[] associatedDataNames
 	) {
 		super(
 			"Query requires localized " +

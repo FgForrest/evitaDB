@@ -46,7 +46,7 @@ public class PredecessorSerializer extends ImmutableSerializer<Predecessor> {
 			output.writeBoolean(false);
 		} else {
 			output.writeBoolean(true);
-			output.writeInt(object.predecessorId());
+			output.writeInt(object.predecessorPk());
 		}
 	}
 

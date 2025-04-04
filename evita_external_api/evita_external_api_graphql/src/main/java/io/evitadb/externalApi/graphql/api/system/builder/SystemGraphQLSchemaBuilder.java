@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -61,10 +61,11 @@ import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.Re
 import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.SwitchCatalogToAliveStateMutatingDataFetcher;
 import io.evitadb.externalApi.graphql.api.system.resolver.subscribingDataFetcher.ChangeSystemCaptureBodyDataFetcher;
 import io.evitadb.externalApi.graphql.api.system.resolver.subscribingDataFetcher.OnSystemChangeSubscribingDataFetcher;
-import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
+import io.evitadb.externalApi.graphql.configuration.GraphQLOptions;
 import io.evitadb.utils.NamingConvention;
 
 import javax.annotation.Nonnull;
+import java.util.Map;
 
 import static graphql.schema.GraphQLNonNull.nonNull;
 
@@ -75,10 +76,24 @@ import static graphql.schema.GraphQLNonNull.nonNull;
  */
 public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQLSchemaBuildingContext> {
 
+	private static final NameVariantDataFetcher CAMEL_CASE_VARIANT_DATA_FETCHER = new NameVariantDataFetcher(NamingConvention.CAMEL_CASE);
+	private static final NameVariantDataFetcher PASCAL_CASE_VARIANT_DATA_FETCHER = new NameVariantDataFetcher(NamingConvention.PASCAL_CASE);
+	private static final NameVariantDataFetcher SNAKE_CASE_VARIANT_DATA_FETCHER = new NameVariantDataFetcher(NamingConvention.SNAKE_CASE);
+	private static final NameVariantDataFetcher UPPER_SNAKE_CASE_VARIANT_DATA_FETCHER = new NameVariantDataFetcher(NamingConvention.UPPER_SNAKE_CASE);
+	private static final NameVariantDataFetcher KEBAB_CASE_VARIANT_DATA_FETCHER = new NameVariantDataFetcher(NamingConvention.KEBAB_CASE);
+
+	private static final PropertyDataFetcher<Map<NamingConvention, String>> CATALOG_NAME_VARIANTS_DATA_FETCHER = PropertyDataFetcher.fetching(it -> ((Catalog) it).getSchema().getNameVariants());
+	private static final PropertyDataFetcher<Boolean> CATALOG_SUPPORTS_TRANSACTION_DATA_FETCHER = PropertyDataFetcher.fetching(CatalogContract::supportsTransaction);
+	private static final PropertyDataFetcher<Boolean> CATALOG_CORRUPTED_DATA_FETCHER = PropertyDataFetcher.fetching(it -> false);
+
+	private static final PropertyDataFetcher<String> CORRUPTED_CATALOG_STORAGE_PATH_DATA_FETCHER = PropertyDataFetcher.fetching(it -> ((CorruptedCatalog) it).getCatalogStoragePath().toString());
+	private static final PropertyDataFetcher<String> CORRUPTED_CATALOG_CAUSE_DATA_FETCHER = PropertyDataFetcher.fetching(it -> ((CorruptedCatalog) it).getCause().toString());
+	private static final PropertyDataFetcher<Boolean> CORRUPTED_CATALOG_CORRUPTED_DATA_FETCHER = PropertyDataFetcher.fetching(it -> true);
+
 	@Nonnull
 	private final Evita evita;
 
-	public SystemGraphQLSchemaBuilder(@Nonnull GraphQLConfig config, @Nonnull Evita evita) {
+	public SystemGraphQLSchemaBuilder(@Nonnull GraphQLOptions config, @Nonnull Evita evita) {
 		super(new GraphQLSchemaBuildingContext(config, evita));
 		this.evita = evita;
 	}
@@ -117,27 +132,27 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 		buildingContext.registerDataFetcher(
 			NameVariantsDescriptor.THIS,
 			NameVariantsDescriptor.CAMEL_CASE,
-			new NameVariantDataFetcher(NamingConvention.CAMEL_CASE)
+			CAMEL_CASE_VARIANT_DATA_FETCHER
 		);
 		buildingContext.registerDataFetcher(
 			NameVariantsDescriptor.THIS,
 			NameVariantsDescriptor.PASCAL_CASE,
-			new NameVariantDataFetcher(NamingConvention.PASCAL_CASE)
+			PASCAL_CASE_VARIANT_DATA_FETCHER
 		);
 		buildingContext.registerDataFetcher(
 			NameVariantsDescriptor.THIS,
 			NameVariantsDescriptor.SNAKE_CASE,
-			new NameVariantDataFetcher(NamingConvention.SNAKE_CASE)
+			SNAKE_CASE_VARIANT_DATA_FETCHER
 		);
 		buildingContext.registerDataFetcher(
 			NameVariantsDescriptor.THIS,
 			NameVariantsDescriptor.UPPER_SNAKE_CASE,
-			new NameVariantDataFetcher(NamingConvention.UPPER_SNAKE_CASE)
+			UPPER_SNAKE_CASE_VARIANT_DATA_FETCHER
 		);
 		buildingContext.registerDataFetcher(
 			NameVariantsDescriptor.THIS,
 			NameVariantsDescriptor.KEBAB_CASE,
-			new NameVariantDataFetcher(NamingConvention.KEBAB_CASE)
+			KEBAB_CASE_VARIANT_DATA_FETCHER
 		);
 
 		return NameVariantsDescriptor.THIS
@@ -150,17 +165,17 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 		buildingContext.registerDataFetcher(
 			CatalogDescriptor.THIS,
 			CatalogDescriptor.NAME_VARIANTS,
-			PropertyDataFetcher.fetching(it -> ((Catalog) it).getSchema().getNameVariants())
+			CATALOG_NAME_VARIANTS_DATA_FETCHER
 		);
 		buildingContext.registerDataFetcher(
 			CatalogDescriptor.THIS,
 			CatalogDescriptor.SUPPORTS_TRANSACTION,
-			PropertyDataFetcher.fetching(CatalogContract::supportsTransaction)
+			CATALOG_SUPPORTS_TRANSACTION_DATA_FETCHER
 		);
 		buildingContext.registerDataFetcher(
 			CatalogDescriptor.THIS,
 			CatalogDescriptor.CORRUPTED,
-			PropertyDataFetcher.fetching(it -> false)
+			CATALOG_CORRUPTED_DATA_FETCHER
 		);
 
 		return CatalogDescriptor.THIS.to(objectBuilderTransformer).build();
@@ -171,17 +186,17 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 		buildingContext.registerDataFetcher(
 			CorruptedCatalogDescriptor.THIS,
 			CorruptedCatalogDescriptor.CATALOG_STORAGE_PATH,
-			PropertyDataFetcher.fetching(it -> ((CorruptedCatalog) it).getCatalogStoragePath().toString())
+			CORRUPTED_CATALOG_STORAGE_PATH_DATA_FETCHER
 		);
 		buildingContext.registerDataFetcher(
 			CorruptedCatalogDescriptor.THIS,
 			CorruptedCatalogDescriptor.CAUSE,
-			PropertyDataFetcher.fetching(it -> ((CorruptedCatalog) it).getCause().toString())
+			CORRUPTED_CATALOG_CAUSE_DATA_FETCHER
 		);
 		buildingContext.registerDataFetcher(
 			CorruptedCatalogDescriptor.THIS,
 			CorruptedCatalogDescriptor.CORRUPTED,
-			PropertyDataFetcher.fetching(it -> true)
+			CORRUPTED_CATALOG_CORRUPTED_DATA_FETCHER
 		);
 
 		return CorruptedCatalogDescriptor.THIS.to(objectBuilderTransformer).build();
@@ -227,7 +242,7 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 		return new BuiltFieldDescriptor(
 			SystemRootDescriptor.LIVENESS.to(staticEndpointBuilderTransformer).build(),
 			new AsyncDataFetcher(
-				new LivenessDataFetcher(),
+				LivenessDataFetcher.getInstance(),
 				buildingContext.getConfig(),
 				buildingContext.getTracingContext(),
 				buildingContext.getEvita()

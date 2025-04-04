@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -57,6 +57,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
+import java.util.function.LongConsumer;
 import java.util.stream.Stream;
 
 /**
@@ -94,7 +95,10 @@ public interface CatalogContract {
 	 * Alters existing schema applying passed schema mutation.
 	 */
 	@Nonnull
-	CatalogSchemaContract updateSchema(@Nonnull LocalCatalogSchemaMutation... schemaMutation) throws SchemaAlteringException;
+	CatalogSchemaContract updateSchema(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull LocalCatalogSchemaMutation... schemaMutation
+	) throws SchemaAlteringException;
 
 	/**
 	 * Returns state of this catalog instance.
@@ -139,8 +143,12 @@ public interface CatalogContract {
 	/**
 	 * Applies mutation to the catalog. This is a generic method that accepts any mutation and tries to apply it to
 	 * the catalog. If the mutation is not applicable to the catalog, exception is thrown.
+	 *
+	 * @param session  session that is applying the mutation
+	 * @param mutation mutation to be applied
+	 * @throws InvalidMutationException when mutation is not applicable to the catalog
 	 */
-	void applyMutation(@Nonnull Mutation mutation) throws InvalidMutationException;
+	void applyMutation(@Nonnull EvitaSessionContract session, @Nonnull Mutation mutation) throws InvalidMutationException;
 
 	/**
 	 * Returns collection maintaining all entities of same type.
@@ -174,7 +182,7 @@ public interface CatalogContract {
 	 *                                 doesn't allow {@link CatalogEvolutionMode#ADDING_ENTITY_TYPES}
 	 */
 	@Nonnull
-	EntityCollectionContract getOrCreateCollectionForEntity(@Nonnull String entityType, @Nonnull EvitaSessionContract session)
+	EntityCollectionContract getOrCreateCollectionForEntity(@Nonnull EvitaSessionContract session, @Nonnull String entityType)
 		throws SchemaAlteringException;
 
 	/**
@@ -184,13 +192,13 @@ public interface CatalogContract {
 	 * @param entityType type of the entity which collection should be deleted
 	 * @return TRUE if collection was successfully deleted
 	 */
-	boolean deleteCollectionOfEntity(@Nonnull String entityType, @Nonnull EvitaSessionContract session);
+	boolean deleteCollectionOfEntity(@Nonnull EvitaSessionContract session, @Nonnull String entityType);
 
 	/**
 	 * Renames entire collection of entities along with its schema. After this operation there will be nothing left
 	 * of the data that belong to the specified entity type, and entity collection under the new name becomes available.
 	 * If you need to rename entity collection to a name of existing collection use
-	 * the {@link #replaceCollectionOfEntity(String, String, EvitaSessionContract)} method instead.
+	 * the {@link #replaceCollectionOfEntity(EvitaSessionContract, String, String)} method instead.
 	 *
 	 * In case exception occurs the original collection (`entityType`) is guaranteed to be untouched,
 	 * and the `newName` will not be present.
@@ -216,7 +224,7 @@ public interface CatalogContract {
 	 * @param entityTypeToBeReplacedWith name of the collection that will become the successor of the original catalog
 	 * @return TRUE if collection was successfully replaced
 	 */
-	boolean replaceCollectionOfEntity(@Nonnull String entityTypeToBeReplaced, @Nonnull String entityTypeToBeReplacedWith, @Nonnull EvitaSessionContract session);
+	boolean replaceCollectionOfEntity(@Nonnull EvitaSessionContract session, @Nonnull String entityTypeToBeReplaced, @Nonnull String entityTypeToBeReplacedWith);
 
 	/**
 	 * Removes entire catalog storage from persistent storage.
@@ -282,9 +290,9 @@ public interface CatalogContract {
 	 * It returns only versions that are known in history - there may be a lot of other versions for which we don't have
 	 * information anymore, because the data were purged to save space.
 	 *
-	 * @param timeFlow   the time flow used to filter the catalog versions
-	 * @param page       the page number of the paginated list
-	 * @param pageSize   the number of versions per page
+	 * @param timeFlow the time flow used to filter the catalog versions
+	 * @param page     the page number of the paginated list
+	 * @param pageSize the number of versions per page
 	 * @return a paginated list of {@link CatalogVersion} instances
 	 */
 	@Nonnull
@@ -336,14 +344,22 @@ public interface CatalogContract {
 	 *                     the dataset as it was at that moment
 	 * @param includingWAL if true, the backup will include the Write-Ahead Log (WAL) file and when the catalog is
 	 *                     restored, it'll replay the WAL contents locally to bring the catalog to the current state
+	 * @param onStart      callback that will be executed before the backup process starts
+	 * @param onComplete   callback that will be executed when the backup process is completed
 	 * @return jobId of the backup process
 	 * @throws TemporalDataNotAvailableException when the past data is not available
 	 */
 	@Nonnull
-	ServerTask<?, FileForFetch> backup(@Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException;
+	ServerTask<?, FileForFetch> backup(
+		@Nullable OffsetDateTime pastMoment,
+		boolean includingWAL,
+		@Nullable LongConsumer onStart,
+		@Nullable LongConsumer onComplete
+	) throws TemporalDataNotAvailableException;
 
 	/**
 	 * Returns catalog statistics aggregating basic information about the catalog and the data stored in it.
+	 *
 	 * @return catalog statistics
 	 */
 	@Nonnull

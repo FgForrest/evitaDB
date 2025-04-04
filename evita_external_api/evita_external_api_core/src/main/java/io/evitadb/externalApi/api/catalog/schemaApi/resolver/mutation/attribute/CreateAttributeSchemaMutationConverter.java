@@ -23,13 +23,11 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute;
 
-import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.ValueTypeMapper;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.AttributeSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.CreateAttributeSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
 
@@ -62,19 +60,35 @@ public class CreateAttributeSchemaMutationConverter extends AttributeSchemaMutat
 			new ValueTypeMapper(getExceptionFactory(), CreateAttributeSchemaMutationDescriptor.TYPE)
 		);
 
+		/* TODO LHO - nutno společně vyřešit */
+		/*final ScopedAttributeUniquenessType[] uniqueInScopes = input.getOptionalProperty(
+			CreateAttributeSchemaMutationDescriptor.UNIQUE_IN_SCOPES.name(),
+			new FieldObjectListMapper<>(
+				getMutationName(),
+				getExceptionFactory(),
+				CreateAttributeSchemaMutationDescriptor.UNIQUE_IN_SCOPES,
+				ScopedAttributeUniquenessType.class,
+				nestedInput -> new ScopedAttributeUniquenessType(
+					nestedInput.getRequiredField(ScopedAttributeUniquenessTypeDescriptor.SCOPE),
+					nestedInput.getRequiredField(ScopedAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE)
+				)
+			)
+		);
+
 		return new CreateAttributeSchemaMutation(
 			input.getProperty(AttributeSchemaMutationDescriptor.NAME),
 			input.getProperty(CreateAttributeSchemaMutationDescriptor.DESCRIPTION),
 			input.getProperty(CreateAttributeSchemaMutationDescriptor.DEPRECATION_NOTICE),
-			input.getProperty(CreateAttributeSchemaMutationDescriptor.UNIQUENESS_TYPE, AttributeUniquenessType.NOT_UNIQUE),
-			input.getProperty(CreateAttributeSchemaMutationDescriptor.FILTERABLE, false),
-			input.getProperty(CreateAttributeSchemaMutationDescriptor.SORTABLE, false),
+			uniqueInScopes,
+			input.getProperty(CreateAttributeSchemaMutationDescriptor.FILTERABLE_IN_SCOPES, false),
+			input.getProperty(CreateAttributeSchemaMutationDescriptor.SORTABLE_IN_SCOPES, false),
 			input.getProperty(CreateAttributeSchemaMutationDescriptor.LOCALIZED, false),
 			input.getProperty(CreateAttributeSchemaMutationDescriptor.NULLABLE, false),
 			input.getProperty(CreateAttributeSchemaMutationDescriptor.REPRESENTATIVE, false),
 			valueType,
 			input.getOptionalProperty(CreateAttributeSchemaMutationDescriptor.DEFAULT_VALUE.name(), valueType),
 			input.getProperty(CreateAttributeSchemaMutationDescriptor.INDEXED_DECIMAL_PLACES, 0)
-		);
+		);*/
+		return null;
 	}
 }

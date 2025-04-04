@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,10 +24,13 @@
 package io.evitadb.api.requestResponse.data.structure;
 
 import io.evitadb.api.EntityCollectionContract;
+import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.dataType.DataChunk;
+import io.evitadb.dataType.PlainChunk;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -54,6 +57,12 @@ public interface ReferenceFetcher {
 		@Override
 		public <T extends SealedEntity> List<T> initReferenceIndex(@Nonnull List<T> entities, @Nonnull EntityCollectionContract entityCollection) {
 			return entities;
+		}
+
+		@Nonnull
+		@Override
+		public EvitaRequest getEnvelopingEntityRequest() {
+			throw new UnsupportedOperationException("No implementation");
 		}
 
 		@Nullable
@@ -86,6 +95,11 @@ public interface ReferenceFetcher {
 			return null;
 		}
 
+		@Nonnull
+		@Override
+		public DataChunk<ReferenceContract> createChunk(@Nonnull Entity entity, @Nonnull String referenceName, @Nonnull List<ReferenceContract> references) {
+			return new PlainChunk<>(references);
+		}
 	};
 
 	/**
@@ -105,7 +119,10 @@ public interface ReferenceFetcher {
 	 * @param entityCollection for lazy fetching reference container for the passed entity if its missing
 	 */
 	@Nonnull
-	<T extends SealedEntity> T initReferenceIndex(@Nonnull T entity, @Nonnull EntityCollectionContract entityCollection);
+	<T extends SealedEntity> T initReferenceIndex(
+		@Nonnull T entity,
+		@Nonnull EntityCollectionContract entityCollection
+	);
 
 	/**
 	 * Method captures information from entity {@link ReferenceContract} and fetches the referenced entities so that
@@ -124,7 +141,10 @@ public interface ReferenceFetcher {
 	 * @param entityCollection for lazy fetching reference container for the passed entity if its missing
 	 */
 	@Nonnull
-	<T extends SealedEntity> List<T> initReferenceIndex(@Nonnull List<T> entities, @Nonnull EntityCollectionContract entityCollection);
+	<T extends SealedEntity> List<T> initReferenceIndex(
+		@Nonnull List<T> entities,
+		@Nonnull EntityCollectionContract entityCollection
+	);
 
 	/**
 	 * Creates a fetcher lambda that for passed entity parent primary key fetches the rich form of the entity.
@@ -153,9 +173,6 @@ public interface ReferenceFetcher {
 	/**
 	 * Creates a comparator that orders the references according to requirements.
 	 * The comparator is created during `initReferenceIndex` methods invocation, and takes advantage of the indexes.
-	 * The client logic cannot order by attributes that were not marked as sortable as of now. However, this might
-	 * change in the future (see https://gitlab.fg.cz/hv/evita/-/issues/136).
-	 * If none the init methods is not called, the exception is thrown.
 	 *
 	 * @return null if the references should remain in the order they were fetched
 	 */
@@ -165,11 +182,33 @@ public interface ReferenceFetcher {
 	/**
 	 * Returns FALSE if the entity should contain references with empty {@link ReferenceDecorator#getReferencedEntity()}.
 	 * The predicate is created during `initReferenceIndex` methods invocation, and takes advantage of the indexes.
-	 * The client logic cannot order by attributes that were not marked as sortable as of now. However, this might
-	 * change in the future (see https://gitlab.fg.cz/hv/evita/-/issues/136).
-	 * If none the init methods is not called, the exception is thrown.
 	 */
 	@Nullable
 	BiPredicate<Integer, ReferenceDecorator> getEntityFilter(@Nonnull ReferenceSchemaContract referenceSchema);
+
+	/**
+	 * Returns evita request that should be used to fetch top-level (enveloping) entity. The request may contain
+	 * extended requirements so that the comparators have all the necessary data.
+	 *
+	 * @return request that should be used to fetch top-level entity
+	 */
+	@Nonnull
+	EvitaRequest getEnvelopingEntityRequest();
+
+	/**
+	 * Creates a chunk of data containing reference contracts. This method processes the provided entity,
+	 * the name of the reference, and a list of reference contracts to produce a structured data chunk.
+	 *
+	 * @param entity the entity containing reference information
+	 * @param referenceName the name of the reference being processed
+	 * @param references the list of references to be included in the data chunk
+	 * @return a data chunk containing the specified reference contracts
+	 */
+	@Nonnull
+	DataChunk<ReferenceContract> createChunk(
+		@Nonnull Entity entity,
+		@Nonnull String referenceName,
+		@Nonnull List<ReferenceContract> references
+	);
 
 }

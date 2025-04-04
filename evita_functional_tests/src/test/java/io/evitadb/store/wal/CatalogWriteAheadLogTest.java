@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -82,14 +82,15 @@ class CatalogWriteAheadLogTest {
 	void setUp() {
 		// and then write to the WAL a few times
 		final ByteBuffer byteBuffer = ByteBuffer.allocate(200);
-		for (int txSize : txSizes) {
+		for (int i = 0; i < txSizes.length; i++) {
+			final int txSize = txSizes[i];
 			byteBuffer.clear();
-			for (int i = 0; i < txSize; i++) {
-				byteBuffer.put((byte) i);
+			for (int j = 0; j < txSize; j++) {
+				byteBuffer.put((byte) j);
 			}
 
 			final TransactionMutation writtenTransactionMutation = new TransactionMutation(
-				UUIDUtil.randomUUID(), 1L, 2, txSize, OffsetDateTime.MIN
+				UUIDUtil.randomUUID(), 1L + i, 2, txSize, OffsetDateTime.MIN
 			);
 
 			byteBuffer.flip();
@@ -111,7 +112,7 @@ class CatalogWriteAheadLogTest {
 	@Test
 	void shouldVerifyWalIsOk() {
 		// should not throw any exception
-		CatalogWriteAheadLog.checkAndTruncate(TEST_CATALOG, walFilePath, catalogKryoPool, true);
+		CatalogWriteAheadLog.checkAndTruncate(TEST_CATALOG, walFilePath, catalogKryoPool, StorageOptions.temporary());
 	}
 
 	@Test
@@ -124,7 +125,7 @@ class CatalogWriteAheadLogTest {
 			raf.setLength(newLength);
 		}
 		// should not throw any exception
-		CatalogWriteAheadLog.checkAndTruncate(TEST_CATALOG, walFilePath, catalogKryoPool, true);
+		CatalogWriteAheadLog.checkAndTruncate(TEST_CATALOG, walFilePath, catalogKryoPool, StorageOptions.temporary());
 
 		final int txLengthBytes = 4;
 		final int classIdBytes = 2;
@@ -149,7 +150,7 @@ class CatalogWriteAheadLogTest {
 		// should throw an exception
 		assertThrows(
 			WriteAheadLogCorruptedException.class,
-			() -> CatalogWriteAheadLog.checkAndTruncate(TEST_CATALOG, walFilePath, catalogKryoPool, true)
+			() -> CatalogWriteAheadLog.checkAndTruncate(TEST_CATALOG, walFilePath, catalogKryoPool, StorageOptions.temporary())
 		);
 	}
 }

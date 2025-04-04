@@ -5,6 +5,7 @@ module evita.external.api.core {
 
 	uses io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 	uses io.evitadb.externalApi.utils.ExternalApiTracingContext;
+	uses io.evitadb.externalApi.api.system.ProbesProvider;
 
 	opens io.evitadb.externalApi.configuration;
 	opens io.evitadb.externalApi.api.catalog.dataApi.dto to com.fasterxml.jackson.databind;
@@ -61,6 +62,7 @@ module evita.external.api.core {
 	exports io.evitadb.externalApi.utils.path.routing;
 	exports io.evitadb.externalApi.utils.path.routing.cache;
 	exports io.evitadb.externalApi.serialization;
+	exports io.evitadb.externalApi.event;
 
 	requires com.fasterxml.jackson.core;
 	requires com.fasterxml.jackson.annotation;
@@ -68,6 +70,7 @@ module evita.external.api.core {
 	requires static jsr305;
 	requires org.slf4j;
 	requires com.fasterxml.jackson.databind;
+	requires com.esotericsoftware.kryo;
 	requires zero.allocation.hashing;
 
 	requires evita.api;
@@ -81,4 +84,5 @@ module evita.external.api.core {
 	requires io.netty.transport;
 	requires io.netty.handler;
 	requires io.netty.common;
+	requires jdk.jfr;
 }

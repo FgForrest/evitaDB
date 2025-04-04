@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -57,7 +57,9 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Currency;
+import java.util.EnumSet;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -93,11 +95,11 @@ public class EvitaDataTypesConverter {
 	/**
 	 * Representation of minimal supported timestamp by gRPC. More info at <a href="https://github.com/protocolbuffers/protobuf/blob/main/src/google/protobuf/timestamp.proto">official google docs</a>.
 	 */
-	private static final Instant GRPC_MIN_INSTANT = Instant.ofEpochSecond(LocalDate.of(GRPC_YEAR_MIN, 1, 1).toEpochSecond(LocalTime.of(0, 0, 0), ZoneOffset.UTC));
+	public static final Instant GRPC_MIN_INSTANT = Instant.ofEpochSecond(LocalDate.of(GRPC_YEAR_MIN, 1, 1).toEpochSecond(LocalTime.of(0, 0, 0), ZoneOffset.UTC));
 	/**
 	 * Representation of maximal supported timestamp by gRPC. More info at <a href="https://github.com/protocolbuffers/protobuf/blob/main/src/google/protobuf/timestamp.proto">official google docs</a>.
 	 */
-	private static final Instant GRPC_MAX_INSTANT = Instant.ofEpochSecond(LocalDate.of(GRPC_YEAR_MAX, 12, 31).toEpochSecond(LocalTime.of(23, 59, 59), ZoneOffset.UTC));
+	public static final Instant GRPC_MAX_INSTANT = Instant.ofEpochSecond(LocalDate.of(GRPC_YEAR_MAX, 12, 31).toEpochSecond(LocalTime.of(23, 59, 59), ZoneOffset.UTC));
 
 	/**
 	 * Converts the given {@link GrpcEvitaValue} to a {@link Serializable} value.
@@ -131,6 +133,7 @@ public class EvitaDataTypesConverter {
 			case LOCALE -> (T) toLocale(value.getLocaleValue());
 			case CURRENCY -> (T) toCurrency(value.getCurrencyValue());
 			case PREDECESSOR -> (T) toPredecessor(value.getPredecessorValue());
+			case REFERENCED_ENTITY_PREDECESSOR -> (T) toReferencedEntityPredecessor(value.getPredecessorValue());
 			case UUID -> (T) toUuid(value.getUuidValue());
 
 			case STRING_ARRAY -> (T) toStringArray(value.getStringArrayValue());
@@ -254,6 +257,8 @@ public class EvitaDataTypesConverter {
 			builder.setUuidValue(toGrpcUuid(uuidValue));
 		} else if (value instanceof Predecessor predecessorValue) {
 			builder.setPredecessorValue(toGrpcPredecessor(predecessorValue));
+		} else if (value instanceof ReferencedEntityPredecessor predecessorValue) {
+			builder.setPredecessorValue(toGrpcPredecessor(predecessorValue));
 		} else if (value instanceof byte[] byteArrayValues) {
 			builder.setIntegerArrayValue(toGrpcByteArray(byteArrayValues));
 		} else if (value instanceof short[] shortArrayValues) {
@@ -339,7 +344,8 @@ public class EvitaDataTypesConverter {
 	 */
 	@Nonnull
 	public static GrpcEvitaAssociatedDataValue toGrpcEvitaAssociatedDataValue(@Nullable Serializable value, @Nullable Integer version) {
-		final GrpcEvitaAssociatedDataValue.Builder builder = GrpcEvitaAssociatedDataValue.newBuilder();
+		final GrpcEvitaAssociatedDataValue.Builder builder = GrpcEvitaAssociatedDataValue.newBuilder()
+			.setType(toGrpcEvitaAssociatedDataDataType(value.getClass()));
 
 		if (value instanceof ComplexDataObject complexDataObject) {
 			builder.setJsonValue(ComplexDataObjectConverter.convertComplexDataObjectToJson(complexDataObject).toString());
@@ -386,6 +392,7 @@ public class EvitaDataTypesConverter {
 			case CURRENCY -> Currency.class;
 			case UUID -> UUID.class;
 			case PREDECESSOR -> Predecessor.class;
+			case REFERENCED_ENTITY_PREDECESSOR -> ReferencedEntityPredecessor.class;
 			case STRING_ARRAY -> String[].class;
 			case BYTE_ARRAY -> Byte[].class;
 			case SHORT_ARRAY -> Short[].class;
@@ -489,6 +496,8 @@ public class EvitaDataTypesConverter {
 			return GrpcEvitaDataType.UUID;
 		} else if (dataType.equals(Predecessor.class)) {
 			return GrpcEvitaDataType.PREDECESSOR;
+		} else if (dataType.equals(ReferencedEntityPredecessor.class)) {
+			return GrpcEvitaDataType.REFERENCED_ENTITY_PREDECESSOR;
 		} else if (dataType.equals(String[].class)) {
 			return GrpcEvitaDataType.STRING_ARRAY;
 		} else if (dataType.equals(Character[].class)) {
@@ -671,6 +680,18 @@ public class EvitaDataTypesConverter {
 	public static Predecessor toPredecessor(@Nonnull GrpcPredecessor predecessor) {
 		return predecessor.getHead() ? Predecessor.HEAD :
 			(predecessor.hasPredecessorId() ? new Predecessor(predecessor.getPredecessorId().getValue()) : null);
+	}
+
+	/**
+	 * This method is used to convert a {@link GrpcPredecessor} to {@link ReferencedEntityPredecessor}.
+	 *
+	 * @param predecessor value to be converted
+	 * @return {@link ReferencedEntityPredecessor} instance
+	 */
+	@Nonnull
+	public static ReferencedEntityPredecessor toReferencedEntityPredecessor(@Nonnull GrpcPredecessor predecessor) {
+		return predecessor.getHead() ? ReferencedEntityPredecessor.HEAD :
+			(predecessor.hasPredecessorId() ? new ReferencedEntityPredecessor(predecessor.getPredecessorId().getValue()) : null);
 	}
 
 	/**
@@ -939,7 +960,9 @@ public class EvitaDataTypesConverter {
 	@Nonnull
 	public static GrpcStringArray toGrpcStringArray(@Nonnull String[] stringArrayValues) {
 		final GrpcStringArray.Builder valueBuilder = GrpcStringArray.newBuilder();
-		Arrays.stream(stringArrayValues).forEach(valueBuilder::addValue);
+		Arrays.stream(stringArrayValues)
+			.filter(Objects::nonNull)
+			.forEach(valueBuilder::addValue);
 		return valueBuilder.build();
 	}
 
@@ -960,7 +983,9 @@ public class EvitaDataTypesConverter {
 	@Nonnull
 	public static GrpcBooleanArray toGrpcBooleanArray(@Nonnull Boolean[] booleanArrayValues) {
 		final GrpcBooleanArray.Builder valueBuilder = GrpcBooleanArray.newBuilder();
-		Arrays.stream(booleanArrayValues).forEach(valueBuilder::addValue);
+		Arrays.stream(booleanArrayValues)
+			.filter(Objects::nonNull)
+			.forEach(valueBuilder::addValue);
 		return valueBuilder.build();
 	}
 
@@ -976,7 +1001,9 @@ public class EvitaDataTypesConverter {
 	@Nonnull
 	public static GrpcLongArray toGrpcLongArray(@Nonnull Long[] longArrayValues) {
 		final GrpcLongArray.Builder valueBuilder = GrpcLongArray.newBuilder();
-		Arrays.stream(longArrayValues).forEach(valueBuilder::addValue);
+		Arrays.stream(longArrayValues)
+			.filter(Objects::nonNull)
+			.forEach(valueBuilder::addValue);
 		return valueBuilder.build();
 	}
 
@@ -992,7 +1019,9 @@ public class EvitaDataTypesConverter {
 	@Nonnull
 	public static GrpcIntegerArray toGrpcByteArray(@Nonnull Byte[] byteArrayValues) {
 		final GrpcIntegerArray.Builder valueBuilder = GrpcIntegerArray.newBuilder();
-		Arrays.stream(byteArrayValues).forEach(valueBuilder::addValue);
+		Arrays.stream(byteArrayValues)
+			.filter(Objects::nonNull)
+			.forEach(valueBuilder::addValue);
 		return valueBuilder.build();
 	}
 
@@ -1008,7 +1037,9 @@ public class EvitaDataTypesConverter {
 	@Nonnull
 	public static GrpcIntegerArray toGrpcShortArray(@Nonnull Short[] shortArrayValues) {
 		final GrpcIntegerArray.Builder valueBuilder = GrpcIntegerArray.newBuilder();
-		Arrays.stream(shortArrayValues).forEach(valueBuilder::addValue);
+		Arrays.stream(shortArrayValues)
+			.filter(Objects::nonNull)
+			.forEach(valueBuilder::addValue);
 		return valueBuilder.build();
 	}
 
@@ -1024,7 +1055,9 @@ public class EvitaDataTypesConverter {
 	@Nonnull
 	public static GrpcIntegerArray toGrpcIntegerArray(@Nonnull Integer[] integerArrayValues) {
 		final GrpcIntegerArray.Builder valueBuilder = GrpcIntegerArray.newBuilder();
-		Arrays.stream(integerArrayValues).forEach(valueBuilder::addValue);
+		Arrays.stream(integerArrayValues)
+			.filter(Objects::nonNull)
+			.forEach(valueBuilder::addValue);
 		return valueBuilder.build();
 	}
 
@@ -1040,7 +1073,10 @@ public class EvitaDataTypesConverter {
 	@Nonnull
 	public static GrpcStringArray toGrpcCharacterArray(@Nonnull Character[] characterArrayValues) {
 		final GrpcStringArray.Builder valueBuilder = GrpcStringArray.newBuilder();
-		Arrays.stream(characterArrayValues).map(Object::toString).forEach(valueBuilder::addValue);
+		Arrays.stream(characterArrayValues)
+			.filter(Objects::nonNull)
+			.map(Object::toString)
+			.forEach(valueBuilder::addValue);
 		return valueBuilder.build();
 	}
 
@@ -1060,7 +1096,10 @@ public class EvitaDataTypesConverter {
 	@Nonnull
 	public static GrpcBigDecimalArray toGrpcBigDecimalArray(@Nonnull BigDecimal[] bigDecimalArrayValues) {
 		final GrpcBigDecimalArray.Builder valueBuilder = GrpcBigDecimalArray.newBuilder();
-		Arrays.stream(bigDecimalArrayValues).map(EvitaDataTypesConverter::toGrpcBigDecimal).forEach(valueBuilder::addValue);
+		Arrays.stream(bigDecimalArrayValues)
+			.filter(Objects::nonNull)
+			.map(EvitaDataTypesConverter::toGrpcBigDecimal)
+			.forEach(valueBuilder::addValue);
 		return valueBuilder.build();
 	}
 
@@ -1092,7 +1131,10 @@ public class EvitaDataTypesConverter {
 	@Nonnull
 	public static GrpcOffsetDateTimeArray toGrpcOffsetDateTimeArray(@Nonnull OffsetDateTime[] offsetDateTimeArrayValues) {
 		final GrpcOffsetDateTimeArray.Builder valueBuilder = GrpcOffsetDateTimeArray.newBuilder();
-		Arrays.stream(offsetDateTimeArrayValues).map(EvitaDataTypesConverter::toGrpcOffsetDateTime).forEach(valueBuilder::addValue);
+		Arrays.stream(offsetDateTimeArrayValues)
+			.filter(Objects::nonNull)
+			.map(EvitaDataTypesConverter::toGrpcOffsetDateTime)
+			.forEach(valueBuilder::addValue);
 		return valueBuilder.build();
 	}
 
@@ -1124,7 +1166,10 @@ public class EvitaDataTypesConverter {
 	@Nonnull
 	public static GrpcOffsetDateTimeArray toGrpcLocalDateTimeArray(@Nonnull LocalDateTime[] localDateTimeArrayValues) {
 		final GrpcOffsetDateTimeArray.Builder valueBuilder = GrpcOffsetDateTimeArray.newBuilder();
-		Arrays.stream(localDateTimeArrayValues).map(EvitaDataTypesConverter::toGrpcLocalDateTime).forEach(valueBuilder::addValue);
+		Arrays.stream(localDateTimeArrayValues)
+			.filter(Objects::nonNull)
+			.map(EvitaDataTypesConverter::toGrpcLocalDateTime)
+			.forEach(valueBuilder::addValue);
 		return valueBuilder.build();
 	}
 
@@ -1156,7 +1201,10 @@ public class EvitaDataTypesConverter {
 	@Nonnull
 	public static GrpcOffsetDateTimeArray toGrpcLocalDateArray(@Nonnull LocalDate[] localDateArrayValues) {
 		final GrpcOffsetDateTimeArray.Builder valueBuilder = GrpcOffsetDateTimeArray.newBuilder();
-		Arrays.stream(localDateArrayValues).map(EvitaDataTypesConverter::toGrpcLocalDate).forEach(valueBuilder::addValue);
+		Arrays.stream(localDateArrayValues)
+			.filter(Objects::nonNull)
+			.map(EvitaDataTypesConverter::toGrpcLocalDate)
+			.forEach(valueBuilder::addValue);
 		return valueBuilder.build();
 	}
 
@@ -1181,7 +1229,10 @@ public class EvitaDataTypesConverter {
 	@Nonnull
 	public static GrpcOffsetDateTimeArray toGrpcLocalTimeArray(@Nonnull LocalTime[] localeTimeArrayValues) {
 		final GrpcOffsetDateTimeArray.Builder valueBuilder = GrpcOffsetDateTimeArray.newBuilder();
-		Arrays.stream(localeTimeArrayValues).map(EvitaDataTypesConverter::toGrpcLocalTime).forEach(valueBuilder::addValue);
+		Arrays.stream(localeTimeArrayValues)
+			.filter(Objects::nonNull)
+			.map(EvitaDataTypesConverter::toGrpcLocalTime)
+			.forEach(valueBuilder::addValue);
 		return valueBuilder.build();
 	}
 
@@ -1206,7 +1257,10 @@ public class EvitaDataTypesConverter {
 	@Nonnull
 	public static GrpcDateTimeRangeArray toGrpcDateTimeRangeArray(@Nonnull DateTimeRange[] dateTimeRangeArrayValues) {
 		final GrpcDateTimeRangeArray.Builder valueBuilder = GrpcDateTimeRangeArray.newBuilder();
-		Arrays.stream(dateTimeRangeArrayValues).map(EvitaDataTypesConverter::toGrpcDateTimeRange).forEach(valueBuilder::addValue);
+		Arrays.stream(dateTimeRangeArrayValues)
+			.filter(Objects::nonNull)
+			.map(EvitaDataTypesConverter::toGrpcDateTimeRange)
+			.forEach(valueBuilder::addValue);
 		return valueBuilder.build();
 	}
 
@@ -1233,7 +1287,10 @@ public class EvitaDataTypesConverter {
 	@Nonnull
 	public static GrpcBigDecimalNumberRangeArray toGrpcBigDecimalNumberRangeArray(@Nonnull BigDecimalNumberRange[] bigDecimalNumberRangeArrayValues) {
 		final GrpcBigDecimalNumberRangeArray.Builder valueBuilder = GrpcBigDecimalNumberRangeArray.newBuilder();
-		Arrays.stream(bigDecimalNumberRangeArrayValues).map(EvitaDataTypesConverter::toGrpcBigDecimalNumberRange).forEach(valueBuilder::addValue);
+		Arrays.stream(bigDecimalNumberRangeArrayValues)
+			.filter(Objects::nonNull)
+			.map(EvitaDataTypesConverter::toGrpcBigDecimalNumberRange)
+			.forEach(valueBuilder::addValue);
 		return valueBuilder.build();
 	}
 
@@ -1258,7 +1315,10 @@ public class EvitaDataTypesConverter {
 	@Nonnull
 	public static GrpcLongNumberRangeArray toGrpcLongNumberRangeArray(@Nonnull LongNumberRange[] longNumberRangeArrayValues) {
 		final GrpcLongNumberRangeArray.Builder valueBuilder = GrpcLongNumberRangeArray.newBuilder();
-		Arrays.stream(longNumberRangeArrayValues).map(EvitaDataTypesConverter::toGrpcLongNumberRange).forEach(valueBuilder::addValue);
+		Arrays.stream(longNumberRangeArrayValues)
+			.filter(Objects::nonNull)
+			.map(EvitaDataTypesConverter::toGrpcLongNumberRange)
+			.forEach(valueBuilder::addValue);
 		return valueBuilder.build();
 	}
 
@@ -1284,21 +1344,30 @@ public class EvitaDataTypesConverter {
 	@Nonnull
 	public static GrpcIntegerNumberRangeArray toGrpcIntegerNumberRangeArray(@Nonnull IntegerNumberRange[] integerNumberRangeArrayValues) {
 		final GrpcIntegerNumberRangeArray.Builder valueBuilder = GrpcIntegerNumberRangeArray.newBuilder();
-		Arrays.stream(integerNumberRangeArrayValues).map(EvitaDataTypesConverter::toGrpcIntegerNumberRange).forEach(valueBuilder::addValue);
+		Arrays.stream(integerNumberRangeArrayValues)
+			.filter(Objects::nonNull)
+			.map(EvitaDataTypesConverter::toGrpcIntegerNumberRange)
+			.forEach(valueBuilder::addValue);
 		return valueBuilder.build();
 	}
 
 	@Nonnull
 	public static GrpcIntegerNumberRangeArray toGrpcByteNumberRangeArray(@Nonnull ByteNumberRange[] byteNumberRangeArrayValues) {
 		final GrpcIntegerNumberRangeArray.Builder valueBuilder = GrpcIntegerNumberRangeArray.newBuilder();
-		Arrays.stream(byteNumberRangeArrayValues).map(EvitaDataTypesConverter::toGrpcIntegerNumberRange).forEach(valueBuilder::addValue);
+		Arrays.stream(byteNumberRangeArrayValues)
+			.filter(Objects::nonNull)
+			.map(EvitaDataTypesConverter::toGrpcIntegerNumberRange)
+			.forEach(valueBuilder::addValue);
 		return valueBuilder.build();
 	}
 
 	@Nonnull
 	public static GrpcIntegerNumberRangeArray toGrpcShortNumberRangeArray(@Nonnull ShortNumberRange[] shortNumberRangeArrayValues) {
 		final GrpcIntegerNumberRangeArray.Builder valueBuilder = GrpcIntegerNumberRangeArray.newBuilder();
-		Arrays.stream(shortNumberRangeArrayValues).map(EvitaDataTypesConverter::toGrpcIntegerNumberRange).forEach(valueBuilder::addValue);
+		Arrays.stream(shortNumberRangeArrayValues)
+			.filter(Objects::nonNull)
+			.map(EvitaDataTypesConverter::toGrpcIntegerNumberRange)
+			.forEach(valueBuilder::addValue);
 		return valueBuilder.build();
 	}
 
@@ -1319,7 +1388,10 @@ public class EvitaDataTypesConverter {
 	@Nonnull
 	public static GrpcLocaleArray toGrpcLocaleArray(@Nonnull Locale[] localeArrayValues) {
 		final GrpcLocaleArray.Builder valueBuilder = GrpcLocaleArray.newBuilder();
-		Arrays.stream(localeArrayValues).map(EvitaDataTypesConverter::toGrpcLocale).forEach(valueBuilder::addValue);
+		Arrays.stream(localeArrayValues)
+			.filter(Objects::nonNull)
+			.map(EvitaDataTypesConverter::toGrpcLocale)
+			.forEach(valueBuilder::addValue);
 		return valueBuilder.build();
 	}
 
@@ -1337,7 +1409,10 @@ public class EvitaDataTypesConverter {
 	@Nonnull
 	public static GrpcCurrencyArray toGrpcCurrencyArray(@Nonnull Currency[] currencyArrayValues) {
 		final GrpcCurrencyArray.Builder valueBuilder = GrpcCurrencyArray.newBuilder();
-		Arrays.stream(currencyArrayValues).map(EvitaDataTypesConverter::toGrpcCurrency).forEach(valueBuilder::addValue);
+		Arrays.stream(currencyArrayValues)
+			.filter(Objects::nonNull)
+			.map(EvitaDataTypesConverter::toGrpcCurrency)
+			.forEach(valueBuilder::addValue);
 		return valueBuilder.build();
 	}
 
@@ -1358,7 +1433,10 @@ public class EvitaDataTypesConverter {
 	@Nonnull
 	public static GrpcUuidArray toGrpcUuidArray(@Nonnull UUID[] uuidArrayValues) {
 		final GrpcUuidArray.Builder valueBuilder = GrpcUuidArray.newBuilder();
-		Arrays.stream(uuidArrayValues).map(EvitaDataTypesConverter::toGrpcUuid).forEach(valueBuilder::addValue);
+		Arrays.stream(uuidArrayValues)
+			.filter(Objects::nonNull)
+			.map(EvitaDataTypesConverter::toGrpcUuid)
+			.forEach(valueBuilder::addValue);
 		return valueBuilder.build();
 	}
 
@@ -1376,7 +1454,26 @@ public class EvitaDataTypesConverter {
 				.build();
 		} else {
 			return GrpcPredecessor.newBuilder()
-				.setPredecessorId(Int32Value.of(predecessor.predecessorId()))
+				.setPredecessorId(Int32Value.of(predecessor.predecessorPk()))
+				.build();
+		}
+	}
+
+	/**
+	 * This method is used to convert a {@link ReferencedEntityPredecessor} to {@link GrpcPredecessor}.
+	 *
+	 * @param predecessor value to be converted
+	 * @return {@link GrpcPredecessor} value
+	 */
+	@Nonnull
+	public static GrpcPredecessor toGrpcPredecessor(@Nonnull ReferencedEntityPredecessor predecessor) {
+		if (predecessor.isHead()) {
+			return GrpcPredecessor.newBuilder()
+				.setHead(true)
+				.build();
+		} else {
+			return GrpcPredecessor.newBuilder()
+				.setPredecessorId(Int32Value.of(predecessor.predecessorPk()))
 				.build();
 		}
 	}
@@ -1393,7 +1490,8 @@ public class EvitaDataTypesConverter {
 			.setTaskType(taskStatus.taskType())
 			.setTaskName(taskStatus.taskName())
 			.setTaskId(toGrpcUuid(taskStatus.taskId()))
-			.setIssued(toGrpcOffsetDateTime(taskStatus.issued()))
+			.setCreated(toGrpcOffsetDateTime(taskStatus.created()))
+			.setSimplifiedState(EvitaEnumConverter.toGrpcSimplifiedStatus(taskStatus.simplifiedState()))
 			.setProgress(taskStatus.progress());
 		ofNullable(taskStatus.catalogName())
 			.ifPresent(
@@ -1403,6 +1501,8 @@ public class EvitaDataTypesConverter {
 						.build()
 				)
 			);
+		ofNullable(taskStatus.issued())
+			.ifPresent(issued -> builder.setIssued(toGrpcOffsetDateTime(issued)));
 		ofNullable(taskStatus.started())
 			.ifPresent(started -> builder.setStarted(toGrpcOffsetDateTime(started)));
 		ofNullable(taskStatus.finished())
@@ -1427,6 +1527,10 @@ public class EvitaDataTypesConverter {
 						.build()
 				)
 			);
+		taskStatus.traits()
+			.stream()
+			.map(EvitaEnumConverter::toGrpcTaskTrait)
+			.forEach(builder::addTrait);
 		return builder.build();
 	}
 
@@ -1443,7 +1547,8 @@ public class EvitaDataTypesConverter {
 			taskStatus.getTaskName(),
 			toUuid(taskStatus.getTaskId()),
 			taskStatus.hasCatalogName() ? taskStatus.getCatalogName().getValue() : null,
-			toOffsetDateTime(taskStatus.getIssued()),
+			toOffsetDateTime(taskStatus.getCreated()),
+			taskStatus.hasIssued() ? EvitaDataTypesConverter.toOffsetDateTime(taskStatus.getIssued()) : null,
 			taskStatus.hasStarted() ? EvitaDataTypesConverter.toOffsetDateTime(taskStatus.getStarted()) : null,
 			taskStatus.hasFinished() ? EvitaDataTypesConverter.toOffsetDateTime(taskStatus.getFinished()) : null,
 			taskStatus.getProgress(),
@@ -1452,7 +1557,13 @@ public class EvitaDataTypesConverter {
 				EvitaDataTypesConverter.toFileForFetch(taskStatus.getFile()) :
 				taskStatus.hasText() ? taskStatus.getText().getValue() : null,
 			taskStatus.hasException() ? taskStatus.getException().getValue() : null,
-			null
+			null,
+			EnumSet.copyOf(
+				taskStatus.getTraitList()
+					.stream()
+					.map(EvitaEnumConverter::toTaskTrait)
+					.toList()
+			)
 		);
 	}
 
@@ -1502,19 +1613,25 @@ public class EvitaDataTypesConverter {
 	 */
 	@Nonnull
 	public static GrpcCatalogStatistics toGrpcCatalogStatistics(@Nonnull CatalogStatistics catalogStatistics) {
-		return GrpcCatalogStatistics.newBuilder()
+		final GrpcCatalogStatistics.Builder builder = GrpcCatalogStatistics.newBuilder()
 			.setCatalogName(catalogStatistics.catalogName())
 			.setCorrupted(catalogStatistics.corrupted())
 			.setCatalogVersion(catalogStatistics.catalogVersion())
-			.setCatalogState(EvitaEnumConverter.toGrpcCatalogState(catalogStatistics.catalogState()))
 			.setTotalRecords(catalogStatistics.totalRecords())
 			.setIndexCount(catalogStatistics.indexCount())
 			.setSizeOnDiskInBytes(catalogStatistics.sizeOnDiskInBytes())
 			.addAllEntityCollectionStatistics(
 				Arrays.stream(catalogStatistics.entityCollectionStatistics())
+					.filter(Objects::nonNull)
 					.map(EvitaDataTypesConverter::toGrpcEntityCollectionStatistics)
 					.collect(Collectors.toList())
-			)
+			);
+		if (catalogStatistics.catalogState() != null) {
+			builder.setCatalogState(EvitaEnumConverter.toGrpcCatalogState(catalogStatistics.catalogState()));
+		} else {
+			builder.setCatalogState(GrpcCatalogState.UNKNOWN_CATALOG_STATE);
+		}
+		return builder
 			.build();
 	}
 

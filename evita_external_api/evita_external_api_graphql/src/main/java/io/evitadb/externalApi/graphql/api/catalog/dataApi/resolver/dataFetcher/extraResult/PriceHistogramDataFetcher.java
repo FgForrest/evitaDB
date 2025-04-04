@@ -28,15 +28,30 @@ import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * Extracts price {@link HistogramContract}s from {@link EvitaResponse}s extra results requested by {@link io.evitadb.api.query.require.PriceHistogram}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class PriceHistogramDataFetcher implements DataFetcher<HistogramContract> {
+
+	@Nullable
+	private static PriceHistogramDataFetcher INSTANCE;
+
+	@Nonnull
+	public static PriceHistogramDataFetcher getInstance() {
+		if (INSTANCE == null) {
+			INSTANCE = new PriceHistogramDataFetcher();
+		}
+		return INSTANCE;
+	}
 
 	@Nonnull
 	@Override

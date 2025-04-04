@@ -34,11 +34,14 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
+import io.evitadb.dataType.Scope;
 import io.evitadb.store.dataType.serializer.HeterogeneousMapSerializer;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
 
+import javax.annotation.Nonnull;
 import java.util.Currency;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Locale;
@@ -54,6 +57,37 @@ import java.util.Set;
 public class EntitySchemaSerializer extends Serializer<EntitySchema> {
 	private final HeterogeneousMapSerializer<Object, Object> heterogeneousSerializer = new HeterogeneousMapSerializer<>(LinkedHashMap::new);
 
+	/**
+	 * Serializes an EnumSet of Scope objects to the given Kryo output.
+	 *
+	 * @param kryo   the Kryo instance to use for serialization
+	 * @param output the Output instance to write to
+	 * @param scopes the EnumSet of Scope objects to serialize
+	 */
+	static void writeScopeSet(@Nonnull Kryo kryo, @Nonnull Output output, @Nonnull Set<Scope> scopes) {
+		output.writeVarInt(scopes.size(), true);
+		for (Scope filterableInScope : scopes) {
+			kryo.writeObject(output, filterableInScope);
+		}
+	}
+
+	/**
+	 * Reads an EnumSet of Scope objects from the given Kryo input.
+	 *
+	 * @param kryo  the Kryo instance to use for deserialization
+	 * @param input the Input instance to read from
+	 * @return the EnumSet of Scope objects that were read from the input
+	 */
+	@Nonnull
+	static EnumSet<Scope> readScopeSet(@Nonnull Kryo kryo, @Nonnull Input input) {
+		int size = input.readVarInt(true);
+		final EnumSet<Scope> scopes = EnumSet.noneOf(Scope.class);
+		for (int i = 0; i < size; i++) {
+			scopes.add(kryo.readObject(input, Scope.class));
+		}
+		return scopes;
+	}
+
 	@Override
 	public void write(Kryo kryo, Output output, EntitySchema entitySchema) {
 		output.writeInt(entitySchema.version());
@@ -65,7 +99,9 @@ public class EntitySchemaSerializer extends Serializer<EntitySchema> {
 		}
 		output.writeBoolean(entitySchema.isWithGeneratedPrimaryKey());
 		output.writeBoolean(entitySchema.isWithHierarchy());
+		writeScopeSet(kryo, output, entitySchema.getHierarchyIndexedInScopes());
 		output.writeBoolean(entitySchema.isWithPrice());
+		writeScopeSet(kryo, output, entitySchema.getPriceIndexedInScopes());
 		output.writeInt(entitySchema.getIndexedPricePlaces(), true);
 		kryo.writeObject(output, entitySchema.getLocales());
 		kryo.writeObject(output, entitySchema.getCurrencies());
@@ -107,7 +143,9 @@ public class EntitySchemaSerializer extends Serializer<EntitySchema> {
 		}
 		final boolean withGeneratedPrimaryKey = input.readBoolean();
 		final boolean withHierarchy = input.readBoolean();
+		final EnumSet<Scope> hierarchyIndexedInScopes = readScopeSet(kryo, input);
 		final boolean withPrice = input.readBoolean();
+		final EnumSet<Scope> priceIndexedInScopes = readScopeSet(kryo, input);
 		final int indexedPricePlaces = input.readInt(true);
 		@SuppressWarnings("unchecked") final Set<Locale> locales = kryo.readObject(input, LinkedHashSet.class);
 		@SuppressWarnings("unchecked") final Set<Currency> currencies = kryo.readObject(input, LinkedHashSet.class);
@@ -131,8 +169,12 @@ public class EntitySchemaSerializer extends Serializer<EntitySchema> {
 		return EntitySchema._internalBuild(
 			version,
 			entityName, nameVariants, description, deprecationNotice,
-			withGeneratedPrimaryKey, withHierarchy,
-			withPrice, indexedPricePlaces,
+			withGeneratedPrimaryKey,
+			withHierarchy,
+			hierarchyIndexedInScopes,
+			withPrice,
+			priceIndexedInScopes,
+			indexedPricePlaces,
 			locales,
 			currencies,
 			attributeSchema,

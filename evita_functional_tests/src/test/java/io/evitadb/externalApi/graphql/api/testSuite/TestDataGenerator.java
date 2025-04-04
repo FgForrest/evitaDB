@@ -26,7 +26,6 @@ package io.evitadb.externalApi.graphql.api.testSuite;
 import com.github.javafaker.Faker;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.order.OrderDirection;
-import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
@@ -38,6 +37,7 @@ import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.IntegerNumberRange;
+import io.evitadb.dataType.Scope;
 import io.evitadb.test.Entities;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.generator.DataGenerator;
@@ -52,6 +52,7 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Locale;
+import java.util.Random;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
@@ -67,6 +68,7 @@ import static io.evitadb.test.generator.DataGenerator.*;
 public class TestDataGenerator {
 
 	public static final String GRAPHQL_THOUSAND_PRODUCTS = "GraphQLThousandProducts";
+	public static final String GRAPHQL_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE = "GraphQLHundredArchiveProductsWithArchive";
 
 	public static final String ENTITY_EMPTY = "empty";
 	public static final String ENTITY_EMPTY_WITHOUT_PK = "emptyWithoutPk";
@@ -98,25 +100,19 @@ public class TestDataGenerator {
 	}
 
 	@Nullable
-	public static DataCarrier generateMainCatalogEntities(@Nonnull Evita evita, int productCount) {
+	public static DataCarrier generateMainCatalogEntities(@Nonnull Evita evita, int productCount, boolean archiveSomeProducts) {
 		return evita.updateCatalog(TEST_CATALOG, session -> {
 			session.getCatalogSchema()
 				.openForWrite()
-				.withAttribute(ATTRIBUTE_CODE, String.class, whichIs -> whichIs.sortable().uniqueGlobally())
+				.withAttribute(ATTRIBUTE_CODE, String.class, whichIs -> whichIs.sortable().uniqueGloballyInScope(Scope.LIVE, Scope.ARCHIVED))
 				.withAttribute(ATTRIBUTE_URL, String.class, whichIs -> whichIs.localized().uniqueGlobally())
 				.withAttribute(ATTRIBUTE_RELATIVE_URL, String.class, whichIs -> whichIs.localized().uniqueGloballyWithinLocale().nullable())
 				.updateVia(session);
 
-			final DataGenerator dataGenerator = new DataGenerator(faker -> {
-				final int rndPIRH = faker.random().nextInt(10);
-				if (rndPIRH < 6) {
-					return PriceInnerRecordHandling.NONE;
-				} else if (rndPIRH < 8) {
-					return PriceInnerRecordHandling.LOWEST_PRICE;
-				} else {
-					return PriceInnerRecordHandling.SUM;
-				}
-			});
+			final Random random = new Random(SEED);
+			final DataGenerator dataGenerator = new DataGenerator.Builder()
+				.withPriceInnerRecordHandlingGenerator(ALL_PRICE_INNER_RECORD_HANDLING_GENERATOR)
+				.build();
 			final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> {
 				final int entityCount = session.getEntityCollectionSize(entityType);
 				final int primaryKey = entityCount == 0 ? 0 : faker.random().nextInt(1, entityCount);
@@ -244,7 +240,7 @@ public class TestDataGenerator {
 								)
 								.withReferenceTo(
 									REFERENCE_OBSOLETE_BRAND,
-									Entities.BRAND,
+									"obsoleteBrand",
 									Cardinality.ZERO_OR_ONE,
 									whichIs -> whichIs
 										.deprecated("This is deprecated.")
@@ -258,7 +254,7 @@ public class TestDataGenerator {
 								)
 								.withReferenceTo(
 									REFERENCE_STORE_WITH_GROUP,
-									Entities.STORE,
+									"externalStore",
 									Cardinality.ZERO_OR_MORE,
 									whichIs -> whichIs.faceted().withGroupType(ENTITY_STORE_GROUP)
 								)
@@ -277,12 +273,20 @@ public class TestDataGenerator {
 					SEED
 				)
 				.limit(productCount)
-				.map(session::upsertEntity)
+				.map(entity -> {
+					final EntityReference entityReference = session.upsertEntity(entity);
+					if (archiveSomeProducts && random.nextInt(productCount) < productCount / 2) {
+						// archive 50 % of products if enabled
+						session.archiveEntity(entityReference.getType(), entityReference.getPrimaryKey());
+					}
+
+					return entityReference;
+				})
 				.toList();
 
 
 			final List<SealedEntity> products = storedProducts.stream()
-				.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), entityFetchAllContent()).orElseThrow())
+				.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), Scope.values(), entityFetchAllContent()).orElseThrow())
 				.collect(Collectors.toList());
 			final List<SealedEntity> stores = storedStores.stream()
 				.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), entityFetchAllContent()).orElseThrow())

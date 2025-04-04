@@ -42,5 +42,10 @@ public interface DataLocator {
 	ConstraintDomain targetDomain();
 
 	@Nonnull
-	String entityType();
+	EntityTypePointer entityTypePointer();
+
+	@Nonnull
+	default String entityType() {
+		return entityTypePointer().entityType();
+	}
 }

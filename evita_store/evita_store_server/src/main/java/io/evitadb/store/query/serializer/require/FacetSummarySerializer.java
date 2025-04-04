@@ -32,6 +32,7 @@ import io.evitadb.api.query.filter.FilterGroupBy;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.order.OrderGroupBy;
 import io.evitadb.api.query.require.EntityFetch;
+import io.evitadb.api.query.require.EntityFetchRequire;
 import io.evitadb.api.query.require.EntityGroupFetch;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.query.require.FacetSummary;
@@ -77,11 +78,22 @@ public class FacetSummarySerializer extends Serializer<FacetSummary> {
 		final OrderGroupBy orderGroupBy = kryo.readObjectOrNull(input, OrderGroupBy.class);
 		final EntityFetch facetEntityRequirement = kryo.readObjectOrNull(input, EntityFetch.class);
 		final EntityGroupFetch groupEntityRequirement = kryo.readObjectOrNull(input, EntityGroupFetch.class);
+		final EntityFetchRequire[] requirements;
+		if (facetEntityRequirement == null && groupEntityRequirement == null) {
+			requirements = new EntityFetchRequire[0];
+		} else if (facetEntityRequirement == null) {
+			requirements = new EntityFetchRequire[] {groupEntityRequirement};
+		} else if (groupEntityRequirement == null) {
+			requirements = new EntityFetchRequire[] {facetEntityRequirement};
+		} else {
+			requirements = new EntityFetchRequire[] {facetEntityRequirement, groupEntityRequirement};
+		}
+
 		return new FacetSummary(
 			statisticsDepth,
 			filterBy, filterGroupBy,
 			orderBy, orderGroupBy,
-			facetEntityRequirement, groupEntityRequirement
+			requirements
 		);
 	}
 

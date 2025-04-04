@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,8 +29,7 @@ import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.http.ExternalApiServer;
-import io.evitadb.externalApi.http.HttpServiceTlsCheckingDecorator;
-import io.evitadb.externalApi.lab.configuration.LabConfig;
+import io.evitadb.externalApi.lab.configuration.LabOptions;
 
 import javax.annotation.Nonnull;
 
@@ -40,7 +39,7 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class LabProviderRegistrar implements ExternalApiProviderRegistrar<LabConfig> {
+public class LabProviderRegistrar implements ExternalApiProviderRegistrar<LabOptions> {
 
 	@Nonnull
 	@Override
@@ -50,15 +49,15 @@ public class LabProviderRegistrar implements ExternalApiProviderRegistrar<LabCon
 
 	@Nonnull
 	@Override
-	public Class<LabConfig> getConfigurationClass() {
-		return LabConfig.class;
+	public Class<LabOptions> getConfigurationClass() {
+		return LabOptions.class;
 	}
 
 	@Nonnull
 	@Override
-	public ExternalApiProvider<LabConfig> register(@Nonnull Evita evita, @Nonnull ExternalApiServer externalApiServer, @Nonnull ApiOptions apiOptions, @Nonnull LabConfig labConfig) {
-		final LabManager labManager = new LabManager(evita, apiOptions, labConfig);
+	public ExternalApiProvider<LabOptions> register(@Nonnull Evita evita, @Nonnull ExternalApiServer externalApiServer, @Nonnull ApiOptions apiOptions, @Nonnull LabOptions labConfig) {
+		final LabManager labManager = new LabManager(evita, apiOptions.headers(), labConfig);
 		final HttpService apiHandler = labManager.getLabRouter();
-		return new LabProvider(labConfig, new HttpServiceTlsCheckingDecorator(apiHandler, getApiHandlerPortTlsValidatingFunction(labConfig)));
+		return new LabProvider(labConfig, apiHandler, apiOptions.requestTimeoutInMillis());
 	}
 }

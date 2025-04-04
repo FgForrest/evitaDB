@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,6 +26,8 @@ package io.evitadb.core.query;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.EvitaRequest;
+import io.evitadb.api.requestResponse.EvitaRequest.ConditionalGap;
+import io.evitadb.api.requestResponse.EvitaRequest.ResultForm;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
@@ -53,6 +55,7 @@ import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.Index;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.store.spi.chunk.ExpressionBasedSlicer;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.RandomUtils;
@@ -64,6 +67,7 @@ import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedList;
@@ -138,12 +142,14 @@ public class QueryPlanner {
 				// create sorter and computers for all plans
 				createSorter(context, targetIndexes, queryPlanBuilders);
 				createExtraResultProducers(context, queryPlanBuilders);
+				createSlicer(context, queryPlanBuilders);
 				// and verify consistent results
 				verifyConsistentResultsInAllPlans(context, targetIndexes, queryPlanBuilders, preferredPlan);
 			} else {
 				// create sorter and computers only for preferred plan
 				final List<QueryPlanBuilder> preferredPlanBuilderCollection = Collections.singletonList(preferredPlan);
 				createSorter(context, targetIndexes, preferredPlanBuilderCollection);
+				createSlicer(context, queryPlanBuilders);
 				createExtraResultProducers(context, preferredPlanBuilderCollection);
 			}
 
@@ -170,9 +176,10 @@ public class QueryPlanner {
 	 */
 	@Nonnull
 	public static QueryPlan planNestedQuery(
-		@Nonnull QueryPlanningContext context
+		@Nonnull QueryPlanningContext context,
+		@Nonnull Supplier<String> nestedQueryDescription
 	) {
-		context.pushStep(QueryPhase.PLANNING_NESTED_QUERY);
+		context.pushStep(QueryPhase.PLANNING_NESTED_QUERY, nestedQueryDescription);
 		try {
 			// determine the indexes that should be used for filtering
 			final IndexSelectionResult<?> indexSelectionResult = selectIndexes(context);
@@ -217,8 +224,8 @@ public class QueryPlanner {
 	 * Method analyzes the input query and picks multiple {@link EntityIndex} sets that can be interchangeably used to
 	 * construct response to the query. Currently, the logic is quite stupid - it searches the filter for all constraints
 	 * within AND relation and when relation or hierarchy query is encountered, it adds specific
-	 * {@link EntityIndexType#REFERENCED_ENTITY} or {@link EntityIndexType#REFERENCED_HIERARCHY_NODE} that contains
-	 * limited subset of the entities related to that placement/relation.
+	 * {@link EntityIndexType#REFERENCED_ENTITY} that contains limited subset of the entities related to that
+	 * placement/relation.
 	 */
 	private static IndexSelectionResult<?> selectIndexes(@Nonnull QueryPlanningContext queryContext) {
 		queryContext.pushStep(QueryPhase.PLANNING_INDEX_USAGE);
@@ -226,10 +233,7 @@ public class QueryPlanner {
 			final IndexSelectionVisitor indexSelectionVisitor = new IndexSelectionVisitor(queryContext);
 			ofNullable(queryContext.getFilterBy()).ifPresent(indexSelectionVisitor::visit);
 			//noinspection rawtypes,unchecked
-			return new IndexSelectionResult<>(
-				(List) indexSelectionVisitor.getTargetIndexes(),
-				indexSelectionVisitor.isTargetIndexQueriedByOtherConstraints()
-			);
+			return new IndexSelectionResult<>((List) indexSelectionVisitor.getTargetIndexes());
 		} finally {
 			queryContext.popStep();
 		}
@@ -256,17 +260,15 @@ public class QueryPlanner {
 					final FilterByVisitor filterByVisitor = new FilterByVisitor(
 						queryContext,
 						indexSelectionResult.targetIndexes(),
-						targetIndex,
-						indexSelectionResult.targetIndexQueriedByOtherConstraints()
+						targetIndex
 					);
 
-					final PrefetchFormulaVisitor prefetchFormulaVisitor = new PrefetchFormulaVisitor(targetIndex);
-					filterByVisitor.registerFormulaPostProcessor(PrefetchFormulaVisitor.class, () -> prefetchFormulaVisitor);
+					final PrefetchFormulaVisitor prefetchFormulaVisitor = new PrefetchFormulaVisitor(queryContext, targetIndex);
 					ofNullable(queryContext.getFilterBy()).ifPresent(filterByVisitor::visit);
-					adeptFormula = queryContext.analyse(filterByVisitor.getFormula());
+					adeptFormula = queryContext.analyse(filterByVisitor.getFormula(prefetchFormulaVisitor));
 
 					final QueryPlanBuilder queryPlanBuilder = new QueryPlanBuilder(
-						queryContext, adeptFormula, filterByVisitor.getSuperSetFormula(), targetIndex, prefetchFormulaVisitor
+						queryContext, adeptFormula, filterByVisitor, targetIndex, prefetchFormulaVisitor
 					);
 					if (result.isEmpty() || adeptFormula.getEstimatedCost() < result.get(0).getEstimatedCost()) {
 						result.addFirst(queryPlanBuilder);
@@ -317,7 +319,7 @@ public class QueryPlanner {
 					// create and add copy for the formula with cached variant result
 					it -> {
 						final QueryPlanBuilder alternativeBuilder = new QueryPlanBuilder(
-							queryContext, it, sourcePlan.getSuperSetFormula(),
+							queryContext, it, sourcePlan.getFilterByVisitor(),
 							sourcePlan.getTargetIndexes(),
 							sourcePlan.getPrefetchFormulaVisitor()
 						);
@@ -325,6 +327,7 @@ public class QueryPlanner {
 						final List<QueryPlanBuilder> alternativeBuilderInList = Collections.singletonList(alternativeBuilder);
 						createSorter(queryContext, targetIndexes, alternativeBuilderInList);
 						createExtraResultProducers(queryContext, alternativeBuilderInList);
+						ofNullable(sourcePlan.getSlicer()).ifPresent(alternativeBuilder::setSlicer);
 						return alternativeBuilder;
 					}
 				).toList();
@@ -352,11 +355,12 @@ public class QueryPlanner {
 				}
 				try {
 					final OrderByVisitor orderByVisitor = new OrderByVisitor(
-						queryContext, targetIndexes, builder, builder.getFilterFormula()
+						queryContext, targetIndexes,
+						builder.getFilterByVisitor(),
+						builder.getFilterFormula()
 					);
 					ofNullable(queryContext.getOrderBy()).ifPresent(orderByVisitor::visit);
-					final Sorter sorter = orderByVisitor.getSorter();
-					builder.appendSorter(replaceNoSorterIfNecessary(queryContext, sorter));
+					builder.setSorters(replaceNoSorterIfNecessary(queryContext, orderByVisitor.getSorters()));
 				} finally {
 					if (multipleAlternatives) {
 						queryContext.popStep();
@@ -369,22 +373,61 @@ public class QueryPlanner {
 	}
 
 	/**
-	 * This method replaces no sorter - which should always represent primary keys in ascending order - with the special
+	 * Configures a slicer for each QueryPlanBuilder if the result form of the EvitaRequest is a paginated list
+	 * and any conditional gaps are specified. Slicer is used to accurately calculate the offset of the record on
+	 * particular page and its size based on the gap rules definition.
+	 *
+	 * @param queryContext  The context of the current query, containing the EvitaRequest.
+	 * @param builders      A list of QueryPlanBuilder instances to configure the slicer.
+	 */
+	private static void createSlicer(
+		@Nonnull QueryPlanningContext queryContext,
+		@Nonnull List<QueryPlanBuilder> builders
+	) {
+		final EvitaRequest evitaRequest = queryContext.getEvitaRequest();
+		final ResultForm resultForm = evitaRequest.getResultForm();
+		if (resultForm == ResultForm.PAGINATED_LIST) {
+			final ConditionalGap[] conditionalGaps = evitaRequest.getConditionalGaps();
+			if (!ArrayUtils.isEmpty(conditionalGaps)) {
+				final ExpressionBasedSlicer slicer = new ExpressionBasedSlicer(conditionalGaps);
+				for (QueryPlanBuilder builder : builders) {
+					builder.setSlicer(slicer);
+				}
+			}
+		}
+	}
+
+	/**
+	 * This method replaces no sorters - which should always represent primary keys in ascending order - with the special
 	 * implementation in case the entity is not known in the query. In such case the primary keys are translated
 	 * different ids and those ids are translated back at the end of the query. Unfortunately the order of the translated
 	 * keys might be different than the original order of the primary keys, so we need to sort them here according to
 	 * their original primary keys order in ascending fashion.
 	 *
 	 * @param queryContext query context
-	 * @param sorter       identified sorter
-	 * @return sorter in input or new implementation that ensures proper sorting by primary keys in ascending order
+	 * @param sorters       identified sorters
+	 * @return sorters in input or new implementation that ensures proper sorting by primary keys in ascending order
 	 */
 	@Nonnull
-	private static Sorter replaceNoSorterIfNecessary(@Nonnull QueryPlanningContext queryContext, @Nonnull Sorter sorter) {
-		if (sorter instanceof NoSorter && !queryContext.isEntityTypeKnown()) {
-			return TranslatedPrimaryKeySorter.INSTANCE;
+	private static List<Sorter> replaceNoSorterIfNecessary(@Nonnull QueryPlanningContext queryContext, @Nonnull List<Sorter> sorters) {
+		if (!queryContext.isEntityTypeKnown()) {
+			int index = -1;
+			for (int i = 0; i < sorters.size(); i++) {
+				final Sorter sorter = sorters.get(i);
+				if (sorter instanceof NoSorter) {
+					index = i;
+					break;
+				}
+			}
+			if (index > -1) {
+				final List<Sorter> result = new ArrayList<>(sorters);
+				result.set(index, TranslatedPrimaryKeySorter.INSTANCE);
+				return result;
+			} else {
+				return sorters;
+			}
 		} else {
-			return sorter;
+			return sorters;
 		}
 	}
 
@@ -410,13 +453,12 @@ public class QueryPlanner {
 						final ExtraResultPlanningVisitor extraResultPlanner = new ExtraResultPlanningVisitor(
 							queryContext,
 							builder.getTargetIndexes(),
-							builder,
 							builder.getFilterFormula(),
-							builder.getSuperSetFormula(),
-							builder.getSorter()
+							builder.getFilterByVisitor(),
+							builder.getSorters()
 						);
 						extraResultPlanner.visit(queryContext.getRequire());
-						builder.appendExtraResultProducers(extraResultPlanner.getExtraResultProducers());
+						builder.setExtraResultProducers(extraResultPlanner.getExtraResultProducers());
 					} finally {
 						if (multipleAlternatives) {
 							queryContext.popStep();

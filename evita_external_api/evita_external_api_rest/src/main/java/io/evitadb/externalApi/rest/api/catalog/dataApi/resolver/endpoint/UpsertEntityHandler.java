@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.linecorp.armeria.common.HttpMethod;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.require.EntityContentRequire;
@@ -31,21 +32,27 @@ import io.evitadb.api.query.require.Require;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.externalApi.http.EndpointResponse;
+import io.evitadb.externalApi.http.MimeTypes;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.UpsertEntityUpsertRequestDto;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.EntityUpsertRequestDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.FetchEntityRequestDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.DeleteEntityEndpointHeaderDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.UpsertEntityEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.mutation.RestEntityUpsertMutationConverter;
+import io.evitadb.externalApi.rest.api.openApi.SchemaUtils;
+import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
 import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
 import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
 import io.evitadb.utils.Assert;
+import io.swagger.v3.oas.models.media.Schema;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Optional;
@@ -72,10 +79,14 @@ public class UpsertEntityHandler extends EntityHandler<CollectionRestHandlingCon
 			restApiHandlingContext.getObjectMapper(),
 			restApiHandlingContext.getEntitySchema()
 		);
+		final FilterConstraintResolver filterConstraintResolver = new FilterConstraintResolver(restApiHandlingContext.getCatalogSchema());
 		this.requireConstraintResolver = new RequireConstraintResolver(
-			restApiHandlingContext,
-			new AtomicReference<>(new FilterConstraintResolver(restApiHandlingContext)),
-			new AtomicReference<>(new OrderConstraintResolver(restApiHandlingContext))
+			restApiHandlingContext.getCatalogSchema(),
+			new AtomicReference<>(filterConstraintResolver),
+			new AtomicReference<>(new OrderConstraintResolver(
+				restApiHandlingContext.getCatalogSchema(),
+				new AtomicReference<>(filterConstraintResolver)
+			))
 		);
 		this.withPrimaryKeyInPath = withPrimaryKeyInPath;
 	}
@@ -91,15 +102,17 @@ public class UpsertEntityHandler extends EntityHandler<CollectionRestHandlingCon
 		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
 		return parseRequestBody(executionContext, UpsertEntityUpsertRequestDto.class)
 			.thenApply(requestData -> {
+				final Optional<Object> rawRequire = requestData.getRequire().map(it -> deserializeConstraintContainer(EntityUpsertRequestDescriptor.REQUIRE.name(), it));
+				requestExecutedEvent.finishInputDeserialization();
+
 				if (withPrimaryKeyInPath) {
 					final Map<String, Object> parametersFromRequest = getParametersFromRequest(executionContext);
 					Assert.isTrue(
-						parametersFromRequest.containsKey(DeleteEntityEndpointHeaderDescriptor.PRIMARY_KEY.name()),
+						parametersFromRequest.containsKey(UpsertEntityEndpointHeaderDescriptor.PRIMARY_KEY.name()),
 						() -> new RestInvalidArgumentException("Primary key is not present in request's URL path.")
 					);
-					requestData.setPrimaryKey((Integer) parametersFromRequest.get(DeleteEntityEndpointHeaderDescriptor.PRIMARY_KEY.name()));
+					requestData.setPrimaryKey((Integer) parametersFromRequest.get(UpsertEntityEndpointHeaderDescriptor.PRIMARY_KEY.name()));
 				}
-				requestExecutedEvent.finishInputDeserialization();
 
 				final EntityMutation entityMutation = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() ->
 					mutationResolver.convertFromInput(
@@ -111,12 +124,12 @@ public class UpsertEntityHandler extends EntityHandler<CollectionRestHandlingCon
 							.orElseThrow(() -> new RestInvalidArgumentException("Mutations are not set in request data."))
 					));
 
-				final EntityContentRequire[] requires = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() ->
-					getEntityContentRequires(requestData).orElse(null));
+				final Optional<EntityContentRequire[]> requires = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() ->
+					rawRequire.flatMap(this::getEntityContentRequires));
 
 				final EntityClassifier upsertedEntity = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
-					requestData.getRequire().isPresent()
-						? executionContext.session().upsertAndFetchEntity(entityMutation, requires)
+					requires.isPresent()
+						? executionContext.session().upsertAndFetchEntity(entityMutation, requires.get())
 						: executionContext.session().upsertEntity(entityMutation));
 				requestExecutedEvent.finishOperationExecution();
 
@@ -140,9 +153,8 @@ public class UpsertEntityHandler extends EntityHandler<CollectionRestHandlingCon
 	}
 
 	@Nonnull
-	private Optional<EntityContentRequire[]> getEntityContentRequires(@Nonnull UpsertEntityUpsertRequestDto requestData) {
-		return requestData.getRequire()
-			.map(it -> (Require) requireConstraintResolver.resolve(FetchEntityRequestDescriptor.REQUIRE.name(), it))
+	private Optional<EntityContentRequire[]> getEntityContentRequires(@Nonnull Object rawRequire) {
+		return Optional.ofNullable((Require) requireConstraintResolver.resolve(restHandlingContext.getEntityType(), FetchEntityRequestDescriptor.REQUIRE.name(), rawRequire))
 			.flatMap(require -> Arrays.stream(require.getChildren())
 				.filter(EntityFetch.class::isInstance)
 				.findFirst()
@@ -155,5 +167,34 @@ public class UpsertEntityHandler extends EntityHandler<CollectionRestHandlingCon
 					return requires;
 				})
 			);
+	}
+
+	@Nullable
+	private Object deserializeConstraintContainer(@Nonnull String key, Object value) {
+		Assert.isPremiseValid(
+			value instanceof JsonNode,
+			() -> new RestInternalError("Input value is not a JSON node. Instead it is `" + value.getClass().getName() + "`.")
+		);
+
+		//noinspection rawtypes
+		final Schema rootSchema = (Schema) SchemaUtils.getTargetSchema(
+				restHandlingContext.getEndpointOperation()
+					.getRequestBody()
+					.getContent()
+					.get(MimeTypes.APPLICATION_JSON)
+					.getSchema(),
+				restHandlingContext.getOpenApi()
+			)
+			.getProperties()
+			.get(key);
+
+		try {
+			return dataDeserializer.deserializeTree(
+				SchemaUtils.getTargetSchema(rootSchema, restHandlingContext.getOpenApi()),
+				(JsonNode) value
+			);
+		} catch (Exception e) {
+			throw new RestInvalidArgumentException("Could not parse query: " + e.getMessage());
+		}
 	}
 }

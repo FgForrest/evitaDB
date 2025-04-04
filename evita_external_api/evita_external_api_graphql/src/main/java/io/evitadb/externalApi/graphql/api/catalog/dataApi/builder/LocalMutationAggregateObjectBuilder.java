@@ -33,6 +33,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.Apply
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.ReferenceAttributeMutationAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.RemoveAttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.UpsertAttributeMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity.SetEntityScopeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity.SetParentMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price.RemovePriceMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price.SetPriceInnerRecordHandlingMutationDescriptor;
@@ -66,6 +67,7 @@ public class LocalMutationAggregateObjectBuilder {
 	@Nonnull private final PropertyDescriptorToGraphQLInputFieldTransformer inputFieldBuilderTransformer;
 
 	public void buildCommonTypes() {
+		buildingContext.registerType(SetEntityScopeMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 		buildingContext.registerType(RemoveAssociatedDataMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 		buildingContext.registerType(UpsertAssociatedDataMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 		buildingContext.registerType(ApplyDeltaAttributeMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
@@ -90,6 +92,9 @@ public class LocalMutationAggregateObjectBuilder {
 			.description(LocalMutationAggregateDescriptor.THIS.description(entitySchema.getName()));
 
 		boolean hasAnyMutations = false;
+
+		localMutationAggregateObjectBuilder
+			.field(LocalMutationAggregateDescriptor.SET_ENTITY_SCOPE_MUTATION.to(inputFieldBuilderTransformer));
 
 		if (!entitySchema.getAssociatedData().isEmpty() || entitySchema.getEvolutionMode().contains(EvolutionMode.ADDING_ASSOCIATED_DATA)) {
 			hasAnyMutations = true;

@@ -1,52 +1,55 @@
 ```json
 [
   {
-    "entity": {
-      "primaryKey": 66482,
-      "type": "Category",
-      "version": 1,
-      "allLocales": [
+    "entity" : {
+      "primaryKey" : 66482,
+      "type" : "Category",
+      "version" : 1,
+      "scope" : "LIVE",
+      "allLocales" : [
         "en"
       ],
-      "attributes": {
-        "global": {
-          "code": "audio"
+      "attributes" : {
+        "global" : {
+          "code" : "audio"
         }
       }
     },
-    "requested": false,
-    "children": [
+    "requested" : false,
+    "children" : [
       {
-        "entity": {
-          "primaryKey": 66488,
-          "type": "Category",
-          "version": 1,
-          "allLocales": [
+        "entity" : {
+          "primaryKey" : 66488,
+          "type" : "Category",
+          "version" : 1,
+          "scope" : "LIVE",
+          "allLocales" : [
             "en"
           ],
-          "attributes": {
-            "global": {
-              "code": "wireless-headphones"
+          "attributes" : {
+            "global" : {
+              "code" : "wireless-headphones"
             }
           }
         },
-        "requested": false,
-        "children": [
+        "requested" : false,
+        "children" : [
           {
-            "entity": {
-              "primaryKey": 66494,
-              "type": "Category",
-              "version": 1,
-              "allLocales": [
+            "entity" : {
+              "primaryKey" : 66494,
+              "type" : "Category",
+              "version" : 1,
+              "scope" : "LIVE",
+              "allLocales" : [
                 "en"
               ],
-              "attributes": {
-                "global": {
-                  "code": "true-wireless"
+              "attributes" : {
+                "global" : {
+                  "code" : "true-wireless"
                 }
               }
             },
-            "requested": true
+            "requested" : true
           }
         ]
       }

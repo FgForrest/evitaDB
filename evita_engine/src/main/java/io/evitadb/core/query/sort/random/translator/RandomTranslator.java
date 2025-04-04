@@ -42,7 +42,8 @@ public class RandomTranslator implements OrderingConstraintTranslator<Random> {
 	@Nonnull
 	@Override
 	public Stream<Sorter> createSorter(@Nonnull Random random, @Nonnull OrderByVisitor orderByVisitor) {
-		return Stream.of(new RandomSorter());
+		final Long seed = random.getSeed();
+		return Stream.of(seed == null ? RandomSorter.INSTANCE : new RandomSorter(seed));
 	}
 
 }

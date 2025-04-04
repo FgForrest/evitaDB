@@ -31,15 +31,30 @@ import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
 import io.evitadb.utils.Assert;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * Returns page of records as {@link PaginatedList} if {@link io.evitadb.api.query.require.Page} was used in query.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class RecordPageDataFetcher implements DataFetcher<PaginatedList<? extends EntityClassifier>> {
+
+	@Nullable
+	private static RecordPageDataFetcher INSTANCE;
+
+	@Nonnull
+	public static RecordPageDataFetcher getInstance() {
+		if (INSTANCE == null) {
+			INSTANCE = new RecordPageDataFetcher();
+		}
+		return INSTANCE;
+	}
 
 	@Nonnull
 	@Override

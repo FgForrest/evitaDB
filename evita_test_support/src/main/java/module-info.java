@@ -35,4 +35,8 @@ module evita.test.support {
 	requires evita.external.api.lab;
 	requires okhttp3;
 	requires evita.external.api.observability;
+	requires org.bouncycastle.pkix;
+	requires org.bouncycastle.provider;
+	requires com.linecorp.armeria;
+	requires roaringbitmap;
 }

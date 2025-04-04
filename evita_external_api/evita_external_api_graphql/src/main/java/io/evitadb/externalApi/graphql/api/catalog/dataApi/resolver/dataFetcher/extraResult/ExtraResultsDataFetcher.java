@@ -26,15 +26,30 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * Only passes {@link EvitaResponse} to individual extra result fetchers so that they can safely extract their extra results.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class ExtraResultsDataFetcher implements DataFetcher<EvitaResponse<?>> {
+
+	@Nullable
+	private static ExtraResultsDataFetcher INSTANCE;
+
+	@Nonnull
+	public static ExtraResultsDataFetcher getInstance() {
+		if (INSTANCE == null) {
+			INSTANCE = new ExtraResultsDataFetcher();
+		}
+		return INSTANCE;
+	}
 
 	@Nonnull
 	@Override

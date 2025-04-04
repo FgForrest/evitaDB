@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,11 +24,15 @@
 package io.evitadb.externalApi.lab;
 
 import com.linecorp.armeria.server.HttpService;
-import io.evitadb.externalApi.http.ExternalApiProvider;
-import io.evitadb.externalApi.lab.configuration.LabConfig;
+import io.evitadb.externalApi.configuration.ApiOptions;
+import io.evitadb.externalApi.event.ReadinessEvent;
+import io.evitadb.externalApi.event.ReadinessEvent.Prospective;
+import io.evitadb.externalApi.event.ReadinessEvent.Result;
+import io.evitadb.externalApi.http.ProxyingEndpointProvider;
+import io.evitadb.externalApi.lab.configuration.LabOptions;
 import io.evitadb.utils.NetworkUtils;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.util.function.Predicate;
@@ -38,23 +42,35 @@ import java.util.function.Predicate;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-@RequiredArgsConstructor
-public class LabProvider implements ExternalApiProvider<LabConfig> {
+@Slf4j
+public class LabProvider implements ProxyingEndpointProvider<LabOptions> {
 
 	public static final String CODE = "lab";
 
 	@Nonnull
 	@Getter
-	private final LabConfig configuration;
+	private final LabOptions configuration;
 
 	@Nonnull
 	@Getter
 	private final HttpService apiHandler;
 
 	/**
+	 * Timeout taken from {@link ApiOptions#requestTimeoutInMillis()} that will be used in {@link #isReady()}
+	 * method.
+	 */
+	private final long requestTimeout;
+
+	/**
 	 * Contains url that was at least once found reachable.
 	 */
 	private String reachableUrl;
+
+	public LabProvider(@Nonnull LabOptions configuration, @Nonnull HttpService apiHandler, long requestTimeout) {
+		this.configuration = configuration;
+		this.apiHandler = apiHandler;
+		this.requestTimeout = requestTimeout;
+	}
 
 	@Nonnull
 	@Override
@@ -65,17 +81,40 @@ public class LabProvider implements ExternalApiProvider<LabConfig> {
 	@Nonnull
 	@Override
 	public HttpServiceDefinition[] getHttpServiceDefinitions() {
-		return new HttpServiceDefinition[] {
-			new HttpServiceDefinition(apiHandler, PathHandlingMode.DYNAMIC_PATH_HANDLING)
+		return new HttpServiceDefinition[]{
+			new HttpServiceDefinition(apiHandler, PathHandlingMode.DYNAMIC_PATH_HANDLING, true)
 		};
 	}
 
 	@Override
 	public boolean isReady() {
-		final Predicate<String> isReady = url -> NetworkUtils.fetchContent(url, null, "text/html", null)
-			.map(content -> content.contains("https://github.com/FgForrest/evitaDB/blob/master/LICENSE"))
-			.orElse(false);
-		final String[] baseUrls = this.configuration.getBaseUrls(configuration.getExposedHost());
+		final Predicate<String> isReady = url -> {
+			final ReadinessEvent readinessEvent = new ReadinessEvent(CODE, Prospective.CLIENT);
+			return NetworkUtils.fetchContent(
+					url,
+					null,
+					"text/html",
+					null,
+					this.requestTimeout,
+					error -> {
+						log.error("Error while checking readiness of Lab API: {}", error);
+						readinessEvent.finish(Result.ERROR);
+					},
+					timeouted -> {
+						log.error("{}", timeouted);
+						readinessEvent.finish(Result.TIMEOUT);
+					}
+				)
+				.map(content -> {
+					final boolean result = content.contains("evitaLab app");
+					if (result) {
+						readinessEvent.finish(Result.READY);
+					}
+					return result;
+				})
+				.orElse(false);
+		};
+		final String[] baseUrls = this.configuration.getBaseUrls();
 		if (this.reachableUrl == null) {
 			for (String baseUrl : baseUrls) {
 				if (isReady.test(baseUrl)) {

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,7 +25,8 @@ package io.evitadb.core.async;
 
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.TaskStatus;
-import io.evitadb.api.task.TaskStatus.State;
+import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
+import io.evitadb.api.task.TaskStatus.TaskTrait;
 import io.evitadb.core.metric.event.system.BackgroundTaskFinishedEvent;
 import io.evitadb.core.metric.event.system.BackgroundTaskStartedEvent;
 import io.evitadb.utils.UUIDUtil;
@@ -34,10 +35,13 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
+import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 /**
  * Represents a task that is executed in the background. This is a thin wrapper around {@link Runnable} that emits
@@ -61,86 +65,102 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 	 * Contains the actual status of the task.
 	 */
 	protected final AtomicReference<TaskStatus<S, T>> status;
+	/**
+	 * The type of the task.
+	 */
+	protected final String taskType;
 
-	public AbstractServerTask(@Nonnull String taskName, @Nullable S settings) {
+	protected AbstractServerTask(@Nonnull String taskType, @Nonnull String taskName, @Nonnull S settings, @Nonnull TaskTrait... traits) {
+		this.taskType = taskType;
 		this.future = new ServerTaskCompletableFuture<>();
 		this.status = new AtomicReference<>(
 			new TaskStatus<>(
-				this.getClass().getSimpleName(),
+				this.taskType,
 				taskName,
 				UUIDUtil.randomUUID(),
 				null,
 				OffsetDateTime.now(),
 				null,
 				null,
+				null,
 				0,
 				settings,
 				null,
 				null,
-				null
+				null,
+				traits.length == 0 ? EnumSet.noneOf(TaskTrait.class) : EnumSet.copyOf(Arrays.asList(traits))
 			)
 		);
 		this.exceptionHandler = null;
 	}
 
-	public AbstractServerTask(@Nonnull String catalogName, @Nonnull String taskName, @Nullable S settings) {
+	protected AbstractServerTask(@Nonnull String catalogName, @Nonnull String taskType, @Nonnull String taskName, @Nonnull S settings, @Nonnull TaskTrait... traits) {
+		this.taskType = taskType;
 		this.future = new ServerTaskCompletableFuture<>();
 		this.status = new AtomicReference<>(
 			new TaskStatus<>(
-				this.getClass().getSimpleName(),
+				this.taskType,
 				taskName,
 				UUIDUtil.randomUUID(),
 				catalogName,
 				OffsetDateTime.now(),
 				null,
 				null,
+				null,
 				0,
 				settings,
 				null,
 				null,
-				null
+				null,
+				traits.length == 0 ? EnumSet.noneOf(TaskTrait.class) : EnumSet.copyOf(Arrays.asList(traits))
 			)
 		);
 		this.exceptionHandler = null;
 	}
 
-	public AbstractServerTask(@Nonnull String taskName, @Nullable S settings, @Nonnull Function<Throwable, T> exceptionHandler) {
+	protected AbstractServerTask(@Nonnull String taskType, @Nonnull String taskName, @Nonnull S settings, @Nonnull Function<Throwable, T> exceptionHandler, @Nonnull TaskTrait... traits) {
+		this.taskType = taskType;
 		this.future = new ServerTaskCompletableFuture<>();
 		this.status = new AtomicReference<>(
 			new TaskStatus<>(
-				this.getClass().getSimpleName(),
+				this.taskType,
 				taskName,
 				UUIDUtil.randomUUID(),
 				null,
 				OffsetDateTime.now(),
 				null,
 				null,
+				null,
 				0,
 				settings,
 				null,
 				null,
-				null
+				null,
+				traits.length == 0 ? EnumSet.noneOf(TaskTrait.class) : EnumSet.copyOf(Arrays.asList(traits))
 			)
 		);
 		this.exceptionHandler = exceptionHandler;
 	}
 
-	public AbstractServerTask(@Nonnull String catalogName, @Nonnull String taskName, @Nullable S settings, @Nonnull Function<Throwable, T> exceptionHandler) {
+	protected AbstractServerTask(@Nonnull String catalogName, @Nonnull String taskType, @Nonnull String taskName, @Nonnull S settings, @Nonnull Function<Throwable, T> exceptionHandler, @Nonnull TaskTrait... traits) {
+		this.taskType = taskType;
 		this.future = new ServerTaskCompletableFuture<>();
 		this.status = new AtomicReference<>(
 			new TaskStatus<>(
-				this.getClass().getSimpleName(),
+				this.taskType,
 				taskName,
 				UUIDUtil.randomUUID(),
 				catalogName,
 				OffsetDateTime.now(),
 				null,
 				null,
+				null,
 				0,
 				settings,
 				null,
 				null,
-				null
+				null,
+				traits.length == 0 ? EnumSet.noneOf(TaskTrait.class) : EnumSet.copyOf(Arrays.asList(traits))
 			)
 		);
 		this.exceptionHandler = exceptionHandler;
@@ -173,7 +193,7 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 		// emit the start event
 		final TaskStatus<S, T> theStatus = getStatus();
 
-		if (theStatus.state() == State.QUEUED) {
+		if (theStatus.simplifiedState() == TaskSimplifiedState.QUEUED) {
 			new BackgroundTaskStartedEvent(theStatus.catalogName(), theStatus.taskName()).commit();
 
 			this.status.updateAndGet(
@@ -235,6 +255,34 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 	}
 
 	/**
+	 * Updates the name of the current task if it is still in progress.
+	 *
+	 * @param taskName The new name to be assigned to the task. Must not be null.
+	 * @param traits   The traits of the task.
+	 */
+	public void updateTaskNameAndTraits(@Nonnull String taskName, @Nonnull TaskTrait... traits) {
+		if (!(this.future.isDone() || this.future.isCancelled())) {
+			this.status.updateAndGet(
+				currentStatus -> currentStatus.updateTaskNameAndTraits(taskName, traits)
+			);
+		}
+	}
+
+	@Override
+	public void transitionToIssued() {
+		if (!(this.future.isDone() || this.future.isCancelled())) {
+			this.status.updateAndGet(
+				TaskStatus::transitionToIssued
+			);
+		}
+	}
+
+	@Override
+	public boolean matches(@Nonnull Predicate<ServerTask<?, ?>> taskPredicate) {
+		return taskPredicate.test(this);
+	}
+
+	/**
 	 * Executes the task and completes the future with the result.
 	 *
 	 * @return the result of the task
@@ -243,7 +291,7 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 	protected T executeAndCompleteFuture() {
 		final T result = this.executeInternal();
 		if (this.future.isDone()) {
-			return null;
+			return this.future.getNow(null);
 		} else {
 			this.status.updateAndGet(
 				currentStatus -> currentStatus.transitionToFinished(result)

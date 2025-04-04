@@ -35,11 +35,11 @@ import io.evitadb.api.exception.UnexpectedResultCountException;
 import io.evitadb.api.exception.UnexpectedResultException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.proxy.ProxyFactory;
+import io.evitadb.api.query.HeadConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.FilterBy;
-import io.evitadb.api.query.head.Collection;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetch;
@@ -52,14 +52,13 @@ import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
-import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
-import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
 import io.evitadb.api.requestResponse.data.DeletedHierarchy;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.InstanceEditor;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.annotation.Entity;
+import io.evitadb.api.requestResponse.data.annotation.ReflectedReference;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
@@ -73,6 +72,7 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchem
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.system.CatalogVersion;
 import io.evitadb.api.task.Task;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -308,10 +308,35 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 
 	/**
 	 * Returns schema definition for entity of specified type or throws a standardized exception.
+	 *
+	 * @deprecated use {@link #getEntitySchemaOrThrowException(String)}
 	 */
 	@Nonnull
-	SealedEntitySchema getEntitySchemaOrThrow(@Nonnull String entityType)
+	@Deprecated
+	default SealedEntitySchema getEntitySchemaOrThrow(@Nonnull String entityType)
+		throws CollectionNotFoundException {
+		return getEntitySchemaOrThrowException(entityType);
+	}
+
+	/**
+	 * Returns schema definition for entity of specified type or throws a standardized exception.
+	 */
+	@Nonnull
+	SealedEntitySchema getEntitySchemaOrThrowException(@Nonnull String entityType)
 		throws CollectionNotFoundException;
+
+	/**
+	 * Returns schema definition for entity of specified type or throws a standardized exception.
+	 *
+	 * @throws EntityClassInvalidException when entity type cannot be extracted from the class
+	 * @deprecated use {@link #getEntitySchemaOrThrowException(Class)}
+	 */
+	@Deprecated
+	@Nonnull
+	default SealedEntitySchema getEntitySchemaOrThrow(@Nonnull Class<?> modelClass)
+		throws CollectionNotFoundException, EntityClassInvalidException {
+		return getEntitySchemaOrThrowException(modelClass);
+	}
 
 	/**
 	 * Returns schema definition for entity of specified type or throws a standardized exception.
@@ -319,7 +344,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * @throws EntityClassInvalidException when entity type cannot be extracted from the class
 	 */
 	@Nonnull
-	SealedEntitySchema getEntitySchemaOrThrow(@Nonnull Class<?> modelClass)
+	SealedEntitySchema getEntitySchemaOrThrowException(@Nonnull Class<?> modelClass)
 		throws CollectionNotFoundException, EntityClassInvalidException;
 
 	/**
@@ -334,7 +359,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * translates it to simplified return type.
 	 *
 	 * @param query input query,
-	 *              for creation use {@link Query#query(Collection, FilterBy, OrderBy, Require)} or similar methods
+	 *              for creation use {@link Query#query(HeadConstraint, FilterBy, OrderBy, Require)} or similar methods
 	 *              for defining constraint use {@link QueryConstraints} static methods
 	 * @return found entity reference, empty optional object if none was found
 	 * @throws UnexpectedResultException   when {@link EvitaResponse#getRecordPage()} contains data that are not assignable to `expectedType`
@@ -353,7 +378,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * translates it to simplified return type.
 	 *
 	 * @param query input query,
-	 *              for creation use {@link Query#query(Collection, FilterBy, OrderBy, Require)} or similar methods
+	 *              for creation use {@link Query#query(HeadConstraint, FilterBy, OrderBy, Require)} or similar methods
 	 *              for defining constraint use {@link QueryConstraints} static methods
 	 * @return found entity itself, empty optional object if none was found
 	 * @throws UnexpectedResultException   when {@link EvitaResponse#getRecordPage()} contains data that are not assignable to `expectedType`
@@ -405,7 +430,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * side.
 	 *
 	 * @param query        input query,
-	 *                     for creation use {@link Query#query(Collection, FilterBy, OrderBy, Require)} or similar methods
+	 *                     for creation use {@link Query#query(HeadConstraint, FilterBy, OrderBy, Require)} or similar methods
 	 *                     for defining constraint use {@link QueryConstraints} static methods
 	 * @param expectedType type of object, that is expected to be in response data,
 	 *                     use one of type: {@link EntityReference} or {@link SealedEntity}
@@ -427,7 +452,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * the {@link #query(Query, Class)} method.
 	 *
 	 * @param query input query,
-	 *              for creation use {@link Query#query(Collection, FilterBy, OrderBy, Require)} or similar methods
+	 *              for creation use {@link Query#query(HeadConstraint, FilterBy, OrderBy, Require)} or similar methods
 	 *              for defining constraint use {@link QueryConstraints} static methods
 	 * @return shortened response - only list of found entities will be returned, the list respect paging / stripping
 	 * requirements (if none defined the method behaves as first page with 20 results is requested)
@@ -449,7 +474,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * the {@link #query(Query, Class)} method.
 	 *
 	 * @param query input query,
-	 *              for creation use {@link Query#query(Collection, FilterBy, OrderBy, Require)} or similar methods
+	 *              for creation use {@link Query#query(HeadConstraint, FilterBy, OrderBy, Require)} or similar methods
 	 *              for defining constraint use {@link QueryConstraints} static methods
 	 * @return shortened response - only list of found entities will be returned, the list respect paging / stripping
 	 * requirements (if none defined the method behaves as first page with 20 results is requested)
@@ -504,7 +529,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * side.
 	 *
 	 * @param query        input query,
-	 *                     for creation use {@link Query#query(Collection, FilterBy, OrderBy, Require)} or similar methods
+	 *                     for creation use {@link Query#query(HeadConstraint, FilterBy, OrderBy, Require)} or similar methods
 	 *                     for defining constraint use {@link QueryConstraints} static methods
 	 * @param expectedType type of object, that is expected to be in response data,
 	 *                     use one of type: {@link EntityReference} or {@link SealedEntity}
@@ -523,7 +548,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * Method executes query on {@link CatalogContract} data and returns result.
 	 *
 	 * @param query input query,
-	 *              for creation use {@link Query#query(Collection, FilterBy, OrderBy, Require)} or similar methods
+	 *              for creation use {@link Query#query(HeadConstraint, FilterBy, OrderBy, Require)} or similar methods
 	 *              for defining constraint use {@link QueryConstraints} static methods
 	 * @return full response data transfer object with all available data
 	 * @throws UnexpectedResultException   when {@link EvitaResponse#getRecordPage()} contains data that are not assignable to `expectedType`
@@ -540,7 +565,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * Method executes query on {@link CatalogContract} data and returns result.
 	 *
 	 * @param query input query,
-	 *              for creation use {@link Query#query(Collection, FilterBy, OrderBy, Require)} or similar methods
+	 *              for creation use {@link Query#query(HeadConstraint, FilterBy, OrderBy, Require)} or similar methods
 	 *              for defining constraint use {@link QueryConstraints} static methods
 	 * @return full response data transfer object with all available data
 	 * @throws UnexpectedResultException   when {@link EvitaResponse#getRecordPage()} contains data that are not assignable to `expectedType`
@@ -568,7 +593,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 					query.getOrderBy(),
 					(Require) query.getRequire().getCopyWithNewChildren(
 						ArrayUtils.mergeArrays(
-							new RequireConstraint[]{require(entityFetch())},
+							new RequireConstraint[]{entityFetch()},
 							query.getRequire().getChildren()
 						),
 						query.getRequire().getAdditionalChildren()
@@ -588,7 +613,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * This should prevent late ClassCastExceptions on the client side.
 	 *
 	 * @param query        input query,
-	 *                     for creation use {@link Query#query(Collection, FilterBy, OrderBy, Require)} or similar methods
+	 *                     for creation use {@link Query#query(HeadConstraint, FilterBy, OrderBy, Require)} or similar methods
 	 *                     for defining constraint use {@link QueryConstraints} static methods
 	 * @param expectedType type of object, that is expected to be in response data,
 	 *                     use one of type: {@link EntityReference} or {@link SealedEntity}
@@ -604,10 +629,27 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 
 	/**
 	 * Method returns entity by its type and primary key in requested form of completeness. This method allows quick
-	 * access to the entity contents when primary key is known.
+	 * access to the entity contents when primary key is known. Method returns only entity in live scope (archived
+	 * entities are considered as removed).
+	 *
+	 * @param entityType type of the entity to be fetched
+	 * @param primaryKey primary key of the entity to be fetched
+	 * @param require    additional requirements for the entity fetching
 	 */
 	@Nonnull
 	Optional<SealedEntity> getEntity(@Nonnull String entityType, int primaryKey, EntityContentRequire... require);
+
+	/**
+	 * Method returns entity by its type and primary key in requested form of completeness. This method allows quick
+	 * access to the entity contents when primary key is known.
+	 *
+	 * @param entityType type of the entity to be fetched
+	 * @param primaryKey primary key of the entity to be fetched
+	 * @param scopes     array of scopes that should be used for fetching the entity (at least one scope is required)
+	 * @param require    additional requirements for the entity fetching
+	 */
+	@Nonnull
+	Optional<SealedEntity> getEntity(@Nonnull String entityType, int primaryKey, @Nonnull Scope[] scopes, EntityContentRequire... require);
 
 	/**
 	 * Method returns entity by its type and primary key in requested form of completeness. This method allows quick
@@ -615,12 +657,37 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * can represent any POJO, record or interface annotated with {@link io.evitadb.api.requestResponse.data.annotation}
 	 * annotations.
 	 *
+	 * @param expectedType expected interface of the result entity
+	 * @param primaryKey   primary key of the entity to be fetched
+	 * @param require      additional requirements for the entity fetching
+	 * @throws EntityClassInvalidException when entity type cannot be extracted from the class
+	 */
+	@Nonnull
+	default <T extends Serializable> Optional<T> getEntity(
+		@Nonnull Class<T> expectedType,
+		int primaryKey,
+		EntityContentRequire... require
+	) throws EntityClassInvalidException {
+		return getEntity(expectedType, primaryKey, Scope.DEFAULT_SCOPES, require);
+	}
+
+	/**
+	 * Method returns entity by its type and primary key in requested form of completeness. This method allows quick
+	 * access to the entity contents when primary key is known. Result object is not constrained to an evitaDB type but
+	 * can represent any POJO, record or interface annotated with {@link io.evitadb.api.requestResponse.data.annotation}
+	 * annotations.
+	 *
+	 * @param expectedType expected interface of the result entity
+	 * @param primaryKey   primary key of the entity to be fetched
+	 * @param scopes       array of scopes that should be used for fetching the entity (at least one scope is required)
+	 * @param require      additional requirements for the entity fetching
 	 * @throws EntityClassInvalidException when entity type cannot be extracted from the class
 	 */
 	@Nonnull
 	<T extends Serializable> Optional<T> getEntity(
 		@Nonnull Class<T> expectedType,
 		int primaryKey,
+		@Nonnull Scope[] scopes,
 		EntityContentRequire... require
 	) throws EntityClassInvalidException;
 
@@ -719,7 +786,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	default int updateEntitySchema(@Nonnull EntitySchemaBuilder entitySchemaBuilder) throws SchemaAlteringException {
 		return entitySchemaBuilder.toMutation()
 			.map(this::updateEntitySchema)
-			.orElse(getEntitySchemaOrThrow(entitySchemaBuilder.getName()).version());
+			.orElseGet(() -> getEntitySchemaOrThrow(entitySchemaBuilder.getName()).version());
 	}
 
 	/**
@@ -734,7 +801,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	default SealedEntitySchema updateAndFetchEntitySchema(@Nonnull EntitySchemaBuilder entitySchemaBuilder) throws SchemaAlteringException {
 		return entitySchemaBuilder.toMutation()
 			.map(this::updateAndFetchEntitySchema)
-			.orElse(getEntitySchemaOrThrow(entitySchemaBuilder.getName()));
+			.orElseGet(() -> getEntitySchemaOrThrow(entitySchemaBuilder.getName()));
 	}
 
 	/**
@@ -914,7 +981,12 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 
 	/**
 	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
-	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
+	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched except for
+	 * {@link ReflectedReference} which are removed. The reflected references are set up automatically by the system
+	 * when the main reference is created and that's why they are removed automatically when the main reference is removed.
+	 *
+	 * BEWARE: this method represents the hard delete operation and the entity will be removed from the catalog permanently.
+	 * If you need to archive the entity instead of removing it, use the {@link #archiveEntity(String, int)} method.
 	 *
 	 * @return true if entity existed and was removed
 	 */
@@ -922,7 +994,12 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 
 	/**
 	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
-	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
+	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched except for
+	 * {@link ReflectedReference} which are removed. The reflected references are set up automatically by the system
+	 * when the main reference is created and that's why they are removed automatically when the main reference is removed.
+	 *
+	 * BEWARE: this method represents the hard delete operation and the entity will be removed from the catalog permanently.
+	 * If you need to archive the entity instead of removing it, use the {@link #archiveEntity(Class, int)} method.
 	 *
 	 * @return true if entity existed and was removed
 	 * @throws EntityClassInvalidException when entity type cannot be extracted from the class
@@ -931,7 +1008,12 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 
 	/**
 	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
-	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
+	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched except for
+	 * {@link ReflectedReference} which are removed. The reflected references are set up automatically by the system
+	 * when the main reference is created and that's why they are removed automatically when the main reference is removed.
+	 *
+	 * BEWARE: this method represents the hard delete operation and the entity will be removed from the catalog permanently.
+	 * If you need to archive the entity instead of removing it, use the {@link #archiveEntity(String, int, EntityContentRequire...)} method.
 	 *
 	 * @return removed entity fetched according to `require` definition
 	 */
@@ -940,7 +1022,12 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 
 	/**
 	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
-	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
+	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched except for
+	 * {@link ReflectedReference} which are removed. The reflected references are set up automatically by the system
+	 * when the main reference is created and that's why they are removed automatically when the main reference is removed.
+	 *
+	 * BEWARE: this method represents the hard delete operation and the entity will be removed from the catalog permanently.
+	 * If you need to archive the entity instead of removing it, use the {@link #archiveEntity(Class, int, EntityContentRequire...)} method.
 	 *
 	 * @return removed entity fetched according to `require` definition
 	 * @throws EntityClassInvalidException when entity type cannot be extracted from the class
@@ -1011,6 +1098,85 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 */
 	@Nonnull
 	SealedEntity[] deleteSealedEntitiesAndReturnBodies(@Nonnull Query query);
+
+	/**
+	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
+	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched except for
+	 * {@link ReflectedReference} which are removed. The reflected references are set up automatically by the system
+	 * when the main reference is created and that's why they are removed automatically when the main reference is removed.
+	 *
+	 * BEWARE: this method represents the hard delete operation and the entity will be removed from the catalog permanently.
+	 * If you need to archive the entity instead of removing it, use the {@link #archiveEntity(String, int)} method.
+	 *
+	 * @return true if entity existed and was removed
+	 */
+	boolean archiveEntity(@Nonnull String entityType, int primaryKey);
+
+	/**
+	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
+	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
+	 *
+	 * @return true if entity existed and was removed
+	 * @throws EntityClassInvalidException when entity type cannot be extracted from the class
+	 */
+	boolean archiveEntity(@Nonnull Class<?> modelClass, int primaryKey) throws EntityClassInvalidException;
+
+	/**
+	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
+	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
+	 *
+	 * @return removed entity fetched according to `require` definition
+	 */
+	@Nonnull
+	Optional<SealedEntity> archiveEntity(@Nonnull String entityType, int primaryKey, EntityContentRequire... require);
+
+	/**
+	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
+	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
+	 *
+	 * @return removed entity fetched according to `require` definition
+	 * @throws EntityClassInvalidException when entity type cannot be extracted from the class
+	 */
+	@Nonnull
+	<T extends Serializable> Optional<T> archiveEntity(@Nonnull Class<T> modelClass, int primaryKey, EntityContentRequire... require)
+		throws EntityClassInvalidException;
+
+	/**
+	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
+	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
+	 *
+	 * @return true if entity existed and was removed
+	 */
+	boolean restoreEntity(@Nonnull String entityType, int primaryKey);
+
+	/**
+	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
+	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
+	 *
+	 * @return true if entity existed and was removed
+	 * @throws EntityClassInvalidException when entity type cannot be extracted from the class
+	 */
+	boolean restoreEntity(@Nonnull Class<?> modelClass, int primaryKey) throws EntityClassInvalidException;
+
+	/**
+	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
+	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
+	 *
+	 * @return removed entity fetched according to `require` definition
+	 */
+	@Nonnull
+	Optional<SealedEntity> restoreEntity(@Nonnull String entityType, int primaryKey, EntityContentRequire... require);
+
+	/**
+	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
+	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
+	 *
+	 * @return removed entity fetched according to `require` definition
+	 * @throws EntityClassInvalidException when entity type cannot be extracted from the class
+	 */
+	@Nonnull
+	<T extends Serializable> Optional<T> restoreEntity(@Nonnull Class<T> modelClass, int primaryKey, EntityContentRequire... require)
+		throws EntityClassInvalidException;
 
 	/**
 	 * Returns information about the version that was valid at the specified moment in time. If the moment is not
@@ -1123,5 +1289,4 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 */
 	@Nonnull
 	ProxyFactory getProxyFactory();
-
 }

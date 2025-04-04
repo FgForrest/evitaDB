@@ -26,8 +26,11 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Deque;
 import java.util.LinkedList;
 
@@ -36,7 +39,19 @@ import java.util.LinkedList;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class ParentsDataFetcher implements DataFetcher<Deque<EntityClassifierWithParent>> {
+
+	@Nullable
+	private static ParentsDataFetcher INSTANCE;
+
+	@Nonnull
+	public static ParentsDataFetcher getInstance() {
+		if (INSTANCE == null) {
+			INSTANCE = new ParentsDataFetcher();
+		}
+		return INSTANCE;
+	}
 
 	@Nonnull
 	@Override

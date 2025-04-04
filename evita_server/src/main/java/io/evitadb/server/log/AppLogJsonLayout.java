@@ -44,8 +44,8 @@ import javax.annotation.Nonnull;
  */
 public class AppLogJsonLayout extends LayoutBase<ILoggingEvent> {
 
-	private static final String[] ESCAPED_CHARS = new String[] { "\r\n", "\n", "\r", "\f", "\b", "\\", "\"" };
-	private static final String[] REPLACEMENTS_FOR_ESCAPED_CHARS = new String[] { "\\r\\n", "\\n", "\\r", "\\f", "\\b", "\\\\", "\\\"" };
+	private static final String[] ESCAPED_CHARS = new String[] { "\r\n", "\n", "\r", "\f", "\b", "\\", "\"", "\t" };
+	private static final String[] REPLACEMENTS_FOR_ESCAPED_CHARS = new String[] { "\\r\\n", "\\n", "\\r", "\\f", "\\b", "\\\\", "\\\"", "   " };
 
 	private final CachingDateFormatter cachingDateFormatter = new CachingDateFormatter("yyyy-MM-dd'T'HH:mm:ss.SSSZ", null);
 	private final MessageConverter messageConverter = new MessageConverter();

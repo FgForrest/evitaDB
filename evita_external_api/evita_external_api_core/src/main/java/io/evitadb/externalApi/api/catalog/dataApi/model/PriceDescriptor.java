@@ -81,10 +81,10 @@ public interface PriceDescriptor {
 			""")
 		.type(nullable(Integer.class))
 		.build();
-	PropertyDescriptor SELLABLE = PropertyDescriptor.builder()
-		.name("sellable")
+	PropertyDescriptor INDEXED = PropertyDescriptor.builder()
+		.name("indexed")
 		.description("""
-			Controls whether price is subject to filtering / sorting logic, non-sellable prices will be fetched along with
+			Controls whether price is subject to filtering / sorting logic, non-indexed prices will be fetched along with
 			entity but won't be considered when evaluating search. These prices may be
 			used for "informational" prices such as reference price (the crossed out price often found on e-commerce sites
 			as "usual price") but are not considered as the "selling" price.
@@ -132,7 +132,7 @@ public interface PriceDescriptor {
 			PRICE_LIST,
 			CURRENCY,
 			INNER_RECORD_ID,
-			SELLABLE,
+			INDEXED,
 			VALIDITY,
 			PRICE_WITHOUT_TAX,
 			PRICE_WITH_TAX,

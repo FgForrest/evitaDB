@@ -1,281 +1,301 @@
 ```json
 {
-  "recordPage": {
-    "data": [
+  "recordPage" : {
+    "data" : [
       {
-        "primaryKey": 104732,
-        "type": "Product",
-        "version": 1,
-        "allLocales": [
+        "primaryKey" : 104732,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "lenovo-tab-m8-3rd-generation"
+        "attributes" : {
+          "global" : {
+            "code" : "lenovo-tab-m8-3rd-generation"
           }
         }
       },
       {
-        "primaryKey": 104718,
-        "type": "Product",
-        "version": 1,
-        "allLocales": [
+        "primaryKey" : 104718,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "lenovo-yoga-tab-13"
+        "attributes" : {
+          "global" : {
+            "code" : "lenovo-yoga-tab-13"
           }
         }
       },
       {
-        "primaryKey": 105929,
-        "type": "Product",
-        "version": 1,
-        "allLocales": [
+        "primaryKey" : 105929,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "lenovo-tab-m10-fhd-plus-3rd-generation-1"
+        "attributes" : {
+          "global" : {
+            "code" : "lenovo-tab-m10-fhd-plus-3rd-generation-1"
           }
         }
       },
       {
-        "primaryKey": 104725,
-        "type": "Product",
-        "version": 1,
-        "allLocales": [
+        "primaryKey" : 104725,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "lenovo-yoga-tab-11"
+        "attributes" : {
+          "global" : {
+            "code" : "lenovo-yoga-tab-11"
           }
         }
       },
       {
-        "primaryKey": 104737,
-        "type": "Product",
-        "version": 1,
-        "allLocales": [
+        "primaryKey" : 104737,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "lenovo-tab-m10-2nd-generation"
+        "attributes" : {
+          "global" : {
+            "code" : "lenovo-tab-m10-2nd-generation"
           }
         }
       },
       {
-        "primaryKey": 104744,
-        "type": "Product",
-        "version": 1,
-        "allLocales": [
+        "primaryKey" : 104744,
+        "type" : "Product",
+        "version" : 2,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "lenovo-tab-m10-fhd-plus-3rd-generation"
+        "attributes" : {
+          "global" : {
+            "code" : "lenovo-tab-m10-fhd-plus-3rd-generation"
           }
         }
       },
       {
-        "primaryKey": 104761,
-        "type": "Product",
-        "version": 1,
-        "allLocales": [
+        "primaryKey" : 104761,
+        "type" : "Product",
+        "version" : 2,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "lenovo-tab-m10-fhd-plus-2nd-generation"
+        "attributes" : {
+          "global" : {
+            "code" : "lenovo-tab-m10-fhd-plus-2nd-generation"
           }
         }
       },
       {
-        "primaryKey": 104776,
-        "type": "Product",
-        "version": 1,
-        "allLocales": [
+        "primaryKey" : 104776,
+        "type" : "Product",
+        "version" : 2,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "lenovo-tab-p11-11-wifi"
+        "attributes" : {
+          "global" : {
+            "code" : "lenovo-tab-p11-11-wifi"
           }
         }
       },
       {
-        "primaryKey": 104816,
-        "type": "Product",
-        "version": 1,
-        "allLocales": [
+        "primaryKey" : 104816,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "lenovo-tab-p12-pro"
+        "attributes" : {
+          "global" : {
+            "code" : "lenovo-tab-p12-pro"
           }
         }
       },
       {
-        "primaryKey": 104825,
-        "type": "Product",
-        "version": 1,
-        "allLocales": [
+        "primaryKey" : 104825,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "lenovo-tab-p11-pro"
+        "attributes" : {
+          "global" : {
+            "code" : "lenovo-tab-p11-pro"
           }
         }
       },
       {
-        "primaryKey": 105931,
-        "type": "Product",
-        "version": 1,
-        "allLocales": [
+        "primaryKey" : 105931,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "lenovo-tab-m10-fhd-plus-3rd-generation-2"
+        "attributes" : {
+          "global" : {
+            "code" : "lenovo-tab-m10-fhd-plus-3rd-generation-2"
           }
         }
       },
       {
-        "primaryKey": 105933,
-        "type": "Product",
-        "version": 1,
-        "allLocales": [
+        "primaryKey" : 105933,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "lenovo-tab-m10-fhd-plus-3rd-generation-3"
+        "attributes" : {
+          "global" : {
+            "code" : "lenovo-tab-m10-fhd-plus-3rd-generation-3"
           }
         }
       },
       {
-        "primaryKey": 105935,
-        "type": "Product",
-        "version": 1,
-        "allLocales": [
+        "primaryKey" : 105935,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "lenovo-tab-m10-fhd-plus-3rd-generation-4"
+        "attributes" : {
+          "global" : {
+            "code" : "lenovo-tab-m10-fhd-plus-3rd-generation-4"
           }
         }
       },
       {
-        "primaryKey": 105936,
-        "type": "Product",
-        "version": 1,
-        "allLocales": [
+        "primaryKey" : 105936,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "lenovo-tab-m10-fhd-plus-2nd-generation-1"
+        "attributes" : {
+          "global" : {
+            "code" : "lenovo-tab-m10-fhd-plus-2nd-generation-1"
           }
         }
       },
       {
-        "primaryKey": 105937,
-        "type": "Product",
-        "version": 1,
-        "allLocales": [
+        "primaryKey" : 105937,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "lenovo-tab-m10-fhd-plus-2nd-generation-2"
+        "attributes" : {
+          "global" : {
+            "code" : "lenovo-tab-m10-fhd-plus-2nd-generation-2"
           }
         }
       },
       {
-        "primaryKey": 105938,
-        "type": "Product",
-        "version": 1,
-        "allLocales": [
+        "primaryKey" : 105938,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "lenovo-tab-m10-fhd-plus-2nd-generation-3"
+        "attributes" : {
+          "global" : {
+            "code" : "lenovo-tab-m10-fhd-plus-2nd-generation-3"
           }
         }
       },
       {
-        "primaryKey": 105939,
-        "type": "Product",
-        "version": 1,
-        "allLocales": [
+        "primaryKey" : 105939,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "lenovo-tab-m10-fhd-plus-2nd-generation-4"
+        "attributes" : {
+          "global" : {
+            "code" : "lenovo-tab-m10-fhd-plus-2nd-generation-4"
           }
         }
       },
       {
-        "primaryKey": 105941,
-        "type": "Product",
-        "version": 1,
-        "allLocales": [
+        "primaryKey" : 105941,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "lenovo-tab-p11-11-wifi-1"
+        "attributes" : {
+          "global" : {
+            "code" : "lenovo-tab-p11-11-wifi-1"
           }
         }
       },
       {
-        "primaryKey": 105942,
-        "type": "Product",
-        "version": 1,
-        "allLocales": [
+        "primaryKey" : 105942,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "lenovo-tab-p11-11-wifi-2"
+        "attributes" : {
+          "global" : {
+            "code" : "lenovo-tab-p11-11-wifi-2"
           }
         }
       },
       {
-        "primaryKey": 105943,
-        "type": "Product",
-        "version": 1,
-        "allLocales": [
+        "primaryKey" : 105943,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "lenovo-tab-p11-11-wifi-3"
+        "attributes" : {
+          "global" : {
+            "code" : "lenovo-tab-p11-11-wifi-3"
           }
         }
       }
     ],
-    "empty": false,
-    "first": true,
-    "firstPageItemNumber": 0,
-    "hasNext": true,
-    "hasPrevious": false,
-    "last": false,
-    "lastPageItemNumber": 19,
-    "lastPageNumber": 15,
-    "pageNumber": 1,
-    "pageSize": 20,
-    "singlePage": false,
-    "totalRecordCount": 296,
-    "type": "PAGE"
+    "type" : "PAGE",
+    "totalRecordCount" : 296,
+    "first" : true,
+    "last" : false,
+    "hasPrevious" : false,
+    "hasNext" : true,
+    "singlePage" : false,
+    "empty" : false,
+    "pageSize" : 20,
+    "pageNumber" : 1,
+    "lastPageNumber" : 15,
+    "firstPageItemNumber" : 0,
+    "lastPageItemNumber" : 19
   }
 }
 ```

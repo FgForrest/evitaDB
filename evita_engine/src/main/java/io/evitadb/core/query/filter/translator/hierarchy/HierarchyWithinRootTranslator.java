@@ -33,17 +33,22 @@ import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
-import io.evitadb.core.query.algebra.infra.SkipFormula;
+import io.evitadb.core.query.algebra.hierarchy.HierarchyFormula;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
+import io.evitadb.index.EntityIndexKey;
+import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Optional;
+import java.util.Set;
 
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
@@ -61,7 +66,6 @@ public class HierarchyWithinRootTranslator extends AbstractHierarchyTranslator<H
 		@Nonnull FilterByVisitor filterByVisitor
 	) {
 		final QueryPlanningContext queryContext = filterByVisitor.getQueryContext();
-
 		final Optional<String> referenceName = hierarchyWithinRoot.getReferenceName();
 
 		final EntitySchemaContract entitySchema = filterByVisitor.getSchema();
@@ -79,7 +83,13 @@ public class HierarchyWithinRootTranslator extends AbstractHierarchyTranslator<H
 			)
 		);
 
-		return queryContext.getGlobalEntityIndexIfExists(targetEntitySchema.getName())
+		// we use only the first applicable scope here - if LIVE scope is present it always takes precedence
+		final Set<Scope> scopesToLookup = filterByVisitor.getProcessingScope().getScopes();
+		return Arrays.stream(Scope.values())
+			.filter(scopesToLookup::contains)
+			.map(scope -> queryContext.getIndex(targetEntitySchema.getName(), new EntityIndexKey(EntityIndexType.GLOBAL, scope), EntityIndex.class))
+			.filter(Optional::isPresent)
+			.map(Optional::get)
 			.map(
 				targetEntityIndex ->
 					queryContext.computeOnlyOnce(
@@ -89,6 +99,7 @@ public class HierarchyWithinRootTranslator extends AbstractHierarchyTranslator<H
 							createAndStoreHavingPredicate(
 								null,
 								queryContext,
+								scopesToLookup,
 								of(new FilterBy(hierarchyWithinRoot.getHavingChildrenFilter()))
 									.filter(ConstraintContainer::isApplicable)
 									.orElse(null),
@@ -102,6 +113,7 @@ public class HierarchyWithinRootTranslator extends AbstractHierarchyTranslator<H
 						)
 					)
 			)
+			.findFirst()
 			.orElse(EmptyFormula.INSTANCE);
 	}
 
@@ -135,20 +147,24 @@ public class HierarchyWithinRootTranslator extends AbstractHierarchyTranslator<H
 		// but! we can't do this when reference related constraints are found within the query because they'd use
 		// the record sets from different indexes than it's our hierarchy index (i.e. not subset)
 		if (filterByVisitor.isTargetIndexRepresentingConstraint(hierarchyWithinRoot) &&
-			filterByVisitor.isTargetIndexQueriedByOtherConstraints() &&
-			!filterByVisitor.isReferenceQueriedByOtherConstraints()) {
-			return SkipFormula.INSTANCE;
+			!filterByVisitor.isReferenceQueriedByOtherConstraints()
+		) {
+			filterByVisitor.registerFormulaPostProcessor(
+				HierarchyOptimizingPostProcessor.class, HierarchyOptimizingPostProcessor::new
+			);
+		}
+
+		final Formula matchingHierarchyNodIds = createFormulaFromHierarchyIndex(hierarchyWithinRoot, filterByVisitor);
+		if (hierarchyWithinRoot.getReferenceName().isEmpty()) {
+			return new HierarchyFormula(matchingHierarchyNodIds);
 		} else {
-			final Formula matchingHierarchyNodIds = createFormulaFromHierarchyIndex(hierarchyWithinRoot, filterByVisitor);
-			if (hierarchyWithinRoot.getReferenceName().isEmpty()) {
-				return matchingHierarchyNodIds;
-			} else {
-				return createFormulaForReferencingEntities(
+			return new HierarchyFormula(
+				createFormulaForReferencingEntities(
 					hierarchyWithinRoot,
 					filterByVisitor,
 					() -> matchingHierarchyNodIds
-				);
-			}
+				)
+			);
 		}
 	}
 

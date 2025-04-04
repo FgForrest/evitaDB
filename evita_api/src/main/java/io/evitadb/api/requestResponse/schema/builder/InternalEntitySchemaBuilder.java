@@ -27,11 +27,14 @@ import io.evitadb.api.exception.AssociatedDataAlreadyPresentInEntitySchemaExcept
 import io.evitadb.api.exception.AttributeAlreadyPresentInCatalogSchemaException;
 import io.evitadb.api.exception.AttributeAlreadyPresentInEntitySchemaException;
 import io.evitadb.api.exception.InvalidMutationException;
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.ReferenceAlreadyPresentInEntitySchemaException;
 import io.evitadb.api.exception.SortableAttributeCompoundSchemaException;
 import io.evitadb.api.requestResponse.schema.*;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
+import io.evitadb.api.requestResponse.schema.builder.ReferenceSchemaBuilder.ReferenceSchemaBuilderResult;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
@@ -46,7 +49,10 @@ import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassifierUtils;
 import io.evitadb.utils.NamingConvention;
 import lombok.experimental.Delegate;
@@ -177,12 +183,12 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 
 	@Override
 	@Nonnull
-	public EntitySchemaBuilder withHierarchy() {
+	public EntitySchemaBuilder withHierarchyIndexedInScope(@Nonnull Scope... inScopes) {
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
 			addMutations(
 				this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
-				new SetEntitySchemaWithHierarchyMutation(true)
+				new SetEntitySchemaWithHierarchyMutation(true, inScopes)
 			)
 		);
 		return this;
@@ -195,7 +201,27 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 			this.updatedSchemaDirty,
 			addMutations(
 				this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
-				new SetEntitySchemaWithHierarchyMutation(false)
+				new SetEntitySchemaWithHierarchyMutation(false, Scope.NO_SCOPE)
+			)
+		);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public EntitySchemaBuilder withoutHierarchyIndexedInScope(@Nonnull Scope... inScopes) {
+		final EnumSet<Scope> excludedScopes = ArrayUtils.toEnumSet(Scope.class, inScopes);
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
+				new SetEntitySchemaWithHierarchyMutation(
+					true,
+					Arrays.stream(Scope.values())
+						.filter(this::isHierarchyIndexedInScope)
+						.filter(it -> !excludedScopes.contains(it))
+						.toArray(Scope[]::new)
+				)
 			)
 		);
 		return this;
@@ -203,12 +229,12 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 
 	@Override
 	@Nonnull
-	public EntitySchemaBuilder withPrice() {
+	public EntitySchemaBuilder withPriceIndexedInScope(@Nonnull Scope... inScopes) {
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
 			addMutations(
 				this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
-				new SetEntitySchemaWithPriceMutation(true, 2)
+				new SetEntitySchemaWithPriceMutation(true, inScopes, 2)
 			)
 		);
 		return this;
@@ -216,12 +242,26 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 
 	@Override
 	@Nonnull
-	public EntitySchemaBuilder withPrice(int indexedDecimalPlaces) {
+	public EntitySchemaBuilder withPriceIndexedInScope(int indexedDecimalPlaces, @Nonnull Scope... inScopes) {
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
 			addMutations(
 				this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
-				new SetEntitySchemaWithPriceMutation(true, indexedDecimalPlaces)
+				new SetEntitySchemaWithPriceMutation(true, inScopes, indexedDecimalPlaces)
+			)
+		);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public EntitySchemaBuilder withIndexedPriceInCurrency(@Nonnull Currency[] currency, @Nonnull Scope... inScopes) {
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
+				new SetEntitySchemaWithPriceMutation(true, inScopes, 2),
+				new AllowCurrencyInEntitySchemaMutation(currency)
 			)
 		);
 		return this;
@@ -229,18 +269,12 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 
 	@Override
 	@Nonnull
-	public EntitySchemaBuilder withPriceInCurrency(@Nonnull Currency... currency) {
-		return withPriceInCurrency(2, currency);
-	}
-
-	@Override
-	@Nonnull
-	public EntitySchemaBuilder withPriceInCurrency(int indexedPricePlaces, @Nonnull Currency... currency) {
+	public EntitySchemaBuilder withPriceInCurrencyIndexedInScope(int indexedPricePlaces, @Nonnull Currency[] currency, @Nonnull Scope... inScopes) {
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
 			addMutations(
 				this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
-				new SetEntitySchemaWithPriceMutation(true, indexedPricePlaces),
+				new SetEntitySchemaWithPriceMutation(true, inScopes, indexedPricePlaces),
 				new AllowCurrencyInEntitySchemaMutation(currency)
 			)
 		);
@@ -254,7 +288,28 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 			this.updatedSchemaDirty,
 			addMutations(
 				this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
-				new SetEntitySchemaWithPriceMutation(false, 0)
+				new SetEntitySchemaWithPriceMutation(false, Scope.NO_SCOPE, 0)
+			)
+		);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public EntitySchemaBuilder withoutPriceIndexedInScope(@Nonnull Scope... inScopes) {
+		final EnumSet<Scope> excludedScopes = ArrayUtils.toEnumSet(Scope.class, inScopes);
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
+				new SetEntitySchemaWithPriceMutation(
+					true,
+					Arrays.stream(Scope.values())
+						.filter(this::isPriceIndexedInScope)
+						.filter(it -> !excludedScopes.contains(it))
+						.toArray(Scope[]::new),
+					getIndexedPricePlaces()
+				)
 			)
 		);
 		return this;
@@ -417,9 +472,12 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 			this.baseSchema.getReference(name).isEmpty()
 		);
 		ofNullable(whichIs).ifPresent(it -> it.accept(referenceBuilder));
+
+		final ReferenceSchemaBuilderResult result = referenceBuilder.toResult();
 		redefineReferenceType(
-			referenceBuilder,
-			existingReference
+			existingReference,
+			result.schema(),
+			result.mutations()
 		);
 		return this;
 	}
@@ -449,12 +507,63 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 			true,
 			cardinality,
 			this.mutations,
-			this.baseSchema.getReference(name).isEmpty()
+			this.baseSchema.getReference(name)
+				.map(it -> it instanceof ReflectedReferenceSchemaContract)
+				.orElse(true)
 		);
 		ofNullable(whichIs).ifPresent(it -> it.accept(referenceSchemaBuilder));
+
+		final ReferenceSchemaBuilderResult result = referenceSchemaBuilder.toResult();
 		redefineReferenceType(
-			referenceSchemaBuilder,
-			existingReference
+			existingReference,
+			result.schema(),
+			result.mutations()
+		);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public EntitySchemaBuilder withReflectedReferenceToEntity(@Nonnull String name, @Nonnull String entityType, @Nonnull String reflectedReferenceName) {
+		return withReflectedReferenceToEntity(name, entityType, reflectedReferenceName, null);
+	}
+
+	@Nonnull
+	@Override
+	public EntitySchemaBuilder withReflectedReferenceToEntity(
+		@Nonnull String referenceName,
+		@Nonnull String entityType,
+		@Nonnull String reflectedReferenceName,
+		@Nullable Consumer<ReflectedReferenceSchemaEditor.ReflectedReferenceSchemaBuilder> whichIs
+	) {
+		final EntitySchemaContract currentSchema = toInstance();
+		final ReferenceSchemaContract existingReference = currentSchema.getReference(referenceName).orElse(null);
+		Assert.isTrue(
+			existingReference == null || existingReference instanceof ReflectedReferenceSchemaContract,
+			() -> new InvalidSchemaMutationException(
+				"Reference `" + referenceName + "` is already created as standard reference, " +
+					"you need first to remove it to create a reflected reference of such name."
+			)
+		);
+		final ReflectedReferenceSchemaBuilder referenceSchemaBuilder = new ReflectedReferenceSchemaBuilder(
+			this.catalogSchemaAccessor.get(),
+			this.baseSchema,
+			(ReflectedReferenceSchemaContract) existingReference,
+			referenceName,
+			entityType,
+			reflectedReferenceName,
+			this.mutations,
+			this.baseSchema.getReference(referenceName)
+				.map(it -> !(it instanceof ReflectedReferenceSchemaContract))
+				.orElse(true)
+		);
+		ofNullable(whichIs).ifPresent(it -> it.accept(referenceSchemaBuilder));
+
+		final ReflectedReferenceSchemaBuilder.ReferenceSchemaBuilderResult result = referenceSchemaBuilder.toResult();
+		redefineReferenceType(
+			existingReference,
+			result.schema(),
+			result.mutations()
 		);
 		return this;
 	}
@@ -548,6 +657,8 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 
 		ofNullable(whichIs).ifPresent(it -> it.accept(attributeSchemaBuilder));
 		final EntityAttributeSchemaContract attributeSchema = attributeSchemaBuilder.toInstance();
+
+		EntitySchema.assertNotReferencedEntityPredecessor(attributeName, attributeSchema.getType());
 		checkSortableTraits(attributeName, attributeSchema);
 
 		// check the names in all naming conventions are unique in the catalog schema
@@ -596,6 +707,7 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 		);
 	}
 
+	@Nonnull
 	@Override
 	public EntitySchemaBuilder withSortableAttributeCompound(
 		@Nonnull String name,
@@ -665,6 +777,9 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 					compoundSchema.getName(),
 					compoundSchema.getDescription(),
 					compoundSchema.getDeprecationNotice(),
+					Arrays.stream(Scope.values())
+						.filter(compoundSchema::isIndexedInScope)
+						.toArray(Scope[]::new),
 					attributeElements
 				)
 			)
@@ -747,14 +862,21 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 		return this.updatedSchema;
 	}
 
+	/**
+	 * Redefines the reference type in the internal entity schema builder.
+	 *
+	 * @param existingReference    The existing reference to be replaced. Can be null.
+	 * @param newReference         The new reference to replace the existing reference.
+	 * @param newReferenceMutation The collection of new reference mutations.
+	 */
 	void redefineReferenceType(
-		@Nonnull ReferenceSchemaBuilder referenceSchemaBuilder,
-		@Nullable ReferenceSchemaContract existingReference
+		@Nullable ReferenceSchemaContract existingReference,
+		@Nonnull ReferenceSchemaContract newReference,
+		@Nonnull Collection<LocalEntitySchemaMutation> newReferenceMutation
 	) {
-		final ReferenceSchemaContract newReference = referenceSchemaBuilder.toInstance();
 		if (!Objects.equals(existingReference, newReference)) {
 			// remove all existing mutations for the reference schema (it needs to be replaced)
-			if (this.mutations.removeIf(it -> it instanceof ReferenceSchemaMutation referenceSchemaMutation && referenceSchemaMutation.getName().equals(newReference.getName()))) {
+			if (this.mutations.removeIf(it -> shouldRemoveReferenceMutation(newReference, it))) {
 				this.updatedSchemaDirty = updateMutationImpact(this.updatedSchemaDirty, MutationImpact.MODIFIED_PREVIOUS);
 			}
 			// check the names in all naming conventions are unique in the entity schema
@@ -762,16 +884,16 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 				.getReferences()
 				.values()
 				.stream()
-				.filter(it -> !Objects.equals(it.getName(), referenceSchemaBuilder.getName()))
+				.filter(it -> !Objects.equals(it.getName(), newReference.getName()))
 				.flatMap(it -> it.getNameVariants()
 					.entrySet()
 					.stream()
-					.filter(nameVariant -> nameVariant.getValue().equals(referenceSchemaBuilder.getNameVariant(nameVariant.getKey())))
+					.filter(nameVariant -> nameVariant.getValue().equals(newReference.getNameVariant(nameVariant.getKey())))
 					.map(nameVariant -> new ReferenceNamingConventionConflict(it, nameVariant.getKey(), nameVariant.getValue()))
 				)
 				.forEach(conflict -> {
 					throw new ReferenceAlreadyPresentInEntitySchemaException(
-						conflict.conflictingSchema(), referenceSchemaBuilder,
+						conflict.conflictingSchema(), newReference,
 						conflict.convention(), conflict.conflictingName()
 					);
 				});
@@ -779,9 +901,33 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 				this.updatedSchemaDirty,
 				addMutations(
 					this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
-					referenceSchemaBuilder.toMutation().toArray(EMPTY_ARRAY)
+					newReferenceMutation.toArray(EMPTY_ARRAY)
 				)
 			);
+		}
+	}
+
+	/**
+	 * Determines whether a reference mutation should be removed based on provided schema mutation.
+	 * Method handles the situation when stored version of the schema contains reference with particular name, and
+	 * we need to keep record of its removal and replacement with completely different reference sharing the same name.
+	 *
+	 * @param newReference The new reference schema contract to be checked.
+	 * @param mutation     The local entity schema mutation to evaluate.
+	 * @return true if the reference mutation should be removed, otherwise false.
+	 */
+	private boolean shouldRemoveReferenceMutation(
+		@Nonnull ReferenceSchemaContract newReference,
+		@Nonnull LocalEntitySchemaMutation mutation
+	) {
+		if (!(mutation instanceof ReferenceSchemaMutation referenceSchemaMutation)) {
+			return false;
+		} else if (referenceSchemaMutation.getName().equals(newReference.getName())) {
+			// we need to respect removal mutations targeting previous references
+			return !(referenceSchemaMutation instanceof RemoveReferenceSchemaMutation) ||
+				this.baseSchema.getReference(newReference.getName()).isEmpty();
+		} else {
+			return false;
 		}
 	}
 

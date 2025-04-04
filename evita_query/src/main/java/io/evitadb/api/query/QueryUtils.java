@@ -24,6 +24,8 @@
 package io.evitadb.api.query;
 
 import io.evitadb.api.query.visitor.FinderVisitor;
+import io.evitadb.api.query.visitor.FinderVisitor.PredicateWithDescription;
+import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -50,7 +52,7 @@ public class QueryUtils {
 	 */
 	@Nullable
 	public static <T extends Constraint<?>> T findConstraint(@Nonnull Constraint<?> constraint, @Nonnull Class<T> constraintType) {
-		return FinderVisitor.findConstraint(constraint, constraintType::isInstance);
+		return FinderVisitor.findConstraint(constraint, new ConstraintTypeMatcher(constraintType));
 	}
 
 	/**
@@ -67,15 +69,15 @@ public class QueryUtils {
 	 */
 	@Nullable
 	public static <T extends Constraint<?>> T findConstraint(@Nonnull Constraint<?> constraint, @Nonnull Class<T> constraintType, @Nonnull Class<? extends Constraint<?>> stopContainerType) {
-		return FinderVisitor.findConstraint(constraint, constraintType::isInstance, cnt -> cnt != constraint && stopContainerType.isInstance(cnt));
+		return FinderVisitor.findConstraint(constraint, new ConstraintTypeMatcher(constraintType), cnt -> cnt != constraint && stopContainerType.isInstance(cnt));
 	}
 
 	/**
 	 * Method finds all constraints of specified type in the passed query and returns them.
 	 */
 	@Nonnull
-	public static <T extends Constraint<?>> List<T> findConstraints(Constraint<?> constraint, @Nonnull Class<T> filterType) {
-		return FinderVisitor.findConstraints(constraint, filterType::isInstance);
+	public static <T extends Constraint<?>> List<T> findConstraints(Constraint<?> constraint, @Nonnull Class<T> constraintType) {
+		return FinderVisitor.findConstraints(constraint, new ConstraintTypeMatcher(constraintType));
 	}
 
 	/**
@@ -92,17 +94,17 @@ public class QueryUtils {
 	 */
 	@Nonnull
 	public static <T extends Constraint<?>> List<T> findConstraints(@Nonnull Constraint<?> constraint, @Nonnull Class<T> constraintType, @Nonnull Class<? extends Constraint<?>> stopContainerType) {
-		return FinderVisitor.findConstraints(constraint, constraintType::isInstance, cnt -> cnt != constraint && stopContainerType.isInstance(cnt));
+		return FinderVisitor.findConstraints(constraint, new ConstraintTypeMatcher(constraintType), cnt -> cnt != constraint && stopContainerType.isInstance(cnt));
 	}
 
 	/**
 	 * Method finds filtering constraint of specified type in the passed query and returns it.
 	 */
 	@Nullable
-	public static <T extends FilterConstraint> T findFilter(@Nonnull Query query, @Nonnull Class<T> filterType) {
+	public static <T extends FilterConstraint> T findFilter(@Nonnull Query query, @Nonnull Class<T> constraintType) {
 		//noinspection unchecked
 		return Optional.ofNullable(query.getFilterBy())
-				.map(it -> (T) FinderVisitor.findConstraint(it, filterType::isInstance))
+				.map(it -> (T) FinderVisitor.findConstraint(it, new ConstraintTypeMatcher(constraintType)))
 				.orElse(null);
 	}
 
@@ -110,10 +112,10 @@ public class QueryUtils {
 	 * Method finds filtering constraint of specified type in the passed query and returns it.
 	 */
 	@Nullable
-	public static <T extends FilterConstraint> T findFilter(@Nonnull Query query, @Nonnull Class<T> filterType, @Nonnull Class<? extends RequireConstraint> stopContainerType) {
+	public static <T extends FilterConstraint> T findFilter(@Nonnull Query query, @Nonnull Class<T> constraintType, @Nonnull Class<? extends RequireConstraint> stopContainerType) {
 		//noinspection unchecked
 		return Optional.ofNullable(query.getFilterBy())
-			.map(it -> (T) FinderVisitor.findConstraint(it, filterType::isInstance, stopContainerType::isInstance))
+			.map(it -> (T) FinderVisitor.findConstraint(it, new ConstraintTypeMatcher(constraintType), stopContainerType::isInstance))
 			.orElse(null);
 	}
 
@@ -121,10 +123,10 @@ public class QueryUtils {
 	 * Method finds all filtering constraints of specified type in the passed query and returns them.
 	 */
 	@Nonnull
-	public static <T extends FilterConstraint> List<T> findFilters(@Nonnull Query query, @Nonnull Class<T> filterType) {
+	public static <T extends FilterConstraint> List<T> findFilters(@Nonnull Query query, @Nonnull Class<T> constraintType) {
 		//noinspection unchecked
 		return (List<T>) Optional.ofNullable(query.getFilterBy())
-			.map(it -> FinderVisitor.findConstraints(it, filterType::isInstance))
+			.map(it -> FinderVisitor.findConstraints(it, new ConstraintTypeMatcher(constraintType)))
 				.orElse(Collections.emptyList())
 				.stream()
 				.map(i -> (FilterConstraint) i)
@@ -135,10 +137,10 @@ public class QueryUtils {
 	 * Method finds ordering constraint of specified type in the passed query and returns it.
 	 */
 	@Nullable
-	public static <T extends OrderConstraint> T findOrder(@Nonnull Query query, @Nonnull Class<T> orderType) {
+	public static <T extends OrderConstraint> T findOrder(@Nonnull Query query, @Nonnull Class<T> constraintType) {
 		//noinspection unchecked
 		return Optional.ofNullable(query.getOrderBy())
-			.map(it -> (T) FinderVisitor.findConstraint(it, orderType::isInstance))
+			.map(it -> (T) FinderVisitor.findConstraint(it, new ConstraintTypeMatcher(constraintType)))
 			.orElse(null);
 	}
 
@@ -146,10 +148,10 @@ public class QueryUtils {
 	 * Method finds requirement constraint of specified type in the passed query and returns it.
 	 */
 	@Nullable
-	public static <T extends RequireConstraint> T findRequire(@Nonnull Query query, @Nonnull Class<T> requireType) {
+	public static <T extends RequireConstraint> T findRequire(@Nonnull Query query, @Nonnull Class<T> constraintType) {
 		//noinspection unchecked
 		return Optional.ofNullable(query.getRequire())
-				.map(it -> (T) FinderVisitor.findConstraint(it, requireType::isInstance))
+				.map(it -> (T) FinderVisitor.findConstraint(it, new ConstraintTypeMatcher(constraintType)))
 				.orElse(null);
 	}
 
@@ -158,10 +160,10 @@ public class QueryUtils {
 	 * all containers that are assignable to `stopContainerType`.
 	 */
 	@Nullable
-	public static <T extends RequireConstraint> T findRequire(@Nonnull Query query, @Nonnull Class<T> requireType, @Nonnull Class<? extends RequireConstraint> stopContainerType) {
+	public static <T extends RequireConstraint> T findRequire(@Nonnull Query query, @Nonnull Class<T> constraintType, @Nonnull Class<? extends RequireConstraint> stopContainerType) {
 		//noinspection unchecked
 		return Optional.ofNullable(query.getRequire())
-			.map(it -> (T) FinderVisitor.findConstraint(it, requireType::isInstance, stopContainerType::isInstance))
+			.map(it -> (T) FinderVisitor.findConstraint(it, new ConstraintTypeMatcher(constraintType), stopContainerType::isInstance))
 			.orElse(null);
 	}
 
@@ -169,10 +171,10 @@ public class QueryUtils {
 	 * Method finds all requirement constraints of specified type in the passed query and returns them.
 	 */
 	@Nonnull
-	public static <T extends RequireConstraint> List<T> findRequires(@Nonnull Query query, @Nonnull Class<T> requireType) {
+	public static <T extends RequireConstraint> List<T> findRequires(@Nonnull Query query, @Nonnull Class<T> constraintType) {
 		//noinspection unchecked
 		return (List<T>) Optional.ofNullable(query.getRequire())
-			.map(it -> FinderVisitor.findConstraints(it, requireType::isInstance))
+			.map(it -> FinderVisitor.findConstraints(it, new ConstraintTypeMatcher(constraintType)))
 			.orElse(Collections.emptyList())
 			.stream()
 			.map(i -> (RequireConstraint) i)
@@ -184,10 +186,10 @@ public class QueryUtils {
 	 * all containers that are assignable to `stopContainerType`.
 	 */
 	@Nonnull
-	public static <T extends RequireConstraint> List<T> findRequires(@Nonnull Query query, @Nonnull Class<T> requireType, @Nonnull Class<? extends RequireConstraint> stopContainerType) {
+	public static <T extends RequireConstraint> List<T> findRequires(@Nonnull Query query, @Nonnull Class<T> constraintType, @Nonnull Class<? extends RequireConstraint> stopContainerType) {
 		//noinspection unchecked
 		return (List<T>) Optional.ofNullable(query.getRequire())
-			.map(it -> FinderVisitor.findConstraints(it, requireType::isInstance, stopContainerType::isInstance))
+			.map(it -> FinderVisitor.findConstraints(it, new ConstraintTypeMatcher(constraintType), stopContainerType::isInstance))
 			.orElse(Collections.emptyList())
 			.stream()
 			.map(i -> (RequireConstraint) i)
@@ -197,6 +199,10 @@ public class QueryUtils {
 	/**
 	 * Method returns true if passed two values are not equals. When first value is comparable, method compareTo is used
 	 * instead of equals (to correctly match {@link java.math.BigDecimal}).
+	 *
+	 * @param thisValue the first value to compare; may be null
+	 * @param otherValue the second value to compare; may be null
+	 * @return true if the values differ, false if they are equal or both are null
 	 */
 	public static boolean valueDiffers(@Nullable Serializable thisValue, @Nullable Serializable otherValue) {
 		if (thisValue instanceof final Object[] thisValueArray) {
@@ -217,6 +223,14 @@ public class QueryUtils {
 		}
 	}
 
+	/**
+	 * Determines if two Serializable values differ. If the first value is Comparable, the method uses
+	 * compareTo for comparison; otherwise, it uses Objects.equals.
+	 *
+	 * @param thisValue the first value to compare; may be null
+	 * @param otherValue the second value to compare; may be null
+	 * @return true if the values differ, false if they are equal or both are null
+	 */
 	private static boolean valueDiffersInternal(@Nullable Serializable thisValue, @Nullable Serializable otherValue) {
 		// when value is Comparable (such as BigDecimal!) - use compareTo function instead of equals
 		if (thisValue instanceof Comparable) {
@@ -230,4 +244,22 @@ public class QueryUtils {
 			return !Objects.equals(thisValue, otherValue);
 		}
 	}
+
+	@RequiredArgsConstructor
+	private static class ConstraintTypeMatcher implements PredicateWithDescription<Constraint<?>> {
+		private final Class<? extends Constraint<?>> type;
+
+		@Override
+		public boolean test(Constraint<?> constraint) {
+			return type.isInstance(constraint);
+		}
+
+		@Nonnull
+		@Override
+		public String toString() {
+			return "constraint of type `" + type.getSimpleName() + "`";
+		}
+
+	}
+
 }

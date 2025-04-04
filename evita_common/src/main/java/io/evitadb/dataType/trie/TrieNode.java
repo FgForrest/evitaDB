@@ -271,8 +271,8 @@ public class TrieNode<T extends Serializable> implements Serializable {
 	 */
 	private void insertChildrenAndEdgeLabelAtTheIndex(char character, TrieNode<T> newNode, String edgeLabel, int position) {
 		this.charIndex = ArrayUtils.insertIntIntoArrayOnIndex(character, this.charIndex, position);
-		this.children = ArrayUtils.insertRecordIntoArray(newNode, this.children, position);
-		this.edgeLabel = ArrayUtils.insertRecordIntoArray(edgeLabel, this.edgeLabel, position);
+		this.children = ArrayUtils.insertRecordIntoArrayOnIndex(newNode, this.children, position);
+		this.edgeLabel = ArrayUtils.insertRecordIntoArrayOnIndex(edgeLabel, this.edgeLabel, position);
 	}
 
 	/**

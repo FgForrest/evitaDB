@@ -30,7 +30,7 @@ import javax.annotation.Nonnull;
 /**
  * Builds only part of {@link Rest}. Actual building of REST API should be done by some wrapping builder.
  *
- * @author Lukáš Hornych, 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 public abstract class PartialRestBuilder<C extends RestBuildingContext> extends RestBuilder<C> {
 

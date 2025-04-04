@@ -23,17 +23,23 @@
         }
         associatedData {
           localization
+          feedGoogle
+          feedHeureka
           allActiveUrls
+          contentBlocks
           allRelatedFiles
+          feedGlami
+          feedFacebook
+          feedZbozi
         }
         priceForSale {
           priceWithoutTax(
-formatted: true
-withCurrency: true
+            formatted: true
+            withCurrency: true
           )
           priceWithTax(
-formatted: true
-withCurrency: true
+            formatted: true
+            withCurrency: true
           )
           taxRate
         }

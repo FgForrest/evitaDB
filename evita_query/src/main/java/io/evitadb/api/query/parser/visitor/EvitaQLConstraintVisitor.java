@@ -24,7 +24,7 @@
 package io.evitadb.api.query.parser.visitor;
 
 import io.evitadb.api.query.Constraint;
-import io.evitadb.api.query.parser.error.EvitaQLInvalidQueryError;
+import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser;
 import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
 
@@ -72,6 +72,6 @@ public class EvitaQLConstraintVisitor extends EvitaQLBaseConstraintVisitor<Const
             return requireConstraintContext.accept(requireConstraintVisitor);
         }
 
-        throw new EvitaQLInvalidQueryError(ctx, "No supported constraint found.");
+        throw new EvitaSyntaxException(ctx, "No supported constraint found.");
     }
 }

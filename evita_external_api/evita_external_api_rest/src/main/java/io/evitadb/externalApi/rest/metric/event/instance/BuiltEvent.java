@@ -35,7 +35,6 @@ import jdk.jfr.Name;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 /**
  * Event fired when REST API instance was successfully built.
@@ -49,73 +48,86 @@ import javax.annotation.Nullable;
 @Getter
 public class BuiltEvent extends AbstractRestInstanceEvent {
 
-	@Label("Instance type")
-	@Name("instanceType")
+	/**
+	 * Type of used REST instance.
+	 */
+	@Label("REST instance type")
+	@Description("Domain of the REST API used in connection with this event/metric: SYSTEM, or CATALOG")
 	@ExportMetricLabel
 	@Nonnull
-	private String instanceType;
+	private final String restInstanceType;
 
+	/**
+	 * Type of the build.
+	 */
 	@Label("Build type")
-	@Name("buildType")
+	@Description("Type of the instance build: NEW or REFRESH")
 	@ExportMetricLabel
 	@Nonnull
-	private String buildType;
+	private final String buildType;
 
+	/**
+	 * The catalog name the build event is associated with.
+	 */
 	@Label("Catalog")
-	@Name("catalogName")
+	@Description("The name of the catalog to which this event/metric is associated.")
 	@ExportMetricLabel
-	@Nullable
+	@Nonnull
 	private final String catalogName;
 
-	@Label("Duration of build of a single REST API")
+	@Label("API build duration")
+	@Description("Duration of build of a single API in milliseconds.")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	@HistogramSettings(factor = 2.5)
-	private long instanceBuildDuration;
+	private final long restInstanceBuildDurationMilliseconds;
 
-	@Label("Duration of OpenAPI schema build of a single API")
+	@Label("REST schema build duration")
+	@Description("Duration of build of a single REST API schema in milliseconds.")
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	@HistogramSettings(factor = 2.5)
-	private long schemaBuildDuration;
+	private final long restSchemaBuildDurationMilliseconds;
 
-	@Label("Number of lines in built OpenAPI schema DSL")
+	@Label("Number of lines")
+	@Description("Number of lines generated in the built REST schema DSL.")
 	@ExportMetric(metricType = MetricType.GAUGE)
-	private long schemaDslLines;
+	private final long restSchemaDslLines;
 
-	@Label("Number of registered endpoints in built OpenAPI schema")
+	@Label("Endpoints count")
+	@Description("Number of registered endpoints in built OpenAPI schema")
 	@ExportMetric(metricType = MetricType.GAUGE)
-	private long registeredEndpoints;
+	private final long registeredRestEndpoints;
 
-	public BuiltEvent(@Nonnull RestInstanceType instanceType,
+	public BuiltEvent(@Nonnull RestInstanceType restInstanceType,
 	                  @Nonnull BuildType buildType,
-					  long instanceBuildDuration,
-	                  long schemaBuildDuration,
-	                  long schemaDslLines,
-	                  long registeredEndpoints) {
+					  long restInstanceBuildDurationMilliseconds,
+	                  long restSchemaBuildDurationMilliseconds,
+	                  long restSchemaDslLines,
+	                  long registeredRestEndpoints) {
 		this(
 			null,
-			instanceType,
+			restInstanceType,
 			buildType,
-			instanceBuildDuration,
-			schemaBuildDuration,
-			schemaDslLines,
-			registeredEndpoints
+			restInstanceBuildDurationMilliseconds,
+			restSchemaBuildDurationMilliseconds,
+			restSchemaDslLines,
+			registeredRestEndpoints
 		);
 	}
 
 	public BuiltEvent(@Nonnull String catalogName,
-	                  @Nonnull RestInstanceType instanceType,
+	                  @Nonnull RestInstanceType restInstanceType,
 	                  @Nonnull BuildType  buildType,
-					  long instanceBuildDuration,
-	                  long schemaBuildDuration,
-	                  long schemaDslLines,
-	                  long registeredEndpoints) {
+					  long restInstanceBuildDurationMilliseconds,
+	                  long restSchemaBuildDurationMilliseconds,
+	                  long restSchemaDslLines,
+	                  long registeredRestEndpoints) {
 		this.catalogName = catalogName;
-		this.instanceType = instanceType.name();
+		this.restInstanceType = restInstanceType.name();
 		this.buildType = buildType.name();
-		this.instanceBuildDuration = instanceBuildDuration;
-		this.schemaBuildDuration = schemaBuildDuration;
-		this.schemaDslLines = schemaDslLines;
-		this.registeredEndpoints = registeredEndpoints;
+		this.restInstanceBuildDurationMilliseconds = restInstanceBuildDurationMilliseconds;
+		this.restSchemaBuildDurationMilliseconds = restSchemaBuildDurationMilliseconds;
+		this.restSchemaDslLines = restSchemaDslLines;
+		this.registeredRestEndpoints = registeredRestEndpoints;
 	}
 
 	/**

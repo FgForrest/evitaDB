@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * TODO JNO - document 
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureRequest}
  */
 public final class GrpcRegisterSystemChangeCaptureRequest extends
@@ -113,20 +117,20 @@ private static final long serialVersionUID = 0L;
   public static final int CONTENT_FIELD_NUMBER = 1;
   private int content_;
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureContent content = 1;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 1;</code>
    * @return The enum numeric value on the wire for content.
    */
   @java.lang.Override public int getContentValue() {
     return content_;
   }
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureContent content = 1;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 1;</code>
    * @return The content.
    */
-  @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcCaptureContent getContent() {
+  @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent getContent() {
     @SuppressWarnings("deprecation")
-    io.evitadb.externalApi.grpc.generated.GrpcCaptureContent result = io.evitadb.externalApi.grpc.generated.GrpcCaptureContent.valueOf(content_);
-    return result == null ? io.evitadb.externalApi.grpc.generated.GrpcCaptureContent.UNRECOGNIZED : result;
+    io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent result = io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent.valueOf(content_);
+    return result == null ? io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent.UNRECOGNIZED : result;
   }
 
   private byte memoizedIsInitialized = -1;
@@ -143,7 +147,7 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (content_ != io.evitadb.externalApi.grpc.generated.GrpcCaptureContent.HEADER.getNumber()) {
+    if (content_ != io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent.CHANGE_HEADER.getNumber()) {
       output.writeEnum(1, content_);
     }
     unknownFields.writeTo(output);
@@ -155,7 +159,7 @@ private static final long serialVersionUID = 0L;
     if (size != -1) return size;
 
     size = 0;
-    if (content_ != io.evitadb.externalApi.grpc.generated.GrpcCaptureContent.HEADER.getNumber()) {
+    if (content_ != io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent.CHANGE_HEADER.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
         .computeEnumSize(1, content_);
     }
@@ -284,6 +288,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * TODO JNO - document 
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureRequest}
    */
   public static final class Builder extends
@@ -432,53 +440,53 @@ private static final long serialVersionUID = 0L;
 
     private int content_ = 0;
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureContent content = 1;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 1;</code>
      * @return The enum numeric value on the wire for content.
      */
     @java.lang.Override public int getContentValue() {
       return content_;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureContent content = 1;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 1;</code>
      * @param value The enum numeric value on the wire for content to set.
      * @return This builder for chaining.
      */
     public Builder setContentValue(int value) {
-
+      
       content_ = value;
       onChanged();
       return this;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureContent content = 1;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 1;</code>
      * @return The content.
      */
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcCaptureContent getContent() {
+    public io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent getContent() {
       @SuppressWarnings("deprecation")
-      io.evitadb.externalApi.grpc.generated.GrpcCaptureContent result = io.evitadb.externalApi.grpc.generated.GrpcCaptureContent.valueOf(content_);
-      return result == null ? io.evitadb.externalApi.grpc.generated.GrpcCaptureContent.UNRECOGNIZED : result;
+      io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent result = io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent.valueOf(content_);
+      return result == null ? io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent.UNRECOGNIZED : result;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureContent content = 1;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 1;</code>
      * @param value The content to set.
      * @return This builder for chaining.
      */
-    public Builder setContent(io.evitadb.externalApi.grpc.generated.GrpcCaptureContent value) {
+    public Builder setContent(io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent value) {
       if (value == null) {
         throw new NullPointerException();
       }
-
+      
       content_ = value.getNumber();
       onChanged();
       return this;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureContent content = 1;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 1;</code>
      * @return This builder for chaining.
      */
     public Builder clearContent() {
-
+      
       content_ = 0;
       onChanged();
       return this;

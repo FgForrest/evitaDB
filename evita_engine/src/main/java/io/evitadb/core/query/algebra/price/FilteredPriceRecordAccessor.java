@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.algebra.price;
 
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
 import io.evitadb.index.price.PriceListAndCurrencyPriceIndex;
@@ -46,6 +47,6 @@ public interface FilteredPriceRecordAccessor {
 	 * additional logic that needs to work with the prices (mainly sorting) could perform quickly.
 	 */
 	@Nonnull
-	FilteredPriceRecords getFilteredPriceRecords();
+	FilteredPriceRecords getFilteredPriceRecords(@Nonnull QueryExecutionContext context);
 
 }

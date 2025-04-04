@@ -3,8 +3,12 @@ tag-template: 'v$RESOLVED_VERSION'
 latest: 'true'
 
 prerelease: true
-prerelease-identifier: 'alpha'
+prerelease-identifier: 'beta'
 categories:
+  - title: '⛓️‍💥 Breaking changes'
+    labels:
+      - 'breaking change'
+      - 'breaking'
   - title: '🚀 Features'
     labels:
       - 'feature'
@@ -15,18 +19,19 @@ categories:
       - 'bugfix'
       - 'bug'
 autolabeler:
-  - label: 'bug'
-    branch:
-      - '/fix\/.+/'
+  - label: 'breaking change'
     title:
-      - '/fix/i'
+      - '/^([a-z]+)(\(.*\))?!:/'
   - label: 'enhancement'
-    branch:
-      - '/feature\/.+/'
-change-template: '- $TITLE @$AUTHOR (#$NUMBER)'
+    title:
+      - '/^feat(\(.*\))?:/'
+  - label: 'bug'
+    title:
+      - '/^fix(\(.*\))?:/'
+change-template: '- **$TITLE** @$AUTHOR (#$NUMBER)<br/>$BODY'
 change-title-escapes: '\<*_&' # You can add # and @ to disable mentions, and add ` to disable code blocks.
 
 template: |
-  ## Changes
+  ## What’s Changed
 
   $CHANGES

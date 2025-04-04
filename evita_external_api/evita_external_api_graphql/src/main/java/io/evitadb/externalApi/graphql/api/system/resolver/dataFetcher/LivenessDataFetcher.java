@@ -25,9 +25,16 @@ package io.evitadb.externalApi.graphql.api.system.resolver.dataFetcher;
 
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
+import io.evitadb.externalApi.event.ReadinessEvent;
+import io.evitadb.externalApi.event.ReadinessEvent.Prospective;
+import io.evitadb.externalApi.event.ReadinessEvent.Result;
+import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * Returns boolean with liveness info. It returns always true because, when this field becomes available by the API,
@@ -35,11 +42,24 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class LivenessDataFetcher implements DataFetcher<Boolean>, ReadDataFetcher {
+
+	@Nullable
+	private static LivenessDataFetcher INSTANCE;
+
+	@Nonnull
+	public static LivenessDataFetcher getInstance() {
+		if (INSTANCE == null) {
+			INSTANCE = new LivenessDataFetcher();
+		}
+		return INSTANCE;
+	}
 
 	@Nonnull
 	@Override
 	public Boolean get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+		new ReadinessEvent(GraphQLProvider.CODE, Prospective.SERVER).finish(Result.READY);
 		return true;
 	}
 }

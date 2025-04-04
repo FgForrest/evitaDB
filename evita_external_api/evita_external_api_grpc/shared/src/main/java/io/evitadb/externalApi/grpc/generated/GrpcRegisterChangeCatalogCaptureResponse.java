@@ -151,7 +151,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs =
+      com.google.protobuf.ByteString bs = 
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       uuid_ = s;
@@ -171,7 +171,7 @@ private static final long serialVersionUID = 0L;
       getUuidBytes() {
     java.lang.Object ref = uuid_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b =
+      com.google.protobuf.ByteString b = 
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       uuid_ = b;
@@ -202,7 +202,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCaptureOrBuilder>
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCaptureOrBuilder> 
       getCaptureOrBuilderList() {
     return capture_;
   }
@@ -606,7 +606,7 @@ private static final long serialVersionUID = 0L;
             captureBuilder_ = null;
             capture_ = other.capture_;
             bitField0_ = (bitField0_ & ~0x00000001);
-            captureBuilder_ =
+            captureBuilder_ = 
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getCaptureFieldBuilder() : null;
           } else {
@@ -680,7 +680,7 @@ private static final long serialVersionUID = 0L;
         getUuidBytes() {
       java.lang.Object ref = uuid_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b =
+        com.google.protobuf.ByteString b = 
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         uuid_ = b;
@@ -703,7 +703,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-
+  
       uuid_ = value;
       onChanged();
       return this;
@@ -717,7 +717,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearUuid() {
-
+      
       uuid_ = getDefaultInstance().getUuid();
       onChanged();
       return this;
@@ -737,7 +737,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-
+      
       uuid_ = value;
       onChanged();
       return this;
@@ -998,7 +998,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCaptureOrBuilder>
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCaptureOrBuilder> 
          getCaptureOrBuilderList() {
       if (captureBuilder_ != null) {
         return captureBuilder_.getMessageOrBuilderList();
@@ -1036,12 +1036,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.Builder>
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.Builder> 
          getCaptureBuilderList() {
       return getCaptureFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture, io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.Builder, io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCaptureOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture, io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.Builder, io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCaptureOrBuilder> 
         getCaptureFieldBuilder() {
       if (captureBuilder_ == null) {
         captureBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
@@ -1077,7 +1077,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setResponseTypeValue(int value) {
-
+      
       responseType_ = value;
       onChanged();
       return this;
@@ -1109,7 +1109,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-
+      
       responseType_ = value.getNumber();
       onChanged();
       return this;
@@ -1123,7 +1123,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearResponseType() {
-
+      
       responseType_ = 0;
       onChanged();
       return this;

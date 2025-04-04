@@ -30,6 +30,7 @@ import io.evitadb.utils.ArrayUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
+import java.io.Serializable;
 import java.util.function.BiFunction;
 
 /**
@@ -39,10 +40,10 @@ import java.util.function.BiFunction;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @RequiredArgsConstructor
-public class InvertedIndexSubSet<T extends Comparable<T>> {
+public class InvertedIndexSubSet {
 	private final long indexTransactionId;
-	@Getter private final ValueToRecordBitmap<T>[] histogramBuckets;
-	private final BiFunction<Long, ValueToRecordBitmap<T>[], Formula> aggregationLambda;
+	@Getter private final ValueToRecordBitmap[] histogramBuckets;
+	private final BiFunction<Long, ValueToRecordBitmap[], Formula> aggregationLambda;
 	private Formula memoizedResult;
 
 	/**
@@ -77,14 +78,14 @@ public class InvertedIndexSubSet<T extends Comparable<T>> {
 	/**
 	 * Returns minimal {@link ValueToRecordBitmap#getValue()} of buckets in this histogram subset.
 	 */
-	public Comparable<?> getMinimalValue() {
+	public Serializable getMinimalValue() {
 		return isEmpty() ? null : histogramBuckets[0].getValue();
 	}
 
 	/**
 	 * Returns maximal {@link ValueToRecordBitmap#getValue()} of buckets in this histogram subset.
 	 */
-	public Comparable<?> getMaximalValue() {
+	public Serializable getMaximalValue() {
 		return isEmpty() ? null : histogramBuckets[histogramBuckets.length - 1].getValue();
 	}
 }

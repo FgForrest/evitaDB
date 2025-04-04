@@ -27,6 +27,7 @@ import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.CreateSortableAttributeCompoundSchemaMutation;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
@@ -39,6 +40,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;
 
+import static io.evitadb.utils.ListBuilder.list;
 import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -63,6 +65,7 @@ class CreateSortableAttributeCompoundSchemaMutationConverterTest {
 			"code",
 			"desc",
 			"depr",
+			new Scope[] { Scope.LIVE },
 			new AttributeElement("a", OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
 			new AttributeElement("b", OrderDirection.DESC, OrderBehaviour.NULLS_LAST)
 		);
@@ -72,6 +75,8 @@ class CreateSortableAttributeCompoundSchemaMutationConverterTest {
 				.e(SortableAttributeCompoundSchemaMutationDescriptor.NAME.name(), "code")
 				.e(CreateSortableAttributeCompoundSchemaMutationDescriptor.DESCRIPTION.name(), "desc")
 				.e(CreateSortableAttributeCompoundSchemaMutationDescriptor.DEPRECATION_NOTICE.name(), "depr")
+				.e(CreateSortableAttributeCompoundSchemaMutationDescriptor.INDEXED_IN_SCOPES.name(), list()
+					.i(Scope.LIVE))
 				.e(CreateSortableAttributeCompoundSchemaMutationDescriptor.ATTRIBUTE_ELEMENTS.name(), List.of(
 					map()
 						.e(AttributeElementDescriptor.ATTRIBUTE_NAME.name(), "a")
@@ -93,6 +98,8 @@ class CreateSortableAttributeCompoundSchemaMutationConverterTest {
 				.e(SortableAttributeCompoundSchemaMutationDescriptor.NAME.name(), "code")
 				.e(CreateSortableAttributeCompoundSchemaMutationDescriptor.DESCRIPTION.name(), "desc")
 				.e(CreateSortableAttributeCompoundSchemaMutationDescriptor.DEPRECATION_NOTICE.name(), "depr")
+				.e(CreateSortableAttributeCompoundSchemaMutationDescriptor.INDEXED_IN_SCOPES.name(), list()
+					.i(Scope.LIVE.name()))
 				.e(CreateSortableAttributeCompoundSchemaMutationDescriptor.ATTRIBUTE_ELEMENTS.name(), List.of(
 					map()
 						.e(AttributeElementDescriptor.ATTRIBUTE_NAME.name(), "a")
@@ -113,6 +120,7 @@ class CreateSortableAttributeCompoundSchemaMutationConverterTest {
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
 		final CreateSortableAttributeCompoundSchemaMutation expectedMutation = new CreateSortableAttributeCompoundSchemaMutation(
 			"code",
+			null,
 			null,
 			null,
 			new AttributeElement("a", OrderDirection.ASC, OrderBehaviour.NULLS_FIRST)

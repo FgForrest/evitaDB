@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,21 +25,33 @@ package io.evitadb.core;
 
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.TrafficRecordingReader;
 import io.evitadb.api.TransactionContract.CommitBehavior;
+import io.evitadb.api.exception.IndexNotReady;
 import io.evitadb.api.exception.InstanceTerminatedException;
+import io.evitadb.api.exception.SingletonTaskAlreadyRunningException;
 import io.evitadb.api.exception.TransactionException;
 import io.evitadb.api.exception.UnexpectedResultCountException;
 import io.evitadb.api.exception.UnexpectedResultException;
+import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.head.Label;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.task.ServerTask;
+import io.evitadb.api.task.TaskStatus;
+import io.evitadb.core.traffic.TrafficRecordingSettings;
+import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -50,10 +62,11 @@ import java.util.function.Function;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public interface EvitaInternalSessionContract extends EvitaSessionContract {
+public interface EvitaInternalSessionContract extends EvitaSessionContract, TrafficRecordingReader {
 
 	/**
 	 * Returns date and time this session was created.
+	 *
 	 * @return date and time this session was created
 	 */
 	@Nonnull
@@ -144,13 +157,104 @@ public interface EvitaInternalSessionContract extends EvitaSessionContract {
 	void execute(@Nonnull Consumer<EvitaSessionContract> logic) throws TransactionException;
 
 	/**
-	 * Retrieves the CompletableFuture representing the finalization of the transaction that conforms to
-	 * requested {@link CommitBehavior} bound to the current transaction.
+	 * Returns true if there is active method invocation in place. When method is running, it is not possible to
+	 * kill session due to inactivity.
 	 *
-	 * @return An Optional that contains a CompletableFuture of type Long if the transaction finalization
-	 *         is in progress, or an empty Optional if no transaction is currently in progress (session is read-only
-	 *         for exmple).
+	 * @return true if there is active method invocation in place
+	 */
+	boolean methodIsRunning();
+
+	/**
+	 * Retrieves a CompletableFuture that represents the finalization status of a session. If the catalog is in
+	 * transactional mode, the future will respect the requested {@link CommitBehavior} bound to the current transaction.
+	 *
+	 * @return completable future returning new catalog version introduced by this session
 	 */
 	@Nonnull
-	Optional<CompletableFuture<Long>> getTransactionFinalizationFuture();
+	CompletableFuture<Long> getFinalizationFuture();
+
+	/**
+	 * Method registers RAW input query and assigns a unique identifier to it. All queries in this session that are
+	 * labeled with {@link Label#LABEL_SOURCE_QUERY} will be registered as sub-queries of this source query.
+	 *
+	 * @param sourceQuery unparsed, raw source query in particular format
+	 * @param queryType   type of the query (e.g. GraphQL, REST, etc.)
+	 * @param finishedWithError error message if the source was not parsed properly
+	 * @return unique identifier of the source query
+	 */
+	@Nonnull
+	UUID recordSourceQuery(@Nonnull String sourceQuery, @Nonnull String queryType, @Nullable String finishedWithError);
+
+	/**
+	 * Method closes the source query and marks it as finalized. Overall statistics for all registered sub-queries
+	 * will be aggregated and stored in the traffic recording along with this record.
+	 *
+	 * @param sourceQueryId unique identifier of the source query
+	 * @param finishedWithError error message if the source query was not finished properly
+	 */
+	void finalizeSourceQuery(@Nonnull UUID sourceQueryId, @Nullable String finishedWithError);
+
+	/**
+	 * Returns a stream of all unique labels names ordered by cardinality of their values present in the traffic recording.
+	 *
+	 * @param nameStartingWith optional prefix to filter the labels by
+	 * @param limit            maximum number of labels to return
+	 * @return collection of unique label names ordered by cardinality of their values
+	 */
+	@Nonnull
+	Collection<String> getLabelsNamesOrderedByCardinality(@Nullable String nameStartingWith, int limit) throws IndexNotReady;
+
+	/**
+	 * Returns a stream of all unique label values ordered by cardinality present in the traffic recording.
+	 *
+	 * @param labelName         name of the label to get values for
+	 * @param valueStartingWith optional prefix to filter the labels by
+	 * @return collection of unique label values ordered by cardinality
+	 */
+	@Nonnull
+	Collection<String> getLabelValuesOrderedByCardinality(@Nonnull String labelName, @Nullable String valueStartingWith, int limit) throws IndexNotReady;
+
+	/**
+	 * Initiates a recording session for traffic data with the specified parameters.
+	 *
+	 * @param samplingRate              Defines the rate at which traffic samples are recorded. The value
+	 *                                  is provided as a percentage (e.g., 1 to 100), where 100 represents
+	 *                                  all traffic being recorded and lower values represent partial sampling.
+	 * @param exportFile                Specifies whether recorded traffic data should be exported to a file.
+	 * @param recordingDuration         Specifies the duration for which traffic recording should occur.
+	 *                                  Can be null, indicating that recording is not time-bound. When
+	 *                                  provided, it ensures that traffic recording will not exceed
+	 *                                  the defined duration.
+	 * @param recordingSizeLimitInBytes Specifies the maximum size of the traffic recording in bytes.
+	 *                                  This parameter is optional and can be null. When provided,
+	 *                                  it serves as an upper limit for traffic recording size, ensuring
+	 *                                  that recorded data does not exceed the specified size.
+	 * @param chunkFileSizeInBytes      Defines the size of each chunk file used to store recorded traffic
+	 *                                  data. Recorded data is divided into files of this size, aiding in
+	 *                                  data management and processing efficiency.
+	 * @return A {@code ServerTask} instance containing the configuration of the recording session and an object to fetch the recorded file.
+	 * @throws SingletonTaskAlreadyRunningException if the task is already running
+	 */
+	@Nonnull
+	ServerTask<TrafficRecordingSettings, FileForFetch> startRecording(
+		int samplingRate,
+		boolean exportFile,
+		@Nullable Duration recordingDuration,
+		@Nullable Long recordingSizeLimitInBytes,
+		long chunkFileSizeInBytes
+	) throws SingletonTaskAlreadyRunningException;
+
+	/**
+	 * Stops the ongoing recording task identified by the provided task ID.
+	 *
+	 * @param taskId The unique identifier of the recording task to be stopped.
+	 *               Must not be null.
+	 * @return A TaskStatus object containing the final state of the recording task,
+	 * along with details of the traffic recording settings and a file reference
+	 * for fetching the recorded data.
+	 * @throws EvitaInvalidUsageException if the task of particular id is not found
+	 */
+	@Nonnull
+	TaskStatus<TrafficRecordingSettings, FileForFetch> stopRecording(@Nonnull UUID taskId) throws EvitaInvalidUsageException;
+
 }

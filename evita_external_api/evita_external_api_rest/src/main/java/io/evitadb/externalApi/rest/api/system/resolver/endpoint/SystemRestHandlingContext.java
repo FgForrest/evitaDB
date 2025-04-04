@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ package io.evitadb.externalApi.rest.api.system.resolver.endpoint;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.evitadb.core.Evita;
+import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.rest.io.RestHandlingContext;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.Operation;
@@ -41,12 +42,15 @@ import java.util.Map;
 public class SystemRestHandlingContext extends RestHandlingContext {
 
 
-	public SystemRestHandlingContext(@Nonnull ObjectMapper objectMapper,
-	                                 @Nonnull Evita evita,
-	                                 @Nonnull OpenAPI openApi,
-									 @Nonnull Map<String, Class<? extends Enum<?>>> enumMapping,
-	                                 @Nonnull Operation endpointOperation,
-	                                 boolean localized) {
-		super(objectMapper, evita, openApi, enumMapping, endpointOperation, localized);
+	public SystemRestHandlingContext(
+		@Nonnull ObjectMapper objectMapper,
+		@Nonnull Evita evita,
+		@Nonnull HeaderOptions headerOptions,
+		@Nonnull OpenAPI openApi,
+		@Nonnull Map<String, Class<? extends Enum<?>>> enumMapping,
+		@Nonnull Operation endpointOperation,
+		boolean localized
+	) {
+		super(objectMapper, evita, headerOptions, openApi, enumMapping, endpointOperation, localized);
 	}
 }

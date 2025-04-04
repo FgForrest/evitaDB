@@ -90,6 +90,7 @@ public class EntityCollectionHeaderSerializer_2024_5 extends AbstractPersistentS
 			entityCount,
 			lastPrimaryKey,
 			lastEntityIndexPrimaryKey,
+			-1,
 			1.0,
 			new PersistentStorageHeader(version, fileOffsetIndexLocation, keys),
 			globalIndexKey,

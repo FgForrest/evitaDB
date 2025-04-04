@@ -27,7 +27,6 @@ import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.HierarchyConstraint;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.Optional;
 
 /**
@@ -39,9 +38,9 @@ public interface HierarchyFilterConstraint extends FilterConstraint, HierarchyCo
 
 	/**
 	 * Returns name of the reference this hierarchy query relates to.
-	 * Returns null if reference name is not specified and thus the same entity type as "queried" should be used.
+	 * Returns empty value if reference name is not specified and thus the same entity type as "queried" should be used.
 	 */
-	@Nullable
+	@Nonnull
 	Optional<String> getReferenceName();
 
 	/**

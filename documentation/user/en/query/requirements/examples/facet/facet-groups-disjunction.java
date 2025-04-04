@@ -33,6 +33,7 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 					),
 					facetGroupsDisjunction(
 						"parameterValues",
+						WITH_DIFFERENT_GROUPS,
 						filterBy(
 							attributeInSet("code", "ram-memory", "rom-memory")
 						)

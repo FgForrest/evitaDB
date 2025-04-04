@@ -23,12 +23,10 @@
 
 package io.evitadb.core.query.filter.translator.price;
 
-import io.evitadb.api.exception.EntityHasNoPricesException;
 import io.evitadb.api.query.filter.PriceBetween;
 import io.evitadb.api.query.filter.PriceInCurrency;
 import io.evitadb.api.query.filter.PriceInPriceLists;
 import io.evitadb.api.query.filter.PriceValidIn;
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.infra.SkipFormula;
@@ -40,7 +38,6 @@ import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.filter.translator.price.alternative.SellingPriceAvailableBitmapFilter;
 import io.evitadb.index.price.PriceListAndCurrencyPriceIndex;
 import io.evitadb.index.price.model.PriceIndexKey;
-import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import java.util.Currency;
@@ -56,24 +53,18 @@ public class PriceInCurrencyTranslator extends AbstractPriceRelatedConstraintTra
 	@Nonnull
 	@Override
 	public Formula translate(@Nonnull PriceInCurrency priceInCurrency, @Nonnull FilterByVisitor filterByVisitor) {
-		if (filterByVisitor.isEntityTypeKnown()) {
-			final EntitySchemaContract schema = filterByVisitor.getSchema();
-			Assert.isTrue(
-				schema.isWithPrice(),
-				() -> new EntityHasNoPricesException(schema.getName())
-			);
-		}
-
 		// if there are any more specific constraints - skip itself
 		//noinspection unchecked
 		if (filterByVisitor.isAnyConstraintPresentInConjunctionScopeExcludingUserFilter(PriceInPriceLists.class, PriceValidIn.class, PriceBetween.class)) {
 			return SkipFormula.INSTANCE;
 		} else {
-			final Currency requestedCurrency = priceInCurrency.getCurrency();
+			verifyEntityPricesAreIndexed(filterByVisitor);
+
+			final Currency currency = priceInCurrency.getCurrency();
 			if (filterByVisitor.isEntityTypeKnown()) {
 				final Formula filteringFormula = PriceListCompositionTerminationVisitor.translate(
-					createFormula(filterByVisitor, requestedCurrency),
-					filterByVisitor.getQueryPriceMode(), null
+					createFormula(filterByVisitor, currency),
+					null, currency, null, filterByVisitor.getQueryPriceMode(), null
 				);
 				if (filterByVisitor.isPrefetchPossible()) {
 					return new SelectionFormula(
@@ -103,7 +94,7 @@ public class PriceInCurrencyTranslator extends AbstractPriceRelatedConstraintTra
 	@Nonnull
 	List<Formula> createFormula(@Nonnull FilterByVisitor filterByVisitor, @Nonnull Currency requestedCurrency) {
 		return createPriceListFormula(
-			null, requestedCurrency,
+			null, requestedCurrency, null,
 			(serializable, currency, innerRecordHandling) ->
 				filterByVisitor.applyOnIndexes(
 					entityIndex -> FormulaFactory.or(

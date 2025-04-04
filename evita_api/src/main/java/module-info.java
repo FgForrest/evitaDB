@@ -21,13 +21,11 @@
  *   limitations under the License.
  */
 
-import io.evitadb.api.observability.trace.TracingContext;
-
 /**
  * Module contains external API of the evitaDB.
  */
 module evita.api {
-	uses TracingContext;
+	uses io.evitadb.api.observability.trace.TracingContext;
 
 	opens io.evitadb.api.configuration to com.fasterxml.jackson.databind;
 	opens io.evitadb.api.requestResponse.extraResult to com.graphqljava;
@@ -51,8 +49,10 @@ module evita.api {
 	exports io.evitadb.api.requestResponse.data.mutation.parent;
 	exports io.evitadb.api.requestResponse.data.mutation.price;
 	exports io.evitadb.api.requestResponse.data.mutation.reference;
+	exports io.evitadb.api.requestResponse.data.mutation.scope;
 	exports io.evitadb.api.requestResponse.data.structure.predicate;
 	exports io.evitadb.api.requestResponse.extraResult;
+	exports io.evitadb.api.requestResponse.chunk;
 	exports io.evitadb.api.requestResponse.schema;
 	exports io.evitadb.api.requestResponse.schema.mutation;
 	exports io.evitadb.api.requestResponse.schema.builder;
@@ -66,7 +66,9 @@ module evita.api {
 	exports io.evitadb.api.requestResponse.mutation;
 	exports io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound;
 	exports io.evitadb.api.requestResponse.data.annotation;
+	exports io.evitadb.api.requestResponse.trafficRecording;
 	exports io.evitadb.api.requestResponse.transaction;
+	exports io.evitadb.api.observability;
 	exports io.evitadb.api.observability.trace;
 	exports io.evitadb.api.observability.annotation;
 
@@ -78,5 +80,6 @@ module evita.api {
 	requires evita.common;
 	requires evita.query;
 	requires static proxycian.bytebuddy;
+	requires java.smartcardio;
 
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ import io.evitadb.api.observability.trace.TracingContextProvider;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
-import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
+import io.evitadb.externalApi.graphql.configuration.GraphQLOptions;
 import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
@@ -53,7 +53,7 @@ import static io.evitadb.utils.CollectionUtils.createHashSet;
 public class GraphQLSchemaBuildingContext {
 
     @Getter @Nonnull
-    private final GraphQLConfig config;
+    private final GraphQLOptions config;
     @Getter @Nonnull
     private final Evita evita;
     @Getter
@@ -74,7 +74,7 @@ public class GraphQLSchemaBuildingContext {
     @Nonnull
     private final Set<String> registeredCustomEnums = createHashSet(32);
 
-    public GraphQLSchemaBuildingContext(@Nonnull GraphQLConfig config, @Nonnull Evita evita) {
+    public GraphQLSchemaBuildingContext(@Nonnull GraphQLOptions config, @Nonnull Evita evita) {
         this.config = config;
         this.evita = evita;
         this.tracingContext = TracingContextProvider.getContext();;

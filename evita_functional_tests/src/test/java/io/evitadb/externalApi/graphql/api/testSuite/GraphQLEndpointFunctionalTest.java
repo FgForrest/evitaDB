@@ -58,12 +58,17 @@ public abstract class GraphQLEndpointFunctionalTest {
 
 	@DataSet(value = TestDataGenerator.GRAPHQL_THOUSAND_PRODUCTS, openWebApi = GraphQLProvider.CODE)
 	protected DataCarrier setUp(Evita evita) {
-		return setUpData(evita, 1000);
+		return setUpData(evita, 1000, false);
+	}
+
+	@DataSet(value = TestDataGenerator.GRAPHQL_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE, openWebApi = GraphQLProvider.CODE)
+	protected DataCarrier setUpForArchival(Evita evita) {
+		return setUpData(evita, 100, true);
 	}
 
 	@Nonnull
-	protected DataCarrier setUpData(Evita evita, int productCount) {
+	protected DataCarrier setUpData(Evita evita, int productCount, boolean archiveSomeProducts) {
 		TestDataGenerator.generateMockCatalogs(evita);
-		return TestDataGenerator.generateMainCatalogEntities(evita, productCount);
+		return TestDataGenerator.generateMainCatalogEntities(evita, productCount, archiveSomeProducts);
 	}
 }

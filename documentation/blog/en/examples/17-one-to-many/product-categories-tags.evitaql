@@ -1,0 +1,27 @@
+query(
+  collection("Product"),
+  orderBy(
+      referenceProperty(
+          "categories",
+          traverseByEntityProperty(
+              DEPTH_FIRST,
+              referenceProperty(
+                    "tags",
+                    traverseByEntityProperty(
+                        attributeNatural("priority", DESC)
+                    )
+              )
+          ),
+          attributeNatural("order", ASC)
+      )
+  ),
+  require(
+      entityFetch(
+          attributeContentAll(),
+          referenceContentWithAttributes(
+              "categories",
+              attributeContent("order")
+          )
+      )
+  )
+)

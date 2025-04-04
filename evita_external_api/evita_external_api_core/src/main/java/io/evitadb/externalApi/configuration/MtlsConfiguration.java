@@ -25,20 +25,28 @@ package io.evitadb.externalApi.configuration;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 /**
- * This DTO record encapsulates mTLS configuration that will be used to hold information about gRPC hosts.
+ * This DTO record encapsulates mTLS configuration that will be used to hold information about clients.
  *
  * @param enabled defines whether mTLS will be used to secure the server connection
  * @param allowedClientCertificatePaths defines a list of paths to the certificates of root certificate authorities that
- *                                      are not trusted publicly, but should be trusted by evitaDB's gRPC API server.
+ *                                      are not trusted publicly, but should be trusted by evitaDB's server.
  *                                      Only clients who present themselves with a trusted certificate will be allowed
  *                                      to connect to the server.
  */
 public record MtlsConfiguration(
 	@Nullable Boolean enabled,
-	@Nonnull List<String> allowedClientCertificatePaths
+	@Nullable List<String> allowedClientCertificatePaths
 ) {
 
+	@Override
+	@Nonnull
+	public List<String> allowedClientCertificatePaths() {
+		return Optional.ofNullable(this.allowedClientCertificatePaths)
+			.orElse(Collections.emptyList());
+	}
 }

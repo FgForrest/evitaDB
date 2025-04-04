@@ -51,7 +51,7 @@ Each code block is then rendered as an individual tab within the `<CodeTabsBlock
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_test_support</artifactId>
-    <version>2024.8.4</version>
+    <version>2025.1.0</version>
     <scope>test</scope>
 </dependency>
 ```

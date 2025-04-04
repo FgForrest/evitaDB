@@ -26,7 +26,7 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.subscribingD
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.cdc.CaptureArea;
-import io.evitadb.api.requestResponse.cdc.CaptureContent;
+import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureCriteria;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
@@ -91,7 +91,7 @@ public class OnDataChangeSubscribingDataFetcher extends ChangeSubscribingDataFet
 					)
 				)
 			},
-			needsBody ? CaptureContent.BODY : CaptureContent.HEADER
+			needsBody ? ChangeCaptureContent.BODY : ChangeCaptureContent.HEADER
 		));
 	}
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.rest.api.catalog.dataApi;
 
+import com.github.javafaker.Faker;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
@@ -36,21 +37,35 @@ import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.core.Evita;
+import io.evitadb.dataType.DataChunk;
+import io.evitadb.dataType.PaginatedList;
+import io.evitadb.dataType.PlainChunk;
+import io.evitadb.dataType.StripList;
 import io.evitadb.externalApi.ExternalApiFunctionTestsSupport;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.ReferencePageDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceStripDescriptor;
+import io.evitadb.externalApi.rest.RestProvider;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.DataChunkType;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.RestEntityDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.SectionedAssociatedDataDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.SectionedAttributesDescriptor;
 import io.evitadb.externalApi.rest.api.testSuite.RestEndpointFunctionalTest;
+import io.evitadb.test.annotation.DataSet;
+import io.evitadb.test.extension.DataCarrier;
+import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.MapBuilder;
-import io.evitadb.utils.NamingConvention;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
@@ -58,11 +73,16 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
-import java.util.TreeSet;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
+import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 import static io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.EntityJsonSerializer.separateAssociatedDataKeysByLocale;
 import static io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.EntityJsonSerializer.separateAttributeKeysByLocale;
+import static io.evitadb.test.TestConstants.TEST_CATALOG;
+import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_EAN;
+import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
+import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_QUANTITY;
 import static io.evitadb.utils.MapBuilder.map;
 
 /**
@@ -72,6 +92,77 @@ import static io.evitadb.utils.MapBuilder.map;
  * @author Martin Veska, FG Forrest a.s. (c) 2022
  */
 public abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctionalTest implements ExternalApiFunctionTestsSupport {
+
+	protected static final int SEED = 40;
+
+	protected static final String REST_HUNDRED_PRODUCTS_FOR_SEGMENTS = "RestHundredProductsForSegments";
+
+	@DataSet(value = REST_HUNDRED_PRODUCTS_FOR_SEGMENTS, openWebApi = RestProvider.CODE, readOnly = false, destroyAfterClass = true)
+	DataCarrier setUpForSegments(Evita evita) {
+		return evita.updateCatalog(TEST_CATALOG, session -> {
+			final DataGenerator dataGenerator = new DataGenerator();
+			final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> {
+				final int entityCount = session.getEntityCollectionSize(entityType);
+				final int primaryKey = entityCount == 0 ? 0 : faker.random().nextInt(1, entityCount);
+				return primaryKey == 0 ? null : primaryKey;
+			};
+			dataGenerator.generateEntities(
+					dataGenerator.getSampleBrandSchema(session),
+					randomEntityPicker,
+					SEED
+				)
+				.limit(5)
+				.forEach(session::upsertEntity);
+
+			dataGenerator.generateEntities(
+					dataGenerator.getSampleCategorySchema(session),
+					randomEntityPicker,
+					SEED
+				)
+				.limit(10)
+				.forEach(session::upsertEntity);
+
+			dataGenerator.generateEntities(
+					dataGenerator.getSamplePriceListSchema(session),
+					randomEntityPicker,
+					SEED
+				)
+				.limit(4)
+				.forEach(session::upsertEntity);
+
+			dataGenerator.generateEntities(
+					dataGenerator.getSampleStoreSchema(session),
+					randomEntityPicker,
+					SEED
+				)
+				.limit(12)
+				.forEach(session::upsertEntity);
+
+			final List<EntityReference> storedProducts = dataGenerator.generateEntities(
+					dataGenerator.getSampleProductSchema(
+						session,
+						builder -> {
+							builder
+								.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized(() -> false).filterable().sortable().nullable(() -> false))
+								.withAttribute(ATTRIBUTE_EAN, String.class, whichIs -> whichIs.filterable().sortable().nullable(() -> false))
+								.withAttribute(ATTRIBUTE_QUANTITY, BigDecimal.class, whichIs -> whichIs.filterable().sortable().nullable(() -> false));
+						}
+					),
+					randomEntityPicker,
+					SEED
+				)
+				.limit(100)
+				.map(session::upsertEntity)
+				.toList();
+
+			return new DataCarrier(
+				"originalProductEntities",
+				storedProducts.stream()
+					.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), entityFetchAllContent()).orElseThrow())
+					.collect(Collectors.toList())
+			);
+		});
+	}
 
 	@Nonnull
 	public static List<Map<String, Object>> createEntityDtos(@Nonnull List<? extends EntityClassifier> entityClassifiers) {
@@ -116,6 +207,7 @@ public abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpoint
 
 	public static void createEntityBodyDto(@Nonnull MapBuilder entityDto, @Nonnull SealedEntity entity, boolean localized) {
 		entityDto.e(EntityDescriptor.VERSION.name(), entity.version());
+		entityDto.e(EntityDescriptor.SCOPE.name(), entity.getScope().name());
 
 		if (entity.parentAvailable()) {
 			entity.getParentEntity().ifPresent(parent -> entityDto.e(RestEntityDescriptor.PARENT_ENTITY.name(), createEntityDto(parent, localized)));
@@ -289,7 +381,7 @@ public abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpoint
 			.e(PriceDescriptor.PRICE_LIST.name(), price.priceList())
 			.e(PriceDescriptor.CURRENCY.name(), price.currencyCode())
 			.e(PriceDescriptor.INNER_RECORD_ID.name(), price.innerRecordId())
-			.e(PriceDescriptor.SELLABLE.name(), price.sellable())
+			.e(PriceDescriptor.INDEXED.name(), price.indexed())
 			.e(PriceDescriptor.PRICE_WITHOUT_TAX.name(), price.priceWithoutTax().toString())
 			.e(PriceDescriptor.PRICE_WITH_TAX.name(), price.priceWithTax().toString())
 			.e(PriceDescriptor.TAX_RATE.name(), price.taxRate().toString())
@@ -301,41 +393,81 @@ public abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpoint
 	public static void createReferencesDto(@Nonnull MapBuilder entityDto,
 	                                 @Nonnull SealedEntity entity,
 	                                 boolean localized) {
-		if (entity.referencesAvailable() && !entity.getReferences().isEmpty()) {
-			entity.getReferences()
-				.stream()
-				.map(ReferenceContract::getReferenceName)
-				.collect(Collectors.toCollection(TreeSet::new))
+		if (entity.referencesAvailable()) {
+			entity.getReferenceNames()
 				.forEach(it -> createReferencesOfNameDto(entityDto, entity, it, localized));
 		}
 	}
 
 	public static void createReferencesOfNameDto(@Nonnull MapBuilder entityDto,
-	                                       @Nonnull SealedEntity entity,
-	                                       @Nonnull String referenceName,
-	                                       boolean localized) {
-		final Collection<ReferenceContract> groupedReferences = entity.getReferences(referenceName);
-		final Optional<ReferenceContract> anyReferenceFound = groupedReferences.stream().findFirst();
-		if (anyReferenceFound.isPresent()) {
-			final ReferenceContract firstReference = anyReferenceFound.get();
-			final String nodeReferenceName = firstReference.getReferenceSchema()
-				.map(it -> it.getNameVariant(NamingConvention.CAMEL_CASE))
-				.orElse(referenceName);
+	                                             @Nonnull SealedEntity entity,
+	                                             @Nonnull String referenceName,
+	                                             boolean localized) {
+		final ReferenceSchemaContract referenceSchema = entity.getSchema()
+			.getReference(referenceName)
+			.orElseThrow(() -> new RuntimeException("Schema for reference `" + referenceName + "` not known."));
+		final Cardinality referenceCardinality = referenceSchema.getCardinality();
 
-			if (firstReference.getReferenceCardinality() == Cardinality.EXACTLY_ONE ||
-				firstReference.getReferenceCardinality() == Cardinality.ZERO_OR_ONE) {
-				Assert.isPremiseValid(groupedReferences.size() == 1, "Reference cardinality is: " +
-					firstReference.getReferenceCardinality() + " but found " + groupedReferences.size() +
-					" references with same name: " + referenceName);
+		final DataChunk<ReferenceContract> groupedReferences = entity.getReferenceChunk(referenceName);
 
-				entityDto.e(nodeReferenceName, createReferenceDto(entity.getLocales(), firstReference, localized));
+		if (referenceCardinality == Cardinality.EXACTLY_ONE || referenceCardinality == Cardinality.ZERO_OR_ONE) {
+			Assert.isPremiseValid(groupedReferences.getTotalRecordCount() <= 1, "Reference cardinality is: " +
+				referenceCardinality + " but found " + groupedReferences.getTotalRecordCount() +
+				" references with same name: " + referenceName);
+
+			final String referencePropertyName = RestEntityDescriptor.REFERENCE.name(referenceSchema);
+			if (groupedReferences.getData().isEmpty()) {
+				entityDto.e(referencePropertyName, null);
 			} else {
+				entityDto.e(referencePropertyName, createReferenceDto(entity.getLocales(), groupedReferences.getData().get(0), localized));
+			}
+		} else {
+			final List<Map<String, Object>> data = groupedReferences.stream()
+				.map(it -> createReferenceDto(entity.getLocales(), it, localized).build())
+				.toList();
+
+			if (groupedReferences instanceof PlainChunk<ReferenceContract>) {
 				entityDto.e(
-					nodeReferenceName,
-					groupedReferences.stream()
-						.map(it -> createReferenceDto(entity.getLocales(), it, localized).build())
-						.toList()
+					RestEntityDescriptor.REFERENCE.name(referenceSchema),
+					data
 				);
+			} else if (groupedReferences instanceof PaginatedList<ReferenceContract> groupedReferencePage) {
+				entityDto.e(
+					RestEntityDescriptor.REFERENCE_PAGE.name(referenceSchema),
+					map()
+						.e(ReferencePageDescriptor.DATA.name(), data)
+						.e("type", DataChunkType.PAGE.name())
+						.e(ReferencePageDescriptor.TOTAL_RECORD_COUNT.name(), groupedReferencePage.getTotalRecordCount())
+						.e(ReferencePageDescriptor.FIRST.name(), groupedReferencePage.isFirst())
+						.e(ReferencePageDescriptor.LAST.name(), groupedReferencePage.isLast())
+						.e(ReferencePageDescriptor.HAS_PREVIOUS.name(), groupedReferencePage.hasPrevious())
+						.e(ReferencePageDescriptor.HAS_NEXT.name(), groupedReferencePage.hasNext())
+						.e(ReferencePageDescriptor.SINGLE_PAGE.name(), groupedReferencePage.isSinglePage())
+						.e(ReferencePageDescriptor.EMPTY.name(), groupedReferencePage.isEmpty())
+						.e(ReferencePageDescriptor.PAGE_SIZE.name(), groupedReferencePage.getPageSize())
+						.e(ReferencePageDescriptor.PAGE_NUMBER.name(), groupedReferencePage.getPageNumber())
+						.e(ReferencePageDescriptor.LAST_PAGE_NUMBER.name(), groupedReferencePage.getLastPageNumber())
+						.e(ReferencePageDescriptor.FIRST_PAGE_ITEM_NUMBER.name(), groupedReferencePage.getFirstPageItemNumber())
+						.e(ReferencePageDescriptor.LAST_PAGE_ITEM_NUMBER.name(), groupedReferencePage.getLastPageItemNumber())
+				);
+			} else if (groupedReferences instanceof StripList<ReferenceContract> groupedReferencesStrip) {
+				entityDto.e(
+					RestEntityDescriptor.REFERENCE_STRIP.name(referenceSchema),
+					map()
+						.e(ReferenceStripDescriptor.DATA.name(), data)
+						.e("type", DataChunkType.STRIP.name())
+						.e(ReferenceStripDescriptor.TOTAL_RECORD_COUNT.name(), groupedReferencesStrip.getTotalRecordCount())
+						.e(ReferenceStripDescriptor.FIRST.name(), groupedReferencesStrip.isFirst())
+						.e(ReferenceStripDescriptor.LAST.name(), groupedReferencesStrip.isLast())
+						.e(ReferenceStripDescriptor.HAS_PREVIOUS.name(), groupedReferencesStrip.hasPrevious())
+						.e(ReferenceStripDescriptor.HAS_NEXT.name(), groupedReferencesStrip.hasNext())
+						.e(ReferenceStripDescriptor.SINGLE_PAGE.name(), groupedReferencesStrip.isSinglePage())
+						.e(ReferenceStripDescriptor.EMPTY.name(), groupedReferencesStrip.isEmpty())
+						.e(ReferenceStripDescriptor.OFFSET.name(), groupedReferencesStrip.getOffset())
+						.e(ReferenceStripDescriptor.LIMIT.name(), groupedReferencesStrip.getLimit())
+				);
+			} else {
+				throw new IllegalArgumentException("Unsupported data chunk type " + groupedReferences.getClass().getName());
 			}
 		}
 	}

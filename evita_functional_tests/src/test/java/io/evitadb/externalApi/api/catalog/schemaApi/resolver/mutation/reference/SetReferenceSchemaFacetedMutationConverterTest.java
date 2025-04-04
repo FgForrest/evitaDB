@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference;
 
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaFacetedMutation;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
@@ -34,6 +35,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
+import static io.evitadb.utils.ListBuilder.list;
 import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -56,13 +58,14 @@ class SetReferenceSchemaFacetedMutationConverterTest {
 	void shouldResolveInputToLocalMutation() {
 		final SetReferenceSchemaFacetedMutation expectedMutation = new SetReferenceSchemaFacetedMutation(
 			"tags",
-			true
+			new Scope[] { Scope.LIVE }
 		);
 
 		final SetReferenceSchemaFacetedMutation convertedMutation1 = converter.convertFromInput(
 			map()
 				.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
-				.e(SetReferenceSchemaFacetedMutationDescriptor.FACETED.name(), true)
+				.e(SetReferenceSchemaFacetedMutationDescriptor.FACETED_IN_SCOPES.name(), list()
+					.i(Scope.LIVE))
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation1);
@@ -70,11 +73,11 @@ class SetReferenceSchemaFacetedMutationConverterTest {
 		final SetReferenceSchemaFacetedMutation convertedMutation2 = converter.convertFromInput(
 			map()
 				.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
-				.e(SetReferenceSchemaFacetedMutationDescriptor.FACETED.name(), "true")
+				.e(SetReferenceSchemaFacetedMutationDescriptor.FACETED_IN_SCOPES.name(), list()
+					.i(Scope.LIVE.name()))
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation2);
-
 	}
 
 	@Test
@@ -83,7 +86,7 @@ class SetReferenceSchemaFacetedMutationConverterTest {
 			EvitaInvalidUsageException.class,
 			() -> converter.convertFromInput(
 				map()
-					.e(SetReferenceSchemaFacetedMutationDescriptor.FACETED.name(), true)
+					.e(SetReferenceSchemaFacetedMutationDescriptor.FACETED_IN_SCOPES.name(), true)
 					.build()
 			)
 		);

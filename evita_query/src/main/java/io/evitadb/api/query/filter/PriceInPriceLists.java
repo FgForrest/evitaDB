@@ -70,7 +70,7 @@ import java.util.Arrays;
 	userDocsLink = "/documentation/query/filtering/price#price-in-price-lists",
 	supportedIn = ConstraintDomain.ENTITY
 )
-public class PriceInPriceLists extends AbstractFilterConstraintLeaf implements PriceConstraint<FilterConstraint>, IndexUsingConstraint {
+public class PriceInPriceLists extends AbstractFilterConstraintLeaf implements PriceConstraint<FilterConstraint>, FilterConstraint {
 	@Serial private static final long serialVersionUID = 7018968762648494243L;
 
 	private PriceInPriceLists(@Nonnull Serializable... priceLists) {

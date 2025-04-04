@@ -56,8 +56,8 @@ import static io.evitadb.test.generator.DataGenerator.ASSOCIATED_DATA_LABELS;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_QUANTITY;
 import static io.evitadb.utils.MapBuilder.map;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
@@ -78,7 +78,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 	@Override
 	@DataSet(value = GRAPHQL_THOUSAND_PRODUCTS_FOR_UPDATE, openWebApi = GraphQLProvider.CODE, readOnly = false, destroyAfterClass = true)
 	protected DataCarrier setUp(Evita evita) {
-		return super.setUpData(evita, 50);
+		return super.setUpData(evita, 50, false);
 	}
 
 	@Test
@@ -538,7 +538,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 					.e(PriceDescriptor.TAX_RATE.name(), "21")
 					.e(PriceDescriptor.PRICE_WITH_TAX.name(), "1.21")
 					.e(PriceDescriptor.VALIDITY.name(), null)
-					.e(PriceDescriptor.SELLABLE.name(), false)
+					.e(PriceDescriptor.INDEXED.name(), false)
 					.build()
 			))
 			.build();
@@ -559,7 +559,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 	                                    priceWithoutTax: "1.0"
 	                                    taxRate: "21"
 	                                    priceWithTax: "1.21"
-	                                    sellable: false
+	                                    indexed: false
 	                                }
 	                            }
 	                        ]
@@ -575,7 +575,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 								taxRate
 								priceWithTax
 								validity
-								sellable
+								indexed
 	                        }
 	                    }
 	                }
@@ -603,7 +603,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 								taxRate
 								priceWithTax
 								validity
-								sellable
+								indexed
 	                        }
 	                    }
 	                }

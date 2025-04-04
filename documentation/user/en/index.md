@@ -34,15 +34,17 @@ in the separate part of this site.
 ##### Use at your own risk and responsibility
 </NoteTitle>
 
-evitaDB is currently in alpha version and a lot of development is going on right now. We plan to stabilize the first 
-generally available version in 2024. Until that time, the storage format may change at any time, which 
-will require all existing data to be dropped and re-indexed from the primary storage.
+In the summer of 2024, we started to release beta versions of evitaDB in regular intervals and deploy it to our own
+customers to gain first-hand experience using it ourselves. evitaDB is currently operated in production and works
+reliably meeting our expectations regarding performance and stability.
+
+However, evitaDB is currently in beta version and a lot of development is still going on. We plan to finish the full-featured
+version in 2026. Until that time, the storage format may change at any time, which may require all existing data to be
+dropped and re-indexed from the primary storage. We make our best to provide automatic data migration tools, so hopefully
+this will not be necessary, but we cannot guarantee it yet.
 
 **Please do not use evitaDB to store your primary data for the reasons mentioned above.**
 
-In the spring of 2023, we plan to release a beta version and deploy it first to our own customers to gain first-hand 
-experience using it ourselves. When we can be sure that the database engine is stable and reliable, we will release 
-the first version to the general public.
 </Note>
 
 ## Get started
@@ -75,29 +77,33 @@ the first version to the general public.
 
 1. [Basics](query/basics.md)
 2. **Filtering**
-   1. [Constant](query/filtering/constant.md)
+   1. [Behavioral](query/filtering/behavioral.md)
    2. [Comparable](query/filtering/comparable.md)
-   3. [Logical](query/filtering/logical.md)
-   4. [String](query/filtering/string.md)
+   3. [Constant](query/filtering/constant.md)
+   4. [Hierarchy](query/filtering/hierarchy.md)
    5. [Locale](query/filtering/locale.md)
-   6. [Range](query/filtering/range.md)
+   6. [Logical](query/filtering/logical.md)
    7. [Price](query/filtering/price.md)
-   8. [References](query/filtering/references.md)
-   9. [Hierarchy](query/filtering/hierarchy.md)
-   10. [Behavioral filter containers](query/filtering/behavioral.md)
+   8. [Range](query/filtering/range.md)
+   9. [References](query/filtering/references.md)
+   10. [String](query/filtering/string.md)
 3. **Ordering**
-   1. [Constant](query/ordering/constant.md)
-   1. [Comparable](query/ordering/comparable.md)
-   2. [Price](query/ordering/price.md)
-   3. [Reference](query/ordering/reference.md)
-   4. [Random](query/ordering/random.md)
+   1. [Behavioral](query/ordering/behavioral.md)
+   2. [Comparable](query/ordering/comparable.md)
+   3. [Constant](query/ordering/constant.md)
+   4. [Price](query/ordering/price.md)
+   5. [Random](query/ordering/random.md)
+   6. [Reference](query/ordering/reference.md)
+   7. [Segmentation](query/ordering/segment.md)
 4. **Requirements**
-   1. [Paging](query/requirements/paging.md)
-   2. [Fetching](query/requirements/fetching.md)
-   3. [Price](query/requirements/price.md)
+   1. [Behavioral](query/requirements/behavioral.md)
+   2. [Facet](query/requirements/facet.md)
+   3. [Fetching](query/requirements/fetching.md)
    4. [Hierarchy](query/requirements/hierarchy.md)
-   5. [Facet](query/requirements/facet.md)
-   6. [Histogram](query/requirements/histogram.md)
+   5. [Histogram](query/requirements/histogram.md)
+   6. [Paging](query/requirements/paging.md)
+   7. [Price](query/requirements/price.md)
+   8. [Telemetry](query/requirements/telemetry.md)
 
 ## Operate
 

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,11 +31,14 @@ import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.require.DebugMode;
+import io.evitadb.api.query.require.DefaultPrefetchRequirementCollector;
+import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetchRequire;
-import io.evitadb.api.query.require.FacetGroupsConjunction;
-import io.evitadb.api.query.require.FacetGroupsDisjunction;
-import io.evitadb.api.query.require.FacetGroupsNegation;
+import io.evitadb.api.query.require.FacetGroupRelationLevel;
+import io.evitadb.api.query.require.FacetRelationType;
+import io.evitadb.api.query.require.FetchRequirementCollector;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.FacetFilterBy;
@@ -47,8 +50,10 @@ import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.EntityCollection;
+import io.evitadb.core.EvitaSession;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.metric.event.query.FinishedEvent;
 import io.evitadb.core.query.algebra.Formula;
@@ -59,6 +64,7 @@ import io.evitadb.core.query.policy.BitmapFavouringNoCachePolicy;
 import io.evitadb.core.query.policy.DefaultPolicy;
 import io.evitadb.core.query.policy.PlanningPolicy;
 import io.evitadb.core.query.policy.PlanningPolicy.PrefetchPolicy;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.CatalogIndexKey;
 import io.evitadb.index.EntityIndex;
@@ -70,6 +76,7 @@ import io.evitadb.index.IndexKey;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
+import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -77,15 +84,8 @@ import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayDeque;
-import java.util.Arrays;
-import java.util.Deque;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import java.util.stream.LongStream;
 
@@ -97,13 +97,23 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class QueryPlanningContext implements LocaleProvider {
-	private static final EntityIndexKey GLOBAL_INDEX_KEY = new EntityIndexKey(EntityIndexType.GLOBAL);
+public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyResolver {
+	private static final EnumMap<Scope, EntityIndexKey> GLOBAL_INDEX_KEY = new EnumMap<>(
+		Map.of(
+			Scope.LIVE, new EntityIndexKey(EntityIndexType.GLOBAL, Scope.LIVE),
+			Scope.ARCHIVED, new EntityIndexKey(EntityIndexType.GLOBAL, Scope.ARCHIVED)
+		)
+	);
 
 	/**
 	 * Contains reference to the parent context of this one. The reference is not NULL only for sub-queries.
 	 */
 	@Nullable private final QueryPlanningContext parentContext;
+	/**
+	 * Reference to the collector of requirements for entity prefetch phase.
+	 */
+	@Nonnull @Getter
+	private final FetchRequirementCollector fetchRequirementCollector = new DefaultPrefetchRequirementCollector();
 	/**
 	 * Contains reference to the policy that controls the interaction with cache and drives the query planning strategy.
 	 */
@@ -129,7 +139,7 @@ public class QueryPlanningContext implements LocaleProvider {
 	 * Contains reference to the enveloping {@link EvitaSessionContract} within which the {@link #evitaRequest} is executed.
 	 */
 	@Getter
-	@Nonnull private final EvitaSessionContract evitaSession;
+	@Nonnull private final EvitaSession evitaSession;
 	/**
 	 * Contains input in {@link EvitaRequest}.
 	 */
@@ -161,6 +171,11 @@ public class QueryPlanningContext implements LocaleProvider {
 	 */
 	private final boolean prefetchPossible;
 	/**
+	 * Internal execution context used for execution of formulas evaluated in planning phase.
+	 */
+	@Getter @Nonnull
+	private final QueryExecutionContext internalExecutionContext;
+	/**
 	 * Contains sequence of already assigned virtual entity primary keys.
 	 * If set to zero - no virtual entity primary key was assigned, if greater than zero it represents the last assigned
 	 * virtual entity primary key.
@@ -176,9 +191,9 @@ public class QueryPlanningContext implements LocaleProvider {
 	 */
 	private Map<EntityReferenceContract<EntityReference>, Integer> entityReferencePkReverseIndex;
 	/**
-	 * Cached version of {@link EntitySchemaContract} for {@link #entityType}.
+	 * Cached version of {@link EntitySchema} for {@link #entityType}.
 	 */
-	private EntitySchemaContract entitySchema;
+	private EntitySchema entitySchema;
 	/**
 	 * Contains reference to the {@link HierarchyFilteringPredicate} that keeps information about all hierarchy nodes
 	 * that should be included/excluded from traversal.
@@ -196,11 +211,6 @@ public class QueryPlanningContext implements LocaleProvider {
 	 * to mark the group id involved in special relation handling.
 	 */
 	private Map<FacetRelationTuple, FilteringFormulaPredicate> facetRelationTuples;
-	/**
-	 * Internal execution context used for execution of formulas evaluated in planning phase.
-	 */
-	@Getter @Nonnull
-	private final QueryExecutionContext internalExecutionContext;
 	/**
 	 * Internal cache currently server sor caching the computed formulas of nested queries.
 	 *
@@ -224,7 +234,8 @@ public class QueryPlanningContext implements LocaleProvider {
 			telemetry, indexes, cacheSupervisor,
 			new FinishedEvent(
 				catalog.getName(),
-				entityCollection == null ? null : entityCollection.getEntityType()
+				entityCollection == null ? null : entityCollection.getEntityType(),
+				evitaRequest.getLabels()
 			)
 		);
 	}
@@ -263,7 +274,8 @@ public class QueryPlanningContext implements LocaleProvider {
 			.map(EntityCollection::getSchema)
 			.map(EntitySchemaContract::getName)
 			.orElse(null);
-		this.evitaSession = evitaSession;
+		Assert.isPremiseValid(evitaSession instanceof EvitaSession, "The session must be an instance of EvitaSession!");
+		this.evitaSession = (EvitaSession) evitaSession;
 		this.evitaRequest = evitaRequest;
 		if (parentQueryContext == null) {
 			// when debug mode is enabled we need to enforce the main plan to be non-cached
@@ -285,19 +297,44 @@ public class QueryPlanningContext implements LocaleProvider {
 	}
 
 	/**
+	 * Shortcut for {@link EvitaRequest#getScopes()}.
+	 *
+	 * @return set of requested scopes in the query
+	 */
+	@Nonnull
+	public Set<Scope> getScopes() {
+		return this.evitaRequest.getScopes();
+	}
+
+	/**
+	 * Delegates method to {@link FetchRequirementCollector#addRequirementsToPrefetch(EntityContentRequire...)}.
+	 *
+	 * @param require the requirement to prefetch
+	 */
+	public void addRequirementToPrefetch(@Nonnull EntityContentRequire... require) {
+		this.fetchRequirementCollector.addRequirementsToPrefetch(require);
+	}
+
+	/**
+	 * Delegates method to {@link FetchRequirementCollector#getRequirementsToPrefetch()}.
+	 *
+	 * @return an array of {@link EntityContentRequire} representing the requirements to prefetch
+	 */
+	@Nonnull
+	public EntityContentRequire[] getRequirementsToPrefetch() {
+		return this.fetchRequirementCollector.getRequirementsToPrefetch();
+	}
+
+	/**
 	 * Returns true if the input {@link #evitaRequest} contains specification of the entity collection.
 	 */
 	public boolean isEntityTypeKnown() {
 		return entityType != null;
 	}
 
-	/**
-	 * Returns true if the prefetch is possible.
-	 *
-	 * @return true if the prefetch is possible
-	 */
+	@Override
 	public boolean isPrefetchPossible() {
-		return prefetchPossible && planningPolicy.getPrefetchPolicy() == PrefetchPolicy.ALLOW;
+		return this.prefetchPossible && this.planningPolicy.getPrefetchPolicy() == PrefetchPolicy.ALLOW;
 	}
 
 	/**
@@ -314,31 +351,41 @@ public class QueryPlanningContext implements LocaleProvider {
 	}
 
 	/**
+	 * Checks if any of the keys in the indexes map are instances of EntityIndexKey.
+	 *
+	 * @return true if at least one key in the indexes map is an instance of EntityIndexKey;
+	 * false otherwise.
+	 */
+	public boolean hasEntityGlobalIndex() {
+		return this.indexes.keySet().stream().anyMatch(it -> it instanceof EntityIndexKey);
+	}
+
+	/**
 	 * Returns {@link EntityIndex} of external entity type by its key and entity type.
 	 */
-	@Nullable
-	public <T extends EntityIndex> T getIndex(@Nonnull String entityType, @Nonnull EntityIndexKey entityIndexKey, @Nonnull Class<T> indexType) {
+	@Nonnull
+	public <T extends EntityIndex> Optional<T> getIndex(@Nonnull String entityType, @Nonnull EntityIndexKey entityIndexKey, @Nonnull Class<T> indexType) {
 		final EntityIndex entityIndex = getEntityCollectionOrThrowException(entityType, "access entity index")
 			.getIndexByKeyIfExists(entityIndexKey);
 		Assert.isPremiseValid(
 			entityIndex == null || indexType.isInstance(entityIndex),
-			() -> "Expected index of type " + indexType + " but got " + entityIndex.getClass() + "!"
+			() -> "Expected index of type " + indexType + " but got " + (entityIndex == null ? "NULL" : entityIndex.getClass()) + "!"
 		);
 		//noinspection unchecked
-		return (T) entityIndex;
+		return ofNullable((T) entityIndex);
 	}
 
 	/**
 	 * Returns {@link EntityIndex} by its key.
 	 */
 	@Nonnull
-	public <S extends IndexKey, T extends Index<S>> Optional<T> getIndex(@Nonnull S entityIndexKey) {
-		if (entityIndexKey instanceof CatalogIndexKey) {
+	public <S extends IndexKey, T extends Index<S>> Optional<T> getIndex(@Nonnull S indexKey) {
+		if (indexKey instanceof CatalogIndexKey cik) {
 			//noinspection unchecked
-			return ofNullable((T) catalog.getCatalogIndex());
+			return ofNullable((T) this.catalog.getCatalogIndex(cik.scope()));
 		} else {
 			//noinspection unchecked
-			return ofNullable((T) indexes.get(entityIndexKey));
+			return ofNullable((T) this.indexes.get(indexKey));
 		}
 	}
 
@@ -425,7 +472,7 @@ public class QueryPlanningContext implements LocaleProvider {
 	 * Shorthand for {@link EvitaRequest#getQuery()} and {@link Query#getFilterBy()}.
 	 */
 	@Nullable
-	public FilterConstraint getFilterBy() {
+	public FilterBy getFilterBy() {
 		return evitaRequest.getQuery().getFilterBy();
 	}
 
@@ -474,9 +521,9 @@ public class QueryPlanningContext implements LocaleProvider {
 	 * Returns entity schema.
 	 */
 	@Nonnull
-	public EntitySchemaContract getSchema() {
+	public EntitySchema getSchema() {
 		if (this.entitySchema == null) {
-			this.entitySchema = getEntityCollectionOrThrowException(entityType, "access entity schema").getSchema();
+			this.entitySchema = getEntityCollectionOrThrowException(entityType, "access entity schema").getInternalSchema();
 		}
 		return this.entitySchema;
 	}
@@ -501,17 +548,16 @@ public class QueryPlanningContext implements LocaleProvider {
 	 * Returns global {@link GlobalEntityIndex} of the collection if the target entity collection is known.
 	 */
 	@Nonnull
-	public Optional<GlobalEntityIndex> getGlobalEntityIndexIfExists() {
-		return getIndex(GLOBAL_INDEX_KEY);
+	public Optional<GlobalEntityIndex> getGlobalEntityIndexIfExists(@Nonnull Scope scope) {
+		return getIndex(GLOBAL_INDEX_KEY.get(scope));
 	}
 
 	/**
 	 * Returns global {@link GlobalEntityIndex} of the collection or throws an exception.
 	 */
 	@Nonnull
-	public GlobalEntityIndex getGlobalEntityIndex() {
-		return getGlobalEntityIndexIfExists()
-			.map(GlobalEntityIndex.class::cast)
+	public GlobalEntityIndex getGlobalEntityIndex(@Nonnull Scope scope) {
+		return getGlobalEntityIndexIfExists(scope)
 			.orElseThrow(() -> new GenericEvitaInternalError("Global index of entity unexpectedly not found!"));
 	}
 
@@ -519,8 +565,8 @@ public class QueryPlanningContext implements LocaleProvider {
 	 * Returns {@link EntityIndex} by its key and entity type.
 	 */
 	@Nonnull
-	public Optional<GlobalEntityIndex> getGlobalEntityIndexIfExists(@Nonnull String entityType) {
-		return ofNullable(getIndex(entityType, GLOBAL_INDEX_KEY, GlobalEntityIndex.class));
+	public Optional<GlobalEntityIndex> getGlobalEntityIndexIfExists(@Nonnull String entityType, @Nonnull Scope scope) {
+		return getIndex(entityType, GLOBAL_INDEX_KEY.get(scope), GlobalEntityIndex.class);
 	}
 
 	/**
@@ -582,13 +628,24 @@ public class QueryPlanningContext implements LocaleProvider {
 	}
 
 	/**
+	 * Method returns appropriate {@link EntityCollection} for the {@link #evitaRequest} or throws comprehensible
+	 * exception. In order exception to be comprehensible you need to provide sensible `reason` for accessing
+	 * the collection in the input parameter.
+	 */
+	@Nonnull
+	public EntityCollection getEntityCollectionOrThrowException(@Nullable String entityType, @Nonnull Supplier<String> reasonSupplier) {
+		return getEntityCollection(entityType)
+			.orElseThrow(() -> new EntityCollectionRequiredException(reasonSupplier.get()));
+	}
+
+	/**
 	 * Method creates new {@link EvitaRequest} for particular `entityType` that takes all passed `requiredConstraints`
 	 * into the account. Fabricated request is expected to be used only for passing the scope to
 	 * {@link EntityCollection#limitEntity(EntityContract, EvitaRequest, EvitaSessionContract)}  or
 	 * {@link EntityCollection#enrichEntity(EntityContract, EvitaRequest, EvitaSessionContract)}  methods.
 	 */
 	@Nonnull
-	public EvitaRequest fabricateFetchRequest(@Nonnull String entityType, @Nonnull EntityFetchRequire requirements) {
+	public EvitaRequest fabricateFetchRequest(@Nullable String entityType, @Nonnull EntityFetchRequire requirements) {
 		return evitaRequest.deriveCopyWith(entityType, requirements);
 	}
 
@@ -601,7 +658,6 @@ public class QueryPlanningContext implements LocaleProvider {
 	 *
 	 * Formulas are expected to be invoked in planning phase and share the same {@link #internalExecutionContext}.
 	 *
-	 *
 	 * @param constraint      caching key for which the lambda should be invoked only once
 	 * @param formulaSupplier the lambda that creates the formula
 	 * @return created formula
@@ -613,9 +669,9 @@ public class QueryPlanningContext implements LocaleProvider {
 		@Nonnull Supplier<Formula> formulaSupplier,
 		long... additionalCacheKeys
 	) {
-		if (parentContext == null) {
-			if (internalCache == null) {
-				internalCache = new HashMap<>();
+		if (this.parentContext == null) {
+			if (this.internalCache == null) {
+				this.internalCache = new HashMap<>();
 			}
 			final InternalCacheKey cacheKey = new InternalCacheKey(
 				LongStream.concat(
@@ -624,17 +680,17 @@ public class QueryPlanningContext implements LocaleProvider {
 				).toArray(),
 				constraint
 			);
-			final Formula cachedResult = internalCache.get(cacheKey);
+			final Formula cachedResult = this.internalCache.get(cacheKey);
 			if (cachedResult == null) {
 				final Formula computedResult = formulaSupplier.get();
 				computedResult.initialize(this.internalExecutionContext);
-				internalCache.put(cacheKey, computedResult);
+				this.internalCache.put(cacheKey, computedResult);
 				return computedResult;
 			} else {
 				return cachedResult;
 			}
 		} else {
-			return parentContext.computeOnlyOnce(
+			return this.parentContext.computeOnlyOnce(
 				entityIndexes, constraint, formulaSupplier, additionalCacheKeys
 			);
 		}
@@ -738,88 +794,155 @@ public class QueryPlanningContext implements LocaleProvider {
 	 * Sets resolved hierarchy having/exclusion predicate to be shared among filter and requirement phase.
 	 */
 	public void setHierarchyHavingPredicate(@Nonnull HierarchyFilteringPredicate hierarchyHavingPredicate) {
-		Assert.isPremiseValid(this.hierarchyHavingPredicate == null, "The hierarchy exclusion predicate can be set only once!");
+		Assert.isPremiseValid(
+			this.hierarchyHavingPredicate == null || this.hierarchyHavingPredicate.equals(hierarchyHavingPredicate),
+			"The hierarchy exclusion predicate can be set only once!"
+		);
 		this.hierarchyHavingPredicate = hierarchyHavingPredicate;
 	}
 
 	/**
-	 * Returns true if passed `groupId` of `referenceName` facets are requested to be joined by conjunction (AND) instead
-	 * of default disjunction (OR).
+	 * Returns true if passed `groupId` of `referenceName` facets are requested to be joined by conjunction (AND) on
+	 * particular level.
+	 *
+	 * @param referenceSchema reference schema of the facet group
+	 * @param groupId         group id to be tested
+	 * @param level           level of the facet group relation (within group, between groups)
 	 */
-	public boolean isFacetGroupConjunction(@Nonnull ReferenceSchemaContract referenceSchema, @Nullable Integer groupId) {
-		final String referenceName = referenceSchema.getName();
-		final Optional<FacetFilterBy> facetGroupConjunction = getEvitaRequest().getFacetGroupConjunction(referenceName);
-		if (facetGroupConjunction.isEmpty()) {
-			return false;
-		} else if (facetGroupConjunction.get().isFilterDefined()) {
-			if (groupId == null) {
-				return false;
-			} else {
-				return getFacetRelationTuples().computeIfAbsent(
-					new FacetRelationTuple(referenceName, FacetRelation.CONJUNCTION),
-					refName -> new FilteringFormulaPredicate(
-						this, facetGroupConjunction.get().filterBy(),
-						referenceSchema.getReferencedGroupType(),
-						() -> "Facet group conjunction of `" + referenceSchema.getName() + "` filter: " + facetGroupConjunction.get()
-					)
-				).test(groupId);
-			}
-		} else {
-			return true;
-		}
+	public boolean isFacetGroupConjunction(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nullable Integer groupId,
+		@Nonnull FacetGroupRelationLevel level
+	) {
+		return isFacetGroupRelationType(
+			FacetRelationType.CONJUNCTION,
+			referenceSchema, groupId, level,
+			EvitaRequest::getFacetGroupConjunction
+		);
 	}
 
 	/**
-	 * Returns true if passed `groupId` of `referenceName` is requested to be joined with other facet groups by
-	 * disjunction (OR) instead of default conjunction (AND).
+	 * Returns true if passed `groupId` of `referenceName` facets are requested to be joined by disjunction (OR) on
+	 * particular level.
+	 *
+	 * @param referenceSchema reference schema of the facet group
+	 * @param groupId         group id to be tested
+	 * @param level           level of the facet group relation (within group, between groups)
 	 */
-	public boolean isFacetGroupDisjunction(@Nonnull ReferenceSchemaContract referenceSchema, @Nullable Integer groupId) {
-		final String referenceName = referenceSchema.getName();
-		final Optional<FacetFilterBy> facetGroupDisjunction = getEvitaRequest().getFacetGroupDisjunction(referenceName);
-		if (facetGroupDisjunction.isEmpty()) {
-			return false;
-		} else if (facetGroupDisjunction.get().isFilterDefined()) {
-			if (groupId == null) {
-				return false;
-			} else {
-				return getFacetRelationTuples().computeIfAbsent(
-					new FacetRelationTuple(referenceName, FacetRelation.DISJUNCTION),
-					refName -> new FilteringFormulaPredicate(
-						this, facetGroupDisjunction.get().filterBy(),
-						referenceSchema.getReferencedGroupType(),
-						() -> "Facet group disjunction of `" + referenceSchema.getName() + "` filter: " + facetGroupDisjunction.get()
-					)
-				).test(groupId);
-			}
-		} else {
-			return true;
-		}
+	public boolean isFacetGroupDisjunction(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nullable Integer groupId,
+		@Nonnull FacetGroupRelationLevel level
+	) {
+		return isFacetGroupRelationType(
+			FacetRelationType.DISJUNCTION,
+			referenceSchema, groupId, level,
+			EvitaRequest::getFacetGroupDisjunction
+		);
 	}
 
 	/**
-	 * Returns true if passed `groupId` of `referenceName` facets are requested to be joined by negation (AND NOT) instead
-	 * of default disjunction (OR).
+	 * Returns true if passed `groupId` of `referenceName` facets are requested to be joined by negation (AND NOT) on
+	 * particular level.
+	 *
+	 * @param referenceSchema reference schema of the facet group
+	 * @param groupId         group id to be tested
+	 * @param level           level of the facet group relation (within group, between groups)
 	 */
-	public boolean isFacetGroupNegation(@Nonnull ReferenceSchemaContract referenceSchema, @Nullable Integer groupId) {
+	public boolean isFacetGroupNegation(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nullable Integer groupId,
+		@Nonnull FacetGroupRelationLevel level
+	) {
+		return isFacetGroupRelationType(
+			FacetRelationType.NEGATION,
+			referenceSchema, groupId, level,
+			EvitaRequest::getFacetGroupNegation
+		);
+	}
+
+	/**
+	 * Returns true if passed `groupId` of `referenceName` facets are requested to be joined by exclusivity on
+	 * particular level.
+	 *
+	 * @param referenceSchema reference schema of the facet group
+	 * @param groupId         group id to be tested
+	 * @param level           level of the facet group relation (within group, between groups)
+	 */
+	public boolean isFacetGroupExclusivity(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nullable Integer groupId,
+		@Nonnull FacetGroupRelationLevel level
+	) {
+		return isFacetGroupRelationType(
+			FacetRelationType.EXCLUSIVITY,
+			referenceSchema, groupId, level,
+			EvitaRequest::getFacetGroupExclusivity
+		);
+	}
+
+	/**
+	 * Determines whether the specified relation type matches the given facet group relation criteria.
+	 *
+	 * @param relationType the type of the facet relation to be checked
+	 * @param referenceSchema the schema of the reference to which the facet group belongs
+	 * @param groupId the identifier of the group being considered; can be null if no group is specified
+	 * @param level the level of facet group relation that should be considered in the evaluation
+	 * @return {@code true} if the relation type matches the facet group relation criteria, {@code false} otherwise
+	 */
+	private boolean isFacetGroupRelationType(
+		@Nonnull FacetRelationType relationType,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nullable Integer groupId,
+		@Nonnull FacetGroupRelationLevel level,
+		@Nonnull BiFunction<EvitaRequest, String, Optional<FacetFilterBy>> facetSettingsRetriever
+		) {
 		final String referenceName = referenceSchema.getName();
-		final Optional<FacetFilterBy> facetGroupNegation = getEvitaRequest().getFacetGroupNegation(referenceName);
-		if (facetGroupNegation.isEmpty()) {
-			return false;
-		} else if (facetGroupNegation.get().isFilterDefined()) {
-			if (groupId == null) {
-				return false;
-			} else {
-				return getFacetRelationTuples().computeIfAbsent(
-					new FacetRelationTuple(referenceName, FacetRelation.NEGATION),
-					refName -> new FilteringFormulaPredicate(
-						this, facetGroupNegation.get().filterBy(),
-						referenceSchema.getReferencedGroupType(),
-						() -> "Facet group negation of `" + referenceSchema.getName() + "` filter: " + facetGroupNegation.get()
-					)
-				).test(groupId);
-			}
+		final FacetRelationType theDefault = level == FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP ?
+			this.evitaRequest.getDefaultFacetRelationType() : this.evitaRequest.getDefaultGroupRelationType();
+		final Optional<FacetFilterBy> facetSettings = facetSettingsRetriever.apply(this.evitaRequest, referenceName);
+		if (facetSettings.isEmpty()) {
+			return theDefault == relationType;
 		} else {
-			return true;
+			final FacetFilterBy facetFilterBy = facetSettings.get();
+			final FilterBy filterBy = facetFilterBy.filterBy();
+			if (filterBy != null) {
+				if (groupId == null) {
+					return false;
+				} else {
+					final boolean requestedExplicitly = getFacetRelationTuples()
+						.computeIfAbsent(
+							new FacetRelationTuple(referenceName, relationType),
+							refName -> {
+								final String referencedGroupType = referenceSchema.getReferencedGroupType();
+								Assert.isTrue(
+									referencedGroupType != null,
+									() -> "Referenced group type must be defined for facet group " + relationType.name().toLowerCase() + " of `" + referenceName + "`!"
+								);
+								if (referenceSchema.isReferencedGroupTypeManaged()) {
+									return new FilteringFormulaPredicate(
+										this,
+										getScopes(),
+										filterBy,
+										referencedGroupType,
+										() -> "Facet group " + relationType.name().toLowerCase() + " of `" + referenceSchema.getName() + "` filter: " + facetFilterBy
+									);
+								} else {
+									return new FilteringFormulaPredicate(
+										this,
+										getThrowingGlobalIndexesForNonManagedEntityTypeGroup(referenceName, referencedGroupType),
+										filterBy,
+										() -> "Facet group "  + relationType.name().toLowerCase() + " of `" + referenceSchema.getName() + "` filter: " + facetFilterBy
+									);
+								}
+							}
+						)
+						.test(groupId);
+					return requestedExplicitly || theDefault == relationType;
+				}
+			} else {
+				return true;
+			}
 		}
 	}
 
@@ -830,7 +953,7 @@ public class QueryPlanningContext implements LocaleProvider {
 	 */
 	@Nonnull
 	public Bitmap getRootHierarchyNodes() {
-		return ofNullable(rootHierarchyNodesFormula)
+		return ofNullable(this.rootHierarchyNodesFormula)
 			.map(Formula::compute)
 			.orElse(EmptyBitmap.INSTANCE);
 	}
@@ -842,23 +965,24 @@ public class QueryPlanningContext implements LocaleProvider {
 	 */
 	@Nonnull
 	public QueryExecutionContext createExecutionContext() {
-		return this.createExecutionContext(null);
+		return this.createExecutionContext(false, null);
 	}
 
 	/**
 	 * Creates new {@link QueryExecutionContext} that can be used to execute the query plan.
 	 * This overload allows to pass frozen random bytes that will be used for the query execution.
 	 *
+	 * @param prefetchExecution flag that signalizes if the prefetching was executed and filtering should occur on
+	 *                          prefetched entities
+	 * @param frozenRandom      frozen random bytes to be used for the query execution
 	 * @return new query execution context
 	 */
 	@Nonnull
-	public QueryExecutionContext createExecutionContext(@Nullable byte[] frozenRandom) {
-		return new QueryExecutionContext(this, frozenRandom);
+	public QueryExecutionContext createExecutionContext(boolean prefetchExecution, @Nullable byte[] frozenRandom) {
+		return new QueryExecutionContext(
+			this, prefetchExecution, frozenRandom, this.evitaSession::createEntityProxy
+		);
 	}
-
-	/*
-		PRIVATE METHODS
-	 */
 
 	/**
 	 * Method retrieves already assigned masking id for the {@link EntityReference} or creates brand new. This virtual
@@ -887,6 +1011,41 @@ public class QueryPlanningContext implements LocaleProvider {
 		}
 	}
 
+	/*
+		PRIVATE METHODS
+	 */
+
+	/**
+	 * Creates a list of global entity indexes for the given non-managed entity type. Global indexes contains only
+	 * primary keys of groups retrieved from {@link FacetIndex} of the given reference.
+	 *
+	 * @param referenceName       name of the reference to retrieve groups from
+	 * @param referencedGroupType type of the referenced group
+	 * @return list of fake global entity indexes
+	 */
+	@Nonnull
+	private List<GlobalEntityIndex> getThrowingGlobalIndexesForNonManagedEntityTypeGroup(
+		@Nonnull String referenceName,
+		@Nonnull String referencedGroupType
+	) {
+		return getScopes().stream()
+			.map(scope -> {
+				final Optional<Index<EntityIndexKey>> refTypeIndex = getIndex(new EntityIndexKey(EntityIndexType.GLOBAL, scope));
+				return refTypeIndex
+					.map(GlobalEntityIndex.class::cast)
+					.map(index -> index.getFacetingEntities().get(referenceName))
+					.map(facetIndex -> GlobalEntityIndex.createThrowingStub(
+							referencedGroupType,
+							new EntityIndexKey(EntityIndexType.GLOBAL, scope),
+							facetIndex.getGroupsAsMap().keySet()
+						)
+					)
+					.orElse(null);
+			})
+			.filter(Objects::nonNull)
+			.toList();
+	}
+
 	/**
 	 * Lazy initialization of the facet relation tuples.
 	 *
@@ -894,30 +1053,19 @@ public class QueryPlanningContext implements LocaleProvider {
 	 */
 	@Nonnull
 	private Map<FacetRelationTuple, FilteringFormulaPredicate> getFacetRelationTuples() {
-		if (facetRelationTuples == null) {
+		if (this.facetRelationTuples == null) {
 			this.facetRelationTuples = new HashMap<>();
 		}
-		return facetRelationTuples;
+		return this.facetRelationTuples;
 	}
 
 	/**
-	 * The relation that refers to constraint types:
-	 *
-	 * - {@link FacetGroupsConjunction}
-	 * - {@link FacetGroupsDisjunction}
-	 * - {@link FacetGroupsNegation}
-	 */
-	private enum FacetRelation {
-		CONJUNCTION, DISJUNCTION, NEGATION
-	}
-
-	/**
-	 * Tuple that wraps {@link ReferenceSchemaContract#getName()} and {@link FacetRelation} into one object used as
+	 * Tuple that wraps {@link ReferenceSchemaContract#getName()} and {@link FacetRelationType} into one object used as
 	 * the {@link #facetRelationTuples} key.
 	 */
 	private record FacetRelationTuple(
 		@Nonnull String referenceName,
-		@Nonnull FacetRelation relation
+		@Nonnull FacetRelationType relation
 	) {
 
 	}

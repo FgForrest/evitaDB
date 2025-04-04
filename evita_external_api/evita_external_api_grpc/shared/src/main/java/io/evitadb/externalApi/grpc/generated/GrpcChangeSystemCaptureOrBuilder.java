@@ -82,7 +82,7 @@ public interface GrpcChangeSystemCaptureOrBuilder extends
    * the operation that was performed
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation operation = 5;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 5;</code>
    * @return The enum numeric value on the wire for operation.
    */
   int getOperationValue();
@@ -91,10 +91,10 @@ public interface GrpcChangeSystemCaptureOrBuilder extends
    * the operation that was performed
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation operation = 5;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 5;</code>
    * @return The operation.
    */
-  io.evitadb.externalApi.grpc.generated.GrpcCaptureOperation getOperation();
+  io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation getOperation();
 
   /**
    * <pre>

@@ -23,15 +23,25 @@
 
 package io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.serializer;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedGlobalAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
 import io.evitadb.utils.NamingConvention;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.util.Arrays;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.function.Predicate;
 
 /**
  * Ancestor for evitaDB internal schema serialization to JSON.
@@ -54,5 +64,35 @@ public abstract class SchemaJsonSerializer {
 		nameVariantsNode.put(NameVariantsDescriptor.KEBAB_CASE.name(), nameVariants.get(NamingConvention.KEBAB_CASE));
 
 		return nameVariantsNode;
+	}
+
+
+	@Nonnull
+	protected JsonNode serializeFlagInScopes(@Nonnull Predicate<Scope> flagPredicate) {
+		return objectJsonSerializer.serializeArray(Arrays.stream(Scope.values()).filter(flagPredicate).toArray(Scope[]::new));
+	}
+
+	@Nonnull
+	protected JsonNode serializeUniquenessType(@Nonnull Function<Scope, AttributeUniquenessType> uniquenessTypeAccessor) {
+		return Arrays.stream(Scope.values())
+			.map(scope -> {
+				final ObjectNode attributeUniquenessType = objectJsonSerializer.objectNode();
+				attributeUniquenessType.put(ScopedAttributeUniquenessTypeDescriptor.SCOPE.name(), scope.name());
+				attributeUniquenessType.put(ScopedAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), uniquenessTypeAccessor.apply(scope).name());
+				return attributeUniquenessType;
+			})
+			.collect(objectJsonSerializer::arrayNode, ArrayNode::add, ArrayNode::addAll);
+	}
+
+	@Nonnull
+	protected JsonNode serializeGlobalUniquenessType(@Nonnull Function<Scope, GlobalAttributeUniquenessType> uniquenessTypeAccessor) {
+		return Arrays.stream(Scope.values())
+			.map(scope -> {
+				final ObjectNode attributeUniquenessType = objectJsonSerializer.objectNode();
+				attributeUniquenessType.put(ScopedGlobalAttributeUniquenessTypeDescriptor.SCOPE.name(), scope.name());
+				attributeUniquenessType.put(ScopedGlobalAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), uniquenessTypeAccessor.apply(scope).name());
+				return attributeUniquenessType;
+			})
+			.collect(objectJsonSerializer::arrayNode, ArrayNode::add, ArrayNode::addAll);
 	}
 }

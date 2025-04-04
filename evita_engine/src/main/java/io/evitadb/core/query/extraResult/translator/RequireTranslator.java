@@ -27,6 +27,9 @@ import io.evitadb.api.query.require.Require;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
 /**
  * This implementation of {@link RequireConstraintTranslator} simply traverses contents of {@link Require} query.
  *
@@ -34,8 +37,9 @@ import io.evitadb.core.query.extraResult.ExtraResultProducer;
  */
 public class RequireTranslator implements RequireConstraintTranslator<Require> {
 
+	@Nullable
 	@Override
-	public ExtraResultProducer apply(Require requireConstraints, ExtraResultPlanningVisitor extraResultPlanningVisitor) {
+	public ExtraResultProducer createProducer(@Nonnull Require requireConstraints, @Nonnull ExtraResultPlanningVisitor extraResultPlanningVisitor) {
 		// do nothing.
 		return null;
 	}

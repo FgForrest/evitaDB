@@ -169,14 +169,15 @@ Facet summary:
 		[ ] 'usb' (31)
 	stocks: non-grouped [41]:
 		[ ] 'evita' (41)
-	tags: 0 [35]:
+	tags: 0 [18]:
 		[ ] 'sale' (2)
-		[ ] 'new' (17)
 		[ ] 'special-offer' (11)
 		[ ] 'sell-off' (1)
-		[ ] 'recommended' (5)
 		[ ] 'valentine' (1)
-		[ ] 'gift' (12)
 		[ ] 'for-women' (4)
 		[ ] 'for-men' (1)
+	tags: 9 [29]:
+		[ ] 'new' (17)
+		[ ] 'recommended' (5)
+		[ ] 'gift' (12)
 ```

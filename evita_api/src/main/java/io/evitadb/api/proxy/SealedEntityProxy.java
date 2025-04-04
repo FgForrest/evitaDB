@@ -57,6 +57,14 @@ public interface SealedEntityProxy extends
 	Integer getPrimaryKey();
 
 	/**
+	 * Returns the primary key of the underlying sealed entity. Method throws exception when the entity hasn't been
+	 * yet upserted to the database.
+	 *
+	 * @return the primary key of the underlying sealed entity
+	 */
+	int getPrimaryKeyOrThrowException();
+
+	/**
 	 * Retrieves an {@link Optional} that contains an {@link EntityBuilderWithCallback} instance.
 	 * The {@link EntityBuilderWithCallback} contains both {@link EntityBuilder} and callback that should be called
 	 * when the builder mutations is applied via {@link EvitaSessionContract#upsertEntity(Serializable)} method.

@@ -26,9 +26,10 @@ package io.evitadb.index.invertedIndex;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.ConsistencySensitiveDataStructure.ConsistencyReport;
-import io.evitadb.ConsistencySensitiveDataStructure.ConsistencyState;
 import io.evitadb.comparator.LocalizedStringComparator;
+import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyReport;
+import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyState;
+import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.store.index.serializer.InvertedIndexSerializer;
 import io.evitadb.store.index.serializer.TransactionalIntegerBitmapSerializer;
@@ -43,6 +44,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import javax.annotation.Nonnull;
+import java.io.Serializable;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.function.Function;
@@ -110,7 +112,7 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 		"horší",
 		"hostina"
 	};
-	private final InvertedIndex<Integer> tested = new InvertedIndex<>((Comparator<Integer>) Comparator.naturalOrder());
+	private final InvertedIndex tested = new InvertedIndex(FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder());
 
 	@BeforeEach
 	void setUp() {
@@ -143,12 +145,12 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 
 				assertArrayEquals(
 					new ValueToRecordBitmap[]{
-						new ValueToRecordBitmap<>(1, 10),
-						new ValueToRecordBitmap<>(5, 1, 7, 20),
-						new ValueToRecordBitmap<>(10, 3),
-						new ValueToRecordBitmap<>(12, 18),
-						new ValueToRecordBitmap<>(15, 2, 4),
-						new ValueToRecordBitmap<>(20, 5, 11)
+						new ValueToRecordBitmap(1, 10),
+						new ValueToRecordBitmap(5, 1, 7, 20),
+						new ValueToRecordBitmap(10, 3),
+						new ValueToRecordBitmap(12, 18),
+						new ValueToRecordBitmap(15, 2, 4),
+						new ValueToRecordBitmap(20, 5, 11)
 					},
 					original.getValueToRecordBitmap()
 				);
@@ -157,10 +159,10 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 				assertNull(committed);
 				assertArrayEquals(
 					new ValueToRecordBitmap[]{
-						new ValueToRecordBitmap<>(5, 1, 20),
-						new ValueToRecordBitmap<>(10, 3),
-						new ValueToRecordBitmap<>(15, 2, 4),
-						new ValueToRecordBitmap<>(20, 5)
+						new ValueToRecordBitmap(5, 1, 20),
+						new ValueToRecordBitmap(10, 3),
+						new ValueToRecordBitmap(15, 2, 4),
+						new ValueToRecordBitmap(20, 5)
 					},
 					original.getValueToRecordBitmap()
 				);
@@ -177,11 +179,11 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 
 				assertArrayEquals(
 					new ValueToRecordBitmap[]{
-						new ValueToRecordBitmap<>(5, 1, 20),
-						new ValueToRecordBitmap<>(10, 3),
-						new ValueToRecordBitmap<>(15, 2, 4),
-						new ValueToRecordBitmap<>(20, 5),
-						new ValueToRecordBitmap<>(55, 78)
+						new ValueToRecordBitmap(5, 1, 20),
+						new ValueToRecordBitmap(10, 3),
+						new ValueToRecordBitmap(15, 2, 4),
+						new ValueToRecordBitmap(20, 5),
+						new ValueToRecordBitmap(55, 78)
 					},
 					original.getValueToRecordBitmap()
 				);
@@ -189,20 +191,20 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 			(original, committed) -> {
 				assertArrayEquals(
 					new ValueToRecordBitmap[]{
-						new ValueToRecordBitmap<>(5, 1, 20),
-						new ValueToRecordBitmap<>(10, 3),
-						new ValueToRecordBitmap<>(15, 2, 4),
-						new ValueToRecordBitmap<>(20, 5)
+						new ValueToRecordBitmap(5, 1, 20),
+						new ValueToRecordBitmap(10, 3),
+						new ValueToRecordBitmap(15, 2, 4),
+						new ValueToRecordBitmap(20, 5)
 					},
 					original.getValueToRecordBitmap()
 				);
 				assertArrayEquals(
 					new ValueToRecordBitmap[]{
-						new ValueToRecordBitmap<>(5, 1, 20),
-						new ValueToRecordBitmap<>(10, 3),
-						new ValueToRecordBitmap<>(15, 2, 4),
-						new ValueToRecordBitmap<>(20, 5),
-						new ValueToRecordBitmap<>(55, 78)
+						new ValueToRecordBitmap(5, 1, 20),
+						new ValueToRecordBitmap(10, 3),
+						new ValueToRecordBitmap(15, 2, 4),
+						new ValueToRecordBitmap(20, 5),
+						new ValueToRecordBitmap(55, 78)
 					},
 					committed.getValueToRecordBitmap()
 				);
@@ -219,9 +221,9 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 
 				assertArrayEquals(
 					new ValueToRecordBitmap[]{
-						new ValueToRecordBitmap<>(5, 1, 20),
-						new ValueToRecordBitmap<>(15, 2, 4),
-						new ValueToRecordBitmap<>(20, 5)
+						new ValueToRecordBitmap(5, 1, 20),
+						new ValueToRecordBitmap(15, 2, 4),
+						new ValueToRecordBitmap(20, 5)
 					},
 					original.getValueToRecordBitmap()
 				);
@@ -229,18 +231,18 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 			(original, committed) -> {
 				assertArrayEquals(
 					new ValueToRecordBitmap[]{
-						new ValueToRecordBitmap<>(5, 1, 20),
-						new ValueToRecordBitmap<>(10, 3),
-						new ValueToRecordBitmap<>(15, 2, 4),
-						new ValueToRecordBitmap<>(20, 5)
+						new ValueToRecordBitmap(5, 1, 20),
+						new ValueToRecordBitmap(10, 3),
+						new ValueToRecordBitmap(15, 2, 4),
+						new ValueToRecordBitmap(20, 5)
 					},
 					original.getValueToRecordBitmap()
 				);
 				assertArrayEquals(
 					new ValueToRecordBitmap[]{
-						new ValueToRecordBitmap<>(5, 1, 20),
-						new ValueToRecordBitmap<>(15, 2, 4),
-						new ValueToRecordBitmap<>(20, 5)
+						new ValueToRecordBitmap(5, 1, 20),
+						new ValueToRecordBitmap(15, 2, 4),
+						new ValueToRecordBitmap(20, 5)
 					},
 					committed.getValueToRecordBitmap()
 				);
@@ -260,12 +262,12 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 
 				assertArrayEquals(
 					new ValueToRecordBitmap[]{
-						new ValueToRecordBitmap<>(1, 10),
-						new ValueToRecordBitmap<>(5, 1, 7, 20),
-						new ValueToRecordBitmap<>(10, 3),
-						new ValueToRecordBitmap<>(12, 18),
-						new ValueToRecordBitmap<>(15, 2, 4),
-						new ValueToRecordBitmap<>(20, 5, 11)
+						new ValueToRecordBitmap(1, 10),
+						new ValueToRecordBitmap(5, 1, 7, 20),
+						new ValueToRecordBitmap(10, 3),
+						new ValueToRecordBitmap(12, 18),
+						new ValueToRecordBitmap(15, 2, 4),
+						new ValueToRecordBitmap(20, 5, 11)
 					},
 					original.getValueToRecordBitmap()
 				);
@@ -273,21 +275,21 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 			(original, committed) -> {
 				assertArrayEquals(
 					new ValueToRecordBitmap[]{
-						new ValueToRecordBitmap<>(5, 1, 20),
-						new ValueToRecordBitmap<>(10, 3),
-						new ValueToRecordBitmap<>(15, 2, 4),
-						new ValueToRecordBitmap<>(20, 5)
+						new ValueToRecordBitmap(5, 1, 20),
+						new ValueToRecordBitmap(10, 3),
+						new ValueToRecordBitmap(15, 2, 4),
+						new ValueToRecordBitmap(20, 5)
 					},
 					original.getValueToRecordBitmap()
 				);
 				assertArrayEquals(
 					new ValueToRecordBitmap[]{
-						new ValueToRecordBitmap<>(1, 10),
-						new ValueToRecordBitmap<>(5, 1, 7, 20),
-						new ValueToRecordBitmap<>(10, 3),
-						new ValueToRecordBitmap<>(12, 18),
-						new ValueToRecordBitmap<>(15, 2, 4),
-						new ValueToRecordBitmap<>(20, 5, 11)
+						new ValueToRecordBitmap(1, 10),
+						new ValueToRecordBitmap(5, 1, 7, 20),
+						new ValueToRecordBitmap(10, 3),
+						new ValueToRecordBitmap(12, 18),
+						new ValueToRecordBitmap(15, 2, 4),
+						new ValueToRecordBitmap(20, 5, 11)
 					},
 					committed.getValueToRecordBitmap()
 				);
@@ -298,7 +300,7 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldAddAndRemoveItemsInTransaction() {
 		assertStateAfterCommit(
-			new InvertedIndex<Integer>(Comparator.naturalOrder()),
+			new InvertedIndex(FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder()),
 			original -> {
 				original.addRecord(5, 7);
 				original.addRecord(12, 18);
@@ -334,8 +336,8 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 
 				assertArrayEquals(
 					new ValueToRecordBitmap[]{
-						new ValueToRecordBitmap<>(5, 20),
-						new ValueToRecordBitmap<>(15, 2, 4)
+						new ValueToRecordBitmap(5, 20),
+						new ValueToRecordBitmap(15, 2, 4)
 					},
 					original.getValueToRecordBitmap()
 				);
@@ -343,17 +345,17 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 			(original, committed) -> {
 				assertArrayEquals(
 					new ValueToRecordBitmap[]{
-						new ValueToRecordBitmap<>(5, 1, 20),
-						new ValueToRecordBitmap<>(10, 3),
-						new ValueToRecordBitmap<>(15, 2, 4),
-						new ValueToRecordBitmap<>(20, 5)
+						new ValueToRecordBitmap(5, 1, 20),
+						new ValueToRecordBitmap(10, 3),
+						new ValueToRecordBitmap(15, 2, 4),
+						new ValueToRecordBitmap(20, 5)
 					},
 					original.getValueToRecordBitmap()
 				);
 				assertArrayEquals(
 					new ValueToRecordBitmap[]{
-						new ValueToRecordBitmap<>(5, 20),
-						new ValueToRecordBitmap<>(15, 2, 4)
+						new ValueToRecordBitmap(5, 20),
+						new ValueToRecordBitmap(15, 2, 4)
 					},
 					committed.getValueToRecordBitmap()
 				);
@@ -401,7 +403,7 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 
 		byte[] bytes = output.getBuffer();
 
-		final InvertedIndex<?> deserializedTested = kryo.readObject(new Input(bytes), InvertedIndex.class);
+		final InvertedIndex deserializedTested = kryo.readObject(new Input(bytes), InvertedIndex.class);
 		assertEquals(tested, deserializedTested);
 	}
 
@@ -502,7 +504,7 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldGenerationalTestPass() {
-		final InvertedIndex<Long> histogram = new InvertedIndex<>((Comparator<Long>) Comparator.naturalOrder());
+		final InvertedIndex histogram = new InvertedIndex(FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder());
 		histogram.addRecord(64L, 36, 47);
 		histogram.addRecord(0L, 10);
 		histogram.addRecord(65L, 90);
@@ -661,14 +663,14 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 	void generationalProofTestLocalized(GenerationalTestInput input) {
 		doExecute(
 			100,
-			new GenerationalTestInput(1, 1),
+			input,
 			String.class,
 			new LocalizedStringComparator(new Locale("cs")),
 			random -> NATIONAL_SPECIFIC_WORDS[random.nextInt(NATIONAL_SPECIFIC_WORDS.length)]
 		);
 	}
 
-	private <T extends Comparable<T>> void doExecute(
+	private <T extends Serializable> void doExecute(
 		int initialCount,
 		@Nonnull GenerationalTestInput input,
 		@Nonnull Class<T> type,
@@ -697,7 +699,7 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 					)
 					.append("\nOps:\n");
 
-				final InvertedIndex<T> histogram = new InvertedIndex<>(comparator);
+				final InvertedIndex histogram = new InvertedIndex(FilterIndex.NO_NORMALIZATION, comparator);
 				for (Entry<T, List<Integer>> entry : mapToCompare.entrySet()) {
 					histogram.addRecord(
 						entry.getKey(),
@@ -808,11 +810,11 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 		);
 	}
 
-	private static <T extends Comparable<T>> int indexOf(@Nonnull Set<T> values, @Nonnull T valueToFind) {
+	private static <T extends Serializable> int indexOf(@Nonnull Set<T> values, @Nonnull T valueToFind) {
 		int result = -1;
 		for (T value : values) {
 			result++;
-			if (valueToFind.compareTo(value) == 0) {
+			if (((Comparable)valueToFind).compareTo(value) == 0) {
 				return result;
 			}
 		}

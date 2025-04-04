@@ -27,6 +27,7 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.query.require.PriceHistogram;
 import lombok.RequiredArgsConstructor;
 
@@ -41,11 +42,12 @@ public class PriceHistogramSerializer extends Serializer<PriceHistogram> {
 	@Override
 	public void write(Kryo kryo, Output output, PriceHistogram object) {
 		output.writeInt(object.getRequestedBucketCount());
+		kryo.writeObject(output, object.getBehavior());
 	}
 
 	@Override
 	public PriceHistogram read(Kryo kryo, Input input, Class<? extends PriceHistogram> type) {
-		return new PriceHistogram(input.readInt());
+		return new PriceHistogram(input.readInt(), kryo.readObject(input, HistogramBehavior.class));
 	}
 
 }

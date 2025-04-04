@@ -37,6 +37,7 @@ import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.dataType.IntegerNumberRange;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -181,23 +182,23 @@ class ExistingAttributesBuilderTest extends AbstractBuilderTest {
 		final Attributes<EntityAttributeSchemaContract> attributes = builder.build();
 
 		assertEquals(
-			EntityAttributeSchema._internalBuild("int", null, false, false, false, false, false, Integer.class, null),
+			EntityAttributeSchema._internalBuild("int", null, Scope.NO_SCOPE, Scope.NO_SCOPE, false, false, false, Integer.class, null),
 			attributes.getAttributeSchema("int").orElse(null)
 		);
 		assertEquals(
-			EntityAttributeSchema._internalBuild("short", null, false, false, false, false, false, Short.class, null),
+			EntityAttributeSchema._internalBuild("short", null, Scope.NO_SCOPE, Scope.NO_SCOPE, false, false, false, Short.class, null),
 			attributes.getAttributeSchema("short").orElse(null)
 		);
 		assertEquals(
-			EntityAttributeSchema._internalBuild("range", null, false, false, false, false, false, IntegerNumberRange.class, null),
+			EntityAttributeSchema._internalBuild("range", null, Scope.NO_SCOPE, Scope.NO_SCOPE, false, false, false, IntegerNumberRange.class, null),
 			attributes.getAttributeSchema("range").orElse(null)
 		);
 		assertEquals(
-			EntityAttributeSchema._internalBuild("bigDecimal", null, false, false, false, false, false, BigDecimal.class, null),
+			EntityAttributeSchema._internalBuild("bigDecimal", null, Scope.NO_SCOPE, Scope.NO_SCOPE, false, false, false, BigDecimal.class, null),
 			attributes.getAttributeSchema("bigDecimal").orElse(null)
 		);
 		assertEquals(
-			EntityAttributeSchema._internalBuild("greetings", null, false, false, true, false, false, String.class, null),
+			EntityAttributeSchema._internalBuild("greetings", null, Scope.NO_SCOPE, Scope.NO_SCOPE, true, false, false, String.class, null),
 			attributes.getAttributeSchema("greetings").orElse(null)
 		);
 	}

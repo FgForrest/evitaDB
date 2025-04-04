@@ -87,7 +87,7 @@ public interface GrpcEntityRequestOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 4;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryParam>
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryParam> 
       getPositionalQueryParamsList();
   /**
    * <pre>
@@ -112,7 +112,7 @@ public interface GrpcEntityRequestOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 4;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryParamOrBuilder>
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryParamOrBuilder> 
       getPositionalQueryParamsOrBuilderList();
   /**
    * <pre>
@@ -177,4 +177,53 @@ public interface GrpcEntityRequestOrBuilder extends
 
   io.evitadb.externalApi.grpc.generated.GrpcQueryParam getNamedQueryParamsOrThrow(
       java.lang.String key);
+
+  /**
+   * <pre>
+   * The set of scopes to search for the entity.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope scopes = 6;</code>
+   * @return A list containing the scopes.
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getScopesList();
+  /**
+   * <pre>
+   * The set of scopes to search for the entity.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope scopes = 6;</code>
+   * @return The count of scopes.
+   */
+  int getScopesCount();
+  /**
+   * <pre>
+   * The set of scopes to search for the entity.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope scopes = 6;</code>
+   * @param index The index of the element to return.
+   * @return The scopes at the given index.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcEntityScope getScopes(int index);
+  /**
+   * <pre>
+   * The set of scopes to search for the entity.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope scopes = 6;</code>
+   * @return A list containing the enum numeric values on the wire for scopes.
+   */
+  java.util.List<java.lang.Integer>
+  getScopesValueList();
+  /**
+   * <pre>
+   * The set of scopes to search for the entity.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope scopes = 6;</code>
+   * @param index The index of the value to return.
+   * @return The enum numeric value on the wire of scopes at the given index.
+   */
+  int getScopesValue(int index);
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,10 +24,11 @@
 package io.evitadb.externalApi.observability.metric;
 
 import io.evitadb.api.EvitaContract;
+import io.evitadb.api.observability.HealthProblem;
+import io.evitadb.api.observability.ReadinessState;
 import io.evitadb.core.Evita;
 import io.evitadb.core.async.ObservableExecutorService;
 import io.evitadb.externalApi.api.system.ProbesProvider;
-import io.evitadb.externalApi.api.system.model.HealthProblem;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.http.ExternalApiServer;
@@ -38,6 +39,8 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Closeable;
+import java.io.IOException;
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
 import java.time.Duration;
@@ -48,9 +51,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static java.util.Optional.ofNullable;
 
 /**
  * This class is responsible for detecting health problems in the system. It monitors:
@@ -67,10 +75,11 @@ import java.util.concurrent.atomic.AtomicReference;
  * 5. The readiness of the external APIs. If at least one external API is not ready, the system is considered unhealthy.
  */
 @Slf4j
-public class ObservabilityProbesDetector implements ProbesProvider {
+public class ObservabilityProbesDetector implements ProbesProvider, Closeable {
 	private static final Set<HealthProblem> NO_HEALTH_PROBLEMS = EnumSet.noneOf(HealthProblem.class);
 	private static final Set<String> OLD_GENERATION_GC_NAMES = Set.of("G1 Old Generation", "PS MarkSweep", "ConcurrentMarkSweep");
 	private static final Duration HEALTH_CHECK_READINESS_RENEW_INTERVAL = Duration.ofSeconds(30);
+	private static final AtomicBoolean HEALTH_CHECK_RUNNING = new AtomicBoolean(false);
 
 	private final Runtime runtime = Runtime.getRuntime();
 	private final List<GarbageCollectorMXBean> garbageCollectorMXBeans = ManagementFactory.getGarbageCollectorMXBeans()
@@ -85,30 +94,31 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 	private final AtomicLong lastSeenJavaGarbageCollections = new AtomicLong(0L);
 	private final AtomicBoolean seenReady = new AtomicBoolean();
 	private final AtomicReference<ReadinessWithTimestamp> lastReadinessSeen = new AtomicReference<>();
-	private ObservabilityManager observabilityManager;
+	private ExecutorService internalExecutor;
+	@Nullable private ObservabilityManager observabilityManager;
 
 	/**
 	 * Records the result of the health problem check.
 	 *
-	 * @param healthProblem           the result of the health problem check
-	 * @param healthProblems          the set of health problems
-	 * @param theObservabilityManager the observability manager for recording the health problem
+	 * @param healthProblemCheckResult the result of the health problem check
+	 * @param healthProblems           the set of health problems
+	 * @param theObservabilityManager  the observability manager for recording the health problem
 	 */
 	private static void recordResult(
-		@Nonnull HealthProblemCheckResult healthProblem,
+		@Nonnull HealthProblemCheckResult healthProblemCheckResult,
 		@Nonnull Set<HealthProblem> healthProblems,
 		@Nullable ObservabilityManager theObservabilityManager
 	) {
-		if (healthProblem.present()) {
-			if (healthProblem.healthProblem() != null) {
-				healthProblems.add(healthProblem.healthProblem());
+		if (healthProblemCheckResult.present()) {
+			if (healthProblemCheckResult.healthProblem() != null) {
+				healthProblems.add(healthProblemCheckResult.healthProblem());
 			}
 			if (theObservabilityManager != null) {
-				theObservabilityManager.recordHealthProblem(healthProblem.healthProblemName());
+				theObservabilityManager.recordHealthProblem(healthProblemCheckResult.healthProblemName());
 			}
 		} else {
 			if (theObservabilityManager != null) {
-				theObservabilityManager.clearHealthProblem(healthProblem.healthProblemName());
+				theObservabilityManager.clearHealthProblem(healthProblemCheckResult.healthProblemName());
 			}
 		}
 	}
@@ -133,14 +143,7 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 			recordResult(checkJavaErrors(theObservabilityManager), healthProblems, theObservabilityManager);
 		}
 
-		final ReadinessWithTimestamp readinessWithTimestamp = this.lastReadinessSeen.get();
-		if (readinessWithTimestamp == null ||
-			(OffsetDateTime.now().minus(HEALTH_CHECK_READINESS_RENEW_INTERVAL).isAfter(readinessWithTimestamp.timestamp()) ||
-				readinessWithTimestamp.result().state() != ReadinessState.READY)
-		) {
-			// enforce renewal of readiness check
-			getReadiness(evitaContract, externalApiServer, apiCodes);
-		}
+		getReadiness(evitaContract, externalApiServer, apiCodes);
 
 		recordResult(checkApiReadiness(), healthProblems, theObservabilityManager);
 
@@ -150,31 +153,93 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 	@Nonnull
 	@Override
 	public Readiness getReadiness(@Nonnull EvitaContract evitaContract, @Nonnull ExternalApiServer externalApiServer, @Nonnull String... apiCodes) {
-		final Optional<ObservabilityManager> theObservabilityManager = getObservabilityManager(externalApiServer);
-		// check the end-points availability
-		//noinspection rawtypes
-		final Collection<ExternalApiProviderRegistrar> availableExternalApis = ExternalApiServer.gatherExternalApiProviders();
-		final Map<String, Boolean> readiness = CollectionUtils.createHashMap(availableExternalApis.size());
-		for (String apiCode : apiCodes) {
-			final ExternalApiProvider<?> apiProvider = externalApiServer.getExternalApiProviderByCode(apiCode);
-			final boolean ready = apiProvider.isReady();
-			readiness.put(apiProvider.getCode(), ready);
-			theObservabilityManager.ifPresent(it -> it.recordReadiness(apiProvider.getCode(), ready));
+		final ReadinessWithTimestamp readinessWithTimestamp = this.lastReadinessSeen.get();
+		final Readiness currentReadiness;
+		if (readinessWithTimestamp == null ||
+			(OffsetDateTime.now().minus(HEALTH_CHECK_READINESS_RENEW_INTERVAL).isAfter(readinessWithTimestamp.timestamp()) ||
+				readinessWithTimestamp.result().state() != ReadinessState.READY)
+		) {
+			if (HEALTH_CHECK_RUNNING.compareAndSet(false, true)) {
+				try {
+					// enforce renewal of readiness check
+					final Optional<ObservabilityManager> theObservabilityManager = getObservabilityManager(externalApiServer);
+					// check the end-points availability
+					//noinspection rawtypes
+					final Collection<ExternalApiProviderRegistrar> availableExternalApis = ExternalApiServer.gatherExternalApiProviders();
+					final Map<String, Boolean> readiness = CollectionUtils.createHashMap(availableExternalApis.size());
+					final CompletableFuture<?>[] futures = new CompletableFuture[apiCodes.length];
+					for (int i = 0; i < apiCodes.length; i++) {
+						final String apiCode = apiCodes[i];
+						futures[i] = CompletableFuture.runAsync(
+							() -> {
+								final ExternalApiProvider<?> apiProvider = externalApiServer.getExternalApiProviderByCode(apiCode);
+								final boolean ready = apiProvider != null && apiProvider.isReady();
+								synchronized (readiness) {
+									readiness.put(apiCode, ready);
+								}
+								theObservabilityManager.ifPresent(it -> it.recordReadiness(apiCode, ready));
+							},
+							getInternalExecutor(availableExternalApis.size())
+						);
+					}
+
+					// run all checks in parallel
+					CompletableFuture.allOf(futures).join();
+					final boolean ready = readiness.values().stream().allMatch(Boolean::booleanValue);
+					if (ready) {
+						this.seenReady.set(true);
+					}
+					currentReadiness = new Readiness(
+						ready ? ReadinessState.READY : (this.seenReady.get() ? ReadinessState.STALLING : ReadinessState.STARTING),
+						readiness.entrySet().stream()
+							.map(entry -> new ApiState(entry.getKey(), entry.getValue()))
+							.toArray(ApiState[]::new)
+					);
+					this.lastReadinessSeen.set(
+						new ReadinessWithTimestamp(currentReadiness, OffsetDateTime.now())
+					);
+				} finally {
+					HEALTH_CHECK_RUNNING.compareAndSet(true, false);
+				}
+			} else {
+				currentReadiness = ofNullable(this.lastReadinessSeen.get())
+					.map(ReadinessWithTimestamp::result)
+					.orElse(
+						new Readiness(
+							ReadinessState.UNKNOWN,
+							ExternalApiServer.gatherExternalApiProviders()
+								.stream()
+								.map(it -> new ApiState(it.getExternalApiCode(), false))
+								.toArray(ApiState[]::new)
+						)
+					);
+			}
+		} else {
+			currentReadiness = readinessWithTimestamp.result();
 		}
-		final boolean ready = readiness.values().stream().allMatch(Boolean::booleanValue);
-		if (ready) {
-			this.seenReady.set(true);
-		}
-		final Readiness currentReadiness = new Readiness(
-			ready ? ReadinessState.READY : (this.seenReady.get() ? ReadinessState.STALLING : ReadinessState.STARTING),
-			readiness.entrySet().stream()
-				.map(entry -> new ApiState(entry.getKey(), entry.getValue()))
-				.toArray(ApiState[]::new)
-		);
-		this.lastReadinessSeen.set(
-			new ReadinessWithTimestamp(currentReadiness, OffsetDateTime.now())
-		);
 		return currentReadiness;
+	}
+
+	@Override
+	public void close() throws IOException {
+		if (this.internalExecutor != null) {
+			this.internalExecutor.shutdown();
+		}
+	}
+
+	/**
+	 * We create separate thread pool service to avoid contention of default internal Java fork-join pool. We don't
+	 * use evitaDB thread pools to avoid contention with the main thread pool as well.
+	 *
+	 * @param parallelism the parallelism level
+	 * @return the executor service
+	 */
+	@Nonnull
+	private ExecutorService getInternalExecutor(int parallelism) {
+		if (this.internalExecutor == null) {
+			this.internalExecutor = new ForkJoinPool(parallelism);
+		}
+		return this.internalExecutor;
 	}
 
 	/**
@@ -285,14 +350,14 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 	@Nonnull
 	private Optional<ObservabilityManager> getObservabilityManager(@Nonnull ExternalApiServer externalApiServer) {
 		if (this.observabilityManager == null) {
-			final Optional<ObservabilityProvider> apiProvider = Optional.ofNullable(
+			final Optional<ObservabilityProvider> apiProvider = ofNullable(
 				externalApiServer.getExternalApiProviderByCode(ObservabilityProvider.CODE)
 			);
 			this.observabilityManager = apiProvider
 				.map(ObservabilityProvider::getObservabilityManager)
 				.orElse(null);
 		}
-		return Optional.ofNullable(this.observabilityManager);
+		return ofNullable(this.observabilityManager);
 	}
 
 	/**
@@ -307,11 +372,11 @@ public class ObservabilityProbesDetector implements ProbesProvider {
 		boolean present
 	) {
 
-		public HealthProblemCheckResult(@Nullable HealthProblem healthProblem, boolean present) {
+		public HealthProblemCheckResult(@Nonnull HealthProblem healthProblem, boolean present) {
 			this(healthProblem, healthProblem.name(), present);
 		}
 
-		public HealthProblemCheckResult(@Nullable String healthProblem, boolean present) {
+		public HealthProblemCheckResult(@Nonnull String healthProblem, boolean present) {
 			this(null, healthProblem, present);
 		}
 

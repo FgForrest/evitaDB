@@ -23,14 +23,16 @@
 
 package io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute;
 
+import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import java.util.List;
 
 /**
- * Descriptor of aggregate object containing all implementations of {@link io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation}
- * aplicable to {@link io.evitadb.api.requestResponse.data.ReferenceContract} for schema-based external APIs.
+ * Descriptor of aggregate object containing all implementations of {@link AttributeMutation}
+ * applicable to {@link ReferenceContract} for schema-based external APIs.
  *
  * Note: this descriptor has static structure
  *

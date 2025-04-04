@@ -30,6 +30,7 @@ import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.dataType.Predecessor;
+import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.ShortNumberRange;
 import io.evitadb.externalApi.dataType.DataTypeSerializer;
 import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiDictionaryTransformer;
@@ -136,6 +137,7 @@ public abstract class RestBuilder<C extends RestBuildingContext> {
 		scalarEnumBuilder.item(DataTypeSerializer.serialize(UUID.class));
 		scalarEnumBuilder.item(DataTypeSerializer.serialize(UUID[].class));
 		scalarEnumBuilder.item(DataTypeSerializer.serialize(Predecessor.class));
+		scalarEnumBuilder.item(DataTypeSerializer.serialize(ReferencedEntityPredecessor.class));
 		scalarEnumBuilder.item(DataTypeSerializer.serialize(ComplexDataObject.class));
 
 		return scalarEnumBuilder.build();

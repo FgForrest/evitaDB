@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -44,6 +44,7 @@ import io.evitadb.api.observability.trace.TracingBlockReference;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
 import io.evitadb.externalApi.exception.HttpExchangeException;
@@ -109,13 +110,14 @@ public class GraphQLWebHandler extends EndpointHandler<GraphQLEndpointExecutionC
 
 	public GraphQLWebHandler(
         @Nonnull Evita evita,
+        @Nonnull HeaderOptions headers,
 		@Nonnull ObjectMapper objectMapper,
 		@Nonnull GraphQLInstanceType instanceType,
 		@Nonnull AtomicReference<GraphQL> graphQL
 	) {
         this.evita = evita;
 		this.objectMapper = objectMapper;
-		this.tracingContext = ExternalApiTracingContextProvider.getContext();
+		this.tracingContext = ExternalApiTracingContextProvider.getContext(headers);
 		this.instanceType = instanceType;
 		this.graphQL = graphQL;
 	}
@@ -152,8 +154,12 @@ public class GraphQLWebHandler extends EndpointHandler<GraphQLEndpointExecutionC
     protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull GraphQLEndpointExecutionContext executionContext) {
         return parseRequestBody(executionContext, GraphQLRequest.class)
             .thenApply(graphQLRequest -> {
-	            executionContext.requestExecutedEvent().finishInputDeserialization();
-                final GraphQLResponse<?> graphQLResponse = executeRequest(executionContext, graphQLRequest);
+                executionContext.requestExecutedEvent().finishInputDeserialization();
+                final GraphQLResponse<?> graphQLResponse = this.tracingContext.executeWithinBlock(
+                    "GraphQL",
+                    executionContext.httpRequest(),
+                    () -> executeRequest(executionContext, graphQLRequest)
+                );
                 return new SuccessEndpointResponse(graphQLResponse);
             });
     }

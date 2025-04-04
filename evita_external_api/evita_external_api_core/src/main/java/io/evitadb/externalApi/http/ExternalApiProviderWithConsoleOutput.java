@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,14 +23,14 @@
 
 package io.evitadb.externalApi.http;
 
-import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
+import io.evitadb.externalApi.configuration.AbstractApiOptions;
 
 /**
  * Extension of the {@link ExternalApiProvider} that allows to print output to console.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public interface ExternalApiProviderWithConsoleOutput<T extends AbstractApiConfiguration> extends ExternalApiProvider<T> {
+public interface ExternalApiProviderWithConsoleOutput<T extends AbstractApiOptions> extends ExternalApiProvider<T> {
 
 	/**
 	 * Method is called at the moment the provider is initialized and allows to print output to console.

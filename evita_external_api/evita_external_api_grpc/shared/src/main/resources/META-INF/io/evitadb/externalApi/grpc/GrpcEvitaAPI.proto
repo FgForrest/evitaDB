@@ -5,11 +5,15 @@ option java_multiple_files = true;
 option csharp_namespace = "EvitaDB";
 
 import "google/protobuf/empty.proto";
-import "google/protobuf/wrappers.proto";
 import "GrpcEnums.proto";
-import "GrpcEvitaDataTypes.proto";
 import "GrpcCatalogSchemaMutation.proto";
 import "GrpcChangeCapture.proto";
+
+// Response to a server status request.
+message GrpcReadyResponse {
+  // Always true when returned
+  bool ready = 1;
+}
 
 // Request to create a session inside of a catalog.
 message GrpcEvitaSessionRequest {
@@ -111,10 +115,12 @@ message GrpcUpdateEvitaRequest {
   repeated GrpcTopLevelCatalogSchemaMutation schemaMutations = 1;
 }
 
+/* TODO JNO - document */
 message GrpcRegisterSystemChangeCaptureRequest {
-  GrpcCaptureContent content = 1;
+  GrpcChangeCaptureContent content = 1;
 }
 
+/* TODO JNO - document */
 message GrpcRegisterSystemChangeCaptureResponse {
   GrpcChangeSystemCapture capture = 1;
 }
@@ -122,6 +128,8 @@ message GrpcRegisterSystemChangeCaptureResponse {
 // This service contains RPCs that could be called by gRPC clients on evitaDB. Main purpose of this service is to provide
 // a way to create sessions and catalogs, and to update the catalog.
 service EvitaService {
+  // Procedure used to check readiness of the API
+  rpc IsReady(google.protobuf.Empty) returns (GrpcReadyResponse);
   // Procedure used to create read only sessions.
   rpc CreateReadOnlySession(GrpcEvitaSessionRequest) returns (GrpcEvitaSessionResponse);
   // Procedure used to create read write sessions.

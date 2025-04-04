@@ -1,7 +1,9 @@
 <component name="CopyrightManager">
-  <settings default="evitaDB copyright">
+  <settings>
     <module2copyright>
       <element module="Undertow" copyright="Undertow copyright" />
+      <element module="Documentation" copyright="No copyright" />
+      <element module="All" copyright="evitaDB copyright" />
     </module2copyright>
   </settings>
 </component>

@@ -1,195 +1,259 @@
 ```json
 {
-  "primaryKey": 63049,
-  "type": "Product",
-  "version": 1,
-  "locales": [
+  "primaryKey" : 63049,
+  "type" : "Product",
+  "version" : 2,
+  "scope" : "LIVE",
+  "locales" : [
     "en"
   ],
-  "allLocales": [
+  "allLocales" : [
     "cs",
     "en"
   ],
-  "attributes": {
-    "global": {
-      "availability": "ALWAYS_AVAILABLE",
-      "brandCode": "apple",
-      "catalogNumber": "3872990",
-      "changed": "2024-02-25T14:38:35+01:00",
-      "code": "macbook-pro-13-2022",
-      "codeShort": "macbook-pro-13-2022",
-      "displaySize": "13.30000",
-      "ean": "15491963",
-      "isAlias": false,
-      "minOrderQuantity": "1.00000",
-      "order": 104526,
-      "orderedQuantity": "0.00000",
-      "productType": "MASTER",
-      "published": "2024-04-15T17:41:45+02:00",
-      "rating": "0",
-      "ratingVotes": 0,
-      "saleRestriction": "WITHOUT_RESTRICTION",
-      "status": "ACTIVE",
-      "stepOrderQuantity": "1.00000",
-      "stockItemPrimaryKey": 1450,
-      "unit": "ks",
-      "warrantyPeriod": 24
+  "attributes" : {
+    "global" : {
+      "availability" : "ALWAYS_AVAILABLE",
+      "brandCode" : "apple",
+      "catalogNumber" : "3872990",
+      "changed" : "2024-02-25T14:38:35+01:00",
+      "code" : "macbook-pro-13-2022",
+      "codeShort" : "macbook-pro-13-2022",
+      "displaySize" : "13.30000",
+      "ean" : "15491963",
+      "isAlias" : false,
+      "maxOrderQuantity" : "9999",
+      "minOrderQuantity" : "1.00000",
+      "order" : 104526,
+      "orderedQuantity" : "0.00000",
+      "productType" : "MASTER",
+      "published" : "2024-11-30T15:29:05.76+01:00",
+      "rating" : "0",
+      "ratingVotes" : 0,
+      "saleRestriction" : "WITHOUT_RESTRICTION",
+      "status" : "ACTIVE",
+      "stepOrderQuantity" : "1.00000",
+      "stockItemPrimaryKey" : 1450,
+      "unit" : "ks",
+      "warrantyPeriod" : 24
     },
-    "localized": {
-      "en": {
-        "name": "Macbook Pro 13 2022",
-        "url": "/en/macbook-pro-13-2022"
+    "localized" : {
+      "en" : {
+        "name" : "Macbook Pro 13 2022",
+        "url" : "/en/macbook-pro-13-2022"
       }
     }
   },
-  "associatedData": {
-    "global": {
-      "allActiveUrls": [
+  "associatedData" : {
+    "global" : {
+      "allActiveUrls" : [
         {
-          "locale": "cs",
-          "url": "/cs/macbook-pro-13-2022"
+          "locale" : "cs",
+          "url" : "/cs/macbook-pro-13-2022"
         },
         {
-          "locale": "en",
-          "url": "/en/macbook-pro-13-2022"
+          "locale" : "en",
+          "url" : "/en/macbook-pro-13-2022"
         }
       ]
     },
-    "localized": {
-      "en": {
-        "localization": {
-          "labels": {
-            "metaOgDescription": "Macbook Pro 13 2022",
-            "metaTwitterDescription": "Macbook Pro 13 2022",
-            "metaOgTitle": "Macbook Pro 13 2022",
-            "metaTitle": "Macbook Pro 13 2022",
-            "name": "Macbook Pro 13 2022",
-            "fulltextKeywords": "Macbook Pro 13 2022",
-            "metaTwitterTitle": "Macbook Pro 13 2022",
-            "zboziTitle": "Macbook Pro 13 2022",
-            "title": "Macbook Pro 13 2022",
-            "metaDescription": "Macbook Pro 13 2022",
-            "heurekaTitle": "Macbook Pro 13 2022"
+    "localized" : {
+      "en" : {
+        "localization" : {
+          "labels" : {
+            "metaOgDescription" : "Macbook Pro 13 2022",
+            "metaTwitterDescription" : "Macbook Pro 13 2022",
+            "metaOgTitle" : "Macbook Pro 13 2022",
+            "metaTitle" : "Macbook Pro 13 2022",
+            "name" : "Macbook Pro 13 2022",
+            "fulltextKeywords" : "Macbook Pro 13 2022",
+            "metaTwitterTitle" : "Macbook Pro 13 2022",
+            "zboziTitle" : "Macbook Pro 13 2022",
+            "title" : "Macbook Pro 13 2022",
+            "metaDescription" : "Macbook Pro 13 2022",
+            "heurekaTitle" : "Macbook Pro 13 2022"
           }
         }
       }
     }
   },
-  "brand": {
-    "referencedPrimaryKey": 66465
+  "productSetItems" : [ ],
+  "relatedProducts" : [ ],
+  "groups" : [
+    {
+      "referencedPrimaryKey" : 66503
+    }
+  ],
+  "variants" : [
+    {
+      "referencedPrimaryKey" : 66554
+    },
+    {
+      "referencedPrimaryKey" : 66556
+    },
+    {
+      "referencedPrimaryKey" : 66559
+    },
+    {
+      "referencedPrimaryKey" : 66561
+    },
+    {
+      "referencedPrimaryKey" : 66562
+    },
+    {
+      "referencedPrimaryKey" : 66563
+    },
+    {
+      "referencedPrimaryKey" : 66565
+    },
+    {
+      "referencedPrimaryKey" : 66566
+    },
+    {
+      "referencedPrimaryKey" : 66567
+    },
+    {
+      "referencedPrimaryKey" : 66569
+    },
+    {
+      "referencedPrimaryKey" : 66570
+    },
+    {
+      "referencedPrimaryKey" : 66571
+    },
+    {
+      "referencedPrimaryKey" : 66572
+    },
+    {
+      "referencedPrimaryKey" : 66573
+    },
+    {
+      "referencedPrimaryKey" : 66574
+    },
+    {
+      "referencedPrimaryKey" : 66575
+    },
+    {
+      "referencedPrimaryKey" : 66576
+    },
+    {
+      "referencedPrimaryKey" : 66577
+    }
+  ],
+  "variantParameters" : [
+    {
+      "referencedPrimaryKey" : 66460
+    },
+    {
+      "referencedPrimaryKey" : 66461
+    },
+    {
+      "referencedPrimaryKey" : 66462
+    },
+    {
+      "referencedPrimaryKey" : 66463
+    },
+    {
+      "referencedPrimaryKey" : 66464
+    }
+  ],
+  "stockVisibilities" : [ ],
+  "stocks" : [
+    {
+      "referencedPrimaryKey" : 119334
+    }
+  ],
+  "tags" : [ ],
+  "master" : null,
+  "bundles" : [ ],
+  "categories" : [
+    {
+      "referencedPrimaryKey" : 66470
+    },
+    {
+      "referencedPrimaryKey" : 66479
+    }
+  ],
+  "brand" : {
+    "referencedPrimaryKey" : 66465
   },
-  "categories": [
+  "parameterValues" : [
     {
-      "referencedPrimaryKey": 66470
-    },
-    {
-      "referencedPrimaryKey": 66479
-    }
-  ],
-  "groups": [
-    {
-      "referencedPrimaryKey": 66503
-    }
-  ],
-  "parameterValues": [
-    {
-      "referencedPrimaryKey": 66549,
-      "groupEntity": {
-        "primaryKey": 66460,
-        "type": "Parameter"
+      "referencedPrimaryKey" : 66549,
+      "groupEntity" : {
+        "primaryKey" : 66460,
+        "type" : "Parameter"
       }
     },
     {
-      "referencedPrimaryKey": 66551,
-      "groupEntity": {
-        "primaryKey": 66462,
-        "type": "Parameter"
+      "referencedPrimaryKey" : 66551,
+      "groupEntity" : {
+        "primaryKey" : 66462,
+        "type" : "Parameter"
       }
     },
     {
-      "referencedPrimaryKey": 66552,
-      "groupEntity": {
-        "primaryKey": 66463,
-        "type": "Parameter"
+      "referencedPrimaryKey" : 66552,
+      "groupEntity" : {
+        "primaryKey" : 66463,
+        "type" : "Parameter"
       }
     },
     {
-      "referencedPrimaryKey": 66553,
-      "groupEntity": {
-        "primaryKey": 66464,
-        "type": "Parameter"
+      "referencedPrimaryKey" : 66553,
+      "groupEntity" : {
+        "primaryKey" : 66464,
+        "type" : "Parameter"
       }
     },
     {
-      "referencedPrimaryKey": 66555,
-      "groupEntity": {
-        "primaryKey": 66463,
-        "type": "Parameter"
+      "referencedPrimaryKey" : 66555,
+      "groupEntity" : {
+        "primaryKey" : 66463,
+        "type" : "Parameter"
       }
     },
     {
-      "referencedPrimaryKey": 66557,
-      "groupEntity": {
-        "primaryKey": 66460,
-        "type": "Parameter"
+      "referencedPrimaryKey" : 66557,
+      "groupEntity" : {
+        "primaryKey" : 66460,
+        "type" : "Parameter"
       }
     },
     {
-      "referencedPrimaryKey": 66558,
-      "groupEntity": {
-        "primaryKey": 66463,
-        "type": "Parameter"
+      "referencedPrimaryKey" : 66558,
+      "groupEntity" : {
+        "primaryKey" : 66463,
+        "type" : "Parameter"
       }
     },
     {
-      "referencedPrimaryKey": 114000,
-      "groupEntity": {
-        "primaryKey": 66464,
-        "type": "Parameter"
+      "referencedPrimaryKey" : 114000,
+      "groupEntity" : {
+        "primaryKey" : 66464,
+        "type" : "Parameter"
       }
     },
     {
-      "referencedPrimaryKey": 114003,
-      "groupEntity": {
-        "primaryKey": 66464,
-        "type": "Parameter"
+      "referencedPrimaryKey" : 114003,
+      "groupEntity" : {
+        "primaryKey" : 66464,
+        "type" : "Parameter"
       }
     },
     {
-      "referencedPrimaryKey": 114018,
-      "groupEntity": {
-        "primaryKey": 114004,
-        "type": "Parameter"
+      "referencedPrimaryKey" : 114018,
+      "groupEntity" : {
+        "primaryKey" : 114004,
+        "type" : "Parameter"
       }
     },
     {
-      "referencedPrimaryKey": 114020,
-      "groupEntity": {
-        "primaryKey": 66461,
-        "type": "Parameter"
+      "referencedPrimaryKey" : 114020,
+      "groupEntity" : {
+        "primaryKey" : 66461,
+        "type" : "Parameter"
       }
-    }
-  ],
-  "stocks": [
-    {
-      "referencedPrimaryKey": 119334
-    }
-  ],
-  "variantParameters": [
-    {
-      "referencedPrimaryKey": 66460
-    },
-    {
-      "referencedPrimaryKey": 66461
-    },
-    {
-      "referencedPrimaryKey": 66462
-    },
-    {
-      "referencedPrimaryKey": 66463
-    },
-    {
-      "referencedPrimaryKey": 66464
     }
   ]
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query;
 
+import io.evitadb.api.exception.UnexpectedResultException;
 import io.evitadb.api.observability.trace.TracingContext.SpanAttribute;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.Query;
@@ -31,22 +32,27 @@ import io.evitadb.api.requestResponse.EvitaBinaryEntityResponse;
 import io.evitadb.api.requestResponse.EvitaEntityReferenceResponse;
 import io.evitadb.api.requestResponse.EvitaEntityResponse;
 import io.evitadb.api.requestResponse.EvitaRequest;
+import io.evitadb.api.requestResponse.EvitaRequest.ResultForm;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
+import io.evitadb.api.requestResponse.chunk.OffsetAndLimit;
+import io.evitadb.api.requestResponse.chunk.Slicer;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.core.metric.event.query.FinishedEvent;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.prefetch.PrefetchFactory;
+import io.evitadb.core.query.algebra.prefetch.PrefetchOrder;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
-import io.evitadb.core.query.response.EntityFetchAwareDecorator;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
-import io.evitadb.core.query.sort.ConditionalSorter;
+import io.evitadb.core.query.sort.NoSorter;
 import io.evitadb.core.query.sort.Sorter;
-import io.evitadb.core.query.sort.utils.SortUtils;
+import io.evitadb.core.query.sort.Sorter.SortingContext;
 import io.evitadb.dataType.DataChunk;
+import io.evitadb.dataType.PaginatedList;
+import io.evitadb.dataType.StripList;
+import io.evitadb.utils.ArrayUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.Delegate;
@@ -58,6 +64,8 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedList;
+import java.util.List;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase.EXTRA_RESULT_ITEM_FABRICATION;
@@ -72,6 +80,10 @@ import static java.util.Optional.ofNullable;
 @RequiredArgsConstructor
 @Slf4j
 public class QueryPlan {
+	public static final Function<SealedEntity, ?> CONVERSION_NOT_SUPPORTED = (sealedEntity) -> {
+		throw new UnsupportedOperationException();
+	};
+
 	/**
 	 * Reference to the query context that allows to access entity bodies, indexes, original request and much more.
 	 */
@@ -88,18 +100,22 @@ public class QueryPlan {
 	@Nonnull
 	private final Formula filter;
 	/**
-	 * Optional visitor that collected information about target entities so that they can
-	 * be fetched upfront and filtered/ordered by their properties.
+	 * Optional prefetcher that can be used to load entities in advance to speed up the filtering process or to
+	 * retrieve data, that cannot be located in the entity indexes.
 	 */
-	@Nonnull
-	private final PrefetchFactory prefetchFactory;
+	@Nullable
+	private final PrefetchOrder prefetcher;
 	/**
 	 * Contains prepared sorter implementation that takes output of the filtering process and sorts the entity
 	 * primary keys according to {@link OrderConstraint} in {@link EvitaRequest}.
 	 */
 	@Getter
 	@Nonnull
-	private final Sorter sorter;
+	private final Collection<Sorter> sorters;
+	/**
+	 * Contains slicer implementation that calculates offset and limit for paginating the result.
+	 */
+	private final Slicer slicer;
 	/**
 	 * Contains collections of computational objects that produce {@link EvitaResponseExtraResult} DTOs in reaction
 	 * to {@link RequireConstraint} that are part of the input {@link EvitaRequest}.
@@ -115,11 +131,6 @@ public class QueryPlan {
 	 */
 	@Getter
 	private int[] primaryKeys;
-	/**
-	 * Contains TRUE if the entities were prefetched when the query plan was executed.
-	 */
-	@Getter
-	private boolean prefetched;
 
 	/**
 	 * Creates slice of entity primary keys that respect filtering query, specified sorting and is sliced according
@@ -130,20 +141,43 @@ public class QueryPlan {
 		@Nonnull QueryExecutionContext queryContext,
 		int totalRecordCount,
 		@Nonnull Formula filteringFormula,
-		@Nonnull Sorter sorter
+		@Nonnull Collection<Sorter> sorters,
+		@Nonnull OffsetAndLimit offsetAndLimit
 	) {
-		final EvitaRequest evitaRequest = queryContext.getEvitaRequest();
-		final int firstRecordOffset = evitaRequest.getFirstRecordOffset(totalRecordCount);
-		sorter = ConditionalSorter.getFirstApplicableSorter(queryContext, sorter);
-		final int[] result = new int[Math.min(totalRecordCount, evitaRequest.getLimit())];
-		final int peak = sorter.sortAndSlice(
-			queryContext, filteringFormula,
-			Math.max(0, firstRecordOffset),
-			firstRecordOffset + evitaRequest.getLimit(),
-			result,
-			0
-		);
-		return SortUtils.asResult(result, peak);
+		if (offsetAndLimit.offset() >= totalRecordCount) {
+			return ArrayUtils.EMPTY_INT_ARRAY;
+		} else {
+			final int[] result = new int[Math.min(totalRecordCount - offsetAndLimit.offset(), offsetAndLimit.limit())];
+			SortingContext sortingContext = new SortingContext(
+				queryContext,
+				filteringFormula.compute(),
+				offsetAndLimit.offset(),
+				offsetAndLimit.offset() + offsetAndLimit.limit(),
+				0,
+				0
+			);
+			for (Sorter sorter : sorters) {
+				sortingContext = sorter.sortAndSlice(sortingContext, result, null);
+				if (sortingContext.peak() == result.length) {
+					break;
+				}
+			}
+			// append the rest of the records if not all are sorted
+			if (sortingContext.peak() < result.length) {
+				NoSorter.INSTANCE.sortAndSlice(sortingContext, result, null);
+			}
+			return result;
+		}
+	}
+
+	/**
+	 * Retrieves the source query associated with the current query context.
+	 *
+	 * @return the source {@link Query} used for the current Evita request
+	 */
+	@Nonnull
+	public Query getSourceQuery() {
+		return this.queryContext.getEvitaRequest().getQuery();
 	}
 
 	/**
@@ -164,21 +198,24 @@ public class QueryPlan {
 	 */
 	@Nonnull
 	public <S extends Serializable, T extends EvitaResponse<S>> T execute(@Nullable byte[] frozenRandom) {
-		try (final QueryExecutionContext executionContext = this.queryContext.createExecutionContext(frozenRandom)) {
-			executionContext.pushStep(QueryPhase.EXECUTION);
-
+		final boolean prefetchedDataSuitableForFiltering = this.prefetcher != null && this.prefetcher.isPrefetchedEntitiesSuitableForFiltering();
+		try (
+			final QueryExecutionContext executionContext = this.queryContext.createExecutionContext(
+				prefetchedDataSuitableForFiltering,
+				frozenRandom
+			)
+		) {
+			this.queryContext.pushStep(QueryPhase.EXECUTION);
 			try {
 				// prefetch the entities to allow using them in filtering / sorting in next step
-				this.prefetchFactory.createPrefetchLambdaIfNeededOrWorthwhile(executionContext)
-					.ifPresent(prefetchLambda -> {
+				if (this.prefetcher != null) {
+					try {
 						executionContext.pushStep(QueryPhase.EXECUTION_PREFETCH);
-						try {
-							this.prefetched = true;
-							prefetchLambda.run();
-						} finally {
-							executionContext.popStep();
-						}
-					});
+						executionContext.prefetchEntities(this.prefetcher);
+					} finally {
+						executionContext.popStep();
+					}
+				}
 
 				executionContext.pushStep(QueryPhase.EXECUTION_FILTER);
 				try {
@@ -189,28 +226,45 @@ public class QueryPlan {
 					executionContext.popStep();
 				}
 
+				// sort and slice results
 				executionContext.pushStep(QueryPhase.EXECUTION_SORT_AND_SLICE);
+				final EvitaRequest evitaRequest = this.queryContext.getEvitaRequest();
+				final OffsetAndLimit offsetAndLimit;
 				try {
 					this.initSorter(executionContext);
+					offsetAndLimit = this.slicer.calculateOffsetAndLimit(
+						evitaRequest.getResultForm(), evitaRequest.getStart(), evitaRequest.getLimit(), this.totalRecordCount
+					);
 					this.primaryKeys = sortAndSliceResult(
 						executionContext, this.totalRecordCount,
-						this.filter, this.sorter
+						this.filter, this.sorters,
+						offsetAndLimit
 					);
 				} finally {
 					popStep();
 				}
 
+				// finally, fabricate extra results
+				final EvitaResponseExtraResult[] extraResults = fabricateExtraResults(executionContext);
+
+				// wrap data and return the result
 				final T result;
-				final EvitaRequest evitaRequest = executionContext.getEvitaRequest();
+				//noinspection rawtypes
+				final Class expectedType = evitaRequest.getExpectedType();
 				// if full entity bodies are requested
 				if (evitaRequest.isRequiresEntity()) {
 					executionContext.pushStep(QueryPhase.FETCHING);
 					try {
 						if (executionContext.isRequiresBinaryForm()) {
 							// transform PKs to rich SealedEntities
-							final DataChunk<BinaryEntity> dataChunk = evitaRequest.createDataChunk(
+							//noinspection unchecked
+							final DataChunk<BinaryEntity> dataChunk = createDataChunk(
+								expectedType,
+								evitaRequest.getResultForm(),
+								offsetAndLimit,
 								this.totalRecordCount,
-								executionContext.fetchBinaryEntities(this.primaryKeys)
+								executionContext.fetchBinaryEntities(this.primaryKeys),
+								CONVERSION_NOT_SUPPORTED
 							);
 
 							// this may produce ClassCast exception if client assigns variable to different result than requests
@@ -218,14 +272,19 @@ public class QueryPlan {
 							result = (T) new EvitaBinaryEntityResponse(
 								evitaRequest.getQuery(),
 								dataChunk,
-								// fabricate extra results
-								fabricateExtraResults(executionContext, dataChunk)
+								this.primaryKeys,
+								extraResults
 							);
 						} else {
 							// transform PKs to rich SealedEntities
-							final DataChunk<SealedEntity> dataChunk = evitaRequest.createDataChunk(
+							//noinspection unchecked
+							final DataChunk<SealedEntity> dataChunk = createDataChunk(
+								expectedType,
+								evitaRequest.getResultForm(),
+								offsetAndLimit,
 								this.totalRecordCount,
-								executionContext.fetchEntities(this.primaryKeys)
+								executionContext.fetchEntities(this.primaryKeys),
+								sealedEntity -> executionContext.convertToRequestedType(expectedType, sealedEntity)
 							);
 
 							// this may produce ClassCast exception if client assigns variable to different result than requests
@@ -233,8 +292,8 @@ public class QueryPlan {
 							result = (T) new EvitaEntityResponse<>(
 								evitaRequest.getQuery(),
 								dataChunk,
-								// fabricate extra results
-								fabricateExtraResults(executionContext, dataChunk)
+								this.primaryKeys,
+								extraResults
 							);
 						}
 					} finally {
@@ -242,14 +301,19 @@ public class QueryPlan {
 					}
 				} else {
 					// this may produce ClassCast exception if client assigns variable to different result than requests
-					final DataChunk<EntityReference> dataChunk = evitaRequest.createDataChunk(
+					//noinspection unchecked
+					final DataChunk<EntityReference> dataChunk = createDataChunk(
+						expectedType,
+						evitaRequest.getResultForm(),
+						offsetAndLimit,
 						this.totalRecordCount,
 						Arrays.stream(this.primaryKeys)
 							// returns simple reference to the entity (i.e. primary key and type of the entity)
 							// TOBEDONE JNO - we should return a reference including the actual entity version information
 							// so that the client might implement its local cache
 							.mapToObj(executionContext::translateToEntityReference)
-							.collect(Collectors.toList())
+							.collect(Collectors.toList()),
+						CONVERSION_NOT_SUPPORTED
 					);
 
 					// this may produce ClassCast exception if client assigns variable to different result than requests
@@ -257,33 +321,24 @@ public class QueryPlan {
 					result = (T) new EvitaEntityReferenceResponse(
 						evitaRequest.getQuery(),
 						dataChunk,
-						// fabricate extra results
-						fabricateExtraResults(executionContext, dataChunk)
+						this.primaryKeys,
+						extraResults
 					);
 				}
 
 				ofNullable(this.queryContext.getQueryFinishedEvent())
-					.ifPresent(it -> {
-						int ioFetchCount = 0;
-						int ioFetchedSizeBytes = 0;
-						for (S record : result.getRecordData()) {
-							if (record instanceof EntityFetchAwareDecorator efad) {
-								ioFetchCount += efad.getIoFetchCount();
-								ioFetchedSizeBytes += efad.getIoFetchedBytes();
-							}
-						}
-						it.finish(
-							this.prefetched,
+					.ifPresent(
+						it -> it.finish(
+							prefetchedDataSuitableForFiltering,
 							this.filter.getEstimatedCardinality(),
 							this.primaryKeys == null ? 0 : this.primaryKeys.length,
 							this.totalRecordCount,
-							ioFetchCount,
-							ioFetchedSizeBytes,
+							result.getIoFetchCount(),
+							result.getIoFetchedSizeBytes(),
 							this.filter.getEstimatedCost(),
 							this.filter.getCost()
-						).commit();
-					});
-
+						).commit()
+					);
 				return result;
 			} finally {
 				executionContext.popStep();
@@ -297,19 +352,19 @@ public class QueryPlan {
 	 * call. This method is expected to be called only once, though.
 	 */
 	@Nonnull
-	public EvitaResponseExtraResult[] fabricateExtraResults(@Nonnull QueryExecutionContext executionContext, @Nonnull DataChunk<? extends Serializable> dataChunk) {
+	public EvitaResponseExtraResult[] fabricateExtraResults(@Nonnull QueryExecutionContext executionContext) {
 		final LinkedList<EvitaResponseExtraResult> extraResults = new LinkedList<>();
-		if (!extraResultProducers.isEmpty()) {
+		if (!this.extraResultProducers.isEmpty()) {
 			executionContext.pushStep(QueryPhase.EXTRA_RESULTS_FABRICATION);
 			try {
-				for (ExtraResultProducer extraResultProducer : extraResultProducers) {
+				for (ExtraResultProducer extraResultProducer : this.extraResultProducers) {
 					// register sub-step for each fabricator so that we can track which were the costly ones
 					executionContext.pushStep(
 						EXTRA_RESULT_ITEM_FABRICATION,
 						extraResultProducer.getClass().getSimpleName()
 					);
 					try {
-						final EvitaResponseExtraResult extraResult = extraResultProducer.fabricate(executionContext, dataChunk.getData());
+						final EvitaResponseExtraResult extraResult = extraResultProducer.fabricate(executionContext);
 						if (extraResult != null) {
 							extraResults.add(extraResult);
 						}
@@ -339,7 +394,7 @@ public class QueryPlan {
 	public String getDescription() {
 		final StringBuilder result = new StringBuilder(512);
 		final EvitaRequest evitaRequest = this.queryContext.getEvitaRequest();
-		final int offset = evitaRequest.getFirstRecordOffset();
+		final int offset = evitaRequest.getStart();
 		final int limit = evitaRequest.getLimit();
 		final String entityType = ofNullable(evitaRequest.getEntityType()).orElse("<ANY TYPE>");
 		result.append("offset ")
@@ -366,35 +421,94 @@ public class QueryPlan {
 	 */
 	@Nonnull
 	public SpanAttribute[] getSpanAttributes() {
-		final Query query = this.getEvitaRequest().getQuery();
+		final EvitaRequest evitaRequest = this.getEvitaRequest();
+		final Query query = evitaRequest.getQuery();
 		final FinishedEvent queryFinishedEvent = queryContext.getQueryFinishedEvent();
-		return new SpanAttribute[] {
-			new SpanAttribute("collection", query.getCollection() == null ? "<NONE>" : query.getCollection().toString()),
-			new SpanAttribute("filter", query.getFilterBy() == null ? "<NONE>" : query.getFilterBy().toString()),
-			new SpanAttribute("order", query.getOrderBy() == null ? "<NONE>" : query.getOrderBy().toString()),
-			new SpanAttribute("require", query.getRequire() == null ? "<NONE>" : query.getRequire().toString()),
-			new SpanAttribute("prefetch", queryFinishedEvent.getPrefetched()),
-			new SpanAttribute("scannedRecords", queryFinishedEvent.getScanned()),
-			new SpanAttribute("totalRecordCount", queryFinishedEvent.getFound()),
-			new SpanAttribute("returnedRecordCount", queryFinishedEvent.getReturned()),
-			new SpanAttribute("fetchedRecordCount", queryFinishedEvent.getFetched()),
-			new SpanAttribute("fetchedRecordSizeBytes", queryFinishedEvent.getFetchedSizeBytes()),
-			new SpanAttribute("estimatedComplexity", queryFinishedEvent.getEstimatedComplexity()),
-			new SpanAttribute("complexity", queryFinishedEvent.getRealComplexity())
+		if (queryFinishedEvent == null) {
+			return SpanAttribute.EMPTY_ARRAY;
+		} else {
+			final SpanAttribute[] systemAttributes = {
+				new SpanAttribute("collection", query.getCollection() == null ? "<NONE>" : query.getCollection().toString()),
+				new SpanAttribute("filter", query.getFilterBy() == null ? "<NONE>" : query.getFilterBy().toString()),
+				new SpanAttribute("order", query.getOrderBy() == null ? "<NONE>" : query.getOrderBy().toString()),
+				new SpanAttribute("require", query.getRequire() == null ? "<NONE>" : query.getRequire().toString()),
+				new SpanAttribute("prefetch", queryFinishedEvent.getPrefetched() == null ? "<NONE>" : queryFinishedEvent.getPrefetched()),
+				new SpanAttribute("scannedRecords", queryFinishedEvent.getScanned()),
+				new SpanAttribute("totalRecordCount", queryFinishedEvent.getFound()),
+				new SpanAttribute("returnedRecordCount", queryFinishedEvent.getReturned()),
+				new SpanAttribute("fetchedRecordCount", queryFinishedEvent.getFetched()),
+				new SpanAttribute("fetchedRecordSizeBytes", queryFinishedEvent.getFetchedSizeBytes()),
+				new SpanAttribute("estimatedComplexity", queryFinishedEvent.getEstimatedComplexity()),
+				new SpanAttribute("complexity", queryFinishedEvent.getRealComplexity())
+			};
+			if (evitaRequest.getLabels().length > 0) {
+				return ArrayUtils.mergeArrays(
+					systemAttributes,
+					Arrays.stream(evitaRequest.getLabels())
+						.map(label -> new SpanAttribute(label.getLabelName(), label.getLabelValue()))
+						.toArray(SpanAttribute[]::new)
+				);
+			} else {
+				return systemAttributes;
+			}
+		}
+	}
+
+	/**
+	 * Method creates requested implementation of {@link DataChunk} with results.
+	 */
+	@Nonnull
+	public <T extends Serializable> DataChunk<T> createDataChunk(
+		@Nonnull Class<T> expectedType,
+		@Nonnull ResultForm resultForm,
+		@Nonnull OffsetAndLimit offsetAndLimit,
+		int totalRecordCount,
+		@Nonnull List<T> data,
+		@Nonnull Function<SealedEntity, ?> converter
+	) {
+		if (!data.isEmpty()) {
+			if (!expectedType.isInstance(data.get(0))) {
+				if (data.get(0) instanceof SealedEntity) {
+					//noinspection unchecked
+					data = (List<T>) data.stream()
+						.map(SealedEntity.class::cast)
+						.map(converter)
+						.toList();
+				} else {
+					throw new UnexpectedResultException(expectedType, data.get(0).getClass());
+				}
+			}
+		}
+
+		final int limit = offsetAndLimit.limit();
+		return switch (resultForm) {
+			case PAGINATED_LIST -> new PaginatedList<>(
+				limit == 0 ? 1 : offsetAndLimit.length() / limit,
+				offsetAndLimit.lastPageNumber(),
+				limit,
+				totalRecordCount,
+				data
+			);
+			case STRIP_LIST -> new StripList<>(
+				offsetAndLimit.offset(),
+				limit,
+				totalRecordCount,
+				data
+			);
 		};
 	}
 
 	/**
 	 * Method initializes sorter and all its nested sorters.
+	 *
 	 * @param executionContext the execution context to use
 	 */
 	private void initSorter(@Nonnull QueryExecutionContext executionContext) {
-		Sorter theSorter = this.sorter;
-		while (theSorter != null) {
+		for (Sorter theSorter : sorters) {
 			if (theSorter instanceof TransactionalDataRelatedStructure tdrs) {
 				tdrs.initialize(executionContext);
 			}
-			theSorter = theSorter.getNextSorter();
 		}
 	}
+
 }

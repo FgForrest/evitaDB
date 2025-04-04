@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,18 +23,21 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint;
 
+import io.evitadb.api.query.visitor.QueryPurifierVisitor;
 import io.evitadb.exception.EvitaInternalError;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.GenericDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 import io.evitadb.test.Entities;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.utils.ListBuilder.list;
 import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -88,8 +91,8 @@ class RequireConstraintResolverTest extends AbstractConstraintResolverTest {
 				)
 			),
 			resolver.resolve(
-				new HierarchyDataLocator(Entities.PRODUCT),
-				new HierarchyDataLocator(Entities.PRODUCT),
+				new HierarchyDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
+				new HierarchyDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				"stopAt",
 				map()
 					.e("node", map()
@@ -111,8 +114,7 @@ class RequireConstraintResolverTest extends AbstractConstraintResolverTest {
 				)
 			),
 			resolver.resolve(
-				null,
-				new GenericDataLocator(Entities.PRODUCT),
+				new GenericDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				"require",
 				map()
 					.e("entityFetch", map()
@@ -132,8 +134,7 @@ class RequireConstraintResolverTest extends AbstractConstraintResolverTest {
 				)
 			),
 			resolver.resolve(
-				null,
-				new GenericDataLocator(Entities.PRODUCT),
+				new GenericDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				"require",
 				map()
 					.e("entityFetch", map()
@@ -145,8 +146,36 @@ class RequireConstraintResolverTest extends AbstractConstraintResolverTest {
 	}
 
 	@Test
+	void shouldResolveComplexRequireAndFilterOutUndefinedConstraints() {
+		assertEquals(
+			require(
+				facetGroupsDisjunction(
+					"CATEGORY",
+					filterBy(
+						entityPrimaryKeyInSet(123)
+					)
+				)
+			),
+			QueryPurifierVisitor.purify(
+				Objects.requireNonNull(
+					resolver.resolve(
+						new GenericDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
+						"require",
+						map()
+							.e("priceType", null)
+							.e("facetCategoryGroupsDisjunction", map()
+								.e("filterBy", map()
+									.e("entityPrimaryKeyInSet", list()
+										.i(123))))
+							.build()
+					)
+				)
+			)
+		);
+	}
+
+	@Test
 	void shouldNotResolveValueRequireConstraint() {
-		assertThrows(EvitaInvalidUsageException.class, () -> resolver.resolve(Entities.PRODUCT, "facetBrandSummary", null));
 		assertThrows(EvitaInternalError.class, () -> resolver.resolve(Entities.PRODUCT, "facetBrandGroupsConjunction", List.of()));
 	}
 }

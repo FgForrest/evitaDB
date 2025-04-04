@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.data.annotation;
 
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.dataType.Scope;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
@@ -35,6 +36,8 @@ import java.lang.annotation.Target;
  * Annotation is used to mark a field, getter method or record component as reference of the entity to another entity.
  * This information, annotation attribute values and target field/method/component signature allows to generate
  * {@link ReferenceSchemaContract}.
+ *
+ * If you set up bi-directional reference, you need to use {@link ReflectedReference} annotation as well.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -118,5 +121,13 @@ public @interface Reference {
 	 * Propagates to {@link ReferenceSchemaContract#isFaceted()}.
 	 */
 	boolean faceted() default false;
+
+	/**
+	 * Allows to define different settings for different scopes. If not specified, the general settings apply only to
+	 * the {@link Scope#LIVE} and in the {@link Scope#ARCHIVED} the reference and its attributes are not indexed
+	 * whatsoever (not filterable, not sortable, not unique, not faceted). If scope settings are specified for
+	 * {@link Scope#LIVE}, the general settings are ignored completely.
+	 */
+	ScopeReferenceSettings[] scope() default {};
 
 }

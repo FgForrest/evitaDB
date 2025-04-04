@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.http.ExternalApiServer;
-import io.evitadb.externalApi.observability.configuration.ObservabilityConfig;
+import io.evitadb.externalApi.observability.configuration.ObservabilityOptions;
 import io.evitadb.externalApi.observability.configuration.TracingConfig;
 import io.evitadb.externalApi.observability.trace.OpenTelemetryTracerSetup;
 
@@ -40,7 +40,7 @@ import java.util.Arrays;
  *
  * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
-public class ObservabilityProviderRegistrar implements ExternalApiProviderRegistrar<ObservabilityConfig> {
+public class ObservabilityProviderRegistrar implements ExternalApiProviderRegistrar<ObservabilityOptions> {
 	@Nonnull
 	@Override
 	public String getExternalApiCode() {
@@ -49,8 +49,8 @@ public class ObservabilityProviderRegistrar implements ExternalApiProviderRegist
 
 	@Nonnull
 	@Override
-	public Class<ObservabilityConfig> getConfigurationClass() {
-		return ObservabilityConfig.class;
+	public Class<ObservabilityOptions> getConfigurationClass() {
+		return ObservabilityOptions.class;
 	}
 
 	/**
@@ -63,18 +63,26 @@ public class ObservabilityProviderRegistrar implements ExternalApiProviderRegist
 
 	@Nonnull
 	@Override
-	public ExternalApiProvider<ObservabilityConfig> register(@Nonnull Evita evita, @Nonnull ExternalApiServer externalApiServer, @Nonnull ApiOptions apiOptions, @Nonnull ObservabilityConfig observabilityConfig) {
-		final ObservabilityManager observabilityManager = new ObservabilityManager(observabilityConfig, evita);
+	public ExternalApiProvider<ObservabilityOptions> register(
+		@Nonnull Evita evita,
+		@Nonnull ExternalApiServer externalApiServer,
+		@Nonnull ApiOptions apiOptions,
+		@Nonnull ObservabilityOptions observabilityConfig
+	) {
+		final ObservabilityManager observabilityManager = new ObservabilityManager(
+			apiOptions.headers(), observabilityConfig, evita
+		);
 		final TracingConfig tracingConfig = observabilityConfig.getTracing();
-		if (tracingConfig != null && tracingConfig.getEndpoint() != null) {
+		if (tracingConfig != null && tracingConfig.endpoint() != null) {
 			OpenTelemetryTracerSetup.setTracingConfig(observabilityConfig.getTracing());
 		}
 		observabilityManager.registerPrometheusMetricHandler();
 		return new ObservabilityProvider(
 			observabilityConfig,
 			observabilityManager,
-			Arrays.stream(observabilityConfig.getBaseUrls(apiOptions.exposedOn()))
-				.toArray(String[]::new)
+			Arrays.stream(observabilityConfig.getBaseUrls())
+				.toArray(String[]::new),
+			apiOptions.requestTimeoutInMillis()
 		);
 	}
 }

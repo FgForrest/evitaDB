@@ -24,6 +24,7 @@
 package io.evitadb.core.exception;
 
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nonnull;
@@ -41,6 +42,13 @@ public class ReferenceNotFacetedException extends EvitaInvalidUsageException {
 		super(
 			"Reference with name `" + referenceName + "` in entity `" + entitySchema.getName() + "` is not " +
 				"faceted and cannot be part of the facet summary."
+		);
+	}
+
+	public ReferenceNotFacetedException(@Nonnull String referenceName, @Nonnull EntitySchemaContract entitySchema, @Nonnull Scope scope) {
+		super(
+			"Reference with name `" + referenceName + "` in entity `" + entitySchema.getName() + "` is not " +
+				"faceted in scope `" + scope.name() + "` and cannot be part of the facet summary."
 		);
 	}
 

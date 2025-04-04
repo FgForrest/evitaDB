@@ -28,9 +28,10 @@ import io.evitadb.api.query.descriptor.ConstraintDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
 import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.query.require.Require;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.GenericDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.ConstraintResolver;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.CollectionRestHandlingContext;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -49,11 +50,11 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class RequireConstraintResolver extends RestConstraintResolver<RequireConstraint> {
 
-	public RequireConstraintResolver(@Nonnull CollectionRestHandlingContext restHandlingContext,
+	public RequireConstraintResolver(@Nonnull CatalogSchemaContract catalogSchema,
 	                                 @Nonnull AtomicReference<FilterConstraintResolver> filterConstraintResolver,
 									 @Nonnull AtomicReference<OrderConstraintResolver> orderConstraintResolver) {
 		super(
-			restHandlingContext,
+			catalogSchema,
 			Map.of(
 				ConstraintType.FILTER, filterConstraintResolver,
 				ConstraintType.ORDER, orderConstraintResolver
@@ -62,9 +63,9 @@ public class RequireConstraintResolver extends RestConstraintResolver<RequireCon
 	}
 
 	@Nullable
-	public RequireConstraint resolve(@Nonnull String key, @Nullable Object value) {
+	public RequireConstraint resolve(@Nonnull String rootEntityType, @Nonnull String key, @Nullable Object value) {
 		return resolve(
-			new GenericDataLocator(restHandlingContext.getEntityType()),
+			new GenericDataLocator(new ManagedEntityTypePointer(rootEntityType)),
 			key,
 			value
 		);

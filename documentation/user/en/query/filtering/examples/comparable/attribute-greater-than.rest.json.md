@@ -1,49 +1,51 @@
 ```json
 {
-  "recordPage": {
-    "data": [
+  "recordPage" : {
+    "data" : [
       {
-        "primaryKey": 108567,
-        "type": "Product",
-        "version": 1,
-        "allLocales": [
+        "primaryKey" : 108567,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "batteryLife": "45.00000",
-            "code": "amazfit-bip"
+        "attributes" : {
+          "global" : {
+            "batteryLife" : "45.00000",
+            "code" : "amazfit-bip"
           }
         }
       },
       {
-        "primaryKey": 108607,
-        "type": "Product",
-        "version": 1,
-        "allLocales": [
+        "primaryKey" : 108607,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "batteryLife": "365.00000",
-            "code": "garmin-vivofit-jr-3"
+        "attributes" : {
+          "global" : {
+            "batteryLife" : "365.00000",
+            "code" : "garmin-vivofit-jr-3"
           }
         }
       }
     ],
-    "empty": false,
-    "first": true,
-    "firstPageItemNumber": 0,
-    "hasNext": false,
-    "hasPrevious": false,
-    "last": true,
-    "lastPageItemNumber": 2,
-    "lastPageNumber": 1,
-    "pageNumber": 1,
-    "pageSize": 20,
-    "singlePage": true,
-    "totalRecordCount": 2,
-    "type": "PAGE"
+    "type" : "PAGE",
+    "totalRecordCount" : 2,
+    "first" : true,
+    "last" : true,
+    "hasPrevious" : false,
+    "hasNext" : false,
+    "singlePage" : true,
+    "empty" : false,
+    "pageSize" : 20,
+    "pageNumber" : 1,
+    "lastPageNumber" : 1,
+    "firstPageItemNumber" : 0,
+    "lastPageItemNumber" : 2
   }
 }
 ```

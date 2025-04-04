@@ -31,7 +31,9 @@ import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.dataType.Predecessor;
+import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.ShortNumberRange;
+import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.externalApi.dataType.DataTypeSerializer;
 import io.evitadb.externalApi.graphql.api.model.EndpointDescriptorToGraphQLFieldTransformer;
 import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLInputObjectTransformer;
@@ -147,7 +149,9 @@ public abstract class GraphQLSchemaBuilder<C extends GraphQLSchemaBuildingContex
 		registerScalarValue(scalarBuilder, UUID.class);
 		registerScalarValue(scalarBuilder, UUID[].class);
 		registerScalarValue(scalarBuilder, Predecessor.class);
+		registerScalarValue(scalarBuilder, ReferencedEntityPredecessor.class);
 		registerScalarValue(scalarBuilder, ComplexDataObject.class);
+		registerScalarValue(scalarBuilder, ExpressionNode.class);
 
 		return scalarBuilder.build();
 	}

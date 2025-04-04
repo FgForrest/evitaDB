@@ -66,8 +66,8 @@ public class EvitaSessionManagingInstrumentation extends SimplePerformantInstrum
 
     @Override
     @Nullable
-    public InstrumentationContext<ExecutionResult> beginExecuteOperation(@Nonnull InstrumentationExecuteOperationParameters parameters,
-                                                                         @Nonnull InstrumentationState state) {
+    public InstrumentationContext<ExecutionResult> beginExecuteOperation(InstrumentationExecuteOperationParameters parameters,
+                                                                         InstrumentationState state) {
         final ExecutionContext executionContext = parameters.getExecutionContext();
         final Operation operation = executionContext.getOperationDefinition().getOperation();
 
@@ -86,13 +86,14 @@ public class EvitaSessionManagingInstrumentation extends SimplePerformantInstrum
 
     @Nonnull
     @Override
-    public CompletableFuture<ExecutionResult> instrumentExecutionResult(@Nonnull ExecutionResult executionResult,
-                                                                        @Nonnull InstrumentationExecutionParameters parameters,
-                                                                        @Nonnull InstrumentationState state) {
+    public CompletableFuture<ExecutionResult> instrumentExecutionResult(ExecutionResult executionResult,
+                                                                        InstrumentationExecutionParameters parameters,
+                                                                        InstrumentationState state) {
         final EvitaSessionContract evitaSession = parameters.getGraphQLContext().get(GraphQLContextKey.EVITA_SESSION);
         if (evitaSession != null) {
             try {
                 evitaSession.close();
+                parameters.getGraphQLContext().delete(GraphQLContextKey.EVITA_SESSION);
             } catch (RollbackException ex) {
                 // we can ignore the rollback exception here,
                 // because the exception has been already handled by exception handler

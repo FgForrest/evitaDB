@@ -197,7 +197,7 @@ class EvitaServiceFunctionalTest {
 									.setCatalogName(TEST_CATALOG)
 									.build()
 							);
-						makeSessionCall(TEST_CATALOG, response.getSessionId(), clientBuilder);
+						makeSessionCall(response.getSessionId(), clientBuilder);
 					}
 					latch.countDown();
 				} catch (Exception ex) {
@@ -383,8 +383,8 @@ class EvitaServiceFunctionalTest {
 		assertArrayEquals(evita.getCatalogNames().toArray(), catalogNamesList.toArray());
 	}
 
-	private void makeSessionCall(@Nonnull String catalogName, @Nonnull String sessionId, @Nonnull GrpcClientBuilder clientBuilder) {
-		SessionIdHolder.setSessionId(catalogName, sessionId);
+	private static void makeSessionCall(@Nonnull String sessionId, @Nonnull GrpcClientBuilder clientBuilder) {
+		SessionIdHolder.setSessionId(sessionId);
 		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = clientBuilder.build(EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub.class);
 
 		final AtomicReference<GrpcEntityTypesResponse> response = new AtomicReference<>();

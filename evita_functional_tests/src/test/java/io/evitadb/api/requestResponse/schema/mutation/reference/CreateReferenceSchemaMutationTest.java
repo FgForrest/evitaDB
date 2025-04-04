@@ -37,6 +37,8 @@ import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.InvalidClassifierFormatException;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -79,17 +81,19 @@ public class CreateReferenceSchemaMutationTest {
 			Cardinality.ZERO_OR_MORE,
 			GROUP_TYPE,
 			false,
-			indexed,
-			indexed,
+			indexed ? new Scope[]{Scope.LIVE} : Scope.NO_SCOPE,
+			indexed ? new Scope[]{Scope.LIVE} : Scope.NO_SCOPE,
 			Map.of(
 				REFERENCE_ATTRIBUTE_PRIORITY,
 				AttributeSchema._internalBuild(
 					REFERENCE_ATTRIBUTE_PRIORITY,
 					"oldDescription",
 					"oldDeprecationNotice",
-					AttributeUniquenessType.NOT_UNIQUE,
-					false,
-					false,
+					new ScopedAttributeUniquenessType[] {
+						new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.NOT_UNIQUE)
+					},
+					Scope.NO_SCOPE,
+					Scope.NO_SCOPE,
 					false,
 					false,
 					Integer.class,
@@ -101,9 +105,11 @@ public class CreateReferenceSchemaMutationTest {
 					REFERENCE_ATTRIBUTE_QUANTITY,
 					"oldDescription",
 					"oldDeprecationNotice",
-					AttributeUniquenessType.NOT_UNIQUE,
-					false,
-					false,
+					new ScopedAttributeUniquenessType[] {
+						new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.NOT_UNIQUE)
+					},
+					Scope.NO_SCOPE,
+					Scope.NO_SCOPE,
 					false,
 					false,
 					Integer.class,
@@ -117,6 +123,7 @@ public class CreateReferenceSchemaMutationTest {
 					REFERENCE_ATTRIBUTE_COMPOUND,
 					"oldDescription",
 					"oldDeprecationNotice",
+					new Scope[] { Scope.LIVE },
 					List.of(
 						new AttributeElement(REFERENCE_ATTRIBUTE_PRIORITY, OrderDirection.DESC, OrderBehaviour.NULLS_FIRST),
 						new AttributeElement(REFERENCE_ATTRIBUTE_QUANTITY, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
@@ -170,7 +177,7 @@ public class CreateReferenceSchemaMutationTest {
 	}
 
 	@Test
-	void shouldLeaveMutationIntactWhenRemovalMutationTargetsDifferentReferenceata() {
+	void shouldLeaveMutationIntactWhenRemovalMutationTargetsDifferentReference() {
 		CreateReferenceSchemaMutation mutation = new CreateReferenceSchemaMutation(
 			REFERENCE_NAME,
 			"oldDescription",
@@ -184,7 +191,7 @@ public class CreateReferenceSchemaMutationTest {
 			true
 		);
 		RemoveReferenceSchemaMutation removeMutation = new RemoveReferenceSchemaMutation("differentName");
-		assertNull(mutation.combineWith(null, null, removeMutation));
+		assertNull(mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), Mockito.mock(EntitySchemaContract.class), removeMutation));
 	}
 
 	@Test

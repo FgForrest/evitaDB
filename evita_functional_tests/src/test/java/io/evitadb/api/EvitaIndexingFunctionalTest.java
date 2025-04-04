@@ -53,7 +53,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * This test verifies entity indexing behaviour and checks whether the implementation prevents to upsert entities with
+ * This test verifies entity indexing behavior and checks whether the implementation prevents to upsert entities with
  * invalid or non-unique data.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021

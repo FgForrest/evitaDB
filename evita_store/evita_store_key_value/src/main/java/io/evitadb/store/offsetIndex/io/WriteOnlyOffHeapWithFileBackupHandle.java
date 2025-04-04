@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -37,6 +37,7 @@ import io.evitadb.store.spi.OffHeapWithFileBackupReference;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -51,7 +52,6 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import static io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle.OUTPUT_FACTORY;
 import static io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle.getTargetFile;
 
 /**
@@ -89,11 +89,15 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 	/**
 	 * OutputStream that is used to write data to the off-heap memory.
 	 */
-	private ObservableOutput<OffHeapMemoryOutputStream> offHeapMemoryOutput;
+	@Nullable private ObservableOutput<OffHeapMemoryOutputStream> offHeapMemoryOutput;
 	/**
 	 * OutputStream that is used to write data to the file.
 	 */
-	private ObservableOutput<FileOutputStream> fileOutput;
+	@Nullable private ObservableOutput<FileOutputStream> fileOutput;
+	/**
+	 * Reference to the {@link StorageOptions} object that contains configuration options for the storage system.
+	 */
+	private final StorageOptions storageOptions;
 	/**
 	 * Contains the information about the last end byte of fully written record.
 	 */
@@ -105,11 +109,11 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 	 * @param os The observable output stream to synchronize.
 	 * @throws SyncFailedException if the synchronization operation failed.
 	 */
-	private static void doSync(@Nonnull ObservableOutput<?> os) {
+	private static void doSync(@Nonnull ObservableOutput<?> os, boolean fsSync) {
 		// execute fsync so that data are really stored to the disk
 		try {
 			os.flush();
-			if (os.getOutputStream() instanceof FileOutputStream fileOutputStream) {
+			if (fsSync && os.getOutputStream() instanceof FileOutputStream fileOutputStream) {
 				fileOutputStream.getFD().sync();
 			}
 		} catch (IOException e) {
@@ -119,11 +123,13 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 
 	public WriteOnlyOffHeapWithFileBackupHandle(
 		@Nonnull Path targetFile,
+		@Nonnull StorageOptions storageOptions,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper,
 		@Nonnull OffHeapMemoryManager offHeapMemoryManager
 	) {
-		this.offHeapMemoryManager = offHeapMemoryManager;
 		this.targetFile = targetFile;
+		this.storageOptions = storageOptions;
+		this.offHeapMemoryManager = offHeapMemoryManager;
 		this.observableOutputKeeper = observableOutputKeeper;
 	}
 
@@ -217,18 +223,18 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 		// sync to disk first
 		execute("flush", () -> {}, (o) -> null, true);
 
-		if (offHeapMemoryOutput != null) {
-			final ByteBuffer byteBuffer = offHeapMemoryOutput.getOutputStream().getByteBuffer();
-			byteBuffer.limit(lastConsistentWrittenPosition);
+		if (this.offHeapMemoryOutput != null) {
+			final ByteBuffer byteBuffer = this.offHeapMemoryOutput.getOutputStream().getByteBuffer();
+			byteBuffer.limit(this.lastConsistentWrittenPosition);
 			return OffHeapWithFileBackupReference.withByteBuffer(
 				byteBuffer,
-				lastConsistentWrittenPosition,
+				this.lastConsistentWrittenPosition,
 				this::releaseOffHeapMemory
 			);
-		} else if (fileOutput != null) {
+		} else if (this.fileOutput != null) {
 			return OffHeapWithFileBackupReference.withFilePath(
-				targetFile,
-				Math.toIntExact(targetFile.toFile().length()),
+				this.targetFile,
+				Math.toIntExact(this.targetFile.toFile().length()),
 				this::releaseTemporaryFile
 			);
 		} else {
@@ -333,10 +339,10 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 	) {
 		final T result = logic.apply(output);
 		if (sync) {
-			doSync(output);
+			doSync(output, this.storageOptions.syncWrites());
 		}
 		// update the last consistent written position
-		lastConsistentWrittenPosition = Math.toIntExact(output.total());
+		this.lastConsistentWrittenPosition = Math.toIntExact(output.getWrittenBytesSinceReset());
 		return result;
 	}
 
@@ -368,7 +374,7 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 
 		// switch output streams
 		this.offHeapMemoryOutput = null;
-		this.fileOutput = observableOutputKeeper.getObservableOutputOrCreate(targetFile, OUTPUT_FACTORY);
+		this.fileOutput = observableOutputKeeper.getObservableOutputOrCreate(this.targetFile, this::createObservableOutput);
 	}
 
 	/**
@@ -395,22 +401,25 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 	 */
 	@Nonnull
 	private ObservableOutput<? extends OutputStream> createInitialOutput() {
-		final Optional<OffHeapMemoryOutputStream> offHeapRegion = offHeapMemoryManager.acquireRegionOutputStream();
+		final Optional<OffHeapMemoryOutputStream> offHeapRegion = this.offHeapMemoryManager.acquireRegionOutputStream();
 		if (offHeapRegion.isEmpty()) {
-			Assert.isPremiseValid(getTargetFile(targetFile).exists(), "Target file does not exist!");
-			fileOutput = observableOutputKeeper.getObservableOutputOrCreate(targetFile, OUTPUT_FACTORY);
-			return fileOutput;
+			Assert.isPremiseValid(getTargetFile(this.targetFile).exists(), "Target file does not exist!");
+			this.fileOutput = this.observableOutputKeeper.getObservableOutputOrCreate(this.targetFile, this::createObservableOutput);
+			return this.fileOutput;
 		} else {
-			final StorageOptions options = observableOutputKeeper.getOptions();
-			offHeapMemoryOutput = new ObservableOutput<>(
+			final StorageOptions options = this.observableOutputKeeper.getOptions();
+			this.offHeapMemoryOutput = new ObservableOutput<>(
 				offHeapRegion.get(),
 				options.outputBufferSize(),
 				0
 			);
 			if (options.computeCRC32C()) {
-				offHeapMemoryOutput.computeCRC32();
+				this.offHeapMemoryOutput.computeCRC32();
 			}
-			return offHeapMemoryOutput;
+			if (options.compress()) {
+				this.offHeapMemoryOutput.compress();
+			}
+			return this.offHeapMemoryOutput;
 		}
 	}
 
@@ -460,6 +469,7 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 		 */
 		@Nonnull
 		private ReadOnlyHandle getDelegate() {
+			final StorageOptions storageOptions = this.writeOnlyOffHeapWithFileBackupHandle.storageOptions;
 			if (this.writeOnlyOffHeapWithFileBackupHandle.offHeapMemoryOutput != null) {
 				// initial state - we may be reading the data from the off-heap memory
 				if (!(this.delegate instanceof ReadOnlyGenericHandle)) {
@@ -469,6 +479,12 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 					final ObservableInput<InputStream> observableInput = new ObservableInput<>(
 						this.writeOnlyOffHeapWithFileBackupHandle.offHeapMemoryOutput.getOutputStream().getInputStream()
 					);
+					if (storageOptions.computeCRC32C()) {
+						observableInput.computeCRC32();
+					}
+					if (storageOptions.compress()) {
+						observableInput.compress();
+					}
 					this.delegate = new ReadOnlyGenericHandle(observableInput, this.writeOnlyOffHeapWithFileBackupHandle.lastConsistentWrittenPosition);
 				}
 			} else if (this.writeOnlyOffHeapWithFileBackupHandle.fileOutput != null) {
@@ -479,7 +495,7 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 					// and also because there may be multiple read-only handles created from the same write handle
 					this.delegate = new ReadOnlyFileHandle(
 						this.writeOnlyOffHeapWithFileBackupHandle.targetFile,
-						this.writeOnlyOffHeapWithFileBackupHandle.observableOutputKeeper.getOptions().computeCRC32C()
+						storageOptions
 					);
 				}
 			} else {
@@ -490,6 +506,13 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 			return delegate;
 		}
 
+	}
+
+	/**
+	 * A factory function that creates an observable output stream for a file using the provided path and storage options.
+	 */
+	private ObservableOutput<FileOutputStream> createObservableOutput(@Nonnull Path theFilePath) {
+		return WriteOnlyFileHandle.createObservableOutput(theFilePath, this.storageOptions);
 	}
 
 }

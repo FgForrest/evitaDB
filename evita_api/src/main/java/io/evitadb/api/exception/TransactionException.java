@@ -44,4 +44,7 @@ public class TransactionException extends EvitaInternalError {
 		super(message, cause);
 	}
 
+	public TransactionException(@Nonnull String privateMessage, @Nonnull String publicMessage) {
+		super(privateMessage, publicMessage);
+	}
 }

@@ -1,14 +1,17 @@
 {
   queryProduct(
     filterBy: {
-      entityPrimaryKeyInSet: [1, 2, 3]
+      entityPrimaryKeyInSet: [
+        1,
+        2,
+        3
+      ]
     },
-    orderBy: [{
-      attributeCodeNatural: DESC
-    }],
-    require: {
-      priceType: WITH_TAX
-    }
+    orderBy: [
+      {
+        attributeCodeNatural: DESC
+      }
+    ]
   ) {
     recordPage {
       data {

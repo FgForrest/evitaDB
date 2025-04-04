@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,15 +28,19 @@ import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.Page;
 import io.evitadb.api.query.require.Strip;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.SegmentDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ResponseHeaderDescriptor.RecordPageFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ResponseHeaderDescriptor.RecordStripFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.RecordPageFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.RecordStripFieldHeaderDescriptor;
 import io.evitadb.test.client.query.graphql.GraphQLOutputFieldsBuilder.Argument;
 import io.evitadb.test.client.query.graphql.GraphQLOutputFieldsBuilder.ArgumentSupplier;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.Locale;
 
 /**
@@ -55,9 +59,9 @@ public class RecordsConverter extends RequireConverter {
 	}
 
 	public void convert(@Nonnull GraphQLOutputFieldsBuilder requireBuilder,
-						@Nonnull String entityType,
-						@Nullable Locale locale,
-						@Nullable EntityFetch entityFetch,
+	                    @Nonnull String entityType,
+	                    @Nullable Locale locale,
+	                    @Nullable EntityFetch entityFetch,
 	                    @Nullable Page page,
 	                    @Nullable Strip strip,
 	                    boolean hasExtraResults) {
@@ -67,7 +71,7 @@ public class RecordsConverter extends RequireConverter {
 				recordPageBuilder -> recordPageBuilder
 					.addObjectField(DataChunkDescriptor.DATA, b2 ->
 						entityFetchConverter.convert(b2, entityType, locale, entityFetch)),
-				getRecordPageArguments(page)
+				getRecordPageArguments(entityType, page)
 			);
 		} else if (strip != null) {
 			requireBuilder.addObjectField(
@@ -82,54 +86,80 @@ public class RecordsConverter extends RequireConverter {
 				ResponseDescriptor.RECORD_PAGE,
 				recordPageBuilder -> recordPageBuilder
 					.addObjectField(DataChunkDescriptor.DATA, b2 ->
-						entityFetchConverter.convert(b2, entityType, locale, entityFetch))
+						entityFetchConverter.convert(b2, entityType, locale, entityFetch)),
+				getRecordPageArguments(entityType, new Page(null, null))
 			);
 		}
 	}
 
 	@Nonnull
-	private ArgumentSupplier[] getRecordPageArguments(@Nonnull Page page) {
-		if (page.getPageNumber() == 1 && page.getPageSize() == 20) {
-			// we can ignore defaults, to make the query simpler
+	private ArgumentSupplier[] getRecordPageArguments(@Nonnull String entityType, @Nullable Page page) {
+		if (page == null) {
 			return new ArgumentSupplier[0];
-		} else {
-			return new ArgumentSupplier[] {
+		}
+
+		final ArrayList<ArgumentSupplier> argumentSuppliers = new ArrayList<>(4);
+		if (page.getPageNumber() != 1) {
+			argumentSuppliers.add(
 				(offset, multipleArguments) -> new Argument(
 					RecordPageFieldHeaderDescriptor.NUMBER,
 					offset,
 					multipleArguments,
 					page.getPageNumber()
-				),
+				)
+			);
+		}
+		if (page.getPageSize() != 20) {
+			argumentSuppliers.add(
 				(offset, multipleArguments) -> new Argument(
 					RecordPageFieldHeaderDescriptor.SIZE,
 					offset,
 					multipleArguments,
 					page.getPageSize()
 				)
-			};
+			);
 		}
+		if (page.getSpacing().isPresent()) {
+			argumentSuppliers.add(
+				(offset, multipleArguments) -> new Argument(
+					RecordPageFieldHeaderDescriptor.SPACING,
+					offset,
+					multipleArguments,
+					convertRequireConstraint(
+						new SegmentDataLocator(new ManagedEntityTypePointer(entityType)),
+						page.getSpacing().get()
+					).orElseThrow(() -> new GenericEvitaInternalError("Spacing constraint is present but converted constraint is empty. This is weird!"))
+				)
+			);
+		};
+		return argumentSuppliers.toArray(new ArgumentSupplier[0]);
 	}
 
 	@Nonnull
-	private ArgumentSupplier[] getRecordStripArguments(@Nonnull Strip strip) {
-		if (strip.getOffset() == 0 && strip.getLimit() == 20) {
-			// we can ignore defaults, to make the query simpler
-			return new ArgumentSupplier[0];
-		} else {
-			return new ArgumentSupplier[] {
+	private static ArgumentSupplier[] getRecordStripArguments(@Nonnull Strip strip) {
+		final ArrayList<ArgumentSupplier> argumentSuppliers = new ArrayList<>(3);
+
+		if (strip.getOffset() != 0) {
+			argumentSuppliers.add(
 				(offset, multipleArguments) -> new Argument(
 					RecordStripFieldHeaderDescriptor.OFFSET,
 					offset,
 					multipleArguments,
 					strip.getOffset()
-				),
+				)
+			);
+		}
+		if (strip.getLimit() != 20) {
+			argumentSuppliers.add(
 				(offset, multipleArguments) -> new Argument(
 					RecordStripFieldHeaderDescriptor.LIMIT,
 					offset,
 					multipleArguments,
 					strip.getLimit()
 				)
-			};
+			);
 		}
+
+		return argumentSuppliers.toArray(new ArgumentSupplier[0]);
 	}
 }

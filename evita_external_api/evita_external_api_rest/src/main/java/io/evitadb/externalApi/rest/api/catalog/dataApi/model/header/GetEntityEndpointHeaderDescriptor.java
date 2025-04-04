@@ -35,7 +35,7 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface GetEntityEndpointHeaderDescriptor extends FetchEntityEndpointHeaderDescriptor {
+public interface GetEntityEndpointHeaderDescriptor extends FetchEntityEndpointHeaderDescriptor, ScopeAwareEndpointHeaderDescriptor {
 
 	PropertyDescriptor PRIMARY_KEY = PropertyDescriptor.builder()
 		.name("primaryKey")

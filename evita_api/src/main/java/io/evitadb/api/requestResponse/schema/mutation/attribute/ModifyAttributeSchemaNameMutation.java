@@ -104,16 +104,16 @@ public class ModifyAttributeSchemaNameMutation
 	@Override
 	public <S extends AttributeSchemaContract> S mutate(@Nullable CatalogSchemaContract catalogSchema, @Nullable S attributeSchema, @Nonnull Class<S> schemaType) {
 		Assert.isPremiseValid(attributeSchema != null, "Attribute schema is mandatory!");
-		if (attributeSchema instanceof GlobalAttributeSchema globalAttributeSchema) {
+		if (attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema) {
 			//noinspection unchecked,rawtypes
 			return (S) GlobalAttributeSchema._internalBuild(
-				newName,
+				this.newName,
 				globalAttributeSchema.getDescription(),
 				globalAttributeSchema.getDeprecationNotice(),
-				globalAttributeSchema.getUniquenessType(),
-				globalAttributeSchema.getGlobalUniquenessType(),
-				globalAttributeSchema.isFilterable(),
-				globalAttributeSchema.isSortable(),
+				globalAttributeSchema.getUniquenessTypeInScopes(),
+				globalAttributeSchema.getGlobalUniquenessTypeInScopes(),
+				globalAttributeSchema.getFilterableInScopes(),
+				globalAttributeSchema.getSortableInScopes(),
 				globalAttributeSchema.isLocalized(),
 				globalAttributeSchema.isNullable(),
 				globalAttributeSchema.isRepresentative(),
@@ -121,15 +121,15 @@ public class ModifyAttributeSchemaNameMutation
 				globalAttributeSchema.getDefaultValue(),
 				globalAttributeSchema.getIndexedDecimalPlaces()
 			);
-		} else if (attributeSchema instanceof EntityAttributeSchema entityAttributeSchema) {
+		} else if (attributeSchema instanceof EntityAttributeSchemaContract entityAttributeSchema) {
 			//noinspection unchecked,rawtypes
 			return (S) EntityAttributeSchema._internalBuild(
-				newName,
+				this.newName,
 				entityAttributeSchema.getDescription(),
 				entityAttributeSchema.getDeprecationNotice(),
-				entityAttributeSchema.getUniquenessType(),
-				entityAttributeSchema.isFilterable(),
-				entityAttributeSchema.isSortable(),
+				entityAttributeSchema.getUniquenessTypeInScopes(),
+				entityAttributeSchema.getFilterableInScopes(),
+				entityAttributeSchema.getSortableInScopes(),
 				entityAttributeSchema.isLocalized(),
 				entityAttributeSchema.isNullable(),
 				entityAttributeSchema.isRepresentative(),
@@ -137,15 +137,15 @@ public class ModifyAttributeSchemaNameMutation
 				entityAttributeSchema.getDefaultValue(),
 				entityAttributeSchema.getIndexedDecimalPlaces()
 			);
-		} else {
+		} else  {
 			//noinspection unchecked,rawtypes
 			return (S) AttributeSchema._internalBuild(
-				newName,
+				this.newName,
 				attributeSchema.getDescription(),
 				attributeSchema.getDeprecationNotice(),
-				attributeSchema.getUniquenessType(),
-				attributeSchema.isFilterable(),
-				attributeSchema.isSortable(),
+				attributeSchema.getUniquenessTypeInScopes(),
+				attributeSchema.getFilterableInScopes(),
+				attributeSchema.getSortableInScopes(),
 				attributeSchema.isLocalized(),
 				attributeSchema.isNullable(),
 				(Class) attributeSchema.getType(),
@@ -176,7 +176,7 @@ public class ModifyAttributeSchemaNameMutation
 		return EntityAttributeSchemaMutation.super.replaceAttributeIfDifferent(entitySchema, existingAttributeSchema, updatedAttributeSchema);
 	}
 
-	@Nullable
+	@Nonnull
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
@@ -193,14 +193,9 @@ public class ModifyAttributeSchemaNameMutation
 
 	@Nullable
 	@Override
-	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema) {
+	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
-		final AttributeSchemaContract existingAttributeSchema = referenceSchema.getAttribute(name)
-			.orElseThrow(() -> new InvalidSchemaMutationException(
-				"The attribute `" + name + "` is not defined in entity `" + entitySchema.getName() +
-					"` schema for reference with name `" + referenceSchema.getName() + "`!"
-			));
-
+		final AttributeSchemaContract existingAttributeSchema = getReferenceAttributeSchemaOrThrow(entitySchema, referenceSchema, name);
 		final AttributeSchemaContract updatedAttributeSchema = mutate(null, existingAttributeSchema, AttributeSchemaContract.class);
 		return replaceAttributeIfDifferent(
 			referenceSchema, existingAttributeSchema, updatedAttributeSchema

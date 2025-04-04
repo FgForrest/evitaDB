@@ -21,23 +21,17 @@
  *   limitations under the License.
  */
 
-import io.evitadb.api.observability.trace.TracingContext;
-import io.evitadb.externalApi.grpc.GrpcProviderRegistrar;
-import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
-import io.evitadb.externalApi.utils.ExternalApiTracingContext;
-import io.evitadb.store.spi.CatalogPersistenceServiceFactory;
-
 /**
  * Module contains gRPC API (server) for evitaDB.
  */
 module evita.external.api.grpc {
 
-	uses CatalogPersistenceServiceFactory;
-	uses ExternalApiProviderRegistrar;
-	uses TracingContext;
-	uses ExternalApiTracingContext;
+	uses io.evitadb.store.spi.CatalogPersistenceServiceFactory;
+	uses io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
+	uses io.evitadb.api.observability.trace.TracingContext;
+	uses io.evitadb.externalApi.utils.ExternalApiTracingContext;
 
-	provides ExternalApiProviderRegistrar with GrpcProviderRegistrar;
+	provides io.evitadb.externalApi.http.ExternalApiProviderRegistrar with io.evitadb.externalApi.grpc.GrpcProviderRegistrar;
 
 	opens io.evitadb.externalApi.grpc.configuration to com.fasterxml.jackson.databind;
 
@@ -49,7 +43,7 @@ module evita.external.api.grpc {
 	requires static org.slf4j;
 	requires static lombok;
 	requires com.fasterxml.jackson.annotation;
-	requires protobuf.java;
+	requires com.google.protobuf;
 	requires proto.google.common.protos;
 	requires com.fasterxml.jackson.databind;
 
@@ -60,19 +54,16 @@ module evita.external.api.grpc {
 	requires evita.external.api.core;
 	requires evita.external.api.grpc.shared;
 
-	requires io.grpc;
-	requires io.netty.transport;
-	requires io.grpc.protobuf;
+	requires io.netty.handler;
 	requires io.grpc.services;
+	requires io.grpc;
+	requires io.grpc.protobuf;
 	requires io.grpc.stub;
 
 	requires com.linecorp.armeria;
 	requires com.linecorp.armeria.grpc;
 	requires com.linecorp.armeria.grpc.protocol;
-	requires com.linecorp.armeria.protobuf;
 	requires jdk.jfr;
 	requires org.checkerframework.checker.qual;
-	requires org.reactivestreams;
-	requires reactive.grpc.common;
-
+	requires net.bytebuddy;
 }

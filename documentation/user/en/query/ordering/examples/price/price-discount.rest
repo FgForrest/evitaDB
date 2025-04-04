@@ -1,0 +1,27 @@
+POST /rest/evita/Product/query
+
+{
+  "filterBy" : {
+    "priceInPriceLists" : [
+      "b2b-basic-price"
+    ],
+    "priceInCurrency" : "EUR"
+  },
+  "orderBy" : [
+    {
+      "priceDiscount" : {
+        "order" : "DESC",
+        "inPriceLists" : [
+          "basic"
+        ]
+      }
+    }
+  ],
+  "require" : {
+    "entityFetch" : {
+      "priceContentRespectingFilter" : [
+        "basic"
+      ]
+    }
+  }
+}

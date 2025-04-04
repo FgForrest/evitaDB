@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.core.Evita;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AssociatedDataSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeElementDescriptor;
@@ -55,6 +56,7 @@ import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRA
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
+import static io.evitadb.utils.ListBuilder.list;
 import static io.evitadb.utils.MapBuilder.map;
 import static org.hamcrest.Matchers.*;
 
@@ -72,7 +74,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 	@Override
 	@DataSet(value = GRAPHQL_THOUSAND_PRODUCTS_FOR_SCHEMA_CHANGE, openWebApi = GraphQLProvider.CODE, readOnly = false, destroyAfterClass = true)
 	protected DataCarrier setUp(Evita evita) {
-		return super.setUpData(evita, 20);
+		return super.setUpData(evita, 20, false);
 	}
 
 	@Test
@@ -220,9 +222,14 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 							{
 								createAttributeSchemaMutation: {
 									name: "mySpecialCode"
-									uniquenessType: UNIQUE_WITHIN_COLLECTION
-									filterable: true
-									sortable: true
+									uniqueInScopes: [
+										{
+											scope: LIVE,
+											uniquenessType: UNIQUE_WITHIN_COLLECTION
+										}
+									]
+									filterableInScopes: [LIVE]
+									sortableInScopes: [LIVE]
 									localized: false
 									nullable: false
 									type: String
@@ -260,7 +267,10 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 								name
 								description
 								deprecationNotice
-								uniquenessType
+								uniquenessType {
+									scope
+									uniquenessType
+				    	        }
 								filterable
 								sortable
 								localized
@@ -286,9 +296,9 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 								.e(NamedSchemaDescriptor.NAME.name(), "mySpecialCode")
 								.e(NamedSchemaDescriptor.DESCRIPTION.name(), null)
 								.e(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), null)
-								.e(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION.name())
-								.e(AttributeSchemaDescriptor.FILTERABLE.name(), true)
-								.e(AttributeSchemaDescriptor.SORTABLE.name(), true)
+								.e(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), createAttributeUniquenessTypeDto(AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION))
+								.e(AttributeSchemaDescriptor.FILTERABLE.name(), list().i(Scope.LIVE.name()))
+								.e(AttributeSchemaDescriptor.SORTABLE.name(), list().i(Scope.LIVE.name()))
 								.e(AttributeSchemaDescriptor.LOCALIZED.name(), false)
 								.e(AttributeSchemaDescriptor.NULLABLE.name(), false)
 								.e(AttributeSchemaDescriptor.TYPE.name(), String.class.getSimpleName())
@@ -744,8 +754,8 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 									referencedEntityType: "tag"
 									referencedEntityTypeManaged: false
 									referencedGroupTypeManaged: false
-									indexed: true
-									faceted: true
+									indexedInScopes: [LIVE]
+									facetedInScopes: [LIVE]
 								}
 							}
 						]
@@ -813,8 +823,8 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 								.e(ReferenceSchemaDescriptor.REFERENCED_ENTITY_TYPE_MANAGED.name(), false)
 								.e(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE.name(), null)
 								.e(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), false)
-								.e(ReferenceSchemaDescriptor.INDEXED.name(), true)
-								.e(ReferenceSchemaDescriptor.FACETED.name(), true)
+								.e(ReferenceSchemaDescriptor.INDEXED.name(), list().i(Scope.LIVE.name()))
+								.e(ReferenceSchemaDescriptor.FACETED.name(), list().i(Scope.LIVE.name()))
 								.build())
 							.build())
 						.build()
@@ -835,9 +845,14 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 									attributeSchemaMutation: {
 										createAttributeSchemaMutation: {
 											name: "mySpecialCode"
-											uniquenessType: NOT_UNIQUE
-											filterable: true
-											sortable: false
+											uniqueInScopes: [
+												{
+													scope: LIVE
+													uniquenessType: NOT_UNIQUE
+												}
+											]
+											filterableInScopes: [LIVE]
+											sortableInScopes: []
 											localized: false
 											nullable: false
 											type: String

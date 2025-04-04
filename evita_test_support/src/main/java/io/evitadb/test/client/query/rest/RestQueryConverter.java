@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,11 +27,17 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.query.ConstraintContainer;
+import io.evitadb.api.query.HeadConstraint;
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.head.Collection;
+import io.evitadb.api.query.visitor.ConstraintCloneVisitor;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.GenericDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 import io.evitadb.test.client.query.FilterConstraintToJsonConverter;
+import io.evitadb.test.client.query.HeadConstraintToJsonConverter;
 import io.evitadb.test.client.query.JsonConstraint;
 import io.evitadb.test.client.query.OrderConstraintToJsonConverter;
 import io.evitadb.test.client.query.RequireConstraintToJsonConverter;
@@ -96,6 +102,7 @@ public class RestQueryConverter implements AutoCloseable {
 
 	@Nonnull
 	private String convertBody(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull Query query, @Nonnull String entityType) {
+		final HeadConstraintToJsonConverter headConstraintToJsonConverter = new HeadConstraintToJsonConverter(catalogSchema);
 		final FilterConstraintToJsonConverter filterConstraintToJsonConverter = new FilterConstraintToJsonConverter(catalogSchema);
 		final OrderConstraintToJsonConverter orderConstraintToJsonConverter = new OrderConstraintToJsonConverter(catalogSchema);
 		final RequireConstraintToJsonConverter requireConstraintToJsonConverter = new RequireConstraintToJsonConverter(
@@ -105,21 +112,30 @@ public class RestQueryConverter implements AutoCloseable {
 		);
 
 		final ObjectNode body = jsonNodeFactory.objectNode();
-		final List<JsonConstraint> rootConstraints = new ArrayList<>(3);
+		final List<JsonConstraint> rootConstraints = new ArrayList<>(4);
+		if (query.getHead() != null) {
+			final HeadConstraint head = ConstraintCloneVisitor.clone(query.getHead(), (visitor, theConstraint) -> theConstraint instanceof Collection ? null : theConstraint);
+			if (head != null && (!(head instanceof ConstraintContainer<?> cc) || cc.getChildrenCount() > 0)) {
+				rootConstraints.add(
+					headConstraintToJsonConverter.convert(new GenericDataLocator(new ManagedEntityTypePointer(entityType)), head)
+						.orElseThrow(() -> new IllegalStateException("Root JSON head constraint cannot be null if original query has head constraint."))
+				);
+			}
+		}
 		if (query.getFilterBy() != null) {
 			rootConstraints.add(
-				filterConstraintToJsonConverter.convert(new EntityDataLocator(entityType), query.getFilterBy())
+				filterConstraintToJsonConverter.convert(new EntityDataLocator(new ManagedEntityTypePointer(entityType)), query.getFilterBy())
 					.orElseThrow(() -> new IllegalStateException("Root JSON filter constraint cannot be null if original query has filter constraint."))
 			);
 		}
 		if (query.getOrderBy() != null) {
 			rootConstraints.add(
-				orderConstraintToJsonConverter.convert(new GenericDataLocator(entityType), query.getOrderBy())
+				orderConstraintToJsonConverter.convert(new GenericDataLocator(new ManagedEntityTypePointer(entityType)), query.getOrderBy())
 					.orElseThrow(() -> new IllegalStateException("Root JSON order constraint cannot be null if original query has order constraint."))
 			);
 		}
 		if (query.getRequire() != null) {
-			requireConstraintToJsonConverter.convert(new GenericDataLocator(entityType), query.getRequire())
+			requireConstraintToJsonConverter.convert(new GenericDataLocator(new ManagedEntityTypePointer(entityType)), query.getRequire())
 				.ifPresent(rootConstraints::add);
 		}
 		Assert.isPremiseValid(

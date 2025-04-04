@@ -27,15 +27,30 @@ import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaProvider;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * Passes {@link SortableAttributeCompoundSchemaProvider} down to resolving individual {@link SortableAttributeCompoundSchema}s.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class SortableAttributeCompoundSchemasDataFetcher implements DataFetcher<SortableAttributeCompoundSchemaProvider> {
+
+	@Nullable
+	private static SortableAttributeCompoundSchemasDataFetcher INSTANCE;
+
+	@Nonnull
+	public static SortableAttributeCompoundSchemasDataFetcher getInstance() {
+		if (INSTANCE == null) {
+			INSTANCE = new SortableAttributeCompoundSchemasDataFetcher();
+		}
+		return INSTANCE;
+	}
 
 	@Nonnull
 	@Override

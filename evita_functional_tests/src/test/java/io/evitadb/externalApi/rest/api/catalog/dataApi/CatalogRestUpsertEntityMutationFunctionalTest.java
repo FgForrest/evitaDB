@@ -84,7 +84,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 	@Override
 	@DataSet(value = REST_THOUSAND_PRODUCTS_FOR_UPDATE, openWebApi = RestProvider.CODE, readOnly = false, destroyAfterClass = true)
 	protected DataCarrier setUp(Evita evita, EvitaServer evitaServer) {
-		return super.setUpData(evita, evitaServer, 50);
+		return super.setUpData(evita, evitaServer, 50, false);
 	}
 
 	@Test
@@ -184,6 +184,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
 			.e(EntityDescriptor.VERSION.name(), entity.version() + 1)
+			.e(EntityDescriptor.SCOPE.name(), entity.getScope().name())
 			.e(EntityDescriptor.LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag()))
 			.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
 			.e(EntityDescriptor.ATTRIBUTES.name(), map()
@@ -277,6 +278,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
 			.e(EntityDescriptor.VERSION.name(), entity.version() + 1)
+			.e(EntityDescriptor.SCOPE.name(), entity.getScope().name())
 			.e(EntityDescriptor.LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag()))
 			.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
 			.e(EntityDescriptor.ASSOCIATED_DATA.name(), map()
@@ -396,6 +398,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entityInTree.getPrimaryKey())
 			.e(EntityDescriptor.TYPE.name(), Entities.CATEGORY)
 			.e(EntityDescriptor.VERSION.name(), entityInTree.version() + 1)
+			.e(EntityDescriptor.SCOPE.name(), entityInTree.getScope().name())
 			.e(RestEntityDescriptor.PARENT_ENTITY.name(), createEntityDto(new EntityReference(Entities.CATEGORY, parent + 10)))
 			.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
 			.build();
@@ -432,6 +435,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entityInTree.getPrimaryKey())
 			.e(EntityDescriptor.TYPE.name(), Entities.CATEGORY)
 			.e(EntityDescriptor.VERSION.name(), entityInTree.version() + 2)
+			.e(EntityDescriptor.SCOPE.name(), entityInTree.getScope().name())
 			.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
 			.build();
 
@@ -475,6 +479,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
 			.e(EntityDescriptor.VERSION.name(), entity.version() + 1)
+			.e(EntityDescriptor.SCOPE.name(), entity.getScope().name())
 			.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
 			.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.NONE.name())
 			.e(EntityDescriptor.PRICES.name(), List.of(
@@ -483,7 +488,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 					.e(PriceDescriptor.PRICE_LIST.name(), "other")
 					.e(PriceDescriptor.CURRENCY.name(), "CZK")
 					.e(PriceDescriptor.INNER_RECORD_ID.name(), null)
-					.e(PriceDescriptor.SELLABLE.name(), true)
+					.e(PriceDescriptor.INDEXED.name(), true)
 					.e(PriceDescriptor.PRICE_WITHOUT_TAX.name(), "1.0")
 					.e(PriceDescriptor.PRICE_WITH_TAX.name(), "1.21")
 					.e(PriceDescriptor.TAX_RATE.name(), "21")
@@ -507,7 +512,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 						        "priceWithoutTax": "1.0",
 						        "taxRate": "21",
 						        "priceWithTax": "1.21",
-						        "sellable": true
+						        "indexed": true
                             }
                         }
                     ],
@@ -551,6 +556,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
 			.e(EntityDescriptor.VERSION.name(), entity.version() + 2)
+			.e(EntityDescriptor.SCOPE.name(), entity.getScope().name())
 			.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
 			.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.NONE.name())
 			.e(EntityDescriptor.PRICES.name(), List.of())

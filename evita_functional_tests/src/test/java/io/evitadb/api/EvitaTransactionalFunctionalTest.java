@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -122,6 +122,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -131,6 +132,8 @@ import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_URL;
+import static io.evitadb.test.generator.DataGenerator.CURRENCY_CZK;
+import static io.evitadb.test.generator.DataGenerator.PRICE_LIST_BASIC;
 import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -158,8 +161,12 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 	};
 	private static final Pattern DATE_TIME_PATTERN_1 = Pattern.compile("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d+\\+\\d{2}:\\d{2}");
 	private static final Pattern DATE_TIME_PATTERN_2 = Pattern.compile("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d+Z");
-	private static final Pattern LAG_PATTERN = Pattern.compile("lag \\d*m?s");
-	private final DataGenerator dataGenerator = new DataGenerator();
+	private static final Pattern LAG_PATTERN = Pattern.compile("lag -?\\d*m?s");
+	private static final Supplier<DataGenerator> GENERATOR_FACTORY = () -> new DataGenerator.Builder()
+		.withCurrencies(CURRENCY_CZK)
+		.withPriceLists(PRICE_LIST_BASIC)
+		.build();
+	private final DataGenerator dataGenerator = GENERATOR_FACTORY.get();
 	private final Pool<Kryo> catalogKryoPool = new Pool<>(false, false, 1) {
 		@Override
 		protected Kryo create() {
@@ -168,7 +175,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 	};
 	private final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(
 		TEST_CATALOG,
-		StorageOptions.builder().build(),
+		StorageOptions.temporary(),
 		Mockito.mock(Scheduler.class)
 	);
 	private final OffHeapMemoryManager offHeapMemoryManager = new OffHeapMemoryManager(TEST_CATALOG, 10_000_000, 128);
@@ -268,7 +275,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 
 		final long initialStart = System.currentTimeMillis();
 		final AtomicReference<Exception> thrownException = new AtomicReference<>();
-		final DataGenerator dataGenerator = new DataGenerator();
+		final DataGenerator dataGenerator = GENERATOR_FACTORY.get();
 		for (int i = 0; i < numberOfThreads; i++) {
 			final int threadSeed = SEED + i;
 			service.execute(() -> {
@@ -329,16 +336,20 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 								}
 							);
 						});
+					log.info("Thread {} finished.", Thread.currentThread().getName());
 				} catch (Exception ex) {
 					thrownException.set(ex);
+					log.error("Thread {} failed.", Thread.currentThread().getName(), ex);
 				} finally {
 					latch.countDown();
+					log.info("{} threads remaining ...", latch.getCount());
 				}
 			});
 		}
 
+		log.info("Waiting for the entities to be inserted...");
 		if (applyOnceWhileWaiting != null) {
-			// wait until at least half of the data has been insterted
+			// wait until at least half of the data has been inserted
 			long waitingStart = System.currentTimeMillis();
 			while (
 				primaryKeysWithTxIds.size() < (numberOfThreads * iterations + 1) / 2 &&
@@ -361,13 +372,22 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 
 		// wait until Evita reaches the last version of the catalog
 		long waitingStart = System.currentTimeMillis();
+		int cnt = 0;
 		while (
 			// cap to one minute
 			System.currentTimeMillis() - waitingStart < 120_000 &&
 				// and finish when the last transaction is visible
 				evita.queryCatalog(TEST_CATALOG, EvitaSessionContract::getCatalogVersion) < numberOfThreads * iterations + 1
 		) {
+			cnt++;
 			Thread.onSpinWait();
+			if (cnt % 1_000_000 == 0) {
+				log.info(
+					"Waiting for records to become present ({} of {})",
+					evita.queryCatalog(TEST_CATALOG, EvitaSessionContract::getCatalogVersion),
+					numberOfThreads * iterations + 1
+				);
+			}
 		}
 
 		assertEquals(primaryKeysWithTxIds.size(), numberOfThreads * iterations);
@@ -622,15 +642,15 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		assertEquals(
 			replaceTimeStamps(
 				"""
-					Catalog version: 59, processed at REPLACED_OFFSET_DATE_TIME with 5 transactions (15 mutations, 8 KB):
+					Catalog version: 59, processed at REPLACED_OFFSET_DATE_TIME with 5 transactions (15 mutations, 7 KB):
 						 - changes in `PRODUCT`: 15 upserted entities
-					Catalog version: 54, processed at REPLACED_OFFSET_DATE_TIME with 4 transactions (14 mutations, 8 KB):
+					Catalog version: 54, processed at REPLACED_OFFSET_DATE_TIME with 4 transactions (14 mutations, 7 KB):
 						 - changes in `PRODUCT`: 14 upserted entities
-					Catalog version: 50, processed at REPLACED_OFFSET_DATE_TIME with 5 transactions (15 mutations, 8 KB):
+					Catalog version: 50, processed at REPLACED_OFFSET_DATE_TIME with 5 transactions (15 mutations, 7 KB):
 						 - changes in `PRODUCT`: 15 upserted entities
 					Catalog version: 45, processed at REPLACED_OFFSET_DATE_TIME with 4 transactions (13 mutations, 7 KB):
 						 - changes in `PRODUCT`: 13 upserted entities
-					Catalog version: 41, processed at REPLACED_OFFSET_DATE_TIME with 5 transactions (15 mutations, 9 KB):
+					Catalog version: 41, processed at REPLACED_OFFSET_DATE_TIME with 5 transactions (15 mutations, 8 KB):
 						 - changes in `PRODUCT`: 15 upserted entities"""
 			),
 			replaceTimeStamps(
@@ -644,51 +664,51 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			replaceTimeStamps(
 				replaceLag(
 					"""
-						Transaction to version: 59, committed at REPLACED_OFFSET_DATE_TIME(processing lag 59ms)(3 mutations, 1 KB):
+						Transaction to version: 59, committed at REPLACED_OFFSET_DATE_TIME(processing REPLACED_LAG)(3 mutations, 1 KB):
 							 - changes in `PRODUCT`: 3 upserted entities
-						Transaction to version: 58, committed at REPLACED_OFFSET_DATE_TIME(processing lag 73ms)(5 mutations, 2 KB):
+						Transaction to version: 58, committed at REPLACED_OFFSET_DATE_TIME(processing REPLACED_LAG)(5 mutations, 2 KB):
 							 - changes in `PRODUCT`: 5 upserted entities
-						Transaction to version: 57, committed at REPLACED_OFFSET_DATE_TIME(processing lag 87ms)(2 mutations, 920 B):
+						Transaction to version: 57, committed at REPLACED_OFFSET_DATE_TIME(processing REPLACED_LAG)(2 mutations, 1 KB):
 							 - changes in `PRODUCT`: 2 upserted entities
-						Transaction to version: 56, committed at REPLACED_OFFSET_DATE_TIME(processing lag 105ms)(4 mutations, 2 KB):
+						Transaction to version: 56, committed at REPLACED_OFFSET_DATE_TIME(processing REPLACED_LAG)(4 mutations, 1 KB):
 							 - changes in `PRODUCT`: 4 upserted entities
-						Transaction to version: 55, committed at REPLACED_OFFSET_DATE_TIME(processing lag 119ms)(1 mutations, 561 B):
+						Transaction to version: 55, committed at REPLACED_OFFSET_DATE_TIME(processing REPLACED_LAG)(1 mutations, 590 B):
 							 - changes in `PRODUCT`: 1 upserted entities
-						Transaction to version: 54, committed at REPLACED_OFFSET_DATE_TIME(processing lag 57ms)(4 mutations, 2 KB):
+						Transaction to version: 54, committed at REPLACED_OFFSET_DATE_TIME(processing REPLACED_LAG)(4 mutations, 1 KB):
 							 - changes in `PRODUCT`: 4 upserted entities
-						Transaction to version: 53, committed at REPLACED_OFFSET_DATE_TIME(processing lag 73ms)(5 mutations, 2 KB):
+						Transaction to version: 53, committed at REPLACED_OFFSET_DATE_TIME(processing REPLACED_LAG)(5 mutations, 2 KB):
 							 - changes in `PRODUCT`: 5 upserted entities
-						Transaction to version: 52, committed at REPLACED_OFFSET_DATE_TIME(processing lag 87ms)(3 mutations, 1 KB):
+						Transaction to version: 52, committed at REPLACED_OFFSET_DATE_TIME(processing REPLACED_LAG)(3 mutations, 1 KB):
 							 - changes in `PRODUCT`: 3 upserted entities
-						Transaction to version: 51, committed at REPLACED_OFFSET_DATE_TIME(processing lag 101ms)(2 mutations, 1 KB):
+						Transaction to version: 51, committed at REPLACED_OFFSET_DATE_TIME(processing REPLACED_LAG)(2 mutations, 1 KB):
 							 - changes in `PRODUCT`: 2 upserted entities
-						Transaction to version: 50, committed at REPLACED_OFFSET_DATE_TIME(processing lag 60ms)(3 mutations, 1 KB):
+						Transaction to version: 50, committed at REPLACED_OFFSET_DATE_TIME(processing REPLACED_LAG)(3 mutations, 1 KB):
 							 - changes in `PRODUCT`: 3 upserted entities
-						Transaction to version: 49, committed at REPLACED_OFFSET_DATE_TIME(processing lag 74ms)(2 mutations, 1 KB):
+						Transaction to version: 49, committed at REPLACED_OFFSET_DATE_TIME(processing REPLACED_LAG)(2 mutations, 1 KB):
 							 - changes in `PRODUCT`: 2 upserted entities
-						Transaction to version: 48, committed at REPLACED_OFFSET_DATE_TIME(processing lag 88ms)(5 mutations, 2 KB):
+						Transaction to version: 48, committed at REPLACED_OFFSET_DATE_TIME(processing REPLACED_LAG)(5 mutations, 2 KB):
 							 - changes in `PRODUCT`: 5 upserted entities
-						Transaction to version: 47, committed at REPLACED_OFFSET_DATE_TIME(processing lag 102ms)(1 mutations, 613 B):
+						Transaction to version: 47, committed at REPLACED_OFFSET_DATE_TIME(processing REPLACED_LAG)(1 mutations, 533 B):
 							 - changes in `PRODUCT`: 1 upserted entities
-						Transaction to version: 46, committed at REPLACED_OFFSET_DATE_TIME(processing lag 115ms)(4 mutations, 2 KB):
+						Transaction to version: 46, committed at REPLACED_OFFSET_DATE_TIME(processing REPLACED_LAG)(4 mutations, 2 KB):
 							 - changes in `PRODUCT`: 4 upserted entities
-						Transaction to version: 45, committed at REPLACED_OFFSET_DATE_TIME(processing lag 67ms)(4 mutations, 2 KB):
+						Transaction to version: 45, committed at REPLACED_OFFSET_DATE_TIME(processing REPLACED_LAG)(4 mutations, 2 KB):
 							 - changes in `PRODUCT`: 4 upserted entities
-						Transaction to version: 44, committed at REPLACED_OFFSET_DATE_TIME(processing lag 84ms)(3 mutations, 1 KB):
+						Transaction to version: 44, committed at REPLACED_OFFSET_DATE_TIME(processing REPLACED_LAG)(3 mutations, 1 KB):
 							 - changes in `PRODUCT`: 3 upserted entities
-						Transaction to version: 43, committed at REPLACED_OFFSET_DATE_TIME(processing lag 101ms)(1 mutations, 696 B):
+						Transaction to version: 43, committed at REPLACED_OFFSET_DATE_TIME(processing REPLACED_LAG)(1 mutations, 566 B):
 							 - changes in `PRODUCT`: 1 upserted entities
-						Transaction to version: 42, committed at REPLACED_OFFSET_DATE_TIME(processing lag 115ms)(5 mutations, 2 KB):
+						Transaction to version: 42, committed at REPLACED_OFFSET_DATE_TIME(processing REPLACED_LAG)(5 mutations, 2 KB):
 							 - changes in `PRODUCT`: 5 upserted entities
-						Transaction to version: 41, committed at REPLACED_OFFSET_DATE_TIME(processing lag 66ms)(4 mutations, 2 KB):
+						Transaction to version: 41, committed at REPLACED_OFFSET_DATE_TIME(processing REPLACED_LAG)(4 mutations, 2 KB):
 							 - changes in `PRODUCT`: 4 upserted entities
-						Transaction to version: 40, committed at REPLACED_OFFSET_DATE_TIME(processing lag 84ms)(5 mutations, 2 KB):
+						Transaction to version: 40, committed at REPLACED_OFFSET_DATE_TIME(processing REPLACED_LAG)(5 mutations, 2 KB):
 							 - changes in `PRODUCT`: 5 upserted entities
-						Transaction to version: 39, committed at REPLACED_OFFSET_DATE_TIME(processing lag 103ms)(3 mutations, 1 KB):
+						Transaction to version: 39, committed at REPLACED_OFFSET_DATE_TIME(processing REPLACED_LAG)(3 mutations, 1 KB):
 							 - changes in `PRODUCT`: 3 upserted entities
-						Transaction to version: 38, committed at REPLACED_OFFSET_DATE_TIME(processing lag 119ms)(2 mutations, 1 KB):
+						Transaction to version: 38, committed at REPLACED_OFFSET_DATE_TIME(processing REPLACED_LAG)(2 mutations, 1 KB):
 							 - changes in `PRODUCT`: 2 upserted entities
-						Transaction to version: 37, committed at REPLACED_OFFSET_DATE_TIME(processing lag 136ms)(1 mutations, 747 B):
+						Transaction to version: 37, committed at REPLACED_OFFSET_DATE_TIME(processing REPLACED_LAG)(1 mutations, 606 B):
 							 - changes in `PRODUCT`: 1 upserted entities"""
 				)
 			),
@@ -715,15 +735,15 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		assertEquals(
 			replaceTimeStamps(
 				"""
-					Catalog version: 36, processed at REPLACED_OFFSET_DATE_TIME with 4 transactions (14 mutations, 8 KB):
+					Catalog version: 36, processed at REPLACED_OFFSET_DATE_TIME with 4 transactions (14 mutations, 7 KB):
 						 - changes in `PRODUCT`: 14 upserted entities
-					Catalog version: 32, processed at REPLACED_OFFSET_DATE_TIME with 5 transactions (15 mutations, 8 KB):
+					Catalog version: 32, processed at REPLACED_OFFSET_DATE_TIME with 5 transactions (15 mutations, 7 KB):
 						 - changes in `PRODUCT`: 15 upserted entities
-					Catalog version: 27, processed at REPLACED_OFFSET_DATE_TIME with 4 transactions (13 mutations, 8 KB):
+					Catalog version: 27, processed at REPLACED_OFFSET_DATE_TIME with 4 transactions (13 mutations, 7 KB):
 						 - changes in `PRODUCT`: 13 upserted entities
-					Catalog version: 23, processed at REPLACED_OFFSET_DATE_TIME with 5 transactions (15 mutations, 9 KB):
+					Catalog version: 23, processed at REPLACED_OFFSET_DATE_TIME with 5 transactions (15 mutations, 7 KB):
 						 - changes in `PRODUCT`: 15 upserted entities
-					Catalog version: 18, processed at REPLACED_OFFSET_DATE_TIME with 4 transactions (10 mutations, 6 KB):
+					Catalog version: 18, processed at REPLACED_OFFSET_DATE_TIME with 4 transactions (10 mutations, 5 KB):
 						 - changes in `PRODUCT`: 10 upserted entities"""
 			),
 			replaceTimeStamps(
@@ -743,12 +763,14 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		assertEquals(
 			replaceTimeStamps(
 				"""
-					Catalog version: 14, processed at REPLACED_OFFSET_DATE_TIME with 5 transactions (15 mutations, 9 KB):
+					Catalog version: 14, processed at REPLACED_OFFSET_DATE_TIME with 5 transactions (15 mutations, 7 KB):
 						 - changes in `PRODUCT`: 15 upserted entities
-					Catalog version: 9, processed at REPLACED_OFFSET_DATE_TIME with 5 transactions (13 mutations, 8 KB):
+					Catalog version: 9, processed at REPLACED_OFFSET_DATE_TIME with 5 transactions (13 mutations, 6 KB):
 						 - changes in `PRODUCT`: 13 upserted entities
-					Catalog version: 4, processed at REPLACED_OFFSET_DATE_TIME with 3 transactions (9 mutations, 6 KB):
-						 - changes in `PRODUCT`: 9 upserted entities"""
+					Catalog version: 4, processed at REPLACED_OFFSET_DATE_TIME with 3 transactions (9 mutations, 4 KB):
+						 - changes in `PRODUCT`: 9 upserted entities
+					Catalog version: 1, processed at REPLACED_OFFSET_DATE_TIME with 1 transactions (3 mutations, 1 KB):
+						 - changes in `PRODUCT`: 3 upserted entities"""
 			),
 			replaceTimeStamps(
 				catalog.getCatalogVersionDescriptors(prevPrevVersions)
@@ -1123,6 +1145,32 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		evita.close();
 	}
 
+	@DisplayName("Should handle large transaction.")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Tag(LONG_RUNNING_TEST)
+	@Test
+	void shouldHandleLargeTransaction(EvitaContract evita, SealedEntitySchema productSchema) {
+		final EvitaSessionContract session = evita.createSession(new SessionTraits(TEST_CATALOG, CommitBehavior.WAIT_FOR_INDEX_PROPAGATION, SessionFlags.READ_WRITE));
+
+		final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(entityType, session, faker);
+		final int entityCount = 500;
+		dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED)
+			.limit(entityCount)
+			.map(InstanceEditor::toMutation)
+			.flatMap(Optional::stream)
+			.forEach(session::upsertEntity);
+
+		session.close();
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			theNewSession -> {
+				final int productCount = theNewSession.getEntityCollectionSize(productSchema.getName());
+				assertEquals(entityCount, productCount);
+			}
+		);
+	}
+
 	@DisplayName("Verify code has no problems assigning new PK in concurrent environment")
 	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
 	@Tag(LONG_RUNNING_TEST)
@@ -1338,14 +1386,18 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void shouldCorrectlyRotateAllFiles(GenerationalTestInput input) throws Exception {
 		final Path testDirectory = getTestDirectory().resolve("shouldCorrectlyRotateAllFiles");
+		final Path testDirectoryExport = getTestDirectory().resolve("shouldCorrectlyRotateAllFiles_export");
 		cleanTestSubDirectory("shouldCorrectlyRotateAllFiles");
+		cleanTestSubDirectory("shouldCorrectlyRotateAllFiles_export");
 		final Evita evita = new Evita(
 			EvitaConfiguration.builder()
 				.storage(
 					StorageOptions.builder()
 						.storageDirectory(testDirectory)
+						.exportDirectory(testDirectoryExport)
 						.minimalActiveRecordShare(0.9)
 						.fileSizeCompactionThresholdBytes(16_384)
+						.timeTravelEnabled(true)
 						.build()
 				)
 				.transaction(
@@ -1498,7 +1550,11 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 
 				// read entire history
 				DefaultCatalogPersistenceService.getCatalogBootstrapRecordStream(
-					TEST_CATALOG, restartedEvita.getConfiguration().storage()
+					TEST_CATALOG,
+					// bootstrap records must never be compressed
+					StorageOptions.builder(restartedEvita.getConfiguration().storage())
+						.compress(false)
+						.build()
 				).forEach(
 					record -> {
 						try {
@@ -1562,7 +1618,10 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			UUID.randomUUID(),
 			KryoFactory.createKryo(WalKryoConfigurer.INSTANCE),
 			new WriteOnlyOffHeapWithFileBackupHandle(
-				isolatedWalFilePath, this.observableOutputKeeper, offHeapMemoryManager
+				isolatedWalFilePath,
+				StorageOptions.temporary(),
+				this.observableOutputKeeper,
+				offHeapMemoryManager
 			)
 		);
 

@@ -23,7 +23,8 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute;
 
-import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
+import io.evitadb.dataType.Scope;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.dataType.Any;
@@ -32,6 +33,7 @@ import java.util.List;
 
 import static io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor.SCALAR_ENUM;
 import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullRef;
+import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nullableListRef;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
@@ -59,38 +61,42 @@ public interface CreateAttributeSchemaMutationDescriptor extends AttributeSchema
 			""")
 		.type(nullable(String.class))
 		.build();
-	PropertyDescriptor UNIQUENESS_TYPE = PropertyDescriptor.builder()
-		.name("uniquenessType")
+	PropertyDescriptor UNIQUE_IN_SCOPES = PropertyDescriptor.builder()
+		.name("uniqueInScopes")
 		.description("""
-			When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
-			having certain value of this attribute among other entities in the same collection.
-						
-			As an example of unique attribute can be EAN - there is no sense in having two entities with same EAN, and it's
-			better to have this ensured by the database engine.
-						
-			If the attribute is localized you can choose between `UNIQUE_WITHIN_COLLECTION` and `UNIQUE_WITHIN_COLLECTION_LOCALE`
-			modes. The first will ensure there is only single value within entire collection regardless of locale,
-			the second will ensure there is only single value within collection and specific locale.
+			The ScopedAttributeUniquenessType class encapsulates the relationship between an attribute's
+			uniqueness type and the scope in which this uniqueness characteristic is enforced.
+			
+			It makes use of two parameters:
+			- scope: Defines the context or domain (live or archived) where the attribute resides.
+			- uniquenessType: Determines the uniqueness enforcement (e.g., unique within the entire collection or specific locale).
+			
+			The combination of these parameters allows for scoped uniqueness checks within attribute schemas,
+			providing fine-grained control over attribute constraints based on the entity's scope.
 			""")
-		.type(nullable(AttributeUniquenessType.class))
+		.type(nullableListRef(ScopedAttributeUniquenessTypeDescriptor.THIS_INPUT))
 		.build();
-	PropertyDescriptor FILTERABLE = PropertyDescriptor.builder()
-		.name("filterable")
+	PropertyDescriptor FILTERABLE_IN_SCOPES = PropertyDescriptor.builder()
+		.name("filterableInScopes")
 		.description("""
 			When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
 			as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
 			(memory/disk) space in the form of index.
+			
+			This array defines in which scopes the attribute will be filterable. It will not be filterable in not-specified scopes.
 			""")
-		.type(nullable(Boolean.class))
+		.type(nullable(Scope[].class))
 		.build();
-	PropertyDescriptor SORTABLE = PropertyDescriptor.builder()
-		.name("sortable")
+	PropertyDescriptor SORTABLE_IN_SCOPES = PropertyDescriptor.builder()
+		.name("sortableInScopes")
 		.description("""
 			When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
 			as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
 			(memory/disk) space in the form of index.
+			
+			This array defines in which scopes the attribute will be sortable. It will not be sortable in not-specified scopes.
 			""")
-		.type(nullable(Boolean.class))
+		.type(nullable(Scope[].class))
 		.build();
 	PropertyDescriptor LOCALIZED = PropertyDescriptor.builder()
 		.name("localized")
@@ -156,9 +162,9 @@ public interface CreateAttributeSchemaMutationDescriptor extends AttributeSchema
 			NAME,
 			DESCRIPTION,
 			DEPRECATION_NOTICE,
-			UNIQUENESS_TYPE,
-			FILTERABLE,
-			SORTABLE,
+			UNIQUE_IN_SCOPES,
+			FILTERABLE_IN_SCOPES,
+			SORTABLE_IN_SCOPES,
 			LOCALIZED,
 			NULLABLE,
 			REPRESENTATIVE,

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -36,6 +36,7 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.builder.DataMutationBuild
 import io.evitadb.externalApi.rest.api.catalog.dataApi.builder.EntityObjectBuilder;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.builder.FullResponseObjectBuilder;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.builder.constraint.FilterConstraintSchemaBuilder;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.builder.constraint.HeadConstraintSchemaBuilder;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.builder.constraint.OpenApiConstraintSchemaBuildingContext;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.builder.constraint.OrderConstraintSchemaBuilder;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.builder.constraint.RequireConstraintSchemaBuilder;
@@ -78,6 +79,7 @@ import static io.evitadb.externalApi.rest.api.openApi.OpenApiEnum.newEnum;
 public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBuildingContext> {
 
 	@Nonnull private final OpenApiConstraintSchemaBuildingContext constraintBuildingContext;
+	@Nonnull private final HeadConstraintSchemaBuilder headConstraintSchemaBuilder;
 	@Nonnull private final FilterConstraintSchemaBuilder filterConstraintSchemaBuilder;
 	@Nonnull private final FilterConstraintSchemaBuilder localizedFilterConstraintSchemaBuilder;
 	@Nonnull private final OrderConstraintSchemaBuilder orderConstraintSchemaBuilder;
@@ -97,9 +99,13 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 		super(buildingContext);
 		this.constraintBuildingContext = new OpenApiConstraintSchemaBuildingContext(buildingContext);
 
+		this.headConstraintSchemaBuilder = new HeadConstraintSchemaBuilder(constraintBuildingContext);
 		this.filterConstraintSchemaBuilder = new FilterConstraintSchemaBuilder(constraintBuildingContext, false);
 		this.localizedFilterConstraintSchemaBuilder = new FilterConstraintSchemaBuilder(constraintBuildingContext, true);
-		this.orderConstraintSchemaBuilder = new OrderConstraintSchemaBuilder(constraintBuildingContext);
+		this.orderConstraintSchemaBuilder = new OrderConstraintSchemaBuilder(
+			constraintBuildingContext,
+			new AtomicReference<>(this.filterConstraintSchemaBuilder)
+		);
 		this.listRequireConstraintSchemaBuilder = new RequireConstraintSchemaBuilder(
 			constraintBuildingContext,
 			ALLOWED_CONSTRAINTS_FOR_LIST,
@@ -219,7 +225,7 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 			.getAttributes()
 			.values()
 			.stream()
-			.filter(GlobalAttributeSchemaContract::isUniqueGlobally)
+			.filter(GlobalAttributeSchemaContract::isUniqueGloballyInAnyScope)
 			.toList();
 		if(!globallyUniqueAttributes.isEmpty()) {
 			endpointBuilder.buildGetUnknownEntityEndpoint(buildingContext, globallyUniqueAttributes, false)
@@ -246,13 +252,17 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 			entitySchema
 		);
 
-		// build filter schema
+		// build header schema
+		final OpenApiSimpleType headerObject = headConstraintSchemaBuilder.build(entitySchema.getName());
+		collectionBuildingContext.setHeaderObject(headerObject);
+
+		// build filter by schema
 		final OpenApiSimpleType filterByObject = filterConstraintSchemaBuilder.build(entitySchema.getName());
 		collectionBuildingContext.setFilterByObject(filterByObject);
 		final OpenApiSimpleType localizedFilterByObject = localizedFilterConstraintSchemaBuilder.build(entitySchema.getName());
 		collectionBuildingContext.setLocalizedFilterByObject(localizedFilterByObject);
 
-		// build order schema
+		// build order by schema
 		final OpenApiSimpleType orderByObject = orderConstraintSchemaBuilder.build(entitySchema.getName());
 		collectionBuildingContext.setOrderByObject(orderByObject);
 
@@ -301,6 +311,7 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 		final OpenApiObject.Builder objectBuilder = FetchEntityRequestDescriptor.THIS_LIST
 			.to(objectBuilderTransformer)
 			.name(constructEntityListRequestBodyObjectName(entitySchemaBuildingContext.getSchema(), localized))
+			.property(FetchEntityRequestDescriptor.HEAD.to(propertyBuilderTransformer).type(entitySchemaBuildingContext.getHeaderObject()))
 			.property(FetchEntityRequestDescriptor.FILTER_BY.to(propertyBuilderTransformer).type(localized ? entitySchemaBuildingContext.getLocalizedFilterByObject() : entitySchemaBuildingContext.getFilterByObject()))
 			.property(FetchEntityRequestDescriptor.ORDER_BY.to(propertyBuilderTransformer).type(entitySchemaBuildingContext.getOrderByObject()))
 			.property(FetchEntityRequestDescriptor.REQUIRE.to(propertyBuilderTransformer).type(localized ? entitySchemaBuildingContext.getLocalizedRequireForListObject() : entitySchemaBuildingContext.getRequireForListObject()));
@@ -314,6 +325,7 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 		final OpenApiObject.Builder objectBuilder = FetchEntityRequestDescriptor.THIS_QUERY
 			.to(objectBuilderTransformer)
 			.name(constructEntityQueryRequestBodyObjectName(entitySchemaBuildingContext.getSchema(), localized))
+			.property(FetchEntityRequestDescriptor.HEAD.to(propertyBuilderTransformer).type(entitySchemaBuildingContext.getHeaderObject()))
 			.property(FetchEntityRequestDescriptor.FILTER_BY.to(propertyBuilderTransformer).type(localized ? entitySchemaBuildingContext.getLocalizedFilterByObject() : entitySchemaBuildingContext.getFilterByObject()))
 			.property(FetchEntityRequestDescriptor.ORDER_BY.to(propertyBuilderTransformer).type(entitySchemaBuildingContext.getOrderByObject()))
 			.property(FetchEntityRequestDescriptor.REQUIRE.to(propertyBuilderTransformer).type(localized ? entitySchemaBuildingContext.getLocalizedRequireForQueryObject() : entitySchemaBuildingContext.getRequireForQueryObject()));
@@ -326,6 +338,7 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 		final OpenApiObject.Builder objectBuilder = FetchEntityRequestDescriptor.THIS_DELETE
 			.to(objectBuilderTransformer)
 			.name(FetchEntityRequestDescriptor.THIS_DELETE.name(entitySchemaBuildingContext.getSchema()))
+			.property(FetchEntityRequestDescriptor.HEAD.to(propertyBuilderTransformer).type(entitySchemaBuildingContext.getHeaderObject()))
 			.property(FetchEntityRequestDescriptor.FILTER_BY.to(propertyBuilderTransformer).type(entitySchemaBuildingContext.getFilterByObject()))
 			.property(FetchEntityRequestDescriptor.ORDER_BY.to(propertyBuilderTransformer).type(entitySchemaBuildingContext.getOrderByObject()))
 			.property(FetchEntityRequestDescriptor.REQUIRE.to(propertyBuilderTransformer).type(entitySchemaBuildingContext.getRequireForDeleteObject()));

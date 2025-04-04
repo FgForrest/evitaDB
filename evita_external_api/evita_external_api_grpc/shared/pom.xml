@@ -7,7 +7,7 @@
   ~             |  __/\ V /| | || (_| | |_| | |_) |
   ~              \___| \_/ |_|\__\__,_|____/|____/
   ~
-  ~   Copyright (c) 2023-2024
+  ~   Copyright (c) 2023-2025
   ~
   ~   Licensed under the Business Source License, Version 1.1 (the "License");
   ~   you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@
 	<parent>
 		<groupId>io.evitadb</groupId>
 		<artifactId>evita_external_api</artifactId>
-		<version>2024.9-SNAPSHOT</version>
+		<version>2025.4-SNAPSHOT</version>
 		<relativePath>../../pom.xml</relativePath>
 	</parent>
 	<properties>
@@ -76,8 +76,7 @@
 						</goals>
 						<configuration>
 							<pluginId>grpc-java</pluginId>
-							<pluginArtifact>io.grpc:protoc-gen-grpc-java:1.47.0:exe:${os.detected.classifier}
-							</pluginArtifact>
+							<pluginArtifact>io.grpc:protoc-gen-grpc-java:${grpc.version}:exe:${os.detected.classifier}</pluginArtifact>
 							<outputDirectory>src/main/java</outputDirectory>
 							<clearOutputDirectory>false</clearOutputDirectory>
 						</configuration>
@@ -162,42 +161,31 @@ $1package io.evitadb.externalApi.grpc.generated;
 					<artifactId>jsr305</artifactId>
 				</exclusion>
 			</exclusions>
+			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>io.grpc</groupId>
 			<artifactId>grpc-context</artifactId>
 			<version>${grpc.version}</version>
+			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>io.grpc</groupId>
 			<artifactId>grpc-protobuf</artifactId>
 			<version>${grpc.version}</version>
+			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>io.grpc</groupId>
 			<artifactId>grpc-stub</artifactId>
 			<version>${grpc.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>io.grpc</groupId>
-			<artifactId>grpc-services</artifactId>
-			<version>${grpc.version}</version>
-		</dependency>
-
-		<dependency>
-			<groupId>com.fasterxml.jackson.core</groupId>
-			<artifactId>jackson-databind</artifactId>
-			<version>${jackson.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>com.google.guava</groupId>
-			<artifactId>guava</artifactId>
-			<version>32.0.0-android</version>
+			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>com.linecorp.armeria</groupId>
-			<artifactId>armeria</artifactId>
+			<artifactId>armeria-grpc-protocol</artifactId>
 			<version>${armeria.version}</version>
+			<scope>provided</scope>
 		</dependency>
 	</dependencies>
 </project>

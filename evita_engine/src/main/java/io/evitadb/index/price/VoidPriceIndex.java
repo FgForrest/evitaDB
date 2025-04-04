@@ -27,7 +27,6 @@ import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.index.price.model.PriceIndexKey;
-import io.evitadb.store.entity.model.entity.price.PriceInternalIdContainer;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -65,9 +64,8 @@ public class VoidPriceIndex implements PriceIndexContract {
 		return Stream.empty();
 	}
 
-	@Nonnull
 	@Override
-	public PriceInternalIdContainer addPrice(int entityPrimaryKey, @Nullable Integer internalPriceId, @Nonnull PriceKey priceKey, @Nonnull PriceInnerRecordHandling innerRecordHandling, @Nullable Integer innerRecordId, @Nullable DateTimeRange validity, int priceWithoutTax, int priceWithTax) {
+	public int addPrice(int entityPrimaryKey, int internalPriceId, @Nonnull PriceKey priceKey, @Nonnull PriceInnerRecordHandling innerRecordHandling, @Nullable Integer innerRecordId, @Nullable DateTimeRange validity, int priceWithoutTax, int priceWithTax) {
 		throw new UnsupportedOperationException();
 	}
 

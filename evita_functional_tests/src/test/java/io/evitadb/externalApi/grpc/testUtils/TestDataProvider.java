@@ -195,7 +195,7 @@ public class TestDataProvider {
 								/* facets may be also represented be entities unknown to Evita */
 								.withReferenceTo(
 									Entities.STORE,
-									Entities.STORE,
+									"externalStore",
 									Cardinality.ZERO_OR_MORE,
 									ReferenceSchemaEditor::faceted
 								)

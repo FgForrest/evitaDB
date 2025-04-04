@@ -31,7 +31,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ReferenceAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaUniqueMutation;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -70,7 +70,7 @@ public class ModifyReferenceAttributeSchemaMutationTest {
 		assertNull(result.origin());
 		assertNotNull(result.current());
 		assertInstanceOf(ModifyReferenceAttributeSchemaMutation.class, result.current()[0]);
-		final ReferenceSchemaMutation attributeSchemaMutation = ((ModifyReferenceAttributeSchemaMutation) result.current()[0]).getAttributeSchemaMutation();
+		final ReferenceAttributeSchemaMutation attributeSchemaMutation = ((ModifyReferenceAttributeSchemaMutation) result.current()[0]).getAttributeSchemaMutation();
 		assertInstanceOf(SetAttributeSchemaUniqueMutation.class, attributeSchemaMutation);
 		assertEquals(AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION, ((SetAttributeSchemaUniqueMutation) attributeSchemaMutation).getUnique());
 	}

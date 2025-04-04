@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * TODO JNO - document 
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureResponse}
  */
 public final class GrpcRegisterSystemChangeCaptureResponse extends
@@ -303,6 +307,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * TODO JNO - document 
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureResponse}
    */
   public static final class Builder extends
@@ -544,7 +552,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture capture = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture.Builder getCaptureBuilder() {
-
+      
       onChanged();
       return getCaptureFieldBuilder().getBuilder();
     }
@@ -563,7 +571,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture capture = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture, io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture.Builder, io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture, io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture.Builder, io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureOrBuilder> 
         getCaptureFieldBuilder() {
       if (captureBuilder_ == null) {
         captureBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<

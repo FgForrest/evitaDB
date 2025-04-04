@@ -7,6 +7,11 @@ on:
     types:
       - clean-webhook
 
+permissions:
+  contents: read   # Required for actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2 to clone the repository
+  id-token: write  # Required for authentication in certain actions (e.g., digitalocean/action-doctl@v2)
+  secrets: read    # Required to access the DIGITALOCEAN_ACCESS_TOKEN secret
+
 env:
   KUBECONFIG: ${{ github.workspace }}/evita_performance_tests/src/do_k8s_automation/deploy/kube.cfg
 
@@ -20,35 +25,35 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3    
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
     - name: Install doctl
-      uses: digitalocean/action-doctl@v2
+      uses: digitalocean/action-doctl@135ac0aa0eed4437d547c6f12c364d3006b42824 # v2.5.1
       with:
         token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
 
     - name: Install kubectl
-      uses: azure/setup-kubectl@v3
+      uses: azure/setup-kubectl@3e0aec4d80787158d308d7b364cb1b702e7feb7f # v4.0.0
       with:
-        version: ${{ env.KUBECTL_VER }} 
+        version: ${{ env.KUBECTL_VER }}
 
     - name: Get Kubeconfig for DO cluster
       run: |
         export DO_CLUSTER_BENCHMARK_NAME="${DO_CLUSTER_NAME}-memory"
         doctl k8s cluster kubeconfig show "${DO_CLUSTER_BENCHMARK_NAME}" > ${KUBECONFIG}
 
-    - name: Prep artifact for upload 
+    - name: Prep artifact for upload
       run: |
         mkdir -p /tmp/logs
         kubectl -n evita get events --sort-by=.metadata.creationTimestamp > /tmp/logs/${K8S_JOB_NAME}-events.txt || : 
         kubectl -n evita logs job/${K8S_JOB_NAME} -c benchmark > /tmp/logs/${K8S_JOB_NAME}-log.txt || :
 
     - name: Archive logs from run
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
       with:
         name: logs
         path: /tmp/logs
-  
+
     - name: delete Kubernetes cluster in DO
       run: |
         export DO_CLUSTER_BENCHMARK_NAME="${DO_CLUSTER_NAME}-memory"

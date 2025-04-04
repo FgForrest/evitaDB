@@ -23,6 +23,7 @@
 
 package io.evitadb.store.exception;
 
+import javax.annotation.Nonnull;
 import java.io.Serial;
 
 /**
@@ -37,4 +38,7 @@ public class InvalidFileNameException extends EvitaIOException {
 		super(message);
 	}
 
+	public InvalidFileNameException(@Nonnull String privateMessage, @Nonnull String publicMessage) {
+		super(privateMessage, publicMessage);
+	}
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,11 +23,13 @@
 
 package io.evitadb.externalApi.observability.trace;
 
-import io.evitadb.externalApi.observability.configuration.ObservabilityConfig;
+import io.evitadb.externalApi.observability.configuration.ObservabilityOptions;
 import io.evitadb.externalApi.observability.configuration.TracingConfig;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
+import io.evitadb.utils.Assert;
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.baggage.propagation.W3CBaggagePropagator;
+import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
 import io.opentelemetry.context.ContextKey;
@@ -40,7 +42,6 @@ import io.opentelemetry.sdk.resources.Resource;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.SpanProcessor;
 import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
-import io.opentelemetry.semconv.ResourceAttributes;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -49,8 +50,8 @@ import java.time.Duration;
 /**
  * This class is responsible for setting up the OpenTelemetry instance, the tracer and a propagator context.
  * It is used by the {@link JsonApiTracingContext} and {@link GrpcTracingContext} to create a tracing context.
- * Traces are exported to the configured endpoint that is set in the {@link ObservabilityConfig}. This config should be
- * set before working with the OpenTelemetry via {@link #setTracingConfig(TracingConfig)} (ObservabilityConfig)}.
+ * Traces are exported to the configured endpoint that is set in the {@link ObservabilityOptions}. This config should be
+ * set before working with the OpenTelemetry via {@link #setTracingConfig(TracingConfig)} (ObservabilityOptions)}.
  *
  * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
@@ -60,10 +61,6 @@ public class OpenTelemetryTracerSetup {
 	 * of internal checks in the OpenTelemetry library uses `==` operation that compares instances and not values.
 	 */
 	public static final ContextKey<String> CONTEXT_KEY = ContextKey.named(ExternalApiTracingContext.CLIENT_ID_CONTEXT_KEY_NAME);
-	/**
-	 * Name of the service that is used in the tracing context.
-	 */
-	private static final String SERVICE_NAME = "evitaDB";
 	/**
 	 * Observability API tracing config.
 	 */
@@ -77,29 +74,28 @@ public class OpenTelemetryTracerSetup {
 	 */
 	private static Tracer TRACER;
 
-	private static final String SPAN_HTTP_PROTOCOL = "HTTP";
-	private static final String SPAN_GRPC_PROTOCOL = "GRPC";
-
 	/**
-	 * Sets the {@link ObservabilityConfig} that is used to configure the OpenTelemetry. Should be set before working with
+	 * Sets the {@link ObservabilityOptions} that is used to configure the OpenTelemetry. Should be set before working with
 	 * the OpenTelemetry.
 	 */
 	public static void setTracingConfig(@Nonnull TracingConfig tracingConfig) {
 		TRACING_CONFIG = tracingConfig;
 		if (isTracingEnabled(tracingConfig)) {
-			OPEN_TELEMETRY = initializeOpenTelemetry();
+			OPEN_TELEMETRY = initializeOpenTelemetry(tracingConfig);
 		}
 	}
 
 	/**
 	 * Initializes the OpenTelemetry instance with the configured exporter and propagator.
 	 */
-	@Nullable
-	private static OpenTelemetry initializeOpenTelemetry() {
-		final Resource resource = Resource.getDefault().toBuilder().put(ResourceAttributes.SERVICE_NAME, SERVICE_NAME).build();
+	@Nonnull
+	private static OpenTelemetry initializeOpenTelemetry(@Nonnull TracingConfig tracingConfig) {
+		final Resource resource = Resource.getDefault().toBuilder()
+			.put(AttributeKey.stringKey("service.name"), tracingConfig.serviceName())
+			.build();
 
 		final SdkTracerProvider sdkTracerProvider = SdkTracerProvider.builder()
-			.addSpanProcessor(getSpanProcessor(TRACING_CONFIG))
+			.addSpanProcessor(getSpanProcessor(tracingConfig))
 			.setResource(resource)
 			.build();
 
@@ -116,20 +112,22 @@ public class OpenTelemetryTracerSetup {
 	 */
 	@Nonnull
 	private static SpanProcessor getSpanProcessor(@Nonnull TracingConfig tracingConfig) {
-		if (SPAN_HTTP_PROTOCOL.equalsIgnoreCase(tracingConfig.getProtocol())) {
+		Assert.isTrue(tracingConfig.endpoint() != null, "Tracing endpoint must be set.");
+		if (TracingConfig.SPAN_HTTP_PROTOCOL.equalsIgnoreCase(tracingConfig.protocol())) {
 			return BatchSpanProcessor.builder(
 				OtlpHttpSpanExporter.builder()
-					.setEndpoint(TRACING_CONFIG.getEndpoint())
+					.setEndpoint(tracingConfig.endpoint())
+					.setTimeout(Duration.ofSeconds(10))
+					.build()
+			).build();
+		} else {
+			return BatchSpanProcessor.builder(
+				OtlpGrpcSpanExporter.builder()
+					.setEndpoint(tracingConfig.endpoint())
 					.setTimeout(Duration.ofSeconds(10))
 					.build()
 			).build();
 		}
-		return BatchSpanProcessor.builder(
-			OtlpGrpcSpanExporter.builder()
-				.setEndpoint(TRACING_CONFIG.getEndpoint())
-				.setTimeout(Duration.ofSeconds(10))
-				.build()
-		).build();
 	}
 
 	/**
@@ -146,7 +144,7 @@ public class OpenTelemetryTracerSetup {
 	@Nonnull
 	public static Tracer getTracer() {
 		if (TRACER == null) {
-			TRACER = OPEN_TELEMETRY.getTracer(SERVICE_NAME);
+			TRACER = OPEN_TELEMETRY.getTracer(TRACING_CONFIG.serviceName());
 		}
 		return TRACER;
 	}
@@ -169,7 +167,7 @@ public class OpenTelemetryTracerSetup {
 		if (tracingConfig == null) {
 			return false;
 		}
-		final String endpoint = tracingConfig.getEndpoint();
+		final String endpoint = tracingConfig.endpoint();
 		if (endpoint == null) {
 			return false;
 		}

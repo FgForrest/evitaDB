@@ -31,16 +31,14 @@ import javax.annotation.Nullable;
  * to maintain several connections to different evitaDB instances. We need this here to pass preconfigured connections
  * to the evitaLab.
  *
- * @param id optional unique identifier of the connection
+ * @param id optional unique identifier of the connection (although recommended)
+ *           if not specified, hash from the name will be used instead (not recommended, if name is changed, evitaLab will
+ *           recognize it as a new connection)
  * @param name name of the connection displayed to users
- * @param labApiUrl URL of the Lab API of the target evitaDB instance
- * @param restUrl optional URL of the REST API of the target evitaDB instance
- * @param gqlUrl optional URL of the GraphQL API of the target evitaDB instance
+ * @param serverUrl base server URL
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 public record EvitaDBConnection(@Nullable String id,
                                 @Nonnull String name,
-                                @Nonnull String labApiUrl,
-                                @Nullable String restUrl,
-								@Nullable String gqlUrl) {
+								@Nonnull String serverUrl) {
 }

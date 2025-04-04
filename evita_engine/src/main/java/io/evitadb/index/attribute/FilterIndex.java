@@ -33,6 +33,8 @@ import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
+import io.evitadb.dataType.ComparableCurrency;
+import io.evitadb.dataType.ComparableLocale;
 import io.evitadb.dataType.Range;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.IndexDataStructure;
@@ -55,10 +57,13 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.lang.reflect.Array;
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.BitSet;
 import java.util.Comparator;
+import java.util.Currency;
 import java.util.LinkedList;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -77,8 +82,8 @@ import static java.util.Optional.ofNullable;
 @SuppressWarnings({"unchecked", "rawtypes"})
 public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, IndexDataStructure, Serializable {
 	public static final String ERROR_RANGE_TYPE_NOT_SUPPORTED = "This filter index doesn't handle Range type!";
+	public static final Function<Object, Serializable> NO_NORMALIZATION = o -> (Serializable) o;
 	@Serial private static final long serialVersionUID = -6813305126746774103L;
-	private static final Function<Comparable, Comparable> NO_NORMALIZATION = Function.identity();
 	public static final Comparator<Comparable> DEFAULT_COMPARATOR = Comparator.naturalOrder();
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
@@ -92,7 +97,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	/**
 	 * Histogram is the main data structure that holds the information about value to record ids relation.
 	 */
-	@Nonnull @Getter private final InvertedIndex<? extends Comparable<?>> invertedIndex;
+	@Nonnull @Getter private final InvertedIndex invertedIndex;
 	/**
 	 * Range index is used only for attribute types that are assignable to {@link Range} and can answer questions like:
 	 * <p>
@@ -109,7 +114,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 * Instance of conversion function that converts the value before it's placed into internal index or looked up
 	 * in it by {@link Comparator} interface.
 	 */
-	@Nonnull private final Function<Comparable, Comparable> normalizer;
+	@Nonnull private final Function<Object, Serializable> normalizer;
 	/**
 	 * Instance of comparator that should be used for sorting values in this filter index.
 	 */
@@ -118,7 +123,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 * Value index is auxiliary data structure that allows fast O(1) access to the records of specified value.
 	 * It is created on demand on first use.
 	 */
-	@Nullable private transient Map<? extends Comparable<?>, Integer> valueIndex;
+	@Nullable private transient Map<Serializable, Integer> valueIndex;
 	/**
 	 * This field speeds up all requests for all data in this index (which happens quite often). This formula can be
 	 * computed anytime by calling `((InvertedIndex) this.histogram).getSortedRecords(null, null)`. Original operation
@@ -126,6 +131,16 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 */
 	@Nullable private transient Formula memoizedAllRecordsFormula;
 
+	/**
+	 * Verifies that the provided value is an array of Serializable objects and
+	 * returns it as an array of Comparable objects. If the elements in the value array
+	 * are not Comparable, they are converted to a String representation and
+	 * returned as a String array.
+	 *
+	 * @param value the object to be verified and converted
+	 * @return an array of Comparable objects or a String array if elements are not Comparable
+	 */
+	@Nonnull
 	private static Comparable[] verifyValueArray(@Nonnull Object value) {
 		isTrue(Serializable.class.isAssignableFrom(value.getClass().getComponentType()), "Value `" + unknownToString(value) + "` is expected to be Serializable, but it is not!");
 		if (Comparable.class.isAssignableFrom(value.getClass().getComponentType())) {
@@ -137,15 +152,6 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 				valuesAsString[i] = String.valueOf(Array.get(value, i));
 			}
 			return valuesAsString;
-		}
-	}
-
-	private static Comparable verifyValue(@Nonnull Object value) {
-		isTrue(value instanceof Serializable, "Value `" + unknownToString(value) + "` is expected to be Serializable, but it is not!");
-		if (value instanceof Comparable) {
-			return (Comparable) value;
-		} else {
-			return value.toString();
 		}
 	}
 
@@ -185,11 +191,19 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 * @return appropriate comparator
 	 */
 	@Nonnull
-	private static Function<Comparable, Comparable> getNormalizer(@Nonnull Class<?> attributeType) {
+	public static Function<Object, Serializable> getNormalizer(@Nonnull Class<?> attributeType) {
 		if (OffsetDateTime.class.isAssignableFrom(attributeType)) {
-			return comparable -> comparable instanceof OffsetDateTime offsetDateTime ? offsetDateTime.toInstant() : comparable;
-		} else {
+			return comparable -> comparable instanceof OffsetDateTime offsetDateTime ? offsetDateTime.toInstant() : (Serializable) comparable;
+		} else if (BigDecimal.class.isAssignableFrom(attributeType)) {
+			return comparable -> comparable instanceof BigDecimal bigDecimal ? bigDecimal.stripTrailingZeros() : (Serializable) comparable;
+		} else if (Currency.class.isAssignableFrom(attributeType)) {
+			return comparable -> comparable instanceof Currency currency ? new ComparableCurrency(currency) : (Serializable) comparable;
+		} else if (Locale.class.isAssignableFrom(attributeType)) {
+			return comparable -> comparable instanceof Locale locale ? new ComparableLocale(locale) : (Serializable) comparable;
+		} else if (Comparable.class.isAssignableFrom(attributeType)) {
 			return NO_NORMALIZATION;
+		} else {
+			throw new EvitaInvalidUsageException("Unsupported attribute type `" + attributeType + "`! The type is not comparable!");
 		}
 	}
 
@@ -201,7 +215,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 * @return appropriate comparator
 	 */
 	@Nonnull
-	private static Comparator<? extends Comparable> getComparator(@Nonnull AttributeKey attributeKey, @Nonnull Class<?> attributeType) {
+	public static Comparator<? extends Comparable> getComparator(@Nonnull AttributeKey attributeKey, @Nonnull Class<?> attributeType) {
 		if (String.class.isAssignableFrom(attributeType) && attributeKey.localized()) {
 			return new LocalizedStringComparator(attributeKey.locale());
 		} else {
@@ -213,15 +227,16 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 		this.attributeKey = attributeKey;
 		this.attributeType = attributeType;
 		this.dirty = new TransactionalBoolean();
-		this.rangeIndex = Range.class.isAssignableFrom(attributeType) ? new RangeIndex() : null;
-		this.comparator = getComparator(attributeKey, attributeType);
-		this.normalizer = getNormalizer(attributeType);
-		this.invertedIndex = new InvertedIndex<>(this.comparator);
+		final Class<?> plainType = attributeType.isArray() ? attributeType.getComponentType() : attributeType;
+		this.rangeIndex = Range.class.isAssignableFrom(plainType) ? new RangeIndex() : null;
+		this.comparator = getComparator(attributeKey, plainType);
+		this.normalizer = getNormalizer(plainType);
+		this.invertedIndex = new InvertedIndex(this.normalizer, this.comparator);
 	}
 
-	public <T extends Comparable<T>> FilterIndex(
+	public FilterIndex(
 		@Nonnull AttributeKey attributeKey,
-		@Nonnull ValueToRecordBitmap<T>[] valueToRecords,
+		@Nonnull ValueToRecordBitmap[] valueToRecords,
 		@Nullable RangeIndex rangeIndex,
 		@Nonnull Class<?> attributeType
 	) {
@@ -229,15 +244,16 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 		this.attributeType = attributeType;
 		this.dirty = new TransactionalBoolean();
 		this.rangeIndex = rangeIndex;
-		this.comparator = getComparator(attributeKey, attributeType);
-		this.normalizer = getNormalizer(attributeType);
-		this.invertedIndex = new InvertedIndex<>(valueToRecords, (Comparator<T>) this.comparator);
+		final Class<?> plainType = attributeType.isArray() ? attributeType.getComponentType() : attributeType;
+		this.comparator = getComparator(attributeKey, plainType);
+		this.normalizer = getNormalizer(plainType);
+		this.invertedIndex = new InvertedIndex(valueToRecords, this.normalizer, this.comparator);
 	}
 
 	//	TOBEDONE #538 - remove unnecessary constructor
-	public <T extends Comparable<T>> FilterIndex(
+	public FilterIndex(
 		@Nonnull AttributeKey attributeKey,
-		@Nonnull ValueToRecordBitmap<T>[] valueToRecords,
+		@Nonnull ValueToRecordBitmap[] valueToRecords,
 		@Nullable RangeIndex rangeIndex,
 		@Nonnull Class<?> attributeType,
 		boolean updateSortedValues
@@ -246,26 +262,27 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 		this.attributeType = attributeType;
 		this.dirty = new TransactionalBoolean();
 		this.rangeIndex = rangeIndex;
-		this.comparator = getComparator(attributeKey, attributeType);
-		this.normalizer = getNormalizer(attributeType);
+		final Class<?> plainType = attributeType.isArray() ? attributeType.getComponentType() : attributeType;
+		this.comparator = getComparator(attributeKey, plainType);
+		this.normalizer = getNormalizer(plainType);
 		if (updateSortedValues) {
 			if (this.normalizer != NO_NORMALIZATION) {
 				for (int i = 0; i < valueToRecords.length; i++) {
-					final ValueToRecordBitmap<T> valueToRecord = valueToRecords[i];
-					valueToRecords[i] = new ValueToRecordBitmap<>(this.normalizer.apply(valueToRecord.getValue()), valueToRecord.getRecordIds());
+					final ValueToRecordBitmap valueToRecord = valueToRecords[i];
+					valueToRecords[i] = new ValueToRecordBitmap(this.normalizer.apply(valueToRecord.getValue()), valueToRecord.getRecordIds());
 				}
 			}
 			if (this.comparator != DEFAULT_COMPARATOR) {
-				ArrayUtils.sortArray((o1, o2) -> ((Comparator<T>) this.comparator).compare(o1.getValue(), o2.getValue()), valueToRecords);
+				ArrayUtils.sortArray((o1, o2) -> ((Comparator) this.comparator).compare(o1.getValue(), o2.getValue()), valueToRecords);
 			}
 		}
-		InvertedIndex<T> theInvertedIndex;
+		InvertedIndex theInvertedIndex;
 		try {
-			theInvertedIndex = new InvertedIndex<>(valueToRecords, (Comparator<T>) this.comparator);
+			theInvertedIndex = new InvertedIndex(valueToRecords, this.normalizer, this.comparator);
 		} catch (MonotonicRowCorruptedException ex) {
 			if (this.comparator != DEFAULT_COMPARATOR) {
-				ArrayUtils.sortArray((o1, o2) -> ((Comparator<T>) this.comparator).compare(o1.getValue(), o2.getValue()), valueToRecords);
-				theInvertedIndex = new InvertedIndex<>(valueToRecords, (Comparator<T>) this.comparator);
+				ArrayUtils.sortArray((o1, o2) -> ((Comparator) this.comparator).compare(o1.getValue(), o2.getValue()), valueToRecords);
+				theInvertedIndex = new InvertedIndex(valueToRecords, this.normalizer, this.comparator);
 			} else {
 				throw ex;
 			}
@@ -273,13 +290,13 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 		this.invertedIndex = theInvertedIndex;
 	}
 
-	private <T extends Comparable<T>> FilterIndex(
+	private FilterIndex(
 		@Nonnull AttributeKey attributeKey,
 		@Nonnull Class<?> attributeType,
-		@Nonnull InvertedIndex<T> invertedIndex,
+		@Nonnull InvertedIndex invertedIndex,
 		@Nullable RangeIndex rangeIndex,
 		@Nonnull Comparator<? extends Comparable> comparator,
-		@Nonnull Function<Comparable, Comparable> normalizer
+		@Nonnull Function<Object, Serializable> normalizer
 	) {
 		this.attributeKey = attributeKey;
 		this.attributeType = attributeType;
@@ -299,10 +316,12 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 
 	/**
 	 * Returns formula of record ids whose String attribute starts with particular prefix.
+	 *
+	 * TOBEDONE JNO naive and slow - use RadixTree
 	 */
 	@Nonnull
 	public Formula getRecordsWhoseValuesStartWith(@Nonnull String prefix) {
-		final ValueToRecordBitmap<? extends Comparable<?>>[] buckets = invertedIndex.getValueToRecordBitmap();
+		final ValueToRecordBitmap[] buckets = invertedIndex.getValueToRecordBitmap();
 		final int matchIndex = ArrayUtils.binarySearch(
 			buckets,
 			prefix,
@@ -318,7 +337,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 			final LinkedList<Formula> formulas = new LinkedList<>();
 			// find all matching values to the end of the bucket list
 			for (int i = matchIndex; i < buckets.length; i++) {
-				final ValueToRecordBitmap<? extends Comparable<?>> bucket = buckets[i];
+				final ValueToRecordBitmap bucket = buckets[i];
 				final String value = String.valueOf(bucket.getValue());
 				if (value.startsWith(prefix)) {
 					formulas.add(new ConstantFormula(bucket.getRecordIds()));
@@ -329,7 +348,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 			}
 			// find all matching values to the start of the bucket list
 			for (int i = matchIndex - 1; i >= 0; i--) {
-				final ValueToRecordBitmap<? extends Comparable<?>> bucket = buckets[i];
+				final ValueToRecordBitmap bucket = buckets[i];
 				final String value = String.valueOf(bucket.getValue());
 				if (value.startsWith(prefix)) {
 					formulas.add(new ConstantFormula(bucket.getRecordIds()));
@@ -384,7 +403,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 * @param <T>      the type of the value, must implement Comparable<T>
 	 * @throws EvitaInvalidUsageException when the value is not of type Range in case of range index
 	 */
-	public <T extends Comparable<T>> void addRecord(int recordId, @Nonnull Object value) throws EvitaInvalidUsageException {
+	public <T extends Serializable> void addRecord(int recordId, @Nonnull Object value) throws EvitaInvalidUsageException {
 		// if current attribute is Range based assign record also to range index
 		if (rangeIndex != null) {
 			if (value instanceof Range[] valueArray) {
@@ -403,7 +422,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 				addRecordToHistogramAndValueIndex(recordId, (T) valueItem);
 			}
 		} else {
-			addRecordToHistogramAndValueIndex(recordId, (T) verifyValue(value));
+			addRecordToHistogramAndValueIndex(recordId, (T) value);
 		}
 
 		if (!isTransactionAvailable()) {
@@ -423,12 +442,13 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 * @param <T>      the type of the attribute value
 	 * @throws EvitaInvalidUsageException when the value is not of type Range in case of range index
 	 */
-	public <T extends Comparable<T>> void addRecordDelta(int recordId, @Nonnull Object[] value) throws EvitaInvalidUsageException {
+	public <T extends Serializable> void addRecordDelta(int recordId, @Nonnull Object[] value) throws EvitaInvalidUsageException {
 		// if current attribute is Range based assign record also to range index
-		if (rangeIndex != null) {
+		//noinspection VariableNotUsedInsideIf
+		if (this.rangeIndex != null) {
 			if (value instanceof Range[] valueArray) {
 				// this is quite expensive operation, but we need to do it to be able to remove and add the record
-				@SuppressWarnings("SuspiciousArrayCast") final Range[] existingRanges = (Range[]) ((InvertedIndex) this.invertedIndex).getValuesForRecord(recordId, Range.class);
+				final Range[] existingRanges = this.invertedIndex.getValuesForRecord(recordId, Range.class);
 				final Range[] aggregatedRanges = ArrayUtils.mergeArrays(existingRanges, valueArray);
 
 				removeRange(recordId, existingRanges);
@@ -457,7 +477,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 * @throws EvitaInvalidUsageException when the removed record is not actually registered for the attribute or
 	 *                                    when the value is not of type Range in case of range index
 	 */
-	public <T extends Comparable<T>> void removeRecord(int recordId, @Nonnull Object value) throws EvitaInvalidUsageException {
+	public <T extends Serializable> void removeRecord(int recordId, @Nonnull Object value) throws EvitaInvalidUsageException {
 		// if current attribute is Range based assign record also to range index
 		if (this.rangeIndex != null) {
 			if (value instanceof Object[]) {
@@ -476,12 +496,10 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 		}
 
 		if (value instanceof final Object[] valueArray) {
-			verifyValueArray(value);
-			for (Object valueItem : valueArray) {
+			for (Object valueItem : verifyValueArray(valueArray)) {
 				removeRecordFromHistogramAndValueIndex(recordId, (T) valueItem);
 			}
 		} else {
-			verifyValue(value);
 			removeRecordFromHistogramAndValueIndex(recordId, (T) value);
 		}
 
@@ -502,12 +520,13 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 * @param <T>      the type of the attribute value
 	 * @throws EvitaInvalidUsageException when the value is not of type Range in case of range index
 	 */
-	public <T extends Comparable<T>> void removeRecordDelta(int recordId, @Nonnull Object[] value) {
+	public <T extends Serializable> void removeRecordDelta(int recordId, @Nonnull Object[] value) {
 		// if current attribute is Range based assign record also to range index
+		//noinspection VariableNotUsedInsideIf
 		if (this.rangeIndex != null) {
 			if (value instanceof Range[] valueArray) {
 				// this is quite expensive operation, but we need to do it to be able to remove and add the record
-				@SuppressWarnings("SuspiciousArrayCast") final Range[] existingRanges = (Range[]) ((InvertedIndex) this.invertedIndex).getValuesForRecord(recordId, Range.class);
+				final Range[] existingRanges = this.invertedIndex.getValuesForRecord(recordId, Range.class);
 				final Range[] remainingRanges = getRemainingRanges(valueArray, existingRanges);
 
 				removeRange(recordId, existingRanges);
@@ -539,7 +558,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 * Returns bitmap of all record ids connected with the value in the argument
 	 */
 	@Nonnull
-	public <T extends Comparable<T>> Bitmap getRecordsEqualTo(@Nonnull T attributeValue) {
+	public <T> Bitmap getRecordsEqualTo(@Nonnull T attributeValue) {
 		return ofNullable(getValueIndex().get(this.normalizer.apply(attributeValue)))
 			.map(invertedIndex::getRecordsAtIndex)
 			.orElse(EmptyBitmap.INSTANCE);
@@ -549,17 +568,17 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 * Returns bitmap of all record ids connected with the value in the argument
 	 */
 	@Nonnull
-	public <T extends Comparable<T>> Formula getRecordsEqualToFormula(@Nonnull T attributeValue) {
+	public <T> Formula getRecordsEqualToFormula(@Nonnull T attributeValue) {
 		return ofNullable(getValueIndex().get(this.normalizer.apply(attributeValue)))
-			.map(it -> (Formula) new ConstantFormula(invertedIndex.getRecordsAtIndex(it)))
+			.map(it -> (Formula) new ConstantFormula(this.invertedIndex.getRecordsAtIndex(it)))
 			.orElse(EmptyFormula.INSTANCE);
 	}
 
 	/**
 	 * Returns all records present in filter index in the form of {@link InvertedIndexSubSet}.
 	 */
-	public <T extends Comparable<T>> InvertedIndexSubSet<T> getHistogramOfAllRecords() {
-		return ((InvertedIndex) this.invertedIndex).getSortedRecords(null, null);
+	public InvertedIndexSubSet getHistogramOfAllRecords() {
+		return this.invertedIndex.getSortedRecords(null, null);
 	}
 
 	/**
@@ -588,15 +607,15 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	/**
 	 * Returns all records lesser than or equals attribute value passed in the argument in the form of {@link InvertedIndexSubSet}.
 	 */
-	public <T extends Comparable<T>> InvertedIndexSubSet<T> getHistogramOfRecordsLesserThanEq(@Nonnull T to) {
-		return ((InvertedIndex) this.invertedIndex).getSortedRecords(null, this.normalizer.apply(to));
+	public InvertedIndexSubSet getHistogramOfRecordsLesserThanEq(@Nonnull Serializable to) {
+		return this.invertedIndex.getSortedRecords(null, to);
 	}
 
 	/**
 	 * Returns all records lesser than or equals attribute value passed in the argument in the form of {@link Bitmap}.
 	 */
 	@Nonnull
-	public <T extends Comparable<T>> Bitmap getRecordsLesserThanEq(@Nonnull T to) {
+	public Bitmap getRecordsLesserThanEq(@Nonnull Serializable to) {
 		final Formula recordsLesserThanEqFormula = getRecordsLesserThanEqFormula(to);
 		return recordsLesserThanEqFormula.compute();
 	}
@@ -604,22 +623,22 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	/**
 	 * Returns all records lesser than or equals attribute value passed in the argument in the form of {@link Bitmap}.
 	 */
-	public <T extends Comparable<T>> Formula getRecordsLesserThanEqFormula(@Nonnull T to) {
+	public Formula getRecordsLesserThanEqFormula(@Nonnull Serializable to) {
 		return getHistogramOfRecordsLesserThanEq(to).getFormula();
 	}
 
 	/**
 	 * Returns all records greater than or equals attribute value passed in the argument in the form of {@link InvertedIndexSubSet}.
 	 */
-	public <T extends Comparable<T>> InvertedIndexSubSet<T> getHistogramOfRecordsGreaterThanEq(@Nonnull T from) {
-		return ((InvertedIndex) this.invertedIndex).getSortedRecords(this.normalizer.apply(from), null);
+	public InvertedIndexSubSet getHistogramOfRecordsGreaterThanEq(@Nonnull Serializable from) {
+		return this.invertedIndex.getSortedRecords(from, null);
 	}
 
 	/**
 	 * Returns all records greater than or equals attribute value passed in the argument in the form of {@link Bitmap}.
 	 */
 	@Nonnull
-	public <T extends Comparable<T>> Bitmap getRecordsGreaterThanEq(@Nonnull T from) {
+	public Bitmap getRecordsGreaterThanEq(@Nonnull Serializable from) {
 		final Formula recordsGreaterThanEqFormula = getRecordsGreaterThanEqFormula(from);
 		return recordsGreaterThanEqFormula.compute();
 	}
@@ -627,22 +646,22 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	/**
 	 * Returns all records greater than or equals attribute value passed in the argument in the form of {@link AbstractFormula}.
 	 */
-	public <T extends Comparable<T>> Formula getRecordsGreaterThanEqFormula(@Nonnull T to) {
+	public Formula getRecordsGreaterThanEqFormula(@Nonnull Serializable to) {
 		return getHistogramOfRecordsGreaterThanEq(to).getFormula();
 	}
 
 	/**
 	 * Returns all records lesser than attribute value passed in the argument in the form of {@link InvertedIndexSubSet}.
 	 */
-	public <T extends Comparable<T>> InvertedIndexSubSet<T> getHistogramOfRecordsLesserThan(@Nonnull T to) {
-		return ((InvertedIndex) this.invertedIndex).getSortedRecordsExclusive(null, this.normalizer.apply(to));
+	public InvertedIndexSubSet getHistogramOfRecordsLesserThan(@Nonnull Serializable to) {
+		return this.invertedIndex.getSortedRecordsExclusive(null, to);
 	}
 
 	/**
 	 * Returns all records lesser than attribute value passed in the argument in the form of {@link Bitmap}.
 	 */
 	@Nonnull
-	public <T extends Comparable<T>> Bitmap getRecordsLesserThan(@Nonnull T to) {
+	public Bitmap getRecordsLesserThan(@Nonnull Serializable to) {
 		final Formula recordsLesserThanFormula = getRecordsLesserThanFormula(to);
 		return recordsLesserThanFormula.compute();
 	}
@@ -650,22 +669,22 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	/**
 	 * Returns all records lesser than attribute value passed in the argument in the form of {@link AbstractFormula}.
 	 */
-	public <T extends Comparable<T>> Formula getRecordsLesserThanFormula(@Nonnull T from) {
+	public Formula getRecordsLesserThanFormula(@Nonnull Serializable from) {
 		return getHistogramOfRecordsLesserThan(from).getFormula();
 	}
 
 	/**
 	 * Returns all records greater than attribute value passed in the argument in the form of {@link InvertedIndexSubSet}.
 	 */
-	public <T extends Comparable<T>> InvertedIndexSubSet<T> getHistogramOfRecordsGreaterThan(@Nonnull T from) {
-		return ((InvertedIndex) this.invertedIndex).getSortedRecordsExclusive(this.normalizer.apply(from), null);
+	public InvertedIndexSubSet getHistogramOfRecordsGreaterThan(@Nonnull Serializable from) {
+		return this.invertedIndex.getSortedRecordsExclusive(from, null);
 	}
 
 	/**
 	 * Returns all records greater than attribute value passed in the argument in the form of {@link Bitmap}.
 	 */
 	@Nonnull
-	public <T extends Comparable<T>> Bitmap getRecordsGreaterThan(@Nonnull T from) {
+	public Bitmap getRecordsGreaterThan(@Nonnull Serializable from) {
 		final Formula recordsGreaterThanFormula = getRecordsGreaterThanFormula(from);
 		return recordsGreaterThanFormula.compute();
 	}
@@ -673,7 +692,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	/**
 	 * Returns all records greater than attribute value passed in the argument in the form of {@link AbstractFormula}.
 	 */
-	public <T extends Comparable<T>> Formula getRecordsGreaterThanFormula(@Nonnull T from) {
+	public Formula getRecordsGreaterThanFormula(@Nonnull Serializable from) {
 		return getHistogramOfRecordsGreaterThan(this.normalizer.apply(from)).getFormula();
 	}
 
@@ -681,8 +700,8 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 * Returns all records with attribute values between `from` and `to` (inclusive) passed in the argument
 	 * in the form of {@link InvertedIndexSubSet}.
 	 */
-	public <T extends Comparable<T>> InvertedIndexSubSet<T> getHistogramOfRecordsBetween(@Nonnull T from, @Nonnull T to) {
-		return ((InvertedIndex) this.invertedIndex).getSortedRecords(this.normalizer.apply(from), this.normalizer.apply(to));
+	public InvertedIndexSubSet getHistogramOfRecordsBetween(@Nonnull Serializable from, @Nonnull Serializable to) {
+		return this.invertedIndex.getSortedRecords(from, to);
 	}
 
 	/**
@@ -690,7 +709,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 * in the form of {@link Bitmap}.
 	 */
 	@Nonnull
-	public <T extends Comparable<T>> Bitmap getRecordsBetween(@Nonnull T from, @Nonnull T to) {
+	public Bitmap getRecordsBetween(@Nonnull Serializable from, @Nonnull Serializable to) {
 		final Formula recordsBetweenFormula = getRecordsBetweenFormula(from, to);
 		return recordsBetweenFormula.compute();
 	}
@@ -699,7 +718,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 * Returns all records with attribute values between `from` and `to` (inclusive) passed in the argument
 	 * in the form of {@link AbstractFormula}.
 	 */
-	public <T extends Comparable<T>> Formula getRecordsBetweenFormula(@Nonnull T from, @Nonnull T to) {
+	public Formula getRecordsBetweenFormula(@Nonnull Serializable from, @Nonnull Serializable to) {
 		return getHistogramOfRecordsBetween(from, to).getFormula();
 	}
 
@@ -825,12 +844,12 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	}
 
 	@Nonnull
-	private Map<? extends Comparable<?>, Integer> getValueIndex() {
+	private Map<Serializable, Integer> getValueIndex() {
 		if (valueIndex == null) {
-			final Map<Comparable<?>, Integer> bucketValueToPositionIndex = createHashMap(invertedIndex.getBucketCount());
-			final ValueToRecordBitmap<? extends Comparable<?>>[] buckets = invertedIndex.getValueToRecordBitmap();
+			final Map<Serializable, Integer> bucketValueToPositionIndex = createHashMap(invertedIndex.getBucketCount());
+			final ValueToRecordBitmap[] buckets = invertedIndex.getValueToRecordBitmap();
 			for (int i = 0; i < buckets.length; i++) {
-				final ValueToRecordBitmap<? extends Comparable<?>> bucket = buckets[i];
+				final ValueToRecordBitmap bucket = buckets[i];
 				bucketValueToPositionIndex.put(bucket.getValue(), i);
 			}
 			this.valueIndex = bucketValueToPositionIndex;
@@ -838,13 +857,13 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 		return valueIndex;
 	}
 
-	private <T extends Comparable<T>> void addRecordToHistogramAndValueIndex(int recordId, @Nonnull T value) {
-		((InvertedIndex) this.invertedIndex).addRecord(this.normalizer.apply(value), recordId);
+	private <T extends Serializable> void addRecordToHistogramAndValueIndex(int recordId, @Nonnull T value) {
+		this.invertedIndex.addRecord(value, recordId);
 		this.valueIndex = null;
 	}
 
-	private <T extends Comparable<T>> void removeRecordFromHistogramAndValueIndex(int recordId, @Nonnull T value) {
-		final int removalIndex = ((InvertedIndex) this.invertedIndex).removeRecord(this.normalizer.apply(value), recordId);
+	private <T extends Serializable> void removeRecordFromHistogramAndValueIndex(int recordId, @Nonnull T value) {
+		final int removalIndex = this.invertedIndex.removeRecord(value, recordId);
 		isTrue(removalIndex >= 0, "Sanity check - record not found!");
 		this.valueIndex = null;
 	}

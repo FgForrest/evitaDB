@@ -30,6 +30,7 @@ import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.query.require.Require;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.GenericDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.ConstraintResolver;
 
 import javax.annotation.Nonnull;
@@ -62,7 +63,7 @@ public class RequireConstraintResolver extends GraphQLConstraintResolver<Require
 	@Nullable
 	public RequireConstraint resolve(@Nonnull String rootEntityType, @Nonnull String key, @Nullable Object value) {
 		return resolve(
-			new GenericDataLocator(rootEntityType),
+			new GenericDataLocator(new ManagedEntityTypePointer(rootEntityType)),
 			key,
 			value
 		);

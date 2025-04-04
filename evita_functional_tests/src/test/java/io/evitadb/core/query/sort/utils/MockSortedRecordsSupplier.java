@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,11 +23,15 @@
 
 package io.evitadb.core.query.sort.utils;
 
+import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedComparableForwardSeeker;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.ArrayUtils;
 import lombok.Getter;
+
+import javax.annotation.Nonnull;
+import java.io.Serializable;
 
 /**
  * Mock implementation of {@link SortedRecordsProvider} for testing purposes.
@@ -52,6 +56,18 @@ public class MockSortedRecordsSupplier implements SortedRecordsProvider {
 	@Override
 	public int getRecordCount() {
 		return sortedRecordIds.length;
+	}
+
+	@Nonnull
+	@Override
+	public SortedComparableForwardSeeker getSortedComparableForwardSeeker() {
+		return new SortedComparableForwardSeeker() {
+			@Nonnull
+			@Override
+			public Serializable getValueToCompareOn(int position) throws ArrayIndexOutOfBoundsException {
+				return MockSortedRecordsSupplier.this.recordPositions[position];
+			}
+		};
 	}
 
 }

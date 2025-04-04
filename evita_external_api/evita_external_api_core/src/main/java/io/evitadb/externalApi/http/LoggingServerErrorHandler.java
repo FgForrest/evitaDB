@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,8 +27,11 @@ import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.common.MediaType;
 import com.linecorp.armeria.common.annotation.Nullable;
+import com.linecorp.armeria.common.stream.ClosedStreamException;
+import com.linecorp.armeria.server.RequestTimeoutException;
 import com.linecorp.armeria.server.ServerErrorHandler;
 import com.linecorp.armeria.server.ServiceRequestContext;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -44,7 +47,15 @@ class LoggingServerErrorHandler implements ServerErrorHandler {
 
 	@Override
 	public @Nullable HttpResponse onServiceException(ServiceRequestContext ctx, Throwable cause) {
-		log.error("Armeria server error: " + cause.getMessage(), cause);
-		return HttpResponse.of(HttpStatus.INTERNAL_SERVER_ERROR, MediaType.PLAIN_TEXT, "Internal server error. Please try again later.");
+		if (cause instanceof RequestTimeoutException) {
+			return HttpResponse.of(HttpStatus.REQUEST_TIMEOUT, MediaType.PLAIN_TEXT, "Request timed out.");
+		} else if (cause instanceof ClosedStreamException) {
+			return HttpResponse.of(HttpStatus.REQUEST_TIMEOUT, MediaType.PLAIN_TEXT, "Client closed stream.");
+		} else if (cause instanceof EvitaInvalidUsageException) {
+			return HttpResponse.of(HttpStatus.BAD_REQUEST, MediaType.PLAIN_TEXT, "Bad request.");
+		} else {
+			log.error("Armeria server error: " + cause.getMessage(), cause);
+			return HttpResponse.of(HttpStatus.INTERNAL_SERVER_ERROR, MediaType.PLAIN_TEXT, "Internal server error. Please try again later.");
+		}
 	}
 }

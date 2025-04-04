@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,7 +28,6 @@ import io.evitadb.api.query.FacetConstraint;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.AliasForParameter;
-import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.Classifier;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
@@ -85,7 +84,7 @@ public class FacetHaving extends AbstractFilterConstraintContainer implements Fa
 
 	@Creator
 	public FacetHaving(@Nonnull @Classifier String referenceName,
-	                   @Nonnull @Child(domain = ConstraintDomain.REFERENCE) FilterConstraint... filter) {
+	                   @Nonnull FilterConstraint... filter) {
 		super(new Serializable[]{referenceName}, filter);
 	}
 

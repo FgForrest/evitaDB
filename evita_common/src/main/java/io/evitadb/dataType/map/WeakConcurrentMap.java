@@ -23,6 +23,10 @@
 
 package io.evitadb.dataType.map;
 
+import io.evitadb.utils.CollectionUtils;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.lang.ref.Reference;
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
@@ -30,9 +34,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.NoSuchElementException;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
 /**
@@ -46,32 +48,32 @@ import java.util.function.Function;
  *
  * @author Mockito
  */
+@SuppressWarnings({"SuspiciousMethodCalls"})
 public class WeakConcurrentMap<K, V> extends ReferenceQueue<K>
 	implements Iterable<Map.Entry<K, V>> {
-
-	private static final AtomicLong ID = new AtomicLong();
 
 	public final ConcurrentMap<WeakKey<K>, V> target;
 
 	public WeakConcurrentMap() {
-		target = new ConcurrentHashMap<>();
+		this.target = CollectionUtils.createConcurrentHashMap(64);
 	}
 
 	/**
 	 * @param key The key of the entry.
 	 * @return The value of the entry or the default value if it did not exist.
 	 */
+	@Nullable
 	@SuppressWarnings("CollectionIncompatibleType")
 	public V get(K key) {
 		if (key == null) {
 			throw new NullPointerException();
 		}
 		expungeStaleEntries();
-		V value = target.get(new LatentKey<K>(key));
+		V value = target.get(new LatentKey<>(key));
 		if (value == null) {
 			value = defaultValue(key);
 			if (value != null) {
-				V previousValue = target.putIfAbsent(new WeakKey<K>(key, this), value);
+				V previousValue = target.putIfAbsent(new WeakKey<>(key, this), value);
 				if (previousValue != null) {
 					value = previousValue;
 				}
@@ -90,7 +92,7 @@ public class WeakConcurrentMap<K, V> extends ReferenceQueue<K>
 			throw new NullPointerException();
 		}
 		expungeStaleEntries();
-		return target.containsKey(new LatentKey<K>(key));
+		return target.containsKey(new LatentKey<>(key));
 	}
 
 	/**
@@ -98,12 +100,13 @@ public class WeakConcurrentMap<K, V> extends ReferenceQueue<K>
 	 * @param value The value of the entry.
 	 * @return The previous entry or {@code null} if it does not exist.
 	 */
+	@Nullable
 	public V put(K key, V value) {
 		if (key == null || value == null) {
 			throw new NullPointerException();
 		}
 		expungeStaleEntries();
-		return target.put(new WeakKey<K>(key, this), value);
+		return target.put(new WeakKey<>(key, this), value);
 	}
 
 	/**
@@ -126,7 +129,7 @@ public class WeakConcurrentMap<K, V> extends ReferenceQueue<K>
 			throw new NullPointerException();
 		}
 		expungeStaleEntries();
-		return target.remove(new LatentKey<K>(key));
+		return target.remove(new LatentKey<>(key));
 	}
 
 	/**
@@ -144,6 +147,7 @@ public class WeakConcurrentMap<K, V> extends ReferenceQueue<K>
 	 * @param key The key for which to create a default value.
 	 * @return The default value for a key without value or {@code null} for not defining a default value.
 	 */
+	@Nullable
 	protected V defaultValue(K key) {
 		return null;
 	}
@@ -167,6 +171,7 @@ public class WeakConcurrentMap<K, V> extends ReferenceQueue<K>
 		return target.size();
 	}
 
+	@Nonnull
 	@Override
 	public Iterator<Entry<K, V>> iterator() {
 		return new EntryIterator(target.entrySet().iterator());
@@ -263,9 +268,9 @@ public class WeakConcurrentMap<K, V> extends ReferenceQueue<K>
 
 		private final Iterator<Map.Entry<WeakKey<K>, V>> iterator;
 
-		private Map.Entry<WeakKey<K>, V> nextEntry;
+		@Nullable private Map.Entry<WeakKey<K>, V> nextEntry;
 
-		private K nextKey;
+		@Nullable private K nextKey;
 
 		private EntryIterator(Iterator<Map.Entry<WeakKey<K>, V>> iterator) {
 			this.iterator = iterator;
@@ -291,7 +296,7 @@ public class WeakConcurrentMap<K, V> extends ReferenceQueue<K>
 
 		@Override
 		public Map.Entry<K, V> next() {
-			if (nextKey == null) {
+			if (nextKey == null || nextEntry == null) {
 				throw new NoSuchElementException();
 			}
 			try {
@@ -313,7 +318,7 @@ public class WeakConcurrentMap<K, V> extends ReferenceQueue<K>
 
 		final Map.Entry<WeakKey<K>, V> entry;
 
-		private SimpleEntry(K key, Map.Entry<WeakKey<K>, V> entry) {
+		private SimpleEntry(@Nonnull K key, @Nonnull Map.Entry<WeakKey<K>, V> entry) {
 			this.key = key;
 			this.entry = entry;
 		}

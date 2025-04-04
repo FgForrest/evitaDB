@@ -75,24 +75,24 @@ public interface GetMutationsHistoryPageRequestOrBuilder extends
    * The criteria of the capture, allows to define constraints on the returned mutations
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 5;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 5;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria>
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria> 
       getCriteriaList();
   /**
    * <pre>
    * The criteria of the capture, allows to define constraints on the returned mutations
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 5;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 5;</code>
    */
-  io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria getCriteria(int index);
+  io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria getCriteria(int index);
   /**
    * <pre>
    * The criteria of the capture, allows to define constraints on the returned mutations
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 5;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 5;</code>
    */
   int getCriteriaCount();
   /**
@@ -100,18 +100,18 @@ public interface GetMutationsHistoryPageRequestOrBuilder extends
    * The criteria of the capture, allows to define constraints on the returned mutations
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 5;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 5;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteriaOrBuilder>
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteriaOrBuilder> 
       getCriteriaOrBuilderList();
   /**
    * <pre>
    * The criteria of the capture, allows to define constraints on the returned mutations
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteria criteria = 5;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 5;</code>
    */
-  io.evitadb.externalApi.grpc.generated.GrpcCaptureCriteriaOrBuilder getCriteriaOrBuilder(
+  io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteriaOrBuilder getCriteriaOrBuilder(
       int index);
 
   /**
@@ -119,7 +119,7 @@ public interface GetMutationsHistoryPageRequestOrBuilder extends
    * The scope of the returned data - either header of the mutation, or the whole mutation
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureContent content = 6;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 6;</code>
    * @return The enum numeric value on the wire for content.
    */
   int getContentValue();
@@ -128,8 +128,8 @@ public interface GetMutationsHistoryPageRequestOrBuilder extends
    * The scope of the returned data - either header of the mutation, or the whole mutation
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureContent content = 6;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 6;</code>
    * @return The content.
    */
-  io.evitadb.externalApi.grpc.generated.GrpcCaptureContent getContent();
+  io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent getContent();
 }

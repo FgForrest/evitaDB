@@ -28,25 +28,26 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaSortableMutation;
+import io.evitadb.store.wal.schema.MutationSerializationFunctions;
 
 /**
  * Serializer for {@link SetAttributeSchemaSortableMutation}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class SetAttributeSchemaSortableMutationSerializer extends Serializer<SetAttributeSchemaSortableMutation> {
+public class SetAttributeSchemaSortableMutationSerializer extends Serializer<SetAttributeSchemaSortableMutation> implements MutationSerializationFunctions {
 
 	@Override
 	public void write(Kryo kryo, Output output, SetAttributeSchemaSortableMutation mutation) {
 		output.writeString(mutation.getName());
-		output.writeBoolean(mutation.isSortable());
+		writeScopeArray(kryo, output, mutation.getSortableInScopes());
 	}
 
 	@Override
 	public SetAttributeSchemaSortableMutation read(Kryo kryo, Input input, Class<? extends SetAttributeSchemaSortableMutation> type) {
 		return new SetAttributeSchemaSortableMutation(
 			input.readString(),
-			input.readBoolean()
+			readScopeArray(kryo, input)
 		);
 	}
 }

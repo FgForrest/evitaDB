@@ -195,7 +195,11 @@ public class GetReferenceAttributeMethodClassifier extends DirectMethodClassific
 					.orElseGet(() -> ReflectionLookup.getPropertyNameFromMethodName(method.getName()))
 			);
 		} else if (attributeRefInstance != null) {
-			return schemaLocator.apply(attributeRefInstance.value());
+			return schemaLocator.apply(
+				ofNullable(attributeRefInstance.value())
+					.filter(it -> !it.isBlank())
+					.orElseGet(() -> ReflectionLookup.getPropertyNameFromMethodName(method.getName()))
+			);
 		} else if (!reflectionLookup.hasAnnotationInSamePackage(method, Attribute.class) && ClassUtils.isAbstract(method)) {
 			final Optional<String> attributeName = ReflectionLookup.getPropertyNameFromMethodNameIfPossible(method.getName());
 			return attributeName
@@ -227,7 +231,9 @@ public class GetReferenceAttributeMethodClassifier extends DirectMethodClassific
 		if (attributeInstance != null) {
 			return schemaLocator.apply(attributeInstance.name());
 		} else if (attributeRefInstance != null) {
-			return schemaLocator.apply(attributeRefInstance.value());
+			return schemaLocator.apply(
+				attributeRefInstance.value().isBlank() ? parameterName : attributeRefInstance.value()
+			);
 		} else {
 			return referenceSchema.getAttributeByName(parameterName, NamingConvention.CAMEL_CASE)
 				.orElse(null);

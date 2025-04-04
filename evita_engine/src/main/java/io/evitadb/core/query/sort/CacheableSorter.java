@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ package io.evitadb.core.query.sort;
 
 import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
 import io.evitadb.core.cache.payload.CachePayloadHeader;
-import io.evitadb.core.query.QueryPlanningContext;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
@@ -60,7 +60,7 @@ public interface CacheableSorter extends TransactionalDataRelatedStructure, Sort
 
 	/**
 	 * Returns copy of this computer with same configuration but new method handle that references callback that
-	 * will be called when {@link #sortAndSlice(QueryPlanningContext, Formula, int, int, int[], int)} method is first executed
+	 * will be called when {@link #sortAndSlice(QueryExecutionContext, Formula, int, int, int[], int, int)} method is first executed
 	 * and memoized result is available.
 	 */
 	@Nonnull

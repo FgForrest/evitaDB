@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -53,16 +53,21 @@ public class QueryPurifierVisitor implements ConstraintVisitor {
 	private final UnaryOperator<Constraint<?>> constraintTranslator;
 	private Constraint<?> result = null;
 
-	public static Constraint<?> purify(@Nonnull Constraint<?> constraint) {
+	@Nullable
+	public static <T extends Constraint<T>> T purify(@Nonnull T constraint) {
 		final QueryPurifierVisitor visitor = new QueryPurifierVisitor();
 		constraint.accept(visitor);
-		return visitor.getResult();
+		//noinspection unchecked
+		return (T) visitor.getResult();
 	}
 
-	public static Constraint<?> purify(@Nonnull Constraint<?> constraint, @Nullable UnaryOperator<Constraint<?>> constraintTranslator) {
-		final QueryPurifierVisitor visitor = new QueryPurifierVisitor(constraintTranslator);
+	@Nullable
+	public static <T extends Constraint<T>> T purify(@Nonnull T constraint, @Nullable UnaryOperator<T> constraintTranslator) {
+		//noinspection unchecked
+		final QueryPurifierVisitor visitor = new QueryPurifierVisitor((UnaryOperator<Constraint<?>>) constraintTranslator);
 		constraint.accept(visitor);
-		return visitor.getResult();
+		//noinspection unchecked
+		return (T) visitor.getResult();
 	}
 
 	/**
@@ -79,7 +84,7 @@ public class QueryPurifierVisitor implements ConstraintVisitor {
 				} else {
 					throw new GenericEvitaInternalError(
 						"Constraint container " + constraintContainer.getName() + " states it's not necessary, " +
-							"but holds not exactly one child (" + children.length + ")!"
+							"but holds not exactly " + children.length + " child(ren)!"
 					);
 				}
 			}
@@ -143,9 +148,9 @@ public class QueryPurifierVisitor implements ConstraintVisitor {
 		}
 	}
 
-	@Nonnull
+	@Nullable
 	public Constraint<?> getResult() {
-		return result;
+		return this.result;
 	}
 
 	/**

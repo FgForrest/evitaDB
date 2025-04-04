@@ -30,19 +30,34 @@ import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PricesFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityQueryContext;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.Currency;
 import java.util.List;
 import java.util.Locale;
 
 /**
- * Finds all entity prices (even not sellable).
+ * Finds all entity prices (even not indexed).
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class PricesDataFetcher implements DataFetcher<DataFetcherResult<Collection<PriceContract>>> {
+
+    @Nullable
+    private static PricesDataFetcher INSTANCE;
+
+    @Nonnull
+    public static PricesDataFetcher getInstance() {
+        if (INSTANCE == null) {
+            INSTANCE = new PricesDataFetcher();
+        }
+        return INSTANCE;
+    }
 
     @Nonnull
     @Override

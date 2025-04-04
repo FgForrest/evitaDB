@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,13 +24,13 @@
 package io.evitadb.externalApi.rest.api.system.builder;
 
 import io.evitadb.core.Evita;
+import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.rest.api.builder.RestBuildingContext;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiSystemEndpoint;
-import io.evitadb.externalApi.rest.configuration.RestConfig;
+import io.evitadb.externalApi.rest.configuration.RestOptions;
 import io.swagger.v3.oas.models.servers.Server;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.List;
 
@@ -43,14 +43,18 @@ public class SystemRestBuildingContext extends RestBuildingContext {
 
 	private static final String OPEN_API_TITLE = "Web services for managing evitaDB.";
 
-	public SystemRestBuildingContext(@Nullable String exposedOn, @Nonnull RestConfig restConfig, @Nonnull Evita evita) {
-		super(exposedOn, restConfig, evita);
+	public SystemRestBuildingContext(
+		@Nonnull RestOptions restConfig,
+		@Nonnull HeaderOptions headerOptions,
+		@Nonnull Evita evita
+	) {
+		super(restConfig, headerOptions, evita);
 	}
 
 	@Nonnull
 	@Override
 	protected List<Server> buildOpenApiServers() {
-		return Arrays.stream(restConfig.getBaseUrls(getExposedOn()))
+		return Arrays.stream(restConfig.getBaseUrls())
 			.map(baseUrl -> new Server()
 				.url(baseUrl + OpenApiSystemEndpoint.URL_PREFIX))
 			.toList();

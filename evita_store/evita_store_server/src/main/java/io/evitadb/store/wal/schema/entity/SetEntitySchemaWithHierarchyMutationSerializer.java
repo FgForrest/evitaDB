@@ -28,23 +28,26 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWithHierarchyMutation;
+import io.evitadb.store.wal.schema.MutationSerializationFunctions;
 
 /**
  * Serializer for {@link SetEntitySchemaWithHierarchyMutation}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class SetEntitySchemaWithHierarchyMutationSerializer extends Serializer<SetEntitySchemaWithHierarchyMutation> {
+public class SetEntitySchemaWithHierarchyMutationSerializer extends Serializer<SetEntitySchemaWithHierarchyMutation> implements MutationSerializationFunctions {
 
 	@Override
 	public void write(Kryo kryo, Output output, SetEntitySchemaWithHierarchyMutation object) {
 		output.writeBoolean(object.isWithHierarchy());
+		writeScopeArray(kryo, output, object.getIndexedInScopes());
 	}
 
 	@Override
 	public SetEntitySchemaWithHierarchyMutation read(Kryo kryo, Input input, Class<? extends SetEntitySchemaWithHierarchyMutation> type) {
 		return new SetEntitySchemaWithHierarchyMutation(
-			input.readBoolean()
+			input.readBoolean(),
+			readScopeArray(kryo, input)
 		);
 	}
 

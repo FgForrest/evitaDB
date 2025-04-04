@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.store.entity.model.entity.price.PriceWithInternalIds;
 import io.evitadb.store.service.KeyCompressor;
+import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 import java.math.BigDecimal;
@@ -48,19 +49,22 @@ public class PriceWithInternalIdsSerializer extends Serializer<PriceWithInternal
 
 	@Override
 	public void write(Kryo kryo, Output output, PriceWithInternalIds price) {
+		Assert.isPremiseValid(
+			price.getInternalPriceId() > 0,
+			"Internal price id must be positive, but was: " + price.getInternalPriceId()
+		);
+
 		output.writeVarInt(price.version(), true);
-		output.writeBoolean(price.sellable());
-		if (price.sellable()) {
-			//noinspection ConstantConditions
-			output.writeInt(price.getInternalPriceId());
-		}
+		output.writeBoolean(price.indexed());
+		output.writeInt(price.getInternalPriceId());
 		output.writeInt(price.priceId());
 		output.writeVarInt(keyCompressor.getId(new CompressiblePriceKey(price.priceKey())), true);
-		if (price.innerRecordId() == null) {
+		final Integer innerRecordId = price.innerRecordId();
+		if (innerRecordId == null) {
 			output.writeBoolean(false);
 		} else {
 			output.writeBoolean(true);
-			output.writeInt(price.innerRecordId());
+			output.writeInt(innerRecordId);
 		}
 		kryo.writeObject(output, price.priceWithoutTax());
 		kryo.writeObject(output, price.taxRate());
@@ -72,8 +76,8 @@ public class PriceWithInternalIdsSerializer extends Serializer<PriceWithInternal
 	@Override
 	public PriceWithInternalIds read(Kryo kryo, Input input, Class<? extends PriceWithInternalIds> type) {
 		final int version = input.readVarInt(true);
-		final boolean sellable = input.readBoolean();
-		final Integer internalPriceId = sellable ? input.readInt() : null;
+		final boolean indexed = input.readBoolean();
+		final int internalPriceId = input.readInt();
 		final int priceId = input.readInt();
 		final CompressiblePriceKey priceKey = keyCompressor.getKeyForId(input.readVarInt(true));
 		final boolean innerIdExists = input.readBoolean();
@@ -95,7 +99,7 @@ public class PriceWithInternalIdsSerializer extends Serializer<PriceWithInternal
 				new PriceKey(priceId, priceKey.getPriceList(), priceKey.getCurrency()),
 				innerRecordId,
 				priceWithoutTax, taxRate, priceWithTax,
-				validity, sellable, dropped
+				validity, indexed, dropped
 			),
 			internalPriceId
 		);

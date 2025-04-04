@@ -34,7 +34,7 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * This `useOfPrice` require query can be used to control the form of prices that will be used for computation in
+ * This `useOfPrice` require constraint can be used to control the form of prices that will be used for computation in
  * {@link io.evitadb.api.query.filter.PriceBetween} filtering, and {@link PriceNatural},
  * ordering. Also {@link PriceHistogram} is sensitive to this setting.
  *

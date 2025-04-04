@@ -46,6 +46,12 @@ import static graphql.schema.GraphQLNonNull.nonNull;
  */
 public class CommonEvitaSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<CatalogGraphQLSchemaBuildingContext> {
 
+	private static final NameVariantDataFetcher CAMEL_CASE_VARIANT_DATA_FETCHER = new NameVariantDataFetcher(NamingConvention.CAMEL_CASE);
+	private static final NameVariantDataFetcher PASCAL_CASE_VARIANT_DATA_FETCHER = new NameVariantDataFetcher(NamingConvention.PASCAL_CASE);
+	private static final NameVariantDataFetcher SNAKE_CASE_VARIANT_DATA_FETCHER = new NameVariantDataFetcher(NamingConvention.SNAKE_CASE);
+	private static final NameVariantDataFetcher UPPER_SNAKE_CASE_VARIANT_DATA_FETCHER = new NameVariantDataFetcher(NamingConvention.UPPER_SNAKE_CASE);
+	private static final NameVariantDataFetcher KEBAB_CASE_VARIANT_DATA_FETCHER = new NameVariantDataFetcher(NamingConvention.KEBAB_CASE);
+
 	public CommonEvitaSchemaSchemaBuilder(@Nonnull CatalogGraphQLSchemaBuildingContext catalogGraphQLSchemaBuildingContext) {
 		super(catalogGraphQLSchemaBuildingContext);
 	}
@@ -65,27 +71,27 @@ public class CommonEvitaSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<
 		buildingContext.registerDataFetcher(
 			NameVariantsDescriptor.THIS,
 			NameVariantsDescriptor.CAMEL_CASE,
-			new NameVariantDataFetcher(NamingConvention.CAMEL_CASE)
+			CAMEL_CASE_VARIANT_DATA_FETCHER
 		);
 		buildingContext.registerDataFetcher(
 			NameVariantsDescriptor.THIS,
 			NameVariantsDescriptor.PASCAL_CASE,
-			new NameVariantDataFetcher(NamingConvention.PASCAL_CASE)
+			PASCAL_CASE_VARIANT_DATA_FETCHER
 		);
 		buildingContext.registerDataFetcher(
 			NameVariantsDescriptor.THIS,
 			NameVariantsDescriptor.SNAKE_CASE,
-			new NameVariantDataFetcher(NamingConvention.SNAKE_CASE)
+			SNAKE_CASE_VARIANT_DATA_FETCHER
 		);
 		buildingContext.registerDataFetcher(
 			NameVariantsDescriptor.THIS,
 			NameVariantsDescriptor.UPPER_SNAKE_CASE,
-			new NameVariantDataFetcher(NamingConvention.UPPER_SNAKE_CASE)
+			UPPER_SNAKE_CASE_VARIANT_DATA_FETCHER
 		);
 		buildingContext.registerDataFetcher(
 			NameVariantsDescriptor.THIS,
 			NameVariantsDescriptor.KEBAB_CASE,
-			new NameVariantDataFetcher(NamingConvention.KEBAB_CASE)
+			KEBAB_CASE_VARIANT_DATA_FETCHER
 		);
 
 		return NameVariantsDescriptor.THIS

@@ -23,24 +23,16 @@
 
 package io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.descriptor.ConstraintType;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.ConstraintResolver;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
-import io.evitadb.externalApi.http.MimeTypes;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.CollectionRestHandlingContext;
-import io.evitadb.externalApi.rest.api.openApi.SchemaUtils;
-import io.evitadb.externalApi.rest.api.resolver.serializer.DataDeserializer;
 import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
 import io.evitadb.externalApi.rest.exception.RestQueryResolvingInternalError;
-import io.evitadb.utils.Assert;
-import io.swagger.v3.oas.models.media.Schema;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -52,55 +44,9 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public abstract class RestConstraintResolver<C extends Constraint<?>> extends ConstraintResolver<C> {
 
-	@Nonnull
-	protected final CollectionRestHandlingContext restHandlingContext;
-	@Nonnull
-	protected final DataDeserializer dataDeserializer;
-
-	protected RestConstraintResolver(@Nonnull CollectionRestHandlingContext restHandlingContext,
+	protected RestConstraintResolver(@Nonnull CatalogSchemaContract catalogSchema,
 	                                 @Nonnull Map<ConstraintType, AtomicReference<? extends ConstraintResolver<?>>> additionalResolvers) {
-		super(restHandlingContext.getCatalogSchema(), additionalResolvers);
-		this.restHandlingContext = restHandlingContext;
-		this.dataDeserializer = new DataDeserializer(
-			this.restHandlingContext.getOpenApi(),
-			this.restHandlingContext.getEnumMapping()
-		);
-	}
-
-	@Nullable
-	@Override
-	public C resolve(@Nonnull DataLocator dataLocator, @Nonnull String key, @Nullable Object value) {
-		final Object deserializedInputValue = deserializeInputValue(key, value);
-		return super.resolve(dataLocator, key, deserializedInputValue);
-	}
-
-	@Nullable
-	private Object deserializeInputValue(@Nonnull String key, Object value) {
-		Assert.isPremiseValid(
-			value instanceof JsonNode,
-			() -> createQueryResolvingInternalError("Input value is not a JSON node. Instead it is `" + value.getClass().getName() + "`.")
-		);
-
-		//noinspection rawtypes
-		final Schema rootSchema = (Schema) SchemaUtils.getTargetSchema(
-				restHandlingContext.getEndpointOperation()
-					.getRequestBody()
-					.getContent()
-					.get(MimeTypes.APPLICATION_JSON)
-					.getSchema(),
-				restHandlingContext.getOpenApi()
-			)
-			.getProperties()
-			.get(key);
-
-		try {
-			return dataDeserializer.deserializeTree(
-				SchemaUtils.getTargetSchema(rootSchema, restHandlingContext.getOpenApi()),
-				(JsonNode) value
-			);
-		} catch (Exception e) {
-			throw createInvalidArgumentException("Could not parse query: " + e.getMessage());
-		}
+		super(catalogSchema, additionalResolvers);
 	}
 
 	@Nonnull

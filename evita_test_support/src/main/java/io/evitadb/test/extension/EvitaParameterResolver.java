@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -37,10 +37,10 @@ import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.core.Evita;
 import io.evitadb.driver.EvitaClient;
 import io.evitadb.driver.config.EvitaClientConfiguration;
-import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
+import io.evitadb.externalApi.configuration.AbstractApiOptions;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.ApiOptions.Builder;
-import io.evitadb.externalApi.configuration.CertificateSettings;
+import io.evitadb.externalApi.configuration.CertificateOptions;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.externalApi.grpc.GrpcProvider;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
@@ -94,6 +94,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiPredicate;
@@ -195,14 +196,13 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 	@Nonnull
 	private static Evita createEvita(@Nonnull String catalogName, @Nonnull String randomFolderName) {
 		final Path evitaDataPath = STORAGE_PATH.resolve(randomFolderName);
+		final Path evitaExportPath = STORAGE_PATH.resolve(randomFolderName + "_export");
 		if (evitaDataPath.toFile().exists()) {
-			try {
-				FileUtils.deleteDirectory(evitaDataPath.toFile());
-			} catch (IOException e) {
-				fail("Failed to empty directory: " + evitaDataPath, e);
-			}
+			io.evitadb.utils.FileUtils.deleteDirectory(evitaDataPath);
+			io.evitadb.utils.FileUtils.deleteDirectory(evitaExportPath);
 		}
 		Assert.isTrue(evitaDataPath.toFile().mkdirs(), "Fail to create directory: " + evitaDataPath);
+		Assert.isTrue(evitaExportPath.toFile().mkdirs(), "Fail to create directory: " + evitaDataPath);
 		final Evita evita = new Evita(
 			EvitaConfiguration.builder()
 				.server(
@@ -233,7 +233,9 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 					// point evitaDB to a test directory (temp directory)
 					StorageOptions.builder()
 						.storageDirectory(evitaDataPath)
+						.exportDirectory(evitaExportPath)
 						.maxOpenedReadHandles(1000)
+						.syncWrites(false)
 						.build()
 				)
 				.cache(
@@ -409,19 +411,21 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 			.toArray(String[]::new);
 		if (ArrayUtils.isEmpty(unknownApis)) {
 			final Builder apiOptionsBuilder = ApiOptions.builder()
+				// 10 s request timeout - tests are highly parallel, squeezing our CI infrastructure
+				.requestTimeoutInMillis(10_000)
 				.certificate(
-					CertificateSettings.builder()
+					CertificateOptions.builder()
 						.folderPath(evita.getConfiguration().storage().storageDirectory().toString() + "-certificates")
 						.build()
 				);
 			final int[] ports = portManager.allocatePorts(datasetName, dataSetInfo.webApi().length);
 			int portIndex = 0;
 			for (String webApiCode : dataSetInfo.webApi()) {
-				final AbstractApiConfiguration webApiConfig;
+				final AbstractApiOptions webApiConfig;
 				final Class<?> configurationClass = AVAILABLE_PROVIDERS.get(webApiCode).getConfigurationClass();
 				try {
 					final Constructor<?> hostConstructor = configurationClass.getConstructor(String.class);
-					webApiConfig = (AbstractApiConfiguration) hostConstructor.newInstance(
+					webApiConfig = (AbstractApiOptions) hostConstructor.newInstance(
 						"localhost:" + ports[portIndex++]
 					);
 				} catch (InvocationTargetException | NoSuchMethodException | InstantiationException |
@@ -458,7 +462,7 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 		final EvitaServer evitaServer = new EvitaServer(evita, apiOptions);
 		evitaServer.run();
 
-		final AbstractApiConfiguration cfg = apiOptions.getEndpointConfiguration(SystemProvider.CODE);
+		final AbstractApiOptions cfg = apiOptions.getEndpointConfiguration(SystemProvider.CODE);
 		if (cfg == null) {
 			// system provider was not initialized
 			return evitaServer;
@@ -468,7 +472,7 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 		Exception lastException = null;
 		int initAttempt = 0;
 		do {
-			for (String baseUrl : cfg.getBaseUrls(apiOptions.exposedOn())) {
+			for (String baseUrl : cfg.getBaseUrls()) {
 				final String testUrl = baseUrl + "server-name";
 				try {
 					final URL website = new URL(testUrl);
@@ -478,7 +482,7 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 						// try to read server name from the system endpoint
 						final char[] buffer = new char[50];
 						final int read = reader.read(buffer);
-						log.info("Server name available on url `{}`: {}", cfg.getBaseUrls(apiOptions.exposedOn())[0], new String(buffer, 0, read));
+						log.info("Server name available on url `{}`: {}", cfg.getBaseUrls()[0], new String(buffer, 0, read));
 						return evitaServer;
 					}
 				} catch (Exception ex) {
@@ -496,7 +500,7 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 		} while (initAttempt < 3000);
 
 		throw new IllegalStateException(
-			"Evita server hasn't started on url " + Arrays.stream(cfg.getBaseUrls(apiOptions.exposedOn())).map(it -> "`" + it + "server-name`").collect(Collectors.joining(", ")) + " within 10 minutes!",
+			"Evita server hasn't started on url " + Arrays.stream(cfg.getBaseUrls()).map(it -> "`" + it + "server-name`").collect(Collectors.joining(", ")) + " within 10 minutes!",
 			lastException
 		);
 	}
@@ -619,13 +623,13 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 			// return new evita client
 			return dataSetInfo.evitaClient(
 				evitaServer -> {
-					final AbstractApiConfiguration grpcConfig = evitaServer.getExternalApiServer()
+					final AbstractApiOptions grpcConfig = evitaServer.getExternalApiServer()
 						.getApiOptions()
 						.getEndpointConfiguration(GrpcProvider.CODE);
 					if (grpcConfig == null) {
 						throw new ParameterResolutionException("gRPC web API was not opened for the dataset `" + useDataSet.value() + "`!");
 					}
-					final AbstractApiConfiguration systemConfig = evitaServer.getExternalApiServer()
+					final AbstractApiOptions systemConfig = evitaServer.getExternalApiServer()
 						.getApiOptions()
 						.getEndpointConfiguration(SystemProvider.CODE);
 					if (systemConfig == null) {
@@ -634,9 +638,10 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 					return new EvitaClient(
 						EvitaClientConfiguration.builder()
 							.certificateFolderPath(Path.of(evitaServer.getEvita().getConfiguration().storage().storageDirectory().toString() + "-client"))
-							.host(grpcConfig.getHost()[0].hostName())
+							.host(grpcConfig.getHost()[0].hostAddress())
 							.port(grpcConfig.getHost()[0].port())
 							.systemApiPort(systemConfig.getHost()[0].port())
+							.timeoutUnit(10, TimeUnit.MINUTES)
 							.build()
 					);
 				}
@@ -660,14 +665,14 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 			// return new GraphQL tester
 			return dataSetInfo.graphQLTester(
 				evitaServer -> {
-					final AbstractApiConfiguration gqlConfig = evitaServer.getExternalApiServer()
+					final AbstractApiOptions gqlConfig = evitaServer.getExternalApiServer()
 						.getApiOptions()
 						.getEndpointConfiguration(GraphQLProvider.CODE);
 					if (gqlConfig == null) {
 						throw new ParameterResolutionException("GraphQL web API was not opened for the dataset `" + useDataSet.value() + "`!");
 					}
 					return new GraphQLTester(
-						"https://" + gqlConfig.getHost()[0].hostName() + ":" + gqlConfig.getHost()[0].port() + "/gql"
+						"https://" + gqlConfig.getHost()[0].hostAddressWithPort() + "/gql"
 					);
 				}
 			);
@@ -675,14 +680,14 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 			// return new GraphQL schema tester
 			return dataSetInfo.graphQLSchemaTester(
 				evitaServer -> {
-					final AbstractApiConfiguration gqlConfig = evitaServer.getExternalApiServer()
+					final AbstractApiOptions gqlConfig = evitaServer.getExternalApiServer()
 						.getApiOptions()
 						.getEndpointConfiguration(GraphQLProvider.CODE);
 					if (gqlConfig == null) {
 						throw new ParameterResolutionException("GraphQL web API was not opened for the dataset `" + useDataSet.value() + "`!");
 					}
 					return new GraphQLSchemaTester(
-						"https://" + gqlConfig.getHost()[0].hostName() + ":" + gqlConfig.getHost()[0].port() + "/gql"
+						"https://" + gqlConfig.getHost()[0].hostAddressWithPort() + "/gql"
 					);
 				}
 			);
@@ -690,14 +695,14 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 			// return new Lab API tester
 			return dataSetInfo.labApiTester(
 				evitaServer -> {
-					final AbstractApiConfiguration labApiConfig = evitaServer.getExternalApiServer()
+					final AbstractApiOptions labApiConfig = evitaServer.getExternalApiServer()
 						.getApiOptions()
 						.getEndpointConfiguration(LabProvider.CODE);
 					if (labApiConfig == null) {
 						throw new ParameterResolutionException("Lab API was not opened for the dataset `" + useDataSet.value() + "`!");
 					}
 					return new LabApiTester(
-						"https://" + labApiConfig.getHost()[0].hostName() + ":" + labApiConfig.getHost()[0].port() + "/lab"
+						"https://" + labApiConfig.getHost()[0].hostAddressWithPort() + "/lab"
 					);
 				}
 			);
@@ -705,14 +710,14 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 			// return new Rest tester
 			return dataSetInfo.restTester(
 				evitaServer -> {
-					final AbstractApiConfiguration restConfig = evitaServer.getExternalApiServer()
+					final AbstractApiOptions restConfig = evitaServer.getExternalApiServer()
 						.getApiOptions()
 						.getEndpointConfiguration(RestProvider.CODE);
 					if (restConfig == null) {
 						throw new ParameterResolutionException("REST web API was not opened for the dataset `" + useDataSet.value() + "`!");
 					}
 					return new RestTester(
-						"https://" + restConfig.getHost()[0].hostName() + ":" + restConfig.getHost()[0].port() + "/rest"
+						"https://" + restConfig.getHost()[0].hostAddressWithPort() + "/rest"
 					);
 				}
 			);
@@ -846,6 +851,13 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 									}
 								}
 							} catch (Exception e) {
+								// close the server instance and free ports
+								ofNullable(evitaServer)
+									.ifPresent(it -> getPortManager().releasePortsOnCompletion(dataSetToUse, it.stop()));
+
+								// close evita and clear data
+								evita.close();
+
 								throw new ParameterResolutionException("Failed to set up data set " + dataSetToUse, e);
 							}
 

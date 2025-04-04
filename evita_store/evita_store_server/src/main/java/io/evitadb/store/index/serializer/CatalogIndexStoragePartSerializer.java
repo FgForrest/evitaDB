@@ -28,7 +28,9 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.CatalogIndex;
+import io.evitadb.index.CatalogIndexKey;
 import io.evitadb.store.service.KeyCompressor;
 import io.evitadb.store.spi.model.storageParts.index.CatalogIndexStoragePart;
 import io.evitadb.utils.CollectionUtils;
@@ -48,6 +50,7 @@ public class CatalogIndexStoragePartSerializer extends Serializer<CatalogIndexSt
 	@Override
 	public void write(Kryo kryo, Output output, CatalogIndexStoragePart catalogIndex) {
 		output.writeVarInt(catalogIndex.getVersion(), true);
+		kryo.writeObject(output, catalogIndex.getCatalogIndexKey().scope());
 
 		final Set<AttributeKey> attributeKeys = catalogIndex.getSharedAttributeUniqueIndexes();
 		output.writeVarInt(attributeKeys.size(), true);
@@ -59,6 +62,7 @@ public class CatalogIndexStoragePartSerializer extends Serializer<CatalogIndexSt
 	@Override
 	public CatalogIndexStoragePart read(Kryo kryo, Input input, Class<? extends CatalogIndexStoragePart> type) {
 		final int version = input.readVarInt(true);
+		final Scope scope = kryo.readObject(input, Scope.class);
 		final int attributeCount = input.readVarInt(true);
 
 		final Set<AttributeKey> attributeKeys = CollectionUtils.createHashSet(attributeCount);
@@ -68,7 +72,7 @@ public class CatalogIndexStoragePartSerializer extends Serializer<CatalogIndexSt
 			);
 		}
 
-		return new CatalogIndexStoragePart(version, attributeKeys);
+		return new CatalogIndexStoragePart(version, new CatalogIndexKey(scope), attributeKeys);
 	}
 
 }

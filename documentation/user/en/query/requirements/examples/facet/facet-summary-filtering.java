@@ -9,7 +9,6 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 				),
 				require(
 					facetSummary(
-						COUNTS,
 						filterBy(
 							attributeContains("code", "ar")
 						),

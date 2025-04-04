@@ -32,6 +32,8 @@ import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
 import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
 import io.evitadb.utils.NamingConvention;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -43,7 +45,19 @@ import java.util.function.Function;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class ReferenceSchemaGroupTypeNameVariantsDataFetcher implements DataFetcher<Map<NamingConvention, String>>, ReadDataFetcher {
+
+	@Nullable
+	private static ReferenceSchemaGroupTypeNameVariantsDataFetcher INSTANCE;
+
+	@Nonnull
+	public static ReferenceSchemaGroupTypeNameVariantsDataFetcher getInstance() {
+		if (INSTANCE == null) {
+			INSTANCE = new ReferenceSchemaGroupTypeNameVariantsDataFetcher();
+		}
+		return INSTANCE;
+	}
 
 	@Nullable
 	@Override

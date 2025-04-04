@@ -39,16 +39,18 @@ import javax.annotation.Nonnull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Name(AbstractStorageEvent.PACKAGE_NAME + ".ObservableOutputChange")
-@Description("Event that is fired when an ObservableOutput buffer count is changed.")
+@Description("Event that is fired when an ObservableOutput buffer count changes.")
 @Label("ObservableOutput buffers")
 @ExportInvocationMetric(label = "ObservableOutput buffer count changes.")
 @Getter
 public class ObservableOutputChangeEvent extends AbstractStorageEvent {
 	@Label("Number of opened output buffers")
+	@Description("The number of open buffers used to write data to OffsetIndexes.")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final int openedBuffers;
 
 	@Label("Memory occupied by opened output buffers in Bytes")
+	@Description("The amount of memory in bytes occupied by open OffsetIndex output buffers.")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final long occupiedMemoryBytes;
 

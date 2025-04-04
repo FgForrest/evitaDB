@@ -1,41 +1,42 @@
 ```json
 {
-  "data": [
+  "data" : [
     {
-      "primaryKey": 103885,
-      "type": "Product",
-      "version": 1,
-      "allLocales": [
+      "primaryKey" : 103885,
+      "type" : "Product",
+      "version" : 1,
+      "scope" : "LIVE",
+      "allLocales" : [
         "cs",
         "en"
       ],
-      "attributes": {
-        "global": {
-          "code": "alcatel-3t-10-2020"
+      "attributes" : {
+        "global" : {
+          "code" : "alcatel-3t-10-2020"
         }
       },
-      "brand": {
-        "referencedPrimaryKey": 103887
-      },
-      "categories": [
+      "categories" : [
         {
-          "referencedPrimaryKey": 66472
+          "referencedPrimaryKey" : 66472
         }
-      ]
+      ],
+      "brand" : {
+        "referencedPrimaryKey" : 103887
+      }
     }
   ],
-  "empty": false,
-  "first": true,
-  "firstPageItemNumber": 0,
-  "hasNext": false,
-  "hasPrevious": false,
-  "last": true,
-  "lastPageItemNumber": 1,
-  "lastPageNumber": 1,
-  "pageNumber": 1,
-  "pageSize": 20,
-  "singlePage": true,
-  "totalRecordCount": 1,
-  "type": "PAGE"
+  "type" : "PAGE",
+  "totalRecordCount" : 1,
+  "first" : true,
+  "last" : true,
+  "hasPrevious" : false,
+  "hasNext" : false,
+  "singlePage" : true,
+  "empty" : false,
+  "pageSize" : 20,
+  "pageNumber" : 1,
+  "lastPageNumber" : 1,
+  "firstPageItemNumber" : 0,
+  "lastPageItemNumber" : 1
 }
 ```

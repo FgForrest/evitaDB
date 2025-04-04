@@ -1,35 +1,36 @@
 ```json
 {
-  "data": [
+  "data" : [
     {
-      "primaryKey": 64703,
-      "type": "Brand",
-      "version": 1,
-      "locales": [
+      "primaryKey" : 64703,
+      "type" : "Brand",
+      "version" : 1,
+      "scope" : "LIVE",
+      "locales" : [
         "en"
       ],
-      "allLocales": [
+      "allLocales" : [
         "cs",
         "en"
       ],
-      "associatedData": {
-        "global": {
-          "allActiveUrls": [
+      "associatedData" : {
+        "global" : {
+          "allActiveUrls" : [
             {
-              "locale": "cs",
-              "url": "/cs/samsung"
+              "locale" : "cs",
+              "url" : "/cs/samsung"
             },
             {
-              "locale": "en",
-              "url": "/en/samsung"
+              "locale" : "en",
+              "url" : "/en/samsung"
             }
           ]
         },
-        "localized": {
-          "en": {
-            "localization": {
-              "labels": {
-                "name": "Samsung"
+        "localized" : {
+          "en" : {
+            "localization" : {
+              "labels" : {
+                "name" : "Samsung"
               }
             }
           }
@@ -37,18 +38,18 @@
       }
     }
   ],
-  "empty": false,
-  "first": true,
-  "firstPageItemNumber": 0,
-  "hasNext": false,
-  "hasPrevious": false,
-  "last": true,
-  "lastPageItemNumber": 1,
-  "lastPageNumber": 1,
-  "pageNumber": 1,
-  "pageSize": 20,
-  "singlePage": true,
-  "totalRecordCount": 1,
-  "type": "PAGE"
+  "type" : "PAGE",
+  "totalRecordCount" : 1,
+  "first" : true,
+  "last" : true,
+  "hasPrevious" : false,
+  "hasNext" : false,
+  "singlePage" : true,
+  "empty" : false,
+  "pageSize" : 20,
+  "pageNumber" : 1,
+  "lastPageNumber" : 1,
+  "firstPageItemNumber" : 0,
+  "lastPageItemNumber" : 1
 }
 ```

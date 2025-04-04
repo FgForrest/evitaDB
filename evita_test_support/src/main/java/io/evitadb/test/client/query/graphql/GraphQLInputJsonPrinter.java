@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,12 +33,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import io.evitadb.api.query.filter.AttributeSpecialValue;
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.query.order.TraversalMode;
 import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
+import io.evitadb.api.query.require.FacetGroupRelationLevel;
+import io.evitadb.api.query.require.FacetRelationType;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
+import io.evitadb.dataType.Scope;
 
 import javax.annotation.Nonnull;
 import java.util.Set;
@@ -57,7 +61,18 @@ public class GraphQLInputJsonPrinter {
 	private final static Pattern CURRENCY_PATTERN = Pattern.compile("\"(CZK|EUR|USD|GBP)\"");
 
 	private final static Set<Class<? extends Enum<?>>> KNOWN_ENUMS = Set.of(
-		AttributeSpecialValue.class, OrderDirection.class, EmptyHierarchicalEntityBehaviour.class, FacetStatisticsDepth.class, PriceContentMode.class, QueryPriceMode.class, StatisticsBase.class, StatisticsType.class
+		AttributeSpecialValue.class,
+		OrderDirection.class,
+		EmptyHierarchicalEntityBehaviour.class,
+		FacetStatisticsDepth.class,
+		PriceContentMode.class,
+		QueryPriceMode.class,
+		StatisticsBase.class,
+		StatisticsType.class,
+		Scope.class,
+		FacetGroupRelationLevel.class,
+		FacetRelationType.class,
+		TraversalMode.class
 	);
 
 	@Nonnull private final ObjectWriter constraintWriter;

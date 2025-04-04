@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -135,7 +135,6 @@ class ConstraintDescriptorResolver {
 			return Optional.empty();
 		}
 
-
 		rawClassifier = constructClassifier(classifierWords);
 
 		final Optional<String> actualClassifier = resolveActualClassifier(resolveContext, constraintDescriptor, rawClassifier);
@@ -154,6 +153,7 @@ class ConstraintDescriptorResolver {
 		if (classifierWords.isEmpty()) {
 			return Optional.empty();
 		}
+		//noinspection DataFlowIssue
 		return Optional.of(
 			StringUtils.uncapitalize(String.join("", classifierWords))
 		);
@@ -165,6 +165,7 @@ class ConstraintDescriptorResolver {
 			!fullNameWords.isEmpty(),
 			() -> new ExternalApiInternalError("Full name cannot be empty.")
 		);
+		//noinspection DataFlowIssue
 		return StringUtils.uncapitalize(String.join("", fullNameWords));
 	}
 
@@ -175,7 +176,7 @@ class ConstraintDescriptorResolver {
 	@Nonnull
 	private Optional<String> resolveActualClassifier(@Nonnull ConstraintResolveContext resolveContext,
 	                                                 @Nonnull ConstraintDescriptor constraintDescriptor,
-	                                                 @Nonnull Optional<String> rawClassifier) {
+	                                                 @SuppressWarnings("OptionalUsedAsFieldOrParameterType") @Nonnull Optional<String> rawClassifier) {
 		return rawClassifier.map(c -> {
 			final Optional<ImplicitClassifier> implicitClassifier = constraintDescriptor.creator().implicitClassifier();
 			if (implicitClassifier.isPresent()) {

@@ -1,497 +1,517 @@
 ```json
 {
-  "recordPage": {
-    "data": [
+  "recordPage" : {
+    "data" : [
       {
-        "primaryKey": 63049,
-        "type": "Product",
-        "version": 1,
-        "allLocales": [
+        "primaryKey" : 63049,
+        "type" : "Product",
+        "version" : 2,
+        "scope" : "LIVE",
+        "allLocales" : [
           "cs",
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "macbook-pro-13-2022"
+        "attributes" : {
+          "global" : {
+            "code" : "macbook-pro-13-2022"
           }
         },
-        "groups": [
+        "groups" : [
           {
-            "referencedPrimaryKey": 66503,
-            "attributes": {
-              "global": {
-                "orderInGroup": -1
+            "referencedPrimaryKey" : 66503,
+            "attributes" : {
+              "global" : {
+                "orderInGroup" : -1
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 66578,
-        "type": "Product",
-        "version": 1,
-        "allLocales": [
+        "primaryKey" : 66578,
+        "type" : "Product",
+        "version" : 2,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "macbook-pro-14-2021"
+        "attributes" : {
+          "global" : {
+            "code" : "macbook-pro-14-2021"
           }
         },
-        "groups": [
+        "groups" : [
           {
-            "referencedPrimaryKey": 66503,
-            "attributes": {
-              "global": {
-                "orderInGroup": 63049
+            "referencedPrimaryKey" : 66503,
+            "attributes" : {
+              "global" : {
+                "orderInGroup" : 63049
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 66561,
-        "type": "Product",
-        "version": 1,
-        "allLocales": [
+        "primaryKey" : 66561,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "cs",
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "macbook-pro-13-2022-4"
+        "attributes" : {
+          "global" : {
+            "code" : "macbook-pro-13-2022-4"
           }
         },
-        "groups": [
+        "groups" : [
           {
-            "referencedPrimaryKey": 66503,
-            "attributes": {
-              "global": {
-                "orderInGroup": -1
+            "referencedPrimaryKey" : 66503,
+            "attributes" : {
+              "global" : {
+                "orderInGroup" : -1
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 66563,
-        "type": "Product",
-        "version": 1,
-        "allLocales": [
+        "primaryKey" : 66563,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "cs",
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "macbook-pro-13-2022-6"
+        "attributes" : {
+          "global" : {
+            "code" : "macbook-pro-13-2022-6"
           }
         },
-        "groups": [
+        "groups" : [
           {
-            "referencedPrimaryKey": 66503,
-            "attributes": {
-              "global": {
-                "orderInGroup": -1
+            "referencedPrimaryKey" : 66503,
+            "attributes" : {
+              "global" : {
+                "orderInGroup" : -1
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 66562,
-        "type": "Product",
-        "version": 1,
-        "allLocales": [
+        "primaryKey" : 66562,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "cs",
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "macbook-pro-13-2022-5"
+        "attributes" : {
+          "global" : {
+            "code" : "macbook-pro-13-2022-5"
           }
         },
-        "groups": [
+        "groups" : [
           {
-            "referencedPrimaryKey": 66503,
-            "attributes": {
-              "global": {
-                "orderInGroup": -1
+            "referencedPrimaryKey" : 66503,
+            "attributes" : {
+              "global" : {
+                "orderInGroup" : -1
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 66565,
-        "type": "Product",
-        "version": 1,
-        "allLocales": [
+        "primaryKey" : 66565,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "cs",
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "macbook-pro-13-2022-7"
+        "attributes" : {
+          "global" : {
+            "code" : "macbook-pro-13-2022-7"
           }
         },
-        "groups": [
+        "groups" : [
           {
-            "referencedPrimaryKey": 66503,
-            "attributes": {
-              "global": {
-                "orderInGroup": -1
+            "referencedPrimaryKey" : 66503,
+            "attributes" : {
+              "global" : {
+                "orderInGroup" : -1
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 66567,
-        "type": "Product",
-        "version": 1,
-        "allLocales": [
+        "primaryKey" : 66567,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "cs",
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "macbook-pro-13-2022-9"
+        "attributes" : {
+          "global" : {
+            "code" : "macbook-pro-13-2022-9"
           }
         },
-        "groups": [
+        "groups" : [
           {
-            "referencedPrimaryKey": 66503,
-            "attributes": {
-              "global": {
-                "orderInGroup": -1
+            "referencedPrimaryKey" : 66503,
+            "attributes" : {
+              "global" : {
+                "orderInGroup" : -1
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 66566,
-        "type": "Product",
-        "version": 1,
-        "allLocales": [
+        "primaryKey" : 66566,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "cs",
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "macbook-pro-13-2022-8"
+        "attributes" : {
+          "global" : {
+            "code" : "macbook-pro-13-2022-8"
           }
         },
-        "groups": [
+        "groups" : [
           {
-            "referencedPrimaryKey": 66503,
-            "attributes": {
-              "global": {
-                "orderInGroup": -1
+            "referencedPrimaryKey" : 66503,
+            "attributes" : {
+              "global" : {
+                "orderInGroup" : -1
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 66569,
-        "type": "Product",
-        "version": 1,
-        "allLocales": [
+        "primaryKey" : 66569,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "cs",
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "macbook-pro-13-2022-10"
+        "attributes" : {
+          "global" : {
+            "code" : "macbook-pro-13-2022-10"
           }
         },
-        "groups": [
+        "groups" : [
           {
-            "referencedPrimaryKey": 66503,
-            "attributes": {
-              "global": {
-                "orderInGroup": -1
+            "referencedPrimaryKey" : 66503,
+            "attributes" : {
+              "global" : {
+                "orderInGroup" : -1
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 66571,
-        "type": "Product",
-        "version": 1,
-        "allLocales": [
+        "primaryKey" : 66571,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "cs",
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "macbook-pro-13-2022-12"
+        "attributes" : {
+          "global" : {
+            "code" : "macbook-pro-13-2022-12"
           }
         },
-        "groups": [
+        "groups" : [
           {
-            "referencedPrimaryKey": 66503,
-            "attributes": {
-              "global": {
-                "orderInGroup": -1
+            "referencedPrimaryKey" : 66503,
+            "attributes" : {
+              "global" : {
+                "orderInGroup" : -1
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 66570,
-        "type": "Product",
-        "version": 1,
-        "allLocales": [
+        "primaryKey" : 66570,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "cs",
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "macbook-pro-13-2022-11"
+        "attributes" : {
+          "global" : {
+            "code" : "macbook-pro-13-2022-11"
           }
         },
-        "groups": [
+        "groups" : [
           {
-            "referencedPrimaryKey": 66503,
-            "attributes": {
-              "global": {
-                "orderInGroup": -1
+            "referencedPrimaryKey" : 66503,
+            "attributes" : {
+              "global" : {
+                "orderInGroup" : -1
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 66573,
-        "type": "Product",
-        "version": 1,
-        "allLocales": [
+        "primaryKey" : 66573,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "cs",
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "macbook-pro-13-2022-14"
+        "attributes" : {
+          "global" : {
+            "code" : "macbook-pro-13-2022-14"
           }
         },
-        "groups": [
+        "groups" : [
           {
-            "referencedPrimaryKey": 66503,
-            "attributes": {
-              "global": {
-                "orderInGroup": -1
+            "referencedPrimaryKey" : 66503,
+            "attributes" : {
+              "global" : {
+                "orderInGroup" : -1
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 66572,
-        "type": "Product",
-        "version": 1,
-        "allLocales": [
+        "primaryKey" : 66572,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "cs",
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "macbook-pro-13-2022-13"
+        "attributes" : {
+          "global" : {
+            "code" : "macbook-pro-13-2022-13"
           }
         },
-        "groups": [
+        "groups" : [
           {
-            "referencedPrimaryKey": 66503,
-            "attributes": {
-              "global": {
-                "orderInGroup": -1
+            "referencedPrimaryKey" : 66503,
+            "attributes" : {
+              "global" : {
+                "orderInGroup" : -1
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 66575,
-        "type": "Product",
-        "version": 1,
-        "allLocales": [
+        "primaryKey" : 66575,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "cs",
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "macbook-pro-13-2022-16"
+        "attributes" : {
+          "global" : {
+            "code" : "macbook-pro-13-2022-16"
           }
         },
-        "groups": [
+        "groups" : [
           {
-            "referencedPrimaryKey": 66503,
-            "attributes": {
-              "global": {
-                "orderInGroup": -1
+            "referencedPrimaryKey" : 66503,
+            "attributes" : {
+              "global" : {
+                "orderInGroup" : -1
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 66574,
-        "type": "Product",
-        "version": 1,
-        "allLocales": [
+        "primaryKey" : 66574,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "cs",
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "macbook-pro-13-2022-15"
+        "attributes" : {
+          "global" : {
+            "code" : "macbook-pro-13-2022-15"
           }
         },
-        "groups": [
+        "groups" : [
           {
-            "referencedPrimaryKey": 66503,
-            "attributes": {
-              "global": {
-                "orderInGroup": -1
+            "referencedPrimaryKey" : 66503,
+            "attributes" : {
+              "global" : {
+                "orderInGroup" : -1
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 66577,
-        "type": "Product",
-        "version": 1,
-        "allLocales": [
+        "primaryKey" : 66577,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "cs",
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "macbook-pro-13-2022-18"
+        "attributes" : {
+          "global" : {
+            "code" : "macbook-pro-13-2022-18"
           }
         },
-        "groups": [
+        "groups" : [
           {
-            "referencedPrimaryKey": 66503,
-            "attributes": {
-              "global": {
-                "orderInGroup": -1
+            "referencedPrimaryKey" : 66503,
+            "attributes" : {
+              "global" : {
+                "orderInGroup" : -1
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 66576,
-        "type": "Product",
-        "version": 1,
-        "allLocales": [
+        "primaryKey" : 66576,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "cs",
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "macbook-pro-13-2022-17"
+        "attributes" : {
+          "global" : {
+            "code" : "macbook-pro-13-2022-17"
           }
         },
-        "groups": [
+        "groups" : [
           {
-            "referencedPrimaryKey": 66503,
-            "attributes": {
-              "global": {
-                "orderInGroup": -1
+            "referencedPrimaryKey" : 66503,
+            "attributes" : {
+              "global" : {
+                "orderInGroup" : -1
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 66581,
-        "type": "Product",
-        "version": 1,
-        "allLocales": [
+        "primaryKey" : 66581,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "macbook-pro-14-2021-1"
+        "attributes" : {
+          "global" : {
+            "code" : "macbook-pro-14-2021-1"
           }
         },
-        "groups": [
+        "groups" : [
           {
-            "referencedPrimaryKey": 66503,
-            "attributes": {
-              "global": {
-                "orderInGroup": -1
+            "referencedPrimaryKey" : 66503,
+            "attributes" : {
+              "global" : {
+                "orderInGroup" : -1
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 66583,
-        "type": "Product",
-        "version": 1,
-        "allLocales": [
+        "primaryKey" : 66583,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "macbook-pro-14-2021-3"
+        "attributes" : {
+          "global" : {
+            "code" : "macbook-pro-14-2021-3"
           }
         },
-        "groups": [
+        "groups" : [
           {
-            "referencedPrimaryKey": 66503,
-            "attributes": {
-              "global": {
-                "orderInGroup": -1
+            "referencedPrimaryKey" : 66503,
+            "attributes" : {
+              "global" : {
+                "orderInGroup" : -1
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 66582,
-        "type": "Product",
-        "version": 1,
-        "allLocales": [
+        "primaryKey" : 66582,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "macbook-pro-14-2021-2"
+        "attributes" : {
+          "global" : {
+            "code" : "macbook-pro-14-2021-2"
           }
         },
-        "groups": [
+        "groups" : [
           {
-            "referencedPrimaryKey": 66503,
-            "attributes": {
-              "global": {
-                "orderInGroup": -1
+            "referencedPrimaryKey" : 66503,
+            "attributes" : {
+              "global" : {
+                "orderInGroup" : -1
               }
             }
           }
         ]
       }
     ],
-    "empty": false,
-    "first": true,
-    "firstPageItemNumber": 0,
-    "hasNext": true,
-    "hasPrevious": false,
-    "last": false,
-    "lastPageItemNumber": 19,
-    "lastPageNumber": 5,
-    "pageNumber": 1,
-    "pageSize": 20,
-    "singlePage": false,
-    "totalRecordCount": 99,
-    "type": "PAGE"
+    "type" : "PAGE",
+    "totalRecordCount" : 99,
+    "first" : true,
+    "last" : false,
+    "hasPrevious" : false,
+    "hasNext" : true,
+    "singlePage" : false,
+    "empty" : false,
+    "pageSize" : 20,
+    "pageNumber" : 1,
+    "lastPageNumber" : 5,
+    "firstPageItemNumber" : 0,
+    "lastPageItemNumber" : 19
   }
 }
 ```

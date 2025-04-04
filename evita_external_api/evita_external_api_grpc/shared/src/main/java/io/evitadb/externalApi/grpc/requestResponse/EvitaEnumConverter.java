@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,18 +25,14 @@ package io.evitadb.externalApi.grpc.requestResponse;
 
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.TransactionContract.CommitBehavior;
+import io.evitadb.api.observability.HealthProblem;
+import io.evitadb.api.observability.ReadinessState;
 import io.evitadb.api.query.filter.AttributeSpecialValue;
 import io.evitadb.api.query.order.OrderDirection;
-import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
-import io.evitadb.api.query.require.FacetStatisticsDepth;
-import io.evitadb.api.query.require.HistogramBehavior;
-import io.evitadb.api.query.require.ManagedReferencesBehaviour;
-import io.evitadb.api.query.require.PriceContentMode;
-import io.evitadb.api.query.require.QueryPriceMode;
-import io.evitadb.api.query.require.StatisticsBase;
-import io.evitadb.api.query.require.StatisticsType;
+import io.evitadb.api.query.order.TraversalMode;
+import io.evitadb.api.query.require.*;
 import io.evitadb.api.requestResponse.cdc.CaptureArea;
-import io.evitadb.api.requestResponse.cdc.CaptureContent;
+import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
@@ -48,26 +44,37 @@ import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest.TrafficRecordingType;
+import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingContent;
+import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
+import io.evitadb.api.task.TaskStatus.TaskTrait;
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.ContainerType;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.grpc.generated.*;
-import io.evitadb.externalApi.grpc.requestResponse.cdc.CaptureResponseType;
 import io.evitadb.utils.NamingConvention;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
+import static io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState.*;
+import static io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingContent.TRAFFIC_RECORDING_BODY;
+import static io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingContent.TRAFFIC_RECORDING_HEADER;
 
 /**
  * Class contains static methods for converting enums from and to gRPC representation.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
+@Slf4j
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class EvitaEnumConverter {
 
@@ -79,6 +86,7 @@ public class EvitaEnumConverter {
 		return switch (grpcCatalogState.getNumber()) {
 			case 0 -> CatalogState.WARMING_UP;
 			case 1 -> CatalogState.ALIVE;
+			case 2 -> throw new GenericEvitaInternalError("Catalog probably corrupted. Unknown state of the catalog.");
 			default -> throw new GenericEvitaInternalError("Unrecognized remote catalog state: " + grpcCatalogState);
 		};
 	}
@@ -87,7 +95,10 @@ public class EvitaEnumConverter {
 	 * Converts {@link CatalogState} to {@link GrpcCatalogState}.
 	 */
 	@Nonnull
-	public static GrpcCatalogState toGrpcCatalogState(@Nonnull CatalogState catalogState) {
+	public static GrpcCatalogState toGrpcCatalogState(@Nullable CatalogState catalogState) {
+		if (catalogState == null) {
+			return GrpcCatalogState.UNKNOWN_CATALOG_STATE;
+		}
 		return switch (catalogState) {
 			case WARMING_UP -> GrpcCatalogState.WARMING_UP;
 			case ALIVE -> GrpcCatalogState.ALIVE;
@@ -264,6 +275,7 @@ public class EvitaEnumConverter {
 		return switch (grpcStatisticsBase.getNumber()) {
 			case 0 -> StatisticsBase.COMPLETE_FILTER;
 			case 1 -> StatisticsBase.WITHOUT_USER_FILTER;
+			case 2 -> StatisticsBase.COMPLETE_FILTER_EXCLUDING_SELF_IN_USER_FILTER;
 			default ->
 				throw new GenericEvitaInternalError("Unrecognized remote statistics base: " + grpcStatisticsBase);
 		};
@@ -280,6 +292,7 @@ public class EvitaEnumConverter {
 		return switch (statisticsBase) {
 			case COMPLETE_FILTER -> GrpcStatisticsBase.COMPLETE_FILTER;
 			case WITHOUT_USER_FILTER -> GrpcStatisticsBase.WITHOUT_USER_FILTER;
+			case COMPLETE_FILTER_EXCLUDING_SELF_IN_USER_FILTER -> GrpcStatisticsBase.COMPLETE_FILTER_EXCLUDING_SELF_IN_USER_FILTER;
 		};
 	}
 
@@ -424,6 +437,68 @@ public class EvitaEnumConverter {
 	}
 
 	/**
+	 * Converts {@link FacetRelationType} to {@link GrpcFacetRelationType}.
+	 *
+	 * @param facetRelationType the {@link FacetRelationType} to be converted
+	 * @return the converted {@link GrpcFacetRelationType}
+	 */
+	@Nonnull
+	public static GrpcFacetRelationType toGrpcFacetRelationType(@Nonnull FacetRelationType facetRelationType) {
+		return switch (facetRelationType) {
+			case CONJUNCTION -> GrpcFacetRelationType.CONJUNCTION;
+			case DISJUNCTION -> GrpcFacetRelationType.DISJUNCTION;
+			case NEGATION -> GrpcFacetRelationType.NEGATION;
+			case EXCLUSIVITY -> GrpcFacetRelationType.EXCLUSIVITY;
+		};
+	}
+
+	/**
+	 * Converts {@link GrpcFacetRelationType} to {@link FacetRelationType}.
+	 *
+	 * @param grpcFacetRelationType the {@link GrpcFacetRelationType} to be converted
+	 * @return the converted {@link FacetRelationType}
+	 */
+	@Nonnull
+	public static FacetRelationType toFacetRelationType(@Nonnull GrpcFacetRelationType grpcFacetRelationType) {
+	    return switch (grpcFacetRelationType) {
+	        case CONJUNCTION -> FacetRelationType.CONJUNCTION;
+	        case DISJUNCTION -> FacetRelationType.DISJUNCTION;
+	        case NEGATION -> FacetRelationType.NEGATION;
+	        case EXCLUSIVITY -> FacetRelationType.EXCLUSIVITY;
+	        default -> throw new GenericEvitaInternalError("Unrecognized remote facet relation type: " + grpcFacetRelationType);
+	    };
+	}
+
+	/**
+	 * Converts {@link FacetGroupRelationLevel} to {@link GrpcFacetGroupRelationLevel}.
+	 *
+	 * @param facetGroupRelationLevel the {@link FacetGroupRelationLevel} to be converted
+	 * @return the converted {@link GrpcFacetGroupRelationLevel}
+	 */
+	@Nonnull
+	public static GrpcFacetGroupRelationLevel toGrpcFacetGroupRelationLevel(@Nonnull FacetGroupRelationLevel facetGroupRelationLevel) {
+		return switch (facetGroupRelationLevel) {
+			case WITH_DIFFERENT_GROUPS -> GrpcFacetGroupRelationLevel.WITH_DIFFERENT_GROUPS;
+			case WITH_DIFFERENT_FACETS_IN_GROUP -> GrpcFacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP;
+		};
+	}
+
+	/**
+	 * Converts {@link GrpcFacetGroupRelationLevel} to {@link FacetGroupRelationLevel}.
+	 *
+	 * @param grpcFacetGroupRelationLevel the {@link GrpcFacetGroupRelationLevel} to be converted
+	 * @return the converted {@link FacetGroupRelationLevel}
+	 */
+	@Nonnull
+	public static FacetGroupRelationLevel toFacetGroupRelationLevel(@Nonnull GrpcFacetGroupRelationLevel grpcFacetGroupRelationLevel) {
+	    return switch (grpcFacetGroupRelationLevel) {
+	        case WITH_DIFFERENT_GROUPS -> FacetGroupRelationLevel.WITH_DIFFERENT_GROUPS;
+	        case WITH_DIFFERENT_FACETS_IN_GROUP -> FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP;
+	        default -> throw new GenericEvitaInternalError("Unrecognized remote facet group relation level: " + grpcFacetGroupRelationLevel);
+	    };
+	}
+
+	/**
 	 * Converts {@link FacetStatisticsDepth} to {@link GrpcFacetStatisticsDepth}.
 	 *
 	 * @param facetStatisticsDepth the {@link FacetStatisticsDepth} to be converted
@@ -434,6 +509,35 @@ public class EvitaEnumConverter {
 		return switch (facetStatisticsDepth) {
 			case COUNTS -> GrpcFacetStatisticsDepth.COUNTS;
 			case IMPACT -> GrpcFacetStatisticsDepth.IMPACT;
+		};
+	}
+
+	/**
+	 * Converts {@link TraversalMode} to {@link GrpcTraversalMode}.
+	 *
+	 * @param traversalMode the {@link TraversalMode} to be converted
+	 * @return the converted {@link GrpcTraversalMode}
+	 */
+	@Nonnull
+	public static GrpcTraversalMode toGrpcTraversalMode(@Nonnull TraversalMode traversalMode) {
+		return switch (traversalMode) {
+			case DEPTH_FIRST -> GrpcTraversalMode.DEPTH_FIRST;
+			case BREADTH_FIRST -> GrpcTraversalMode.BREADTH_FIRST;
+		};
+	}
+
+	/**
+	 * Converts {@link GrpcTraversalMode} to {@link TraversalMode}.
+	 *
+	 * @param grpcTraversalMode the {@link GrpcTraversalMode} to be converted
+	 * @return the converted {@link TraversalMode}
+	 */
+	@Nonnull
+	public static TraversalMode toTraversalMode(@Nonnull GrpcTraversalMode grpcTraversalMode) {
+		return switch (grpcTraversalMode) {
+			case DEPTH_FIRST -> TraversalMode.DEPTH_FIRST;
+			case BREADTH_FIRST -> TraversalMode.BREADTH_FIRST;
+			default -> throw new GenericEvitaInternalError("Unrecognized remote traversal mode: " + grpcTraversalMode);
 		};
 	}
 
@@ -833,13 +937,13 @@ public class EvitaEnumConverter {
 	}
 
 	/**
-	 * Converts a {@link GrpcCaptureArea} to a {@link CaptureArea}.
+	 * Converts a {@link GrpcChangeCaptureArea} to a {@link CaptureArea}.
 	 *
-	 * @param area The GrpcCaptureArea to convert.
+	 * @param area The GrpcChangeCaptureArea to convert.
 	 * @return The converted CaptureArea.
 	 */
 	@Nonnull
-	public static CaptureArea toCaptureArea(@Nonnull GrpcCaptureArea area) {
+	public static CaptureArea toCaptureArea(@Nonnull GrpcChangeCaptureArea area) {
 		return switch (area) {
 			case DATA -> CaptureArea.DATA;
 			case SCHEMA -> CaptureArea.SCHEMA;
@@ -849,27 +953,28 @@ public class EvitaEnumConverter {
 	}
 
 	/**
-	 * Converts a {@link CaptureArea} to a {@link GrpcCaptureArea}.
+	 * Converts a {@link CaptureArea} to a {@link GrpcChangeCaptureArea}.
+	 *
 	 * @param area The CaptureArea to convert.
-	 * @return The converted GrpcCaptureArea.
+	 * @return The converted GrpcChangeCaptureArea.
 	 */
 	@Nonnull
-	public static GrpcCaptureArea toGrpcCaptureArea(@Nonnull CaptureArea area) {
+	public static GrpcChangeCaptureArea toGrpcChangeCaptureArea(@Nonnull CaptureArea area) {
 		return switch (area) {
-			case DATA -> GrpcCaptureArea.DATA;
-			case SCHEMA -> GrpcCaptureArea.SCHEMA;
-			case INFRASTRUCTURE -> GrpcCaptureArea.INFRASTRUCTURE;
+			case DATA -> GrpcChangeCaptureArea.DATA;
+			case SCHEMA -> GrpcChangeCaptureArea.SCHEMA;
+			case INFRASTRUCTURE -> GrpcChangeCaptureArea.INFRASTRUCTURE;
 		};
 	}
 
 	/**
-	 * Converts a {@link GrpcCaptureOperation} to an {@link Operation}.
+	 * Converts a {@link GrpcChangeCaptureOperation} to an {@link Operation}.
 	 *
-	 * @param grpcOperation The {@link GrpcCaptureOperation} to convert.
+	 * @param grpcOperation The {@link GrpcChangeCaptureOperation} to convert.
 	 * @return The converted {@link Operation}.
 	 */
 	@Nonnull
-	public static Operation toOperation(@Nonnull GrpcCaptureOperation grpcOperation) {
+	public static Operation toOperation(@Nonnull GrpcChangeCaptureOperation grpcOperation) {
 		return switch (grpcOperation) {
 			case UPSERT -> Operation.UPSERT;
 			case REMOVE -> Operation.REMOVE;
@@ -879,80 +984,336 @@ public class EvitaEnumConverter {
 	}
 
 	/**
-	 * Converts an {@link Operation} to a {@link GrpcCaptureOperation}.
+	 * Converts an {@link Operation} to a {@link GrpcChangeCaptureOperation}.
+	 *
 	 * @param operation The Operation to convert.
 	 * @return The converted GrpcOperation.
 	 */
 	@Nonnull
-	public static GrpcCaptureOperation toGrpcOperation(@Nonnull Operation operation) {
+	public static GrpcChangeCaptureOperation toGrpcOperation(@Nonnull Operation operation) {
 		return switch (operation) {
-			case UPSERT -> GrpcCaptureOperation.UPSERT;
-			case REMOVE -> GrpcCaptureOperation.REMOVE;
-			case TRANSACTION -> GrpcCaptureOperation.TRANSACTION;
+			case UPSERT -> GrpcChangeCaptureOperation.UPSERT;
+			case REMOVE -> GrpcChangeCaptureOperation.REMOVE;
+			case TRANSACTION -> GrpcChangeCaptureOperation.TRANSACTION;
 		};
 	}
 
 	/**
-	 * Converts a {@link GrpcCaptureContainerType} to a {@link ContainerType}.
+	 * Converts a {@link GrpcChangeCaptureContainerType} to a {@link ContainerType}.
 	 *
-	 * @param GrpcCaptureContainerType The {@link GrpcCaptureContainerType} to convert.
+	 * @param GrpcChangeCaptureContainerType The {@link GrpcChangeCaptureContainerType} to convert.
 	 * @return The converted {@link ContainerType}.
 	 */
 	@Nonnull
-	public static ContainerType toContainerType(@Nonnull GrpcCaptureContainerType GrpcCaptureContainerType) {
-		return switch (GrpcCaptureContainerType) {
+	public static ContainerType toContainerType(@Nonnull GrpcChangeCaptureContainerType GrpcChangeCaptureContainerType) {
+		return switch (GrpcChangeCaptureContainerType) {
 			case CONTAINER_CATALOG -> ContainerType.CATALOG;
 			case CONTAINER_ENTITY -> ContainerType.ENTITY;
 			case CONTAINER_ATTRIBUTE -> ContainerType.ATTRIBUTE;
 			case CONTAINER_ASSOCIATED_DATA -> ContainerType.ASSOCIATED_DATA;
 			case CONTAINER_REFERENCE -> ContainerType.REFERENCE;
 			case CONTAINER_PRICE -> ContainerType.PRICE;
-			default -> throw new GenericEvitaInternalError("Unrecognized container type: " + GrpcCaptureContainerType);
+			default -> throw new GenericEvitaInternalError("Unrecognized container type: " + GrpcChangeCaptureContainerType);
 		};
 	}
 
 	/**
-	 * Converts a {@link ContainerType} to a {@link GrpcCaptureContainerType}.
-	 * @param containerType The ContainerType to convert.
-	 * @return The converted GrpcCaptureContainerType.
-	 */
-	@Nonnull
-	public static GrpcCaptureContainerType toGrpcCaptureContainerType(@Nonnull ContainerType containerType) {
-		return switch (containerType) {
-			case CATALOG -> GrpcCaptureContainerType.CONTAINER_CATALOG;
-			case ENTITY -> GrpcCaptureContainerType.CONTAINER_ENTITY;
-			case ATTRIBUTE -> GrpcCaptureContainerType.CONTAINER_ATTRIBUTE;
-			case ASSOCIATED_DATA -> GrpcCaptureContainerType.CONTAINER_ASSOCIATED_DATA;
-			case REFERENCE -> GrpcCaptureContainerType.CONTAINER_REFERENCE;
-			case PRICE -> GrpcCaptureContainerType.CONTAINER_PRICE;
-		};
-	}
-
-	/**
-	 * Converts a {@link GrpcCaptureContent} to a {@link CaptureContent}.
+	 * Converts a {@link ContainerType} to a {@link GrpcChangeCaptureContainerType}.
 	 *
-	 * @param content The {@link GrpcCaptureContent} to convert.
-	 * @return The converted {@link CaptureContent}.
+	 * @param containerType The ContainerType to convert.
+	 * @return The converted GrpcChangeCaptureContainerType.
 	 */
 	@Nonnull
-	public static CaptureContent toCaptureContent(@Nonnull GrpcCaptureContent content) {
+	public static GrpcChangeCaptureContainerType toGrpcChangeCaptureContainerType(@Nonnull ContainerType containerType) {
+		return switch (containerType) {
+			case CATALOG -> GrpcChangeCaptureContainerType.CONTAINER_CATALOG;
+			case ENTITY -> GrpcChangeCaptureContainerType.CONTAINER_ENTITY;
+			case ATTRIBUTE -> GrpcChangeCaptureContainerType.CONTAINER_ATTRIBUTE;
+			case ASSOCIATED_DATA -> GrpcChangeCaptureContainerType.CONTAINER_ASSOCIATED_DATA;
+			case REFERENCE -> GrpcChangeCaptureContainerType.CONTAINER_REFERENCE;
+			case PRICE -> GrpcChangeCaptureContainerType.CONTAINER_PRICE;
+		};
+	}
+
+	/**
+	 * Converts a {@link GrpcChangeCaptureContent} to a {@link ChangeCaptureContent}.
+	 *
+	 * @param content The {@link GrpcChangeCaptureContent} to convert.
+	 * @return The converted {@link ChangeCaptureContent}.
+	 */
+	@Nonnull
+	public static ChangeCaptureContent toCaptureContent(@Nonnull GrpcChangeCaptureContent content) {
 		return switch (content) {
-			case HEADER -> CaptureContent.HEADER;
-			case BODY -> CaptureContent.BODY;
+			case CHANGE_HEADER -> ChangeCaptureContent.HEADER;
+			case CHANGE_BODY -> ChangeCaptureContent.BODY;
 			default -> throw new GenericEvitaInternalError("Unrecognized capture content: " + content);
 		};
 	}
 
 	/**
-	 * Converts a {@link CaptureContent} to a {@link GrpcCaptureContent}.
-	 * @param content The CaptureContent to convert.
-	 * @return The converted GrpcCaptureContent.
+	 * Converts a {@link TrafficRecordingContent} to a {@link GrpcTrafficRecordingContent}.
+	 *
+	 * @param content The {@link TrafficRecordingContent} to convert.
+	 * @return The converted {@link GrpcTrafficRecordingContent}.
 	 */
 	@Nonnull
-	public static GrpcCaptureContent toGrpcCaptureContent(@Nonnull CaptureContent content) {
+	public static GrpcTrafficRecordingContent toGrpcChangeCaptureContent(@Nonnull TrafficRecordingContent content) {
 		return switch (content) {
-			case HEADER -> GrpcCaptureContent.HEADER;
-			case BODY -> GrpcCaptureContent.BODY;
+			case HEADER -> TRAFFIC_RECORDING_HEADER;
+			case BODY -> TRAFFIC_RECORDING_BODY;
+		};
+	}
+
+	/**
+	 * Converts a {@link GrpcTrafficRecordingContent} to a {@link TrafficRecordingContent}.
+	 *
+	 * @param content The {@link GrpcTrafficRecordingContent} to convert.
+	 * @return The converted {@link TrafficRecordingContent}.
+	 */
+	@Nonnull
+	public static TrafficRecordingContent toCaptureContent(@Nonnull GrpcTrafficRecordingContent content) {
+		return switch (content) {
+			case TRAFFIC_RECORDING_HEADER -> TrafficRecordingContent.HEADER;
+			case TRAFFIC_RECORDING_BODY -> TrafficRecordingContent.BODY;
+			default -> throw new GenericEvitaInternalError("Unrecognized capture content: " + content);
+		};
+	}
+
+	/**
+	 * Converts a {@link ChangeCaptureContent} to a {@link GrpcChangeCaptureContent}.
+	 *
+	 * @param content The ChangeCaptureContent to convert.
+	 * @return The converted GrpcChangeCaptureContent.
+	 */
+	@Nonnull
+	public static GrpcChangeCaptureContent toGrpcChangeCaptureContent(@Nonnull ChangeCaptureContent content) {
+		return switch (content) {
+			case HEADER -> GrpcChangeCaptureContent.CHANGE_HEADER;
+			case BODY -> GrpcChangeCaptureContent.CHANGE_BODY;
+		};
+	}
+
+	/**
+	 * Converts a {@link HealthProblem} to a {@link GrpcHealthProblem}.
+	 *
+	 * @param problem The HealthProblem to convert.
+	 * @return The converted GrpcHealthProblem.
+	 */
+	@Nonnull
+	public static GrpcHealthProblem toGrpcHealthProblem(@Nonnull HealthProblem problem) {
+		return switch (problem) {
+			case MEMORY_SHORTAGE -> GrpcHealthProblem.MEMORY_SHORTAGE;
+			case EXTERNAL_API_UNAVAILABLE -> GrpcHealthProblem.EXTERNAL_API_UNAVAILABLE;
+			case INPUT_QUEUES_OVERLOADED -> GrpcHealthProblem.INPUT_QUEUES_OVERLOADED;
+			case JAVA_INTERNAL_ERRORS -> GrpcHealthProblem.JAVA_INTERNAL_ERRORS;
+		};
+	}
+
+	/**
+	 * Converts a {@link ReadinessState} to a {@link GrpcReadiness}.
+	 *
+	 * @param readinessState The ReadinessState to convert.
+	 * @return The converted GrpcReadiness.
+	 */
+	@Nonnull
+	public static GrpcReadiness toGrpcReadinessState(@Nonnull ReadinessState readinessState) {
+		return switch (readinessState) {
+			case STARTING -> GrpcReadiness.API_STARTING;
+			case READY -> GrpcReadiness.API_READY;
+			case STALLING -> GrpcReadiness.API_STALLING;
+			case SHUTDOWN -> GrpcReadiness.API_SHUTDOWN;
+			case UNKNOWN -> GrpcReadiness.API_UNKNOWN;
+		};
+	}
+
+	/**
+	 * Converts a {@link TaskSimplifiedState} to a {@link GrpcTaskSimplifiedState}.
+	 *
+	 * @param state the simplified state of the task
+	 * @return the corresponding gRPC task simplified state
+	 */
+	@Nonnull
+	public static GrpcTaskSimplifiedState toGrpcSimplifiedStatus(@Nonnull TaskSimplifiedState state) {
+		return switch (state) {
+			case QUEUED -> TASK_QUEUED;
+			case RUNNING -> TASK_RUNNING;
+			case FAILED -> TASK_FAILED;
+			case FINISHED -> TASK_FINISHED;
+			case WAITING_FOR_PRECONDITION -> TASK_WAITING_FOR_PRECONDITION;
+		};
+	}
+
+	/**
+	 * Converts a {@link GrpcTaskSimplifiedState} to a {@link TaskSimplifiedState}.
+	 *
+	 * @param grpcState the gRPC task simplified state
+	 * @return the corresponding simplified state of the task
+	 */
+	@Nonnull
+	public static TaskSimplifiedState toSimplifiedStatus(@Nonnull GrpcTaskSimplifiedState grpcState) {
+		return switch (grpcState) {
+			case TASK_QUEUED -> TaskSimplifiedState.QUEUED;
+			case TASK_RUNNING -> TaskSimplifiedState.RUNNING;
+			case TASK_FAILED -> TaskSimplifiedState.FAILED;
+			case TASK_FINISHED -> TaskSimplifiedState.FINISHED;
+			case TASK_WAITING_FOR_PRECONDITION -> TaskSimplifiedState.WAITING_FOR_PRECONDITION;
+			case UNRECOGNIZED ->
+				throw new GenericEvitaInternalError("Unrecognized task simplified state: " + grpcState);
+		};
+	}
+
+	/**
+	 * Converts an {@link AttributeInheritanceBehavior} to a {@link GrpcAttributeInheritanceBehavior}.
+	 *
+	 * @param attributeInheritanceBehavior The {@link AttributeInheritanceBehavior} to convert.
+	 * @return The converted {@link GrpcAttributeInheritanceBehavior}.
+	 * @throws GenericEvitaInternalError if the conversion cannot be performed.
+	 */
+	@Nonnull
+	public static GrpcAttributeInheritanceBehavior toGrpcAttributeInheritanceBehavior(@Nonnull AttributeInheritanceBehavior attributeInheritanceBehavior) {
+		return switch (attributeInheritanceBehavior) {
+			case INHERIT_ALL_EXCEPT -> GrpcAttributeInheritanceBehavior.INHERIT_ALL_EXCEPT;
+			case INHERIT_ONLY_SPECIFIED -> GrpcAttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED;
+		};
+	}
+
+	/**
+	 * Converts a {@link GrpcAttributeInheritanceBehavior} to an {@link AttributeInheritanceBehavior}.
+	 *
+	 * @param attributeInheritanceBehavior The {@link GrpcAttributeInheritanceBehavior} to convert.
+	 * @return The converted {@link AttributeInheritanceBehavior}.
+	 * @throws GenericEvitaInternalError if the conversion cannot be performed.
+	 */
+	@Nonnull
+	public static AttributeInheritanceBehavior toAttributeInheritanceBehavior(@Nonnull GrpcAttributeInheritanceBehavior attributeInheritanceBehavior) {
+		return switch (attributeInheritanceBehavior) {
+			case INHERIT_ALL_EXCEPT -> AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT;
+			case INHERIT_ONLY_SPECIFIED -> AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED;
+			default ->
+				throw new GenericEvitaInternalError("Unrecognized attribute inheritance behavior: " + attributeInheritanceBehavior);
+		};
+	}
+
+	/**
+	 * Converts a {@link TaskTrait} to a {@link GrpcTaskTrait}.
+	 *
+	 * @param taskTrait The TaskTrait to convert.
+	 * @return The converted GrpcTaskTrait.
+	 */
+	@Nonnull
+	public static GrpcTaskTrait toGrpcTaskTrait(@Nonnull TaskTrait taskTrait) {
+		return switch (taskTrait) {
+			case CAN_BE_STARTED -> GrpcTaskTrait.TASK_CAN_BE_STARTED;
+			case CAN_BE_CANCELLED -> GrpcTaskTrait.TASK_CAN_BE_CANCELLED;
+			case NEEDS_TO_BE_STOPPED -> GrpcTaskTrait.TASK_NEEDS_TO_BE_STOPPED;
+			default -> throw new GenericEvitaInternalError("Unrecognized task trait: " + taskTrait);
+		};
+	}
+
+	/**
+	 * Converts a {@link GrpcTaskTrait} to a {@link TaskTrait}.
+	 *
+	 * @param grpcTaskTrait The GrpcTaskTrait to convert.
+	 * @return The converted TaskTrait.
+	 */
+	@Nonnull
+	public static TaskTrait toTaskTrait(@Nonnull GrpcTaskTrait grpcTaskTrait) {
+		return switch (grpcTaskTrait) {
+			case TASK_CAN_BE_STARTED -> TaskTrait.CAN_BE_STARTED;
+			case TASK_CAN_BE_CANCELLED -> TaskTrait.CAN_BE_CANCELLED;
+			case TASK_NEEDS_TO_BE_STOPPED -> TaskTrait.NEEDS_TO_BE_STOPPED;
+			case UNRECOGNIZED -> throw new GenericEvitaInternalError("Unrecognized grpc task trait: " + grpcTaskTrait);
+		};
+	}
+
+	/**
+	 * Converts a {@link ClassifierType} to a {@link GrpcClassifierType}.
+	 *
+	 * @param key The ClassifierType to convert.
+	 * @return The converted GrpcClassifierType.
+	 * @throws GenericEvitaInternalError if the conversion cannot be performed.
+	 */
+	@Nonnull
+	public static GrpcClassifierType toGrpcClassifierType(@Nonnull ClassifierType key) {
+		return switch (key) {
+			case SERVER_NAME -> GrpcClassifierType.CLASSIFIER_TYPE_SERVER_NAME;
+			case CATALOG -> GrpcClassifierType.CLASSIFIER_TYPE_CATALOG;
+			case ENTITY -> GrpcClassifierType.CLASSIFIER_TYPE_ENTITY;
+			case ATTRIBUTE -> GrpcClassifierType.CLASSIFIER_TYPE_ATTRIBUTE;
+			case ASSOCIATED_DATA -> GrpcClassifierType.CLASSIFIER_TYPE_ASSOCIATED_DATA;
+			case REFERENCE -> GrpcClassifierType.CLASSIFIER_TYPE_REFERENCE;
+			case REFERENCE_ATTRIBUTE -> GrpcClassifierType.CLASSIFIER_TYPE_REFERENCE_ATTRIBUTE;
+		};
+	}
+
+	/**
+	 * Converts an {@link Scope} to a {@link GrpcEntityScope}.
+	 *
+	 * @param scope the scope to convert.
+	 * @return the corresponding gRPC scope.
+	 * @throws GenericEvitaInternalError if the conversion cannot be performed.
+	 */
+	@Nonnull
+	public static GrpcEntityScope toGrpcScope(@Nonnull Scope scope) {
+		return switch (scope) {
+			case LIVE -> GrpcEntityScope.SCOPE_LIVE;
+			case ARCHIVED -> GrpcEntityScope.SCOPE_ARCHIVED;
+		};
+	}
+
+	/**
+	 * Converts a {@link GrpcEntityScope} to an {@link Scope}.
+	 *
+	 * @param grpcScope the gRPC scope to convert.
+	 * @return the corresponding scope.
+	 * @throws GenericEvitaInternalError if the conversion cannot be performed.
+	 */
+	@Nonnull
+	public static Scope toScope(@Nonnull GrpcEntityScope grpcScope) {
+		return switch (grpcScope) {
+			case SCOPE_LIVE -> Scope.LIVE;
+			case SCOPE_ARCHIVED -> Scope.ARCHIVED;
+			case UNRECOGNIZED -> throw new GenericEvitaInternalError("Unrecognized gRPC scope: " + grpcScope);
+		};
+	}
+
+	/**
+	 * Converts a {@link GrpcTrafficRecordingType} to a {@link TrafficRecordingType}.
+	 * @param recordingType the recording type to convert
+	 * @return the corresponding traffic recording type
+	 */
+	@Nonnull
+	public static TrafficRecordingType toTrafficRecordingType(@Nonnull GrpcTrafficRecordingType recordingType) {
+		return switch (recordingType) {
+			case TRAFFIC_RECORDING_SESSION_START -> TrafficRecordingType.SESSION_START;
+			case TRAFFIC_RECORDING_SESSION_FINISH -> TrafficRecordingType.SESSION_CLOSE;
+			case TRAFFIC_RECORDING_SOURCE_QUERY -> TrafficRecordingType.SOURCE_QUERY;
+			case TRAFFIC_RECORDING_SOURCE_QUERY_STATISTICS -> TrafficRecordingType.SOURCE_QUERY_STATISTICS;
+			case TRAFFIC_RECORDING_QUERY -> TrafficRecordingType.QUERY;
+			case TRAFFIC_RECORDING_ENRICHMENT -> TrafficRecordingType.ENRICHMENT;
+			case TRAFFIC_RECORDING_FETCH -> TrafficRecordingType.FETCH;
+			case TRAFFIC_RECORDING_MUTATION -> TrafficRecordingType.MUTATION;
+			case UNRECOGNIZED -> throw new GenericEvitaInternalError("Unrecognized traffic recording type: " + recordingType);
+		};
+	}
+
+	/**
+	 * Converts a {@link TrafficRecordingType} to a {@link GrpcTrafficRecordingType}.
+	 *
+	 * @param recordingType the traffic recording type to convert
+	 * @return the corresponding gRPC traffic recording type
+	 */
+	@Nonnull
+	public static GrpcTrafficRecordingType toGrpcTrafficRecordingType(@Nonnull TrafficRecordingType recordingType) {
+		return switch (recordingType) {
+			case SESSION_START -> GrpcTrafficRecordingType.TRAFFIC_RECORDING_SESSION_START;
+			case SESSION_CLOSE -> GrpcTrafficRecordingType.TRAFFIC_RECORDING_SESSION_FINISH;
+			case SOURCE_QUERY -> GrpcTrafficRecordingType.TRAFFIC_RECORDING_SOURCE_QUERY;
+			case SOURCE_QUERY_STATISTICS -> GrpcTrafficRecordingType.TRAFFIC_RECORDING_SOURCE_QUERY_STATISTICS;
+			case QUERY -> GrpcTrafficRecordingType.TRAFFIC_RECORDING_QUERY;
+			case ENRICHMENT -> GrpcTrafficRecordingType.TRAFFIC_RECORDING_ENRICHMENT;
+			case FETCH -> GrpcTrafficRecordingType.TRAFFIC_RECORDING_FETCH;
+			case MUTATION -> GrpcTrafficRecordingType.TRAFFIC_RECORDING_MUTATION;
 		};
 	}
 

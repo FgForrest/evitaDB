@@ -24,15 +24,16 @@
 package io.evitadb.core.query.sort.primaryKey;
 
 import io.evitadb.core.query.QueryExecutionContext;
-import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.utils.ArrayUtils;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.function.IntConsumer;
 
 /**
  * This sorter sorts translated primary keys according to original primary keys in ascending order. It is used with
@@ -49,39 +50,44 @@ public class TranslatedPrimaryKeySorter implements Sorter {
 
 	@Nonnull
 	@Override
-	public Sorter cloneInstance() {
-		return INSTANCE;
-	}
-
-	@Nonnull
-	@Override
-	public Sorter andThen(Sorter sorterForUnknownRecords) {
-		return INSTANCE;
-	}
-
-	@Nullable
-	@Override
-	public Sorter getNextSorter() {
-		return null;
-	}
-
-	@Override
-	public int sortAndSlice(@Nonnull QueryExecutionContext queryContext, @Nonnull Formula input, int startIndex, int endIndex, @Nonnull int[] result, int peak) {
-		final Bitmap translatedPrimaryKeysBitmap = input.compute();
+	public SortingContext sortAndSlice(
+		@Nonnull SortingContext sortingContext,
+		@Nonnull int[] result,
+		@Nullable IntConsumer skippedRecordsConsumer
+	) {
+		final Bitmap translatedPrimaryKeysBitmap = sortingContext.nonSortedKeys();
+		final QueryExecutionContext queryContext = sortingContext.queryContext();
 		final int[] translatedPrimaryKeys = translatedPrimaryKeysBitmap.getArray();
-		final int[] originalPrimaryKeys = translatedPrimaryKeysBitmap.stream().map(queryContext::translateToEntityPrimaryKey).toArray();
+		final int[] originalPrimaryKeys = translatedPrimaryKeysBitmap
+			.stream()
+			.map(queryContext::translateToEntityPrimaryKey)
+			.toArray();
+
 		// initialize order array
 		final int[] order = new int[originalPrimaryKeys.length];
 		for (int i = 0; i < order.length; i++) {
 			order[i] = i;
 		}
 
+		final int recomputedStartIndex = sortingContext.recomputedStartIndex();
+		final int recomputedEndIndex = sortingContext.recomputedEndIndex();
+
 		ArrayUtils.sortSecondAlongFirstArray(originalPrimaryKeys, order);
-		final int length = endIndex - startIndex;
-		for (int i = peak; i < translatedPrimaryKeys.length && i < length; i++) {
+		final int length = Math.min(translatedPrimaryKeys.length, recomputedEndIndex - recomputedStartIndex);
+		for (int i = recomputedStartIndex; i < length; i++) {
 			result[i] = translatedPrimaryKeys[order[i]];
 		}
-		return peak + Math.min(translatedPrimaryKeys.length, length);
+
+		if (skippedRecordsConsumer != null) {
+			for (int i = 0; i < Math.min(recomputedStartIndex, order.length); i++) {
+				skippedRecordsConsumer.accept(translatedPrimaryKeys[order[i]]);
+			}
+		}
+		return sortingContext.createResultContext(
+			EmptyBitmap.INSTANCE,
+			Math.min(translatedPrimaryKeys.length, length),
+			Math.min(recomputedStartIndex, order.length)
+		);
 	}
 
 }

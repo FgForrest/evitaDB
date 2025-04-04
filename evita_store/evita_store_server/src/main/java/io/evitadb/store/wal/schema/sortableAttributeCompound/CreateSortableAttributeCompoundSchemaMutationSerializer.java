@@ -31,19 +31,22 @@ import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.CreateSortableAttributeCompoundSchemaMutation;
+import io.evitadb.dataType.Scope;
+import io.evitadb.store.wal.schema.MutationSerializationFunctions;
 
 /**
  * Serializer for {@link CreateSortableAttributeCompoundSchemaMutation}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public class CreateSortableAttributeCompoundSchemaMutationSerializer extends Serializer<CreateSortableAttributeCompoundSchemaMutation> {
+public class CreateSortableAttributeCompoundSchemaMutationSerializer extends Serializer<CreateSortableAttributeCompoundSchemaMutation> implements MutationSerializationFunctions {
 
 	@Override
 	public void write(Kryo kryo, Output output, CreateSortableAttributeCompoundSchemaMutation mutation) {
 		output.writeString(mutation.getName());
 		output.writeString(mutation.getDescription());
 		output.writeString(mutation.getDeprecationNotice());
+		writeScopeArray(kryo, output, mutation.getIndexedInScopes());
 		final AttributeElement[] attributeElements = mutation.getAttributeElements();
 		output.writeVarInt(attributeElements.length, true);
 		for (AttributeElement attributeElement : attributeElements) {
@@ -58,6 +61,7 @@ public class CreateSortableAttributeCompoundSchemaMutationSerializer extends Ser
 		final String name = input.readString();
 		final String description = input.readString();
 		final String deprecationNotice = input.readString();
+		final Scope[] indexedInScopes = readScopeArray(kryo, input);
 		final int attributeElementsLength = input.readVarInt(true);
 		final AttributeElement[] attributeElements = new AttributeElement[attributeElementsLength];
 		for (int i = 0; i < attributeElementsLength; i++) {
@@ -67,7 +71,7 @@ public class CreateSortableAttributeCompoundSchemaMutationSerializer extends Ser
 			attributeElements[i] = new AttributeElement(attributeName, direction, behaviour);
 		}
 		return new CreateSortableAttributeCompoundSchemaMutation(
-			name, description, deprecationNotice, attributeElements
+			name, description, deprecationNotice, indexedInScopes, attributeElements
 		);
 	}
 

@@ -7,7 +7,7 @@
   ~             |  __/\ V /| | || (_| | |_| | |_) |
   ~              \___| \_/ |_|\__\__,_|____/|____/
   ~
-  ~   Copyright (c) 2023-2024
+  ~   Copyright (c) 2023-2025
   ~
   ~   Licensed under the Business Source License, Version 1.1 (the "License");
   ~   you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@
 	<parent>
 		<groupId>io.evitadb</groupId>
 		<artifactId>evita_root</artifactId>
-		<version>2024.9-SNAPSHOT</version>
+		<version>2025.4-SNAPSHOT</version>
 	</parent>
 
 	<properties>
@@ -55,62 +55,67 @@
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>evita_api</artifactId>
-			<version>${project.version}</version>
+			<version>${project.parent.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>evita_test_support</artifactId>
-			<version>${project.version}</version>
+			<version>${project.parent.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>evita_engine</artifactId>
-			<version>${project.version}</version>
+			<version>${project.parent.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>evita_store_key_value</artifactId>
-			<version>${project.version}</version>
+			<version>${project.parent.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>evita_store_server</artifactId>
-			<version>${project.version}</version>
+			<version>${project.parent.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>evita_external_api_core</artifactId>
-			<version>${project.version}</version>
+			<version>${project.parent.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>evita_external_api_graphql</artifactId>
-			<version>${project.version}</version>
+			<version>${project.parent.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>evita_external_api_rest</artifactId>
-			<version>${project.version}</version>
+			<version>${project.parent.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>evita_external_api_system</artifactId>
-			<version>${project.version}</version>
+			<version>${project.parent.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>evita_external_api_grpc</artifactId>
-			<version>${project.version}</version>
+			<version>${project.parent.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>evita_java_driver</artifactId>
-			<version>${project.version}</version>
+			<version>${project.parent.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>evita_external_api_grpc_shared</artifactId>
-			<version>${project.version}</version>
+			<version>${project.parent.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.mockito</groupId>
+			<artifactId>mockito-junit-jupiter</artifactId>
+			<version>4.6.1</version>
 		</dependency>
 	</dependencies>
 
@@ -133,7 +138,6 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-shade-plugin</artifactId>
-				<version>3.2.1</version>
 				<executions>
 					<execution>
 						<phase>package</phase>
@@ -144,7 +148,7 @@
 							<finalName>${uberjar.name}</finalName>
 							<transformers>
 								<transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-									<mainClass>org.openjdk.jmh.Main</mainClass>
+									<mainClass>io.evitadb.performance.ArtificialTestRunner</mainClass>
 								</transformer>
 								<transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
 							</transformers>

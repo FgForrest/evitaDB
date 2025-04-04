@@ -58,7 +58,7 @@ public class FlattenedFormulaWithFilteredPricesAndFilteredOutRecordsSerializer e
 		writeBitmapIds(output, object.getTransactionalDataIds());
 		writeIntegerBitmap(output, object.compute());
 		writePriceEvaluationContext(kryo, output, object.getPriceEvaluationContext());
-		writeFilteredPriceRecords(kryo, output, object.getFilteredPriceRecords());
+		writeFilteredPriceRecords(kryo, output, object.getFilteredPriceRecordsOrThrowException());
 		writeIntegerBitmap(output, object.getRecordsFilteredOutByPredicate());
 	}
 

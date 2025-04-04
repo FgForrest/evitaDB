@@ -30,13 +30,14 @@ import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.ConstraintResolver;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Map;
 import java.util.Optional;
-
-import static io.evitadb.utils.CollectionUtils.createHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Implementation of {@link ConstraintResolver} for resolving {@link OrderConstraint} usually with {@link OrderBy}
@@ -50,17 +51,18 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  */
 public class OrderConstraintResolver extends GraphQLConstraintResolver<OrderConstraint> {
 
-	public OrderConstraintResolver(@Nonnull CatalogSchemaContract catalogSchema) {
+	public OrderConstraintResolver(@Nonnull CatalogSchemaContract catalogSchema,
+	                               @Nonnull AtomicReference<FilterConstraintResolver> filterConstraintResolver) {
 		super(
 			catalogSchema,
-			createHashMap(0) // currently, we don't support any order constraint with additional children
+			Map.of(ConstraintType.FILTER, filterConstraintResolver)
 		);
 	}
 
 	@Nullable
 	public OrderConstraint resolve(@Nonnull String rootEntityType, @Nonnull String key, @Nullable Object value) {
 		return resolve(
-			new EntityDataLocator(rootEntityType),
+			new EntityDataLocator(new ManagedEntityTypePointer(rootEntityType)),
 			key,
 			value
 		);

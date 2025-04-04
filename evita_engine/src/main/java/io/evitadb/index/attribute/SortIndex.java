@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ package io.evitadb.index.attribute;
 
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.comparator.LocalizedStringComparator;
@@ -36,8 +37,12 @@ import io.evitadb.core.query.sort.SortedRecordsSupplierFactory;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.dataType.ComparableCurrency;
+import io.evitadb.dataType.ComparableLocale;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.IndexDataStructure;
+import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.array.TransactionalObjArray;
 import io.evitadb.index.array.TransactionalUnorderedIntArray;
 import io.evitadb.index.attribute.SortIndexChanges.ValueStartIndex;
@@ -49,6 +54,7 @@ import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.storageParts.index.SortIndexStoragePart;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.NumberUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -63,6 +69,7 @@ import java.math.BigDecimal;
 import java.text.Normalizer;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.Currency;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -89,6 +96,7 @@ import static java.util.Optional.ofNullable;
 @ThreadSafe
 public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLayerProducer<SortIndexChanges, SortIndex>, IndexDataStructure, Serializable {
 	@Serial private static final long serialVersionUID = 5862170244589598450L;
+	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
 	 * Contains record ids sorted by assigned values. The array is divided in so called record ids block that respects
 	 * order in {@link #sortedRecordsValues}. Record ids within the same block are sorted naturally by their integer id.
@@ -97,18 +105,21 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	/**
 	 * Contains comparable values sorted naturally by their {@link Comparable} characteristics.
 	 */
-	final TransactionalObjArray<? extends Comparable<?>> sortedRecordsValues;
+	final TransactionalObjArray<Serializable> sortedRecordsValues;
 	/**
 	 * Map contains only values with cardinalities greater than one. It is expected that records will have scarce values
 	 * with low cardinality so this should save a lot of memory.
 	 */
-	final TransactionalMap<Comparable<?>, Integer> valueCardinalities;
-	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
+	final TransactionalMap<Serializable, Integer> valueCardinalities;
 	/**
 	 * The array contains the descriptor allowing to create {@link #normalizer} and {@link #comparator} instances.
 	 */
-	@Nonnull
-	final ComparatorSource[] comparatorBase;
+	@Nonnull final ComparatorSource[] comparatorBase;
+	/**
+	 * Reference key (discriminator) of the {@link ReducedEntityIndex} this index belongs to. Or null if this index
+	 * is part of the global {@link GlobalEntityIndex}.
+	 */
+	@Getter @Nullable private final ReferenceKey referenceKey;
 	/**
 	 * Contains key identifying the attribute.
 	 */
@@ -126,7 +137,7 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	 *
 	 * (source: <a href="https://jenkov.com/tutorials/java-internationalization/collator.html">Jenkov.com</a>)
 	 */
-	private final UnaryOperator<Object> normalizer;
+	private final UnaryOperator<Serializable> normalizer;
 	/**
 	 * Comparator is used to execute insertion sort on the sorted records values.
 	 */
@@ -135,42 +146,19 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	 * Temporary data structure that should be NULL and should exist only when {@link Catalog} is in
 	 * bulk insertion or read only state where transaction are not used.
 	 */
-	private SortIndexChanges sortIndexChanges;
-
-	/**
-	 * Inverts positions by subtracting from largest value.
-	 */
-	@Nonnull
-	static int[] invert(@Nonnull int[] positions) {
-		final int lastPosition = positions.length - 1;
-		final int[] inverted = new int[positions.length];
-		for (int i = 0; i < positions.length; i++) {
-			inverted[i] = lastPosition - positions[i];
-		}
-		return inverted;
-	}
-
-	/**
-	 * Verifies that the given attribute type is comparable.
-	 */
-	private static void assertComparable(@Nonnull Class<?> attributeType) {
-		isTrue(
-			Comparable.class.isAssignableFrom(attributeType) || attributeType.isPrimitive(),
-			"Type `" + attributeType + "` is expected to be Comparable, but it is not!"
-		);
-	}
+	@Nullable private SortIndexChanges sortIndexChanges;
 
 	/**
 	 * Method creates a comparator that compares {@link ComparableArray} respecting the comparator base requirements
 	 * and the localization specific for {@link String} type.
 	 *
-	 * @param locale locale to use for sorting
+	 * @param locale         locale to use for sorting
 	 * @param comparatorBase the descriptor that needs to be respected by the comparator
 	 * @return the comparator that respects the given descriptor
 	 */
 	@SuppressWarnings("rawtypes")
 	@Nonnull
-	private static Comparator<?> createCombinedComparatorFor(@Nonnull Locale locale, @Nonnull ComparatorSource[] comparatorBase) {
+	public static Comparator<ComparableArray> createCombinedComparatorFor(@Nullable Locale locale, @Nonnull ComparatorSource[] comparatorBase) {
 		final Comparator[] result = new Comparator[comparatorBase.length];
 		for (int i = 0; i < comparatorBase.length; i++) {
 			final ComparatorSource comparatorSource = comparatorBase[i];
@@ -182,13 +170,14 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 
 	/**
 	 * Method creates a comparator that respect the localization specific for {@link String} type.
-	 * @param locale locale to use for sorting
+	 *
+	 * @param locale           locale to use for sorting
 	 * @param comparatorSource the descriptor that needs to be respected by the comparator
 	 * @return the comparator that respects the given descriptor
 	 */
 	@SuppressWarnings("rawtypes")
 	@Nonnull
-	private static Comparator createComparatorFor(@Nullable Locale locale, @Nonnull ComparatorSource comparatorSource) {
+	public static Comparator createComparatorFor(@Nullable Locale locale, @Nonnull ComparatorSource comparatorSource) {
 		final Comparator nextComparator = String.class.isAssignableFrom(comparatorSource.type()) ?
 			ofNullable(locale)
 				.map(it -> (Comparator) new LocalizedStringComparator(it))
@@ -218,12 +207,12 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	 * @see #normalizer
 	 */
 	@Nonnull
-	private static <T> UnaryOperator<T> createNormalizerFor(@Nonnull ComparatorSource[] comparatorBase) {
-		@SuppressWarnings("unchecked")
-		final UnaryOperator<T>[] normalizers = new UnaryOperator[comparatorBase.length];
+	public static UnaryOperator<Serializable> createNormalizerFor(@Nonnull ComparatorSource[] comparatorBase) {
+		//noinspection unchecked
+		final UnaryOperator<Serializable>[] normalizers = new UnaryOperator[comparatorBase.length];
 		boolean atLeastOneNormalizerFound = false;
 		for (int i = 0; i < comparatorBase.length; i++) {
-			final Optional<UnaryOperator<T>> normalizer = createNormalizerFor(comparatorBase[i]);
+			final Optional<UnaryOperator<Serializable>> normalizer = createNormalizerFor(comparatorBase[i]);
 			normalizers[i] = normalizer.orElseGet(UnaryOperator::identity);
 			atLeastOneNormalizerFound = atLeastOneNormalizerFound || normalizer.isPresent();
 		}
@@ -236,44 +225,93 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	 *
 	 * @see #normalizer
 	 */
-	@SuppressWarnings("unchecked")
 	@Nonnull
-	private static <T> Optional<UnaryOperator<T>> createNormalizerFor(@Nonnull ComparatorSource comparatorBase) {
+	public static Optional<UnaryOperator<Serializable>> createNormalizerFor(@Nonnull ComparatorSource comparatorBase) {
 		if (String.class.isAssignableFrom(comparatorBase.type())) {
-			return Optional.of(text -> text == null ? null : (T) Normalizer.normalize(String.valueOf(text), Normalizer.Form.NFD));
+			return Optional.of(text -> text == null ? null : Normalizer.normalize(String.valueOf(text), Normalizer.Form.NFD));
 		} else if (BigDecimal.class.isAssignableFrom(comparatorBase.type())) {
-			return Optional.of(value -> value == null ? null : (T) NumberUtils.normalize((BigDecimal) value));
+			return Optional.of(value -> value == null ? null : NumberUtils.normalize((BigDecimal) value));
+		} else if (Locale.class.isAssignableFrom(comparatorBase.type())) {
+			return Optional.of(value -> value == null ? null : new ComparableLocale((Locale) value));
+		} else if (Currency.class.isAssignableFrom(comparatorBase.type())) {
+			return Optional.of(value -> value == null ? null : new ComparableCurrency((Currency) value));
 		} else {
 			return Optional.empty();
 		}
 	}
 
-	@SuppressWarnings("unchecked")
-	public <T extends Comparable<T>> SortIndex(
+	/**
+	 * Inverts positions by subtracting from the largest value.
+	 */
+	@Nonnull
+	static int[] invert(@Nonnull int[] positions) {
+		final int lastPosition = positions.length - 1;
+		final int[] inverted = new int[positions.length];
+		for (int i = 0; i < positions.length; i++) {
+			inverted[i] = lastPosition - positions[i];
+		}
+		return inverted;
+	}
+
+	/**
+	 * Verifies that the given attribute type is comparable.
+	 */
+	private static Class<?> assertComparable(@Nonnull Class<?> attributeType) {
+		if (Currency.class.isAssignableFrom(attributeType)) {
+			return ComparableCurrency.class;
+		} else if (Locale.class.isAssignableFrom(attributeType)) {
+			return ComparableLocale.class;
+		} else {
+			isTrue(
+				Comparable.class.isAssignableFrom(attributeType) || attributeType.isPrimitive(),
+				"Type `" + attributeType + "` is expected to be Comparable, but it is not!"
+			);
+			return attributeType;
+		}
+	}
+
+	public SortIndex(
 		@Nonnull Class<?> attributeType,
 		@Nonnull AttributeKey attributeKey
 	) {
-		assertComparable(attributeType);
+		this(attributeType, null, attributeKey);
+	}
+
+	@SuppressWarnings("unchecked")
+	public SortIndex(
+		@Nonnull Class<?> attributeType,
+		@Nullable ReferenceKey referenceKey,
+		@Nonnull AttributeKey attributeKey
+	) {
+		final Class<?> normalizedAttributeType = assertComparable(attributeType);
 		this.dirty = new TransactionalBoolean();
-		this.comparatorBase = new ComparatorSource[] {
+		this.comparatorBase = new ComparatorSource[]{
 			new ComparatorSource(
 				attributeType,
 				OrderDirection.ASC,
 				OrderBehaviour.NULLS_LAST
 			)
 		};
+		this.referenceKey = referenceKey;
 		this.attributeKey = attributeKey;
 		this.normalizer = createNormalizerFor(this.comparatorBase[0]).orElseGet(UnaryOperator::identity);
 		this.comparator = createComparatorFor(this.attributeKey.locale(), this.comparatorBase[0]);
 		this.sortedRecords = new TransactionalUnorderedIntArray();
 		//noinspection rawtypes
-		this.sortedRecordsValues = new TransactionalObjArray<>((T[]) Array.newInstance(attributeType, 0), (Comparator) this.comparator);
+		this.sortedRecordsValues = new TransactionalObjArray<>((Serializable[]) Array.newInstance(normalizedAttributeType, 0), (Comparator) this.comparator);
 		this.valueCardinalities = new TransactionalMap<>(new HashMap<>());
 	}
 
-	@SuppressWarnings("unchecked")
 	public SortIndex(
 		@Nonnull ComparatorSource[] comparatorSources,
+		@Nonnull AttributeKey attributeKey
+	) {
+		this(comparatorSources, null, attributeKey);
+	}
+
+	public SortIndex(
+		@Nonnull ComparatorSource[] comparatorSources,
+		@Nullable ReferenceKey referenceKey,
 		@Nonnull AttributeKey attributeKey
 	) {
 		isTrue(
@@ -282,37 +320,40 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 		);
 		this.dirty = new TransactionalBoolean();
 		this.comparatorBase = comparatorSources;
+		this.referenceKey = referenceKey;
 		this.attributeKey = attributeKey;
 		this.normalizer = createNormalizerFor(this.comparatorBase);
 		this.comparator = createCombinedComparatorFor(this.attributeKey.locale(), this.comparatorBase);
 		this.sortedRecords = new TransactionalUnorderedIntArray();
-		//noinspection rawtypes
+		//noinspection rawtypes,unchecked
 		this.sortedRecordsValues = new TransactionalObjArray<>(new ComparableArray[0], (Comparator) this.comparator);
 		this.valueCardinalities = new TransactionalMap<>(new HashMap<>());
 	}
 
-	@SuppressWarnings({"unchecked", "rawtypes"})
 	public SortIndex(
 		@Nonnull ComparatorSource[] comparatorBase,
+		@Nullable ReferenceKey referenceKey,
 		@Nonnull AttributeKey attributeKey,
 		@Nonnull int[] sortedRecords,
-		@Nonnull Comparable<?>[] sortedRecordValues,
-		@Nonnull Map<Comparable<?>, Integer> cardinalities
+		@Nonnull Serializable[] sortedRecordValues,
+		@Nonnull Map<Serializable, Integer> cardinalities
 	) {
 		this.dirty = new TransactionalBoolean();
 		this.comparatorBase = comparatorBase;
 		for (ComparatorSource comparatorSource : comparatorBase) {
 			assertComparable(comparatorSource.type());
 		}
+		this.referenceKey = referenceKey;
 		this.attributeKey = attributeKey;
 		if (this.comparatorBase.length == 1) {
-			this.normalizer = createNormalizerFor(this.comparatorBase[0]).orElseGet(UnaryOperator::identity);;
+			this.normalizer = createNormalizerFor(this.comparatorBase[0]).orElseGet(UnaryOperator::identity);
 			this.comparator = createComparatorFor(this.attributeKey.locale(), this.comparatorBase[0]);
 		} else {
 			this.normalizer = createNormalizerFor(this.comparatorBase);
 			this.comparator = createCombinedComparatorFor(this.attributeKey.locale(), this.comparatorBase);
 		}
 		this.sortedRecords = new TransactionalUnorderedIntArray(sortedRecords);
+		//noinspection unchecked,rawtypes
 		this.sortedRecordsValues = new TransactionalObjArray(sortedRecordValues, this.comparator);
 		this.valueCardinalities = new TransactionalMap<>(cardinalities);
 	}
@@ -320,8 +361,8 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	/**
 	 * Registers new record for passed comparable value. Record id must be present in array only once.
 	 */
-	public void addRecord(@Nonnull Object[] value, int recordId) {
-		final Object[] normalizedValue = (Object[]) normalizer.apply(value);
+	public void addRecord(@Nonnull Serializable[] value, int recordId) {
+		final Serializable[] normalizedValue = (Serializable[]) this.normalizer.apply(value);
 		isTrue(
 			this.sortedRecords.indexOf(recordId) < 0,
 			"Record id `" + recordId + "` is already present in the sort index!"
@@ -332,9 +373,8 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	/**
 	 * Registers new record for passed comparable value. Record id must be present in array only once.
 	 */
-	@SuppressWarnings("unchecked")
-	public <T extends Comparable<T>> void addRecord(@Nonnull Object value, int recordId) {
-		final Object normalizedValue = normalizer.apply(value);
+	public void addRecord(@Nonnull Serializable value, int recordId) {
+		final Serializable normalizedValue = this.normalizer.apply(value);
 		isTrue(
 			this.sortedRecords.indexOf(recordId) < 0,
 			"Record id `" + recordId + "` is already present in the sort index!"
@@ -347,45 +387,7 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 			this.comparatorBase[0].type().isInstance(value),
 			"Value must be of type `" + this.comparatorBase[0].type().getName() + "`!"
 		);
-		addRecordInternal((T) normalizedValue, recordId);
-	}
-
-	/**
-	 * Shared internal implementation of the record insertion.
-	 */
-	private <T extends Comparable<T>> void addRecordInternal(@Nonnull T normalizedValue, int recordId) {
-		@SuppressWarnings("unchecked")
-		final TransactionalObjArray<T> theSortedRecordsValues = (TransactionalObjArray<T>) this.sortedRecordsValues;
-		final SortIndexChanges sortIndexChanges = getOrCreateSortIndexChanges();
-
-		// prepare internal datastructures
-		sortIndexChanges.prepare();
-
-		// add record id on the computed position
-		final int previousRecordId = sortIndexChanges.computePreviousRecord(normalizedValue, recordId, comparator);
-		this.sortedRecords.add(previousRecordId, recordId);
-
-		// is the value already known?
-		final int index = theSortedRecordsValues.indexOf(normalizedValue);
-		if (index >= 0) {
-			// value is already present - just update cardinality
-			this.valueCardinalities.compute(
-				normalizedValue,
-				(it, existingCardinality) ->
-					ofNullable(existingCardinality)
-						.map(crd -> crd + 1)
-						.orElse(2)
-			);
-			// update help data structure
-			sortIndexChanges.valueCardinalityIncreased(normalizedValue, comparator);
-		} else {
-			// insert new value into the sorted value array
-			theSortedRecordsValues.add(normalizedValue);
-			// update help data structure
-			sortIndexChanges.valueAdded(normalizedValue, comparator);
-		}
-
-		this.dirty.setToTrue();
+		addRecordInternal(normalizedValue, recordId);
 	}
 
 	/**
@@ -393,18 +395,16 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	 *
 	 * @throws IllegalArgumentException if value is not linked to passed record id
 	 */
-	public void removeRecord(@Nonnull Object[] value, int recordId) {
-		final Object[] normalizedValue = (Object[]) normalizer.apply(value);
+	public void removeRecord(@Nonnull Serializable[] value, int recordId) {
+		final Serializable[] normalizedValue = (Serializable[]) this.normalizer.apply(value);
 		final ComparableArray normalizedValueArray = new ComparableArray(this.comparatorBase, normalizedValue);
-		@SuppressWarnings("unchecked")
-		final TransactionalObjArray<ComparableArray> theSortedRecordsValues = (TransactionalObjArray<ComparableArray>) this.sortedRecordsValues;
 		final SortIndexChanges sortIndexChanges = getOrCreateSortIndexChanges();
-		final int index = theSortedRecordsValues.indexOf(normalizedValueArray);
+		final int index = this.sortedRecordsValues.indexOf(normalizedValueArray);
 		isTrue(
 			index >= 0,
 			"Value `" + Arrays.toString(value) + "` is not present in the sort index of attribute `" + this.attributeKey + "`!"
 		);
-		removeRecordInternal(normalizedValueArray, recordId, theSortedRecordsValues, this.valueCardinalities, sortIndexChanges);
+		removeRecordInternal(normalizedValueArray, recordId, this.sortedRecordsValues, this.valueCardinalities, sortIndexChanges);
 	}
 
 	/**
@@ -412,56 +412,15 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	 *
 	 * @throws IllegalArgumentException if value is not linked to passed record id
 	 */
-	@SuppressWarnings("unchecked")
-	public <T extends Comparable<T>> void removeRecord(@Nonnull Object value, int recordId) {
-		final Object normalizedValue = normalizer.apply(value);
-		final TransactionalObjArray<T> theSortedRecordsValues = (TransactionalObjArray<T>) this.sortedRecordsValues;
+	public void removeRecord(@Nonnull Serializable value, int recordId) {
+		final Serializable normalizedValue = normalizer.apply(value);
 		final SortIndexChanges sortIndexChanges = getOrCreateSortIndexChanges();
-		final int index = theSortedRecordsValues.indexOf((T) normalizedValue);
+		final int index = this.sortedRecordsValues.indexOf(normalizedValue);
 		isTrue(
 			index >= 0,
 			"Value `" + value + "` is not present in the sort index of attribute `" + this.attributeKey + "`!"
 		);
-		removeRecordInternal((T) normalizedValue, recordId, theSortedRecordsValues, this.valueCardinalities, sortIndexChanges);
-	}
-
-	/**
-	 * Shared internal implementation of the record removal.
-	 */
-	private <T extends Comparable<T>> void removeRecordInternal(
-		@Nonnull T normalizedValue,
-		int recordId,
-		@Nonnull TransactionalObjArray<T> theSortedRecordsValues,
-		@Nonnull TransactionalMap<Comparable<?>, Integer> theValueCardinalities,
-		@Nonnull SortIndexChanges sortIndexChanges
-	) {
-		// prepare internal datastructures
-		sortIndexChanges.prepare();
-
-		// remove record id from the array
-		this.sortedRecords.remove(recordId);
-		// had the value cardinality >= 2?
-		final Integer cardinality = theValueCardinalities.get(normalizedValue);
-		if (cardinality != null) {
-			// update help data structure first
-			sortIndexChanges.valueCardinalityDecreased(normalizedValue, comparator);
-			if (cardinality > 2) {
-				// decrease cardinality
-				theValueCardinalities.computeIfPresent(normalizedValue, (t, crd) -> crd - 1);
-			} else if (cardinality == 2) {
-				// remove cardinality altogether - cardinality = 1 is not maintained to save memory
-				theValueCardinalities.remove(normalizedValue);
-			} else {
-				throw new GenericEvitaInternalError("Unexpected cardinality: " + cardinality);
-			}
-		} else {
-			// remove the entire value - there is no more record ids for it
-			theSortedRecordsValues.remove(normalizedValue);
-			// update help data structure
-			sortIndexChanges.valueRemoved(normalizedValue, comparator);
-		}
-
-		this.dirty.setToTrue();
+		removeRecordInternal(normalizedValue, recordId, this.sortedRecordsValues, this.valueCardinalities, sortIndexChanges);
 	}
 
 	/**
@@ -478,7 +437,7 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	 * Method is targeted to be used in SERIALIZATION and nowhere else.
 	 */
 	@Nonnull
-	public Comparable<?>[] getSortedRecordValues() {
+	public Serializable[] getSortedRecordValues() {
 		return this.sortedRecordsValues.getArray();
 	}
 
@@ -486,26 +445,9 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	 * Returns bitmap of all record ids connected with the value in the argument
 	 */
 	@Nonnull
-	public <T extends Comparable<T>> Bitmap getRecordsEqualTo(@Nonnull T value) {
-		final Object normalizedValue = normalizer.apply(value);
-		@SuppressWarnings("unchecked") final TransactionalObjArray<T> theSortedRecordsValues = (TransactionalObjArray<T>) this.sortedRecordsValues;
-		@SuppressWarnings("unchecked") final int index = theSortedRecordsValues.indexOf((T) normalizedValue);
-		if (index >= 0) {
-			//noinspection unchecked
-			return getRecordsEqualToInternal((T) normalizedValue);
-		} else {
-			return EmptyBitmap.INSTANCE;
-		}
-	}
-
-	/**
-	 * Returns bitmap of all record ids connected with the value in the argument
-	 */
-	@Nonnull
-	public Bitmap getRecordsEqualTo(@Nonnull Object[] value) {
-		final ComparableArray normalizedValue = new ComparableArray(this.comparatorBase, (Object[]) normalizer.apply(value));
-		@SuppressWarnings("unchecked") final TransactionalObjArray<ComparableArray> theSortedRecordsValues = (TransactionalObjArray<ComparableArray>) this.sortedRecordsValues;
-		final int index = theSortedRecordsValues.indexOf(normalizedValue);
+	public Bitmap getRecordsEqualTo(@Nonnull Serializable value) {
+		final Serializable normalizedValue = this.normalizer.apply(value);
+		final int index = this.sortedRecordsValues.indexOf(normalizedValue);
 		if (index >= 0) {
 			return getRecordsEqualToInternal(normalizedValue);
 		} else {
@@ -514,30 +456,16 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	}
 
 	/**
-	 * Returns bitmap of all record ids connected with the value in the argument.
+	 * Returns bitmap of all record ids connected with the value in the argument
 	 */
 	@Nonnull
-	private <T extends Comparable<T>> BaseBitmap getRecordsEqualToInternal(T normalizedValue) {
-		// add record id from the array
-		final ValueStartIndex[] valueIndex = getOrCreateSortIndexChanges()
-			.getValueIndex(this.sortedRecordsValues, this.valueCardinalities);
-
-		@SuppressWarnings({"rawtypes", "unchecked"}) final int theValueIndex = ArrayUtils.binarySearch(
-			valueIndex, normalizedValue,
-			(valueStartIndex, theValue) -> ((Comparator)comparator).compare(valueStartIndex.getValue(), theValue)
-		);
-
-		// had the value cardinality >= 2?
-		final Integer cardinality = this.valueCardinalities.get(normalizedValue);
-		final int recordIdIndex = valueIndex[theValueIndex].getIndex();
-		if (cardinality != null) {
-			return new BaseBitmap(
-				this.sortedRecords.getSubArray(recordIdIndex, recordIdIndex + cardinality)
-			);
+	public Bitmap getRecordsEqualTo(@Nonnull Serializable[] value) {
+		final ComparableArray normalizedValue = new ComparableArray(this.comparatorBase, (Serializable[]) this.normalizer.apply(value));
+		final int index = this.sortedRecordsValues.indexOf(normalizedValue);
+		if (index >= 0) {
+			return getRecordsEqualToInternal(normalizedValue);
 		} else {
-			return new BaseBitmap(
-				this.sortedRecords.get(recordIdIndex)
-			);
+			return EmptyBitmap.INSTANCE;
 		}
 	}
 
@@ -576,8 +504,8 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 			// all data are persisted to disk - we may get rid of temporary, modification only helper container
 			this.sortIndexChanges = null;
 			return new SortIndexStoragePart(
-				entityIndexPrimaryKey, attributeKey, comparatorBase,
-				getSortedRecords(), getSortedRecordValues(), valueCardinalities
+				entityIndexPrimaryKey, this.attributeKey, this.comparatorBase,
+				getSortedRecords(), getSortedRecordValues(), this.valueCardinalities
 			);
 		} else {
 			return null;
@@ -589,13 +517,9 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 		this.dirty.reset();
 	}
 
-	/*
-		Implementation of TransactionalLayerProducer
-	 */
-
 	@Override
 	public SortIndexChanges createLayer() {
-		return new SortIndexChanges(this);
+		return new SortIndexChanges(this, this.comparator);
 	}
 
 	@Override
@@ -615,6 +539,7 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 		if (isDirty) {
 			return new SortIndex(
 				this.comparatorBase,
+				this.referenceKey,
 				this.attributeKey,
 				transactionalLayer.getStateCopyWithCommittedChanges(this.sortedRecords),
 				transactionalLayer.getStateCopyWithCommittedChanges(this.sortedRecordsValues),
@@ -625,9 +550,138 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 		}
 	}
 
-	/*
-		PRIVATE METHODS
+	/**
+	 * Creates and returns an instance of {@link SortedRecordsSupplierFactory.SortedComparableForwardSeeker}.
+	 * The created seeker facilitates efficient forward traversal of sorted comparable records,
+	 * ensuring alignment with the inherent sorting order.
+	 *
+	 * @return an instance of {@link SortedRecordsSupplierFactory.SortedComparableForwardSeeker}, initialized with the
+	 *         necessary record values and cardinalities for efficient forward traversal.
 	 */
+	@Nonnull
+	public SortedRecordsSupplierFactory.SortedComparableForwardSeeker createSortedComparableForwardSeeker() {
+		return new SortedComparableForwardSeeker(
+			this.sortedRecordsValues, this.valueCardinalities, this.size()
+		);
+	}
+
+	/**
+	 * Creates and returns an instance of {@link SortedRecordsSupplierFactory.SortedComparableForwardSeeker}.
+	 * The created seeker facilitates efficient reverse traversal of sorted comparable records,
+	 * ensuring alignment with the inherent sorting order.
+	 *
+	 * @return an instance of {@link SortedRecordsSupplierFactory.SortedComparableForwardSeeker}, initialized with the
+	 *         necessary record values and cardinalities for efficient reverse traversal.
+	 */
+	@Nonnull
+	public SortedRecordsSupplierFactory.SortedComparableForwardSeeker createReversedSortedComparableForwardSeeker() {
+		return new ReversedSortedComparableForwardSeeker(
+			this.sortedRecordsValues, this.valueCardinalities, this.size()
+		);
+	}
+
+	/**
+	 * Shared internal implementation of the record insertion.
+	 */
+	private void addRecordInternal(@Nonnull Serializable normalizedValue, int recordId) {
+		final SortIndexChanges sortIndexChanges = getOrCreateSortIndexChanges();
+
+		// prepare internal datastructures
+		sortIndexChanges.prepare();
+
+		// add record id on the computed position
+		final int previousRecordId = sortIndexChanges.computePreviousRecord(normalizedValue, recordId);
+		this.sortedRecords.add(previousRecordId, recordId);
+
+		// is the value already known?
+		final int index = this.sortedRecordsValues.indexOf(normalizedValue);
+		if (index >= 0) {
+			// value is already present - just update cardinality
+			this.valueCardinalities.compute(
+				normalizedValue,
+				(it, existingCardinality) ->
+					ofNullable(existingCardinality)
+						.map(crd -> crd + 1)
+						.orElse(2)
+			);
+			// update help data structure
+			sortIndexChanges.valueCardinalityIncreased(normalizedValue);
+		} else {
+			// insert new value into the sorted value array
+			this.sortedRecordsValues.add(normalizedValue);
+			// update help data structure
+			sortIndexChanges.valueAdded(normalizedValue);
+		}
+
+		this.dirty.setToTrue();
+	}
+
+	/**
+	 * Shared internal implementation of the record removal.
+	 */
+	private <T extends Serializable> void removeRecordInternal(
+		@Nonnull T normalizedValue,
+		int recordId,
+		@Nonnull TransactionalObjArray<T> theSortedRecordsValues,
+		@Nonnull TransactionalMap<Serializable, Integer> theValueCardinalities,
+		@Nonnull SortIndexChanges sortIndexChanges
+	) {
+		// prepare internal datastructures
+		sortIndexChanges.prepare();
+
+		// remove record id from the array
+		this.sortedRecords.remove(recordId);
+		// had the value cardinality >= 2?
+		final Integer cardinality = theValueCardinalities.get(normalizedValue);
+		if (cardinality != null) {
+			// update help data structure first
+			sortIndexChanges.valueCardinalityDecreased(normalizedValue);
+			if (cardinality > 2) {
+				// decrease cardinality
+				theValueCardinalities.computeIfPresent(normalizedValue, (t, crd) -> crd - 1);
+			} else if (cardinality == 2) {
+				// remove cardinality altogether - cardinality = 1 is not maintained to save memory
+				theValueCardinalities.remove(normalizedValue);
+			} else {
+				throw new GenericEvitaInternalError("Unexpected cardinality: " + cardinality);
+			}
+		} else {
+			// remove the entire value - there is no more record ids for it
+			theSortedRecordsValues.remove(normalizedValue);
+			// update help data structure
+			sortIndexChanges.valueRemoved(normalizedValue);
+		}
+
+		this.dirty.setToTrue();
+	}
+
+	/**
+	 * Returns bitmap of all record ids connected with the value in the argument.
+	 */
+	@Nonnull
+	private <T extends Serializable> BaseBitmap getRecordsEqualToInternal(@Nonnull T normalizedValue) {
+		// add record id from the array
+		final ValueStartIndex[] valueIndex = getOrCreateSortIndexChanges()
+			.getValueIndex(this.sortedRecordsValues, this.valueCardinalities);
+
+		@SuppressWarnings({"rawtypes", "unchecked"}) final int theValueIndex = ArrayUtils.binarySearch(
+			valueIndex, normalizedValue,
+			(valueStartIndex, theValue) -> ((Comparator) comparator).compare(valueStartIndex.getValue(), theValue)
+		);
+
+		// had the value cardinality >= 2?
+		final Integer cardinality = this.valueCardinalities.get(normalizedValue);
+		final int recordIdIndex = valueIndex[theValueIndex].getIndex();
+		if (cardinality != null) {
+			return new BaseBitmap(
+				this.sortedRecords.getSubArray(recordIdIndex, recordIdIndex + cardinality)
+			);
+		} else {
+			return new BaseBitmap(
+				this.sortedRecords.get(recordIdIndex)
+			);
+		}
+	}
 
 	/**
 	 * Retrieves or creates temporary data structure. When transaction exists it's created in the transactional memory
@@ -638,7 +692,7 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 		final SortIndexChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			return ofNullable(this.sortIndexChanges).orElseGet(() -> {
-				this.sortIndexChanges = new SortIndexChanges(this);
+				this.sortIndexChanges = new SortIndexChanges(this, this.comparator);
 				return this.sortIndexChanges;
 			});
 		} else {
@@ -677,15 +731,11 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	 * @param array object array to be wrapped
 	 */
 	public record ComparableArray(
-		@Nonnull Comparable<?>[] array
-	) implements Comparable<ComparableArray> {
+		@Nonnull Serializable[] array
+	) implements Serializable {
 
-		public ComparableArray(@Nonnull ComparatorSource[] comparatorBase, @Nonnull Object[] value) {
-			this(
-				Arrays.stream(value)
-					.map(v -> (Comparable<?>)v)
-					.toArray(Comparable[]::new)
-			);
+		public ComparableArray(@Nonnull ComparatorSource[] comparatorBase, @Nonnull Serializable[] value) {
+			this(value);
 			for (int i = 0; i < comparatorBase.length; i++) {
 				isTrue(
 					value[i] == null || comparatorBase[i].type().isInstance(value[i]),
@@ -712,18 +762,6 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 			return Arrays.toString(array);
 		}
 
-		@Override
-		public int compareTo(@Nonnull ComparableArray o) {
-			for (int i = 0; i < array.length; i++) {
-				@SuppressWarnings({"unchecked", "rawtypes"})
-				final int result = ((Comparable)array[i]).compareTo(o.array[i]);
-				if (result != 0) {
-					return result;
-				}
-			}
-			return 0;
-		}
-
 	}
 
 	/**
@@ -742,11 +780,11 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 		@SuppressWarnings("unchecked")
 		@Override
 		public int compare(ComparableArray o1, ComparableArray o2) {
-			final Comparable<?>[] array1 = o1.array();
-			final Comparable<?>[] array2 = o2.array();
+			final Serializable[] array1 = o1.array();
+			final Serializable[] array2 = o2.array();
 			isTrue(array1.length == array2.length, "Arrays must have the same length!");
 			for (int i = 0; i < array1.length; i++) {
-				final int compare = result[i].compare(array1[i], array2[i]);
+				final int compare = this.result[i].compare(array1[i], array2[i]);
 				if (compare != 0) {
 					return compare;
 				}
@@ -770,11 +808,200 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 			final Object[] array = (Object[]) t;
 			for (int i = 0; i < array.length; i++) {
 				final Object originalValue = array[i];
-				array[i] = ofNullable(normalizers[i])
+				array[i] = ofNullable(this.normalizers[i])
 					.map(it -> it.apply((T) originalValue))
 					.orElse((T) originalValue);
 			}
 			return (T) array;
 		}
 	}
+
+	/**
+	 * A helper class that operates as a forward seeker for sorted comparable records.
+	 * This implementation is designed to efficiently retrieve comparable values stored
+	 * across multiple ranges in a sorted collection. It supports traversing the collection
+	 * in a forward direction while maintaining consistent behavior with the sorting order.
+	 *
+	 * The seeker uses an array of {@code ValueStartIndex} objects where each index defines
+	 * the starting position and associated value, along with the total number of records
+	 * to manage bounds validation during traversal.
+	 */
+	/* TOBEDONE JNO #760 - this should be handled by optimized B+Tree key iterator that is tied to the value count! */
+	private static class SortedComparableForwardSeeker implements SortedRecordsSupplierFactory.SortedComparableForwardSeeker {
+		/**
+		 * Contains comparable values sorted naturally by their {@link Comparable} characteristics.
+		 */
+		private final TransactionalObjArray<Serializable> sortedRecordsValues;
+		/**
+		 * Map contains only values with cardinalities greater than one. It is expected that records will have scarce values
+		 * with low cardinality so this should save a lot of memory.
+		 */
+		private final TransactionalMap<Serializable, Integer> valueCardinalities;
+		/**
+		 * The total count of all records in the sorted collection.
+		 */
+		private final int totalCount;
+		/**
+		 * The current index in the {@code valueLocationIndex} array used for traversing forward.
+		 */
+		private int index = -1;
+		/**
+		 * Last position the comparable was retrieved for (and that match the {@link #index}).
+		 */
+		private int lastPosition = -1;
+		/**
+		 * Contains peak of the current index including cardinality.
+		 */
+		private int indexPeak = 0;
+
+		public SortedComparableForwardSeeker(
+			@Nonnull TransactionalObjArray<Serializable> sortedRecordsValues,
+			@Nonnull TransactionalMap<Serializable, Integer> valueCardinalities,
+			int totalCount
+		) {
+			this.sortedRecordsValues = sortedRecordsValues;
+			this.valueCardinalities = valueCardinalities;
+			this.totalCount = totalCount;
+		}
+
+		@Override
+		public void reset() {
+			this.index = -1;
+			this.indexPeak = 0;
+			this.lastPosition = -1;
+		}
+
+		@Nonnull
+		@Override
+		public Serializable getValueToCompareOn(int position) throws ArrayIndexOutOfBoundsException {
+			if (position < 0 || position > this.totalCount) {
+				throw new ArrayIndexOutOfBoundsException("Position " + position + " is out of bounds for value index!");
+			}
+			Assert.isPremiseValid(
+				position >= this.lastPosition,
+				"Position " + position + " must be greater than or equal to the last position " + this.lastPosition + "!"
+			);
+
+			boolean exhausted = false;
+			if (this.indexPeak <= position) {
+				int currentIndexCardinality = this.valueCardinalities.getOrDefault(this.sortedRecordsValues.get(this.index + 1), 1);
+				while (this.indexPeak <= position && this.indexPeak < this.totalCount) {
+					this.indexPeak += currentIndexCardinality;
+					this.index++;
+					if (this.index + 1 < this.sortedRecordsValues.getLength()) {
+						currentIndexCardinality = this.valueCardinalities.getOrDefault(this.sortedRecordsValues.get(this.index + 1), 1);
+					} else {
+						exhausted = true;
+						break;
+					}
+				}
+				if (exhausted && position > this.indexPeak) {
+					throw new ArrayIndexOutOfBoundsException("Position " + position + " is out of bounds for value index!");
+				}
+			}
+
+			this.lastPosition = position;
+			return this.sortedRecordsValues.get(this.index);
+		}
+	}
+
+	/**
+	 * ReversedSortedComparableForwardSeeker provides an implementation of
+	 * SortedRecordsSupplierFactory.SortedComparableForwardSeeker that enables
+	 * forward traversal of a collection of comparable values in reversed sorted order.
+	 * This implementation operates on an array of ValueStartIndex objects and retrieves
+	 * the Comparable value for a specified position.
+	 *
+	 * The seeker's index is initialized to the last position in the valueLocationIndex array,
+	 * and it moves backwards through the array as values are requested. Each value can be
+	 * fetched using its position in the sorted collection, with validation to ensure the
+	 * position is within bounds.
+	 *
+	 * This class is specifically designed to support sorted collections where the elements
+	 * are traversed from the end towards the beginning, following reverse sorted order.
+	 */
+	/* TOBEDONE JNO #760 - this should be handled by optimized B+Tree key iterator that is tied to the value count! */
+	private static class ReversedSortedComparableForwardSeeker implements SortedRecordsSupplierFactory.SortedComparableForwardSeeker {
+		/**
+		 * Contains comparable values sorted naturally by their {@link Comparable} characteristics.
+		 */
+		private final TransactionalObjArray<Serializable> sortedRecordsValues;
+		/**
+		 * Map contains only values with cardinalities greater than one. It is expected that records will have scarce values
+		 * with low cardinality so this should save a lot of memory.
+		 */
+		private final TransactionalMap<Serializable, Integer> valueCardinalities;
+		/**
+		 * The total count of all records in the sorted collection.
+		 */
+		private final int totalCount;
+		/**
+		 * The current index of the ValueStartIndex array used while traversing backward.
+		 */
+		private int index;
+		/**
+		 * Last position the comparable was retrieved for (and that match the {@link #index}).
+		 */
+		private int lastPosition;
+		/**
+		 * Contains peak of the current index including cardinality.
+		 */
+		private int indexPeak;
+
+		public ReversedSortedComparableForwardSeeker(
+			@Nonnull TransactionalObjArray<Serializable> sortedRecordsValues,
+			@Nonnull TransactionalMap<Serializable, Integer> valueCardinalities,
+			int totalCount
+		) {
+			this.sortedRecordsValues = sortedRecordsValues;
+			this.valueCardinalities = valueCardinalities;
+			this.totalCount = totalCount;
+			this.lastPosition = totalCount;
+			this.index = this.sortedRecordsValues.getLength();
+			this.indexPeak = totalCount;
+		}
+
+		@Override
+		public void reset() {
+			this.lastPosition = this.totalCount;
+			this.indexPeak = this.totalCount;
+			this.index = this.sortedRecordsValues.getLength();
+		}
+
+		@Nonnull
+		@Override
+		public Serializable getValueToCompareOn(int invertedPosition) throws ArrayIndexOutOfBoundsException {
+			int position = this.totalCount - invertedPosition - 1;
+			if (position < 0 || position > this.totalCount) {
+				throw new ArrayIndexOutOfBoundsException("Position " + position + " is out of bounds for value index!");
+			}
+
+			Assert.isPremiseValid(
+				position <= this.lastPosition,
+				"Position " + position + " must be lesser than or equal to the last position " + this.lastPosition + "!"
+			);
+
+			boolean exhausted = false;
+			if (this.indexPeak > position) {
+				int currentIndexCardinality = this.valueCardinalities.getOrDefault(this.sortedRecordsValues.get(this.index - 1), 1);
+				while (this.indexPeak > position) {
+					this.indexPeak -= currentIndexCardinality;
+					this.index--;
+					if (this.index > 0) {
+						currentIndexCardinality = this.valueCardinalities.getOrDefault(this.sortedRecordsValues.get(this.index - 1), 1);
+					} else {
+						exhausted = true;
+						break;
+					}
+				}
+				if (exhausted && position > this.indexPeak + currentIndexCardinality) {
+					throw new ArrayIndexOutOfBoundsException("Position " + position + " is out of bounds for value index!");
+				}
+			}
+
+			this.lastPosition = position;
+			return this.sortedRecordsValues.get(this.index);
+		}
+	}
+
 }

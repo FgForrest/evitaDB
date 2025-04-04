@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -44,7 +44,7 @@ import static java.util.Optional.ofNullable;
 
 /**
  * Catalog header contains crucial information to read data from a single data storage file. The catalog header needs
- * to be stored in {@link CatalogBootstrap} and maps the data maintained by {@link EntityCollection} objects.
+ * to be stored in catalog file and maps the data maintained by {@link EntityCollection} objects.
  *
  * @param entityType                Type of the entity - {@link EntitySchema#getName()}.
  * @param entityTypePrimaryKey      Contains a unique identifier of the entity type that is assigned on entity
@@ -80,18 +80,19 @@ public record EntityCollectionHeader(
 	int recordCount,
 	int lastPrimaryKey,
 	int lastEntityIndexPrimaryKey,
+	int lastInternalPriceId,
 	@Nullable PersistentStorageDescriptor storageDescriptor,
 	@Nullable Integer globalEntityIndexId,
 	@Nonnull List<Integer> usedEntityIndexIds,
 	int lastKeyId,
 	double activeRecordShare
 ) implements PersistentStorageDescriptor, StoragePart, Serializable {
-	@Serial private static final long serialVersionUID = 6342590529867272012L;
+	@Serial private static final long serialVersionUID = -2149051526452828365L;
 
 	public EntityCollectionHeader(@Nonnull String entityType, int entityTypePrimaryKey, int entityTypeFileIndex) {
 		this(
 			entityType, entityTypePrimaryKey,
-			entityTypeFileIndex, 0, 0, 0, 0.0,
+			entityTypeFileIndex, 0, 0, 0, -1, 0.0,
 			null, null, Collections.emptyList()
 		);
 	}
@@ -103,6 +104,7 @@ public record EntityCollectionHeader(
 		int recordCount,
 		int lastPrimaryKey,
 		int lastEntityIndexPrimaryKey,
+		int lastInternalPriceId,
 		double activeRecordShare,
 		@Nullable PersistentStorageDescriptor storageDescriptor,
 		@Nullable Integer globalIndexId,
@@ -110,7 +112,7 @@ public record EntityCollectionHeader(
 	) {
 		this(
 			ofNullable(storageDescriptor).map(PersistentStorageDescriptor::version).orElse(1L),
-			ofNullable(storageDescriptor).map(PersistentStorageDescriptor::fileLocation).orElse(null),
+			ofNullable(storageDescriptor).map(PersistentStorageDescriptor::fileLocation).orElse(FileLocation.EMPTY),
 			ofNullable(storageDescriptor)
 				.map(PersistentStorageDescriptor::compressedKeys)
 				.map(Collections::unmodifiableMap)
@@ -121,6 +123,7 @@ public record EntityCollectionHeader(
 			recordCount,
 			lastPrimaryKey,
 			lastEntityIndexPrimaryKey,
+			lastInternalPriceId,
 			storageDescriptor,
 			globalIndexId,
 			entityIndexIds,
@@ -135,34 +138,7 @@ public record EntityCollectionHeader(
 		);
 	}
 
-	public EntityCollectionHeader(
-		@Nonnull String entityType,
-		int entityTypePrimaryKey,
-		int entityTypeFileIndex,
-		@Nullable EntityCollectionHeader originalHeader
-	) {
-		this(
-			ofNullable(originalHeader).map(PersistentStorageDescriptor::version).orElse(1L),
-			ofNullable(originalHeader).map(PersistentStorageDescriptor::fileLocation).orElse(null),
-			ofNullable(originalHeader)
-				.map(PersistentStorageDescriptor::compressedKeys)
-				.map(Collections::unmodifiableMap)
-				.orElseGet(Collections::emptyMap),
-			entityType,
-			entityTypePrimaryKey,
-			entityTypeFileIndex,
-			ofNullable(originalHeader).map(EntityCollectionHeader::recordCount).orElse(0),
-			ofNullable(originalHeader).map(EntityCollectionHeader::lastPrimaryKey).orElse(1),
-			ofNullable(originalHeader).map(EntityCollectionHeader::lastEntityIndexPrimaryKey).orElse(1),
-			null,
-			ofNullable(originalHeader).map(it -> it.globalEntityIndexId).orElse(null),
-			ofNullable(originalHeader).map(EntityCollectionHeader::usedEntityIndexIds).orElse(Collections.emptyList()),
-			ofNullable(originalHeader).map(it -> it.lastKeyId).orElse(1),
-			ofNullable(originalHeader).map(EntityCollectionHeader::activeRecordShare).orElse(1.0)
-		);
-	}
-
-	@Nullable
+	@Nonnull
 	@Override
 	public Long getStoragePartPK() {
 		return (long) entityTypePrimaryKey;

@@ -23,16 +23,17 @@
 
 package io.evitadb.core.query.algebra.price.filteredPriceRecords;
 
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.SharedBufferPool;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordsLookupResult;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
-import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.dataType.iterator.BatchArrayIterator;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.iterator.RoaringBitmapBatchArrayIterator;
@@ -42,6 +43,7 @@ import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import org.roaringbitmap.RoaringBitmap;
+import org.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -83,7 +85,8 @@ public interface FilteredPriceRecords extends Serializable {
 	@Nonnull
 	static FilteredPriceRecords createFromFormulas(
 		@Nonnull Formula parentFormula,
-		@Nullable Bitmap narrowToEntityIds
+		@Nullable Bitmap narrowToEntityIds,
+		@Nonnull QueryExecutionContext context
 	) {
 		// collect all FilteredPriceRecordAccessor that were involved in computing delegate result
 		final Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors = FormulaFinder.findAmongChildren(
@@ -92,7 +95,7 @@ public interface FilteredPriceRecords extends Serializable {
 
 		final List<FilteredPriceRecords> filteredPriceRecords = filteredPriceRecordAccessors
 			.stream()
-			.map(FilteredPriceRecordAccessor::getFilteredPriceRecords)
+			.map(it -> it.getFilteredPriceRecords(context))
 			.map(it -> it instanceof NonResolvedFilteredPriceRecords ? ((NonResolvedFilteredPriceRecords) it).toResolvedFilteredPriceRecords() : it)
 			.toList();
 
@@ -104,7 +107,7 @@ public interface FilteredPriceRecords extends Serializable {
 			return filteredPriceRecords.get(0);
 			// all price records are resolved
 		} else {
-			final Optional<LazyEvaluatedEntityPriceRecords> lazyEvaluatedEntityPriceRecords = getLazyEvaluatedEntityPriceRecords(filteredPriceRecordAccessors);
+			final Optional<LazyEvaluatedEntityPriceRecords> lazyEvaluatedEntityPriceRecords = getLazyEvaluatedEntityPriceRecords(filteredPriceRecordAccessors, context);
 			final Optional<ResolvedFilteredPriceRecords> resolvedFilteredPriceRecords;
 			if (narrowToEntityIds == null) {
 				// and no filtering is known (all contents combined should be returned)
@@ -133,10 +136,11 @@ public interface FilteredPriceRecords extends Serializable {
 
 	@Nonnull
 	private static Optional<LazyEvaluatedEntityPriceRecords> getLazyEvaluatedEntityPriceRecords(
-		@Nonnull Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors
+		@Nonnull Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors,
+		@Nonnull QueryExecutionContext context
 	) {
-		final PriceListAndCurrencyPriceIndex[] priceIndexes = filteredPriceRecordAccessors.stream()
-			.map(FilteredPriceRecordAccessor::getFilteredPriceRecords)
+		final PriceListAndCurrencyPriceIndex<?, ?>[] priceIndexes = filteredPriceRecordAccessors.stream()
+			.map(it -> it.getFilteredPriceRecords(context))
 			.filter(LazyEvaluatedEntityPriceRecords.class::isInstance)
 			.map(LazyEvaluatedEntityPriceRecords.class::cast)
 			.flatMap(it -> Arrays.stream(it.getPriceIndexes()))
@@ -234,19 +238,20 @@ public interface FilteredPriceRecords extends Serializable {
 	@Nonnull
 	static FilteredPriceRecordsLookupResult collectFilteredPriceRecordsFromPriceRecordAccessors(
 		@Nonnull Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors,
-		@Nonnull RoaringBitmap filterTo
+		@Nonnull RoaringBitmap filterTo,
+		@Nonnull QueryExecutionContext context
 	) {
 		final CompositeObjectArray<PriceRecordContract> collectedPriceRecords = new CompositeObjectArray<>(PriceRecordContract.class, false);
 		final List<PriceRecordLookup> priceRecordIterators = filteredPriceRecordAccessors
 			.stream()
-			.map(it -> it.getFilteredPriceRecords().getPriceRecordsLookup())
+			.map(it -> it.getFilteredPriceRecords(context).getPriceRecordsLookup())
 			.toList();
 
 		final int[] buffer = SharedBufferPool.INSTANCE.obtain();
 		try {
 			// prepare writer for sorted output entity ids
 			final BatchArrayIterator entityIdIterator = new RoaringBitmapBatchArrayIterator(filterTo.getBatchIterator(), buffer);
-			final CompositeIntArray notFound = new CompositeIntArray();
+			final RoaringBitmapWriter<RoaringBitmap> notFoundWriter = RoaringBitmapBackedBitmap.buildWriter();
 
 			// iterate through all entity ids
 			while (entityIdIterator.hasNext()) {
@@ -268,14 +273,15 @@ public interface FilteredPriceRecords extends Serializable {
 					}
 
 					if (noPriceFoundAtAll) {
-						notFound.add(entityId);
+						notFoundWriter.add(entityId);
 					}
 				}
 			}
 
+			final RoaringBitmap notFound = notFoundWriter.get();
 			return notFound.isEmpty() ?
 				new FilteredPriceRecordsLookupResult(collectedPriceRecords.toArray()) :
-				new FilteredPriceRecordsLookupResult(collectedPriceRecords.toArray(), notFound.toArray());
+				new FilteredPriceRecordsLookupResult(collectedPriceRecords.toArray(), new BaseBitmap(notFound));
 		} finally {
 			SharedBufferPool.INSTANCE.free(buffer);
 		}

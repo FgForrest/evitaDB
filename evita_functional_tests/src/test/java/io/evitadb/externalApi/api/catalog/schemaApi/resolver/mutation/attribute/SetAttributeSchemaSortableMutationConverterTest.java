@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute;
 
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaSortableMutation;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
@@ -34,6 +35,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
+import static io.evitadb.utils.ListBuilder.list;
 import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -56,13 +58,14 @@ class SetAttributeSchemaSortableMutationConverterTest {
 	void shouldResolveInputToLocalMutation() {
 		final SetAttributeSchemaSortableMutation expectedMutation = new SetAttributeSchemaSortableMutation(
 			"code",
-			true
+			new Scope[] { Scope.LIVE }
 		);
 
 		final SetAttributeSchemaSortableMutation convertedMutation1 = converter.convertFromInput(
 			map()
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
-				.e(SetAttributeSchemaSortableMutationDescriptor.SORTABLE.name(), true)
+				.e(SetAttributeSchemaSortableMutationDescriptor.SORTABLE_IN_SCOPES.name(), list()
+					.i(Scope.LIVE))
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation1);
@@ -70,7 +73,8 @@ class SetAttributeSchemaSortableMutationConverterTest {
 		final SetAttributeSchemaSortableMutation convertedMutation2 = converter.convertFromInput(
 			map()
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
-				.e(SetAttributeSchemaSortableMutationDescriptor.SORTABLE.name(), "true")
+				.e(SetAttributeSchemaSortableMutationDescriptor.SORTABLE_IN_SCOPES.name(), list()
+					.i(Scope.LIVE.name()))
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation2);
@@ -82,7 +86,7 @@ class SetAttributeSchemaSortableMutationConverterTest {
 			EvitaInvalidUsageException.class,
 			() -> converter.convertFromInput(
 				map()
-					.e(SetAttributeSchemaSortableMutationDescriptor.SORTABLE.name(), true)
+					.e(SetAttributeSchemaSortableMutationDescriptor.SORTABLE_IN_SCOPES.name(), true)
 					.build()
 			)
 		);

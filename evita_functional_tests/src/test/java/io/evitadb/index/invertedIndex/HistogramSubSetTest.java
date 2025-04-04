@@ -39,8 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 class HistogramSubSetTest {
-	@SuppressWarnings({"unchecked", "rawtypes"})
-	private final InvertedIndexSubSet<Integer> tested = new InvertedIndexSubSet<>(
+	private final InvertedIndexSubSet tested = new InvertedIndexSubSet(
 		1L,
 		new ValueToRecordBitmap[]{
 			new ValueToRecordBitmap(1, 1, 2),

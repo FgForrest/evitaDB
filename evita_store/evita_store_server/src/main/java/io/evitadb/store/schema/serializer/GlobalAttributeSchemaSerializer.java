@@ -31,9 +31,14 @@ import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
+import io.evitadb.dataType.Scope;
 import lombok.RequiredArgsConstructor;
 
 import java.io.Serializable;
+import java.util.EnumMap;
+import java.util.EnumSet;
+import java.util.Map;
+import java.util.Map.Entry;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link AttributeSchema} from/to binary format.
@@ -53,11 +58,25 @@ public class GlobalAttributeSchemaSerializer extends Serializer<GlobalAttributeS
 			output.writeBoolean(true);
 			kryo.writeClassAndObject(output, attributeSchema.getDefaultValue());
 		}
-		output.writeVarInt(attributeSchema.getUniquenessType().ordinal(), true);
-		output.writeVarInt(attributeSchema.getGlobalUniquenessType().ordinal(), true);
+
+		final Map<Scope, AttributeUniquenessType> uniqueness = attributeSchema.getUniquenessTypeInScopes();
+		output.writeVarInt(uniqueness.size(), true);
+		for (Entry<Scope, AttributeUniquenessType> entry : uniqueness.entrySet()) {
+			kryo.writeObject(output, entry.getKey());
+			kryo.writeObject(output, entry.getValue());
+		}
+
+		final Map<Scope, GlobalAttributeUniquenessType> globalUniqueness = attributeSchema.getGlobalUniquenessTypeInScopes();
+		output.writeVarInt(globalUniqueness.size(), true);
+		for (Entry<Scope, GlobalAttributeUniquenessType> entry : globalUniqueness.entrySet()) {
+			kryo.writeObject(output, entry.getKey());
+			kryo.writeObject(output, entry.getValue());
+		}
+
+		EntitySchemaSerializer.writeScopeSet(kryo, output, attributeSchema.getFilterableInScopes());
+		EntitySchemaSerializer.writeScopeSet(kryo, output, attributeSchema.getSortableInScopes());
+
 		output.writeBoolean(attributeSchema.isLocalized());
-		output.writeBoolean(attributeSchema.isFilterable());
-		output.writeBoolean(attributeSchema.isSortable());
 		output.writeBoolean(attributeSchema.isNullable());
 		output.writeBoolean(attributeSchema.isRepresentative());
 		output.writeInt(attributeSchema.getIndexedDecimalPlaces());
@@ -81,11 +100,27 @@ public class GlobalAttributeSchemaSerializer extends Serializer<GlobalAttributeS
 		final String name = input.readString();
 		final Class type = kryo.readClass(input).getType();
 		final Object defaultValue = input.readBoolean() ? kryo.readClassAndObject(input) : null;
-		final AttributeUniquenessType unique = AttributeUniquenessType.values()[input.readVarInt(true)];
-		final GlobalAttributeUniquenessType uniqueGlobally = GlobalAttributeUniquenessType.values()[input.readVarInt(true)];
+
+		final int uqSize = input.readVarInt(true);
+		final EnumMap<Scope, AttributeUniquenessType> unique = new EnumMap<>(Scope.class);
+		for (int i = 0; i < uqSize; i++) {
+			final Scope scope = kryo.readObject(input, Scope.class);
+			final AttributeUniquenessType uqType = kryo.readObject(input, AttributeUniquenessType.class);
+			unique.put(scope, uqType);
+		}
+
+		final int guqSize = input.readVarInt(true);
+		final EnumMap<Scope, GlobalAttributeUniquenessType> uniqueGlobally = new EnumMap<>(Scope.class);
+		for (int i = 0; i < guqSize; i++) {
+			final Scope scope = kryo.readObject(input, Scope.class);
+			final GlobalAttributeUniquenessType uqType = kryo.readObject(input, GlobalAttributeUniquenessType.class);
+			uniqueGlobally.put(scope, uqType);
+		}
+
+		final EnumSet<Scope> filterable = EntitySchemaSerializer.readScopeSet(kryo, input);
+		final EnumSet<Scope> sortable = EntitySchemaSerializer.readScopeSet(kryo, input);
+
 		final boolean localized = input.readBoolean();
-		final boolean filterable = input.readBoolean();
-		final boolean sortable = input.readBoolean();
 		final boolean nullable = input.readBoolean();
 		final boolean representative = input.readBoolean();
 		final int indexedDecimalPlaces = input.readInt();
@@ -93,7 +128,11 @@ public class GlobalAttributeSchemaSerializer extends Serializer<GlobalAttributeS
 		final String deprecationNotice = input.readBoolean() ? input.readString() : null;
 		return GlobalAttributeSchema._internalBuild(
 			name, description, deprecationNotice,
-			unique, uniqueGlobally, filterable, sortable, localized, nullable, representative,
+			unique,
+			uniqueGlobally,
+			filterable,
+			sortable,
+			localized, nullable, representative,
 			type, (Serializable) defaultValue, indexedDecimalPlaces
 		);
 	}

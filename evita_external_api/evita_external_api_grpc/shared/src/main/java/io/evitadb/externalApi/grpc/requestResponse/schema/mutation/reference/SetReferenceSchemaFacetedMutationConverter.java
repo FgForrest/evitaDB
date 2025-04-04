@@ -24,12 +24,19 @@
 package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.reference;
 
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaFacetedMutation;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFacetedMutation;
+import io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFacetedMutation.Builder;
+import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.util.Arrays;
+import java.util.Objects;
+
+import static java.util.Optional.ofNullable;
 
 /**
  * Converts between {@link SetReferenceSchemaFacetedMutation} and {@link GrpcSetReferenceSchemaFacetedMutation} in both directions.
@@ -42,17 +49,38 @@ public class SetReferenceSchemaFacetedMutationConverter implements SchemaMutatio
 
 	@Nonnull
 	public SetReferenceSchemaFacetedMutation convert(@Nonnull GrpcSetReferenceSchemaFacetedMutation mutation) {
+		final Scope[] facetedInScopes = mutation.getFacetedInScopesList().isEmpty() ?
+			(Boolean.TRUE.equals(mutation.getFaceted()) ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE)
+			:
+			mutation.getFacetedInScopesList()
+				.stream()
+				.map(EvitaEnumConverter::toScope)
+				.toArray(Scope[]::new);
+
 		return new SetReferenceSchemaFacetedMutation(
 			mutation.getName(),
-			mutation.getFaceted()
+			mutation.getInherited() ? null : facetedInScopes
 		);
 	}
 
 	@Nonnull
 	public GrpcSetReferenceSchemaFacetedMutation convert(@Nonnull SetReferenceSchemaFacetedMutation mutation) {
-		return GrpcSetReferenceSchemaFacetedMutation.newBuilder()
-			.setName(mutation.getName())
-			.setFaceted(mutation.isFaceted())
-			.build();
+		final Builder builder = GrpcSetReferenceSchemaFacetedMutation.newBuilder()
+			.setName(mutation.getName());
+		final boolean facetedInherited = mutation.getFacetedInScopes() == null;
+		builder.setInherited(facetedInherited);
+		if (!facetedInherited) {
+			builder.setFaceted(Objects.equals(Boolean.TRUE, mutation.getFaceted()));
+			ofNullable(mutation.getFacetedInScopes())
+				.ifPresentOrElse(
+					it -> builder.addAllFacetedInScopes(
+						Arrays.stream(it)
+							.map(EvitaEnumConverter::toGrpcScope)
+							.toList()
+					),
+					() -> builder.setInherited(true)
+				);
+		}
+		return builder.build();
 	}
 }

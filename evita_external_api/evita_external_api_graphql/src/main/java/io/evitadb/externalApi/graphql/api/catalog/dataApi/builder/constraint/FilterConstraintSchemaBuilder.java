@@ -31,6 +31,7 @@ import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.FilterGroupBy;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 
 import javax.annotation.Nonnull;
 import java.util.Set;
@@ -56,7 +57,7 @@ public class FilterConstraintSchemaBuilder extends GraphQLConstraintSchemaBuilde
 
 	@Nonnull
 	public GraphQLInputType build(@Nonnull String rootEntityType) {
-		return build(new EntityDataLocator(rootEntityType));
+		return build(new EntityDataLocator(new ManagedEntityTypePointer(rootEntityType)));
 	}
 
 	@Nonnull
@@ -80,6 +81,6 @@ public class FilterConstraintSchemaBuilder extends GraphQLConstraintSchemaBuilde
 	@Nonnull
 	@Override
 	protected Predicate<AttributeSchemaContract> getAttributeSchemaFilter() {
-		return attributeSchema -> attributeSchema.isUnique() || attributeSchema.isFilterable();
+		return attributeSchema -> attributeSchema.isUniqueInAnyScope() || attributeSchema.isFilterableInAnyScope();
 	}
 }

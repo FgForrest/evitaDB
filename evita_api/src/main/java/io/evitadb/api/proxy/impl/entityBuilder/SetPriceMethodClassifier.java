@@ -435,7 +435,7 @@ public class SetPriceMethodClassifier extends DirectMethodClassification<Object,
 				);
 			}
 			if (!recognizedParameterLocations.contains(8)) {
-				// by default prices are sellable
+				// by default prices are indexed
 				recognizedParameters.add(
 					new RecognizedParameter(8, args -> true)
 				);

@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute;
 
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaFilterableMutation;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
@@ -34,6 +35,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
+import static io.evitadb.utils.ListBuilder.list;
 import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -56,13 +58,14 @@ class SetAttributeSchemaFilterableMutationConverterTest {
 	void shouldResolveInputToLocalMutation() {
 		final SetAttributeSchemaFilterableMutation expectedMutation = new SetAttributeSchemaFilterableMutation(
 			"code",
-			true
+			new Scope[] { Scope.LIVE }
 		);
 
 		final SetAttributeSchemaFilterableMutation convertedMutation1 = converter.convertFromInput(
 			map()
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
-				.e(SetAttributeSchemaFilterableMutationDescriptor.FILTERABLE.name(), true)
+				.e(SetAttributeSchemaFilterableMutationDescriptor.FILTERABLE_IN_SCOPES.name(), list()
+					.i(Scope.LIVE))
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation1);
@@ -70,7 +73,8 @@ class SetAttributeSchemaFilterableMutationConverterTest {
 		final SetAttributeSchemaFilterableMutation convertedMutation2 = converter.convertFromInput(
 			map()
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
-				.e(SetAttributeSchemaFilterableMutationDescriptor.FILTERABLE.name(), "true")
+				.e(SetAttributeSchemaFilterableMutationDescriptor.FILTERABLE_IN_SCOPES.name(), list()
+					.i(Scope.LIVE.name()))
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation2);
@@ -82,7 +86,7 @@ class SetAttributeSchemaFilterableMutationConverterTest {
 			EvitaInvalidUsageException.class,
 			() -> converter.convertFromInput(
 				map()
-					.e(SetAttributeSchemaFilterableMutationDescriptor.FILTERABLE.name(), true)
+					.e(SetAttributeSchemaFilterableMutationDescriptor.FILTERABLE_IN_SCOPES.name(), true)
 					.build()
 			)
 		);

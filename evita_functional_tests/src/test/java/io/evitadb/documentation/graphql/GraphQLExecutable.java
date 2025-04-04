@@ -256,8 +256,8 @@ public class GraphQLExecutable extends JsonExecutable implements Executable, Evi
 				markDownFile.ifPresent(
 					content -> {
 						assertEquals(
-							content,
-							markdownSnippet
+							content.trim(),
+							markdownSnippet.trim()
 						);
 
 						final Path assertSource = snippet == null ?

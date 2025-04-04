@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.core.async;
 
+import io.evitadb.api.task.TaskStatus.TaskTrait;
 import io.evitadb.exception.GenericEvitaInternalError;
 import lombok.extern.slf4j.Slf4j;
 
@@ -73,46 +74,47 @@ public class ClientCallableTask<S, T> extends AbstractServerTask<S, T> implement
 		}
 	}
 
-	public ClientCallableTask(@Nonnull String catalogName, @Nonnull String taskName, @Nullable S settings, @Nonnull Callable<T> callable) {
-		super(catalogName, taskName, settings);
+	public ClientCallableTask(@Nonnull String catalogName, @Nonnull String taskType, @Nonnull String taskName, @Nonnull S settings, @Nonnull Callable<T> callable, @Nonnull TaskTrait... traits) {
+		super(catalogName, taskType, taskName, settings, traits);
 		this.callableWithProgress = intConsumer -> wrapCallable(catalogName, taskName, callable);
 	}
 
-	public ClientCallableTask(@Nonnull String taskName, @Nullable S settings, @Nonnull Callable<T> callable) {
-		super(taskName, settings);
+	public ClientCallableTask(@Nonnull String taskType, @Nonnull String taskName, @Nonnull S settings, @Nonnull Callable<T> callable, @Nonnull TaskTrait... traits) {
+		super(taskType, taskName, settings, traits);
 		this.callableWithProgress = intConsumer -> wrapCallable(null, taskName, callable);
 	}
 
-	public ClientCallableTask(@Nonnull String catalogName, @Nonnull String taskName, @Nullable S settings, @Nonnull Function<ClientCallableTask<S, T>, T> callable) {
-		super(catalogName, taskName, settings);
+	public ClientCallableTask(@Nonnull String catalogName, @Nonnull String taskType, @Nonnull String taskName, @Nonnull S settings, @Nonnull Function<ClientCallableTask<S, T>, T> callable, @Nonnull TaskTrait... traits) {
+		super(catalogName, taskType, taskName, settings, traits);
 		this.callableWithProgress = callable;
 	}
 
-	public ClientCallableTask(@Nonnull String taskName, @Nullable S settings, @Nonnull Function<ClientCallableTask<S, T>, T> callable) {
-		super(taskName, settings);
+	public ClientCallableTask(@Nonnull String taskType, @Nonnull String taskName, @Nonnull S settings, @Nonnull Function<ClientCallableTask<S, T>, T> callable, @Nonnull TaskTrait... traits) {
+		super(taskType, taskName, settings, traits);
 		this.callableWithProgress = callable;
 	}
 
-	public ClientCallableTask(@Nonnull String catalogName, @Nonnull String taskName, @Nullable S settings, @Nonnull Callable<T> callable, @Nonnull Function<Throwable, T> exceptionHandler) {
-		super(catalogName, taskName, settings, exceptionHandler);
+	public ClientCallableTask(@Nonnull String catalogName, @Nonnull String taskType, @Nonnull String taskName, @Nonnull S settings, @Nonnull Callable<T> callable, @Nonnull Function<Throwable, T> exceptionHandler, @Nonnull TaskTrait... traits) {
+		super(catalogName, taskType, taskName, settings, exceptionHandler, traits);
 		this.callableWithProgress = intConsumer -> wrapCallable(catalogName, taskName, callable);
 	}
 
-	public ClientCallableTask(@Nonnull String taskName, @Nullable S settings, @Nonnull Callable<T> callable, @Nonnull Function<Throwable, T> exceptionHandler) {
-		super(taskName, settings, exceptionHandler);
+	public ClientCallableTask(@Nonnull String taskType, @Nonnull String taskName, @Nonnull S settings, @Nonnull Callable<T> callable, @Nonnull Function<Throwable, T> exceptionHandler, @Nonnull TaskTrait... traits) {
+		super(taskType, taskName, settings, exceptionHandler, traits);
 		this.callableWithProgress = intConsumer -> wrapCallable(null, taskName, callable);
 	}
 
-	public ClientCallableTask(@Nonnull String catalogName, @Nonnull String taskName, @Nullable S settings, @Nonnull Function<ClientCallableTask<S, T>, T> callable, @Nonnull Function<Throwable, T> exceptionHandler) {
-		super(catalogName, taskName, settings, exceptionHandler);
+	public ClientCallableTask(@Nonnull String catalogName, @Nonnull String taskType, @Nonnull String taskName, @Nonnull S settings, @Nonnull Function<ClientCallableTask<S, T>, T> callable, @Nonnull Function<Throwable, T> exceptionHandler, @Nonnull TaskTrait... traits) {
+		super(catalogName, taskType, taskName, settings, exceptionHandler, traits);
 		this.callableWithProgress = callable;
 	}
 
-	public ClientCallableTask(@Nonnull String taskName, @Nullable S settings, @Nonnull Function<ClientCallableTask<S, T>, T> callable, @Nonnull Function<Throwable, T> exceptionHandler) {
-		super(taskName, settings, exceptionHandler);
+	public ClientCallableTask(@Nonnull String taskType, @Nonnull String taskName, @Nonnull S settings, @Nonnull Function<ClientCallableTask<S, T>, T> callable, @Nonnull Function<Throwable, T> exceptionHandler, @Nonnull TaskTrait... traits) {
+		super(taskType, taskName, settings, exceptionHandler, traits);
 		this.callableWithProgress = callable;
 	}
 
+	@Nullable
 	@Override
 	public T call() throws Exception {
 		return super.execute();
@@ -123,4 +125,5 @@ public class ClientCallableTask<S, T> extends AbstractServerTask<S, T> implement
 	protected T executeInternal() {
 		return this.callableWithProgress.apply(this);
 	}
+
 }

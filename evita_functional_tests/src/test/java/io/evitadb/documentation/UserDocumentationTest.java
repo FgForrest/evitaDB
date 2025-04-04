@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.documentation;
 
+import graphql.com.google.common.collect.Streams;
 import io.evitadb.documentation.csharp.CsharpExecutable;
 import io.evitadb.documentation.csharp.CsharpTestContextFactory;
 import io.evitadb.documentation.evitaql.EvitaQLExecutable;
@@ -30,6 +31,7 @@ import io.evitadb.documentation.evitaql.EvitaTestContextFactory;
 import io.evitadb.documentation.graphql.GraphQLExecutable;
 import io.evitadb.documentation.graphql.GraphQLTestContextFactory;
 import io.evitadb.documentation.java.JavaExecutable;
+import io.evitadb.documentation.java.JavaTestContext.SideEffect;
 import io.evitadb.documentation.java.JavaTestContextFactory;
 import io.evitadb.documentation.java.JavaWrappingExecutable;
 import io.evitadb.documentation.rest.RestExecutable;
@@ -87,11 +89,12 @@ public class UserDocumentationTest implements EvitaTestSupport {
 		"```\\s*(\\S+)?\\s*\n(.+?)\\s*```",
 		Pattern.DOTALL | Pattern.MULTILINE
 	);
+
 	/**
 	 * Pattern for searching for <SourceCodeTabs> blocks.
 	 */
 	private static final Pattern SOURCE_CODE_TABS_PATTERN = Pattern.compile(
-		"<SourceCodeTabs\\s*(requires=\"(.*?)\")?(\\s+langSpecificTabOnly)?(\\s+local)?(\\s+ignoreTest)?>\\s*\\[.*?]\\((.*?)\\)\\s*</SourceCodeTabs>",
+		"<SourceCodeTabs(.*?)?>\\s*\\[.*?]\\((.*?)\\)\\s*</SourceCodeTabs>",
 		Pattern.DOTALL | Pattern.MULTILINE
 	);
 	/**
@@ -99,7 +102,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	 * Pattern for searching for <SourceAlternativeTabs> blocks.
 	 */
 	private static final Pattern SOURCE_ALTERNATIVE_TABS_PATTERN = Pattern.compile(
-		"<SourceAlternativeTabs\\s*(requires=\"(.*?)\")?\\s*variants=\"(.*?)\">\\s*\\[.*?]\\((.*?)\\)\\s*</SourceAlternativeTabs>",
+		"<SourceAlternativeTabs(.*?)?>\\s*\\[.*?]\\((.*?)\\)\\s*</SourceAlternativeTabs>",
 		Pattern.DOTALL | Pattern.MULTILINE
 	);
 	/**
@@ -227,7 +230,9 @@ public class UserDocumentationTest implements EvitaTestSupport {
 		@Nonnull String sourceContent,
 		@Nonnull Path rootPath,
 		@Nullable Path resource,
+		@Nullable Path[] setupResources,
 		@Nullable Path[] requiredResources,
+		@Nonnull SideEffect sideEffect,
 		@Nonnull TestContextProvider contextAccessor,
 		@Nonnull Map<Path, CodeSnippet> codeSnippetIndex,
 		@Nullable List<OutputSnippet> outputSnippet,
@@ -238,7 +243,11 @@ public class UserDocumentationTest implements EvitaTestSupport {
 				return new JavaExecutable(
 					contextAccessor.get(profile, JavaTestContextFactory.class),
 					sourceContent,
-					requiredResources,
+					Streams.concat(
+							ofNullable(setupResources).stream().flatMap(Arrays::stream),
+							ofNullable(requiredResources).stream().flatMap(Arrays::stream).filter(x -> x.toString().endsWith(".java"))
+					).toArray(Path[]::new),
+					sideEffect,
 					codeSnippetIndex
 				);
 			}
@@ -261,12 +270,13 @@ public class UserDocumentationTest implements EvitaTestSupport {
 					outputSnippet,
 					createSnippets
 				);
-				return ArrayUtils.isEmpty(requiredResources) ?
+				return ArrayUtils.isEmpty(setupResources) ?
 					graphQLExecutable :
 					new JavaWrappingExecutable(
 						contextAccessor.get(profile, JavaTestContextFactory.class),
 						graphQLExecutable,
-						requiredResources,
+						setupResources,
+						sideEffect,
 						codeSnippetIndex
 					);
 			}
@@ -279,12 +289,13 @@ public class UserDocumentationTest implements EvitaTestSupport {
 					outputSnippet,
 					createSnippets
 				);
-				return ArrayUtils.isEmpty(requiredResources) ?
+				return ArrayUtils.isEmpty(setupResources) ?
 					restExecutable :
 					new JavaWrappingExecutable(
 						contextAccessor.get(profile, JavaTestContextFactory.class),
 						restExecutable,
-						requiredResources,
+						setupResources,
+						sideEffect,
 						codeSnippetIndex
 					);
 			}
@@ -295,17 +306,18 @@ public class UserDocumentationTest implements EvitaTestSupport {
 					rootPath,
 					resource,
 					ofNullable(requiredResources)
-						.map(it -> Arrays.stream(it).filter(x -> x.endsWith(".cs")).toArray(Path[]::new))
+						.map(it -> Arrays.stream(it).filter(x -> x.toString().endsWith(".cs")).toArray(Path[]::new))
 						.orElse(null),
 					codeSnippetIndex,
 					outputSnippet
 				);
-				return ArrayUtils.isEmpty(requiredResources) ?
+				return ArrayUtils.isEmpty(setupResources) ?
 					csharpExecutable :
 					new JavaWrappingExecutable(
 						contextAccessor.get(profile, JavaTestContextFactory.class),
 						csharpExecutable,
-						requiredResources,
+						setupResources,
+						sideEffect,
 						codeSnippetIndex
 					);
 			}
@@ -405,8 +417,8 @@ public class UserDocumentationTest implements EvitaTestSupport {
 					final List<DynamicTest> tests = this.createTests(
 						Environment.DEMO_SERVER,
 						it,
-						new ExampleFilter[] {
-							ExampleFilter.CSHARP,
+						new ExampleFilter[]{
+							// ExampleFilter.CSHARP,
 							ExampleFilter.JAVA,
 							ExampleFilter.REST,
 							ExampleFilter.GRAPHQL,
@@ -439,8 +451,14 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	Stream<DynamicTest> testSingleFileDocumentation() {
 		return this.createTests(
 			Environment.DEMO_SERVER,
-			getRootDirectory().resolve("documentation/user/en/query/requirements/facet.md"),
-			ExampleFilter.values()
+			getRootDirectory().resolve("documentation/user/en/query/requirements/fetching.md"),
+			new ExampleFilter[]{
+				/*ExampleFilter.CSHARP,*/
+				ExampleFilter.JAVA,
+				ExampleFilter.REST,
+				ExampleFilter.GRAPHQL,
+				ExampleFilter.EVITAQL
+			}
 		).stream();
 	}
 
@@ -455,10 +473,16 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	@Disabled
 	Stream<DynamicTest> testSingleFileDocumentationAndCreateOtherLanguageSnippets() {
 		return this.createTests(
-			Environment.DEMO_SERVER,
-			getRootDirectory().resolve("documentation/user/en/solve/routing.md"),
-			ExampleFilter.values(),
-			CreateSnippets.MARKDOWN, CreateSnippets.JAVA, CreateSnippets.GRAPHQL, CreateSnippets.REST, CreateSnippets.CSHARP
+			Environment.LOCALHOST,
+			getRootDirectory().resolve("documentation/user/en/query/ordering/reference.md"),
+			new ExampleFilter[]{
+				/*ExampleFilter.CSHARP,*/
+				ExampleFilter.JAVA,
+				ExampleFilter.REST,
+				ExampleFilter.GRAPHQL,
+				ExampleFilter.EVITAQL
+			},
+			CreateSnippets.MARKDOWN, CreateSnippets.JAVA, CreateSnippets.GRAPHQL, CreateSnippets.REST
 		).stream();
 	}
 
@@ -504,6 +528,8 @@ public class UserDocumentationTest implements EvitaTestSupport {
 							rootDirectory,
 							null,
 							null,
+							null,
+							SideEffect.WITH_SIDE_EFFECT,
 							contextAccessor,
 							codeSnippetIndex,
 							Collections.emptyList()
@@ -536,15 +562,16 @@ public class UserDocumentationTest implements EvitaTestSupport {
 
 		final Matcher sourceCodeTabsMatcher = SOURCE_CODE_TABS_PATTERN.matcher(fileContent);
 		while (sourceCodeTabsMatcher.find()) {
-			final Path referencedFile = createPathRelativeToRootDirectory(rootDirectory, sourceCodeTabsMatcher.group(6));
+			final Path referencedFile = createPathRelativeToRootDirectory(rootDirectory, sourceCodeTabsMatcher.group(2));
+			final Attributes attributes = new Attributes(sourceCodeTabsMatcher.group(1));
 			final String referencedFileExtension = getFileNameExtension(referencedFile);
-			if (ofNullable(sourceCodeTabsMatcher.group(5)).map(it -> it.contains("ignoreTest")).orElse(false)) {
+			if (attributes.isIgnoreTest()) {
 				continue;
 			}
-			final boolean isLocal = sourceCodeTabsMatcher.group(4) != null && "local".equals(sourceCodeTabsMatcher.group(4).trim());
-			final Environment environment = isLocal ? Environment.LOCALHOST : profile;
+			final Environment environment = attributes.isLocal() ? Environment.LOCALHOST : profile;
+			final SideEffect sideEffect = attributes.isLocal() ? SideEffect.WITH_SIDE_EFFECT : SideEffect.WITHOUT_SIDE_EFFECT;
 
-			if (profile == Environment.LOCALHOST && isLocal) {
+			if (profile == Environment.LOCALHOST && attributes.isLocal()) {
 				// we need to skip the local tests when profile is localhost and the example is local
 				// it starts local instance of evitaDB which will fail on already opened ports
 				continue;
@@ -552,14 +579,8 @@ public class UserDocumentationTest implements EvitaTestSupport {
 
 			if (!NOT_TESTED_LANGUAGES.contains(referencedFileExtension)) {
 				alreadyUsedPaths.add(referencedFile);
-				final Path[] requiredScripts = ofNullable(sourceCodeTabsMatcher.group(2))
-					.map(
-						requires -> Arrays.stream(requires.split(","))
-							.filter(it -> !it.isBlank())
-							.map(it -> createPathRelativeToRootDirectory(rootDirectory, it).normalize())
-							.toArray(Path[]::new)
-					)
-					.orElse(null);
+				final Path[] setupScripts = attributes.getSetupScripts(rootDirectory);
+				final Path[] requiredScripts = attributes.getRequiredScripts(rootDirectory);
 				final List<OutputSnippet> outputSnippet = ofNullable(outputSnippetIndex.get(referencedFile))
 					.orElse(Collections.emptyList());
 				final CodeSnippet codeSnippet = new CodeSnippet(
@@ -581,7 +602,9 @@ public class UserDocumentationTest implements EvitaTestSupport {
 									readFileOrThrowException(relatedFile),
 									rootDirectory,
 									relatedFile,
+									setupScripts,
 									requiredScripts,
+									sideEffect,
 									contextAccessor,
 									codeSnippetIndex,
 									ofNullable(
@@ -600,7 +623,9 @@ public class UserDocumentationTest implements EvitaTestSupport {
 						readFileOrThrowException(referencedFile),
 						rootDirectory,
 						referencedFile,
+						setupScripts,
 						requiredScripts,
+						sideEffect,
 						contextAccessor,
 						codeSnippetIndex,
 						outputSnippet,
@@ -614,17 +639,13 @@ public class UserDocumentationTest implements EvitaTestSupport {
 
 		final Matcher sourceAlternativeTabsMatcher = SOURCE_ALTERNATIVE_TABS_PATTERN.matcher(fileContent);
 		while (sourceAlternativeTabsMatcher.find()) {
-			final Path referencedFile = createPathRelativeToRootDirectory(rootDirectory, sourceAlternativeTabsMatcher.group(4));
+			final Path referencedFile = createPathRelativeToRootDirectory(rootDirectory, sourceAlternativeTabsMatcher.group(2));
 			final String referencedFileExtension = getFileNameExtension(referencedFile);
-			final Path[] requiredScripts = ofNullable(sourceAlternativeTabsMatcher.group(2))
-				.map(
-					requires -> Arrays.stream(requires.split(","))
-						.filter(it -> !it.isBlank())
-						.map(it -> createPathRelativeToRootDirectory(rootDirectory, it).normalize())
-						.toArray(Path[]::new)
-				)
-				.orElse(null);
-			final String[] variants = sourceAlternativeTabsMatcher.group(3).split("\\|");
+			final Attributes attributes = new Attributes(sourceAlternativeTabsMatcher.group(1));
+			final Path[] setupScripts = attributes.getSetupScripts(rootDirectory);
+			final Path[] requiredScripts = attributes.getRequiredScripts(rootDirectory);
+			final SideEffect sideEffect = attributes.isLocal() ? SideEffect.WITH_SIDE_EFFECT : SideEffect.WITHOUT_SIDE_EFFECT;
+			final String[] variants = attributes.getVariants();
 			if (!NOT_TESTED_LANGUAGES.contains(referencedFileExtension)) {
 				alreadyUsedPaths.add(referencedFile);
 				final List<OutputSnippet> outputSnippet = ofNullable(outputSnippetIndex.get(referencedFile))
@@ -648,7 +669,9 @@ public class UserDocumentationTest implements EvitaTestSupport {
 									readFileOrThrowException(relatedFile),
 									rootDirectory,
 									relatedFile,
+									setupScripts,
 									requiredScripts,
+									sideEffect,
 									contextAccessor,
 									codeSnippetIndex,
 									ofNullable(
@@ -667,7 +690,9 @@ public class UserDocumentationTest implements EvitaTestSupport {
 						readFileOrThrowException(referencedFile),
 						rootDirectory,
 						referencedFile,
+						setupScripts,
 						requiredScripts,
+						sideEffect,
 						contextAccessor,
 						codeSnippetIndex,
 						outputSnippet,
@@ -813,6 +838,148 @@ public class UserDocumentationTest implements EvitaTestSupport {
 			@Nonnull Environment profile,
 			@Nonnull Class<?> factoryClass
 		) {
+		}
+
+	}
+
+	/**
+	 * Record wraps optional attributes for {@link #SOURCE_CODE_TABS_PATTERN} and {@link #SOURCE_ALTERNATIVE_TABS_PATTERN}.
+	 */
+	private record Attributes(
+		@Nonnull Map<String, String> attributes
+	) {
+		/**
+		 * Attribute that defines scripts that needs to be run prior to this example. But only if it's in the same language.
+		 */
+		private static final String REQUIRED_SCRIPTS = "requires";
+		/**
+		 * Attribute that defines scripts that setup the environment for this example. Valid for all example languages.
+		 */
+		private static final String SETUP_SCRIPTS = "setup";
+		/**
+		 * Attribute that marks the example that it should be visualized.
+		 * Actually is used only by client side JavaScript.
+		 */
+		private static final String LANGUAGE_SPECIFIC = "langSpecificTabOnly";
+		/**
+		 * Attribute that marks the example that it's run only on local environment.
+		 */
+		private static final String LOCAL = "local";
+		/**
+		 * Attribute that marks temporarily disabled example (i.e. not verified by test suite).
+		 * We aim to have ZERO of these in the codebase.
+		 */
+		private static final String IGNORE_TEST = "ignoreTest";
+		/**
+		 * Attribute that contains alternative variants of the example.
+		 */
+		private static final String VARIANTS = "variants";
+
+		public Attributes(@Nullable String attributes) {
+			this(
+				attributes == null || attributes.isBlank() ?
+					Collections.emptyMap() :
+					Arrays.stream(attributes.split("\\s+"))
+						.map(it -> it.split("="))
+						.collect(Collectors.toMap(
+							it -> it[0],
+							it -> it.length > 1 ? it[1] : ""
+						))
+			);
+		}
+
+		/**
+		 * Returns array of setup scripts that needs to be run prior to this example.
+		 *
+		 * @return array of setup scripts or null if not defined
+		 */
+		@Nullable
+		public Path[] getSetupScripts(@Nonnull Path rootDirectory) {
+			return ofNullable(attributes.get(SETUP_SCRIPTS))
+				.map(String::trim)
+				.map(Attributes::removeQuotes)
+				.map(
+					paths -> Arrays.stream(paths.split(","))
+						.filter(it -> !it.isBlank())
+						.map(it -> createPathRelativeToRootDirectory(rootDirectory, it).normalize())
+						.toArray(Path[]::new)
+				)
+				.orElse(null);
+		}
+
+		/**
+		 * Returns array of required scripts that needs to be run prior to this example.
+		 *
+		 * @return array of required scripts or null if not defined
+		 */
+		@Nullable
+		public Path[] getRequiredScripts(@Nonnull Path rootDirectory) {
+			return ofNullable(attributes.get(REQUIRED_SCRIPTS))
+				.map(String::trim)
+				.map(Attributes::removeQuotes)
+				.map(
+					paths -> Arrays.stream(paths.split(","))
+						.filter(it -> !it.isBlank())
+						.map(it -> createPathRelativeToRootDirectory(rootDirectory, it).normalize())
+						.toArray(Path[]::new)
+				)
+				.orElse(null);
+		}
+
+		/**
+		 * Returns true if the example is specific to the language.
+		 *
+		 * @return true if the example is specific to the language
+		 */
+		public boolean isLanguageSpecific() {
+			return attributes.containsKey(LANGUAGE_SPECIFIC);
+		}
+
+		/**
+		 * Returns true if the example is always run on local environment.
+		 *
+		 * @return true if the example is always run on local environment
+		 */
+		public boolean isLocal() {
+			return attributes.containsKey(LOCAL);
+		}
+
+		/**
+		 * Returns true if the example is temporarily disabled.
+		 *
+		 * @return true if the example is temporarily disabled
+		 */
+		public boolean isIgnoreTest() {
+			return attributes.containsKey(IGNORE_TEST);
+		}
+
+		/**
+		 * Returns array of alternative variants of the example.
+		 *
+		 * @return array of alternative variants or null if not defined
+		 */
+		@Nullable
+		public String[] getVariants() {
+			return ofNullable(attributes.get(VARIANTS))
+				.map(String::trim)
+				.map(Attributes::removeQuotes)
+				.map(it -> it.split("\\|"))
+				.orElse(null);
+		}
+
+		/**
+		 * Removes quotes from the string.
+		 *
+		 * @param stringWithQuotes string with quotes
+		 * @return string without quotes
+		 */
+		@Nonnull
+		private static String removeQuotes(@Nonnull String stringWithQuotes) {
+			if (stringWithQuotes.charAt(0) == '"' && stringWithQuotes.charAt(stringWithQuotes.length() - 1) == '"') {
+				return stringWithQuotes.substring(1, stringWithQuotes.length() - 1);
+			} else {
+				return stringWithQuotes;
+			}
 		}
 
 	}

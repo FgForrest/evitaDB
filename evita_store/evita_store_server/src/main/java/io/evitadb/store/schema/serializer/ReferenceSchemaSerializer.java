@@ -33,15 +33,20 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
 import lombok.RequiredArgsConstructor;
 
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.function.Function;
+
+import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.readScopeSet;
+import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.writeScopeSet;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link ReferenceSchema} from/to binary format.
@@ -83,8 +88,10 @@ public class ReferenceSchemaSerializer extends Serializer<ReferenceSchema> {
 			output.writeVarInt(entry.getKey().ordinal(), true);
 			output.writeString(entry.getValue());
 		}
-		output.writeBoolean(referenceSchema.isIndexed());
-		output.writeBoolean(referenceSchema.isFaceted());
+
+		writeScopeSet(kryo, output, referenceSchema.getIndexedInScopes());
+		writeScopeSet(kryo, output, referenceSchema.getFacetedInScopes());
+
 		kryo.writeObject(output, referenceSchema.getAttributes());
 
 		if (referenceSchema.getDescription() != null) {
@@ -140,8 +147,9 @@ public class ReferenceSchemaSerializer extends Serializer<ReferenceSchema> {
 				input.readString()
 			);
 		}
-		final boolean indexed = input.readBoolean();
-		final boolean faceted = input.readBoolean();
+		final EnumSet<Scope> indexedInScopes = readScopeSet(kryo, input);
+		final EnumSet<Scope> facetedInScopes = readScopeSet(kryo, input);
+
 		@SuppressWarnings("unchecked") final Map<String, AttributeSchemaContract> attributes = kryo.readObject(input, Map.class);
 		final String description = input.readBoolean() ? input.readString() : null;
 		final String deprecationNotice = input.readBoolean() ? input.readString() : null;
@@ -158,10 +166,12 @@ public class ReferenceSchemaSerializer extends Serializer<ReferenceSchema> {
 
 		return ReferenceSchema._internalBuild(
 			name, nameVariants, description, deprecationNotice,
-			entityType, entityTypeNameVariants, referencedEntityTypeManaged,
 			cardinality,
+			entityType, entityTypeNameVariants, referencedEntityTypeManaged,
 			groupType, groupTypeNameVariants, referencedGroupTypeManaged,
-			indexed, faceted, attributes, sortableAttributeCompounds
+			indexedInScopes,
+			facetedInScopes,
+			attributes, sortableAttributeCompounds
 		);
 	}
 

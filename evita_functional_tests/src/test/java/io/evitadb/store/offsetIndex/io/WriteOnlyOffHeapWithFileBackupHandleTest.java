@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,9 +43,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 class WriteOnlyOffHeapWithFileBackupHandleTest implements EvitaTestSupport {
 	private final Path targetDirectory = getPathInTargetDirectory("WriteOnlyOffHeapWithFileBackupHandle");
+	private final Path targetExportDirectory = getPathInTargetDirectory("WriteOnlyOffHeapWithFileBackupHandle_export");
+	private final StorageOptions storageOptions = StorageOptions.builder()
+		.storageDirectory(targetDirectory)
+		.exportDirectory(targetExportDirectory)
+		.computeCRC32(true)
+		.build();
 	private final ObservableOutputKeeper outputKeeper = new ObservableOutputKeeper(
 		TEST_CATALOG,
-		StorageOptions.builder().storageDirectory(targetDirectory).computeCRC32(true).build(),
+		storageOptions,
 		Mockito.mock(Scheduler.class)
 	);
 
@@ -59,7 +65,7 @@ class WriteOnlyOffHeapWithFileBackupHandleTest implements EvitaTestSupport {
 		try (
 			final OffHeapMemoryManager memoryManager = new OffHeapMemoryManager(TEST_CATALOG, 32, 1);
 			final WriteOnlyOffHeapWithFileBackupHandle writeHandle = new WriteOnlyOffHeapWithFileBackupHandle(
-				targetDirectory.resolve(UUIDUtil.randomUUID() + ".tmp"), outputKeeper, memoryManager
+				targetDirectory.resolve(UUIDUtil.randomUUID() + ".tmp"), storageOptions, outputKeeper, memoryManager
 			)
 		) {
 			writeHandle.checkAndExecuteAndSync(
@@ -85,7 +91,7 @@ class WriteOnlyOffHeapWithFileBackupHandleTest implements EvitaTestSupport {
 		try (
 			final OffHeapMemoryManager memoryManager = new OffHeapMemoryManager(TEST_CATALOG, 32, 1);
 			final WriteOnlyOffHeapWithFileBackupHandle writeHandle = new WriteOnlyOffHeapWithFileBackupHandle(
-				targetDirectory.resolve(UUIDUtil.randomUUID() + ".tmp"), outputKeeper, memoryManager
+				targetDirectory.resolve(UUIDUtil.randomUUID() + ".tmp"), storageOptions, outputKeeper, memoryManager
 			)
 		) {
 			for (int i = 0; i < 5; i++) {
@@ -116,7 +122,7 @@ class WriteOnlyOffHeapWithFileBackupHandleTest implements EvitaTestSupport {
 		try (
 			final OffHeapMemoryManager memoryManager = new OffHeapMemoryManager(TEST_CATALOG, 32, 1);
 			final WriteOnlyOffHeapWithFileBackupHandle writeHandle = new WriteOnlyOffHeapWithFileBackupHandle(
-				targetDirectory.resolve(UUIDUtil.randomUUID() + ".tmp"), outputKeeper, memoryManager
+				targetDirectory.resolve(UUIDUtil.randomUUID() + ".tmp"), storageOptions, outputKeeper, memoryManager
 			)
 		) {
 			for (int i = 0; i < 5; i++) {
@@ -151,20 +157,21 @@ class WriteOnlyOffHeapWithFileBackupHandleTest implements EvitaTestSupport {
 		try (
 			final OffHeapMemoryManager memoryManager = new OffHeapMemoryManager(TEST_CATALOG, 32, 1);
 			final WriteOnlyOffHeapWithFileBackupHandle realMemoryHandle = new WriteOnlyOffHeapWithFileBackupHandle(
-				targetDirectory.resolve(UUIDUtil.randomUUID() + ".tmp"), outputKeeper, memoryManager
+				targetDirectory.resolve(UUIDUtil.randomUUID() + ".tmp"), storageOptions, outputKeeper, memoryManager
 			)
 		) {
 			// we need to write at least one byte to the real memory handle to force the memory manager
 			// to allocate the memory region
 			realMemoryHandle.checkAndExecuteAndSync(
 				"write some data",
-				() -> { },
+				() -> {
+				},
 				output -> output.writeByte((byte) 0)
 			);
 			// because there is only one region available - this will force the handle to use the file backup immediately
 			try (
 				final WriteOnlyOffHeapWithFileBackupHandle forcedFileHandle = new WriteOnlyOffHeapWithFileBackupHandle(
-					targetDirectory.resolve(UUIDUtil.randomUUID() + ".tmp"), outputKeeper, memoryManager
+					targetDirectory.resolve(UUIDUtil.randomUUID() + ".tmp"), storageOptions, outputKeeper, memoryManager
 				)
 			) {
 				for (int i = 0; i < 5; i++) {

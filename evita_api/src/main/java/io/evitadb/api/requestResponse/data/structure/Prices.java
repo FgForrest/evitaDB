@@ -63,7 +63,7 @@ import static java.util.Optional.ofNullable;
 
 /**
  * Entity prices container allows defining set of prices of the entity.
- * Attributes may be indexed for fast filtering ({@link Price#sellable()}). Prices are not automatically indexed
+ * Attributes may be indexed for fast filtering ({@link Price#indexed()}). Prices are not automatically indexed
  * in order not to waste precious memory space for data that will never be used in search queries.
  * <p>
  * Filtering in prices is executed by using constraints like {@link io.evitadb.api.query.filter.PriceBetween},
@@ -165,19 +165,21 @@ public class Prices implements PricesContract, Versioned, ContentComparator<Pric
 		this.entitySchema = entitySchema;
 		this.withPrice = withPrice;
 		this.version = version;
-		this.priceIndex = Collections.unmodifiableMap(
-			prices
-				.stream()
-				.collect(
-					Collectors.toMap(
-						PriceContract::priceKey, Function.identity(),
-						(oldValue, newValue) -> {
-							throw new GenericEvitaInternalError("Duplicate price key " + oldValue.priceKey());
-						},
-						() -> new LinkedHashMap<>(prices.size())
+		this.priceIndex = prices.isEmpty() ?
+			Collections.emptyMap() :
+			Collections.unmodifiableMap(
+				prices
+					.stream()
+					.collect(
+						Collectors.toMap(
+							PriceContract::priceKey, Function.identity(),
+							(oldValue, newValue) -> {
+								throw new GenericEvitaInternalError("Duplicate price key " + oldValue.priceKey());
+							},
+							() -> new LinkedHashMap<>(prices.size())
+						)
 					)
-				)
-		);
+			);
 		this.priceInnerRecordHandling = priceInnerRecordHandling;
 	}
 

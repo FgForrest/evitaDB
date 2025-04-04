@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -41,6 +41,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ContainerKe
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.WrapperObjectKey;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintProcessingUtils;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
+import io.evitadb.externalApi.dataType.Any;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.graphql.api.dataType.DataTypesConverter;
 import io.evitadb.externalApi.graphql.api.dataType.DataTypesConverter.ConvertedEnum;
@@ -52,6 +53,7 @@ import io.evitadb.utils.ClassUtils;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Currency;
 import java.util.LinkedList;
@@ -154,15 +156,10 @@ public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBui
 	                                                         @Nullable ValueTypeSupplier valueTypeSupplier) {
 		final Class<? extends Serializable> valueParameterType = valueParameter.type();
 		if (isJavaTypeGeneric(valueParameterType)) {
-			// value has generic type, we need to supply value type
-			Assert.isPremiseValid(
-				valueTypeSupplier != null,
-				() -> new GraphQLSchemaBuildingError(
-					"Value parameter `" + valueParameter.name() + "` has generic type but no value type supplier is present."
-				)
-			);
-
-			final Class<?> suppliedValueType = valueTypeSupplier.apply(valueParameter);
+			// value has generic type, we need to supply value type or fallback to generic GQL type
+			final Class<?> suppliedValueType = valueTypeSupplier != null
+				? valueTypeSupplier.apply(valueParameter)
+				: Any.class;
 			Assert.isPremiseValid(
 				suppliedValueType != null,
 				() -> new GraphQLSchemaBuildingError("Expected value type supplier to supply type not null.")
@@ -224,7 +221,7 @@ public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBui
 					final String key = keyBuilder.build(buildContext, childConstraintDescriptor, null);
 
 					// we need switch child domain again manually based on property type of the child constraint because there
-					// is no intermediate wrapper container that would do it for us (while generating all possible constraint for that container)
+					// is no intermediate wrapper container that would do it for us (while generating all possible constraints for that container)
 					final Optional<DataLocator> childConstraintDataLocator = resolveChildDataLocator(
 						buildContext,
 						ConstraintProcessingUtils.getDomainForPropertyType(childConstraintDescriptor.propertyType())
@@ -262,14 +259,10 @@ public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBui
 	protected GraphQLInputType buildWrapperObjectConstraintValue(@Nonnull ConstraintBuildContext buildContext,
 																 @Nonnull WrapperObjectKey wrapperObjectKey,
 	                                                             @Nonnull List<ValueParameterDescriptor> valueParameters,
-	                                                             @Nullable List<ChildParameterDescriptor> childParameters,
+	                                                             @Nonnull List<ChildParameterDescriptor> childParameters,
 	                                                             @Nonnull List<AdditionalChildParameterDescriptor> additionalChildParameters,
 	                                                             @Nullable ValueTypeSupplier valueTypeSupplier) {
-		final String wrapperObjectName = constructWrapperObjectName(wrapperObjectKey);
-		final GraphQLInputObjectType.Builder wrapperObjectBuilder = newInputObject().name(wrapperObjectName);
-		final GraphQLInputType wrapperObjectPointer = typeRef(wrapperObjectName);
-		// cache wrapper object for reuse
-		sharedContext.cacheWrapperObject(wrapperObjectKey, wrapperObjectPointer);
+		final List<GraphQLInputObjectField.Builder> wrapperObjectFields = new ArrayList<>(valueParameters.size() + childParameters.size() + additionalChildParameters.size());
 
 		// build primitive values
 		for (ValueParameterDescriptor valueParameter : valueParameters) {
@@ -279,7 +272,7 @@ public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBui
 				!valueParameter.type().isArray(), // we want treat missing arrays as empty arrays for more client convenience
 				valueTypeSupplier
 			);
-			wrapperObjectBuilder.field(f -> f
+			wrapperObjectFields.add(newInputObjectField()
 				.name(valueParameter.name())
 				.type(nestedPrimitiveConstraintValue));
 		}
@@ -298,7 +291,7 @@ public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBui
 					nestedChildConstraintValue = nonNull(nestedChildConstraintValue);
 				}
 
-				wrapperObjectBuilder.field(newInputObjectField()
+				wrapperObjectFields.add(newInputObjectField()
 					.name(childParameter.name())
 					.type(nestedChildConstraintValue));
 			} else {
@@ -316,7 +309,7 @@ public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBui
 						) {
 							nestedChildConstraint.setValue(nonNull(nestedChildConstraint.getValue()));
 						}
-						wrapperObjectBuilder.field(newInputObjectField()
+						wrapperObjectFields.add(newInputObjectField()
 							.name(key)
 							.type(nestedChildConstraint.getValue()));
 					});
@@ -332,11 +325,26 @@ public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBui
 					nestedAdditionalChildConstraintValue = nonNull(nestedAdditionalChildConstraintValue);
 				}
 
-				wrapperObjectBuilder.field(newInputObjectField()
+				wrapperObjectFields.add(newInputObjectField()
 					.name(additionalChildParameter.name())
 					.type(nestedAdditionalChildConstraintValue));
 			});
 		});
+
+		if (wrapperObjectFields.isEmpty()) {
+			// no fields (no usable parameters), there is nothing specific to specify, but we still want to be able to use
+			// the constraint without parameters
+			final GraphQLInputType emptyWrapperObject = buildNoneConstraintValue();
+			sharedContext.cacheWrapperObject(wrapperObjectKey, emptyWrapperObject);
+			return emptyWrapperObject;
+		}
+
+		final String wrapperObjectName = constructWrapperObjectName(wrapperObjectKey);
+		final GraphQLInputObjectType.Builder wrapperObjectBuilder = newInputObject().name(wrapperObjectName);
+		wrapperObjectFields.forEach(wrapperObjectBuilder::field);
+		final GraphQLInputType wrapperObjectPointer = typeRef(wrapperObjectName);
+		// cache wrapper object for reuse
+		sharedContext.cacheWrapperObject(wrapperObjectKey, wrapperObjectPointer);
 
 		sharedContext.addNewType(wrapperObjectBuilder.build());
 		return wrapperObjectPointer;

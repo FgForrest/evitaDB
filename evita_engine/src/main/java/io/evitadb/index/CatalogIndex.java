@@ -36,6 +36,7 @@ import io.evitadb.core.transaction.memory.TransactionalContainerChanges;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.CatalogIndex.CatalogIndexChanges;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
 import io.evitadb.index.attribute.UniqueIndex;
@@ -78,6 +79,10 @@ public class CatalogIndex implements
 {
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
+	 * Type of the index.
+	 */
+	@Getter protected final CatalogIndexKey indexKey;
+	/**
 	 * This is internal flag that tracks whether the index contents became dirty and needs to be persisted.
 	 */
 	protected final TransactionalBoolean dirty;
@@ -97,22 +102,22 @@ public class CatalogIndex implements
 	 */
 	private Catalog catalog;
 
-	public CatalogIndex() {
+	public CatalogIndex(@Nonnull Scope scope) {
 		this.version = 1;
+		this.indexKey = new CatalogIndexKey(scope);
 		this.dirty = new TransactionalBoolean();
 		this.uniqueIndex = new TransactionalMap<>(new HashMap<>(), GlobalUniqueIndex.class, Function.identity());
 	}
 
-	public CatalogIndex(int version, @Nonnull Map<AttributeKey, GlobalUniqueIndex> uniqueIndex) {
+	public CatalogIndex(
+		int version,
+		@Nonnull CatalogIndexKey indexKey,
+		@Nonnull Map<AttributeKey, GlobalUniqueIndex> uniqueIndex
+	) {
 		this.version = version;
+		this.indexKey = indexKey;
 		this.dirty = new TransactionalBoolean();
 		this.uniqueIndex = new TransactionalMap<>(uniqueIndex, GlobalUniqueIndex.class, Function.identity());
-	}
-
-	private CatalogIndex(int version, @Nonnull TransactionalMap<AttributeKey, GlobalUniqueIndex> uniqueIndex) {
-		this.version = version;
-		this.dirty = new TransactionalBoolean();
-		this.uniqueIndex = uniqueIndex;
 	}
 
 	@Override
@@ -129,6 +134,7 @@ public class CatalogIndex implements
 	public CatalogIndex createCopyForNewCatalogAttachment(@Nonnull CatalogState catalogState) {
 		return new CatalogIndex(
 			this.version,
+			this.indexKey,
 			this.uniqueIndex
 				.entrySet()
 				.stream()
@@ -139,12 +145,6 @@ public class CatalogIndex implements
 					)
 				)
 		);
-	}
-
-	@Nonnull
-	@Override
-	public CatalogIndexKey getIndexKey() {
-		return CatalogIndexKey.INSTANCE;
 	}
 
 	@Nonnull
@@ -175,10 +175,12 @@ public class CatalogIndex implements
 		int recordId
 	) {
 		final GlobalUniqueIndex theUniqueIndex = this.uniqueIndex.computeIfAbsent(
-			createAttributeKey(attributeSchema, allowedLocales, locale, value),
+			createAttributeKey(attributeSchema, allowedLocales, getIndexKey().scope(), locale, value),
 			lookupKey -> {
-				final GlobalUniqueIndex newUniqueIndex = new GlobalUniqueIndex(lookupKey, attributeSchema.getType());
-				newUniqueIndex.attachToCatalog(null, catalog);
+				final GlobalUniqueIndex newUniqueIndex = new GlobalUniqueIndex(
+					this.getIndexKey().scope(), lookupKey, attributeSchema.getType()
+				);
+				newUniqueIndex.attachToCatalog(null, this.catalog);
 				ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 					.ifPresent(it -> it.addCreatedItem(newUniqueIndex));
 				this.dirty.setToTrue();
@@ -201,13 +203,13 @@ public class CatalogIndex implements
 		@Nonnull Object value,
 		int recordId
 	) {
-		final AttributeKey lookupKey = createAttributeKey(attributeSchema, allowedLocales, locale, value);
+		final AttributeKey lookupKey = createAttributeKey(attributeSchema, allowedLocales, getIndexKey().scope(), locale, value);
 		final GlobalUniqueIndex theUniqueIndex = this.uniqueIndex.get(lookupKey);
 		notNull(theUniqueIndex, "Unique index for attribute `" + attributeSchema.getName() + "` not found!");
 		theUniqueIndex.unregisterUniqueKey(value, entitySchema.getName(), locale, recordId);
 
 		if (theUniqueIndex.isEmpty()) {
-			this.uniqueIndex.remove(lookupKey);
+			Assert.isPremiseValid(theUniqueIndex == this.uniqueIndex.remove(lookupKey), "Expected unique index was not removed!");
 			ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 				.ifPresent(it -> it.addRemovedItem(theUniqueIndex));
 			this.dirty.setToTrue();
@@ -219,7 +221,7 @@ public class CatalogIndex implements
 	 */
 	@Nullable
 	public GlobalUniqueIndex getGlobalUniqueIndex(@Nonnull GlobalAttributeSchemaContract attributeSchema, @Nullable Locale locale) {
-		final boolean uniqueGloballyWithinLocale = attributeSchema.isUniqueGloballyWithinLocale();
+		final boolean uniqueGloballyWithinLocale = attributeSchema.isUniqueGloballyWithinLocaleInScope(getIndexKey().scope());
 		Assert.isTrue(
 			locale != null || !uniqueGloballyWithinLocale,
 			() -> new EntityLocaleMissingException(attributeSchema.getName())
@@ -229,6 +231,13 @@ public class CatalogIndex implements
 				new AttributeKey(attributeSchema.getName(), locale) :
 				new AttributeKey(attributeSchema.getName())
 		);
+	}
+
+	/**
+	 * Returns true if index contains no data whatsoever.
+	 */
+	public boolean isEmpty() {
+		return this.uniqueIndex.isEmpty();
 	}
 
 	/*
@@ -254,7 +263,9 @@ public class CatalogIndex implements
 	public CatalogIndex createCopyWithMergedTransactionalMemory(@Nullable CatalogIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		final Boolean wasDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
 		final CatalogIndex newCatalogIndex = new CatalogIndex(
-			version + (wasDirty ? 1 : 0), transactionalLayer.getStateCopyWithCommittedChanges(uniqueIndex)
+			this.version + (wasDirty ? 1 : 0),
+			this.indexKey,
+			transactionalLayer.getStateCopyWithCommittedChanges(this.uniqueIndex)
 		);
 		ofNullable(layer).ifPresent(it -> it.clean(transactionalLayer));
 		return newCatalogIndex;
@@ -280,15 +291,15 @@ public class CatalogIndex implements
 		}
 
 		public void addRemovedItem(@Nonnull GlobalUniqueIndex uniqueIndex) {
-			uniqueIndexChanges.addRemovedItem(uniqueIndex);
+			this.uniqueIndexChanges.addRemovedItem(uniqueIndex);
 		}
 
 		public void clean(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-			uniqueIndexChanges.clean(transactionalLayer);
+			this.uniqueIndexChanges.clean(transactionalLayer);
 		}
 
 		public void cleanAll(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-			uniqueIndexChanges.cleanAll(transactionalLayer);
+			this.uniqueIndexChanges.cleanAll(transactionalLayer);
 		}
 
 	}
@@ -304,13 +315,14 @@ public class CatalogIndex implements
 	private static AttributeKey createAttributeKey(
 		@Nonnull GlobalAttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
+		@Nonnull Scope scope,
 		@Nullable Locale locale,
 		@Nonnull Object value
 	) {
 		if (attributeSchema.isLocalized()) {
 			verifyLocalizedAttribute(attributeSchema.getName(), allowedLocales, locale, value);
 		}
-		if (attributeSchema.isUniqueGloballyWithinLocale()) {
+		if (attributeSchema.isUniqueGloballyWithinLocaleInScope(scope)) {
 			return new AttributeKey(attributeSchema.getName(), locale);
 		} else {
 			return new AttributeKey(attributeSchema.getName());
@@ -321,9 +333,10 @@ public class CatalogIndex implements
 	 * Method creates container that is possible to serialize with Kryo and store
 	 * into persistent storage.
 	 */
+	@Nonnull
 	private StoragePart createStoragePart() {
 		return new CatalogIndexStoragePart(
-			version, uniqueIndex.keySet()
+			this.version, this.indexKey, this.uniqueIndex.keySet()
 		);
 	}
 

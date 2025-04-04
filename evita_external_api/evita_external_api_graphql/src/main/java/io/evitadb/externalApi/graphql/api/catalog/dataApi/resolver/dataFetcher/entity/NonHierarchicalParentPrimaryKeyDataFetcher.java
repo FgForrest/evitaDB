@@ -28,16 +28,30 @@ import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityContract;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
- * Returns {@link EntityContract#getParent()} as nullable int.
+ * Returns {@link EntityContract#getParentEntity()} as nullable int.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class NonHierarchicalParentPrimaryKeyDataFetcher implements DataFetcher<Integer> {
+
+	@Nullable
+	private static NonHierarchicalParentPrimaryKeyDataFetcher INSTANCE;
+
+	@Nonnull
+	public static NonHierarchicalParentPrimaryKeyDataFetcher getInstance() {
+		if (INSTANCE == null) {
+			INSTANCE = new NonHierarchicalParentPrimaryKeyDataFetcher();
+		}
+		return INSTANCE;
+	}
 
 	@Nullable
 	@Override

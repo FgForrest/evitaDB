@@ -25,6 +25,7 @@ package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference
 
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
@@ -35,6 +36,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
+import static io.evitadb.utils.ListBuilder.list;
 import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -64,8 +66,8 @@ class CreateReferenceSchemaMutationConverterTest {
 			true,
 			"tagGroup",
 			true,
-			true,
-			false
+			new Scope[] {Scope.LIVE},
+			new Scope[] {Scope.LIVE}
 		);
 
 		final CreateReferenceSchemaMutation convertedMutation1 = converter.convertFromInput(
@@ -78,8 +80,10 @@ class CreateReferenceSchemaMutationConverterTest {
 				.e(CreateReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE_MANAGED.name(), true)
 				.e(CreateReferenceSchemaMutationDescriptor.REFERENCED_GROUP_TYPE.name(), "tagGroup")
 				.e(CreateReferenceSchemaMutationDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), true)
-				.e(CreateReferenceSchemaMutationDescriptor.INDEXED.name(), true)
-				.e(CreateReferenceSchemaMutationDescriptor.FACETED.name(), false)
+				.e(CreateReferenceSchemaMutationDescriptor.INDEXED_IN_SCOPES.name(), list()
+					.i(Scope.LIVE))
+				.e(CreateReferenceSchemaMutationDescriptor.FACETED_IN_SCOPES.name(), list()
+					.i(Scope.LIVE))
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation1);
@@ -94,8 +98,10 @@ class CreateReferenceSchemaMutationConverterTest {
 				.e(CreateReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE_MANAGED.name(), "true")
 				.e(CreateReferenceSchemaMutationDescriptor.REFERENCED_GROUP_TYPE.name(), "tagGroup")
 				.e(CreateReferenceSchemaMutationDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), "true")
-				.e(CreateReferenceSchemaMutationDescriptor.INDEXED.name(), "true")
-				.e(CreateReferenceSchemaMutationDescriptor.FACETED.name(), "false")
+				.e(CreateReferenceSchemaMutationDescriptor.INDEXED_IN_SCOPES.name(), list()
+					.i(Scope.LIVE.name()))
+				.e(CreateReferenceSchemaMutationDescriptor.FACETED_IN_SCOPES.name(), list()
+					.i(Scope.LIVE.name()))
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation2);
@@ -112,8 +118,8 @@ class CreateReferenceSchemaMutationConverterTest {
 			true,
 			null,
 			false,
-			false,
-			false
+			null,
+			null
 		);
 
 		final CreateReferenceSchemaMutation convertedMutation1 = converter.convertFromInput(

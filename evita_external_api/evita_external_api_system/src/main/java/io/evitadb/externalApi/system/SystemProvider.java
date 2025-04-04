@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,9 +24,13 @@
 package io.evitadb.externalApi.system;
 
 import com.linecorp.armeria.server.HttpService;
+import io.evitadb.externalApi.configuration.ApiOptions;
+import io.evitadb.externalApi.event.ReadinessEvent;
+import io.evitadb.externalApi.event.ReadinessEvent.Prospective;
+import io.evitadb.externalApi.event.ReadinessEvent.Result;
 import io.evitadb.externalApi.http.ExternalApiProviderWithConsoleOutput;
 import io.evitadb.externalApi.http.ExternalApiServer;
-import io.evitadb.externalApi.system.configuration.SystemConfig;
+import io.evitadb.externalApi.system.configuration.SystemOptions;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ConsoleWriter;
 import io.evitadb.utils.ConsoleWriter.ConsoleColor;
@@ -34,54 +38,62 @@ import io.evitadb.utils.ConsoleWriter.ConsoleDecoration;
 import io.evitadb.utils.NetworkUtils;
 import io.evitadb.utils.StringUtils;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.function.Predicate;
 
 import static io.evitadb.externalApi.system.SystemProviderRegistrar.ENDPOINT_SERVER_NAME;
 
 /**
  * Descriptor of external API provider that provides System API.
  *
- * @see SystemProviderRegistrar
  * @author Tomáš Pozler, 2023
+ * @see SystemProviderRegistrar
  */
-@RequiredArgsConstructor
-public class SystemProvider implements ExternalApiProviderWithConsoleOutput<SystemConfig> {
+@Slf4j
+public class SystemProvider implements ExternalApiProviderWithConsoleOutput<SystemOptions> {
 	public static final String CODE = "system";
+	public static final String SERVER_CERTIFICATE_URL = "serverCertificateUrl";
+	public static final String CLIENT_CERTIFICATE_URL = "clientCertificateUrl";
+	public static final String CLIENT_PRIVATE_KEY_URL = "clientPrivateKeyUrl";
+	public static final String SERVER_NAME_URL = "serverNameUrl";
 
 	@Nonnull
 	@Getter
-	private final SystemConfig configuration;
+	private final SystemOptions configuration;
 
 	@Nonnull
 	@Getter
 	private final HttpService apiHandler;
 
 	@Nonnull
-	@Getter
-	private final String[] serverNameUrls;
+	private final LinkedHashMap<String, String[]> endpoints;
 
-	@Nonnull
-	@Getter
-	private final String[] rootCertificateUrls;
-
-	@Nonnull
-	@Getter
-	private final String[] serverCertificateUrls;
-
-	@Nonnull
-	@Getter
-	private final String[] clientCertificateUrls;
-
-	@Nonnull
-	@Getter
-	private final String[] clientPrivateKeyUrls;
+	/**
+	 * Timeout taken from {@link ApiOptions#requestTimeoutInMillis()} that will be used in {@link #isReady()}
+	 * method.
+	 */
+	private final long requestTimeout;
 
 	/**
 	 * Contains url that was at least once found reachable.
 	 */
 	private String reachableUrl;
+
+	public SystemProvider(
+		@Nonnull SystemOptions configuration,
+		@Nonnull HttpService apiHandler,
+		@Nonnull LinkedHashMap<String, String[]> endpoints,
+		long requestTimeoutInMillis
+	) {
+		this.configuration = configuration;
+		this.apiHandler = apiHandler;
+		this.endpoints = endpoints;
+		this.requestTimeout = requestTimeoutInMillis;
+	}
 
 	@Nonnull
 	@Override
@@ -92,7 +104,7 @@ public class SystemProvider implements ExternalApiProviderWithConsoleOutput<Syst
 	@Nonnull
 	@Override
 	public HttpServiceDefinition[] getHttpServiceDefinitions() {
-		return new HttpServiceDefinition[] {
+		return new HttpServiceDefinition[]{
 			new HttpServiceDefinition(
 				apiHandler,
 				PathHandlingMode.DYNAMIC_PATH_HANDLING
@@ -101,61 +113,55 @@ public class SystemProvider implements ExternalApiProviderWithConsoleOutput<Syst
 	}
 
 	@Override
+	public boolean isReady() {
+		final Predicate<String> isReady = url -> {
+			final ReadinessEvent readinessEvent = new ReadinessEvent(CODE, Prospective.CLIENT);
+			final boolean reachable = NetworkUtils.isReachable(
+				url,
+				this.requestTimeout,
+				error -> {
+					log.error("Error while checking readiness of System API: {}", error);
+					readinessEvent.finish(Result.ERROR);
+				},
+				timeouted -> {
+					log.error("{}", timeouted);
+					readinessEvent.finish(Result.TIMEOUT);
+				}
+			);
+			if (reachable) {
+				readinessEvent.finish(Result.READY);
+			}
+			return reachable;
+		};
+		final String[] baseUrls = this.configuration.getBaseUrls();
+		if (this.reachableUrl == null) {
+			for (String baseUrl : baseUrls) {
+				final String nameUrl = baseUrl + ENDPOINT_SERVER_NAME;
+				if (isReady.test(nameUrl)) {
+					this.reachableUrl = nameUrl;
+					return true;
+				}
+			}
+			return false;
+		} else {
+			return isReady.test(this.reachableUrl);
+		}
+	}
+
+	@Nonnull
+	@Override
+	public Map<String, String[]> getKeyEndPoints() {
+		return this.endpoints;
+	}
+
+	@Override
 	public void writeToConsole() {
-		ConsoleWriter.write(StringUtils.rightPad("   - server name served at: ", " ", ExternalApiServer.PADDING_START_UP));
-		for (int i = 0; i < serverNameUrls.length; i++) {
-			final String serverNameUrl = serverNameUrls[i];
-			if (i > 0) {
-				ConsoleWriter.write(", ", ConsoleColor.WHITE);
-			}
-			ConsoleWriter.write(serverNameUrl, ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
-		}
-		ConsoleWriter.write("\n", ConsoleColor.WHITE);
-		if (!ArrayUtils.isEmpty(rootCertificateUrls)) {
-			ConsoleWriter.write(StringUtils.rightPad("   - CA certificate served at: ", " ", ExternalApiServer.PADDING_START_UP));
-			for (int i = 0; i < rootCertificateUrls.length; i++) {
-				final String rootCertificateUrl = rootCertificateUrls[i];
-				if (i > 0) {
-					ConsoleWriter.write(", ", ConsoleColor.WHITE);
-				}
-				ConsoleWriter.write(rootCertificateUrl, ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
-			}
-			ConsoleWriter.write("\n", ConsoleColor.WHITE);
-		}
-		if (!ArrayUtils.isEmpty(serverCertificateUrls)) {
-			ConsoleWriter.write(StringUtils.rightPad("   - server certificate served at: ", " ", ExternalApiServer.PADDING_START_UP));
-			for (int i = 0; i < serverCertificateUrls.length; i++) {
-				final String serverCertificateUrl = serverCertificateUrls[i];
-				if (i > 0) {
-					ConsoleWriter.write(", ", ConsoleColor.WHITE);
-				}
-				ConsoleWriter.write(serverCertificateUrl, ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
-			}
-			ConsoleWriter.write("\n", ConsoleColor.WHITE);
-		}
-		if (!ArrayUtils.isEmpty(clientCertificateUrls)) {
-			ConsoleWriter.write(StringUtils.rightPad("   - client certificate served at: ", " ", ExternalApiServer.PADDING_START_UP));
-			for (int i = 0; i < clientCertificateUrls.length; i++) {
-				final String clientCertificateUrl = clientCertificateUrls[i];
-				if (i > 0) {
-					ConsoleWriter.write(", ", ConsoleColor.WHITE);
-				}
-				ConsoleWriter.write(clientCertificateUrl, ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
-			}
-			ConsoleWriter.write("\n", ConsoleColor.WHITE);
-		}
-		if (!ArrayUtils.isEmpty(clientPrivateKeyUrls)) {
-			ConsoleWriter.write(StringUtils.rightPad("   - client private key served at: ", " ", ExternalApiServer.PADDING_START_UP));
-			for (int i = 0; i < clientPrivateKeyUrls.length; i++) {
-				final String clientPrivateKeyUrl = clientPrivateKeyUrls[i];
-				if (i > 0) {
-					ConsoleWriter.write(", ", ConsoleColor.WHITE);
-				}
-				ConsoleWriter.write(clientPrivateKeyUrl, ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
-			}
-			ConsoleWriter.write("\n", ConsoleColor.WHITE);
-		}
-		if (!ArrayUtils.isEmpty(clientCertificateUrls)) {
+		writeLine("   - server name served at: ", SERVER_NAME_URL);
+		writeLine("   - server certificate served at: ", SERVER_CERTIFICATE_URL);
+		writeLine("   - client certificate served at: ", CLIENT_CERTIFICATE_URL);
+		writeLine("   - client private key served at: ", CLIENT_PRIVATE_KEY_URL);
+
+		if (!ArrayUtils.isEmpty(endpoints.get(CLIENT_CERTIFICATE_URL))) {
 			ConsoleWriter.write("""
 					
 					************************* WARNING!!! *************************
@@ -170,20 +176,24 @@ public class SystemProvider implements ExternalApiProviderWithConsoleOutput<Syst
 		}
 	}
 
-	@Override
-	public boolean isReady() {
-		final String[] baseUrls = this.configuration.getBaseUrls(configuration.getExposedHost());
-		if (this.reachableUrl == null) {
-			for (String baseUrl : baseUrls) {
-				final String nameUrl = baseUrl + ENDPOINT_SERVER_NAME;
-				if (NetworkUtils.isReachable(nameUrl)) {
-					this.reachableUrl = nameUrl;
-					return true;
+	/**
+	 * Writes line to the console.
+	 *
+	 * @param label       label
+	 * @param endpointKey key of the endpoint
+	 */
+	private void writeLine(@Nonnull String label, @Nonnull String endpointKey) {
+		final String[] urls = endpoints.get(endpointKey);
+		if (!ArrayUtils.isEmpty(urls)) {
+			ConsoleWriter.write(StringUtils.rightPad(label, " ", ExternalApiServer.PADDING_START_UP));
+			for (int i = 0; i < urls.length; i++) {
+				final String serverNameUrl = urls[i];
+				if (i > 0) {
+					ConsoleWriter.write(", ", ConsoleColor.WHITE);
 				}
+				ConsoleWriter.write(serverNameUrl, ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
 			}
-			return false;
-		} else {
-			return NetworkUtils.isReachable(this.reachableUrl);
+			ConsoleWriter.write("\n", ConsoleColor.WHITE);
 		}
 	}
 }

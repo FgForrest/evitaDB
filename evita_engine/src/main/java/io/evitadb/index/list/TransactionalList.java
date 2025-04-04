@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -68,6 +68,19 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 	 * Original immutable list.
 	 */
 	private final List<V> listDelegate;
+
+	/**
+	 * Returns the class type of the generic TransactionalList with the specified key and value types.
+	 * This method may be necessary if you need the proper generic class for constructor of other classes.
+	 *
+	 * @param <V> the type of values in the TransactionalList
+	 * @return the Class object representing the type TransactionalList with the specified generic parameters
+	 */
+	@Nonnull
+	public static <V> Class<TransactionalList<V>> genericClass() {
+		//noinspection unchecked
+		return (Class<TransactionalList<V>>) (Class<?>) TransactionalList.class;
+	}
 
 	public TransactionalList(List<V> listDelegate) {
 		this.listDelegate = listDelegate;
@@ -131,6 +144,7 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 		}
 	}
 
+	@Nonnull
 	@Override
 	public Iterator<V> iterator() {
 		final ListChanges<V> layer = getTransactionalMemoryLayerIfExists(this);
@@ -141,11 +155,13 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 		}
 	}
 
+	@Nonnull
 	@Override
 	public Object[] toArray() {
 		return toArray(new Object[0]);
 	}
 
+	@Nonnull
 	@SuppressWarnings("unchecked")
 	@Override
 	public <T> T[] toArray(@Nonnull T[] array) {
@@ -319,6 +335,7 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 		return -1;
 	}
 
+	@Nonnull
 	@Override
 	public ListIterator<V> listIterator() {
 		final ListChanges<V> layer = getTransactionalMemoryLayerIfExists(this);
@@ -329,6 +346,7 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 		}
 	}
 
+	@Nonnull
 	@Override
 	public ListIterator<V> listIterator(int index) {
 		final ListChanges<V> layer = getTransactionalMemoryLayerIfExists(this);
@@ -339,6 +357,7 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 		}
 	}
 
+	@Nonnull
 	@Override
 	public List<V> subList(int fromIndex, int toIndex) {
 		final ListChanges<V> layer = getTransactionalMemoryLayerIfExists(this);
@@ -417,6 +436,7 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 	/**
 	 * This method creates copy of the original list with all changes merged into it.
 	 */
+	@Nonnull
 	@SuppressWarnings({"rawtypes"})
 	private List<V> createCopyWithMergedTransactionalMemory(@Nullable ListChanges<V> layer, Function<TransactionalLayerProducer<?, ?>, V> transactionLayerExtractor) {
 		// create new array list of requested size

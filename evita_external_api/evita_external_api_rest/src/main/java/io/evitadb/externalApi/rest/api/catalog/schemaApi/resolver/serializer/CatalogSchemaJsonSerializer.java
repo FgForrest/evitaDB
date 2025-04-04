@@ -108,10 +108,10 @@ public class CatalogSchemaJsonSerializer extends SchemaJsonSerializer {
 		attributeSchemaNode.set(NamedSchemaDescriptor.NAME_VARIANTS.name(), serializeNameVariants(globalAttributeSchema.getNameVariants()));
 		attributeSchemaNode.put(NamedSchemaDescriptor.DESCRIPTION.name(), globalAttributeSchema.getDescription());
 		attributeSchemaNode.put(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), globalAttributeSchema.getDeprecationNotice());
-		attributeSchemaNode.put(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), globalAttributeSchema.getUniquenessType().toString());
-		attributeSchemaNode.put(GlobalAttributeSchemaDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), globalAttributeSchema.getGlobalUniquenessType().toString());
-		attributeSchemaNode.put(AttributeSchemaDescriptor.FILTERABLE.name(), globalAttributeSchema.isFilterable());
-		attributeSchemaNode.put(AttributeSchemaDescriptor.SORTABLE.name(), globalAttributeSchema.isSortable());
+		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), serializeUniquenessType(globalAttributeSchema::getUniquenessType));
+		attributeSchemaNode.putIfAbsent(GlobalAttributeSchemaDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), serializeGlobalUniquenessType(globalAttributeSchema::getGlobalUniquenessType));
+		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.FILTERABLE.name(), serializeFlagInScopes(globalAttributeSchema::isFilterableInScope));
+		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.SORTABLE.name(), serializeFlagInScopes(globalAttributeSchema::isSortableInScope));
 		attributeSchemaNode.put(AttributeSchemaDescriptor.LOCALIZED.name(), globalAttributeSchema.isLocalized());
 		attributeSchemaNode.put(AttributeSchemaDescriptor.NULLABLE.name(), globalAttributeSchema.isNullable());
 		attributeSchemaNode.put(EntityAttributeSchemaDescriptor.REPRESENTATIVE.name(), globalAttributeSchema.isRepresentative());
@@ -145,4 +145,5 @@ public class CatalogSchemaJsonSerializer extends SchemaJsonSerializer {
 
 		return entitySchemasMap;
 	}
+
 }

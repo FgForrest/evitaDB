@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute;
 
+import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import java.util.Locale;
@@ -31,7 +32,7 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
- * Abstract descriptor for all {@link io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation}s.
+ * Abstract descriptor for all {@link AttributeMutation}s.
  *
  * Note: this descriptor has static structure.
  *

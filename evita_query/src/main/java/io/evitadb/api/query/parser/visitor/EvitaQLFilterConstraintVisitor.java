@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,10 +26,16 @@ package io.evitadb.api.query.parser.visitor;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.filter.*;
 import io.evitadb.api.query.parser.Value;
-import io.evitadb.api.query.parser.error.EvitaQLInvalidQueryError;
+import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.AttributeInRangeNowConstraintContext;
+import io.evitadb.api.query.parser.grammar.EvitaQLParser.EntityScopeConstraintContext;
+import io.evitadb.api.query.parser.grammar.EvitaQLParser.FacetIncludingChildrenConstraintContext;
+import io.evitadb.api.query.parser.grammar.EvitaQLParser.FacetIncludingChildrenExceptConstraintContext;
+import io.evitadb.api.query.parser.grammar.EvitaQLParser.FacetIncludingChildrenHavingConstraintContext;
+import io.evitadb.api.query.parser.grammar.EvitaQLParser.FilterInScopeConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
+import io.evitadb.dataType.Scope;
 
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
@@ -91,7 +97,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	protected final EvitaQLValueTokenVisitor localeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(String.class, Locale.class);
 	protected final EvitaQLValueTokenVisitor currencyValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(String.class, Currency.class);
 	protected final EvitaQLValueTokenVisitor attributeSpecialValueValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(AttributeSpecialValue.class);
-
+	protected final EvitaQLValueTokenVisitor scopeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(Scope.class);
 
 	@Override
 	public FilterConstraint visitFilterByConstraint(@Nonnull EvitaQLParser.FilterByConstraintContext ctx) {
@@ -375,7 +381,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 				} else if (OffsetDateTime.class.isAssignableFrom(attributeValue.getType())) {
 					return new AttributeInRange(attributeName, attributeValue.asOffsetDateTime());
 				} else {
-					throw new EvitaQLInvalidQueryError(
+					throw new EvitaSyntaxException(
 						ctx,
 						"Filter constraint `attributeInRange` requires arguments!");
 				}
@@ -482,10 +488,41 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	public FilterConstraint visitFacetHavingConstraint(@Nonnull EvitaQLParser.FacetHavingConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new FacetHaving(
-				ctx.args.classifier.accept(stringValueTokenVisitor).asString(),
-				ctx.args.filterConstraint().accept(this)
-			)
+			() -> {
+				if (ctx.args.filter2 != null) {
+					return new FacetHaving(
+						ctx.args.classifier.accept(stringValueTokenVisitor).asString(),
+						ctx.args.filter1.accept(this),
+						ctx.args.filter2.accept(this)
+					);
+				} else {
+					return new FacetHaving(
+						ctx.args.classifier.accept(stringValueTokenVisitor).asString(),
+						ctx.args.filter1.accept(this)
+					);
+				}
+			}
+		);
+	}
+
+	@Override
+	public FilterConstraint visitFacetIncludingChildrenConstraint(FacetIncludingChildrenConstraintContext ctx) {
+		return parse(ctx, FacetIncludingChildren::new);
+	}
+
+	@Override
+	public FilterConstraint visitFacetIncludingChildrenHavingConstraint(@Nonnull FacetIncludingChildrenHavingConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new FacetIncludingChildren(visitChildConstraint(ctx.args.filter, FilterConstraint.class))
+		);
+	}
+
+	@Override
+	public FilterConstraint visitFacetIncludingChildrenExceptConstraint(@Nonnull FacetIncludingChildrenExceptConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new FacetIncludingChildrenExcept(visitChildConstraint(ctx.args.filter, FilterConstraint.class))
 		);
 	}
 
@@ -616,6 +653,28 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 		return parse(
 			ctx,
 			() -> new EntityHaving(visitChildConstraint(ctx.args.filter, FilterConstraint.class))
+		);
+	}
+
+	@Override
+	public FilterConstraint visitEntityScopeConstraint(EntityScopeConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new EntityScope(ctx.args.variadicValueTokens().accept(scopeValueTokenVisitor).asEnumArray(Scope.class))
+		);
+	}
+
+	@Override
+	public FilterConstraint visitFilterInScopeConstraint(FilterInScopeConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new FilterInScope(
+				ctx.args.scope.accept(scopeValueTokenVisitor).asEnum(Scope.class),
+				ctx.args.filterConstraints
+					.stream()
+					.map(fc -> visitChildConstraint(fc, FilterConstraint.class))
+					.toArray(FilterConstraint[]::new)
+			)
 		);
 	}
 }

@@ -83,6 +83,6 @@ public class SessionInitializer {
 				.setCatalogName(TEST_CATALOG)
 				.build());
 		}
-		SessionIdHolder.setSessionId(TEST_CATALOG, response.getSessionId());
+		SessionIdHolder.setSessionId(response.getSessionId());
 	}
 }

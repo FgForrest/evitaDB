@@ -40,6 +40,7 @@ import java.util.Arrays;
  */
 @NotThreadSafe
 public class IntArrayChanges implements ArrayChangesIteratorSupport {
+	private static final int[][] EMPTY_BI_INT_ARRAY = new int[0][];
 	/**
 	 * Unmodifiable underlying array.
 	 */
@@ -47,17 +48,17 @@ public class IntArrayChanges implements ArrayChangesIteratorSupport {
 	/**
 	 * Array of positions (indexes) in delegate array where insertions are expected to occur.
 	 */
-	private int[] insertions = new int[0];
+	private int[] insertions = ArrayUtils.EMPTY_INT_ARRAY;
 	/**
 	 * Two-dimensional array where there are recordIds (in second dimension) expected to be inserted at particular
 	 * position in delegate. The position is retrieved from {@link #insertions} on the same index as index of first
 	 * dimension in this array.
 	 */
-	private int[][] insertedValues = new int[0][];
+	private int[][] insertedValues = EMPTY_BI_INT_ARRAY;
 	/**
 	 * Array of positions (indexes) in delegate array where removals are expected to occur.
 	 */
-	private int[] removals = new int[0];
+	private int[] removals = ArrayUtils.EMPTY_INT_ARRAY;
 	/**
 	 * Temporary intermediate result of the last {@link #getMergedArray()} operation. Nullified immediately with next
 	 * change.
@@ -195,7 +196,7 @@ public class IntArrayChanges implements ArrayChangesIteratorSupport {
 				// if not - create new list of additions on expected position
 				final int startIndex = -1 * (index) - 1;
 				this.insertions = ArrayUtils.insertIntIntoArrayOnIndex(position.position(), this.insertions, startIndex);
-				this.insertedValues = ArrayUtils.insertRecordIntoArray(new int[]{recordId}, this.insertedValues, startIndex);
+				this.insertedValues = ArrayUtils.insertRecordIntoArrayOnIndex(new int[]{recordId}, this.insertedValues, startIndex);
 			}
 		}
 		// nullify memoized result that becomes obsolete by this operation

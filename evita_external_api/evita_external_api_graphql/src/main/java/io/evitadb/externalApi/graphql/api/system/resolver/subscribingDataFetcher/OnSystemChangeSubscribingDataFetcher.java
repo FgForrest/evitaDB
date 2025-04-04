@@ -24,7 +24,7 @@
 package io.evitadb.externalApi.graphql.api.system.resolver.subscribingDataFetcher;
 
 import graphql.schema.DataFetchingEnvironment;
-import io.evitadb.api.requestResponse.cdc.CaptureContent;
+import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.core.Evita;
@@ -50,6 +50,6 @@ public class OnSystemChangeSubscribingDataFetcher extends ChangeSubscribingDataF
 	@Override
 	protected Publisher<ChangeSystemCapture> createPublisher(@Nonnull DataFetchingEnvironment environment) {
 		final boolean needsBody = SelectionSetAggregator.containsImmediate(ChangeSystemCaptureDescriptor.BODY.name(), environment.getSelectionSet());
-		return evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(needsBody ? CaptureContent.BODY : CaptureContent.HEADER));
+		return evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(needsBody ? ChangeCaptureContent.BODY : ChangeCaptureContent.HEADER));
 	}
 }

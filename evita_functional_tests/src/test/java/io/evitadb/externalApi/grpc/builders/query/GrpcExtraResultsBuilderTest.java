@@ -41,9 +41,11 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.dataType.PaginatedList;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.grpc.builders.query.extraResults.GrpcExtraResultsBuilder;
 import io.evitadb.externalApi.grpc.generated.GrpcExtraResults;
 import io.evitadb.externalApi.grpc.generated.GrpcLevelInfos;
+import io.evitadb.utils.ArrayUtils;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -68,7 +70,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class GrpcExtraResultsBuilderTest {
 	private final static ReferenceSchemaContract REFENCE_SCHEMA = ReferenceSchema._internalBuild(
-		"test1", "test1", true, Cardinality.ONE_OR_MORE, "testGroup1", false, true, true
+		"test1", "test1", true, Cardinality.ONE_OR_MORE, "testGroup1", false, new Scope[] { Scope.LIVE }, new Scope[] { Scope.LIVE }
 	);
 
 	@Test
@@ -103,6 +105,7 @@ class GrpcExtraResultsBuilderTest {
 		final EvitaEntityResponse response = new EvitaEntityResponse(
 			query,
 			new PaginatedList<>(0, 0, 0),
+			ArrayUtils.EMPTY_INT_ARRAY,
 			new QueryTelemetry(
 				QueryPhase.OVERALL
 			).finish(),

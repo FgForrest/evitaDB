@@ -23,10 +23,12 @@
 
 package io.evitadb.api.query.require;
 
+import io.evitadb.exception.GenericEvitaInternalError;
 import org.junit.jupiter.api.Test;
 
 import static io.evitadb.api.query.QueryConstraints.associatedDataContent;
 import static io.evitadb.api.query.QueryConstraints.associatedDataContentAll;
+import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -78,4 +80,57 @@ class AssociatedDataContentTest {
 		assertEquals(associatedDataContent("A"), associatedDataContent("A").combineWith(associatedDataContent("A")));
 		assertEquals(associatedDataContent("A", "B"), associatedDataContent("A").combineWith(associatedDataContent("B")));
 	}
+
+	@Test
+	void shouldCombineWithAllAssociatedData() {
+		final AssociatedDataContent associatedDataContent = associatedDataContent("A");
+		final AssociatedDataContent combinedAssociatedDataContent = associatedDataContent.combineWith(associatedDataContentAll());
+		assertArrayEquals(new String[0], combinedAssociatedDataContent.getAssociatedDataNames());
+		assertTrue(combinedAssociatedDataContent.isAllRequested());
+	}
+
+	@Test
+	void shouldCombineWithSpecificAssociatedData() {
+		final AssociatedDataContent associatedDataContent1 = associatedDataContent("A");
+		final AssociatedDataContent associatedDataContent2 = associatedDataContent("B");
+		final AssociatedDataContent combinedAssociatedDataContent = associatedDataContent1.combineWith(associatedDataContent2);
+		assertArrayEquals(new String[]{"A", "B"}, combinedAssociatedDataContent.getAssociatedDataNames());
+	}
+
+	@Test
+	void shouldCombineWithDuplicatedAssociatedData() {
+		final AssociatedDataContent associatedDataContent1 = associatedDataContent("A");
+		final AssociatedDataContent associatedDataContent2 = associatedDataContent("A");
+		final AssociatedDataContent combinedAssociatedDataContent = associatedDataContent1.combineWith(associatedDataContent2);
+		assertArrayEquals(new String[]{"A"}, combinedAssociatedDataContent.getAssociatedDataNames());
+	}
+
+	@Test
+	void shouldThrowOnIncompatibleConstraint() {
+		final AssociatedDataContent associatedDataContent = associatedDataContent("A");
+		assertThrows(GenericEvitaInternalError.class, () -> associatedDataContent.combineWith(attributeContentAll()));
+	}
+
+	@Test
+	void shouldRecognizeFullContainForAllAssociatedDatas() {
+		final AssociatedDataContent associatedDataContent1 = new AssociatedDataContent();
+		final AssociatedDataContent associatedDataContent2 = new AssociatedDataContent("a", "b", "c");
+		assertFalse(associatedDataContent1.isFullyContainedWithin(associatedDataContent2));
+		assertTrue(associatedDataContent2.isFullyContainedWithin(associatedDataContent1));
+	}
+
+	@Test
+	void shouldRecognizeFullContainmentForSpecificAssociatedDatas() {
+		final AssociatedDataContent associatedDataContent1 = new AssociatedDataContent("a", "b");
+		final AssociatedDataContent associatedDataContent2 = new AssociatedDataContent("a", "b", "c");
+		assertTrue(associatedDataContent1.isFullyContainedWithin(associatedDataContent2));
+	}
+
+	@Test
+	void shouldNotRecognizeFullContainmentForMissingAssociatedDatas() {
+		final AssociatedDataContent associatedDataContent1 = new AssociatedDataContent("a", "b", "d");
+		final AssociatedDataContent associatedDataContent2 = new AssociatedDataContent("a", "b", "c");
+		assertFalse(associatedDataContent1.isFullyContainedWithin(associatedDataContent2));
+	}
+
 }

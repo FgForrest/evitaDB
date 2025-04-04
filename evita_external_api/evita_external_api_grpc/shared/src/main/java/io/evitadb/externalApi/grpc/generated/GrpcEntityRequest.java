@@ -46,6 +46,7 @@ private static final long serialVersionUID = 0L;
     entityType_ = "";
     require_ = "";
     positionalQueryParams_ = java.util.Collections.emptyList();
+    scopes_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -118,6 +119,29 @@ private static final long serialVersionUID = 0L;
                 namedQueryParams__.getKey(), namedQueryParams__.getValue());
             break;
           }
+          case 48: {
+            int rawValue = input.readEnum();
+            if (!((mutable_bitField0_ & 0x00000004) != 0)) {
+              scopes_ = new java.util.ArrayList<java.lang.Integer>();
+              mutable_bitField0_ |= 0x00000004;
+            }
+            scopes_.add(rawValue);
+            break;
+          }
+          case 50: {
+            int length = input.readRawVarint32();
+            int oldLimit = input.pushLimit(length);
+            while(input.getBytesUntilLimit() > 0) {
+              int rawValue = input.readEnum();
+              if (!((mutable_bitField0_ & 0x00000004) != 0)) {
+                scopes_ = new java.util.ArrayList<java.lang.Integer>();
+                mutable_bitField0_ |= 0x00000004;
+              }
+              scopes_.add(rawValue);
+            }
+            input.popLimit(oldLimit);
+            break;
+          }
           default: {
             if (!parseUnknownField(
                 input, unknownFields, extensionRegistry, tag)) {
@@ -135,6 +159,9 @@ private static final long serialVersionUID = 0L;
     } finally {
       if (((mutable_bitField0_ & 0x00000001) != 0)) {
         positionalQueryParams_ = java.util.Collections.unmodifiableList(positionalQueryParams_);
+      }
+      if (((mutable_bitField0_ & 0x00000004) != 0)) {
+        scopes_ = java.util.Collections.unmodifiableList(scopes_);
       }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
@@ -196,7 +223,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs =
+      com.google.protobuf.ByteString bs = 
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       entityType_ = s;
@@ -216,7 +243,7 @@ private static final long serialVersionUID = 0L;
       getEntityTypeBytes() {
     java.lang.Object ref = entityType_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b =
+      com.google.protobuf.ByteString b = 
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       entityType_ = b;
@@ -242,7 +269,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs =
+      com.google.protobuf.ByteString bs = 
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       require_ = s;
@@ -262,7 +289,7 @@ private static final long serialVersionUID = 0L;
       getRequireBytes() {
     java.lang.Object ref = require_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b =
+      com.google.protobuf.ByteString b = 
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       require_ = b;
@@ -293,7 +320,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 4;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryParamOrBuilder>
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryParamOrBuilder> 
       getPositionalQueryParamsOrBuilderList() {
     return positionalQueryParams_;
   }
@@ -338,7 +365,7 @@ private static final long serialVersionUID = 0L;
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcQueryParam> defaultEntry =
             com.google.protobuf.MapEntry
             .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcQueryParam>newDefaultInstance(
-                io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntityRequest_NamedQueryParamsEntry_descriptor,
+                io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntityRequest_NamedQueryParamsEntry_descriptor, 
                 com.google.protobuf.WireFormat.FieldType.STRING,
                 "",
                 com.google.protobuf.WireFormat.FieldType.MESSAGE,
@@ -429,6 +456,84 @@ private static final long serialVersionUID = 0L;
     return map.get(key);
   }
 
+  public static final int SCOPES_FIELD_NUMBER = 6;
+  private java.util.List<java.lang.Integer> scopes_;
+  private static final com.google.protobuf.Internal.ListAdapter.Converter<
+      java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope> scopes_converter_ =
+          new com.google.protobuf.Internal.ListAdapter.Converter<
+              java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope>() {
+            public io.evitadb.externalApi.grpc.generated.GrpcEntityScope convert(java.lang.Integer from) {
+              @SuppressWarnings("deprecation")
+              io.evitadb.externalApi.grpc.generated.GrpcEntityScope result = io.evitadb.externalApi.grpc.generated.GrpcEntityScope.valueOf(from);
+              return result == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityScope.UNRECOGNIZED : result;
+            }
+          };
+  /**
+   * <pre>
+   * The set of scopes to search for the entity.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope scopes = 6;</code>
+   * @return A list containing the scopes.
+   */
+  @java.lang.Override
+  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getScopesList() {
+    return new com.google.protobuf.Internal.ListAdapter<
+        java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope>(scopes_, scopes_converter_);
+  }
+  /**
+   * <pre>
+   * The set of scopes to search for the entity.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope scopes = 6;</code>
+   * @return The count of scopes.
+   */
+  @java.lang.Override
+  public int getScopesCount() {
+    return scopes_.size();
+  }
+  /**
+   * <pre>
+   * The set of scopes to search for the entity.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope scopes = 6;</code>
+   * @param index The index of the element to return.
+   * @return The scopes at the given index.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcEntityScope getScopes(int index) {
+    return scopes_converter_.convert(scopes_.get(index));
+  }
+  /**
+   * <pre>
+   * The set of scopes to search for the entity.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope scopes = 6;</code>
+   * @return A list containing the enum numeric values on the wire for scopes.
+   */
+  @java.lang.Override
+  public java.util.List<java.lang.Integer>
+  getScopesValueList() {
+    return scopes_;
+  }
+  /**
+   * <pre>
+   * The set of scopes to search for the entity.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope scopes = 6;</code>
+   * @param index The index of the value to return.
+   * @return The enum numeric value on the wire of scopes at the given index.
+   */
+  @java.lang.Override
+  public int getScopesValue(int index) {
+    return scopes_.get(index);
+  }
+  private int scopesMemoizedSerializedSize;
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -443,6 +548,7 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
+    getSerializedSize();
     if (primaryKey_ != 0) {
       output.writeInt32(1, primaryKey_);
     }
@@ -461,6 +567,13 @@ private static final long serialVersionUID = 0L;
         internalGetNamedQueryParams(),
         NamedQueryParamsDefaultEntryHolder.defaultEntry,
         5);
+    if (getScopesList().size() > 0) {
+      output.writeUInt32NoTag(50);
+      output.writeUInt32NoTag(scopesMemoizedSerializedSize);
+    }
+    for (int i = 0; i < scopes_.size(); i++) {
+      output.writeEnumNoTag(scopes_.get(i));
+    }
     unknownFields.writeTo(output);
   }
 
@@ -494,6 +607,18 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
           .computeMessageSize(5, namedQueryParams__);
     }
+    {
+      int dataSize = 0;
+      for (int i = 0; i < scopes_.size(); i++) {
+        dataSize += com.google.protobuf.CodedOutputStream
+          .computeEnumSizeNoTag(scopes_.get(i));
+      }
+      size += dataSize;
+      if (!getScopesList().isEmpty()) {  size += 1;
+        size += com.google.protobuf.CodedOutputStream
+          .computeUInt32SizeNoTag(dataSize);
+      }scopesMemoizedSerializedSize = dataSize;
+    }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
     return size;
@@ -519,6 +644,7 @@ private static final long serialVersionUID = 0L;
         .equals(other.getPositionalQueryParamsList())) return false;
     if (!internalGetNamedQueryParams().equals(
         other.internalGetNamedQueryParams())) return false;
+    if (!scopes_.equals(other.scopes_)) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -543,6 +669,10 @@ private static final long serialVersionUID = 0L;
     if (!internalGetNamedQueryParams().getMap().isEmpty()) {
       hash = (37 * hash) + NAMEDQUERYPARAMS_FIELD_NUMBER;
       hash = (53 * hash) + internalGetNamedQueryParams().hashCode();
+    }
+    if (getScopesCount() > 0) {
+      hash = (37 * hash) + SCOPES_FIELD_NUMBER;
+      hash = (53 * hash) + scopes_.hashCode();
     }
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
@@ -717,6 +847,8 @@ private static final long serialVersionUID = 0L;
         positionalQueryParamsBuilder_.clear();
       }
       internalGetMutableNamedQueryParams().clear();
+      scopes_ = java.util.Collections.emptyList();
+      bitField0_ = (bitField0_ & ~0x00000004);
       return this;
     }
 
@@ -758,6 +890,11 @@ private static final long serialVersionUID = 0L;
       }
       result.namedQueryParams_ = internalGetNamedQueryParams();
       result.namedQueryParams_.makeImmutable();
+      if (((bitField0_ & 0x00000004) != 0)) {
+        scopes_ = java.util.Collections.unmodifiableList(scopes_);
+        bitField0_ = (bitField0_ & ~0x00000004);
+      }
+      result.scopes_ = scopes_;
       onBuilt();
       return result;
     }
@@ -835,7 +972,7 @@ private static final long serialVersionUID = 0L;
             positionalQueryParamsBuilder_ = null;
             positionalQueryParams_ = other.positionalQueryParams_;
             bitField0_ = (bitField0_ & ~0x00000001);
-            positionalQueryParamsBuilder_ =
+            positionalQueryParamsBuilder_ = 
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getPositionalQueryParamsFieldBuilder() : null;
           } else {
@@ -845,6 +982,16 @@ private static final long serialVersionUID = 0L;
       }
       internalGetMutableNamedQueryParams().mergeFrom(
           other.internalGetNamedQueryParams());
+      if (!other.scopes_.isEmpty()) {
+        if (scopes_.isEmpty()) {
+          scopes_ = other.scopes_;
+          bitField0_ = (bitField0_ & ~0x00000004);
+        } else {
+          ensureScopesIsMutable();
+          scopes_.addAll(other.scopes_);
+        }
+        onChanged();
+      }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
       return this;
@@ -898,7 +1045,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setPrimaryKey(int value) {
-
+      
       primaryKey_ = value;
       onChanged();
       return this;
@@ -912,7 +1059,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearPrimaryKey() {
-
+      
       primaryKey_ = 0;
       onChanged();
       return this;
@@ -951,7 +1098,7 @@ private static final long serialVersionUID = 0L;
         getEntityTypeBytes() {
       java.lang.Object ref = entityType_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b =
+        com.google.protobuf.ByteString b = 
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         entityType_ = b;
@@ -974,7 +1121,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-
+  
       entityType_ = value;
       onChanged();
       return this;
@@ -988,7 +1135,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearEntityType() {
-
+      
       entityType_ = getDefaultInstance().getEntityType();
       onChanged();
       return this;
@@ -1008,7 +1155,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-
+      
       entityType_ = value;
       onChanged();
       return this;
@@ -1047,7 +1194,7 @@ private static final long serialVersionUID = 0L;
         getRequireBytes() {
       java.lang.Object ref = require_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b =
+        com.google.protobuf.ByteString b = 
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         require_ = b;
@@ -1070,7 +1217,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-
+  
       require_ = value;
       onChanged();
       return this;
@@ -1084,7 +1231,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearRequire() {
-
+      
       require_ = getDefaultInstance().getRequire();
       onChanged();
       return this;
@@ -1104,7 +1251,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-
+      
       require_ = value;
       onChanged();
       return this;
@@ -1365,7 +1512,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 4;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryParamOrBuilder>
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryParamOrBuilder> 
          getPositionalQueryParamsOrBuilderList() {
       if (positionalQueryParamsBuilder_ != null) {
         return positionalQueryParamsBuilder_.getMessageOrBuilderList();
@@ -1403,12 +1550,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 4;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryParam.Builder>
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryParam.Builder> 
          getPositionalQueryParamsBuilderList() {
       return getPositionalQueryParamsFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcQueryParam, io.evitadb.externalApi.grpc.generated.GrpcQueryParam.Builder, io.evitadb.externalApi.grpc.generated.GrpcQueryParamOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcQueryParam, io.evitadb.externalApi.grpc.generated.GrpcQueryParam.Builder, io.evitadb.externalApi.grpc.generated.GrpcQueryParamOrBuilder> 
         getPositionalQueryParamsFieldBuilder() {
       if (positionalQueryParamsBuilder_ == null) {
         positionalQueryParamsBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
@@ -1578,6 +1725,194 @@ private static final long serialVersionUID = 0L;
         java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcQueryParam> values) {
       internalGetMutableNamedQueryParams().getMutableMap()
           .putAll(values);
+      return this;
+    }
+
+    private java.util.List<java.lang.Integer> scopes_ =
+      java.util.Collections.emptyList();
+    private void ensureScopesIsMutable() {
+      if (!((bitField0_ & 0x00000004) != 0)) {
+        scopes_ = new java.util.ArrayList<java.lang.Integer>(scopes_);
+        bitField0_ |= 0x00000004;
+      }
+    }
+    /**
+     * <pre>
+     * The set of scopes to search for the entity.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope scopes = 6;</code>
+     * @return A list containing the scopes.
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getScopesList() {
+      return new com.google.protobuf.Internal.ListAdapter<
+          java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope>(scopes_, scopes_converter_);
+    }
+    /**
+     * <pre>
+     * The set of scopes to search for the entity.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope scopes = 6;</code>
+     * @return The count of scopes.
+     */
+    public int getScopesCount() {
+      return scopes_.size();
+    }
+    /**
+     * <pre>
+     * The set of scopes to search for the entity.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope scopes = 6;</code>
+     * @param index The index of the element to return.
+     * @return The scopes at the given index.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcEntityScope getScopes(int index) {
+      return scopes_converter_.convert(scopes_.get(index));
+    }
+    /**
+     * <pre>
+     * The set of scopes to search for the entity.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope scopes = 6;</code>
+     * @param index The index to set the value at.
+     * @param value The scopes to set.
+     * @return This builder for chaining.
+     */
+    public Builder setScopes(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcEntityScope value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      ensureScopesIsMutable();
+      scopes_.set(index, value.getNumber());
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The set of scopes to search for the entity.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope scopes = 6;</code>
+     * @param value The scopes to add.
+     * @return This builder for chaining.
+     */
+    public Builder addScopes(io.evitadb.externalApi.grpc.generated.GrpcEntityScope value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      ensureScopesIsMutable();
+      scopes_.add(value.getNumber());
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The set of scopes to search for the entity.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope scopes = 6;</code>
+     * @param values The scopes to add.
+     * @return This builder for chaining.
+     */
+    public Builder addAllScopes(
+        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityScope> values) {
+      ensureScopesIsMutable();
+      for (io.evitadb.externalApi.grpc.generated.GrpcEntityScope value : values) {
+        scopes_.add(value.getNumber());
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The set of scopes to search for the entity.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope scopes = 6;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearScopes() {
+      scopes_ = java.util.Collections.emptyList();
+      bitField0_ = (bitField0_ & ~0x00000004);
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The set of scopes to search for the entity.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope scopes = 6;</code>
+     * @return A list containing the enum numeric values on the wire for scopes.
+     */
+    public java.util.List<java.lang.Integer>
+    getScopesValueList() {
+      return java.util.Collections.unmodifiableList(scopes_);
+    }
+    /**
+     * <pre>
+     * The set of scopes to search for the entity.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope scopes = 6;</code>
+     * @param index The index of the value to return.
+     * @return The enum numeric value on the wire of scopes at the given index.
+     */
+    public int getScopesValue(int index) {
+      return scopes_.get(index);
+    }
+    /**
+     * <pre>
+     * The set of scopes to search for the entity.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope scopes = 6;</code>
+     * @param index The index of the value to return.
+     * @return The enum numeric value on the wire of scopes at the given index.
+     * @return This builder for chaining.
+     */
+    public Builder setScopesValue(
+        int index, int value) {
+      ensureScopesIsMutable();
+      scopes_.set(index, value);
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The set of scopes to search for the entity.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope scopes = 6;</code>
+     * @param value The enum numeric value on the wire for scopes to add.
+     * @return This builder for chaining.
+     */
+    public Builder addScopesValue(int value) {
+      ensureScopesIsMutable();
+      scopes_.add(value);
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The set of scopes to search for the entity.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope scopes = 6;</code>
+     * @param values The enum numeric values on the wire for scopes to add.
+     * @return This builder for chaining.
+     */
+    public Builder addAllScopesValue(
+        java.lang.Iterable<java.lang.Integer> values) {
+      ensureScopesIsMutable();
+      for (int value : values) {
+        scopes_.add(value);
+      }
+      onChanged();
       return this;
     }
     @java.lang.Override

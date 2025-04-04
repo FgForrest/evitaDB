@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,34 +24,30 @@
 package io.evitadb.externalApi.graphql;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linecorp.armeria.common.HttpRequest;
-import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.server.HttpService;
-import com.linecorp.armeria.server.ServiceRequestContext;
 import graphql.GraphQL;
 import graphql.schema.GraphQLSchema;
 import io.evitadb.api.CatalogContract;
-import io.evitadb.api.requestResponse.cdc.CaptureContent;
+import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.core.CorruptedCatalog;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.graphql.api.catalog.CatalogGraphQLBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.SystemGraphQLRefreshingObserver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.CatalogDataApiGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.CatalogSchemaApiGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.system.SystemGraphQLBuilder;
 import io.evitadb.externalApi.graphql.api.system.builder.SystemGraphQLSchemaBuilder;
-import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
+import io.evitadb.externalApi.graphql.configuration.GraphQLOptions;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.io.GraphQLInstanceType;
 import io.evitadb.externalApi.graphql.io.GraphQLRouter;
 import io.evitadb.externalApi.graphql.metric.event.instance.BuiltEvent;
 import io.evitadb.externalApi.graphql.metric.event.instance.BuiltEvent.BuildType;
 import io.evitadb.externalApi.graphql.utils.GraphQLSchemaPrinter;
-import io.evitadb.externalApi.http.HttpServiceTlsCheckingDecorator;
 import io.evitadb.externalApi.http.PathNormalizingHandler;
-import io.evitadb.function.TriFunction;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -76,11 +72,16 @@ import static io.evitadb.utils.CollectionUtils.createHashSet;
 public class GraphQLManager {
 
 	/**
+	 * Common object mapper for endpoints
+	 */
+	@Nonnull private ObjectMapper objectMapper = new ObjectMapper();
+
+	/**
 	 * Provides access to Evita private API
 	 */
 	@Nonnull private final Evita evita;
 
-	@Nonnull private final GraphQLConfig graphQLConfig;
+	@Nonnull private final GraphQLOptions graphQLConfig;
 
 	/**
 	 * GraphQL specific endpoint router.
@@ -94,22 +95,16 @@ public class GraphQLManager {
 	@Nullable private SystemBuildStatistics systemBuildStatistics;
 	@Nonnull private final Map<String, CatalogBuildStatistics> catalogBuildStatistics = createHashMap(20);
 
-	@Nonnull private final TriFunction<ServiceRequestContext, HttpRequest, HttpService, HttpResponse> apiHandlerPortSslValidatingFunction;
-
-	public GraphQLManager(@Nonnull Evita evita, @Nonnull GraphQLConfig graphQLConfig, @Nonnull TriFunction<ServiceRequestContext, HttpRequest, HttpService, HttpResponse> apiHandlerPortSslValidatingFunction) {
+	public GraphQLManager(@Nonnull Evita evita, @Nonnull HeaderOptions headers, @Nonnull GraphQLOptions graphQLConfig) {
 		this.evita = evita;
 		this.graphQLConfig = graphQLConfig;
-		/**
-		 * Common object mapper for endpoints
-		 */
-		ObjectMapper objectMapper = new ObjectMapper();
-		this.graphQLRouter = new GraphQLRouter(objectMapper, evita, graphQLConfig);
-		this.apiHandlerPortSslValidatingFunction = apiHandlerPortSslValidatingFunction;
+
+		this.graphQLRouter = new GraphQLRouter(this.objectMapper, evita, headers);
 
 		final long buildingStartTime = System.currentTimeMillis();
 
 		// listen to any evita catalog changes
-		evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(CaptureContent.HEADER))
+		evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(ChangeCaptureContent.HEADER))
 			.subscribe(new SystemGraphQLRefreshingObserver(this));
 
 		// register initial endpoints
@@ -121,9 +116,7 @@ public class GraphQLManager {
 
 	@Nonnull
 	public HttpService getGraphQLRouter() {
-		return new HttpServiceTlsCheckingDecorator(
-			new PathNormalizingHandler(graphQLRouter), apiHandlerPortSslValidatingFunction
-		);
+		return new PathNormalizingHandler(graphQLRouter);
 	}
 
 	/**
@@ -133,10 +126,10 @@ public class GraphQLManager {
 		final long instanceBuildStartTime = System.currentTimeMillis();
 
 		final long schemaBuildStartTime = System.currentTimeMillis();
-		final GraphQLSchema schema = new SystemGraphQLSchemaBuilder(graphQLConfig, evita).build();
+		final GraphQLSchema schema = new SystemGraphQLSchemaBuilder(this.graphQLConfig, this.evita).build();
 		final long schemaBuildDuration = System.currentTimeMillis() - schemaBuildStartTime;
 
-		this.graphQLRouter.registerSystemApi(new SystemGraphQLBuilder(evita, schema).build(graphQLConfig));
+		this.graphQLRouter.registerSystemApi(new SystemGraphQLBuilder(this.evita, schema).build(this.graphQLConfig));
 		final long instanceBuildDuration = System.currentTimeMillis() - instanceBuildStartTime;
 
 		// build metrics
@@ -178,7 +171,8 @@ public class GraphQLManager {
 			final GraphQL dataApi = new CatalogGraphQLBuilder(
 				evita,
 				catalog,
-				dataApiSchema
+				dataApiSchema,
+				objectMapper
 			).build(graphQLConfig);
 
 			graphQLRouter.registerCatalogApi(catalogName, GraphQLInstanceType.DATA, dataApi);
@@ -193,7 +187,8 @@ public class GraphQLManager {
 			final GraphQL schemaApi = new CatalogGraphQLBuilder(
 				evita,
 				catalog,
-				schemaApiSchema
+				schemaApiSchema,
+				objectMapper
 			).build(graphQLConfig);
 
 			graphQLRouter.registerCatalogApi(catalogName, GraphQLInstanceType.SCHEMA, schemaApi);
@@ -249,7 +244,8 @@ public class GraphQLManager {
 		final GraphQL newDataApi = new CatalogGraphQLBuilder(
 			evita,
 			catalog,
-			dataApiSchema
+			dataApiSchema,
+			objectMapper
 		).build(graphQLConfig);
 
 		graphQLRouter.refreshCatalogApi(catalogName, GraphQLInstanceType.DATA, newDataApi);
@@ -264,7 +260,8 @@ public class GraphQLManager {
 		final GraphQL newSchemaApi = new CatalogGraphQLBuilder(
 			evita,
 			catalog,
-			schemaApiSchema
+			schemaApiSchema,
+			objectMapper
 		).build(graphQLConfig);
 
 		graphQLRouter.refreshCatalogApi(catalogName, GraphQLInstanceType.SCHEMA, newSchemaApi);
@@ -354,7 +351,7 @@ public class GraphQLManager {
 	/**
 	 * Counts lines of printed GraphQL schema in DSL.
 	 */
-	private long countGraphQLSchemaLines(@Nonnull GraphQLSchema schema) {
+	private static long countGraphQLSchemaLines(@Nonnull GraphQLSchema schema) {
 		return GraphQLSchemaPrinter.print(schema).lines().count();
 	}
 

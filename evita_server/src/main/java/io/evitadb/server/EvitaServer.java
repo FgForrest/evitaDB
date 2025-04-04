@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -34,13 +34,9 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
 import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator.Feature;
 import com.fasterxml.jackson.module.paramnames.ParameterNamesModule;
-import io.evitadb.api.configuration.CacheOptions;
 import io.evitadb.api.configuration.EvitaConfiguration;
-import io.evitadb.api.configuration.ServerOptions;
-import io.evitadb.api.configuration.StorageOptions;
-import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.core.Evita;
-import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
+import io.evitadb.externalApi.configuration.AbstractApiOptions;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.http.ExternalApiServer;
@@ -48,6 +44,8 @@ import io.evitadb.server.configuration.EvitaServerConfiguration;
 import io.evitadb.server.exception.ConfigurationParseException;
 import io.evitadb.server.yaml.AbstractClassDeserializer;
 import io.evitadb.server.yaml.EvitaConstructor;
+import io.evitadb.server.yaml.SpecialConfigInputFormatsHandler;
+import io.evitadb.server.yaml.UnknownPropertyProblemHandler;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ConsoleWriter;
@@ -77,6 +75,9 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
@@ -90,6 +91,8 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static io.evitadb.externalApi.configuration.TlsMode.FORCE_NO_TLS;
+import static io.evitadb.externalApi.configuration.TlsMode.FORCE_TLS;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -112,17 +115,21 @@ public class EvitaServer {
 	 */
 	public static final String OPTION_EVITA_CONFIGURATION_DIR = "configDir";
 	/**
+	 * Name of the argument for enabling/disabling strict configuration file check.
+	 */
+	public static final String OPTION_STRICT_CONFIG_FILE_CHECK = "strictConfigFileCheck";
+	/**
 	 * Pattern for matching Java arguments `-Dname=value`
 	 */
-	private static final Pattern OPTION_JAVA_ARGUMENT = Pattern.compile("-D(\\S+)=(\\S+)");
+	private static final Pattern OPTION_JAVA_ARGUMENT = Pattern.compile("-D(\\S+)=(.+)");
 	/**
 	 * Pattern for matching Unix like arguments `--name=value`
 	 */
-	private static final Pattern OPTION_GNU_ARGUMENT = Pattern.compile("--(\\S+)=(\\S+)");
+	private static final Pattern OPTION_GNU_ARGUMENT = Pattern.compile("--(\\S+)=(.+)");
 	/**
 	 * Pattern for matching simple arguments `name=value`
 	 */
-	private static final Pattern OPTION_SIMPLE_ARGUMENT = Pattern.compile("(\\S+)=(\\S+)");
+	private static final Pattern OPTION_SIMPLE_ARGUMENT = Pattern.compile("(\\S+)=(.+)");
 	/**
 	 * Classpath location of the default evita configuration file.
 	 */
@@ -173,16 +180,48 @@ public class EvitaServer {
 			.map(it -> Paths.get("").resolve(it))
 			.orElseGet(() -> Paths.get(""));
 
-		final EvitaServer evitaServer = new EvitaServer(configDirPath, logMsg, options);
+		final boolean strictConfigFileCheck = ofNullable(options.get(OPTION_STRICT_CONFIG_FILE_CHECK))
+			.map(Boolean::parseBoolean)
+			.orElse(false);
+
+		final EvitaServer evitaServer = new EvitaServer(configDirPath, strictConfigFileCheck, logMsg, options);
 		final ShutdownSequence shutdownSequence = new ShutdownSequence(evitaServer);
 		Runtime.getRuntime().addShutdownHook(new Thread(shutdownSequence));
 		evitaServer.run();
 	}
 
 	/**
+	 * Applies default values to endpoints in the configuration map.
+	 * The method checks if the configuration map contains an "api" key
+	 * with nested "endpoints" maps, and then it adds default values
+	 * to each endpoint from the provided endpointDefaults map if any
+	 * default values are missing.
+	 *
+	 * @param configuration    the main configuration map which includes endpoint configurations, must not be null
+	 * @param endpointDefaults a map containing default values for the endpoints, must not be null
+	 */
+	@SuppressWarnings("unchecked")
+	static void applyEndpointDefaults(
+		@Nonnull Map<String, Object> configuration,
+		@Nonnull Map<String, Object> endpointDefaults
+	) {
+		ofNullable(configuration.get("api"))
+			.map(it -> (Map<String, Object>) it)
+			.map(it -> it.get("endpoints"))
+			.map(it -> (Map<String, Object>) it)
+			.ifPresent(
+				endpoints -> endpoints.values().forEach(
+					endpoint -> endpointDefaults.forEach(
+						(key, value) -> ((Map<String, Object>) endpoint).putIfAbsent(key, value)
+					))
+			);
+
+	}
+
+	/**
 	 * Initializes the file from the specified location.
 	 */
-	@Nonnull
+	@Nullable
 	private static String initLog() {
 		String logMsg;
 		if (System.getProperty(ClassicConstants.CONFIG_FILE_PROPERTY) == null) {
@@ -252,7 +291,7 @@ public class EvitaServer {
 	 * @param variableName original variable name with dots
 	 * @return transformed variable name
 	 */
-	@Nullable
+	@Nonnull
 	private static String transformEnvironmentVariable(@Nonnull String variableName) {
 		return "EVITADB_" + variableName.toUpperCase().replace('.', '_');
 	}
@@ -301,30 +340,125 @@ public class EvitaServer {
 
 		try {
 			// iterate over all files in the directory and merge them into a single configuration
-			Map<String, Object> finalYaml = yamlParser.get().load(
-				readerFactory.apply(EvitaServer.class.getResourceAsStream(DEFAULT_EVITA_CONFIGURATION))
-			);
+			Map<String, Object> finalYaml = loadYamlContents(readerFactory.apply(EvitaServer.class.getResourceAsStream(DEFAULT_EVITA_CONFIGURATION)), yamlParser.get());
+			Map<String, Object> endpointDefaults = updateEndpointDefaults(Map.of(), finalYaml);
 			for (Path file : files) {
-				final Map<String, Object> loadedYaml = yamlParser.get().load(readerFactory.apply(new FileInputStream(file.toFile())));
+				final Map<String, Object> loadedYaml = loadYamlContents(readerFactory.apply(new FileInputStream(file.toFile())), yamlParser.get());
+				endpointDefaults = updateEndpointDefaults(endpointDefaults, loadedYaml);
 				finalYaml = combine(finalYaml, loadedYaml);
 			}
-
-			// if the final configuration is null, return default configuration, otherwise convert it to the object
-			return finalYaml == null ?
-				new EvitaServerConfiguration(
-					"evitaDB",
-					ServerOptions.builder().build(),
-					StorageOptions.builder().build(),
-					TransactionOptions.builder().build(),
-					CacheOptions.builder().build(),
-					ApiOptions.builder().build()
-				) :
-				yamlMapper.convertValue(finalYaml, EvitaServerConfiguration.class);
+			// apply the api.endpointDefaults
+			applyEndpointDefaults(finalYaml, endpointDefaults);
+			return yamlMapper.convertValue(finalYaml, EvitaServerConfiguration.class);
 		} catch (IOException e) {
 			throw new ConfigurationParseException(
 				"Failed to parse configuration files in folder `" + configDirLocation + "` due to: " + e.getMessage() + ".",
 				"Failed to parse configuration files.", e
 			);
+		}
+	}
+
+	/**
+	 * Method loads the contents of the YAML file into a map.
+	 *
+	 * @param reader reader to read the contents of the file
+	 * @param yaml   YAML parser to use
+	 * @return map with the contents of the YAML file
+	 */
+	@Nonnull
+	private static Map<String, Object> loadYamlContents(@Nonnull Reader reader, @Nonnull Yaml yaml) {
+		final Map<String, Object> values = yaml.load(reader);
+		// backward compatibility with the old configuration format
+		replaceDeprecatedSettings("", values);
+		return values;
+	}
+
+	/**
+	 * Method replaces deprecated settings in the configuration.
+	 * TOBEDONE #538 - remove in the future
+	 */
+	private static void replaceDeprecatedSettings(@Nonnull String prefix, @Nonnull Map<String, Object> values) {
+		final List<Object[]> itemsToAdd = new LinkedList<>();
+		final Iterator<Entry<String, Object>> entryIterator = values.entrySet().iterator();
+		while (entryIterator.hasNext()) {
+			final Entry<String, Object> entry = entryIterator.next();
+			//noinspection rawtypes
+			if (entry.getValue() instanceof Map map) {
+				//noinspection unchecked
+				replaceDeprecatedSettings((prefix.isBlank() ? "" : prefix + ".") + entry.getKey(), map);
+			} else if (entry.getKey().equals("keepAlive") && prefix.equals("api")) {
+				itemsToAdd.add(
+					new Object[]{
+						"endpointDefaults",
+						Map.of("keepAlive", entry.getValue())
+					}
+				);
+				entryIterator.remove();
+			} else if (entry.getKey().equals("exposeOn") && prefix.equals("api")) {
+				itemsToAdd.add(
+					new Object[]{
+						"endpointDefaults",
+						Map.of("exposeOn", entry.getValue())
+					}
+				);
+				entryIterator.remove();
+			} else if (entry.getKey().equals("tlsEnabled")) {
+				entryIterator.remove();
+				itemsToAdd.add(
+					new Object[]{
+						"tlsMode",
+						entry.getValue().equals(Boolean.TRUE) ? FORCE_TLS : FORCE_NO_TLS
+					}
+				);
+			}
+		}
+		for (Object[] replacedValues : itemsToAdd) {
+			final String replacedKey = (String) replacedValues[0];
+			final Object replacedValue = replacedValues[1];
+			replaceValue(values, replacedKey, replacedValue);
+		}
+	}
+
+	/**
+	 * Updates the endpoint defaults by combining the provided defaults with those loaded from a YAML configuration.
+	 *
+	 * @param endpointDefaults the base map of endpoint defaults, must not be null
+	 * @param loadedYaml       the loaded YAML map, must not be null
+	 * @return the updated map of endpoint defaults
+	 */
+	@SuppressWarnings("unchecked")
+	@Nonnull
+	private static Map<String, Object> updateEndpointDefaults(
+		@Nonnull Map<String, Object> endpointDefaults,
+		@Nonnull Map<String, Object> loadedYaml
+	) {
+		return ofNullable(loadedYaml.get("api"))
+			.map(it -> (Map<String, Object>) it)
+			.map(it -> it.remove("endpointDefaults"))
+			.map(it -> (Map<String, Object>) it)
+			.map(it -> combine(endpointDefaults, it))
+			.orElse(endpointDefaults);
+	}
+
+	/**
+	 * Replaces a value in a map. If the replaced value is a map, it applies the replacement recursively.
+	 *
+	 * @param values        the map in which the value should be replaced
+	 * @param replacedKey   the key of the value to be replaced
+	 * @param replacedValue the new value that will replace the old one
+	 */
+	@SuppressWarnings({"rawtypes", "unchecked"})
+	private static void replaceValue(@Nonnull Map values, String replacedKey, Object replacedValue) {
+		if (replacedValue instanceof Map replacedMap) {
+			final Object existingValues = values.get(replacedKey);
+			if (existingValues == null) {
+				values.put(replacedKey, replacedMap);
+			} else {
+				Assert.isPremiseValid(existingValues instanceof Map, () -> "Expected map, got: " + existingValues);
+				replacedMap.forEach((key, value) -> replaceValue((Map) existingValues, (String) key, value));
+			}
+		} else {
+			values.put(replacedKey, replacedValue);
 		}
 	}
 
@@ -370,15 +504,15 @@ public class EvitaServer {
 	 * Constructor that initializes the EvitaServer.
 	 */
 	public EvitaServer(@Nonnull Path configDirLocation, @Nonnull Map<String, String> arguments) {
-		this(configDirLocation, null, arguments);
+		this(configDirLocation, false, null, arguments);
 	}
 
 	/**
 	 * Constructor that initializes the EvitaServer.
 	 */
-	public EvitaServer(@Nonnull Path configDirLocation, @Nullable String logInitializationStatus, @Nonnull Map<String, String> arguments) {
+	public EvitaServer(@Nonnull Path configDirLocation, boolean strictConfigFileCheck, @Nullable String logInitializationStatus, @Nonnull Map<String, String> arguments) {
 		this.externalApiProviders = ExternalApiServer.gatherExternalApiProviders();
-		final EvitaServerConfigurationWithLogFilesListing evitaServerConfigurationWithLogFilesListing = parseConfiguration(configDirLocation, arguments);
+		final EvitaServerConfigurationWithLogFilesListing evitaServerConfigurationWithLogFilesListing = parseConfiguration(configDirLocation, strictConfigFileCheck, arguments);
 		final EvitaServerConfiguration evitaServerConfig = evitaServerConfigurationWithLogFilesListing.configuration();
 		this.evitaServerConfiguration = evitaServerConfig;
 		this.evitaConfiguration = new EvitaConfiguration(
@@ -448,7 +582,21 @@ public class EvitaServer {
 	}
 
 	/**
+	 * Method stops {@link ExternalApiServer} and closes all opened ports.
+	 */
+	@Nonnull
+	public CompletableFuture<Void> stop() {
+		if (this.stopFuture == null && this.externalApiServer != null) {
+			this.stopFuture = this.externalApiServer.closeAsynchronously()
+				.thenAccept(unused -> ConsoleWriter.write("Server stopped, bye.\n\n"));
+		}
+		return this.stopFuture == null ?
+			CompletableFuture.completedFuture(null) : this.stopFuture;
+	}
+
+	/**
 	 * Method serializes the configuration to a YAML string.
+	 *
 	 * @return serialized configuration
 	 */
 	@Nonnull
@@ -469,18 +617,6 @@ public class EvitaServer {
 	}
 
 	/**
-	 * Method stops {@link ExternalApiServer} and closes all opened ports.
-	 */
-	@Nonnull
-	public CompletableFuture<Void> stop() {
-		if (this.stopFuture == null) {
-			this.stopFuture = externalApiServer.closeAsynchronously()
-				.thenAccept(unused -> ConsoleWriter.write("Server stopped, bye.\n\n"));
-		}
-		return this.stopFuture;
-	}
-
-	/**
 	 * Method parses contents of `configDirLocation` YAML files in alphabetical order and applies contents of the latter
 	 * files to the former ones. The method allows using `arguments` for variable replacement and returns the loaded
 	 * configuration as a result.
@@ -488,12 +624,22 @@ public class EvitaServer {
 	@Nonnull
 	private EvitaServerConfigurationWithLogFilesListing parseConfiguration(
 		@Nonnull Path configDirLocation,
+		boolean strictConfigFileCheck,
 		@Nonnull Map<String, String> arguments
 	) throws ConfigurationParseException {
 		final StringSubstitutor stringSubstitutor = createStringSubstitutor(arguments);
 
 		final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
-		yamlMapper.registerModule(createAbstractApiConfigModule());
+		// if strictConfigFileCheck is enabled, we should fail on unknown properties
+		final UnknownPropertyProblemHandler unknownPropertyProblemHandler;
+		if (!strictConfigFileCheck) {
+			unknownPropertyProblemHandler = new UnknownPropertyProblemHandler();
+			yamlMapper.addHandler(unknownPropertyProblemHandler);
+		} else {
+			unknownPropertyProblemHandler = null;
+		}
+
+		yamlMapper.registerModule(createAbstractApiConfigModule(unknownPropertyProblemHandler));
 		yamlMapper.registerModule(new ParameterNamesModule());
 		yamlMapper.addHandler(new SpecialConfigInputFormatsHandler());
 
@@ -547,16 +693,18 @@ public class EvitaServer {
 	 * configuration files based on the presence of {@link ExternalApiProviderRegistrar} on the classpath.
 	 */
 	@Nonnull
-	private SimpleModule createAbstractApiConfigModule() {
+	private SimpleModule createAbstractApiConfigModule(@Nullable UnknownPropertyProblemHandler unknownPropertyProblemHandler) {
 		final SimpleModule module = new SimpleModule();
-		final AbstractClassDeserializer<AbstractApiConfiguration> deserializer = new AbstractClassDeserializer<>(AbstractApiConfiguration.class);
+		final AbstractClassDeserializer<AbstractApiOptions> deserializer = new AbstractClassDeserializer<>(
+			AbstractApiOptions.class, unknownPropertyProblemHandler
+		);
 		for (ExternalApiProviderRegistrar<?> apiProviderRegistrar : this.externalApiProviders) {
 			deserializer.registerConcreteClass(
 				apiProviderRegistrar.getExternalApiCode(),
 				apiProviderRegistrar.getConfigurationClass()
 			);
 		}
-		module.addDeserializer(AbstractApiConfiguration.class, deserializer);
+		module.addDeserializer(AbstractApiOptions.class, deserializer);
 		return module;
 	}
 
@@ -585,12 +733,16 @@ public class EvitaServer {
 
 		@Override
 		public void run() {
+			final Evita evita = this.evitaServer.getEvita();
 			try {
-				evitaServer.stop()
+				evita.getServiceExecutor().prepareForBeingShutdown();
+				this.evitaServer.stop()
 					.thenAccept(unused -> stop())
 					.get(30, TimeUnit.SECONDS);
 			} catch (ExecutionException | InterruptedException | TimeoutException e) {
 				ConsoleWriter.write("Failed to stop evita server in dedicated time (30 secs.).\n");
+			} finally {
+				evita.close();
 			}
 		}
 

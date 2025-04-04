@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,6 +29,8 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.ConstraintContainerWithSuffix;
+import io.evitadb.api.query.ConstraintWithDefaults;
+import io.evitadb.api.query.ConstraintWithSuffix;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.descriptor.ConstraintCreator;
 import io.evitadb.api.query.descriptor.ConstraintCreator.AdditionalChildParameterDescriptor;
@@ -40,6 +42,7 @@ import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.query.descriptor.ConstraintValueStructure;
 import io.evitadb.api.query.filter.Or;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintKeyBuilder;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocatorResolver;
@@ -49,6 +52,7 @@ import io.evitadb.utils.ClassUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -227,6 +231,21 @@ public abstract class ConstraintToJsonConverter {
 	@Nonnull
 	private Optional<JsonNode> convertValueParameter(@Nonnull Constraint<?> constraint, @Nonnull ValueParameterDescriptor parameterDescriptor) {
 		return parameterValueResolver.resolveParameterValue(constraint, parameterDescriptor)
+			.map(parameterValue -> {
+				if (!(parameterValue instanceof Serializable serializableParameterValue)) {
+					throw new GenericEvitaInternalError("Parameter `" + parameterDescriptor.name() + "` is not serializable.");
+				}
+				if (constraint instanceof ConstraintWithSuffix constraintWithSuffix &&
+					constraintWithSuffix.isArgumentImplicitForSuffix(serializableParameterValue)) {
+					return null;
+				}
+				if (constraint instanceof ConstraintWithDefaults<?> constraintWithDefaults &&
+					constraintWithDefaults.isArgumentImplicit(serializableParameterValue)) {
+					return null;
+				}
+
+				return parameterValue;
+			})
 			.map(objectJsonSerializer::serializeObject);
 	}
 
@@ -342,11 +361,11 @@ public abstract class ConstraintToJsonConverter {
 
 		final AtomicReference<? extends ConstraintToJsonConverter> converter = additionalConverters.get(parameterDescriptor.constraintType());
 		final Optional<?> parameterValue = parameterValueResolver.resolveParameterValue(constraint, parameterDescriptor);
+		// leave out implicit additional children
 		if (parameterValue.isPresent() &&
 			constraint instanceof ConstraintContainerWithSuffix ccws &&
 			parameterValue.get() instanceof Constraint<?> &&
 			ccws.isAdditionalChildImplicitForSuffix((Constraint<?>) parameterValue.get())) {
-			// leave out implicit additional children
 			return Optional.empty();
 		}
 

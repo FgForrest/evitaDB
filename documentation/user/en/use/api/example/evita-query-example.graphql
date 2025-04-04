@@ -1,48 +1,164 @@
 {
   queryProduct(
     filterBy: {
-      hierarchyCategoriesWithin: {
-        ofParent: {
-          attributeUrlEquals: "/local-food"
+      and: [
+        {
+          hierarchyCategoriesWithin: {
+            ofParent: {
+              attributeUrlEquals: "/local-food"
+            }
+          },
+          entityLocaleEquals: cs,
+          priceValidInNow: true,
+          priceInCurrency: CZK,
+          priceInPriceLists: [
+            "vip",
+            "loyal-customer",
+            "regular-prices"
+          ],
+          userFilter: [
+            {
+              facetParameterValuesHaving: [
+                {
+                  entityHaving: {
+                    attributeCodeInSet: [
+                      "gluten-free",
+                      "original-recipe"
+                    ]
+                  }
+                }
+              ],
+              priceBetween: [
+                "600",
+                "1600"
+              ]
+            }
+          ]
         }
-      }
-      entityLocaleEquals: cs
-      priceValidInNow: true
-      priceInCurrency: CZK
-      priceInPriceLists: ["vip", "loyal-customer", "regular-prices"]
-      userFilter: {
-        facetParameterValuesHaving: {
-          entityHaving: {
-            attributeCodeInSet: ["gluten-free", "original-recipe"]
-          }
-        }
-        priceBetween: ["600", "1600"]
-      }
-    }
+      ]
+    },
     require: {
       priceType: WITH_TAX
     }
   ) {
-    recordPage(number: 1, size: 20) {
+    recordPage {
       data {
         primaryKey
       }
     }
     extraResults {
       facetSummary {
-        parameterValues {
+        groups {
+          count
+          facetStatistics {
+            requested
+            count
+            impact {
+              difference
+              matchCount
+              hasSense
+            }
+            facetEntity {
+              primaryKey
+            }
+          }
+        }
+        variantParameters {
+          count
+          facetStatistics {
+            requested
+            count
+            impact {
+              difference
+              matchCount
+              hasSense
+            }
+            facetEntity {
+              primaryKey
+            }
+          }
+        }
+        stocks {
+          count
           groupEntity {
             primaryKey
           }
           facetStatistics {
-            facetEntity {
-              primaryKey
-            }
+            requested
             count
             impact {
               difference
-              hasSense
               matchCount
+              hasSense
+            }
+            facetEntity {
+              primaryKey
+            }
+          }
+        }
+        tags {
+          count
+          groupEntity {
+            primaryKey
+          }
+          facetStatistics {
+            requested
+            count
+            impact {
+              difference
+              matchCount
+              hasSense
+            }
+            facetEntity {
+              primaryKey
+            }
+          }
+        }
+        categories {
+          count
+          facetStatistics {
+            requested
+            count
+            impact {
+              difference
+              matchCount
+              hasSense
+            }
+            facetEntity {
+              primaryKey
+            }
+          }
+        }
+        brand {
+          count
+          facetStatistics {
+            requested
+            count
+            impact {
+              difference
+              matchCount
+              hasSense
+            }
+            facetEntity {
+              primaryKey
+            }
+          }
+        }
+        parameterValues {
+          count
+          groupEntity {
+            primaryKey
+          }
+          facetStatistics {
+            requested
+            count
+            impact {
+              difference
+              matchCount
+              hasSense
+            }
+            facetEntity {
+              primaryKey
             }
           }
         }
@@ -54,6 +170,7 @@
         buckets(requestedCount: 30) {
           threshold
           occurrences
+          requested
         }
       }
     }

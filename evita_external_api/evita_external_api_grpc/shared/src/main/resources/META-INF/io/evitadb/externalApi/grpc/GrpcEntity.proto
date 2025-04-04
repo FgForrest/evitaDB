@@ -21,15 +21,30 @@ message GrpcEntityReference {
   // Unique Integer positive number representing the entity. Can be used for fast lookup for
   // entity (entities). Primary key must be unique within the same entity type.
   int32 primaryKey = 2;
-  // Contains version of this entity and gets increased with any entity type update. Allows to execute
+  // value is deprecated, it was available only for entity references used in entity body, in other use-cases it was left
+  // as zero - which was a mistake in the design.
+  // in order to get the entity version you need to fetch the entity itself (with entity body).
+  int32 version = 3 [deprecated = true];
+  // Contains version of this reference and gets increased with any entity type update. Allows to execute
   // optimistic locking i.e. avoiding parallel modifications.
-  int32 version = 3;
+  google.protobuf.Int32Value referenceVersion = 4;
 }
 
+// Entity reference which contains information about parent entity.
 message GrpcEntityReferenceWithParent {
+  // Type of entity.
+  // Entity type is main sharding key - all data of entities with same type are stored in separated collections. Within the
+  // entity type entity is uniquely represented by primary key.
   string entityType = 1;
+  // Unique Integer positive number representing the entity. Can be used for fast lookup for
+  // entity (entities). Primary key must be unique within the same entity type.
   int32 primaryKey = 2;
-  int32 version = 3;
+  // Contains version of this entity and gets increased with any entity type update. Allows to execute
+  // optimistic locking i.e. avoiding parallel modifications.
+  // value is deprecated, it was never available in the first place - it was a mistake in the design.
+  // in order to get the entity version you need to fetch the entity itself (with entity body).
+  int32 version = 3 [deprecated = true];
+  // Recursive pointer to parent entity.
   GrpcEntityReferenceWithParent parent = 4;
 }
 
@@ -78,6 +93,11 @@ message GrpcSealedEntity {
   // Contains set of all locales that were used for localized attributes or associated data of
   // this particular entity.
   repeated GrpcLocale locales = 16;
+  // Identifies scope where the entity resides (either live or archived scope).
+  GrpcEntityScope scope = 17;
+  // Contains total count of references per reference name. This may differ from count of provided references
+  // if pagination or strip was used in the input query.
+  map<string, GrpcOffsetAndLimit> referenceOffsetAndLimits = 18;
 }
 
 // Response carries entities in a binary format and is part of the PRIVATE API that is used by Java driver. The client
@@ -143,4 +163,18 @@ message GrpcReference {
   map<string, GrpcLocalizedAttribute> localizedAttributes = 8;
   // Contains reference cardinality.
   GrpcCardinality referenceCardinality = 9;
+}
+
+// The OffsetAndLimit record represents pagination parameters including offset, limit, and the last page number.
+message GrpcOffsetAndLimit {
+  // The starting point for fetching records.
+  int32 offset = 1;
+  // The number of records to fetch from the starting point.
+  int32 limit = 2;
+  // The current page number based on the current pagination settings.
+  int32 pageNumber = 3;
+  // The last page number based on the current pagination settings.
+  int32 lastPageNumber = 4;
+  // The total number of records available.
+  int32 totalRecordCount = 5;
 }

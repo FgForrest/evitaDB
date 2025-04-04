@@ -1,18 +1,23 @@
-query {
-	listBrand(
-		filterBy: {
-			attributeNameStartsWith: "A"
-			entityLocaleEquals: en
-		}
-		orderBy: {
-			attributeNameNatural: ASC
-		}
-	) {
-		primaryKey
-		type
-		allLocales
-		attributes {
-			name
-		}
-	}
+{
+  queryBrand(
+    filterBy: {
+      and: [
+        {
+          attributeNameStartsWith: "A",
+          entityLocaleEquals: en
+        }
+      ]
+    },
+    orderBy: [
+      {
+        attributeNameNatural: ASC
+      }
+    ]
+  ) {
+    recordPage {
+      data {
+        primaryKey
+      }
+    }
+  }
 }

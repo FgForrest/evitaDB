@@ -29,11 +29,14 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
+import io.evitadb.dataType.Scope;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
 import lombok.RequiredArgsConstructor;
 
 import java.io.Serializable;
+import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.Map;
 import java.util.Map.Entry;
 
@@ -60,10 +63,18 @@ public class AttributeSchemaSerializer extends Serializer<AttributeSchema> {
 			output.writeBoolean(true);
 			kryo.writeClassAndObject(output, attributeSchema.getDefaultValue());
 		}
-		output.writeVarInt(attributeSchema.getUniquenessType().ordinal(), true);
+
+		final Map<Scope, AttributeUniquenessType> uniqueness = attributeSchema.getUniquenessTypeInScopes();
+		output.writeVarInt(uniqueness.size(), true);
+		for (Entry<Scope, AttributeUniquenessType> entry : uniqueness.entrySet()) {
+			kryo.writeObject(output, entry.getKey());
+			kryo.writeObject(output, entry.getValue());
+		}
+
+		EntitySchemaSerializer.writeScopeSet(kryo, output, attributeSchema.getFilterableInScopes());
+		EntitySchemaSerializer.writeScopeSet(kryo, output, attributeSchema.getSortableInScopes());
+
 		output.writeBoolean(attributeSchema.isLocalized());
-		output.writeBoolean(attributeSchema.isFilterable());
-		output.writeBoolean(attributeSchema.isSortable());
 		output.writeBoolean(attributeSchema.isNullable());
 		output.writeInt(attributeSchema.getIndexedDecimalPlaces());
 		if (attributeSchema.getDescription() != null) {
@@ -94,10 +105,19 @@ public class AttributeSchemaSerializer extends Serializer<AttributeSchema> {
 		}
 		final Class type = kryo.readClass(input).getType();
 		final Object defaultValue = input.readBoolean() ? kryo.readClassAndObject(input) : null;
-		final AttributeUniquenessType unique = AttributeUniquenessType.values()[input.readVarInt(true)];
+
+		final int uqSize = input.readVarInt(true);
+		final EnumMap<Scope, AttributeUniquenessType> unique = new EnumMap<>(Scope.class);
+		for (int i = 0; i < uqSize; i++) {
+			final Scope scope = kryo.readObject(input, Scope.class);
+			final AttributeUniquenessType uqType = kryo.readObject(input, AttributeUniquenessType.class);
+			unique.put(scope, uqType);
+		}
+
+		final EnumSet<Scope> filterable = EntitySchemaSerializer.readScopeSet(kryo, input);
+		final EnumSet<Scope> sortable = EntitySchemaSerializer.readScopeSet(kryo, input);
+
 		final boolean localized = input.readBoolean();
-		final boolean filterable = input.readBoolean();
-		final boolean sortable = input.readBoolean();
 		final boolean nullable = input.readBoolean();
 		final int indexedDecimalPlaces = input.readInt();
 		final String description = input.readBoolean() ? input.readString() : null;

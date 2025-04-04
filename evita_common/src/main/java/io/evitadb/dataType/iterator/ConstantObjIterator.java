@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@ import java.util.NoSuchElementException;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
-public class ConstantObjIterator<T extends Comparable<T>> implements Iterator<T> {
+public class ConstantObjIterator<T> implements Iterator<T> {
 	private final T[] constant;
 	private int index = -1;
 	private T nextNumberToReturn = null;

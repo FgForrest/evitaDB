@@ -27,8 +27,10 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaUniqueMutation;
+
+import static io.evitadb.store.wal.schema.attribute.CreateAttributeSchemaMutationSerializer.readScopedUniquenessTypesMap;
+import static io.evitadb.store.wal.schema.attribute.CreateAttributeSchemaMutationSerializer.writeScopedUniquenessTypesMap;
 
 /**
  * Serializer for {@link SetAttributeSchemaUniqueMutation}.
@@ -38,16 +40,16 @@ import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSche
 public class SetAttributeSchemaUniqueMutationSerializer extends Serializer<SetAttributeSchemaUniqueMutation> {
 
 	@Override
-	public void write(Kryo kryo, Output output, SetAttributeSchemaUniqueMutation object) {
-		output.writeString(object.getName());
-		kryo.writeObject(output, object.getUnique());
+	public void write(Kryo kryo, Output output, SetAttributeSchemaUniqueMutation mutation) {
+		output.writeString(mutation.getName());
+		writeScopedUniquenessTypesMap(kryo, output, mutation.getUniqueInScopes());
 	}
 
 	@Override
 	public SetAttributeSchemaUniqueMutation read(Kryo kryo, Input input, Class<? extends SetAttributeSchemaUniqueMutation> type) {
 		return new SetAttributeSchemaUniqueMutation(
 			input.readString(),
-			kryo.readObject(input, AttributeUniquenessType.class)
+			readScopedUniquenessTypesMap(kryo, input)
 		);
 	}
 

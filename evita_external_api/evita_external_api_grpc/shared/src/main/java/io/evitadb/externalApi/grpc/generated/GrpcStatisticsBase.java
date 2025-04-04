@@ -38,7 +38,7 @@ public enum GrpcStatisticsBase
     implements com.google.protobuf.ProtocolMessageEnum {
   /**
    * <pre>
-   * The statistics will be based on a complete query filter by constraint.
+   * Complete `filterBy` constraint output will be considered when calculating statistics of the queried entities.
    * </pre>
    *
    * <code>COMPLETE_FILTER = 0;</code>
@@ -46,18 +46,29 @@ public enum GrpcStatisticsBase
   COMPLETE_FILTER(0),
   /**
    * <pre>
-   * The statistics will be based only on a query without user defined filter.
+   * Contents of the `filterBy` excluding `userFilter` and its children will be considered when calculating statistics
+   * of the queried entities.
    * </pre>
    *
    * <code>WITHOUT_USER_FILTER = 1;</code>
    */
   WITHOUT_USER_FILTER(1),
+  /**
+   * <pre>
+   * Complete `filterBy` constraint output excluding constraints within `userFilter` limiting references of the same
+   * hierarchical entity type this constraint is applied to will be considered when calculating statistics of
+   * the queried entities.
+   * </pre>
+   *
+   * <code>COMPLETE_FILTER_EXCLUDING_SELF_IN_USER_FILTER = 2;</code>
+   */
+  COMPLETE_FILTER_EXCLUDING_SELF_IN_USER_FILTER(2),
   UNRECOGNIZED(-1),
   ;
 
   /**
    * <pre>
-   * The statistics will be based on a complete query filter by constraint.
+   * Complete `filterBy` constraint output will be considered when calculating statistics of the queried entities.
    * </pre>
    *
    * <code>COMPLETE_FILTER = 0;</code>
@@ -65,12 +76,23 @@ public enum GrpcStatisticsBase
   public static final int COMPLETE_FILTER_VALUE = 0;
   /**
    * <pre>
-   * The statistics will be based only on a query without user defined filter.
+   * Contents of the `filterBy` excluding `userFilter` and its children will be considered when calculating statistics
+   * of the queried entities.
    * </pre>
    *
    * <code>WITHOUT_USER_FILTER = 1;</code>
    */
   public static final int WITHOUT_USER_FILTER_VALUE = 1;
+  /**
+   * <pre>
+   * Complete `filterBy` constraint output excluding constraints within `userFilter` limiting references of the same
+   * hierarchical entity type this constraint is applied to will be considered when calculating statistics of
+   * the queried entities.
+   * </pre>
+   *
+   * <code>COMPLETE_FILTER_EXCLUDING_SELF_IN_USER_FILTER = 2;</code>
+   */
+  public static final int COMPLETE_FILTER_EXCLUDING_SELF_IN_USER_FILTER_VALUE = 2;
 
 
   public final int getNumber() {
@@ -99,6 +121,7 @@ public enum GrpcStatisticsBase
     switch (value) {
       case 0: return COMPLETE_FILTER;
       case 1: return WITHOUT_USER_FILTER;
+      case 2: return COMPLETE_FILTER_EXCLUDING_SELF_IN_USER_FILTER;
       default: return null;
     }
   }

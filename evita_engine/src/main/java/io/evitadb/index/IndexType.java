@@ -45,6 +45,10 @@ public enum IndexType {
 	 */
 	HIERARCHY_INDEX,
 	/**
+	 * Represents {@link io.evitadb.index.facet.FacetIndex}.
+	 */
+	FACET_INDEX,
+	/**
 	 * Represents {@link io.evitadb.index.attribute.AttributeIndex}.
 	 */
 	ATTRIBUTE_INDEX,

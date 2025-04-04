@@ -23,12 +23,13 @@
 
 package io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference;
 
+import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 
 import java.util.List;
 
 /**
- * Descriptor representing {@link io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMutation}
+ * Descriptor representing {@link RemoveReferenceMutation}
  *
  * Note: this descriptor has static structure.
  *

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -47,6 +47,21 @@ public class SetAttributeSchemaUniqueMutationConverter extends AttributeSchemaMu
 	@Nonnull
 	@Override
 	protected Class<SetAttributeSchemaUniqueMutation> getMutationClass() {
+		/* TODO JNO - vyřešit s LHO */
+		/*final ScopedAttributeUniquenessType[] uniqueInScopes = input.getOptionalField(
+			SetAttributeSchemaUniqueMutationDescriptor.UNIQUE_IN_SCOPES.name(),
+			new FieldObjectListMapper<>(
+				getMutationName(),
+				getExceptionFactory(),
+				SetAttributeSchemaUniqueMutationDescriptor.UNIQUE_IN_SCOPES,
+				ScopedAttributeUniquenessType.class,
+				nestedInput -> new ScopedAttributeUniquenessType(
+					nestedInput.getRequiredField(ScopedAttributeUniquenessTypeDescriptor.SCOPE),
+					nestedInput.getRequiredField(ScopedAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE)
+				)
+			)
+		);*/
+
 		return SetAttributeSchemaUniqueMutation.class;
 	}
 }

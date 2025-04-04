@@ -23,8 +23,8 @@
 
 package io.evitadb.index.attribute;
 
-import io.evitadb.ConsistencySensitiveDataStructure.ConsistencyState;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
+import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyState;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
@@ -364,7 +364,7 @@ class ChainIndexTest implements TimeBoundedTestSupport {
 								if (predecessor != originalPredecessor) {
 									// change order
 									codeBuffer.append("index.upsertPredecessor(")
-										.append("new Predecessor(").append(predecessor.predecessorId()).append("), ")
+										.append("new Predecessor(").append(predecessor.predecessorPk()).append("), ")
 										.append(pk).append(");\n");
 									original.upsertPredecessor(predecessor, pk);
 								}
@@ -492,7 +492,7 @@ class ChainIndexTest implements TimeBoundedTestSupport {
 
 								// change order
 								codeBuffer.append("index.upsertPredecessor(")
-									.append("new Predecessor(").append(predecessor.predecessorId()).append("), ")
+									.append("new Predecessor(").append(predecessor.predecessorPk()).append("), ")
 									.append(randomPk).append(");\n");
 								original.upsertPredecessor(predecessor, randomPk);
 
@@ -554,7 +554,7 @@ class ChainIndexTest implements TimeBoundedTestSupport {
 
 						// change order
 						codeBuffer.append("index.upsertPredecessor(")
-							.append("new Predecessor(").append(predecessor.predecessorId()).append("), ")
+							.append("new Predecessor(").append(predecessor.predecessorPk()).append("), ")
 							.append(pk).append(");\n");
 						original.upsertPredecessor(predecessor, pk);
 					}

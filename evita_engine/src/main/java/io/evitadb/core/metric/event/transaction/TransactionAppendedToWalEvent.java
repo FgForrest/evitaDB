@@ -40,16 +40,20 @@ import javax.annotation.Nonnull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Name(AbstractTransactionEvent.PACKAGE_NAME + ".AppendedToWal")
-@Description("Event that is fired when a transaction passed conflict resolution stage.")
+@Description("Event fired when a transaction passes the conflict resolution phase.")
 @Label("Transaction appended to WAL")
 @ExportDurationMetric(label = "Appending transaction to shared WAL duration in milliseconds")
 @ExportInvocationMetric(label = "Transactions appended to WAL")
 @Getter
 public class TransactionAppendedToWalEvent extends AbstractTransactionEvent {
+
 	@Label("Atomic mutations appended.")
+	@Description("The number of atomic mutations (schema, catalog schema or entity mutations) appended to the shared WAL.")
 	@ExportMetric(metricType = MetricType.COUNTER)
 	private int appendedAtomicMutations;
+
 	@Label("Size of the written WAL in Bytes.")
+	@Description("The size of the written WAL in Bytes.")
 	@ExportMetric(metricType = MetricType.COUNTER)
 	private long appendedWalBytes;
 

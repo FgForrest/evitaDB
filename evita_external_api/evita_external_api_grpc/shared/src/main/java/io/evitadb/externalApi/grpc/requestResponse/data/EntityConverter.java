@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,6 +32,9 @@ import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.HierarchyContent;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
+import io.evitadb.api.requestResponse.chunk.ChunkTransformer;
+import io.evitadb.api.requestResponse.chunk.OffsetAndLimit;
+import io.evitadb.api.requestResponse.chunk.PageTransformer;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
@@ -54,6 +57,10 @@ import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSeri
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
+import io.evitadb.dataType.DataChunk;
+import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.dataType.PaginatedList;
+import io.evitadb.dataType.StripList;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.grpc.dataType.ComplexDataObjectConverter;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
@@ -63,23 +70,21 @@ import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
+import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
+
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcScope;
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toScope;
+import static java.util.Optional.ofNullable;
 
 /**
  * Class used for building suitable form of entity based on {@link SealedEntity}. The main methods here are
@@ -92,6 +97,11 @@ import java.util.stream.Collectors;
 public class EntityConverter {
 
 	/**
+	 * Default converter that leaves the sealed entity as it is.
+	 */
+	public static final TypeConverter<SealedEntity> SEALED_ENTITY_TYPE_CONVERTER = (sealedEntityClass, sealedEntity) -> sealedEntity;
+
+	/**
 	 * Method converts {@link GrpcSealedEntity} to the {@link SealedEntity} that can be used on the client side.
 	 */
 	@Nonnull
@@ -99,9 +109,10 @@ public class EntityConverter {
 		@Nonnull Function<GrpcSealedEntity, SealedEntitySchema> entitySchemaFetcher,
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull GrpcSealedEntity grpcEntity,
-		@Nonnull Class<T> expectedType
+		@Nonnull Class<T> expectedType,
+		@Nonnull TypeConverter<T> typeConverter
 	) {
-		return toEntity(entitySchemaFetcher, evitaRequest, null, grpcEntity, expectedType);
+		return toEntity(entitySchemaFetcher, evitaRequest, null, grpcEntity, expectedType, typeConverter);
 	}
 
 	/**
@@ -113,13 +124,14 @@ public class EntityConverter {
 		@Nonnull EvitaRequest evitaRequest,
 		@Nullable SealedEntity parent,
 		@Nonnull GrpcSealedEntity grpcEntity,
-		@Nonnull Class<T> expectedType
+		@Nonnull Class<T> expectedType,
+		@Nonnull TypeConverter<T> typeConverter
 	) {
 		final SealedEntitySchema entitySchema = entitySchemaFetcher.apply(grpcEntity);
 		final EntityClassifierWithParent parentEntity;
 		if (grpcEntity.hasParentEntity()) {
 			final HierarchyContent hierarchyContent = evitaRequest.getHierarchyContent();
-			final EvitaRequest parentRequest = Optional.ofNullable(hierarchyContent)
+			final EvitaRequest parentRequest = ofNullable(hierarchyContent)
 				.flatMap(HierarchyContent::getEntityFetch)
 				.map(
 					it -> evitaRequest.deriveCopyWith(
@@ -133,7 +145,7 @@ public class EntityConverter {
 					)
 				)
 				.orElse(evitaRequest);
-			parentEntity = toEntity(entitySchemaFetcher, parentRequest, grpcEntity.getParentEntity(), SealedEntity.class);
+			parentEntity = toEntity(entitySchemaFetcher, parentRequest, grpcEntity.getParentEntity(), SealedEntity.class, SEALED_ENTITY_TYPE_CONVERTER);
 		} else if (grpcEntity.hasParentReference()) {
 			parentEntity = toEntityReferenceWithParent(grpcEntity.getParentReference());
 		} else {
@@ -147,11 +159,6 @@ public class EntityConverter {
 				.stream()
 				.map(it -> toReference(entitySchema, it))
 				.collect(Collectors.toList());
-
-			if (DevelopmentConstants.isTestRun()) {
-				// for test purposes we need to have the references data sorted by their keys to make tests reproducible
-				references.sort(Comparator.comparing(ReferenceContract::getReferenceKey));
-			}
 
 			final EntityDecorator sealedEntity = new EntityDecorator(
 				Entity._internalBuild(
@@ -184,7 +191,9 @@ public class EntityConverter {
 					grpcEntity.getLocalesList()
 						.stream()
 						.map(EvitaDataTypesConverter::toLocale)
-						.collect(Collectors.toSet())
+						.collect(Collectors.toSet()),
+					toScope(grpcEntity.getScope()),
+					evitaRequest::getReferenceChunkTransformer
 				),
 				entitySchema,
 				parentEntity,
@@ -198,6 +207,7 @@ public class EntityConverter {
 				new ClientReferenceFetcher(
 					parentEntity,
 					grpcEntity.getReferencesList(),
+					toReferenceOffsetAndLimits(grpcEntity.getReferenceOffsetAndLimitsMap()),
 					entitySchemaFetcher,
 					evitaRequest
 				)
@@ -207,10 +217,31 @@ public class EntityConverter {
 				//noinspection unchecked
 				return (T) sealedEntity;
 			} else {
-				//noinspection unchecked
-				return (T) evitaRequest.getConverter().apply(expectedType, sealedEntity);
+				return typeConverter.apply(expectedType, sealedEntity);
 			}
 		}
+	}
+
+	/**
+	 * Method converts map {@link GrpcOffsetAndLimit} to the {@link OffsetAndLimit} map.
+	 */
+	@Nonnull
+	private static Map<String, OffsetAndLimit> toReferenceOffsetAndLimits(@Nonnull Map<String, GrpcOffsetAndLimit> referenceOffsetAndLimitsMap) {
+		return referenceOffsetAndLimitsMap.entrySet()
+			.stream()
+			.collect(Collectors.toMap(
+				Entry::getKey,
+				entry -> {
+					final GrpcOffsetAndLimit value = entry.getValue();
+					return new OffsetAndLimit(
+						value.getOffset(),
+						value.getLimit(),
+						value.getPageNumber(),
+						value.getLastPageNumber(),
+						value.getTotalRecordCount()
+					);
+				}
+			));
 	}
 
 	/**
@@ -223,17 +254,19 @@ public class EntityConverter {
 	) {
 		final GroupEntityReference group;
 		if (grpcReference.hasGroupReferencedEntityReference()) {
+			final GrpcEntityReference grpcGroupReference = grpcReference.getGroupReferencedEntityReference();
 			group = new GroupEntityReference(
-				grpcReference.getGroupReferencedEntityReference().getEntityType(),
-				grpcReference.getGroupReferencedEntityReference().getPrimaryKey(),
-				grpcReference.getGroupReferencedEntityReference().getVersion(),
+				grpcGroupReference.getEntityType(),
+				grpcGroupReference.getPrimaryKey(),
+				grpcGroupReference.hasReferenceVersion() ? grpcGroupReference.getReferenceVersion().getValue() : grpcGroupReference.getVersion(),
 				false
 			);
 		} else if (grpcReference.hasGroupReferencedEntity()) {
+			final GrpcSealedEntity grpcEntityReference = grpcReference.getGroupReferencedEntity();
 			group = new GroupEntityReference(
-				grpcReference.getGroupReferencedEntity().getEntityType(),
-				grpcReference.getGroupReferencedEntity().getPrimaryKey(),
-				grpcReference.getGroupReferencedEntity().getVersion(),
+				grpcEntityReference.getEntityType(),
+				grpcEntityReference.getPrimaryKey(),
+				grpcEntityReference.getVersion(),
 				false
 			);
 		} else {
@@ -274,11 +307,12 @@ public class EntityConverter {
 			.setEntityType(entity.getType())
 			.setPrimaryKey(entity.getPrimaryKey())
 			.setSchemaVersion(entity.getSchema().version())
-			.setVersion(entity.version());
+			.setVersion(entity.version())
+			.setScope(toGrpcScope(entity.getScope()));
 
 		if (entity.parentAvailable()) {
 			entity.getParentEntity()
-				.ifPresent(parent -> entityBuilder.setParent(Int32Value.of(parent.getPrimaryKey())));
+				.ifPresent(parent -> entityBuilder.setParent(Int32Value.of(parent.getPrimaryKeyOrThrowException())));
 
 			entity.getParentEntity()
 				.ifPresent(parent -> {
@@ -319,7 +353,21 @@ public class EntityConverter {
 			priceForSale.ifPresent(it -> entityBuilder.setPriceForSale(toGrpcPrice(it)));
 		}
 
-		if (entity.referencesAvailable() && !entity.getReferences().isEmpty()) {
+		final boolean referencesRequestedAndFetched;
+		final Predicate<String> referenceRequestedPredicate;
+		final Entity internalEntity;
+		if (entity instanceof Entity theEntity) {
+			referencesRequestedAndFetched = true;
+			internalEntity = theEntity;
+			referenceRequestedPredicate = referenceName -> true;
+		} else if (entity instanceof EntityDecorator entityDecorator) {
+			internalEntity = entityDecorator.getDelegate();
+			referencesRequestedAndFetched = entityDecorator.referencesAvailable();
+			referenceRequestedPredicate = entityDecorator::referencesAvailable;
+		} else {
+			throw new GenericEvitaInternalError("Unexpected entity type: " + entity.getClass());
+		}
+		if (referencesRequestedAndFetched) {
 			for (ReferenceContract reference : entity.getReferences()) {
 				final GrpcReference.Builder grpcReferenceBuilder = GrpcReference.newBuilder()
 					.setVersion(reference.version())
@@ -344,7 +392,11 @@ public class EntityConverter {
 				} else {
 					grpcReferenceBuilder.setReferencedEntityReference(GrpcEntityReference.newBuilder()
 						.setEntityType(reference.getReferencedEntityType())
-						.setPrimaryKey(reference.getReferencedPrimaryKey()).build());
+						.setPrimaryKey(reference.getReferencedPrimaryKey())
+						.setReferenceVersion(Int32Value.newBuilder().setValue(reference.version()).build())
+						.setVersion(reference.version())
+						.build()
+					);
 				}
 
 				if (reference.getGroupEntity().isPresent()) {
@@ -354,6 +406,7 @@ public class EntityConverter {
 					grpcReferenceBuilder.setGroupReferencedEntityReference(GrpcEntityReference.newBuilder()
 						.setEntityType(theGroup.getType())
 						.setPrimaryKey(theGroup.getPrimaryKey())
+						.setReferenceVersion(Int32Value.newBuilder().setValue(reference.version()).build())
 						.setVersion(theGroup.version())
 						.build()
 					);
@@ -361,6 +414,33 @@ public class EntityConverter {
 
 				entityBuilder.addReferences(grpcReferenceBuilder);
 			}
+			internalEntity.getSchema().getReferences().keySet().forEach(
+				referenceName -> {
+					if (referenceRequestedPredicate.test(referenceName)) {
+						final DataChunk<ReferenceContract> referenceChunk = entity.getReferenceChunk(referenceName);
+						final GrpcOffsetAndLimit.Builder offsetAndLimit = GrpcOffsetAndLimit.newBuilder();
+						if (referenceChunk instanceof PaginatedList<?> paginatedList) {
+							offsetAndLimit.setOffset(paginatedList.getFirstPageItemNumber());
+							offsetAndLimit.setLimit(paginatedList.getPageSize());
+							offsetAndLimit.setPageNumber(paginatedList.getPageNumber());
+							offsetAndLimit.setLastPageNumber(paginatedList.getLastPageNumber());
+							offsetAndLimit.setTotalRecordCount(paginatedList.getTotalRecordCount());
+						} else if (referenceChunk instanceof StripList<?> stripList) {
+							offsetAndLimit.setOffset(stripList.getOffset());
+							offsetAndLimit.setLimit(stripList.getLimit());
+							offsetAndLimit.setTotalRecordCount(stripList.getTotalRecordCount());
+						} else {
+							offsetAndLimit.setOffset(0);
+							offsetAndLimit.setLimit(referenceChunk.getTotalRecordCount());
+							offsetAndLimit.setTotalRecordCount(referenceChunk.getTotalRecordCount());
+						}
+						entityBuilder.putReferenceOffsetAndLimits(
+							referenceName,
+							offsetAndLimit.build()
+						);
+					}
+				}
+			);
 		}
 
 		if (entity.associatedDataAvailable() && !entity.getAssociatedDataValues().isEmpty()) {
@@ -457,14 +537,17 @@ public class EntityConverter {
 			.setPriceWithoutTax(EvitaDataTypesConverter.toGrpcBigDecimal(price.priceWithoutTax()))
 			.setPriceWithTax(EvitaDataTypesConverter.toGrpcBigDecimal(price.priceWithTax()))
 			.setTaxRate(EvitaDataTypesConverter.toGrpcBigDecimal(price.taxRate()))
-			.setSellable(price.sellable())
+			.setSellable(price.indexed())
+			.setIndexed(price.indexed())
 			.setVersion(price.version());
-		if (price.innerRecordId() != null) {
-			priceBuilder.setInnerRecordId(Int32Value.newBuilder().setValue(price.innerRecordId()).build());
+		final Integer innerRecordId = price.innerRecordId();
+		if (innerRecordId != null) {
+			priceBuilder.setInnerRecordId(Int32Value.newBuilder().setValue(innerRecordId).build());
 		}
 
-		if (price.validity() != null) {
-			priceBuilder.setValidity(EvitaDataTypesConverter.toGrpcDateTimeRange(price.validity()));
+		final DateTimeRange validity = price.validity();
+		if (validity != null) {
+			priceBuilder.setValidity(EvitaDataTypesConverter.toGrpcDateTimeRange(validity));
 		}
 
 		return priceBuilder.build();
@@ -515,7 +598,8 @@ public class EntityConverter {
 		@Nonnull List<GrpcSealedEntity> sealedEntitiesList,
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull BiFunction<String, Integer, SealedEntitySchema> entitySchemaProvider,
-		@Nonnull Class<S> expectedType
+		@Nonnull Class<S> expectedType,
+		@Nonnull TypeConverter<S> typeConverter
 	) {
 		return sealedEntitiesList
 			.stream()
@@ -524,7 +608,8 @@ public class EntityConverter {
 					entity -> entitySchemaProvider.apply(entity.getEntityType(), entity.getSchemaVersion()),
 					evitaRequest,
 					it,
-					expectedType
+					expectedType,
+					typeConverter
 				)
 			)
 			.toList();
@@ -697,7 +782,7 @@ public class EntityConverter {
 			EvitaDataTypesConverter.toBigDecimal(grpcPrice.getTaxRate()),
 			EvitaDataTypesConverter.toBigDecimal(grpcPrice.getPriceWithTax()),
 			grpcPrice.hasValidity() ? EvitaDataTypesConverter.toDateTimeRange(grpcPrice.getValidity()) : null,
-			grpcPrice.getSellable()
+			grpcPrice.getIndexed() || grpcPrice.getSellable()
 		);
 	}
 
@@ -761,10 +846,13 @@ public class EntityConverter {
 		private final EntityClassifierWithParent parentEntity;
 		private final Map<EntityReference, SealedEntity> entityIndex;
 		private final Map<EntityReference, SealedEntity> groupIndex;
+		private final Map<String, OffsetAndLimit> referencesOffsetAndLimit;
+		private final EvitaRequest evitaRequest;
 
 		public ClientReferenceFetcher(
 			@Nullable EntityClassifierWithParent parentEntity,
 			@Nonnull List<GrpcReference> grpcReference,
+			@Nonnull Map<String, OffsetAndLimit> referencesOffsetAndLimit,
 			@Nonnull Function<GrpcSealedEntity, SealedEntitySchema> entitySchemaFetcher,
 			@Nonnull EvitaRequest evitaRequest
 		) {
@@ -772,34 +860,44 @@ public class EntityConverter {
 			this.entityIndex = grpcReference.stream()
 				.filter(GrpcReference::hasReferencedEntity)
 				.map(it -> {
-					final RequirementContext fetchCtx = Optional.ofNullable(evitaRequest.getReferenceEntityFetch().get(it.getReferenceName()))
+					final RequirementContext fetchCtx = ofNullable(evitaRequest.getReferenceEntityFetch().get(it.getReferenceName()))
 						.orElse(evitaRequest.getDefaultReferenceRequirement());
+					Assert.isPremiseValid(
+						fetchCtx != null && fetchCtx.entityFetch() != null,
+						"Server returned referenced entity, but it's not requested in the request?!"
+					);
 					final GrpcSealedEntity referencedEntity = it.getReferencedEntity();
 					final EvitaRequest referenceRequest = evitaRequest.deriveCopyWith(referencedEntity.getEntityType(), fetchCtx.entityFetch());
-					return toEntity(entitySchemaFetcher, referenceRequest, referencedEntity, SealedEntity.class);
+					return toEntity(entitySchemaFetcher, referenceRequest, referencedEntity, SealedEntity.class, SEALED_ENTITY_TYPE_CONVERTER);
 				})
 				.collect(
 					Collectors.toMap(
-						it -> new EntityReference(it.getType(), it.getPrimaryKey()),
+						it -> new EntityReference(it.getType(), it.getPrimaryKeyOrThrowException()),
 						Function.identity()
 					)
 				);
 			this.groupIndex = grpcReference.stream()
 				.filter(GrpcReference::hasGroupReferencedEntity)
 				.map(it -> {
-					final RequirementContext fetchCtx = Optional.ofNullable(evitaRequest.getReferenceEntityFetch().get(it.getReferenceName()))
+					final RequirementContext fetchCtx = ofNullable(evitaRequest.getReferenceEntityFetch().get(it.getReferenceName()))
 						.orElse(evitaRequest.getDefaultReferenceRequirement());
+					Assert.isPremiseValid(
+						fetchCtx != null && fetchCtx.entityGroupFetch() != null,
+						"Server returned referenced entity, but it's not requested in the request?!"
+					);
 					final GrpcSealedEntity referencedEntity = it.getGroupReferencedEntity();
 					final EvitaRequest referenceRequest = evitaRequest.deriveCopyWith(referencedEntity.getEntityType(), fetchCtx.entityGroupFetch());
-					return toEntity(entitySchemaFetcher, referenceRequest, referencedEntity, SealedEntity.class);
+					return toEntity(entitySchemaFetcher, referenceRequest, referencedEntity, SealedEntity.class, SEALED_ENTITY_TYPE_CONVERTER);
 				})
 				.collect(
 					Collectors.toMap(
-						it -> new EntityReference(it.getType(), it.getPrimaryKey()),
+						it -> new EntityReference(it.getType(), it.getPrimaryKeyOrThrowException()),
 						Function.identity(),
 						(sealedEntity, sealedEntity2) -> sealedEntity
 					)
 				);
+			this.referencesOffsetAndLimit = referencesOffsetAndLimit;
+			this.evitaRequest = evitaRequest;
 		}
 
 		@Nonnull
@@ -812,6 +910,12 @@ public class EntityConverter {
 		@Override
 		public <T extends SealedEntity> List<T> initReferenceIndex(@Nonnull List<T> entities, @Nonnull EntityCollectionContract entityCollection) {
 			throw new UnsupportedOperationException("Unexpected call!");
+		}
+
+		@Nonnull
+		@Override
+		public EvitaRequest getEnvelopingEntityRequest() {
+			return this.evitaRequest;
 		}
 
 		@Nullable
@@ -829,7 +933,7 @@ public class EntityConverter {
 		@Nullable
 		@Override
 		public Function<Integer, SealedEntity> getEntityGroupFetcher(@Nonnull ReferenceSchemaContract referenceSchema) {
-			return primaryKey -> groupIndex.get(new EntityReference(referenceSchema.getReferencedGroupType(), primaryKey));
+			return primaryKey -> groupIndex.get(new EntityReference(Objects.requireNonNull(referenceSchema.getReferencedGroupType()), primaryKey));
 		}
 
 		@Nullable
@@ -843,5 +947,66 @@ public class EntityConverter {
 		public BiPredicate<Integer, ReferenceDecorator> getEntityFilter(@Nonnull ReferenceSchemaContract referenceSchema) {
 			return (entityId, referenceDecorator) -> true;
 		}
+
+		@Nonnull
+		@Override
+		public DataChunk<ReferenceContract> createChunk(@Nonnull Entity entity, @Nonnull String referenceName, @Nonnull List<ReferenceContract> references) {
+			// client reference fetcher sees only slice of the original reference list (in case of paginated access only requested page)
+			// so we need to use alternate method with providing full total count
+			final ChunkTransformer chunker = entity.getReferenceChunkTransformer().apply(referenceName);
+			if (chunker instanceof PageTransformer pageTransformer) {
+				// when page transformer is used, we need to use server side calculated offset and limit
+				// because spacing could have been used and this cannot be interpreted on the client side
+				return new ClientPageTransformer(
+					pageTransformer.getPage().getPageSize(),
+					Objects.requireNonNull(this.referencesOffsetAndLimit.get(referenceName))
+				).createChunk(references);
+			} else {
+				return chunker.createChunk(references);
+			}
+		}
+
+		/**
+		 * An implementation of the {@link ChunkTransformer} interface that slices a list of {@link ReferenceContract}
+		 * objects into chunks based on pagination parameters defined by a given {@link OffsetAndLimit} instance.
+		 *
+		 * This class provides functionality to transform a complete list of references into a paged data chunk
+		 * aligned with the specified offset, limit, and page number parameters. It internally delegates the
+		 * chunk creation process to {@code PageTransformer}.
+		 */
+		@RequiredArgsConstructor
+		private static class ClientPageTransformer implements ChunkTransformer {
+			private final int pageSize;
+			private final OffsetAndLimit offsetAndLimit;
+
+			@Nonnull
+			@Override
+			public DataChunk<ReferenceContract> createChunk(@Nonnull List<ReferenceContract> referenceContracts) {
+				return PageTransformer.getReferenceContractDataChunk(
+					referenceContracts,
+					this.offsetAndLimit.pageNumber(),
+					this.pageSize,
+					this.offsetAndLimit.lastPageNumber(),
+					// always zero - server sends only a single page
+					0,
+					referenceContracts.size(),
+					this.offsetAndLimit.totalRecordCount()
+				);
+			}
+
+		}
 	}
+
+	/**
+	 * The TypeConverter interface provides a method to convert an instance of {@link SealedEntity} into different types.
+	 * This interface extends the {@link BiFunction} interface, using a {@link Class} object representing the expected type
+	 * and a {@link SealedEntity} object as input parameters, and returns an object of the expected type.
+	 *
+	 * @param <T> the type of object into which the {@link SealedEntity} is to be converted.
+	 */
+	@FunctionalInterface
+	public interface TypeConverter<T> extends BiFunction<Class<T>, SealedEntity, T> {
+
+	}
+
 }

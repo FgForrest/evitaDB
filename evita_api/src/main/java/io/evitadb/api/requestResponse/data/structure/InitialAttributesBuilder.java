@@ -91,7 +91,7 @@ abstract class InitialAttributesBuilder<S extends AttributeSchemaContract, T ext
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull String attributeName,
 		@Nullable Class<? extends Serializable> aClass,
-		@Nonnull Locale locale,
+		@Nullable Locale locale,
 		@Nonnull Supplier<String> locationResolver
 	) {
 		final AttributeSchemaContract attributeSchema = entitySchema.getAttribute(attributeName).orElse(null);
@@ -125,7 +125,7 @@ abstract class InitialAttributesBuilder<S extends AttributeSchemaContract, T ext
 						attributeSchema.getType(), aClass
 					)
 				);
-				if (attributeSchema.isSortable()) {
+				if (attributeSchema.isSortableInAnyScope()) {
 					Assert.isTrue(
 						!aClass.isArray(),
 						() -> new InvalidDataTypeMutationException(

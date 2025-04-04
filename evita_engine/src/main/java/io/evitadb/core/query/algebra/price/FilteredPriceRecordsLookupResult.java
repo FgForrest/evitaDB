@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.algebra.price;
 
+import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import lombok.Data;
@@ -45,14 +46,14 @@ public class FilteredPriceRecordsLookupResult {
 	/**
 	 * Array of all entity primary keys for which no {@link PriceRecord} was found.
 	 */
-	@Nullable private final int[] notFoundEntities;
+	@Nullable private final Bitmap notFoundEntities;
 
 	public FilteredPriceRecordsLookupResult(@Nonnull PriceRecordContract[] priceRecords) {
 		this.priceRecords = priceRecords;
 		this.notFoundEntities = null;
 	}
 
-	public FilteredPriceRecordsLookupResult(@Nonnull PriceRecordContract[] priceRecords, @Nullable int[] notFoundEntities) {
+	public FilteredPriceRecordsLookupResult(@Nonnull PriceRecordContract[] priceRecords, @Nonnull Bitmap notFoundEntities) {
 		this.priceRecords = priceRecords;
 		this.notFoundEntities = notFoundEntities;
 	}

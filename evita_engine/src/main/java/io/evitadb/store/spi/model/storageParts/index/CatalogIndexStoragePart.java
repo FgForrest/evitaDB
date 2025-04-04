@@ -24,6 +24,8 @@
 package io.evitadb.store.spi.model.storageParts.index;
 
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
+import io.evitadb.dataType.Scope;
+import io.evitadb.index.CatalogIndexKey;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.service.KeyCompressor;
 import lombok.Getter;
@@ -48,7 +50,7 @@ import java.util.Set;
  */
 @RequiredArgsConstructor
 public class CatalogIndexStoragePart implements StoragePart {
-	@Serial private static final long serialVersionUID = -1216381352203651969L;
+	@Serial private static final long serialVersionUID = -2897805224966000541L;
 
 	/**
 	 * Version of the entity index that gets increased with each atomic change in the index (incremented by one when
@@ -56,20 +58,34 @@ public class CatalogIndexStoragePart implements StoragePart {
 	 */
 	@Getter private final int version;
 	/**
+	 * Type of the index.
+	 */
+	@Getter private final CatalogIndexKey catalogIndexKey;
+	/**
 	 * Contains references to the {@link GlobalUniqueIndexStoragePart} in the form of {@link AttributeKey} that
 	 * allows to translate itself to a unique key allowing to fetch {@link StoragePart} from persistent storage.
 	 */
 	@Getter private final Set<AttributeKey> sharedAttributeUniqueIndexes;
 
+	/**
+	 * Returns the storage part primary key for the given scope.
+	 *
+	 * @param scope the scope for which the storage part primary key needs to be determined
+	 * @return the primary key (1L for LIVE scope, 2L for other scopes)
+	 */
+	public static long getStoragePartPKForScope(@Nonnull Scope scope) {
+		return scope == Scope.LIVE ? 1L : 2L;
+	}
+
 	@Nullable
 	@Override
 	public Long getStoragePartPK() {
-		return 1L;
+		return getStoragePartPKForScope(this.catalogIndexKey.scope());
 	}
 
 	@Override
 	public long computeUniquePartIdAndSet(@Nonnull KeyCompressor keyCompressor) {
-		return 1L;
+		return getStoragePartPKForScope(this.catalogIndexKey.scope());
 	}
 
 }

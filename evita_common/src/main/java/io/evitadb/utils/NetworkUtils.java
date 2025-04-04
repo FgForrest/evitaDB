@@ -27,8 +27,6 @@ import io.evitadb.exception.InvalidHostDefinitionException;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.ConnectionPool;
-import okhttp3.Headers;
-import okhttp3.HttpUrl;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Protocol;
@@ -44,13 +42,20 @@ import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
+
+import static java.util.Optional.empty;
+import static java.util.Optional.of;
+import static java.util.Optional.ofNullable;
 
 /**
  * Utility class for network related operations.
@@ -59,12 +64,7 @@ import java.util.concurrent.TimeUnit;
  */
 @Slf4j
 public class NetworkUtils {
-	/**
-	 * This shouldn't be changed - only in tests which needs to extend this timeout for slower machines runnning
-	 * parallel tests and squeezing the resources.
-	 */
-	public static int DEFAULT_CLIENT_TIMEOUT = 500;
-	private static OkHttpClient HTTP_CLIENT;
+	private static Map<Long, OkHttpClient> HTTP_CLIENT = CollectionUtils.createConcurrentHashMap(8);
 
 	/**
 	 * Returns human comprehensible host name of the given host.
@@ -101,19 +101,33 @@ public class NetworkUtils {
 	 * @param url URL to check
 	 * @return true if the URL is reachable and returns some content
 	 */
-	public static boolean isReachable(@Nonnull String url) {
+	public static boolean isReachable(
+		@Nonnull String url,
+		long timeoutInMillis,
+		@Nullable Consumer<String> errorConsumer,
+		@Nullable Consumer<String> timeoutConsumer
+	) {
 		try {
-			try (
-				final Response response = getHttpClient().newCall(
-					new Builder()
-						.url(url)
-						.get()
-						.build()
-				).execute()
-			) {
+			final Request request = new Builder()
+				.url(url)
+				.get()
+				.build();
+
+			try (final Response response = getHttpClient(timeoutInMillis).newCall(request).execute()) {
+				if (!response.isSuccessful()) {
+					ofNullable(errorConsumer)
+						.ifPresent(it -> it.accept("Error fetching content from URL: " + url + " HTTP status " + response.code() + " - " + response.message()));
+					return false;
+				}
 				return response.code() == 200;
 			}
+		} catch (SocketTimeoutException e) {
+			ofNullable(timeoutConsumer)
+				.ifPresent(it -> it.accept("Fetching content from URL timed out: " + url + " - " + e.getMessage()));
+			return false;
 		} catch (IOException e) {
+			ofNullable(errorConsumer)
+				.ifPresent(it -> it.accept("Error fetching content from URL: " + url + " - " + e.getMessage()));
 			return false;
 		}
 	}
@@ -121,10 +135,11 @@ public class NetworkUtils {
 	/**
 	 * Returns content of the URL if it is reachable and returns some content.
 	 *
-	 * @param url URL to check
+	 * @param url         URL to check
 	 * @param method      HTTP method to use
 	 * @param contentType content type to use
 	 * @param body        body to send
+	 * @param timeoutInMillis	 timeout in milliseconds
 	 * @return the content of the URL as a string or empty optional if the URL is not reachable or
 	 * does not return any content
 	 */
@@ -133,31 +148,48 @@ public class NetworkUtils {
 		@Nonnull String url,
 		@Nullable String method,
 		@Nonnull String contentType,
-		@Nullable String body
+		@Nullable String body,
+		long timeoutInMillis,
+		@Nullable Consumer<String> errorConsumer,
+		@Nullable Consumer<String> timeoutConsumer
 	) {
 		try {
-			final RequestBody requestBody = Optional.ofNullable(body)
+			final RequestBody requestBody = ofNullable(body)
 				.map(theBody -> RequestBody.create(theBody, MediaType.parse(contentType)))
 				.orElse(null);
-			try (
-				final Response response = getHttpClient().newCall(
-					new Request(
-						HttpUrl.parse(url),
-						Headers.of("Content-Type", contentType),
-						method != null ? method : "GET",
-						requestBody
-					)
-				).execute()
-			) {
-				return Optional.of(response.body().string());
+
+			final Request request = new Request.Builder()
+				.url(url)
+				.method(method != null ? method : "GET", requestBody)
+				.addHeader("Accept", contentType)
+				.addHeader("Content-Type", contentType)
+				.build();
+
+			try (final Response response = getHttpClient(timeoutInMillis).newCall(request).execute()) {
+				if (!response.isSuccessful()) {
+					ofNullable(errorConsumer)
+						.ifPresent(it -> it.accept(
+							"Error fetching content from URL: " + url + " HTTP status " + response.code() + (response.message().isBlank() ? "" : " - " + response.message()) + (response.body().contentLength() > 0 ? ": " + readBodyString(response) : ""))
+						);
+					return empty();
+				} else {
+					return of(response.body().string());
+				}
 			}
+		} catch (SocketTimeoutException e) {
+			ofNullable(timeoutConsumer)
+				.ifPresent(it -> it.accept("Fetching content from URL timed out: " + url + " - " + e.getMessage()));
+			return empty();
 		} catch (IOException e) {
-			return Optional.empty();
+			ofNullable(errorConsumer)
+				.ifPresent(it -> it.accept("Error fetching content from URL: " + url + " - " + e.getMessage()));
+			return empty();
 		}
 	}
 
 	/**
 	 * Returns the IP address of the given host.
+	 *
 	 * @param host host to get the IP address for
 	 * @return the IP address of the given host
 	 */
@@ -175,32 +207,48 @@ public class NetworkUtils {
 	}
 
 	/**
+	 * Reads the body string from the given response.
+	 *
+	 * @param response the HTTP response, must not be null
+	 * @return the body of the response as a string, or an error message if an exception occurs, never null
+	 */
+	private static String readBodyString(@Nonnull Response response) {
+		try {
+			return response.body().string();
+		} catch (IOException e) {
+			return "Error reading response body: " + e.getMessage();
+		}
+	}
+
+	/**
 	 * Returns the cached HTTP client instance. Instance has low timeouts and trusts all certificates, it doesn't reuse
 	 * connections.
 	 *
 	 * @return the HTTP client instance
 	 */
 	@Nonnull
-	private static OkHttpClient getHttpClient() {
-		if (HTTP_CLIENT == null) {
-			try {
-				// Get a new SSL context
-				final SSLContext sc = SSLContext.getInstance("TLSv1.3");
-				sc.init(null, new TrustManager[]{TrustAllX509TrustManager.INSTANCE}, new java.security.SecureRandom());
+	private static OkHttpClient getHttpClient(long timeoutInMillis) {
+		try {
+			// Get a new SSL context
+			final SSLContext sc = SSLContext.getInstance("TLSv1.3");
+			sc.init(null, new TrustManager[]{TrustAllX509TrustManager.INSTANCE}, new java.security.SecureRandom());
 
-				HTTP_CLIENT = new OkHttpClient.Builder()
+			return HTTP_CLIENT.computeIfAbsent(
+				timeoutInMillis,
+				(t) -> new OkHttpClient.Builder()
 					.hostnameVerifier((hostname, session) -> true)
 					.sslSocketFactory(sc.getSocketFactory(), TrustAllX509TrustManager.INSTANCE)
 					.protocols(Arrays.asList(Protocol.HTTP_1_1, Protocol.HTTP_2))
-					.readTimeout(DEFAULT_CLIENT_TIMEOUT, TimeUnit.MILLISECONDS)
-					.callTimeout(DEFAULT_CLIENT_TIMEOUT, TimeUnit.MILLISECONDS)
+					.readTimeout(timeoutInMillis, TimeUnit.MILLISECONDS)
+					.callTimeout(timeoutInMillis, TimeUnit.MILLISECONDS)
+					.connectTimeout(timeoutInMillis, TimeUnit.MILLISECONDS)
+					.writeTimeout(timeoutInMillis, TimeUnit.MILLISECONDS)
 					.connectionPool(new ConnectionPool(0, 1, TimeUnit.MILLISECONDS))
-					.build();
-			} catch (NoSuchAlgorithmException | KeyManagementException e) {
-				throw new IllegalStateException("Failed to create HTTP client", e);
-			}
+					.build()
+			);
+		} catch (NoSuchAlgorithmException | KeyManagementException e) {
+			throw new IllegalStateException("Failed to create HTTP client", e);
 		}
-		return HTTP_CLIENT;
 	}
 
 	/**

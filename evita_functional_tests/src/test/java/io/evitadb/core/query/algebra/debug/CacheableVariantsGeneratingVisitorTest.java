@@ -157,7 +157,7 @@ class CacheableVariantsGeneratingVisitorTest {
 						)
 					),
 					new PriceEvaluationContext(
-						new PriceIndexKey("basic", Currency.getInstance("CZK"), PriceInnerRecordHandling.NONE)
+						null, new PriceIndexKey("basic", Currency.getInstance("CZK"), PriceInnerRecordHandling.NONE)
 					)
 				),
 				/* #1 */

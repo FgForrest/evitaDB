@@ -54,20 +54,73 @@ public interface GrpcSetAttributeSchemaUniqueMutationOrBuilder extends
    * <pre>
    * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
    * having certain value of this attribute among other entities in the same collection.
+   * deprecated in favor of `uniqueInScopes`
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 2;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 2 [deprecated = true];</code>
+   * @deprecated
    * @return The enum numeric value on the wire for unique.
    */
-  int getUniqueValue();
+  @java.lang.Deprecated int getUniqueValue();
+  /**
+   * <pre>
+   * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+   * having certain value of this attribute among other entities in the same collection.
+   * deprecated in favor of `uniqueInScopes`
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 2 [deprecated = true];</code>
+   * @deprecated
+   * @return The unique.
+   */
+  @java.lang.Deprecated io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType getUnique();
+
   /**
    * <pre>
    * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
    * having certain value of this attribute among other entities in the same collection.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 2;</code>
-   * @return The unique.
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType uniqueInScopes = 13;</code>
    */
-  io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType getUnique();
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType> 
+      getUniqueInScopesList();
+  /**
+   * <pre>
+   * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+   * having certain value of this attribute among other entities in the same collection.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType uniqueInScopes = 13;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType getUniqueInScopes(int index);
+  /**
+   * <pre>
+   * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+   * having certain value of this attribute among other entities in the same collection.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType uniqueInScopes = 13;</code>
+   */
+  int getUniqueInScopesCount();
+  /**
+   * <pre>
+   * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+   * having certain value of this attribute among other entities in the same collection.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType uniqueInScopes = 13;</code>
+   */
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessTypeOrBuilder> 
+      getUniqueInScopesOrBuilderList();
+  /**
+   * <pre>
+   * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+   * having certain value of this attribute among other entities in the same collection.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType uniqueInScopes = 13;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessTypeOrBuilder getUniqueInScopesOrBuilder(
+      int index);
 }

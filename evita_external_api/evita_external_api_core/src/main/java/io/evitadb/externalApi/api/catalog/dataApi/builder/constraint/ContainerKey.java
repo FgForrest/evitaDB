@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.api.catalog.dataApi.builder.constraint;
 
-import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import lombok.EqualsAndHashCode;
@@ -32,7 +31,6 @@ import lombok.ToString;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
-import java.util.Set;
 
 /**
  * Identifies single created constraint container (usually JSON object representing some {@link io.evitadb.api.query.ConstraintContainer})
@@ -66,29 +64,8 @@ public class ContainerKey extends CacheableElementKey {
 		final long keyHash = hashFunction.hashLongs(new long[] {
 			hashContainerType(hashFunction),
 			hashDataLocator(hashFunction),
-			hashAllowedConstraintPredicate(hashFunction)
+			hashAllowedConstraintPredicate(hashFunction, allowedConstraintPredicate)
 		});
 		return Long.toHexString(keyHash);
-	}
-
-	private long hashAllowedConstraintPredicate(@Nonnull LongHashFunction hashFunction) {
-		return hashFunction.hashLongs(new long[] {
-			hashFunction.hashChars(allowedConstraintPredicate.getBaseConstraintType().getSimpleName()),
-			hashConstraintSet(hashFunction, allowedConstraintPredicate.getLocallyAllowedConstraints()),
-			hashConstraintSet(hashFunction, allowedConstraintPredicate.getGloballyAllowedConstraints()),
-			hashConstraintSet(hashFunction, allowedConstraintPredicate.getForbiddenConstraints())
-		});
-	}
-
-	private long hashConstraintSet(@Nonnull LongHashFunction hashFunction,
-	                               @Nonnull Set<Class<? extends Constraint<?>>> constraintSet) {
-		return hashFunction.hashLongs(
-			constraintSet
-				.stream()
-				.map(Class::getSimpleName)
-				.sorted()
-				.mapToLong(hashFunction::hashChars)
-				.toArray()
-		);
 	}
 }

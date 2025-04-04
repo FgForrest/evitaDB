@@ -27,34 +27,41 @@ import java.io.Serializable;
 
 /**
  * Predecessor is a special data type allowing to create consistent or semi-consistent linked lists in evitaDB and sort
- * by the order of the elements in the list.
+ * by the order of the elements in the list. Predecessor represents a reference to another entity of the same type
+ * as itself that is the predecessor of the entity it is attached to.
+ *
+ * Let's have this ordered sequence of entities: [5, 3, 1, 4]
+ * This sequence can be translated to the following Predecessor attributes:
+ *
+ * Entity PK | Predecessor
+ * ------------------------
+ * 5         | HEAD (-1)
+ * 3		 | 5
+ * 1		 | 3
+ * 4		 | 1
+ *
+ * As you can see, the Predecessor uses the primary key of the same entity as a pointer to its predecessor. The only
+ * exception is the HEAD entity, which is a special entity representing the beginning of the list.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public record Predecessor(
-	int predecessorId
-) implements Serializable {
+	int predecessorPk
+) implements Serializable, ChainableType {
 	public static final Predecessor HEAD = new Predecessor();
 
 	/**
 	 * Head entity constructor.
 	 */
 	public Predecessor() {
-		this(-1);
+		this(HEAD_PK);
 	}
 
 	/**
 	 * Constructor for successor entity.
 	 *
-	 * @param predecessorId id of the predecessor
+	 * @param predecessorPk id of the predecessor
 	 */
 	public Predecessor {}
 
-	/**
-	 * Returns true if this is the head of the list.
-	 * @return true if this is the head of the list
-	 */
-	public boolean isHead() {
-		return predecessorId == -1;
-	}
 }

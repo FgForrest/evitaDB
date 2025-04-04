@@ -70,7 +70,7 @@ import java.util.function.Consumer;
  *
  * This formula consumes and produces {@link Formula} of reduced {@link PriceRecord#entityPrimaryKey() entity ids}
  * which price passes the {@link #pricePredicate} predicate. It uses  information from underlying formulas that implement
- * {@link FilteredPriceRecordAccessor#getFilteredPriceRecords()} to access the appropriate price for filtering purposes.
+ * {@link FilteredPriceRecordAccessor#getFilteredPriceRecords(QueryExecutionContext)}  to access the appropriate price for filtering purposes.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -195,9 +195,12 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 
 	@Nonnull
 	@Override
-	public FilteredPriceRecords getFilteredPriceRecords() {
-		Assert.notNull(filteredPriceRecords, "Call #compute() method first!");
-		return filteredPriceRecords;
+	public FilteredPriceRecords getFilteredPriceRecords(@Nonnull QueryExecutionContext context) {
+		if (this.filteredPriceRecords == null) {
+			// init the records first
+			compute();
+		}
+		return this.filteredPriceRecords;
 	}
 
 	@Override
@@ -215,13 +218,13 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 				.sorted()
 				.toArray(),
 			compute(),
-			getFilteredPriceRecords(),
+			getFilteredPriceRecords(this.executionContext),
 			Objects.requireNonNull(getRecordsFilteredOutByPredicate()),
 			getPriceEvaluationContext(),
-			pricePredicate.getQueryPriceMode(),
-			pricePredicate.getFrom(),
-			pricePredicate.getTo(),
-			pricePredicate.getIndexedPricePlaces()
+			this.pricePredicate.getQueryPriceMode(),
+			this.pricePredicate.getFrom(),
+			this.pricePredicate.getTo(),
+			this.pricePredicate.getIndexedPricePlaces()
 		);
 	}
 
@@ -250,7 +253,7 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 			// collect price iterators ordered by price list importance
 			final PriceRecordLookup[] priceRecordIterators = filteredPriceRecordAccessors
 				.stream()
-				.map(FilteredPriceRecordAccessor::getFilteredPriceRecords)
+				.map(it -> it.getFilteredPriceRecords(this.executionContext))
 				.map(FilteredPriceRecords::getPriceRecordsLookup)
 				.toArray(PriceRecordLookup[]::new);
 

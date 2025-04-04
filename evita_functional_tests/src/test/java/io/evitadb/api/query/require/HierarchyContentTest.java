@@ -23,18 +23,17 @@
 
 package io.evitadb.api.query.require;
 
+import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import org.junit.jupiter.api.Test;
 
 import static io.evitadb.api.query.QueryConstraints.*;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * This tests verifies basic properties of {@link HierarchyContent} query.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 202"a"
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 class HierarchyContentTest {
 
@@ -101,6 +100,74 @@ class HierarchyContentTest {
 		assertNotEquals(hierarchyContent().hashCode(), hierarchyContent(entityFetch(attributeContentAll())).hashCode());
 		assertNotEquals(hierarchyContent(stopAt(distance(1))).hashCode(), hierarchyContent(entityFetch(attributeContentAll())).hashCode());
 		assertNotEquals(hierarchyContent(stopAt(distance(1))).hashCode(), hierarchyContent(stopAt(distance(2))).hashCode());
+	}
+
+	@Test
+	void shouldFullyContainWhenHierarchyContentIsEmpty() {
+		assertTrue(hierarchyContent().isFullyContainedWithin(hierarchyContent()));
+	}
+
+	@Test
+	void shouldNotFullyContainWhenStopAtIsPresentInHierarchyContent() {
+		assertFalse(hierarchyContent(stopAt(distance(1))).isFullyContainedWithin(hierarchyContent()));
+	}
+
+	@Test
+	void shouldFullyContainWhenEntityFetchIsPresentInBothHierarchyContents() {
+		assertTrue(hierarchyContent(entityFetch(attributeContent())).isFullyContainedWithin(hierarchyContent(entityFetchAll())));
+	}
+
+	@Test
+	void shouldNotFullyContainWhenEntityFetchIsOnlyInOneHierarchyContent() {
+		assertFalse(hierarchyContent(entityFetchAll()).isFullyContainedWithin(hierarchyContent()));
+	}
+
+	@Test
+	void shouldReturnEmptyStopAtWhenNotPresent() {
+		final HierarchyContent hierarchyContent = hierarchyContent();
+		assertFalse(hierarchyContent.getStopAt().isPresent());
+	}
+
+	@Test
+	void shouldReturnEmptyEntityFetchWhenNotPresent() {
+		final HierarchyContent hierarchyContent = hierarchyContent();
+		assertFalse(hierarchyContent.getEntityFetch().isPresent());
+	}
+
+	@Test
+	void shouldReturnStopAtWhenPresent() {
+		final HierarchyContent hierarchyContent = hierarchyContent(stopAt(distance(1)));
+		assertTrue(hierarchyContent.getStopAt().isPresent());
+		assertEquals(stopAt(distance(1)), hierarchyContent.getStopAt().orElse(null));
+	}
+
+	@Test
+	void shouldReturnEntityFetchWhenPresent() {
+		final HierarchyContent hierarchyContent = hierarchyContent(entityFetch(attributeContentAll()));
+		assertTrue(hierarchyContent.getEntityFetch().isPresent());
+		assertEquals(entityFetch(attributeContentAll()), hierarchyContent.getEntityFetch().orElse(null));
+	}
+
+	@Test
+	void shouldCombineWithAnotherHierarchyContent() {
+		final HierarchyContent hierarchyContent1 = hierarchyContent(entityFetch(attributeContentAll()));
+		final HierarchyContent hierarchyContent2 = hierarchyContent(entityFetch(associatedDataContentAll()));
+		final HierarchyContent combined = hierarchyContent1.combineWith(hierarchyContent2);
+		assertTrue(combined.getEntityFetch().isPresent());
+		assertEquals(entityFetch(attributeContentAll(), associatedDataContentAll()), combined.getEntityFetch().orElse(null));
+	}
+
+	@Test
+	void shouldNotCombineWithDifferentRequirement() {
+		final HierarchyContent hierarchyContent = hierarchyContent();
+		assertThrows(GenericEvitaInternalError.class, () -> hierarchyContent.combineWith(attributeContent()));
+	}
+
+	@Test
+	void shouldThrowWhenCombiningWithStopAt() {
+		final HierarchyContent hierarchyContent1 = hierarchyContent(stopAt(distance(1)));
+		final HierarchyContent hierarchyContent2 = hierarchyContent(stopAt(distance(2)));
+		assertThrows(EvitaInvalidUsageException.class, () -> hierarchyContent1.combineWith(hierarchyContent2));
 	}
 
 }

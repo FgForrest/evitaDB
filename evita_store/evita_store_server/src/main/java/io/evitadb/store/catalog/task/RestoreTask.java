@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,29 +25,30 @@ package io.evitadb.store.catalog.task;
 
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.task.TaskStatus;
+import io.evitadb.api.task.TaskStatus.TaskTrait;
 import io.evitadb.core.async.ClientRunnableTask;
 import io.evitadb.core.async.Interruptible;
-import io.evitadb.core.file.ExportFileService.ExportFileInputStream;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.store.catalog.DefaultCatalogPersistenceService;
 import io.evitadb.store.catalog.task.RestoreTask.RestoreSettings;
+import io.evitadb.store.catalog.task.stream.CountingInputStream;
 import io.evitadb.store.spi.CatalogPersistenceService;
+import io.evitadb.store.spi.CatalogPersistenceServiceFactory.FileIdCarrier;
 import io.evitadb.utils.Assert;
-import io.evitadb.utils.CountingInputStream;
-import io.evitadb.utils.UUIDUtil;
+import io.evitadb.utils.StringUtils;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.io.BufferedInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.util.Objects;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -98,15 +99,24 @@ public class RestoreTask extends ClientRunnableTask<RestoreSettings> {
 
 	public RestoreTask(
 		@Nonnull String catalogName,
-		@Nonnull InputStream inputStream,
+		@Nonnull UUID fileId,
+		@Nonnull Path pathToFile,
 		long totalSizeInBytes,
+		boolean deleteAfterRestore,
 		@Nonnull StorageOptions storageOptions
 	) {
 		super(
 			catalogName,
+			RestoreTask.class.getSimpleName(),
 			"Restore catalog `" + catalogName + "`",
-			new RestoreSettings(inputStream, storageOptions.exportDirectory(), totalSizeInBytes),
-			task -> ((RestoreTask) task).doRestore()
+			new RestoreSettings(
+				fileId,
+				pathToFile,
+				totalSizeInBytes,
+				deleteAfterRestore
+			),
+			task -> ((RestoreTask) task).doRestore(),
+			TaskTrait.CAN_BE_STARTED, TaskTrait.CAN_BE_CANCELLED
 		);
 		this.storageOptions = storageOptions;
 	}
@@ -117,23 +127,25 @@ public class RestoreTask extends ClientRunnableTask<RestoreSettings> {
 	private void doRestore() {
 		// unzip contents of the stream
 		final TaskStatus<RestoreSettings, Void> status = getStatus();
-		final String catalogName = status.catalogName();
+		final String catalogName = Objects.requireNonNull(status.catalogName());
 
-		log.info("Restoring catalog `{}` from file `{}`.", catalogName, status.settings().fileName());
+		final Path inputFile = status.settings().pathToFile();
+		log.info("Restoring catalog `{}` from file `{}`.", catalogName, inputFile);
 
-		final Path inputFile = this.storageOptions.exportDirectory().resolve(status.settings().fileName());
 		try (
 			final CountingInputStream cis = new CountingInputStream(
 				new BufferedInputStream(
-					Files.newInputStream(inputFile, StandardOpenOption.READ, StandardOpenOption.DELETE_ON_CLOSE)
+					status.settings().deleteAfterRestore() ?
+						Files.newInputStream(inputFile, StandardOpenOption.READ, StandardOpenOption.DELETE_ON_CLOSE) :
+						Files.newInputStream(inputFile, StandardOpenOption.READ)
 				)
 			);
 			final ZipInputStream zipInputStream = new ZipInputStream(cis)
 		) {
-			final Path storagePath = DefaultCatalogPersistenceService.pathForCatalog(catalogName, this.storageOptions.storageDirectoryOrDefault());
+			final Path storagePath = DefaultCatalogPersistenceService.pathForCatalog(catalogName, this.storageOptions.storageDirectory());
 			DefaultCatalogPersistenceService.verifyDirectory(storagePath, true);
 
-			ZipEntry entry = zipInputStream.getNextEntry();
+			ZipEntry entry = Objects.requireNonNull(zipInputStream.getNextEntry());
 			Assert.isPremiseValid(entry.isDirectory(), "First entry in the zip file must be a directory!");
 			// last character is always a slash
 			final String directoryName = entry.getName().substring(0, entry.getName().length() - 1);
@@ -142,7 +154,8 @@ public class RestoreTask extends ClientRunnableTask<RestoreSettings> {
 			while ((entry = zipInputStream.getNextEntry()) != null) {
 				// get the name of the file in the zip and create the file in the storage
 				final String fileName = getFileNameWithCatalogRename(entry.getName(), directoryName, catalogName);
-				final Path entryPath = storagePath.resolve(fileName);
+				final Path entryPath = storagePath.resolve(fileName).normalize();
+				Assert.isTrue(entryPath.startsWith(storagePath), "Bad ZIP entry!");
 				try (final FileChannel fileChannel = FileChannel.open(entryPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
 					// read the file from the zip and write it to the storage
 					int bytesRead;
@@ -160,7 +173,7 @@ public class RestoreTask extends ClientRunnableTask<RestoreSettings> {
 				)
 			);
 
-			log.info("Catalog `{}` restored from file `{}`.", catalogName, status.settings().fileName());
+			log.info("Catalog `{}` restored from file `{}`.", catalogName, inputFile);
 		} catch (IOException e) {
 			throw new UnexpectedIOException(
 				"Unexpected exception occurred while restoring catalog: " + e.getMessage(),
@@ -185,47 +198,29 @@ public class RestoreTask extends ClientRunnableTask<RestoreSettings> {
 			fileChannel.write(buffer);
 		}
 		buffer.clear();
-		updateProgress((int) ((cis.getCount() * 100L) / getStatus().settings().totalSizeInBytes()));
+		updateProgress((int) (((float) cis.getCount() / (float) getStatus().settings().totalSizeInBytes()) * 100));
 	}
 
 	/**
 	 * Settings for this instance of restore task.
 	 *
-	 * @param fileName         name of the file to be restored
-	 * @param totalSizeInBytes total size of the file in bytes
+	 * @param fileId             The ID of the file to be restored.
+	 * @param pathToFile         path to the file to be restored
+	 * @param totalSizeInBytes   total size of the file in bytes
+	 * @param deleteAfterRestore whether to delete the ZIP file after restore
 	 */
 	public record RestoreSettings(
-		@Nonnull String fileName,
-		long totalSizeInBytes
-	) implements Serializable {
+		@Nonnull UUID fileId,
+		@Nonnull Path pathToFile,
+		long totalSizeInBytes,
+		boolean deleteAfterRestore
+	) implements Serializable, FileIdCarrier {
 
-		public RestoreSettings(@Nonnull InputStream inputStream, @Nonnull Path export, long totalSizeInBytes) {
-			this(
-				inputStream instanceof ExportFileInputStream exportFileInputStream ?
-					exportFileInputStream.getFile().path(export).toFile().getName() : UUIDUtil.randomUUID() + ".zip",
-				totalSizeInBytes
-			);
-			if (!(inputStream instanceof ExportFileInputStream)) {
-				// if the file is not a locally stored export file, store it to the export directory first
-				try {
-					final long bytesCopied = Files.copy(
-						inputStream, export.resolve(fileName()),
-						StandardCopyOption.REPLACE_EXISTING
-					);
-					Assert.isPremiseValid(
-						bytesCopied == totalSizeInBytes,
-						"Unexpected number of bytes copied (" + bytesCopied + "B instead of " + totalSizeInBytes + "B)!"
-					);
-				} catch (IOException e) {
-					throw new UnexpectedIOException(
-						"Unexpected exception occurred while storing catalog file for restoration: " + e.getMessage(),
-						"Unexpected exception occurred while storing catalog file for restoration!",
-						e
-					);
-				}
-			}
+		@Override
+		public String toString() {
+			return "FileName: `" + pathToFile + '`' +
+				", totalSizeInBytes: " + StringUtils.formatByteSize(totalSizeInBytes);
 		}
-
 	}
 
 }

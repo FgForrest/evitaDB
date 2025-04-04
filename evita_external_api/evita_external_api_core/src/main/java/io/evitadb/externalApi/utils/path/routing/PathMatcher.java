@@ -19,6 +19,7 @@
 package io.evitadb.externalApi.utils.path.routing;
 
 import io.evitadb.externalApi.utils.path.URLUtils;
+import io.evitadb.utils.ArrayUtils;
 
 import java.util.Collections;
 import java.util.Comparator;
@@ -146,7 +147,7 @@ public class PathMatcher<T> {
 	}
 
 	public T getExactPath(final String path) {
-		return exactPathMatches.get(URLUtils.normalizeSlashes(path));
+		return exactPathMatches.get(path);
 	}
 
 	public T getPrefixPath(final String path) {
@@ -221,7 +222,7 @@ public class PathMatcher<T> {
 	public synchronized PathMatcher clearPaths() {
 		paths.clear();
 		exactPathMatches.clear();
-		this.lengths = new int[0];
+		this.lengths = ArrayUtils.EMPTY_INT_ARRAY;
 		defaultHandler = null;
 		return this;
 	}

@@ -25,6 +25,7 @@ package io.evitadb.core.query.algebra.price.translate;
 
 import io.evitadb.core.cache.payload.FlattenedFormula;
 import io.evitadb.core.cache.payload.FlattenedFormulaWithFilteredPrices;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.AbstractCacheableFormula;
 import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
@@ -128,7 +129,7 @@ public class PriceIdToEntityIdTranslateFormula extends AbstractCacheableFormula 
 				.sorted()
 				.toArray(),
 			compute(),
-			getFilteredPriceRecords(),
+			getFilteredPriceRecords(this.executionContext),
 			getPriceEvaluationContext()
 		);
 	}
@@ -140,6 +141,7 @@ public class PriceIdToEntityIdTranslateFormula extends AbstractCacheableFormula 
 		);
 
 		return new PriceEvaluationContext(
+			null,
 			priceIdFormulas.stream()
 				.map(it -> it.getPriceIndex().getPriceIndexKey())
 				.toArray(PriceIndexKey[]::new)
@@ -166,9 +168,12 @@ public class PriceIdToEntityIdTranslateFormula extends AbstractCacheableFormula 
 
 	@Nonnull
 	@Override
-	public FilteredPriceRecords getFilteredPriceRecords() {
-		Assert.notNull(filteredPriceRecords, "Call #compute() method first!");
-		return filteredPriceRecords;
+	public FilteredPriceRecords getFilteredPriceRecords(@Nonnull QueryExecutionContext context) {
+		if (this.filteredPriceRecords == null) {
+			// init the records first
+			compute();
+		}
+		return this.filteredPriceRecords;
 	}
 
 	@Override
@@ -234,7 +239,7 @@ public class PriceIdToEntityIdTranslateFormula extends AbstractCacheableFormula 
 
 	@Override
 	public int getEstimatedCardinality() {
-		return Arrays.stream(this.innerFormulas).mapToInt(formula -> formula.getEstimatedCardinality()).sum();
+		return Arrays.stream(this.innerFormulas).mapToInt(Formula::getEstimatedCardinality).sum();
 	}
 
 	@Override

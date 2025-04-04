@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
@@ -111,13 +112,17 @@ public class HierarchyExtraResultRequireResolver {
 	                                                                @Nullable Locale desiredLocale) {
 
 		final OrderBy orderBy = (OrderBy) Optional.ofNullable(field.getArguments().get(HierarchyOfSelfHeaderDescriptor.ORDER_BY.name()))
-			.map(it -> orderConstraintResolver.resolve(new EntityDataLocator(entitySchema.getName()), HierarchyOfSelfHeaderDescriptor.ORDER_BY.name(), it))
+			.map(it -> orderConstraintResolver.resolve(
+				new EntityDataLocator(new ManagedEntityTypePointer(entitySchema.getName())),
+				HierarchyOfSelfHeaderDescriptor.ORDER_BY.name(),
+				it
+			))
 			.orElse(null);
 
 		final HierarchyRequireConstraint[] hierarchyRequires = resolveHierarchyRequirements(
 			field,
 			entitySchema,
-			new HierarchyDataLocator(entitySchema.getName()),
+			new HierarchyDataLocator(new ManagedEntityTypePointer(entitySchema.getName())),
 			desiredLocale
 		);
 
@@ -143,7 +148,7 @@ public class HierarchyExtraResultRequireResolver {
 		if (referenceSchema.isReferencedEntityTypeManaged()) {
 			orderBy = (OrderBy) Optional.ofNullable(field.getArguments().get(HierarchyOfReferenceHeaderDescriptor.ORDER_BY.name()))
 				.map(it -> orderConstraintResolver.resolve(
-					new EntityDataLocator(hierarchyEntitySchema.getName()),
+					new EntityDataLocator(new ManagedEntityTypePointer(hierarchyEntitySchema.getName())),
 					HierarchyOfReferenceHeaderDescriptor.ORDER_BY.name(),
 					it
 				))
@@ -155,7 +160,7 @@ public class HierarchyExtraResultRequireResolver {
 		final HierarchyRequireConstraint[] hierarchyRequires = resolveHierarchyRequirements(
 			field,
 			hierarchyEntitySchema,
-			new HierarchyDataLocator(entitySchema.getName(), referenceName),
+			new HierarchyDataLocator(new ManagedEntityTypePointer(entitySchema.getName()), referenceName),
 			desiredLocale
 		);
 

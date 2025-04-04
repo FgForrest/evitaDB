@@ -218,18 +218,13 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		final AssociatedData associatedDataInstance = reflectionLookup.getAnnotationInstanceForProperty(expectedType, parameterName, AssociatedData.class);
 		final AssociatedDataRef associatedDataRefInstance = reflectionLookup.getAnnotationInstanceForProperty(expectedType, parameterName, AssociatedDataRef.class);
 		if (associatedDataInstance != null) {
-			return entitySchema.getAssociatedDataOrThrowException(associatedDataInstance.name());
+			return entitySchema.getAssociatedDataOrThrowException(associatedDataInstance.name().isBlank() ? parameterName : associatedDataInstance.name());
 		} else if (associatedDataRefInstance != null) {
-			return entitySchema.getAssociatedDataOrThrowException(associatedDataRefInstance.value());
+			return entitySchema.getAssociatedDataOrThrowException(associatedDataRefInstance.value().isBlank() ? parameterName : associatedDataRefInstance.value());
+		} else if (!reflectionLookup.hasAnnotationInSamePackage(expectedType, parameter, AssociatedData.class)) {
+			return entitySchema.getAssociatedDataOrThrowException(parameterName);
 		} else {
-			return ReflectionLookup.getPropertyNameFromMethodNameIfPossible(parameterName)
-				.flatMap(
-					associatedDataName -> entitySchema.getAssociatedDataByName(
-						associatedDataName,
-						NamingConvention.CAMEL_CASE
-					)
-				)
-				.orElse(null);
+			return null;
 		}
 	}
 

@@ -27,6 +27,7 @@ import graphql.execution.DataFetcherResult;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.query.HeadConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.RequireConstraint;
@@ -48,7 +49,6 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.E
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
 import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.WriteDataFetcher;
 import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -72,13 +72,12 @@ import static io.evitadb.api.query.QueryConstraints.strip;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @Slf4j
-@RequiredArgsConstructor
 public class DeleteEntitiesMutatingDataFetcher implements DataFetcher<DataFetcherResult<List<SealedEntity>>>, WriteDataFetcher {
 
 	/**
 	 * Schema of collection to which this fetcher is mapped to.
 	 */
-	@Nonnull private EntitySchemaContract entitySchema;
+	@Nonnull private final EntitySchemaContract entitySchema;
 
 	@Nonnull private final FilterConstraintResolver filterConstraintResolver;
 	@Nonnull private final OrderConstraintResolver orderConstraintResolver;
@@ -88,7 +87,10 @@ public class DeleteEntitiesMutatingDataFetcher implements DataFetcher<DataFetche
 		this.entitySchema = entitySchema;
 
 		this.filterConstraintResolver = new FilterConstraintResolver(catalogSchema);
-		this.orderConstraintResolver = new OrderConstraintResolver(catalogSchema);
+		this.orderConstraintResolver = new OrderConstraintResolver(
+			catalogSchema,
+			new AtomicReference<>(filterConstraintResolver)
+		);
 		final RequireConstraintResolver requireConstraintResolver = new RequireConstraintResolver(
 			catalogSchema,
 			new AtomicReference<>(filterConstraintResolver)
@@ -103,16 +105,17 @@ public class DeleteEntitiesMutatingDataFetcher implements DataFetcher<DataFetche
 
 	@Nonnull
 	@Override
-	public DataFetcherResult<List<SealedEntity>> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+	public DataFetcherResult<List<SealedEntity>> get(DataFetchingEnvironment environment) throws Exception {
 		final Arguments arguments = Arguments.from(environment);
 		final ExecutedEvent requestExecutedEvent = environment.getGraphQlContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
 
 		final Query query = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> {
+			final HeadConstraint head = collection(entitySchema.getName());
 			final FilterBy filterBy = buildFilterBy(arguments);
 			final OrderBy orderBy = buildOrderBy(arguments);
 			final Require require = buildRequire(environment, arguments, filterBy);
 			return query(
-				collection(entitySchema.getName()),
+				head,
 				filterBy,
 				orderBy,
 				require

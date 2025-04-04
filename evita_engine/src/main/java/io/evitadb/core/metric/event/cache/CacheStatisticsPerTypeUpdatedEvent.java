@@ -40,23 +40,27 @@ import javax.annotation.Nonnull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Name(AbstractCacheEvent.PACKAGE_NAME + ".CacheStatisticsPerTypeUpdated")
-@Description("Event that is fired when cache contents are updated.")
+@Description("Event that is fired when the cache content is updated.")
 @Label("Cache type statistics updated")
 @Getter
 public class CacheStatisticsPerTypeUpdatedEvent extends AbstractCacheEvent {
 	@Label("Type of record.")
+	@Description("One of the cached record types: FORMULA, SORTED_RESULT, EXTRA_RESULT, or ENTITY")
 	@ExportMetricLabel("Record type")
 	private final String type;
 
 	@Label("Number of records of a particular type in cache.")
+	@Description("The number of cached records of a given type.")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final int records;
 
 	@Label("Number of records of a particular type in cache.")
+	@Description("The total size of cached records of a given type in bytes.")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final long recordsSizeBytes;
 
 	@Label("Number of records of a particular type in cache.")
+	@Description("The average complexity of cached records of a given type.")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final long averageComplexity;
 

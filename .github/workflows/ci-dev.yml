@@ -8,9 +8,10 @@ on:
     paths:                         # but react only to changes in code or pipeline definition
       - evita*/**/*.java
       - evita*/**/pom.xml
+      - evita_external_api/evita_external_api_lab/src/main/resources/META-INF/lab/gui/dist/**
       - jacoco/**/pom.xml
-      - docker/**.*
-      - .github/**.*
+      - docker/**
+      - .github/**
   pull_request_target:
     branches: [ "dev" ]            # also trap pull requests to dev branch
     paths:                         # but react only to changes in code or pipeline definition
@@ -36,14 +37,19 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3    # checkout sources
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2    # checkout sources
 
     - name: Setup Java JDK
-      uses: actions/setup-java@v3  # setup JDK 17 for building
+      uses: actions/setup-java@3a4f6e1af504cf6a31855fa899c6aa5355ba6c12 # v4.7.0  # setup JDK 17 for building
       with:
          distribution: 'temurin'
          java-version: '17'
          cache: 'maven'
+         server-id: ossrh
+         server-username: MAVEN_USERNAME
+         server-password: MAVEN_CENTRAL_TOKEN
+         gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+         gpg-passphrase: MAVEN_GPG_PASSPHRASE
 
     - name: Build with Maven       # run Maven with tests
       run: |
@@ -51,22 +57,31 @@ jobs:
         jacoco/jacoco-summary.sh jacoco/target/site/jacoco-aggregate/jacoco.csv
 
     - name: Upload test results    # upload XML with unit test results to artifact `test-results` for `test-report.yml`
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
       if: success() || failure()
       with:
         name: test-results
         path: 'evita*/**/target/surefire-reports/TEST-*.xml'
 
     - name: Upload evitaDB server artifact   # upload `evita-server.jar` for `docker-canary.yml` to deploy to DockerHub
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
       if: success()
       with:
         name: evita-server.jar
         path: 'evita_server/target/evita-server.jar'
 
     - name: Upload coverage to Codecov    # upload code coverage from Jacoco to codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@13ce06bfc6bbe3ecf90edbbf1bc32fe5978ca1d3 # v5.3.1
 
     # Optional: Uploads the full dependency graph to GitHub to improve the quality of Dependabot alerts this repository can receive
     - name: Update dependency graph
-      uses: advanced-security/maven-dependency-submission-action@v3
+      uses: advanced-security/maven-dependency-submission-action@4f64ddab9d742a4806eeb588d238e4c311a8397d # v4.1.1
+
+    - name: Deploy with Maven       # deploy SNAPSHOTS to Maven repository
+      run: |
+        mvn -T 1C -B deploy -DdeployAtEnd=true -Dmaven.test.skip=true --file pom.xml
+      continue-on-error: true
+      env:
+        MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
+        MAVEN_CENTRAL_TOKEN: ${{ secrets.MAVEN_CENTRAL_TOKEN }}
+        MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}

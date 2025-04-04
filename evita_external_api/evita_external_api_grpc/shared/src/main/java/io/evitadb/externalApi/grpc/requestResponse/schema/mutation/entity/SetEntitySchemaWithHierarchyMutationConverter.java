@@ -24,12 +24,16 @@
 package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.entity;
 
 import io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWithHierarchyMutation;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.grpc.generated.GrpcSetEntitySchemaWithHierarchyMutation;
+import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.util.Arrays;
+import java.util.stream.Collectors;
 
 /**
  * Converts between {@link SetEntitySchemaWithHierarchyMutation} and {@link GrpcSetEntitySchemaWithHierarchyMutation} in both directions.
@@ -42,13 +46,24 @@ public class SetEntitySchemaWithHierarchyMutationConverter implements SchemaMuta
 
 	@Nonnull
 	public SetEntitySchemaWithHierarchyMutation convert(@Nonnull GrpcSetEntitySchemaWithHierarchyMutation mutation) {
-		return new SetEntitySchemaWithHierarchyMutation(mutation.getWithHierarchy());
+		return new SetEntitySchemaWithHierarchyMutation(
+			mutation.getWithHierarchy(),
+			mutation.getIndexedInScopesList()
+			.stream()
+				.map(EvitaEnumConverter::toScope)
+				.toArray(Scope[]::new)
+		);
 	}
 
 	@Nonnull
 	public GrpcSetEntitySchemaWithHierarchyMutation convert(@Nonnull SetEntitySchemaWithHierarchyMutation mutation) {
 		return GrpcSetEntitySchemaWithHierarchyMutation.newBuilder()
 			.setWithHierarchy(mutation.isWithHierarchy())
+			.addAllIndexedInScopes(
+				Arrays.stream(mutation.getIndexedInScopes())
+					.map(EvitaEnumConverter::toGrpcScope)
+					.collect(Collectors.toList())
+			)
 			.build();
 	}
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -260,7 +260,8 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 								.withReferenceToEntity(
 									Entities.CATEGORY,
 									Entities.CATEGORY,
-									Cardinality.ZERO_OR_MORE
+									Cardinality.ZERO_OR_MORE,
+									whichIs -> whichIs.indexed().faceted()
 								)
 								.withReferenceToEntity(
 									Entities.BRAND,
@@ -2801,7 +2802,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 						),
 						require(
 							page(1, Integer.MAX_VALUE),
-							debug(DebugMode.VERIFY_POSSIBLE_CACHING_TREES, DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.PREFER_PREFETCHING),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.PREFER_PREFETCHING),
 							entityFetchAll()
 						)
 					),
@@ -2812,6 +2813,73 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 					result.getTotalRecordCount(),
 					resultUsingPrefetch.getTotalRecordCount()
 				);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should ignore hierarchy selection in user filter and correctly compute statistics")
+	@UseDataSet(THOUSAND_PRODUCTS)
+	@Test
+	void shouldIgnoreHierarchySelectionInUserFilterAndCorrectlyComputeStatistics(Evita evita, List<SealedEntity> originalProductEntities, Map<Integer, SealedEntity> originalCategoryIndex, one.edee.oss.pmptt.model.Hierarchy categoryHierarchy) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityLocaleEquals(Locale.ENGLISH),
+							userFilter(
+								facetHaving(
+									Entities.CATEGORY,
+									entityPrimaryKeyInSet(7),
+									includingChildren()
+								)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_POSSIBLE_CACHING_TREES, DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS),
+							hierarchyOfReference(
+								Entities.CATEGORY,
+								REMOVE_EMPTY,
+								children(
+									"megaMenu",
+									entityFetchAll(),
+									statistics(
+										StatisticsBase.COMPLETE_FILTER_EXCLUDING_SELF_IN_USER_FILTER,
+										StatisticsType.QUERIED_ENTITY_COUNT,
+										StatisticsType.CHILDREN_COUNT
+									)
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(Locale.ENGLISH);
+				final Hierarchy expectedStatistics = computeExpectedStatistics(
+					categoryHierarchy, originalProductEntities, originalCategoryIndex,
+					entity -> entity.getLocales().contains(Locale.ENGLISH),
+					languagePredicate,
+					languagePredicate,
+					categoryCardinalities -> new HierarchyStatisticsTuple(
+						"megaMenu",
+						computeChildren(
+							session, null,
+							categoryHierarchy, categoryCardinalities,
+							false,
+							true, true
+						)
+					)
+				);
+
+				final Hierarchy statistics = result.getExtraResult(Hierarchy.class);
+				assertNotNull(statistics);
+				assertEquals(expectedStatistics, statistics);
 
 				return null;
 			}

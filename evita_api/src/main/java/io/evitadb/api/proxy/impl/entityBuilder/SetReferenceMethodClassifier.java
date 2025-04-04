@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -61,6 +61,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.function.Consumer;
@@ -715,7 +716,11 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 				return (proxy, theMethod, args, theState, invokeSuper) -> {
 					final EntityBuilder entityBuilder = theState.entityBuilder();
 					final Collection<ReferenceContract> references = entityBuilder.getReferences(referenceSchema.getName());
-					references.forEach(it -> entityBuilder.removeReference(referenceSchema.getName(), it.getReferencedPrimaryKey()));
+					references.forEach(it -> {
+						entityBuilder.removeReference(referenceSchema.getName(), it.getReferencedPrimaryKey());
+						theState.unregisterReferencedEntityObject(referenceSchema.getName(), it.getReferencedPrimaryKey(), ProxyType.REFERENCE);
+						theState.unregisterReferencedEntityObject(referenceSchema.getName(), it.getReferencedPrimaryKey(), ProxyType.REFERENCED_ENTITY);
+					});
 					return references.stream()
 						.map(it -> it.getReferenceKey().primaryKey())
 						.toList();
@@ -727,14 +732,22 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 			return (proxy, theMethod, args, theState, invokeSuper) -> {
 				final EntityBuilder entityBuilder = theState.entityBuilder();
 				final Collection<ReferenceContract> references = entityBuilder.getReferences(referenceSchema.getName());
-				references.forEach(it -> entityBuilder.removeReference(referenceSchema.getName(), it.getReferencedPrimaryKey()));
+				references.forEach(it -> {
+					entityBuilder.removeReference(referenceSchema.getName(), it.getReferencedPrimaryKey());
+					theState.unregisterReferencedEntityObject(referenceSchema.getName(), it.getReferencedPrimaryKey(), ProxyType.REFERENCE);
+					theState.unregisterReferencedEntityObject(referenceSchema.getName(), it.getReferencedPrimaryKey(), ProxyType.REFERENCED_ENTITY);
+				});
 				return null;
 			};
 		} else if (Boolean.class.isAssignableFrom(returnType)) {
 			return (proxy, theMethod, args, theState, invokeSuper) -> {
 				final EntityBuilder entityBuilder = theState.entityBuilder();
 				final Collection<ReferenceContract> references = entityBuilder.getReferences(referenceSchema.getName());
-				references.forEach(it -> entityBuilder.removeReference(referenceSchema.getName(), it.getReferencedPrimaryKey()));
+				references.forEach(it -> {
+					entityBuilder.removeReference(referenceSchema.getName(), it.getReferencedPrimaryKey());
+					theState.unregisterReferencedEntityObject(referenceSchema.getName(), it.getReferencedPrimaryKey(), ProxyType.REFERENCE);
+					theState.unregisterReferencedEntityObject(referenceSchema.getName(), it.getReferencedPrimaryKey(), ProxyType.REFERENCED_ENTITY);
+				});
 				return !references.isEmpty();
 			};
 		} else {
@@ -745,10 +758,13 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 					if (references.isEmpty()) {
 						// do nothing
 					} else if (references.size() == 1) {
+						final int referencedPrimaryKey = references.iterator().next().getReferencedPrimaryKey();
 						entityBuilder.removeReference(
 							referenceSchema.getName(),
-							references.iterator().next().getReferencedPrimaryKey()
+							referencedPrimaryKey
 						);
+						theState.unregisterReferencedEntityObject(referenceSchema.getName(), referencedPrimaryKey, ProxyType.REFERENCE);
+						theState.unregisterReferencedEntityObject(referenceSchema.getName(), referencedPrimaryKey, ProxyType.REFERENCED_ENTITY);
 					} else {
 						throw new EvitaInvalidUsageException(
 							"Cannot remove reference `" + referenceSchema.getName() +
@@ -771,6 +787,8 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 							referenceSchema.getName(),
 							referencedPrimaryKey
 						);
+						theState.unregisterReferencedEntityObject(referenceSchema.getName(), referencedPrimaryKey, ProxyType.REFERENCE);
+						theState.unregisterReferencedEntityObject(referenceSchema.getName(), referencedPrimaryKey, ProxyType.REFERENCED_ENTITY);
 						//noinspection unchecked,rawtypes
 						return EvitaDataTypes.toTargetType(referencedPrimaryKey, (Class) returnType);
 					} else {
@@ -813,6 +831,8 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 				final Optional<ReferenceContract> reference = entityBuilder.getReference(referenceName, referencedPrimaryKey);
 				if (reference.isPresent()) {
 					entityBuilder.removeReference(referenceName, referencedPrimaryKey);
+					theState.unregisterReferencedEntityObject(referenceSchema.getName(), referencedPrimaryKey, ProxyType.REFERENCE);
+					theState.unregisterReferencedEntityObject(referenceSchema.getName(), referencedPrimaryKey, ProxyType.REFERENCED_ENTITY);
 					if (entityRecognizedInReturnType) {
 						if (reference.get().getReferencedEntity().isPresent()) {
 							final SealedEntity referencedEntity = reference.get().getReferencedEntity().get();
@@ -879,7 +899,10 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 							theState.getOrCreateEntityReferenceProxy(returnType, referenceToRemove)
 						);
 					}
-					entityBuilder.removeReference(referenceName, referenceToRemove.getReferencedPrimaryKey());
+					final int referencedPrimaryKey = referenceToRemove.getReferencedPrimaryKey();
+					entityBuilder.removeReference(referenceName, referencedPrimaryKey);
+					theState.unregisterReferencedEntityObject(referenceName, referencedPrimaryKey, ProxyType.REFERENCE);
+					theState.unregisterReferencedEntityObject(referenceName, referencedPrimaryKey, ProxyType.REFERENCED_ENTITY);
 				}
 				return removedReferences;
 			}
@@ -947,7 +970,11 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		if (referencedClassifier == null && (cardinality == Cardinality.ZERO_OR_ONE || cardinality == Cardinality.EXACTLY_ONE)) {
 			final Collection<ReferenceContract> references = entityBuilder.getReferences(referenceName);
 			Assert.isPremiseValid(references.size() < 2, "Cardinality is `" + cardinality + "` but there are more than one reference!");
-			references.forEach(it -> entityBuilder.removeReference(referenceName, it.getReferencedPrimaryKey()));
+			references.forEach(it -> {
+				entityBuilder.removeReference(referenceName, it.getReferencedPrimaryKey());
+				theState.unregisterReferencedEntityObject(referenceName, it.getReferencedPrimaryKey(), ProxyType.REFERENCE);
+				theState.unregisterReferencedEntityObject(referenceName, it.getReferencedPrimaryKey(), ProxyType.REFERENCED_ENTITY);
+			});
 		} else {
 			Assert.isTrue(
 				expectedEntityType.equals(referencedClassifier.getType()),
@@ -960,17 +987,19 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 				Assert.isPremiseValid(references.size() < 2, "Cardinality is `" + cardinality + "` but there are more than one reference!");
 				if (!references.isEmpty()) {
 					final ReferenceContract singleReference = references.iterator().next();
-					if (singleReference.getReferencedPrimaryKey() == referencedClassifier.getPrimaryKey()) {
+					if (singleReference.getReferencedPrimaryKey() == referencedClassifier.getPrimaryKeyOrThrowException()) {
 						// do nothing the reference is already set
 						return;
 					} else {
 						// remove existing reference and registered object
 						entityBuilder.removeReference(referenceName, singleReference.getReferencedPrimaryKey());
+						theState.unregisterReferencedEntityObject(referenceName, singleReference.getReferencedPrimaryKey(), ProxyType.REFERENCE);
+						theState.unregisterReferencedEntityObject(referenceName, singleReference.getReferencedPrimaryKey(), ProxyType.REFERENCED_ENTITY);
 					}
 				}
 			}
 
-			entityBuilder.setReference(referenceName, referencedClassifier.getPrimaryKey());
+			entityBuilder.setReference(referenceName, referencedClassifier.getPrimaryKeyOrThrowException());
 		}
 	}
 
@@ -1160,9 +1189,13 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		if (referencedClassifier == null && (cardinality == Cardinality.ZERO_OR_ONE || cardinality == Cardinality.EXACTLY_ONE)) {
 			final Collection<ReferenceContract> references = entityBuilder.getReferences(referenceName);
 			Assert.isPremiseValid(references.size() < 2, "Cardinality is `" + cardinality + "` but there are more than one reference!");
-			references.forEach(it -> entityBuilder.removeReference(referenceName, it.getReferencedPrimaryKey()));
+			references.forEach(it -> {
+				entityBuilder.removeReference(referenceName, it.getReferencedPrimaryKey());
+				theState.unregisterReferencedEntityObject(referenceName, it.getReferencedPrimaryKey(), ProxyType.REFERENCE);
+				theState.unregisterReferencedEntityObject(referenceName, it.getReferencedPrimaryKey(), ProxyType.REFERENCED_ENTITY);
+			});
 		} else {
-			final Integer newReferencedPrimaryKey = EvitaDataTypes.toTargetType(referencedClassifier, int.class);
+			final Integer newReferencedPrimaryKey = Objects.requireNonNull(EvitaDataTypes.toTargetType(referencedClassifier, int.class));
 			if (cardinality == Cardinality.ZERO_OR_ONE || cardinality == Cardinality.EXACTLY_ONE) {
 				final Collection<ReferenceContract> references = entityBuilder.getReferences(referenceName);
 				Assert.isPremiseValid(references.size() < 2, "Cardinality is `" + cardinality + "` but there are more than one reference!");
@@ -1174,6 +1207,8 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 					} else {
 						// remove existing reference and registered object
 						entityBuilder.removeReference(referenceName, singleReference.getReferencedPrimaryKey());
+						theState.unregisterReferencedEntityObject(referenceName, singleReference.getReferencedPrimaryKey(), ProxyType.REFERENCE);
+						theState.unregisterReferencedEntityObject(referenceName, singleReference.getReferencedPrimaryKey(), ProxyType.REFERENCED_ENTITY);
 					}
 				}
 			}
@@ -1360,20 +1395,25 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		if (referencedEntity == null && (cardinality == Cardinality.ZERO_OR_ONE || cardinality == Cardinality.EXACTLY_ONE)) {
 			final Collection<ReferenceContract> references = entityBuilder.getReferences(referenceName);
 			Assert.isPremiseValid(references.size() < 2, "Cardinality is `" + cardinality + "` but there are more than one reference!");
-			references.forEach(it -> entityBuilder.removeReference(referenceName, it.getReferencedPrimaryKey()));
+			references.forEach(it -> {
+				entityBuilder.removeReference(referenceName, it.getReferencedPrimaryKey());
+				theState.unregisterReferencedEntityObject(referenceName, it.getReferencedPrimaryKey(), ProxyType.REFERENCE);
+				theState.unregisterReferencedEntityObject(referenceName, it.getReferencedPrimaryKey(), ProxyType.REFERENCED_ENTITY);
+			});
 		} else {
 			final Collection<ReferenceContract> references = entityBuilder.getReferences(referenceName);
 			if (cardinality == Cardinality.ZERO_OR_ONE || cardinality == Cardinality.EXACTLY_ONE) {
 				Assert.isPremiseValid(references.size() < 2, "Cardinality is `" + cardinality + "` but there are more than one reference!");
 				if (!references.isEmpty()) {
 					final ReferenceContract singleReference = references.iterator().next();
-					if (singleReference.getReferencedPrimaryKey() == referencedEntity.getPrimaryKey()) {
+					if (singleReference.getReferencedPrimaryKey() == referencedEntity.getPrimaryKeyOrThrowException()) {
 						// just exchange registered object - the set entity and existing reference share same primary key
-						theState.registerReferencedEntityObject(expectedEntityType, singleReference.getReferencedPrimaryKey(), referencedEntity, ProxyType.REFERENCED_ENTITY);
+						theState.registerReferencedEntityObject(expectedEntityType, singleReference.getReferencedPrimaryKey(), referencedEntity, ProxyType.REFERENCE);
 						return;
 					} else {
 						// remove existing reference and registered object
 						entityBuilder.removeReference(referenceName, singleReference.getReferencedPrimaryKey());
+						theState.unregisterReferencedEntityObject(expectedEntityType, singleReference.getReferencedPrimaryKey(), ProxyType.REFERENCE);
 						theState.unregisterReferencedEntityObject(expectedEntityType, singleReference.getReferencedPrimaryKey(), ProxyType.REFERENCED_ENTITY);
 					}
 				}
@@ -1585,13 +1625,15 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		final EntityBuilder entityBuilder = theState.entityBuilder();
 		final Serializable referencedPrimaryKey = (Serializable) args[0];
-		final Integer referenceId = EvitaDataTypes.toTargetType(referencedPrimaryKey, int.class);
+		final int referenceId = Objects.requireNonNull(EvitaDataTypes.toTargetType(referencedPrimaryKey, int.class));
 		final Optional<ReferenceContract> reference = entityBuilder.getReference(referenceName, referenceId);
 		if (reference.isPresent()) {
 			entityBuilder.removeReference(
 				referenceName,
 				referenceId
 			);
+			theState.unregisterReferencedEntityObject(referenceName, referenceId, ProxyType.REFERENCE);
+			theState.unregisterReferencedEntityObject(referenceName, referenceId, ProxyType.REFERENCED_ENTITY);
 		}
 		return reference.isPresent();
 	}
@@ -1612,10 +1654,12 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		final String referenceName = referenceSchema.getName();
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.entityBuilder();
-			final int referencedPrimaryKey = EvitaDataTypes.toTargetType((Serializable) args[0], int.class);
+			final int referencedPrimaryKey = Objects.requireNonNull(EvitaDataTypes.toTargetType((Serializable) args[0], int.class));
 			final Optional<ReferenceContract> reference = entityBuilder.getReference(referenceName, referencedPrimaryKey);
 			if (reference.isPresent()) {
 				entityBuilder.removeReference(referenceName, referencedPrimaryKey);
+				theState.unregisterReferencedEntityObject(referenceName, referencedPrimaryKey, ProxyType.REFERENCE);
+				theState.unregisterReferencedEntityObject(referenceName, referencedPrimaryKey, ProxyType.REFERENCED_ENTITY);
 				if (entityRecognizedInReturnType) {
 					if (reference.get().getReferencedEntity().isPresent()) {
 						final SealedEntity referencedEntity = reference.get().getReferencedEntity().get();

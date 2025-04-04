@@ -21,8 +21,6 @@
  *   limitations under the License.
  */
 
-import io.evitadb.store.spi.CatalogPersistenceServiceFactory;
-
 /**
  * The implementation of evitaDB.
  */
@@ -51,10 +49,13 @@ module evita.engine {
 	exports io.evitadb.core.query.algebra;
 	exports io.evitadb.core.query.extraResult.translator.histogram.cache;
 	exports io.evitadb.core.sequence;
+	exports io.evitadb.core.traffic;
 	exports io.evitadb.core.transaction;
 	exports io.evitadb.core.transaction.memory;
+	exports io.evitadb.core.transaction.stage.mutation;
 	exports io.evitadb.index;
 	exports io.evitadb.index.bool;
+	exports io.evitadb.index.bPlusTree;
 	exports io.evitadb.index.cardinality;
 	exports io.evitadb.index.map;
 	exports io.evitadb.index.list;
@@ -67,16 +68,19 @@ module evita.engine {
 	exports io.evitadb.index.hierarchy.predicate;
 	exports io.evitadb.index.price;
 	exports io.evitadb.index.relation;
+	exports io.evitadb.index.reference;
 	exports io.evitadb.index.facet;
 	exports io.evitadb.index.price.model.priceRecord;
 	exports io.evitadb.store.spi;
+	exports io.evitadb.store.spi.chunk;
 	exports io.evitadb.store.spi.model;
 	exports io.evitadb.store.spi.model.storageParts;
 	exports io.evitadb.store.spi.model.reference;
 	exports io.evitadb.store.spi.model.storageParts.index;
 	exports io.evitadb.store.spi.exception;
 
-	uses CatalogPersistenceServiceFactory;
+	uses io.evitadb.store.spi.CatalogPersistenceServiceFactory;
+	uses io.evitadb.store.spi.TrafficRecorder;
 
 	requires static lombok;
 	requires static jsr305;
@@ -89,14 +93,18 @@ module evita.engine {
 	requires evita.store.entity;
 
 	requires zero.allocation.hashing;
-	requires com.carrotsearch.hppc;
+    requires com.carrotsearch.hppc;
 	requires roaringbitmap;
 	requires com.esotericsoftware.kryo;
 
 	requires jdk.jfr;
 	requires net.bytebuddy;
+	requires java.sql;
+	requires jdk.jdi;
+	requires proxycian.bytebuddy;
 
 	opens io.evitadb.core.metric.event to evita.common;
 	opens io.evitadb.core.metric.event.transaction to jdk.jfr;
 	opens io.evitadb.core.metric.event.storage to jdk.jfr;
+
 }

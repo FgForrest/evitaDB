@@ -24,10 +24,13 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute;
 
 import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaUniqueMutation;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.AttributeSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.SetAttributeSchemaUniqueMutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,6 +38,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
+import static io.evitadb.utils.ListBuilder.list;
 import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -57,13 +61,18 @@ class SetAttributeSchemaUniqueMutationConverterTest {
 	void shouldResolveInputToLocalMutation() {
 		final SetAttributeSchemaUniqueMutation expectedMutation = new SetAttributeSchemaUniqueMutation(
 			"code",
-			AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION
+			new ScopedAttributeUniquenessType[] {
+				new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
+			}
 		);
 
 		final SetAttributeSchemaUniqueMutation convertedMutation1 = converter.convertFromInput(
 			map()
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
-				.e(SetAttributeSchemaUniqueMutationDescriptor.UNIQUENESS_TYPE.name(), AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
+				.e(SetAttributeSchemaUniqueMutationDescriptor.UNIQUE_IN_SCOPES.name(), list()
+					.i(map()
+						.e(ScopedAttributeUniquenessTypeDescriptor.SCOPE.name(), Scope.LIVE)
+						.e(ScopedAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)))
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation1);
@@ -71,7 +80,10 @@ class SetAttributeSchemaUniqueMutationConverterTest {
 		final SetAttributeSchemaUniqueMutation convertedMutation2 = converter.convertFromInput(
 			map()
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
-				.e(SetAttributeSchemaUniqueMutationDescriptor.UNIQUENESS_TYPE.name(), AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION.name())
+				.e(SetAttributeSchemaUniqueMutationDescriptor.UNIQUE_IN_SCOPES.name(), list()
+					.i(map()
+						.e(ScopedAttributeUniquenessTypeDescriptor.SCOPE.name(), Scope.LIVE.name())
+						.e(ScopedAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION.name())))
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation2);
@@ -83,7 +95,7 @@ class SetAttributeSchemaUniqueMutationConverterTest {
 			EvitaInvalidUsageException.class,
 			() -> converter.convertFromInput(
 				map()
-					.e(SetAttributeSchemaUniqueMutationDescriptor.UNIQUENESS_TYPE.name(), true)
+					.e(SetAttributeSchemaUniqueMutationDescriptor.UNIQUE_IN_SCOPES.name(), true)
 					.build()
 			)
 		);

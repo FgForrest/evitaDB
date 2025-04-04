@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.require.FacetGroupRelationLevel;
 import io.evitadb.api.query.require.FacetGroupsDisjunction;
 import lombok.RequiredArgsConstructor;
 
@@ -44,6 +45,7 @@ public class FacetGroupsDisjunctionSerializer extends Serializer<FacetGroupsDisj
 	@Override
 	public void write(Kryo kryo, Output output, FacetGroupsDisjunction object) {
 		output.writeString(object.getReferenceName());
+		kryo.writeObject(output, object.getFacetGroupRelationLevel());
 		final Optional<FilterBy> facetGroups = object.getFacetGroups();
 		kryo.writeObjectOrNull(output, facetGroups.orElse(null), FilterBy.class);
 	}
@@ -51,8 +53,9 @@ public class FacetGroupsDisjunctionSerializer extends Serializer<FacetGroupsDisj
 	@Override
 	public FacetGroupsDisjunction read(Kryo kryo, Input input, Class<? extends FacetGroupsDisjunction> type) {
 		final String entityType = input.readString();
+		final FacetGroupRelationLevel level = kryo.readObject(input, FacetGroupRelationLevel.class);
 		final FilterBy facetGroupFilter = kryo.readObjectOrNull(input, FilterBy.class);
-		return new FacetGroupsDisjunction(entityType, facetGroupFilter);
+		return new FacetGroupsDisjunction(entityType, level, facetGroupFilter);
 	}
 
 }

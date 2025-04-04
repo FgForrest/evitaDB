@@ -61,7 +61,7 @@ import java.math.BigDecimal;
 	userDocsLink = "/documentation/query/filtering/price#price-between",
 	supportedIn = ConstraintDomain.ENTITY
 )
-public class PriceBetween extends AbstractFilterConstraintLeaf implements PriceConstraint<FilterConstraint>, IndexUsingConstraint {
+public class PriceBetween extends AbstractFilterConstraintLeaf implements PriceConstraint<FilterConstraint>, FilterConstraint {
 	@Serial private static final long serialVersionUID = -4134467514999931163L;
 
 	private PriceBetween(Serializable... arguments) {

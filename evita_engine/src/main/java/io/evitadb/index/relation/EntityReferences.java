@@ -56,10 +56,8 @@ public record EntityReferences(
 	@Nonnull int[] referencedEntityGroupPrimaryKeys
 ) {
 
-	private static final int[] EMPTY_INT_ARRAY = new int[0];
-
 	public EntityReferences(int referencedEntityPrimaryKey) {
-		this(new int[]{referencedEntityPrimaryKey}, EMPTY_INT_ARRAY);
+		this(new int[]{referencedEntityPrimaryKey}, ArrayUtils.EMPTY_INT_ARRAY);
 	}
 
 	public EntityReferences(int referencedEntityPrimaryKey, int referencedEntityGroupPrimaryKey) {

@@ -84,6 +84,11 @@ message GrpcSetEntitySchemaWithHierarchyMutation {
   // Hierarchy can limit returned entities by using filtering constraints `hierarchy_{reference name}_within`. It's also used for
   // computation of extra data - such as `hierarchyParents`.
   bool withHierarchy = 1;
+  // Contains set of all scopes the entity is indexed in and can be used for filtering entities and computation of
+  // extra data. If the hierarchy information is not indexed, it is still available on the entity itself (i.e. entity
+  // can define its parent entity), but it is not possible to work with the hierarchy information in any other way
+  // (calculating parent chain, children, siblings, etc.).
+  repeated GrpcEntityScope indexedInScopes = 2;
 }
 
 // Mutation is responsible for setting a `EntitySchema.withPrice` in `EntitySchema`.
@@ -105,4 +110,11 @@ message GrpcSetEntitySchemaWithPriceMutation {
   // (either with or without tax) must not ever exceed maximum limits of `Integer` type when scaling
   // the number by the power of ten using `indexedPricePlaces` as exponent.
   int32 indexedPricePlaces = 2;
+  // Contains set of all scopes the price information is indexed in and can be used for filtering entities and computation
+  // of extra data. If the price information is not indexed, it is still available on the entity itself (i.e. entity
+  // can define its price), but it is not possible to work with the price information in any other way (calculating
+  // price histogram, filtering, sorting by price, etc.).
+  //
+  // Prices can be also set as non-indexed individually by setting {@link PriceContract#indexed()} to false.
+  repeated GrpcEntityScope indexedInScopes = 3;
 }

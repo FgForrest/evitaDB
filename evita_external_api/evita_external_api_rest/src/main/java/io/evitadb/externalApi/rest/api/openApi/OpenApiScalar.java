@@ -24,6 +24,8 @@
 package io.evitadb.externalApi.rest.api.openApi;
 
 import io.evitadb.dataType.*;
+import io.evitadb.dataType.expression.Expression;
+import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.externalApi.dataType.Any;
 import io.evitadb.externalApi.dataType.GenericObject;
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
@@ -93,8 +95,10 @@ public class OpenApiScalar implements OpenApiSimpleType {
 		SCALAR_SCHEMA_MAPPINGS.put(Currency.class, OpenApiScalar::createCurrencySchema);
 		SCALAR_SCHEMA_MAPPINGS.put(UUID.class, OpenApiScalar::createUuidSchema);
 		SCALAR_SCHEMA_MAPPINGS.put(Predecessor.class, OpenApiScalar::createPredecessorSchema);
+		SCALAR_SCHEMA_MAPPINGS.put(ReferencedEntityPredecessor.class, OpenApiScalar::createReferencedEntityPredecessorSchema);
 		SCALAR_SCHEMA_MAPPINGS.put(Any.class, OpenApiScalar::createAnySchema);
 		SCALAR_SCHEMA_MAPPINGS.put(GenericObject.class, OpenApiScalar::createGenericObjectSchema);
+		SCALAR_SCHEMA_MAPPINGS.put(Expression.class, OpenApiScalar::createExpressionSchema);
 	}
 
 	@Nonnull
@@ -303,10 +307,34 @@ public class OpenApiScalar implements OpenApiSimpleType {
 	}
 
 	/**
+	 * Creates schema for {@link ExpressionNode}
+	 */
+	@Nonnull
+	private static Schema<?> createExpressionSchema() {
+		final Schema<?> expessionSchema = new StringSchema();
+		expessionSchema
+			.format(FORMAT_EXPRESSION)
+			.example("($pageNumber - 1) % 2 == 0 && $pageNumber <= 6");
+		return expessionSchema;
+	}
+
+	/**
 	 * Creates schema for {@link Predecessor}
 	 */
 	@Nonnull
 	private static Schema<?> createPredecessorSchema() {
+		final Schema<?> predecessorSchema = new IntegerSchema();
+		predecessorSchema
+			.format(FORMAT_INT_32)
+			.example("44872");
+		return predecessorSchema;
+	}
+
+	/**
+	 * Creates schema for {@link ReferencedEntityPredecessor}
+	 */
+	@Nonnull
+	private static Schema<?> createReferencedEntityPredecessorSchema() {
 		final Schema<?> predecessorSchema = new IntegerSchema();
 		predecessorSchema
 			.format(FORMAT_INT_32)

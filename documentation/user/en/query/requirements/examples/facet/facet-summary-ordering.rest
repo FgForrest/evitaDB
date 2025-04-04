@@ -12,7 +12,6 @@ POST /rest/evita/Product/query
   },
   "require" : {
     "facetSummary" : {
-      "statisticsDepth" : "COUNTS",
       "requirements" : {
         "entityFetch" : {
           "attributeContent" : [

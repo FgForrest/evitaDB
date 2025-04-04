@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.dataType.Predecessor;
+import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.ShortNumberRange;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
@@ -104,6 +105,7 @@ public class ValueTypeMapper implements Function<Object, Class<? extends Seriali
 		registerTypeMapping(mappings, UUID.class);
 		registerTypeMapping(mappings, UUID[].class);
 		registerTypeMapping(mappings, Predecessor.class);
+		registerTypeMapping(mappings, ReferencedEntityPredecessor.class);
 		registerTypeMapping(mappings, ComplexDataObject.class);
 		VALUE_TYPE_MAPPINGS = Collections.unmodifiableMap(mappings);
 	}
@@ -125,12 +127,12 @@ public class ValueTypeMapper implements Function<Object, Class<? extends Seriali
 	}
 
 	@Override
-	public Class<? extends Serializable> apply(@Nonnull Object rawPropertyValue) {
-		if (rawPropertyValue instanceof Class<?> valueType) {
+	public Class<? extends Serializable> apply(Object rawField) {
+		if (rawField instanceof Class<?> valueType) {
 			//noinspection unchecked
 			return (Class<? extends Serializable>) valueType;
 		}
-		if (rawPropertyValue instanceof String valueTypeName) {
+		if (rawField instanceof String valueTypeName) {
 			final Class<? extends Serializable> valueType = VALUE_TYPE_MAPPINGS.get(valueTypeName);
 			if (valueType == null) {
 				throw exceptionFactory.createInvalidArgumentException("Unknown value type in `" + fieldName + "`.");

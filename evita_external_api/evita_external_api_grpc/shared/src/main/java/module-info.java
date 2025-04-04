@@ -24,13 +24,13 @@ module evita.external.api.grpc.shared {
 	exports io.evitadb.externalApi.grpc.query;
 	exports io.evitadb.externalApi.grpc.certificate;
 	exports io.evitadb.externalApi.grpc.requestResponse.cdc;
+	exports io.evitadb.externalApi.grpc.requestResponse.traffic;
 
 	requires static lombok;
 	requires static jsr305;
 	requires static org.slf4j;
 
 	requires com.fasterxml.jackson.databind;
-	requires protobuf.java;
 
 	requires evita.common;
 	requires evita.api;
@@ -39,6 +39,8 @@ module evita.external.api.grpc.shared {
 	requires io.grpc;
 	requires io.grpc.stub;
 	requires io.grpc.protobuf;
+	requires com.google.protobuf;
 	requires io.netty.handler;
+	requires com.linecorp.armeria;
 
 }

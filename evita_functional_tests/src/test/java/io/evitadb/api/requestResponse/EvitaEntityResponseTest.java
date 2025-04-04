@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse;
 
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.dataType.PaginatedList;
+import io.evitadb.utils.ArrayUtils;
 import org.junit.jupiter.api.Test;
 
 import java.io.Serial;
@@ -46,7 +47,8 @@ class EvitaEntityResponseTest {
 	void shouldPassExtraDataInResponse() {
 		final EvitaEntityResponse<SealedEntity> response = new EvitaEntityResponse<>(
 			query(collection("brand")),
-			PaginatedList.emptyList()
+			PaginatedList.emptyList(),
+			ArrayUtils.EMPTY_INT_ARRAY
 		);
 
 		response.addExtraResult(new MockEvitaResponseExtraResult("a"));

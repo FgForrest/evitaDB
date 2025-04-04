@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.data.structure.Attributes;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ComparatorUtils;
 import io.evitadb.utils.MemoryMeasuringConstants;
@@ -59,7 +60,7 @@ public interface AttributesContract<S extends AttributeSchemaContract> extends S
 	/**
 	 * Returns true if single attribute differs between first and second instance.
 	 */
-	static <S extends AttributeSchemaContract> boolean anyAttributeDifferBetween(AttributesContract<S> first, AttributesContract<S> second) {
+	static <S extends AttributeSchemaContract> boolean anyAttributeDifferBetween(@Nonnull AttributesContract<S> first, @Nonnull AttributesContract<S> second) {
 		final Collection<AttributeValue> thisValues = first.attributesAvailable() ? first.getAttributeValues() : Collections.emptyList();
 		final Collection<AttributeValue> otherValues = second.attributesAvailable() ? second.getAttributeValues() : Collections.emptyList();
 
@@ -71,8 +72,9 @@ public interface AttributesContract<S extends AttributeSchemaContract> extends S
 				.anyMatch(it -> {
 					final Serializable thisValue = it.value();
 					final AttributeKey key = it.key();
-					final AttributeValue other = second.getAttributeValue(key.attributeName(), key.locale())
-						.orElse(null);
+					final AttributeValue other = key.locale() == null ?
+						second.getAttributeValue(key.attributeName()).orElse(null) :
+						second.getAttributeValue(key.attributeName(), key.localeOrThrowException()).orElse(null);
 					if (other == null) {
 						return true;
 					} else {
@@ -186,6 +188,7 @@ public interface AttributesContract<S extends AttributeSchemaContract> extends S
 	 * @throws AttributeNotFoundException when attribute is not defined in the schema
 	 * @throws ContextMissingException    when the query lacks locale identifier, or the attribute was not fetched at all
 	 */
+	@Nullable
 	default <T extends Serializable> T getAttribute(@Nonnull String attributeName, @Nonnull Locale locale, @Nonnull Class<T> expectedType)
 		throws AttributeNotFoundException {
 		return getAttribute(attributeName, locale);
@@ -215,6 +218,7 @@ public interface AttributesContract<S extends AttributeSchemaContract> extends S
 	 * @throws AttributeNotFoundException when attribute is not defined in the schema
 	 * @throws ContextMissingException    when the query lacks locale identifier, or the attribute was not fetched at all
 	 */
+	@Nullable
 	default <T extends Serializable> T[] getAttributeArray(@Nonnull String attributeName, @Nonnull Locale locale, @Nonnull Class<T> expectedType)
 		throws AttributeNotFoundException {
 		return getAttributeArray(attributeName, locale);
@@ -328,6 +332,21 @@ public interface AttributesContract<S extends AttributeSchemaContract> extends S
 			return locale != null;
 		}
 
+		/**
+		 * Returns the locale associated with this attribute key or throws an exception if the locale is not present.
+		 *
+		 * @return the locale associated with the attribute key
+		 * @throws IllegalArgumentException if the locale is not present
+		 */
+		@Nonnull
+		public Locale localeOrThrowException() {
+			Assert.isTrue(
+				this.locale != null,
+				"Attribute key " + this.attributeName + " is not accompanied by locale identifier!"
+			);
+			return this.locale;
+		}
+
 		@Override
 		public int compareTo(AttributeKey o) {
 			return ComparatorUtils.compareLocale(locale, o.locale, () -> attributeName.compareTo(o.attributeName));
@@ -397,11 +416,21 @@ public interface AttributesContract<S extends AttributeSchemaContract> extends S
 			this(version, attributeKey, value, false);
 		}
 
-		public AttributeValue(int version, @Nonnull AttributeKey key, @Nonnull Serializable value, boolean dropped) {
-			this.version = version;
-			this.key = key;
-			this.value = value;
-			this.dropped = dropped;
+		/**
+		 * Returns the value of the attribute if it is not null. Throws an exception if the value is null,
+		 * indicating that the attribute value is unexpectedly missing.
+		 *
+		 * @return the non-null value of the attribute
+		 * @throws GenericEvitaInternalError if the attribute value is null
+		 */
+		@Nonnull
+		public Serializable valueOrThrowException() {
+			final Serializable theValue = this.value;
+			Assert.isPremiseValid(
+				theValue != null,
+				"Attribute value " + key.attributeName() + " is unexpectedly null!"
+			);
+			return theValue;
 		}
 
 		@Override

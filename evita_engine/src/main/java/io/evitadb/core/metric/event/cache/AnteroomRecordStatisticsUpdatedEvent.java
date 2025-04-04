@@ -36,12 +36,13 @@ import lombok.Getter;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Name(AbstractCacheEvent.PACKAGE_NAME + ".AnteroomRecordStatisticsUpdated")
-@Description("Event that is fired in regular intervals to update statistics about records waiting in anteroom.")
+@Description("Event that is fired periodically to update statistics about records waiting in the anteroom.")
 @Label("Anteroom statistics updated")
 @Getter
 public class AnteroomRecordStatisticsUpdatedEvent extends AbstractCacheEvent {
 
 	@Label("Number of records waiting in anteroom")
+	@Description("The number of cacheable but not yet cached records that are collecting usage statistics to evaluate for becoming cached.")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final int records;
 

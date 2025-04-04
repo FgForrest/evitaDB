@@ -34,7 +34,7 @@ import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.algebra.price.innerRecordHandling.PriceHandlingContainerFormula;
 import io.evitadb.core.query.algebra.price.predicate.PricePredicate;
 import io.evitadb.core.query.algebra.price.priceIndex.PriceIdContainerFormula;
-import io.evitadb.core.query.algebra.price.termination.FirstVariantPriceTerminationFormula;
+import io.evitadb.core.query.algebra.price.termination.LowestPriceTerminationFormula;
 import io.evitadb.core.query.algebra.price.termination.PlainPriceTerminationFormula;
 import io.evitadb.core.query.algebra.price.termination.PlainPriceTerminationFormulaWithPriceFilter;
 import io.evitadb.core.query.algebra.price.termination.PriceEvaluationContext;
@@ -164,14 +164,14 @@ public class FormulaCostMeasurement {
 			priceDataSet.getPriceIdsFormula()
 		);
 		blackhole.consume(testedFormula.compute());
-		blackhole.consume(testedFormula.getFilteredPriceRecords());
+		blackhole.consume(testedFormula.getFilteredPriceRecords(priceDataSet.getQueryExecutionContext()));
 	}
 
 	@Benchmark
 	public void priceIdToEntityIdTranslate(PriceIdsWithPriceRecordsRecordState priceDataSet, Blackhole blackhole) {
 		final PriceIdToEntityIdTranslateFormula testedFormula = new PriceIdToEntityIdTranslateFormula(priceDataSet.getPriceIdsFormula());
 		blackhole.consume(testedFormula.compute());
-		blackhole.consume(testedFormula.getFilteredPriceRecords());
+		blackhole.consume(testedFormula.getFilteredPriceRecords(priceDataSet.getQueryExecutionContext()));
 	}
 
 	@Benchmark
@@ -182,7 +182,7 @@ public class FormulaCostMeasurement {
 				priceDataSet.getFormula()
 			),
 			new PriceEvaluationContext(
-				new PriceIndexKey("whatever", Currency.getInstance("CZK"), PriceInnerRecordHandling.NONE)
+				null, new PriceIndexKey("whatever", Currency.getInstance("CZK"), PriceInnerRecordHandling.NONE)
 			)
 		);
 		blackhole.consume(testedFormula.compute());
@@ -196,7 +196,7 @@ public class FormulaCostMeasurement {
 				priceDataSet.getFormula()
 			),
 			new PriceEvaluationContext(
-				new PriceIndexKey("whatever", Currency.getInstance("CZK"), PriceInnerRecordHandling.NONE)
+				null, new PriceIndexKey("whatever", Currency.getInstance("CZK"), PriceInnerRecordHandling.NONE)
 			),
 			PricePredicate.ALL_RECORD_FILTER
 		);
@@ -205,13 +205,13 @@ public class FormulaCostMeasurement {
 
 	@Benchmark
 	public void firstVariantPriceTermination(InnerRecordIdsWithPriceRecordsRecordState priceDataSet, Blackhole blackhole) {
-		final FirstVariantPriceTerminationFormula testedFormula = new FirstVariantPriceTerminationFormula(
+		final LowestPriceTerminationFormula testedFormula = new LowestPriceTerminationFormula(
 			new PriceHandlingContainerFormula(
 				PriceInnerRecordHandling.LOWEST_PRICE,
 				priceDataSet.getFormula()
 			),
 			new PriceEvaluationContext(
-				new PriceIndexKey("whatever", Currency.getInstance("CZK"), PriceInnerRecordHandling.NONE)
+				null, new PriceIndexKey("whatever", Currency.getInstance("CZK"), PriceInnerRecordHandling.NONE)
 			),
 			QueryPriceMode.WITH_TAX,
 			PricePredicate.ALL_RECORD_FILTER
@@ -227,7 +227,7 @@ public class FormulaCostMeasurement {
 				priceDataSet.getFormula()
 			),
 			new PriceEvaluationContext(
-				new PriceIndexKey("whatever", Currency.getInstance("CZK"), PriceInnerRecordHandling.NONE)
+				null, new PriceIndexKey("whatever", Currency.getInstance("CZK"), PriceInnerRecordHandling.NONE)
 			),
 			QueryPriceMode.WITH_TAX,
 			PricePredicate.ALL_RECORD_FILTER
@@ -237,7 +237,7 @@ public class FormulaCostMeasurement {
 
 	@Benchmark
 	public void histogramBitmapSupplier(BucketsRecordState bucketDataSet, Blackhole blackhole) {
-		final HistogramBitmapSupplier<Integer> testedFormula = new HistogramBitmapSupplier<>(
+		final HistogramBitmapSupplier testedFormula = new HistogramBitmapSupplier(
 			bucketDataSet.getBuckets()
 		);
 		blackhole.consume(testedFormula.get());

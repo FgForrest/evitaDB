@@ -43,21 +43,24 @@ import javax.annotation.Nullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Name(AbstractQueryEvent.PACKAGE_NAME + ".EntityFetch")
-@Description("Event that is fired when an entity is fetched directly.")
+@Description("Event fired when an entity is directly fetched.")
 @Label("Entity fetched")
 @ExportInvocationMetric(label = "Entity fetched")
 @ExportDurationMetric(label = "Entity fetch duration in milliseconds")
 @Getter
 public class EntityFetchEvent extends AbstractQueryEvent {
 	@Label("Entity type")
+	@Description("The name of the related entity type (collection).")
 	@ExportMetricLabel
 	private final String entityType;
 
 	@Label("Records fetched total")
+	@Description("The total number of records that were fetched.")
 	@ExportMetric(metricType = MetricType.COUNTER)
 	private int records;
 
 	@Label("Fetched size in bytes")
+	@Description("The total size of the fetched data in Bytes.")
 	@HistogramSettings(unit = "bytes", factor = 3)
 	@ExportMetric(metricType = MetricType.HISTOGRAM)
 	private int sizeBytes;

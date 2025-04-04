@@ -27,6 +27,7 @@ import io.evitadb.api.observability.annotation.EventGroup;
 import io.evitadb.core.metric.event.CatalogRelatedEvent;
 import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
 import jdk.jfr.Category;
+import jdk.jfr.Description;
 import jdk.jfr.Label;
 import jdk.jfr.Name;
 import lombok.Getter;
@@ -38,7 +39,7 @@ import lombok.RequiredArgsConstructor;
 @EventGroup(
 	value = AbstractSessionEvent.PACKAGE_NAME,
 	name = "evitaDB - Session",
-	description = "evitaDB events relating to session handling."
+	description = "evitaDB events related to session handling."
 )
 @Category({"evitaDB", "Session"})
 @RequiredArgsConstructor
@@ -50,6 +51,7 @@ abstract class AbstractSessionEvent extends CustomMetricsExecutionEvent implemen
 	 */
 	@Label("Catalog")
 	@Name("catalogName")
+	@Description("The name of the catalog to which this event/metric is associated.")
 	final String catalogName;
 
 }

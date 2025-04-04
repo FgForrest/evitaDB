@@ -23,8 +23,7 @@
 
 package io.evitadb.api.requestResponse.mutation;
 
-import io.evitadb.api.requestResponse.cdc.Operation;
-import io.evitadb.api.requestResponse.cdc.CaptureContent;
+import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
@@ -66,7 +65,7 @@ public sealed interface Mutation extends Serializable permits EntityMutation, Lo
 	@Nonnull
 	Stream<ChangeCatalogCapture> toChangeCatalogCapture(
 		@Nonnull MutationPredicate predicate,
-		@Nonnull CaptureContent content
+		@Nonnull ChangeCaptureContent content
 	);
 
 	/**

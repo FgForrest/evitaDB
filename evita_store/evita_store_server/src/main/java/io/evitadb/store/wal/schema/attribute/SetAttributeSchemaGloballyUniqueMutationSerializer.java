@@ -27,8 +27,10 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaGloballyUniqueMutation;
+
+import static io.evitadb.store.wal.schema.attribute.CreateGlobalAttributeSchemaMutationSerializer.readScopedGlobalUniquenessTypesMap;
+import static io.evitadb.store.wal.schema.attribute.CreateGlobalAttributeSchemaMutationSerializer.writeScopedGlobalUniquenessTypesMap;
 
 /**
  * Serializer for {@link SetAttributeSchemaGloballyUniqueMutation}.
@@ -40,14 +42,14 @@ public class SetAttributeSchemaGloballyUniqueMutationSerializer extends Serializ
 	@Override
 	public void write(Kryo kryo, Output output, SetAttributeSchemaGloballyUniqueMutation mutation) {
 		output.writeString(mutation.getName());
-		kryo.writeObject(output, mutation.getUniqueGlobally());
+		writeScopedGlobalUniquenessTypesMap(kryo, output, mutation.getUniqueGloballyInScopes());
 	}
 
 	@Override
 	public SetAttributeSchemaGloballyUniqueMutation read(Kryo kryo, Input input, Class<? extends SetAttributeSchemaGloballyUniqueMutation> type) {
 		return new SetAttributeSchemaGloballyUniqueMutation(
 			input.readString(),
-			kryo.readObject(input, GlobalAttributeUniquenessType.class)
+			readScopedGlobalUniquenessTypesMap(kryo, input)
 		);
 	}
 

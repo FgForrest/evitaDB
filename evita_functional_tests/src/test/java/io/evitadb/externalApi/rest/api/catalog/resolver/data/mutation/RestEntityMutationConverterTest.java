@@ -170,7 +170,7 @@ class RestEntityMutationConverterTest {
 					.e(UpsertPriceMutationDescriptor.PRICE_WITHOUT_TAX.name(), "10")
 					.e(UpsertPriceMutationDescriptor.TAX_RATE.name(), "10")
 					.e(UpsertPriceMutationDescriptor.PRICE_WITH_TAX.name(), "11")
-					.e(UpsertPriceMutationDescriptor.SELLABLE.name(), false))
+					.e(UpsertPriceMutationDescriptor.INDEXED.name(), false))
 				.build(),
 			jsonObject()
 				.e(LocalMutationAggregateDescriptor.INSERT_REFERENCE_MUTATION.name(), jsonObject()
@@ -265,7 +265,7 @@ class RestEntityMutationConverterTest {
 					.e(UpsertPriceMutationDescriptor.PRICE_WITHOUT_TAX.name(), "10")
 					.e(UpsertPriceMutationDescriptor.TAX_RATE.name(), "10")
 					.e(UpsertPriceMutationDescriptor.PRICE_WITH_TAX.name(), "11")
-					.e(UpsertPriceMutationDescriptor.SELLABLE.name(), false))
+					.e(UpsertPriceMutationDescriptor.INDEXED.name(), false))
 				.e(LocalMutationAggregateDescriptor.INSERT_REFERENCE_MUTATION.name(), jsonObject()
 					.e(InsertReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
 					.e(InsertReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)

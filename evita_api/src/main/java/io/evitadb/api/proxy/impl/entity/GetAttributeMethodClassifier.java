@@ -128,7 +128,8 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		final AttributeSchemaContract attributeSchema = getAttributeSchema(
 			expectedType, parameter,
 			itemType,
-			reflectionLookup, schema
+			reflectionLookup,
+			schema
 		);
 
 		if (attributeSchema != null) {
@@ -249,7 +250,11 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 					.orElseGet(() -> ReflectionLookup.getPropertyNameFromMethodName(method.getName()))
 			);
 		} else if (attributeRefInstance != null) {
-			return schemaLocator.apply(attributeRefInstance.value());
+			return schemaLocator.apply(
+				ofNullable(attributeRefInstance.value())
+					.filter(it -> !it.isBlank())
+					.orElseGet(() -> ReflectionLookup.getPropertyNameFromMethodName(method.getName()))
+			);
 		} else if (!reflectionLookup.hasAnnotationForPropertyInSamePackage(method, Attribute.class) && ClassUtils.isAbstract(method)) {
 			final Optional<String> attributeName = ReflectionLookup.getPropertyNameFromMethodNameIfPossible(method.getName());
 			return attributeName
@@ -276,16 +281,16 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		final Attribute attributeInstance = reflectionLookup.getAnnotationInstanceForProperty(expectedType, parameterName, Attribute.class);
 		final AttributeRef attributeRefInstance = reflectionLookup.getAnnotationInstanceForProperty(expectedType, parameterName, AttributeRef.class);
 		final Function<String, AttributeSchemaContract> schemaLocator = attributeName -> entitySchema.getAttribute(attributeName)
-			.orElseThrow(() -> new AttributeNotFoundException(attributeName, entitySchema));
+			.orElse(null);
 		if (attributeInstance != null) {
-			return schemaLocator.apply(attributeInstance.name());
+			return schemaLocator.apply(attributeInstance.name().isBlank() ? parameterName : attributeInstance.name());
 		} else if (attributeRefInstance != null) {
-			return schemaLocator.apply(attributeRefInstance.value());
-		} else if (EvitaDataTypes.isSupportedTypeOrItsArray(itemType) || itemType.isEnum()) {
-			final Optional<String> attributeName = ReflectionLookup.getPropertyNameFromMethodNameIfPossible(parameterName);
-			return attributeName
-				.flatMap(attrName -> entitySchema.getAttributeByName(attrName, NamingConvention.CAMEL_CASE))
-				.orElse(null);
+			return schemaLocator.apply(
+				attributeRefInstance.value().isBlank() ? parameterName : attributeRefInstance.value()
+			);
+		} else if (!reflectionLookup.hasAnnotationInSamePackage(expectedType, parameter, Attribute.class) &&
+			(EvitaDataTypes.isSupportedTypeOrItsArray(itemType) || itemType.isEnum())) {
+			return schemaLocator.apply(parameterName);
 		} else {
 			return null;
 		}

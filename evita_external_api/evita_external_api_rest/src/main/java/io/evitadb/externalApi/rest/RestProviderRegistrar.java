@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.http.ExternalApiServer;
-import io.evitadb.externalApi.rest.configuration.RestConfig;
+import io.evitadb.externalApi.rest.configuration.RestOptions;
 
 import javax.annotation.Nonnull;
 
@@ -37,7 +37,7 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class RestProviderRegistrar implements ExternalApiProviderRegistrar<RestConfig> {
+public class RestProviderRegistrar implements ExternalApiProviderRegistrar<RestOptions> {
 
 	@Nonnull
 	@Override
@@ -47,16 +47,21 @@ public class RestProviderRegistrar implements ExternalApiProviderRegistrar<RestC
 
 	@Nonnull
 	@Override
-	public Class<RestConfig> getConfigurationClass() {
-		return RestConfig.class;
+	public Class<RestOptions> getConfigurationClass() {
+		return RestOptions.class;
 	}
 
 	@Nonnull
 	@Override
-	public ExternalApiProvider<RestConfig> register(@Nonnull Evita evita,
-	                                                @Nonnull ExternalApiServer externalApiServer, @Nonnull ApiOptions apiOptions,
-	                                                @Nonnull RestConfig restConfiguration) {
-		final RestManager restManager = new RestManager(evita, apiOptions.exposedOn(), restConfiguration, getApiHandlerPortTlsValidatingFunction(restConfiguration));
-		return new RestProvider(restConfiguration, restManager);
+	public ExternalApiProvider<RestOptions> register(
+		@Nonnull Evita evita,
+		@Nonnull ExternalApiServer externalApiServer,
+		@Nonnull ApiOptions apiOptions,
+		@Nonnull RestOptions restConfiguration
+	) {
+		final RestManager restManager = new RestManager(evita, apiOptions.headers(), restConfiguration);
+		/* TODO JNO - verify */
+		/*evita.registerStructuralChangeObserver(new CatalogRestRefreshingObserver(restManager));*/
+		return new RestProvider(restConfiguration, restManager, apiOptions.requestTimeoutInMillis());
 	}
 }

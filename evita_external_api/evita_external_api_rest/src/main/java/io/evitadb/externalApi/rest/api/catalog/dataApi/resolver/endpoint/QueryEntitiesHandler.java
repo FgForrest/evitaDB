@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,21 +23,18 @@
 
 package io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
-import io.evitadb.dataType.DataChunk;
-import io.evitadb.dataType.PaginatedList;
-import io.evitadb.dataType.StripList;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.DataChunkDto;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.PaginatedListDto;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.QueryResponse;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.QueryResponse.QueryResponseBuilder;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.StripListDto;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.DataChunkJsonSerializer;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.EntityJsonSerializer;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.EntitySerializationContext;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.ExtraResultsJsonSerializer;
+import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
 import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
@@ -58,12 +55,13 @@ import java.util.concurrent.CompletableFuture;
 public class QueryEntitiesHandler extends QueryOrientedEntitiesHandler {
 
 	@Nonnull private final EntityJsonSerializer entityJsonSerializer;
+	@Nonnull private final DataChunkJsonSerializer dataChunkJsonSerializer;
 	@Nonnull private final ExtraResultsJsonSerializer extraResultsJsonSerializer;
 
 	public QueryEntitiesHandler(@Nonnull CollectionRestHandlingContext restHandlingContext) {
 		super(restHandlingContext);
 		this.entityJsonSerializer = new EntityJsonSerializer(this.restHandlingContext.isLocalized(), this.restHandlingContext.getObjectMapper());
-
+		this.dataChunkJsonSerializer = new DataChunkJsonSerializer(new ObjectJsonSerializer(this.restHandlingContext.getObjectMapper()));
 		this.extraResultsJsonSerializer = new ExtraResultsJsonSerializer(
 			this.entityJsonSerializer,
 			this.restHandlingContext.getObjectMapper()
@@ -79,8 +77,14 @@ public class QueryEntitiesHandler extends QueryOrientedEntitiesHandler {
 			.thenApply(query -> {
 				log.debug("Generated evitaDB query for entity query of type `{}` is `{}`.", restHandlingContext.getEntitySchema(), query);
 
-				final EvitaResponse<EntityClassifier> response = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
-					executionContext.session().query(query, EntityClassifier.class));
+				final EvitaResponse<EntityClassifier> response = requestExecutedEvent.measureInternalEvitaDBExecution(() -> {
+					try {
+						return executionContext.session().query(query, EntityClassifier.class);
+					} catch (Exception e) {
+						executionContext.addException(e);
+						throw e;
+					}
+				});
 				requestExecutedEvent.finishOperationExecution();
 
 				final Object result = convertResultIntoSerializableObject(executionContext, response);
@@ -104,29 +108,27 @@ public class QueryEntitiesHandler extends QueryOrientedEntitiesHandler {
 			.recordPage(serializeRecordPage(evitaResponse));
 		if (!evitaResponse.getExtraResults().isEmpty()) {
 			queryResponseBuilder
-				.extraResults(extraResultsJsonSerializer.serialize(evitaResponse.getExtraResults(), restHandlingContext.getEntitySchema(), restHandlingContext.getCatalogSchema()));
+				.extraResults(serializeExtraResults(evitaResponse));
 		}
 
 		return queryResponseBuilder.build();
 	}
 
 	@Nonnull
-	private DataChunkDto serializeRecordPage(@Nonnull EvitaResponse<EntityClassifier> response) {
-		final DataChunk<EntityClassifier> recordPage = response.getRecordPage();
-
+	private JsonNode serializeRecordPage(@Nonnull EvitaResponse<EntityClassifier> response) {
 		final EntitySerializationContext serializationContext = new EntitySerializationContext(restHandlingContext.getCatalogSchema());
-		if (recordPage instanceof PaginatedList<EntityClassifier> paginatedList) {
-			return new PaginatedListDto(
-				paginatedList,
-				entityJsonSerializer.serialize(serializationContext, paginatedList.getData())
-			);
-		} else if (recordPage instanceof StripList<EntityClassifier> stripList) {
-			return new StripListDto(
-				stripList,
-				entityJsonSerializer.serialize(serializationContext, stripList.getData())
-			);
-		} else {
-			throw new RestInternalError("Unsupported data chunk type `" + recordPage.getClass().getName() + "`.");
-		}
+		return dataChunkJsonSerializer.serialize(
+			response.getRecordPage(),
+			item -> entityJsonSerializer.serialize(serializationContext, item)
+		);
+	}
+
+	@Nonnull
+	private JsonNode serializeExtraResults(EvitaResponse<EntityClassifier> evitaResponse) {
+		return extraResultsJsonSerializer.serialize(
+			evitaResponse.getExtraResults(),
+			restHandlingContext.getEntitySchema(),
+			restHandlingContext.getCatalogSchema()
+		);
 	}
 }

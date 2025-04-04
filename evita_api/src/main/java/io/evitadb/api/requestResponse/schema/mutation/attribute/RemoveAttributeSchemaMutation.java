@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
@@ -154,7 +155,7 @@ public class RemoveAttributeSchemaMutation implements
 		}
 	}
 
-	@Nullable
+	@Nonnull
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
@@ -172,7 +173,9 @@ public class RemoveAttributeSchemaMutation implements
 				entitySchema.getDeprecationNotice(),
 				entitySchema.isWithGeneratedPrimaryKey(),
 				entitySchema.isWithHierarchy(),
+				entitySchema.getHierarchyIndexedInScopes(),
 				entitySchema.isWithPrice(),
+				entitySchema.getPriceIndexedInScopes(),
 				entitySchema.getIndexedPricePlaces(),
 				entitySchema.getLocales(),
 				entitySchema.getCurrencies(),
@@ -195,39 +198,54 @@ public class RemoveAttributeSchemaMutation implements
 
 	@Nullable
 	@Override
-	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema) {
+	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
-		final Optional<AttributeSchemaContract> existingAttributeSchema = referenceSchema.getAttribute(name);
+		final Optional<AttributeSchemaContract> existingAttributeSchema = getReferenceAttributeSchema(referenceSchema, name);
 		if (existingAttributeSchema.isEmpty()) {
 			// the attribute schema was already removed - or just doesn't exist,
 			// so we can simply return current schema
 			return referenceSchema;
 		} else {
-			return ReferenceSchema._internalBuild(
-				referenceSchema.getName(),
-				referenceSchema.getNameVariants(),
-				referenceSchema.getDescription(),
-				referenceSchema.getDeprecationNotice(),
-				referenceSchema.getReferencedEntityType(),
-				referenceSchema.getEntityTypeNameVariants(entityType -> null),
-				referenceSchema.isReferencedEntityTypeManaged(),
-				referenceSchema.getCardinality(),
-				referenceSchema.getReferencedGroupType(),
-				referenceSchema.getGroupTypeNameVariants(entityType -> null),
-				referenceSchema.isReferencedGroupTypeManaged(),
-				referenceSchema.isIndexed(),
-				referenceSchema.isFaceted(),
-				referenceSchema.getAttributes().values()
-					.stream()
-					.filter(it -> !it.getName().equals(name))
-					.collect(
-						Collectors.toMap(
-							AttributeSchemaContract::getName,
-							Function.identity()
-						)
-					),
-				referenceSchema.getSortableAttributeCompounds()
-			);
+			if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema) {
+				return reflectedReferenceSchema
+					.withDeclaredAttributes(
+						reflectedReferenceSchema.getDeclaredAttributes().values()
+							.stream()
+							.filter(it -> !it.getName().equals(name))
+							.collect(
+								Collectors.toMap(
+									AttributeSchemaContract::getName,
+									Function.identity()
+								)
+							)
+					);
+			} else {
+				return ReferenceSchema._internalBuild(
+					referenceSchema.getName(),
+					referenceSchema.getNameVariants(),
+					referenceSchema.getDescription(),
+					referenceSchema.getDeprecationNotice(),
+					referenceSchema.getCardinality(),
+					referenceSchema.getReferencedEntityType(),
+					referenceSchema.getEntityTypeNameVariants(entityType -> null),
+					referenceSchema.isReferencedEntityTypeManaged(),
+					referenceSchema.getReferencedGroupType(),
+					referenceSchema.getGroupTypeNameVariants(entityType -> null),
+					referenceSchema.isReferencedGroupTypeManaged(),
+					referenceSchema.getIndexedInScopes(),
+					referenceSchema.getFacetedInScopes(),
+					referenceSchema.getAttributes().values()
+						.stream()
+						.filter(it -> !it.getName().equals(this.name))
+						.collect(
+							Collectors.toMap(
+								AttributeSchemaContract::getName,
+								Function.identity()
+							)
+						),
+					referenceSchema.getSortableAttributeCompounds()
+				);
+			}
 		}
 	}
 

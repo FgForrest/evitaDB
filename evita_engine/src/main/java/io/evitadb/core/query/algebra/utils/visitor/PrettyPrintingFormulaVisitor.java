@@ -109,8 +109,12 @@ public class PrettyPrintingFormulaVisitor implements FormulaVisitor {
 			result.append(formula);
 		}
 		if (formula.getInnerFormulas().length > 0) {
-			result.append(" → ")
-				.append(style == PrettyPrintStyle.VERBOSE ? formula.compute() : " result count " + formula.compute().size());
+			try {
+				result.append(" → ")
+					.append(style == PrettyPrintStyle.VERBOSE ? formula.compute() : " result count " + formula.compute().size());
+			} catch (Exception ex) {
+				result.append(" → ?");
+			}
 		}
 		result.append("\n");
 		level++;

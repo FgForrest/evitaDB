@@ -23,12 +23,13 @@
 
 package io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference;
 
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceMutation;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
- * Abstract descriptor for all {@link io.evitadb.api.requestResponse.data.mutation.reference.ReferenceMutation}s.
+ * Abstract descriptor for all {@link ReferenceMutation}s.
  *
  * Note: this descriptor has static structure.
  *

@@ -117,6 +117,10 @@ public class ParentStatisticsComputer extends AbstractHierarchyStatisticsCompute
 			);
 
 			final List<Accumulator> children = childVisitor.getAccumulators();
+			if (children.isEmpty()) {
+				return Collections.emptyList();
+			}
+
 			Assert.isPremiseValid(children.size() == 1, "Expected exactly one node but found `" + children.size() + "`!");
 			final Accumulator startNode = children.get(0);
 

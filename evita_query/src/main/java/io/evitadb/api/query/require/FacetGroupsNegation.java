@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@
 package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.Constraint;
-import io.evitadb.api.query.FacetConstraint;
+import io.evitadb.api.query.ConstraintWithDefaults;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.AdditionalChild;
@@ -44,9 +44,15 @@ import java.util.Arrays;
 import java.util.Optional;
 
 /**
+ * This `facetGroupsNegation` require constraint allows specifying facet relation on particular level (within group
+ * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
+ * group, secondary optional argument allows defining the level for which the negation is defined, third optional
+ * argument defines one more facet group ids which facets should be considered negative with other facets either
+ * in same group or different groups (depending on level argument).
+ *
  * The `facetGroupsNegation` changes the behavior of the facet option in all facet groups specified in the filterBy
- * constraint. Instead of returning only those items that have a reference to that particular faceted entity, the query
- * result will return only those items that don't have a reference to it.
+ * constraint (or all). Instead of returning only those items that have a reference to that particular faceted entity,
+ * the query result will return only those items that don't have a reference to it.
  *
  * Example:
  *
@@ -64,6 +70,7 @@ import java.util.Optional;
  *         ),
  *         facetGroupsNegation(
  *             "parameterValues",
+ *             WITH_DIFFERENT_GROUPS,
  *             filterBy(
  *               attributeInSet("code", "ram-memory")
  *             )
@@ -78,6 +85,7 @@ import java.util.Optional;
  *
  * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-negation">Visit detailed user documentation</a></p>
  *
+ * @see FacetGroupRelationLevel
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
@@ -86,7 +94,7 @@ import java.util.Optional;
 		"facet groups in the sense that their selection would return entities that don't have any of those facets.",
 	userDocsLink = "/documentation/query/requirements/facet#facet-groups-negation"
 )
-public class FacetGroupsNegation extends AbstractRequireConstraintContainer implements FacetConstraint<RequireConstraint> {
+public class FacetGroupsNegation extends AbstractRequireConstraintContainer implements ConstraintWithDefaults<RequireConstraint>, FacetGroupsConstraint {
 	@Serial private static final long serialVersionUID = 3993873252481237893L;
 
 	private FacetGroupsNegation(@Nonnull Serializable[] arguments, @Nonnull Constraint<?>... additionalChildren) {
@@ -96,27 +104,48 @@ public class FacetGroupsNegation extends AbstractRequireConstraintContainer impl
 		}
 	}
 
+	public FacetGroupsNegation(
+		@Nonnull String referenceName,
+		@Nullable FilterBy filterBy
+	) {
+		this(referenceName, null, filterBy);
+	}
+
 	@Creator
-	public FacetGroupsNegation(@Nonnull @Classifier String referenceName,
-	                           @Nullable @AdditionalChild(domain = ConstraintDomain.ENTITY) FilterBy filterBy) {
+	public FacetGroupsNegation(
+		@Nonnull @Classifier String referenceName,
+		@Nullable FacetGroupRelationLevel facetGroupRelationLevel,
+		@Nullable @AdditionalChild(domain = ConstraintDomain.GROUP_ENTITY) FilterBy filterBy
+	) {
 		super(
-			new Serializable[]{referenceName}, NO_CHILDREN, filterBy
+			facetGroupRelationLevel == null ?
+				new Serializable[]{referenceName, FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP} :
+				new Serializable[]{referenceName, facetGroupRelationLevel},
+			NO_CHILDREN,
+			filterBy
 		);
 	}
 
-	/**
-	 * Returns name of the reference name this constraint relates to.
-	 */
 	@Nonnull
+	@Override
 	public String getReferenceName() {
 		return (String) getArguments()[0];
 	}
 
-	/**
-	 * Returns filter constraint that can be resolved to array of facet groups primary keys.
-	 */
+	@AliasForParameter("relation")
+	@Nonnull
+	@Override
+	public FacetGroupRelationLevel getFacetGroupRelationLevel() {
+		return Arrays.stream(getArguments())
+			.filter(FacetGroupRelationLevel.class::isInstance)
+			.map(FacetGroupRelationLevel.class::cast)
+			.findFirst()
+			.orElse(FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP);
+	}
+
 	@AliasForParameter("filterBy")
 	@Nonnull
+	@Override
 	public Optional<FilterBy> getFacetGroups() {
 		return Arrays.stream(getAdditionalChildren())
 			.filter(child -> child instanceof FilterBy)
@@ -131,8 +160,20 @@ public class FacetGroupsNegation extends AbstractRequireConstraintContainer impl
 
 	@Nonnull
 	@Override
-	public RequireConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
-		return new FacetGroupsNegation(newArguments, getAdditionalChildren());
+	public Serializable[] getArgumentsExcludingDefaults() {
+		if (getFacetGroupRelationLevel() == FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP) {
+			return new Serializable[]{ getReferenceName() };
+		} else {
+			return super.getArguments();
+		}
+	}
+
+	@Override
+	public boolean isArgumentImplicit(@Nonnull Serializable serializable) {
+		if (getFacetGroupRelationLevel() == FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP) {
+			return !(serializable instanceof String);
+		}
+		return false;
 	}
 
 	@Nonnull
@@ -141,4 +182,11 @@ public class FacetGroupsNegation extends AbstractRequireConstraintContainer impl
 		Assert.isPremiseValid(ArrayUtils.isEmpty(children), "Children must be empty");
 		return new FacetGroupsNegation(getArguments(), additionalChildren);
 	}
+
+	@Nonnull
+	@Override
+	public RequireConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
+		return new FacetGroupsNegation(newArguments, getAdditionalChildren());
+	}
+
 }

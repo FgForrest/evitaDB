@@ -26,6 +26,7 @@ package io.evitadb.api.mock;
 import io.evitadb.api.AbstractHundredProductsFunctionalTest;
 import io.evitadb.api.AbstractHundredProductsFunctionalTest.TestEnum;
 import io.evitadb.api.proxy.WithEntityBuilder;
+import io.evitadb.api.proxy.WithScopeEditor;
 import io.evitadb.api.requestResponse.data.InstanceEditor;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.annotation.AssociatedDataRef;
@@ -54,7 +55,7 @@ import java.util.function.Consumer;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public interface ProductInterfaceEditor extends ProductInterface, WithEntityBuilder, InstanceEditor<ProductInterface> {
+public interface ProductInterfaceEditor extends ProductInterface, WithEntityBuilder, WithScopeEditor, InstanceEditor<ProductInterface> {
 
 	ProductInterfaceEditor setId(int id);
 

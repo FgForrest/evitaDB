@@ -28,9 +28,13 @@ import io.evitadb.api.SchemaPostProcessor;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.SchemaClassInvalidException;
 import io.evitadb.api.requestResponse.data.annotation.*;
+import io.evitadb.api.requestResponse.data.annotation.ReflectedReference.InheritableBoolean;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor.ReferenceSchemaBuilder;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaEditor.ReflectedReferenceSchemaBuilder;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.builder.EntityAttributeSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.builder.GlobalAttributeSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
@@ -38,10 +42,12 @@ import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ReflectionLookup;
 import one.edee.oss.proxycian.utils.GenericsUtils;
 import one.edee.oss.proxycian.utils.GenericsUtils.GenericBundle;
@@ -65,8 +71,10 @@ import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
@@ -159,147 +167,33 @@ public class ClassSchemaAnalyzer {
 	}
 
 	/**
-	 * Verifies the data type of a given class.
-	 *
-	 * @param theType the class representing the data type
-	 * @return the verified class representing the data type
-	 * @param <T> the generic type of the data type
+	 * Attempts to retrieve default value from a getter with default implementation.
 	 */
-	@Nonnull
-	private static <T> Class<T> verifyDataType(@Nonnull Class<T> theType) {
-		Assert.isTrue(
-			EvitaDataTypes.isSupportedTypeOrItsArray(theType),
-			"Default value type `" + theType + "` must implement Serializable!"
-		);
-		return theType;
-	}
+	@Nullable
+	public static Serializable extractDefaultValue(@Nonnull Class<?> definingClass, @Nonnull Method getter) {
+		try {
 
-	/**
-	 * Method defines that entity will have the attribute according to {@link Attribute} annotation. Method checks
-	 * whether there are no duplicate definitions of the same attribute in single model class.
-	 */
-	private static void defineAttribute(
-		@Nonnull CatalogSchemaBuilder catalogBuilder,
-		@Nonnull AttributeProviderSchemaEditor<?, ?, ?> attributeSchemaEditor,
-		@Nonnull Attribute attributeAnnotation,
-		@Nonnull String attributeName,
-		@Nonnull String definer,
-		@Nonnull Class<? extends Serializable> attributeType,
-		@Nullable Serializable defaultValue,
-		@Nonnull Map<String, String> attributesAlreadyDefined
-	) {
-		if (attributesAlreadyDefined.containsKey(attributeName)) {
-			throw new InvalidSchemaMutationException(
-				"Entity model already defines attribute `" + attributeName + "` in `" + attributesAlreadyDefined.get(attributeName) + "`!"
-			);
-		} else {
-			attributesAlreadyDefined.put(attributeName, definer);
-		}
-		final Consumer<AttributeSchemaEditor<?>> attributeBuilder = whichIs -> {
-			ofNullable(defaultValue)
-				.map(it -> EvitaDataTypes.toTargetType(it, whichIs.getType()))
-				.ifPresent(whichIs::withDefaultValue);
+			final Constructor<Lookup> constructor = Lookup.class.getDeclaredConstructor(Class.class);
+			constructor.setAccessible(true);
 
-			if (attributeAnnotation.unique() == AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION) {
-				whichIs.unique();
-			}
-			if (attributeAnnotation.unique() == AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE) {
-				whichIs.uniqueWithinLocale();
-			}
-			if (!attributeAnnotation.description().isBlank()) {
-				whichIs.withDescription(attributeAnnotation.description());
-			}
-			if (!attributeAnnotation.deprecated().isBlank()) {
-				whichIs.deprecated(attributeAnnotation.deprecated());
-			}
-			if (attributeAnnotation.nullable()) {
-				whichIs.nullable();
-			}
-			if (attributeAnnotation.filterable()) {
-				whichIs.filterable();
-			}
-			if (attributeAnnotation.sortable()) {
-				whichIs.sortable();
-			}
-			if (attributeAnnotation.representative()) {
-				if (whichIs instanceof EntityAttributeSchemaBuilder entityBuilder) {
-					entityBuilder.representative();
-				} else if (whichIs instanceof GlobalAttributeSchemaBuilder entityBuilder) {
-					entityBuilder.representative();
-				} else {
-					throw new GenericEvitaInternalError("Reference attribute cannot be made representative!");
-				}
-			}
-			if (attributeAnnotation.localized()) {
-				whichIs.localized();
-			}
-			if (BigDecimal.class.equals(attributeType)) {
-				whichIs.indexDecimalPlaces(attributeAnnotation.indexedDecimalPlaces());
-			}
-		};
-		if (attributeAnnotation.global() || attributeAnnotation.uniqueGlobally() != GlobalAttributeUniquenessType.NOT_UNIQUE) {
-			catalogBuilder.withAttribute(
-				attributeName, attributeType,
-				whichIs -> {
-					attributeBuilder.accept(whichIs);
-					if (attributeAnnotation.uniqueGlobally() == GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG) {
-						whichIs.uniqueGlobally();
-					}
-					if (attributeAnnotation.uniqueGlobally() == GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG) {
-						whichIs.uniqueGloballyWithinLocale();
-					}
+			final Class<?> declaringClass = getter.getDeclaringClass();
+			final MethodHandle methodHandle = constructor.newInstance(declaringClass).unreflectSpecial(getter, declaringClass);
+			final Object proxy = Proxy.newProxyInstance(
+				definingClass.getClassLoader(), new Class<?>[]{definingClass},
+				(theProxy, method, args) -> {
+					throw new UnsupportedOperationException();
 				}
 			);
-			if (attributeSchemaEditor instanceof EntitySchemaBuilder entitySchemaBuilder) {
-				entitySchemaBuilder.withGlobalAttribute(attributeName);
-			}
-		} else {
-			if (attributeSchemaEditor instanceof EntitySchemaBuilder entitySchemaBuilder) {
-				final Optional<GlobalAttributeSchemaContract> catalogAttribute = catalogBuilder.getAttribute(attributeName);
-				if (catalogAttribute.isPresent()) {
-					final GlobalAttributeSchemaContract theAttribute = catalogAttribute.get();
-					Assert.isTrue(
-						theAttribute.getType().equals(attributeType),
-						"The attribute `" + attributeName + "` has definition in catalog schema, which needs to be shared, " +
-							"but the defined types doesn't match - required `" + theAttribute.getType() + "`, but found `" + attributeType + "`!"
-					);
-					entitySchemaBuilder.withGlobalAttribute(attributeName);
-					return;
-				}
-			}
+			return (Serializable) methodHandle.bindTo(proxy).invokeWithArguments();
 
-			attributeSchemaEditor.withAttribute(
-				attributeName,
-				EvitaDataTypes.toWrappedForm(attributeType),
-				attributeBuilder::accept
-			);
-		}
-	}
+		} catch (Throwable ex) {
 
-	/**
-	 * Method analyzes reference class record components for presence of control annotations.
-	 */
-	private static void analyzeReferenceRecordComponents(@Nonnull CatalogSchemaBuilder catalogBuilder, @Nonnull Class<?> referenceType, @Nonnull Map<String, String> relationAttributesDefined, @Nonnull ReferenceSchemaBuilder whichIs) {
-		for (RecordComponent recordComponent : referenceType.getRecordComponents()) {
-			final Attribute attributeAnnotation = recordComponent.getAnnotation(Attribute.class);
-			if (attributeAnnotation != null) {
-				final String attributeName = getNameOrElse(attributeAnnotation.name(), recordComponent::getName);
-				final Class<?> recordComponentType = verifyDataType(extractRecordComponentType(referenceType, recordComponent));
-				@SuppressWarnings("unchecked") final Class<? extends Serializable> attributeType = (Class<? extends Serializable>) recordComponentType;
-				defineAttribute(
-					catalogBuilder, whichIs, attributeAnnotation, attributeName,
-					recordComponent.getName(), attributeType, null, relationAttributesDefined
-				);
-			}
+			return null;
 		}
 	}
 
 	/**
 	 * Method resolves the proper type from the method return type unwrapping the optional and collection types.
-	 *
-	 * @param modelClass
-	 * @param getter
-	 * @return
 	 */
 	@Nonnull
 	static Class<?> extractReturnType(@Nonnull Class<?> modelClass, @Nonnull Method getter) {
@@ -327,10 +221,6 @@ public class ClassSchemaAnalyzer {
 
 	/**
 	 * Method resolves the proper type from the field return type unwrapping the optional and collection types.
-	 *
-	 * @param modelClass
-	 * @param field
-	 * @return
 	 */
 	@Nonnull
 	static Class<?> extractFieldType(@Nonnull Class<?> modelClass, @Nonnull Field field) {
@@ -358,10 +248,6 @@ public class ClassSchemaAnalyzer {
 
 	/**
 	 * Method resolves the proper type from the recordComponent return type unwrapping the optional and collection types.
-	 *
-	 * @param modelClass
-	 * @param recordComponent
-	 * @return
 	 */
 	@Nonnull
 	static Class<?> extractRecordComponentType(@Nonnull Class<?> modelClass, @Nonnull RecordComponent recordComponent) {
@@ -388,6 +274,257 @@ public class ClassSchemaAnalyzer {
 	}
 
 	/**
+	 * Verifies the data type of a given class.
+	 *
+	 * @param theType the class representing the data type
+	 * @param <T>     the generic type of the data type
+	 * @return the verified class representing the data type
+	 */
+	@Nonnull
+	private static <T> Class<T> verifyDataType(@Nonnull Class<T> theType) {
+		Assert.isTrue(
+			EvitaDataTypes.isSupportedTypeOrItsArray(theType),
+			"Default value type `" + theType + "` must implement Serializable!"
+		);
+		return theType;
+	}
+
+	/**
+	 * Method defines that entity will have the attribute according to {@link Attribute} annotation. Method checks
+	 * whether there are no duplicate definitions of the same attribute in single model class.
+	 */
+	private static void defineAttribute(
+		@Nullable CatalogSchemaBuilder catalogBuilder,
+		@Nonnull AttributeProviderSchemaEditor<?, ?, ?> attributeSchemaEditor,
+		@Nonnull Attribute attributeAnnotation,
+		@Nonnull String attributeName,
+		@Nonnull String definer,
+		@Nonnull Class<? extends Serializable> attributeType,
+		@Nullable Serializable defaultValue,
+		@Nonnull Map<String, String> attributesAlreadyDefined
+	) {
+		if (attributesAlreadyDefined.containsKey(attributeName)) {
+			throw new InvalidSchemaMutationException(
+				"Entity model already defines attribute `" + attributeName + "` in `" + attributesAlreadyDefined.get(attributeName) + "`!"
+			);
+		} else {
+			attributesAlreadyDefined.put(attributeName, definer);
+		}
+		final Consumer<AttributeSchemaEditor<?>> attributeBuilder = editor -> {
+			ofNullable(defaultValue)
+				.map(it -> EvitaDataTypes.toTargetType(it, editor.getType()))
+				.ifPresent(editor::withDefaultValue);
+
+			if (!attributeAnnotation.description().isBlank()) {
+				editor.withDescription(attributeAnnotation.description());
+			}
+			if (!attributeAnnotation.deprecated().isBlank()) {
+				editor.deprecated(attributeAnnotation.deprecated());
+			}
+			if (attributeAnnotation.nullable()) {
+				editor.nullable();
+			}
+
+			ScopeAttributeSettings[] scopedDefinition = attributeAnnotation.scope();
+			if (ArrayUtils.isEmptyOrItsValuesNull(scopedDefinition)) {
+				if (attributeAnnotation.unique() == AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION) {
+					editor.unique();
+				}
+				if (attributeAnnotation.unique() == AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE) {
+					editor.uniqueWithinLocale();
+				}
+				if (attributeAnnotation.filterable()) {
+					editor.filterable();
+				}
+				if (attributeAnnotation.sortable()) {
+					editor.sortable();
+				}
+			} else {
+				Assert.isTrue(
+					attributeAnnotation.unique() == AttributeUniquenessType.NOT_UNIQUE,
+					"When `scope` is defined in `@Attribute` annotation, " +
+						"the value of `unique` property is not taken into an account " +
+						"(and thus it doesn't make sense to set it to any value)!"
+				);
+				final Scope[] uniqueInScopes = Arrays.stream(scopedDefinition)
+					.filter(it -> it.unique() == AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
+					.map(ScopeAttributeSettings::scope)
+					.toArray(Scope[]::new);
+				if (!ArrayUtils.isEmptyOrItsValuesNull(uniqueInScopes)) {
+					editor.uniqueInScope(uniqueInScopes);
+				}
+				final Scope[] uniqueWithinLocaleInScopes = Arrays.stream(scopedDefinition)
+					.filter(it -> it.unique() == AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE)
+					.map(ScopeAttributeSettings::scope)
+					.toArray(Scope[]::new);
+				if (!ArrayUtils.isEmptyOrItsValuesNull(uniqueWithinLocaleInScopes)) {
+					editor.uniqueWithinLocaleInScope(uniqueWithinLocaleInScopes);
+				}
+
+				Assert.isTrue(
+					!attributeAnnotation.filterable(),
+					"When `scope` is defined in `@Attribute` annotation, " +
+						"the value of `filterable` property is not taken into an account " +
+						"(and thus it doesn't make sense to set it to true)!"
+				);
+				editor.filterableInScope(
+					Arrays.stream(scopedDefinition)
+						.filter(ScopeAttributeSettings::filterable)
+						.map(ScopeAttributeSettings::scope)
+						.toArray(Scope[]::new)
+				);
+				Assert.isTrue(
+					!attributeAnnotation.sortable(),
+					"When `scope` is defined in `@Attribute` annotation, " +
+						"the value of `sortable` property is not taken into an account " +
+						"(and thus it doesn't make sense to set it to true)!"
+				);
+				editor.sortableInScope(
+					Arrays.stream(scopedDefinition)
+						.filter(ScopeAttributeSettings::sortable)
+						.map(ScopeAttributeSettings::scope)
+						.toArray(Scope[]::new)
+				);
+			}
+			if (attributeAnnotation.representative()) {
+				if (editor instanceof EntityAttributeSchemaBuilder entityBuilder) {
+					entityBuilder.representative();
+				} else if (editor instanceof GlobalAttributeSchemaBuilder entityBuilder) {
+					entityBuilder.representative();
+				} else {
+					throw new GenericEvitaInternalError("Reference attribute cannot be made representative!");
+				}
+			}
+			if (attributeAnnotation.localized()) {
+				editor.localized();
+			}
+			if (BigDecimal.class.equals(attributeType)) {
+				editor.indexDecimalPlaces(attributeAnnotation.indexedDecimalPlaces());
+			}
+		};
+
+		final ScopeAttributeSettings[] scopedDefinition = attributeAnnotation.scope();
+		if (attributeAnnotation.global() ||
+			attributeAnnotation.uniqueGlobally() != GlobalAttributeUniquenessType.NOT_UNIQUE ||
+			Arrays.stream(attributeAnnotation.scope()).anyMatch(it -> it.uniqueGlobally() != GlobalAttributeUniquenessType.NOT_UNIQUE) ||
+			(!ArrayUtils.isEmptyOrItsValuesNull(scopedDefinition) && Arrays.stream(scopedDefinition).anyMatch(it -> it.unique() != AttributeUniquenessType.NOT_UNIQUE || it.uniqueGlobally() != GlobalAttributeUniquenessType.NOT_UNIQUE))
+		) {
+			Assert.notNull(
+				catalogBuilder,
+				"Cannot configure global attribute on reference!"
+			);
+			catalogBuilder.withAttribute(
+				attributeName, attributeType,
+				whichIs -> {
+					attributeBuilder.accept(whichIs);
+					if (ArrayUtils.isEmptyOrItsValuesNull(scopedDefinition)) {
+						if (attributeAnnotation.uniqueGlobally() == GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG) {
+							whichIs.uniqueGlobally();
+						}
+						if (attributeAnnotation.uniqueGlobally() == GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG) {
+							whichIs.uniqueGloballyWithinLocale();
+						}
+					} else {
+						Assert.isTrue(
+							attributeAnnotation.uniqueGlobally() == GlobalAttributeUniquenessType.NOT_UNIQUE,
+							"When `scope` is defined in `@Attribute` annotation, " +
+								"the value of `uniqueGlobally` property is not taken into an account " +
+								"(and thus it doesn't make sense to set it to any value)!"
+						);
+						final Scope[] uniqueGloballyInScopes = Arrays.stream(scopedDefinition)
+							.filter(it -> it.uniqueGlobally() == GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG)
+							.map(ScopeAttributeSettings::scope)
+							.toArray(Scope[]::new);
+						if (!ArrayUtils.isEmptyOrItsValuesNull(uniqueGloballyInScopes)) {
+							whichIs.uniqueGloballyInScope(uniqueGloballyInScopes);
+						}
+						final Scope[] uniqueGloballyWithinLocaleInScopes = Arrays.stream(scopedDefinition)
+							.filter(it -> it.uniqueGlobally() == GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE)
+							.map(ScopeAttributeSettings::scope)
+							.toArray(Scope[]::new);
+						if (!ArrayUtils.isEmptyOrItsValuesNull(uniqueGloballyWithinLocaleInScopes)) {
+							whichIs.uniqueGloballyWithinLocaleInScope(uniqueGloballyWithinLocaleInScopes);
+						}
+					}
+				}
+			);
+			if (attributeSchemaEditor instanceof EntitySchemaBuilder entitySchemaBuilder) {
+				entitySchemaBuilder.withGlobalAttribute(attributeName);
+			}
+		} else {
+			if (attributeSchemaEditor instanceof EntitySchemaBuilder entitySchemaBuilder) {
+				Assert.isPremiseValid(
+					catalogBuilder != null,
+					"Expected CatalogSchemaBuilder instance!"
+				);
+				final Optional<GlobalAttributeSchemaContract> catalogAttribute = catalogBuilder.getAttribute(attributeName);
+				if (catalogAttribute.isPresent()) {
+					final GlobalAttributeSchemaContract theAttribute = catalogAttribute.get();
+					Assert.isTrue(
+						theAttribute.getType().equals(attributeType),
+						"The attribute `" + attributeName + "` has definition in catalog schema, which needs to be shared, " +
+							"but the defined types doesn't match - required `" + theAttribute.getType() + "`, but found `" + attributeType + "`!"
+					);
+					entitySchemaBuilder.withGlobalAttribute(attributeName);
+					return;
+				}
+			}
+
+			attributeSchemaEditor.withAttribute(
+				attributeName,
+				EvitaDataTypes.toWrappedForm(attributeType),
+				attributeBuilder::accept
+			);
+		}
+	}
+
+	/**
+	 * Method analyzes reference class record components for presence of control annotations.
+	 */
+	private static void analyzeReferenceRecordComponents(
+		@Nonnull Class<?> referenceType,
+		@Nonnull Map<String, String> relationAttributesDefined,
+		@Nonnull ReferenceSchemaEditor<?> referenceEditor
+	) {
+		for (RecordComponent recordComponent : referenceType.getRecordComponents()) {
+			final Attribute attributeAnnotation = recordComponent.getAnnotation(Attribute.class);
+			if (attributeAnnotation != null) {
+				final String attributeName = getNameOrElse(attributeAnnotation.name(), recordComponent::getName);
+				final Class<?> recordComponentType = verifyDataType(extractRecordComponentType(referenceType, recordComponent));
+				@SuppressWarnings("unchecked") final Class<? extends Serializable> attributeType = (Class<? extends Serializable>) recordComponentType;
+				defineAttribute(
+					null, referenceEditor, attributeAnnotation, attributeName,
+					recordComponent.getName(), attributeType, null, relationAttributesDefined
+				);
+			}
+		}
+	}
+
+	/**
+	 * Collects referenced attributes from the provided reference type, filtered by the specified attribute filter.
+	 *
+	 * @param referenceType        The class type from which to collect referenced attributes. Must not be null.
+	 * @param referencedAttributes The set to which referenced attribute names will be added. Must not be null.
+	 * @param attributeFilter      The filter to apply on attribute names. Can be null.
+	 */
+	private static void collectReferencedAttributes(
+		@Nonnull Class<?> referenceType,
+		@Nonnull Set<String> referencedAttributes,
+		@Nonnull Predicate<String> attributeFilter
+	) {
+		for (RecordComponent recordComponent : referenceType.getRecordComponents()) {
+			final AttributeRef attributeAnnotation = recordComponent.getAnnotation(AttributeRef.class);
+			if (attributeAnnotation != null) {
+				final String attributeName = attributeAnnotation.value().isBlank() ?
+					recordComponent.getName() : attributeAnnotation.value();
+				if (attributeFilter.test(attributeName)) {
+					referencedAttributes.add(attributeName);
+				}
+			}
+		}
+	}
+
+	/**
 	 * Method returns the return type of the passed getter but only if it matches any of the supported Evita data types.
 	 */
 	@Nonnull
@@ -402,44 +539,18 @@ public class ClassSchemaAnalyzer {
 	}
 
 	/**
-	 * Method determines the cardinality from {@link Reference#allowEmpty()} and the return type of the method - if it
-	 * returns array type the multiple cardinality is returned.
+	 * Method determines the cardinality from {@link Reference#allowEmpty()} / {@link ReflectedReference#allowEmpty()}
+	 * and the return type of the method - if it returns array type the multiple cardinality is returned.
 	 */
 	@Nonnull
-	private static Cardinality getCardinality(@Nonnull Reference reference, @Nonnull Class<?> referenceType) {
+	private static Cardinality getCardinality(@Nonnull Class<?> referenceType, boolean allowEmpty) {
 		final Cardinality cardinality;
 		if (referenceType.isArray()) {
-			cardinality = reference.allowEmpty() ? Cardinality.ZERO_OR_MORE : Cardinality.ONE_OR_MORE;
+			cardinality = allowEmpty ? Cardinality.ZERO_OR_MORE : Cardinality.ONE_OR_MORE;
 		} else {
-			cardinality = reference.allowEmpty() ? Cardinality.ZERO_OR_ONE : Cardinality.EXACTLY_ONE;
+			cardinality = allowEmpty ? Cardinality.ZERO_OR_ONE : Cardinality.EXACTLY_ONE;
 		}
 		return cardinality;
-	}
-
-	/**
-	 * Attempts to retrieve default value from a getter with default implementation.
-	 */
-	@Nullable
-	public static Serializable extractDefaultValue(@Nonnull Class<?> definingClass, @Nonnull Method getter) {
-		try {
-
-			final Constructor<Lookup> constructor = Lookup.class.getDeclaredConstructor(Class.class);
-			constructor.setAccessible(true);
-
-			final Class<?> declaringClass = getter.getDeclaringClass();
-			final MethodHandle methodHandle = constructor.newInstance(declaringClass).unreflectSpecial(getter, declaringClass);
-			final Object proxy = Proxy.newProxyInstance(
-				definingClass.getClassLoader(), new Class<?>[]{definingClass},
-				(theProxy, method, args) -> {
-					throw new UnsupportedOperationException();
-				}
-			);
-			return (Serializable) methodHandle.bindTo(proxy).invokeWithArguments();
-
-		} catch (Throwable ex) {
-
-			return null;
-		}
 	}
 
 	/**
@@ -464,6 +575,13 @@ public class ClassSchemaAnalyzer {
 	@Nonnull
 	private static String getNameOrElse(@Nonnull String name, @Nonnull Supplier<String> defaultNameSupplier) {
 		return name.isBlank() ? defaultNameSupplier.get() : name.trim();
+	}
+
+	/**
+	 * Method defines that entity represents hierarchical structure according to {@link ParentEntity} annotation.
+	 */
+	private static void defineHierarchy(@Nonnull EntitySchemaBuilder entityBuilder) {
+		entityBuilder.withHierarchy();
 	}
 
 	public ClassSchemaAnalyzer(@Nonnull Class<?> modelClass, @Nonnull ReflectionLookup reflectionLookup) {
@@ -507,7 +625,7 @@ public class ClassSchemaAnalyzer {
 	 * Method analyzes the entity model class and alters the catalog and entity schema within passed write session
 	 * accordingly.
 	 *
-	 * @param session write Evita session
+	 * @param session        write Evita session
 	 * @param catalogBuilder catalog schema builder
 	 * @throws InvalidSchemaMutationException when entity model contains errors
 	 */
@@ -515,12 +633,12 @@ public class ClassSchemaAnalyzer {
 	public AnalysisResult analyze(@Nonnull EvitaSessionContract session, @Nonnull CatalogSchemaBuilder catalogBuilder) {
 		AtomicReference<String> entityName = new AtomicReference<>();
 		try {
-			final List<Entity> entityAnnotations = reflectionLookup.getClassAnnotations(modelClass, Entity.class);
+			final List<Entity> entityAnnotations = this.reflectionLookup.getClassAnnotations(this.modelClass, Entity.class);
 			// use only the most specific annotation only
 			if (!entityAnnotations.isEmpty()) {
 				final Entity entityAnnotation = entityAnnotations.get(0);
 				// locate / create the entity schema
-				entityName.set(getNameOrElse(entityAnnotation.name(), modelClass::getSimpleName));
+				entityName.set(getNameOrElse(entityAnnotation.name(), this.modelClass::getSimpleName));
 				final EntitySchemaBuilder entityBuilder = session.getEntitySchema(entityName.get())
 					.map(SealedEntitySchema::openForWrite)
 					.map(it -> it.cooperatingWith(() -> catalogBuilder))
@@ -551,7 +669,7 @@ public class ClassSchemaAnalyzer {
 					);
 				}
 				// is the passed model class record?
-				if (modelClass.isRecord()) {
+				if (this.modelClass.isRecord()) {
 					// analyze record components
 					analyzeRecordComponents(catalogBuilder, entityBuilder);
 				} else {
@@ -561,8 +679,11 @@ public class ClassSchemaAnalyzer {
 					analyzeGetterMethods(catalogBuilder, entityBuilder);
 				}
 
+				// define sortable attribute compounds
+				defineSortableAttributeCompounds(modelClass, entityBuilder);
+
 				// if the schema consumer is available invoke it
-				ofNullable(postProcessor)
+				ofNullable(this.postProcessor)
 					.ifPresent(it -> it.postProcess(catalogBuilder, entityBuilder));
 
 				// define evolution mode - if no currencies or locales definition were found - let them fill up in runtime
@@ -577,7 +698,7 @@ public class ClassSchemaAnalyzer {
 			}
 		} catch (RuntimeException ex) {
 			throw new SchemaClassInvalidException(
-				modelClass, ex
+				this.modelClass, ex
 			);
 		}
 		if (entityName.get() == null) {
@@ -593,52 +714,64 @@ public class ClassSchemaAnalyzer {
 	 * Method analyzes getter methods for presence of control annotations.
 	 */
 	private void analyzeGetterMethods(@Nonnull CatalogSchemaBuilder catalogBuilder, @Nonnull EntitySchemaBuilder entityBuilder) {
-		final Collection<Method> getters = reflectionLookup.findAllGetters(modelClass);
+		final Collection<Method> getters = this.reflectionLookup.findAllGetters(this.modelClass);
 		for (Method getter : getters) {
-			final PrimaryKey primaryKeyAnnotation = reflectionLookup.getAnnotationInstance(getter, PrimaryKey.class);
+			final PrimaryKey primaryKeyAnnotation = this.reflectionLookup.getAnnotationInstance(getter, PrimaryKey.class);
 			if (primaryKeyAnnotation != null) {
 				definePrimaryKey(entityBuilder, primaryKeyAnnotation);
 			}
-			final Attribute attributeAnnotation = reflectionLookup.getAnnotationInstance(getter, Attribute.class);
+			final Attribute attributeAnnotation = this.reflectionLookup.getAnnotationInstance(getter, Attribute.class);
 			if (attributeAnnotation != null) {
 				final String attributeName = getNameOrElse(
 					attributeAnnotation.name(),
 					() -> ReflectionLookup.getPropertyNameFromMethodName(getter.getName())
 				);
-				final Class<?> returnedType = verifyDataType(getReturnedType(modelClass, getter));
+				final Class<?> returnedType = verifyDataType(getReturnedType(this.modelClass, getter));
 				@SuppressWarnings("unchecked") final Class<? extends Serializable> attributeType = (Class<? extends Serializable>) returnedType;
-				final Serializable defaultValue = getter.isDefault() ? extractDefaultValue(modelClass, getter) : null;
+				final Serializable defaultValue = getter.isDefault() ? extractDefaultValue(this.modelClass, getter) : null;
 				defineAttribute(catalogBuilder, entityBuilder, attributeAnnotation, attributeName, getter.toGenericString(), attributeType, defaultValue, attributesDefined);
 			}
-			final AssociatedData associatedDataAnnotation = reflectionLookup.getAnnotationInstance(getter, AssociatedData.class);
+			final AssociatedData associatedDataAnnotation = this.reflectionLookup.getAnnotationInstance(getter, AssociatedData.class);
 			if (associatedDataAnnotation != null) {
 				final String associatedDataName = getNameOrElse(
 					associatedDataAnnotation.name(),
 					() -> ReflectionLookup.getPropertyNameFromMethodName(getter.getName())
 				);
-				final Class<?> associatedDataType = extractReturnType(modelClass, getter);
+				final Class<?> associatedDataType = extractReturnType(this.modelClass, getter);
 				//noinspection unchecked
 				defineAssociatedData(
 					entityBuilder, associatedDataAnnotation, associatedDataName,
 					getter.toGenericString(), (Class<? extends Serializable>) associatedDataType
 				);
 			}
-			final Reference referenceAnnotation = reflectionLookup.getAnnotationInstance(getter, Reference.class);
+			final Reference referenceAnnotation = this.reflectionLookup.getAnnotationInstance(getter, Reference.class);
 			if (referenceAnnotation != null) {
 				final String referenceName = getNameOrElse(
 					referenceAnnotation.name(),
 					() -> ReflectionLookup.getPropertyNameFromMethodName(getter.getName())
 				);
-				final Class<?> referenceType = extractReturnType(modelClass, getter);
+				final Class<?> referenceType = extractReturnType(this.modelClass, getter);
 				defineReference(
-					catalogBuilder, entityBuilder, referenceAnnotation, referenceName, getter.toGenericString(),
-					subClassResolver.apply(referenceName, referenceType)
+					entityBuilder, referenceAnnotation, referenceName, getter.toGenericString(),
+					this.subClassResolver.apply(referenceName, referenceType)
 				);
 			}
-			ofNullable(reflectionLookup.getAnnotationInstance(getter, ParentEntity.class))
+			final ReflectedReference reflectedReferenceAnnotation = this.reflectionLookup.getAnnotationInstance(getter, ReflectedReference.class);
+			if (reflectedReferenceAnnotation != null) {
+				final String referenceName = getNameOrElse(
+					reflectedReferenceAnnotation.name(),
+					() -> ReflectionLookup.getPropertyNameFromMethodName(getter.getName())
+				);
+				final Class<?> referenceType = extractReturnType(this.modelClass, getter);
+				defineReflectedReference(
+					entityBuilder, reflectedReferenceAnnotation, referenceName, getter.toGenericString(),
+					this.subClassResolver.apply(referenceName, referenceType)
+				);
+			}
+			ofNullable(this.reflectionLookup.getAnnotationInstance(getter, ParentEntity.class))
 				.ifPresent(it -> defineHierarchy(entityBuilder));
 
-			ofNullable(reflectionLookup.getAnnotationInstance(getter, PriceForSale.class))
+			ofNullable(this.reflectionLookup.getAnnotationInstance(getter, PriceForSale.class))
 				.ifPresent(it -> definePrice(entityBuilder, it));
 		}
 	}
@@ -647,7 +780,7 @@ public class ClassSchemaAnalyzer {
 	 * Method analyzes record components for presence of control annotations.
 	 */
 	private void analyzeRecordComponents(@Nonnull CatalogSchemaBuilder catalogBuilder, @Nonnull EntitySchemaBuilder entityBuilder) {
-		final RecordComponent[] recordComponents = modelClass.getRecordComponents();
+		final RecordComponent[] recordComponents = this.modelClass.getRecordComponents();
 		for (RecordComponent recordComponent : recordComponents) {
 			final PrimaryKey primaryKeyAnnotation = recordComponent.getAnnotation(PrimaryKey.class);
 			if (primaryKeyAnnotation != null) {
@@ -656,11 +789,11 @@ public class ClassSchemaAnalyzer {
 			final Attribute attributeAnnotation = recordComponent.getAnnotation(Attribute.class);
 			if (attributeAnnotation != null) {
 				final String attributeName = getNameOrElse(attributeAnnotation.name(), recordComponent::getName);
-				final Class<?> recordComponentType = verifyDataType(extractRecordComponentType(modelClass, recordComponent));
+				final Class<?> recordComponentType = verifyDataType(extractRecordComponentType(this.modelClass, recordComponent));
 				@SuppressWarnings("unchecked") final Class<? extends Serializable> attributeType = (Class<? extends Serializable>) recordComponentType;
 				defineAttribute(
 					catalogBuilder, entityBuilder, attributeAnnotation, attributeName,
-					recordComponent.toString(), attributeType, null, attributesDefined
+					recordComponent.toString(), attributeType, null, this.attributesDefined
 				);
 			}
 			final AssociatedData associatedDataAnnotation = recordComponent.getAnnotation(AssociatedData.class);
@@ -669,7 +802,7 @@ public class ClassSchemaAnalyzer {
 					associatedDataAnnotation.name(),
 					recordComponent::getName
 				);
-				final Class<?> associatedDataType = extractRecordComponentType(modelClass, recordComponent);
+				final Class<?> associatedDataType = extractRecordComponentType(this.modelClass, recordComponent);
 				//noinspection unchecked
 				defineAssociatedData(
 					entityBuilder, associatedDataAnnotation, associatedDataName,
@@ -679,9 +812,19 @@ public class ClassSchemaAnalyzer {
 			final Reference referenceAnnotation = recordComponent.getAnnotation(Reference.class);
 			if (referenceAnnotation != null) {
 				final String referenceName = getNameOrElse(referenceAnnotation.name(), recordComponent::getName);
-				final Class<?> referenceType = extractRecordComponentType(modelClass, recordComponent);
+				final Class<?> referenceType = extractRecordComponentType(this.modelClass, recordComponent);
 				defineReference(
-					catalogBuilder, entityBuilder, referenceAnnotation, referenceName,
+					entityBuilder, referenceAnnotation, referenceName,
+					recordComponent.toString(),
+					referenceType
+				);
+			}
+			final ReflectedReference reflectedReferenceAnnotation = recordComponent.getAnnotation(ReflectedReference.class);
+			if (reflectedReferenceAnnotation != null) {
+				final String referenceName = getNameOrElse(reflectedReferenceAnnotation.name(), recordComponent::getName);
+				final Class<?> referenceType = extractRecordComponentType(this.modelClass, recordComponent);
+				defineReflectedReference(
+					entityBuilder, reflectedReferenceAnnotation, referenceName,
 					recordComponent.toString(),
 					referenceType
 				);
@@ -699,7 +842,7 @@ public class ClassSchemaAnalyzer {
 	 * Method analyzes class fields for presence of control annotations.
 	 */
 	private void analyzeFields(@Nonnull CatalogSchemaBuilder catalogBuilder, @Nonnull EntitySchemaBuilder entityBuilder) {
-		final Map<Field, List<Annotation>> fields = reflectionLookup.getFields(modelClass);
+		final Map<Field, List<Annotation>> fields = this.reflectionLookup.getFields(this.modelClass);
 		for (final Entry<Field, List<Annotation>> fieldEntry : fields.entrySet()) {
 			for (final Annotation annotation : fieldEntry.getValue()) {
 				if (annotation instanceof PrimaryKey primaryKeyAnnotation) {
@@ -710,12 +853,12 @@ public class ClassSchemaAnalyzer {
 						attributeAnnotation.name(),
 						() -> fieldEntry.getKey().getName()
 					);
-					final Class<?> fieldType = verifyDataType(extractFieldType(modelClass, fieldEntry.getKey()));
+					final Class<?> fieldType = verifyDataType(extractFieldType(this.modelClass, fieldEntry.getKey()));
 					@SuppressWarnings("unchecked") final Class<? extends Serializable> attributeType = (Class<? extends Serializable>) fieldType;
-					final Serializable defaultValue = extractValueFromField(modelClass, fieldEntry.getKey());
+					final Serializable defaultValue = extractValueFromField(this.modelClass, fieldEntry.getKey());
 					defineAttribute(
 						catalogBuilder, entityBuilder, attributeAnnotation, attributeName,
-						fieldEntry.getKey().toGenericString(), attributeType, defaultValue, attributesDefined
+						fieldEntry.getKey().toGenericString(), attributeType, defaultValue, this.attributesDefined
 					);
 				}
 				if (annotation instanceof AssociatedData associatedDataAnnotation) {
@@ -723,7 +866,7 @@ public class ClassSchemaAnalyzer {
 						associatedDataAnnotation.name(),
 						() -> fieldEntry.getKey().getName()
 					);
-					final Class<?> associatedDataType = extractFieldType(modelClass, fieldEntry.getKey());
+					final Class<?> associatedDataType = extractFieldType(this.modelClass, fieldEntry.getKey());
 					//noinspection unchecked
 					defineAssociatedData(
 						entityBuilder, associatedDataAnnotation, attributeName,
@@ -735,12 +878,25 @@ public class ClassSchemaAnalyzer {
 						referenceAnnotation.name(),
 						() -> fieldEntry.getKey().getName()
 					);
-					final Class<?> referenceType = extractFieldType(modelClass, fieldEntry.getKey());
+					final Class<?> referenceType = extractFieldType(this.modelClass, fieldEntry.getKey());
 					defineReference(
-						catalogBuilder, entityBuilder,
+						entityBuilder,
 						referenceAnnotation, referenceName,
 						fieldEntry.getKey().toGenericString(),
-						subClassResolver.apply(referenceName, referenceType)
+						this.subClassResolver.apply(referenceName, referenceType)
+					);
+				}
+				if (annotation instanceof ReflectedReference reflectedReferenceAnnotation) {
+					final String referenceName = getNameOrElse(
+						reflectedReferenceAnnotation.name(),
+						() -> fieldEntry.getKey().getName()
+					);
+					final Class<?> referenceType = extractFieldType(this.modelClass, fieldEntry.getKey());
+					defineReflectedReference(
+						entityBuilder,
+						reflectedReferenceAnnotation, referenceName,
+						fieldEntry.getKey().toGenericString(),
+						this.subClassResolver.apply(referenceName, referenceType)
 					);
 				}
 				if (annotation instanceof ParentEntity) {
@@ -761,11 +917,11 @@ public class ClassSchemaAnalyzer {
 		@Nonnull PrimaryKey primaryKeyAnnotation
 	) {
 		Assert.isTrue(
-			!primaryKeyDefined,
+			!this.primaryKeyDefined,
 			"Class `" + modelClass + "` contains multiple methods marked with `@PrimaryKey` annotation," +
 				" which is not allowed!"
 		);
-		primaryKeyDefined = true;
+		this.primaryKeyDefined = true;
 		if (primaryKeyAnnotation.autoGenerate()) {
 			entityBuilder.withGeneratedPrimaryKey();
 		} else {
@@ -774,19 +930,12 @@ public class ClassSchemaAnalyzer {
 	}
 
 	/**
-	 * Method defines that entity represents hierarchical structure according to {@link ParentEntity} annotation.
-	 */
-	private void defineHierarchy(@Nonnull EntitySchemaBuilder entityBuilder) {
-		entityBuilder.withHierarchy();
-	}
-
-	/**
 	 * Method defines that entity contains price definitions according to {@link PriceForSale} annotation.
 	 */
 	private void definePrice(@Nonnull EntitySchemaBuilder entityBuilder, @Nonnull PriceForSale sellingPriceAnnotation) {
 		Assert.isTrue(
-			!sellingPriceDefined,
-			"Class `" + modelClass + "` contains multiple methods marked with `@PriceForSale` annotation," +
+			!this.sellingPriceDefined,
+			"Class `" + this.modelClass + "` contains multiple methods marked with `@PriceForSale` annotation," +
 				" which is not allowed!"
 		);
 		entityBuilder.withPriceInCurrency(
@@ -795,7 +944,7 @@ public class ClassSchemaAnalyzer {
 				.map(Currency::getInstance)
 				.toArray(Currency[]::new)
 		);
-		sellingPriceDefined = true;
+		this.sellingPriceDefined = true;
 	}
 
 	/**
@@ -809,12 +958,12 @@ public class ClassSchemaAnalyzer {
 		@Nonnull String definer,
 		@Nonnull Class<? extends Serializable> associatedDataType
 	) {
-		if (associatedDataDefined.containsKey(associatedDataName)) {
+		if (this.associatedDataDefined.containsKey(associatedDataName)) {
 			throw new InvalidSchemaMutationException(
-				"Entity model already defines associated data `" + associatedDataName + "` in `" + associatedDataDefined.get(associatedDataName) + "`!"
+				"Entity model already defines associated data `" + associatedDataName + "` in `" + this.associatedDataDefined.get(associatedDataName) + "`!"
 			);
 		} else {
-			associatedDataDefined.put(associatedDataName, definer);
+			this.associatedDataDefined.put(associatedDataName, definer);
 		}
 		final boolean supportedTypeOrItsArray = EvitaDataTypes.isSupportedTypeOrItsArray(associatedDataType);
 		final boolean serializable = Serializable.class.isAssignableFrom(associatedDataType);
@@ -822,8 +971,8 @@ public class ClassSchemaAnalyzer {
 		if (!supportedTypeOrItsArray && !serializable) {
 			throw new InvalidSchemaMutationException(
 				"The type `" + associatedDataType + "` cannot be used for associated data `" + associatedDataName + "`. " +
-				"It is not a directly supported evitaDB type and cannot be converted to a ComplexDataObject, because " +
-				"it doesn't implement `Serializable` interface."
+					"It is not a directly supported evitaDB type and cannot be converted to a ComplexDataObject, because " +
+					"it doesn't implement `Serializable` interface."
 			);
 		}
 
@@ -852,27 +1001,26 @@ public class ClassSchemaAnalyzer {
 	 * whether there are no duplicate definitions of the same reference in single model class.
 	 */
 	private void defineReference(
-		@Nonnull CatalogSchemaBuilder catalogBuilder,
 		@Nonnull EntitySchemaBuilder entityBuilder,
 		@Nonnull Reference reference,
 		@Nonnull String referenceName,
 		@Nonnull String definer,
 		@Nonnull Class<?> referenceType
 	) {
-		if (referencesDefined.containsKey(referenceName)) {
+		if (this.referencesDefined.containsKey(referenceName)) {
 			throw new InvalidSchemaMutationException(
-				"Entity model already defines reference `" + referenceName + "` in `" + referencesDefined.get(referenceName) + "`!"
+				"Entity model already defines reference `" + referenceName + "` in `" + this.referencesDefined.get(referenceName) + "`!"
 			);
 		} else {
-			referencesDefined.put(referenceName, definer);
+			this.referencesDefined.put(referenceName, definer);
 		}
 
-		final Cardinality cardinality = getCardinality(reference, referenceType);
+		final Cardinality cardinality = getCardinality(referenceType, reference.allowEmpty());
 		final Class<?> examinedReferenceType = referenceType.isArray() ? referenceType.getComponentType() : referenceType;
 		final TargetEntity targetEntity;
 		final TargetEntity targetEntityGroup;
 
-		final List<Entity> directEntity = reflectionLookup.getClassAnnotations(examinedReferenceType, Entity.class);
+		final List<Entity> directEntity = this.reflectionLookup.getClassAnnotations(examinedReferenceType, Entity.class);
 		if (directEntity.isEmpty()) {
 			targetEntity = getTargetEntity(definer, ReferencedEntity.class, new TargetEntity(reference.entity(), reference.managed()), examinedReferenceType);
 			targetEntityGroup = getTargetEntity(definer, ReferencedEntityGroup.class, new TargetEntity(reference.groupEntity(), reference.groupEntityManaged()), examinedReferenceType);
@@ -887,41 +1035,72 @@ public class ClassSchemaAnalyzer {
 				" and `@Entity` annotation on target class!"
 		);
 
-		final Map<String, String> relationAttributesDefined = new HashMap<>(32);
-		final Consumer<ReferenceSchemaBuilder> referenceBuilder = whichIs -> {
+		final Map<String, String> relationAttributes = new HashMap<>(32);
+		final Consumer<ReferenceSchemaBuilder> referenceBuilder = editor -> {
 			if (!targetEntityGroup.entityType().isBlank()) {
 				if (targetEntityGroup.managed()) {
-					whichIs.withGroupTypeRelatedToEntity(targetEntityGroup.entityType());
+					editor.withGroupTypeRelatedToEntity(targetEntityGroup.entityType());
 				} else {
-					whichIs.withGroupType(targetEntityGroup.entityType());
+					editor.withGroupType(targetEntityGroup.entityType());
 				}
 			}
 
 			if (!reference.description().isBlank()) {
-				whichIs.withDescription(reference.description());
+				editor.withDescription(reference.description());
 			}
 			if (!reference.deprecated().isBlank()) {
-				whichIs.deprecated(reference.deprecated());
+				editor.deprecated(reference.deprecated());
 			}
-			if (reference.indexed()) {
-				whichIs.indexed();
-			}
-			if (reference.faceted()) {
-				whichIs.faceted();
+
+			final ScopeReferenceSettings[] scopedDefinition = reference.scope();
+			if (ArrayUtils.isEmptyOrItsValuesNull(scopedDefinition)) {
+				if (reference.indexed()) {
+					editor.indexed();
+				}
+				if (reference.faceted()) {
+					editor.faceted();
+				}
+			} else {
+				Assert.isTrue(
+					!reference.indexed(),
+					"When `scope` is defined in `@Reference` annotation, " +
+						"the value of `indexed` property is not taken into an account " +
+						"(and thus it doesn't make sense to set it to true)!"
+				);
+				editor.indexedInScope(
+					Arrays.stream(scopedDefinition)
+						.filter(ScopeReferenceSettings::indexed)
+						.map(ScopeReferenceSettings::scope)
+						.toArray(Scope[]::new)
+				);
+				Assert.isTrue(
+					!reference.faceted(),
+					"When `scope` is defined in `@Reference` annotation, " +
+						"the value of `faceted` property is not taken into an account " +
+						"(and thus it doesn't make sense to set it to true)!"
+				);
+				editor.facetedInScope(
+					Arrays.stream(scopedDefinition)
+						.filter(ScopeReferenceSettings::faceted)
+						.map(ScopeReferenceSettings::scope)
+						.toArray(Scope[]::new)
+				);
 			}
 
 			// we need also to analyze the target type for presence of control annotations in case the type is not
 			// entity itself (i.e. is a relation mapping DTO)
-			if (reflectionLookup.getClassAnnotations(examinedReferenceType, Entity.class).isEmpty()) {
+			if (this.reflectionLookup.getClassAnnotations(examinedReferenceType, Entity.class).isEmpty()) {
 				// if the target type is record
 				if (examinedReferenceType.isRecord()) {
 					// we need to scan it differently
-					analyzeReferenceRecordComponents(catalogBuilder, examinedReferenceType, relationAttributesDefined, whichIs);
+					analyzeReferenceRecordComponents(examinedReferenceType, relationAttributes, editor);
 				} else {
 					// otherwise we check methods and fields
-					analyzeReferenceMethods(catalogBuilder, examinedReferenceType, relationAttributesDefined, whichIs);
-					analyzeReferenceFields(catalogBuilder, examinedReferenceType, relationAttributesDefined, whichIs);
+					analyzeReferenceMethods(examinedReferenceType, relationAttributes, editor);
+					analyzeReferenceFields(examinedReferenceType, relationAttributes, editor);
 				}
+
+				defineSortableAttributeCompounds(referenceType, editor);
 			}
 		};
 
@@ -939,22 +1118,200 @@ public class ClassSchemaAnalyzer {
 	}
 
 	/**
+	 * Method defines that entity will have the reference according to {@link ReflectedReference} annotation. Method
+	 * checks whether there are no duplicate definitions of the same reference in single model class.
+	 */
+	private void defineReflectedReference(
+		@Nonnull EntitySchemaBuilder entityBuilder,
+		@Nonnull ReflectedReference reference,
+		@Nonnull String referenceName,
+		@Nonnull String definer,
+		@Nonnull Class<?> referenceType
+	) {
+		if (this.referencesDefined.containsKey(referenceName)) {
+			throw new InvalidSchemaMutationException(
+				"Entity model already defines reference `" + referenceName + "` in `" + this.referencesDefined.get(referenceName) + "`!"
+			);
+		} else {
+			this.referencesDefined.put(referenceName, definer);
+		}
+
+		final Class<?> examinedReferenceType = referenceType.isArray() ? referenceType.getComponentType() : referenceType;
+		final TargetEntity targetEntity;
+
+		final List<Entity> directEntity = this.reflectionLookup.getClassAnnotations(examinedReferenceType, Entity.class);
+		if (directEntity.isEmpty()) {
+			targetEntity = getTargetEntity(definer, ReferencedEntity.class, new TargetEntity(reference.ofEntity(), true), examinedReferenceType);
+		} else {
+			targetEntity = new TargetEntity(directEntity.get(0).name(), true);
+		}
+
+		Assert.isTrue(
+			!targetEntity.entityType().isBlank(),
+			"Target entity type needs to be specified either by `@ReflectedReference` entity attribute or by `@ReferencedEntity` " +
+				" and `@Entity` annotation on target class!"
+		);
+
+		final Map<String, String> relationAttributes = new HashMap<>(32);
+		final Consumer<ReflectedReferenceSchemaBuilder> reflectedReferenceBuilder = editor -> {
+
+			// set cardinality first
+			if (reference.allowEmpty() != InheritableBoolean.INHERITED) {
+				editor.withCardinality(
+					getCardinality(referenceType, reference.allowEmpty() == InheritableBoolean.TRUE)
+				);
+			}
+
+			if (!reference.description().isBlank()) {
+				editor.withDescription(reference.description());
+			}
+			if (!reference.deprecated().isBlank()) {
+				editor.deprecated(reference.deprecated());
+			}
+
+			final ScopeReferenceSettings[] scopedDefinition = reference.scope();
+			if (ArrayUtils.isEmptyOrItsValuesNull(scopedDefinition)) {
+				if (reference.faceted() == InheritableBoolean.TRUE) {
+					editor.faceted();
+				} else if (reference.faceted() == InheritableBoolean.FALSE) {
+					editor.nonFaceted();
+				}
+			} else {
+				editor.indexedInScope(
+					Arrays.stream(scopedDefinition)
+						.filter(ScopeReferenceSettings::indexed)
+						.map(ScopeReferenceSettings::scope)
+						.toArray(Scope[]::new)
+				);
+				Assert.isTrue(
+					reference.faceted() == InheritableBoolean.INHERITED,
+					"When `scope` is defined in `@Reference` annotation, " +
+						"the value of `faceted` property is not taken into an account " +
+						"(and thus it doesn't make sense to set it to true)!"
+				);
+				editor.facetedInScope(
+					Arrays.stream(scopedDefinition)
+						.filter(ScopeReferenceSettings::faceted)
+						.map(ScopeReferenceSettings::scope)
+						.toArray(Scope[]::new)
+				);
+			}
+
+			final Set<String> referencedAttributes = CollectionUtils.createHashSet(32);
+			// we need also to analyze the target type for presence of control annotations in case the type is not
+			// entity itself (i.e. is a relation mapping DTO)
+			if (this.reflectionLookup.getClassAnnotations(examinedReferenceType, Entity.class).isEmpty()) {
+				// filter only certain attributes
+				final Predicate<String> attributeFilter =
+					switch (reference.attributesInheritanceBehavior()) {
+						case INHERIT_ONLY_SPECIFIED -> {
+							final Set<String> allowedAttributeNames = new HashSet<>(Arrays.asList(reference.attributeInheritanceFilter()));
+							yield attributeName -> !allowedAttributeNames.contains(attributeName);
+						}
+						case INHERIT_ALL_EXCEPT -> attributeName -> true;
+					};
+				// if the target type is record
+				if (examinedReferenceType.isRecord()) {
+					// we need to scan it differently
+					analyzeReferenceRecordComponents(examinedReferenceType, relationAttributes, editor);
+					if (reference.attributesInheritanceBehavior() == AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED) {
+						collectReferencedAttributes(examinedReferenceType, referencedAttributes, attributeFilter);
+					}
+				} else {
+					// otherwise we check methods and fields
+					analyzeReferenceMethods(examinedReferenceType, relationAttributes, editor);
+					analyzeReferenceFields(examinedReferenceType, relationAttributes, editor);
+
+					if (reference.attributesInheritanceBehavior() == AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED) {
+						collectReferencedAttributesFromMethods(examinedReferenceType, referencedAttributes, attributeFilter);
+						collectReferencedAttributesFromFields(examinedReferenceType, referencedAttributes, attributeFilter);
+					}
+				}
+			}
+
+			switch (reference.attributesInheritanceBehavior()) {
+				case INHERIT_ONLY_SPECIFIED -> editor.withAttributesInherited(
+					Stream.concat(
+						Arrays.stream(reference.attributeInheritanceFilter()),
+						referencedAttributes.stream()
+					).toArray(String[]::new)
+				);
+				case INHERIT_ALL_EXCEPT -> editor.withAttributesInheritedExcept(
+					reference.attributeInheritanceFilter()
+				);
+			}
+
+			defineSortableAttributeCompounds(referenceType, editor);
+		};
+
+		entityBuilder.withReflectedReferenceToEntity(
+			referenceName, targetEntity.entityType(), reference.ofName(), reflectedReferenceBuilder
+		);
+	}
+
+	/**
+	 * Defines sortable attribute compounds for a given type using the provided schema editor.
+	 * This method collects all annotations of type {@link SortableAttributeCompounds} or
+	 * {@link SortableAttributeCompound} present on the specified class and processes them to
+	 * configure sortable attribute compounds within the provided editor.
+	 *
+	 * @param type the class type whose annotations are to be processed; must not be null
+	 * @param editor the schema editor responsible for handling sortable attribute compounds; must not be null
+	 */
+	private void defineSortableAttributeCompounds(
+		@Nonnull Class<?> type,
+		@Nonnull SortableAttributeCompoundSchemaProviderEditor<?,?> editor
+	) {
+		Stream.concat(
+			this.reflectionLookup.getClassAnnotations(type, SortableAttributeCompounds.class)
+				.stream()
+				.flatMap(it -> Arrays.stream(it.value())),
+			this.reflectionLookup.getClassAnnotations(type, SortableAttributeCompound.class)
+				.stream()
+		).forEach(
+			sortableAttributeCompound -> editor.withSortableAttributeCompound(
+				sortableAttributeCompound.name(),
+				Arrays.stream(sortableAttributeCompound.attributeElements())
+					.map(it -> new AttributeElement(it.attributeName(), it.orderDirection(), it.orderBehaviour()))
+					.toArray(AttributeElement[]::new),
+				whichIs -> {
+					whichIs.withDescription(sortableAttributeCompound.description());
+					if (sortableAttributeCompound.deprecated().isBlank()) {
+						whichIs.notDeprecatedAnymore();
+					} else {
+						whichIs.deprecated(sortableAttributeCompound.deprecated());
+					}
+					if (sortableAttributeCompound.scope().length == 0) {
+						whichIs.nonIndexed();
+					} else {
+						whichIs.indexedInScope(sortableAttributeCompound.scope());
+					}
+				}
+			)
+		);
+	}
+
+	/**
 	 * Method analyzes reference class methods for presence of control annotations.
 	 */
-	private void analyzeReferenceMethods(@Nonnull CatalogSchemaBuilder catalogBuilder, @Nonnull Class<?> referenceType, @Nonnull Map<String, String> relationAttributesDefined, @Nonnull ReferenceSchemaBuilder whichIs) {
-		final Collection<Method> allGetters = reflectionLookup.findAllGetters(referenceType);
+	private void analyzeReferenceMethods(
+		@Nonnull Class<?> referenceType,
+		@Nonnull Map<String, String> relationAttributesDefined,
+		@Nonnull ReferenceSchemaEditor<?> editor
+	) {
+		final Collection<Method> allGetters = this.reflectionLookup.findAllGetters(referenceType);
 		for (Method getter : allGetters) {
-			final Attribute attributeAnnotation = reflectionLookup.getAnnotationInstance(getter, Attribute.class);
+			final Attribute attributeAnnotation = this.reflectionLookup.getAnnotationInstance(getter, Attribute.class);
 			if (attributeAnnotation != null) {
 				final String attributeName = getNameOrElse(
 					attributeAnnotation.name(),
 					() -> ReflectionLookup.getPropertyNameFromMethodName(getter.getName())
 				);
-				final Class<?> returnedType = verifyDataType(getReturnedType(modelClass, getter));
+				final Class<?> returnedType = verifyDataType(getReturnedType(this.modelClass, getter));
 				@SuppressWarnings("unchecked") final Class<? extends Serializable> attributeType = (Class<? extends Serializable>) returnedType;
 				final Serializable defaultValue = getter.isDefault() ? extractDefaultValue(referenceType, getter) : null;
 				defineAttribute(
-					catalogBuilder, whichIs, attributeAnnotation, attributeName,
+					null, editor, attributeAnnotation, attributeName,
 					getter.toGenericString(), attributeType, defaultValue, relationAttributesDefined
 				);
 			}
@@ -962,10 +1319,41 @@ public class ClassSchemaAnalyzer {
 	}
 
 	/**
+	 * Collects referenced attributes from the provided reference type, filtered by the specified attribute filter.
+	 *
+	 * @param referenceType        The class type from which to collect referenced attributes. Must not be null.
+	 * @param referencedAttributes The set to which referenced attribute names will be added. Must not be null.
+	 * @param attributeFilter      The filter to apply on attribute names. Can be null.
+	 */
+	private void collectReferencedAttributesFromMethods(
+		@Nonnull Class<?> referenceType,
+		@Nonnull Set<String> referencedAttributes,
+		@Nonnull Predicate<String> attributeFilter
+	) {
+		final Collection<Method> allGetters = this.reflectionLookup.findAllGetters(referenceType);
+		for (Method getter : allGetters) {
+			final AttributeRef attributeAnnotation = this.reflectionLookup.getAnnotationInstance(getter, AttributeRef.class);
+			if (attributeAnnotation != null) {
+				final String attributeName = getNameOrElse(
+					attributeAnnotation.value(),
+					() -> ReflectionLookup.getPropertyNameFromMethodName(getter.getName())
+				);
+				if (attributeFilter.test(attributeName)) {
+					referencedAttributes.add(attributeName);
+				}
+			}
+		}
+	}
+
+	/**
 	 * Method analyzes reference class fields for presence of control annotations.
 	 */
-	private void analyzeReferenceFields(@Nonnull CatalogSchemaBuilder catalogBuilder, @Nonnull Class<?> referenceType, @Nonnull Map<String, String> relationAttributesDefined, @Nonnull ReferenceSchemaBuilder whichIs) {
-		final Map<Field, List<Annotation>> fields = reflectionLookup.getFields(referenceType);
+	private void analyzeReferenceFields(
+		@Nonnull Class<?> referenceType,
+		@Nonnull Map<String, String> relationAttributes,
+		@Nonnull ReferenceSchemaEditor<?> editor
+	) {
+		final Map<Field, List<Annotation>> fields = this.reflectionLookup.getFields(referenceType);
 		for (final Entry<Field, List<Annotation>> fieldEntry : fields.entrySet()) {
 			for (final Annotation annotation : fieldEntry.getValue()) {
 				if (annotation instanceof Attribute attributeAnnotation) {
@@ -973,13 +1361,41 @@ public class ClassSchemaAnalyzer {
 						attributeAnnotation.name(),
 						() -> fieldEntry.getKey().getName()
 					);
-					final Class<?> fieldType = verifyDataType(extractFieldType(modelClass, fieldEntry.getKey()));
+					final Class<?> fieldType = verifyDataType(extractFieldType(this.modelClass, fieldEntry.getKey()));
 					@SuppressWarnings("unchecked") final Class<? extends Serializable> attributeType = (Class<? extends Serializable>) fieldType;
 					final Serializable defaultValue = extractValueFromField(referenceType, fieldEntry.getKey());
 					defineAttribute(
-						catalogBuilder, whichIs, attributeAnnotation, attributeName,
-						fieldEntry.getKey().toGenericString(), attributeType, defaultValue, relationAttributesDefined
+						null, editor, attributeAnnotation, attributeName,
+						fieldEntry.getKey().toGenericString(), attributeType, defaultValue, relationAttributes
 					);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Collects referenced attributes from the provided reference type, filtered by the specified attribute filter.
+	 *
+	 * @param referenceType        The class type from which to collect referenced attributes. Must not be null.
+	 * @param referencedAttributes The set to which referenced attribute names will be added. Must not be null.
+	 * @param attributeFilter      The filter to apply on attribute names. Can be null.
+	 */
+	private void collectReferencedAttributesFromFields(
+		@Nonnull Class<?> referenceType,
+		@Nonnull Set<String> referencedAttributes,
+		@Nonnull Predicate<String> attributeFilter
+	) {
+		final Map<Field, List<Annotation>> fields = this.reflectionLookup.getFields(referenceType);
+		for (final Entry<Field, List<Annotation>> fieldEntry : fields.entrySet()) {
+			for (final Annotation annotation : fieldEntry.getValue()) {
+				if (annotation instanceof AttributeRef attributeAnnotation) {
+					final String attributeName = getNameOrElse(
+						attributeAnnotation.value(),
+						() -> fieldEntry.getKey().getName()
+					);
+					if (attributeFilter.test(attributeName)) {
+						referencedAttributes.add(attributeName);
+					}
 				}
 			}
 		}
@@ -1037,13 +1453,13 @@ public class ClassSchemaAnalyzer {
 					);
 				}
 			} else {
-				final List<Method> getters = reflectionLookup.findAllGettersHavingAnnotation(targetType, lookedUpAnnotation);
+				final List<Method> getters = this.reflectionLookup.findAllGettersHavingAnnotation(targetType, lookedUpAnnotation);
 				final List<Method> nonPrimaryKeyGetters = getters
 					.stream()
-					.filter(it -> !EvitaDataTypes.isSupportedTypeOrItsArray(extractReturnType(modelClass, it)))
+					.filter(it -> !EvitaDataTypes.isSupportedTypeOrItsArray(extractReturnType(this.modelClass, it)))
 					.toList();
 				if (getters.isEmpty()) {
-					final Map<Field, ? extends List<? extends Annotation>> fields = reflectionLookup.getFields(targetType, lookedUpAnnotation);
+					final Map<Field, ? extends List<? extends Annotation>> fields = this.reflectionLookup.getFields(targetType, lookedUpAnnotation);
 					final Map<Field, ? extends List<? extends Annotation>> nonPrimaryKeyFields = fields
 						.entrySet()
 						.stream()
@@ -1077,13 +1493,13 @@ public class ClassSchemaAnalyzer {
 								"We need to select one in order to infer target entity type, but we don't know which one."
 						);
 					}
-				} else if (nonPrimaryKeyGetters.size() == 1 || nonPrimaryKeyGetters.stream().map(it -> extractReturnType(modelClass, it)).distinct().count() == 1L) {
+				} else if (nonPrimaryKeyGetters.size() == 1 || nonPrimaryKeyGetters.stream().map(it -> extractReturnType(this.modelClass, it)).distinct().count() == 1L) {
 					final Method getter = nonPrimaryKeyGetters.get(0);
-					final Class<?> targetEntityType = extractReturnType(modelClass, getter);
+					final Class<?> targetEntityType = extractReturnType(this.modelClass, getter);
 					targetEntity = getTargetEntity(targetEntityType, caller, lookedUpAnnotation, referenceType);
-				} else if (getters.size() == 1 || nonPrimaryKeyGetters.stream().map(it -> extractReturnType(modelClass, it)).distinct().count() == 1L) {
+				} else if (getters.size() == 1 || nonPrimaryKeyGetters.stream().map(it -> extractReturnType(this.modelClass, it)).distinct().count() == 1L) {
 					final Method getter = getters.get(0);
-					final Class<?> targetEntityType = extractReturnType(modelClass, getter);
+					final Class<?> targetEntityType = extractReturnType(this.modelClass, getter);
 					if (int.class.isAssignableFrom(targetEntityType) || Integer.class.isAssignableFrom(targetEntityType)) {
 						targetEntity = new TargetEntity(
 							ReflectionLookup.getPropertyNameFromMethodName(getter.getName()), false
@@ -1125,7 +1541,7 @@ public class ClassSchemaAnalyzer {
 		@Nonnull Class<?> referenceType
 	) {
 		final TargetEntity targetEntity;
-		final List<Entity> targetEntityAnnotations = reflectionLookup.getClassAnnotations(targetEntityType, Entity.class);
+		final List<Entity> targetEntityAnnotations = this.reflectionLookup.getClassAnnotations(targetEntityType, Entity.class);
 		if (targetEntityAnnotations.isEmpty()) {
 			throw new InvalidSchemaMutationException(
 				"There is no `@Entity` annotation available on class `" + targetEntityType + "` referenced " +
@@ -1169,7 +1585,7 @@ public class ClassSchemaAnalyzer {
 
 		@Nonnull
 		public LocalCatalogSchemaMutation[] mutations() {
-			return ArrayUtils.mergeArrays(catalogMutations, entityMutations);
+			return ArrayUtils.mergeArrays(this.catalogMutations, this.entityMutations);
 		}
 	}
 

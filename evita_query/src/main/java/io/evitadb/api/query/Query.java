@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -62,18 +62,18 @@ import java.util.function.UnaryOperator;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@EqualsAndHashCode(of = {"collection", "filterBy", "orderBy", "require"}, cacheStrategy = CacheStrategy.LAZY)
+@EqualsAndHashCode(of = {"head", "filterBy", "orderBy", "require"}, cacheStrategy = CacheStrategy.LAZY)
 public class Query implements Serializable, PrettyPrintable {
 	@Serial private static final long serialVersionUID = -1797234436133920949L;
 
-	@Nullable private final Collection collection;
+	@Nullable private final HeadConstraint head;
 	@Nullable private final FilterBy filterBy;
 	@Nullable private final OrderBy orderBy;
 	@Nullable private final Require require;
 	private boolean normalized;
 
-	private Query(@Nullable Collection collection, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable Require require) {
-		this.collection = collection;
+	private Query(@Nullable HeadConstraint head, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable Require require) {
+		this.head = head;
 		this.filterBy = filterBy;
 		this.orderBy = orderBy;
 		this.require = require;
@@ -100,40 +100,48 @@ public class Query implements Serializable, PrettyPrintable {
 		return new Query(null, filter, null, require);
 	}
 
-	public static Query query(@Nullable Collection entityType) {
-		return new Query(entityType, null, null, null);
+	public static Query query(@Nullable HeadConstraint head) {
+		return new Query(head, null, null, null);
 	}
 
-	public static Query query(@Nullable Collection entityType, @Nullable FilterBy filter) {
-		return new Query(entityType, filter, null, null);
+	public static Query query(@Nullable HeadConstraint head, @Nullable FilterBy filter) {
+		return new Query(head, filter, null, null);
 	}
 
-	public static Query query(@Nullable Collection entityType, @Nullable FilterBy filter, @Nullable OrderBy order) {
-		return new Query(entityType, filter, order, null);
+	public static Query query(@Nullable HeadConstraint head, @Nullable FilterBy filter, @Nullable OrderBy order) {
+		return new Query(head, filter, order, null);
 	}
 
-	public static Query query(@Nullable Collection entityType, @Nullable FilterBy filter, @Nullable OrderBy order, @Nullable Require require) {
-		return new Query(entityType, filter, order, require);
+	public static Query query(@Nullable HeadConstraint head, @Nullable FilterBy filter, @Nullable OrderBy order, @Nullable Require require) {
+		return new Query(head, filter, order, require);
 	}
 
-	public static Query query(@Nullable Collection entityType, @Nullable FilterBy filter, @Nullable Require require, @Nullable OrderBy order) {
-		return new Query(entityType, filter, order, require);
+	public static Query query(@Nullable HeadConstraint head, @Nullable FilterBy filter, @Nullable Require require, @Nullable OrderBy order) {
+		return new Query(head, filter, order, require);
 	}
 
-	public static Query query(@Nullable Collection entityType, @Nullable OrderBy order) {
-		return new Query(entityType, null, order, null);
+	public static Query query(@Nullable HeadConstraint head, @Nullable OrderBy order) {
+		return new Query(head, null, order, null);
 	}
 
-	public static Query query(@Nullable Collection entityType, @Nullable OrderBy order, @Nullable Require require) {
-		return new Query(entityType, null, order, require);
+	public static Query query(@Nullable HeadConstraint head, @Nullable OrderBy order, @Nullable Require require) {
+		return new Query(head, null, order, require);
 	}
 
-	public static Query query(@Nullable Collection entityType, @Nullable FilterBy filter, @Nullable Require require) {
-		return new Query(entityType, filter, null, require);
+	public static Query query(@Nullable HeadConstraint head, @Nullable FilterBy filter, @Nullable Require require) {
+		return new Query(head, filter, null, require);
 	}
 
-	public static Query query(@Nullable Collection entityType, @Nullable Require require) {
-		return new Query(entityType, null, null, require);
+	public static Query query(@Nullable HeadConstraint head, @Nullable Require require) {
+		return new Query(head, null, null, require);
+	}
+
+	/**
+	 * Returns head constraint that usually contains collection specification.
+	 */
+	@Nullable
+	public HeadConstraint getHead() {
+		return this.head;
 	}
 
 	/**
@@ -142,7 +150,7 @@ public class Query implements Serializable, PrettyPrintable {
 	 */
 	@Nullable
 	public Collection getCollection() {
-		return collection;
+		return this.head == null ? null : QueryUtils.findConstraint(this.head, Collection.class);
 	}
 
 	/**
@@ -150,7 +158,7 @@ public class Query implements Serializable, PrettyPrintable {
 	 */
 	@Nullable
 	public FilterBy getFilterBy() {
-		return filterBy;
+		return this.filterBy;
 	}
 
 	/**
@@ -158,7 +166,7 @@ public class Query implements Serializable, PrettyPrintable {
 	 */
 	@Nullable
 	public OrderBy getOrderBy() {
-		return orderBy;
+		return this.orderBy;
 	}
 
 	/**
@@ -166,7 +174,7 @@ public class Query implements Serializable, PrettyPrintable {
 	 */
 	@Nullable
 	public Require getRequire() {
-		return require;
+		return this.require;
 	}
 
 	/**
@@ -177,7 +185,32 @@ public class Query implements Serializable, PrettyPrintable {
 	 */
 	@Nonnull
 	public Query normalizeQuery() {
-		return normalizeQuery(null, null, null);
+		return normalizeQuery(null, null, null, null);
+	}
+
+	/**
+	 * Returns this query or copy of this query without constraints that make no sense or are unnecessary. In other
+	 * words - all constraints that has not all required arguments (not {@link Constraint#isApplicable()}) are removed
+	 * from the query, all query containers that are {@link ConstraintContainer#isNecessary()} are removed
+	 * and their contents are propagated to their parent.
+	 *
+	 * @deprecated use {@link #normalizeQuery(UnaryOperator, UnaryOperator, UnaryOperator, UnaryOperator)}, this method
+	 * is here only to maintain backward compatibility
+	 */
+	@SuppressWarnings("rawtypes")
+	@Deprecated
+	@Nonnull
+	public Query normalizeQuery(
+		@Nullable UnaryOperator<Constraint> filterConstraintTranslator,
+		@Nullable UnaryOperator<Constraint> orderConstraintTranslator,
+		@Nullable UnaryOperator<Constraint> requireConstraintTranslator
+	) {
+		return normalizeQuery(
+			null,
+			filterConstraintTranslator,
+			orderConstraintTranslator,
+			requireConstraintTranslator
+		);
 	}
 
 	/**
@@ -186,28 +219,33 @@ public class Query implements Serializable, PrettyPrintable {
 	 * from the query, all query containers that are {@link ConstraintContainer#isNecessary()} are removed
 	 * and their contents are propagated to their parent.
 	 */
+	/* we need to use raw types because constraint of type A might contain constraints of type B */
+	/* i.e. require constraint might contain filtering constraints etc. */
+	@SuppressWarnings("rawtypes")
 	@Nonnull
 	public Query normalizeQuery(
-		@Nullable UnaryOperator<Constraint<?>> filterConstraintTranslator,
-		@Nullable UnaryOperator<Constraint<?>> orderConstraintTranslator,
-		@Nullable UnaryOperator<Constraint<?>> requireConstraintTranslator
+		@Nullable UnaryOperator<Constraint> headConstraintTranslator,
+		@Nullable UnaryOperator<Constraint> filterConstraintTranslator,
+		@Nullable UnaryOperator<Constraint> orderConstraintTranslator,
+		@Nullable UnaryOperator<Constraint> requireConstraintTranslator
 	) {
 		// avoid costly normalization on already normalized query
 		if (normalized) {
 			return this;
 		}
 
-		final FilterBy normalizedFilter = filterBy == null ? null : (FilterBy) purify(filterBy, filterConstraintTranslator);
-		final OrderBy normalizedOrder = orderBy == null ? null : (OrderBy) purify(orderBy, orderConstraintTranslator);
-		final Require normalizedRequire = require == null ? null : (Require) purify(require, requireConstraintTranslator);
+		final HeadConstraint normalizedHead = this.head == null ? null : (HeadConstraint) purify(this.head, headConstraintTranslator);
+		final FilterBy normalizedFilter = this.filterBy == null ? null : (FilterBy) purify(this.filterBy, filterConstraintTranslator);
+		final OrderBy normalizedOrder = this.orderBy == null ? null : (OrderBy) purify(this.orderBy, orderConstraintTranslator);
+		final Require normalizedRequire = this.require == null ? null : (Require) purify(this.require, requireConstraintTranslator);
 
 		// if normalized constraint are same as originals, this query is in normalized form
-		if (Objects.equals(filterBy, normalizedFilter) && Objects.equals(orderBy, normalizedOrder) && Objects.equals(require, normalizedRequire)) {
+		if (Objects.equals(this.filterBy, normalizedFilter) && Objects.equals(this.orderBy, normalizedOrder) && Objects.equals(this.require, normalizedRequire)) {
 			this.normalized = true;
 			return this;
 		} else {
 			// otherwise create leaner query in normalized form
-			final Query normalizedQuery = new Query(collection, normalizedFilter, normalizedOrder, normalizedRequire);
+			final Query normalizedQuery = new Query(normalizedHead, normalizedFilter, normalizedOrder, normalizedRequire);
 			normalizedQuery.normalized = true;
 			return normalizedQuery;
 		}
@@ -229,9 +267,12 @@ public class Query implements Serializable, PrettyPrintable {
 		return PrettyPrintingVisitor.toStringWithParameterExtraction(this);
 	}
 
-	@SuppressWarnings("unchecked")
-	private static <T extends Constraint<T>> T purify(@Nonnull Constraint<?> constraint, @Nullable UnaryOperator<Constraint<?>> translator) {
-		return (T) QueryPurifierVisitor.purify(constraint, translator);
+	/* we need to use raw types because constraint of type A might contain constraints of type B */
+	/* i.e. require constraint might contain filtering constraints etc. */
+	@Nullable
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	private static Constraint purify(@Nonnull Constraint constraint, @Nullable UnaryOperator<Constraint> translator) {
+		return QueryPurifierVisitor.purify(constraint, translator);
 	}
 
 }

@@ -29,7 +29,11 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
+import io.evitadb.dataType.Scope;
+import io.evitadb.store.wal.schema.MutationSerializationFunctions;
 
+import javax.annotation.Nonnull;
 import java.io.Serializable;
 
 /**
@@ -37,17 +41,54 @@ import java.io.Serializable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class CreateAttributeSchemaMutationSerializer extends Serializer<CreateAttributeSchemaMutation> {
+public class CreateAttributeSchemaMutationSerializer extends Serializer<CreateAttributeSchemaMutation> implements MutationSerializationFunctions {
+
+	/**
+	 * Serializes an array of ScopedAttributeUniquenessType objects to the given Kryo output.
+	 *
+	 * @param kryo the Kryo instance to use for serialization
+	 * @param output the Output instance to write to
+	 * @param scopedUniquenessTypes the array of ScopedAttributeUniquenessType objects to serialize
+	 */
+	static void writeScopedUniquenessTypesMap(@Nonnull Kryo kryo, @Nonnull Output output, @Nonnull ScopedAttributeUniquenessType[] scopedUniquenessTypes) {
+		output.writeVarInt(scopedUniquenessTypes.length, true);
+		for (ScopedAttributeUniquenessType scopedUniquenessType : scopedUniquenessTypes) {
+			kryo.writeObject(output, scopedUniquenessType.scope());
+			kryo.writeObject(output, scopedUniquenessType.uniquenessType());
+		}
+	}
+
+
+	/**
+	 * Reads an array of ScopedAttributeUniquenessType objects from the given Kryo input.
+	 *
+	 * @param kryo  the Kryo instance to use for deserialization
+	 * @param input the Input instance to read from
+	 * @return the array of ScopedAttributeUniquenessType objects that were read from the input
+	 */
+	@Nonnull
+	static ScopedAttributeUniquenessType[] readScopedUniquenessTypesMap(@Nonnull Kryo kryo, @Nonnull Input input) {
+		final int size = input.readVarInt(true);
+		final ScopedAttributeUniquenessType[] scopedUniquenessTypes = new ScopedAttributeUniquenessType[size];
+		for (int i = 0; i < size; i++) {
+			Scope scope = kryo.readObject(input, Scope.class);
+			AttributeUniquenessType uniquenessType = kryo.readObject(input, AttributeUniquenessType.class);
+			scopedUniquenessTypes[i] = new ScopedAttributeUniquenessType(scope, uniquenessType);
+		}
+		return scopedUniquenessTypes;
+	}
 
 	@Override
 	public void write(Kryo kryo, Output output, CreateAttributeSchemaMutation mutation) {
 		output.writeString(mutation.getName());
 		output.writeString(mutation.getDescription());
 		output.writeString(mutation.getDeprecationNotice());
-		kryo.writeObject(output, mutation.getUnique());
 		kryo.writeClass(output, mutation.getType());
-		output.writeBoolean(mutation.isFilterable());
-		output.writeBoolean(mutation.isSortable());
+
+		writeScopedUniquenessTypesMap(kryo, output, mutation.getUniqueInScopes());
+		writeScopeArray(kryo, output, mutation.getFilterableInScopes());
+		writeScopeArray(kryo, output, mutation.getSortableInScopes());
+
 		output.writeBoolean(mutation.isLocalized());
 		output.writeBoolean(mutation.isNullable());
 		output.writeBoolean(mutation.isRepresentative());
@@ -60,11 +101,14 @@ public class CreateAttributeSchemaMutationSerializer extends Serializer<CreateAt
 		final String name = input.readString();
 		final String description = input.readString();
 		final String deprecationNotice = input.readString();
-		final AttributeUniquenessType unique = kryo.readObject(input, AttributeUniquenessType.class);
+
 		//noinspection unchecked
 		final Class<? extends Serializable> theType = kryo.readClass(input).getType();
-		final boolean filterable = input.readBoolean();
-		final boolean sortable = input.readBoolean();
+
+		final ScopedAttributeUniquenessType[] uniqueInScopes = readScopedUniquenessTypesMap(kryo, input);
+		final Scope[] filterableInScopes = readScopeArray(kryo, input);
+		final Scope[] sortableInScopes = readScopeArray(kryo, input);
+
 		final boolean localized = input.readBoolean();
 		final boolean nullable = input.readBoolean();
 		final boolean representative = input.readBoolean();
@@ -72,9 +116,9 @@ public class CreateAttributeSchemaMutationSerializer extends Serializer<CreateAt
 			name,
 			description,
 			deprecationNotice,
-			unique,
-			filterable,
-			sortable,
+			uniqueInScopes,
+			filterableInScopes,
+			sortableInScopes,
 			localized,
 			nullable,
 			representative,

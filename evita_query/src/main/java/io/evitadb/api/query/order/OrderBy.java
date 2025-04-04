@@ -26,9 +26,10 @@ package io.evitadb.api.query.order;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.OrderConstraint;
-import io.evitadb.api.query.descriptor.annotation.Child;
+import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -70,24 +71,34 @@ import java.io.Serializable;
 @ConstraintDefinition(
 	name = "orderBy",
 	shortDescription = "The container encapsulates inner order constraints into one main constraint that is required by the query.",
-	userDocsLink = "/documentation/query/basics#order-by"
+	userDocsLink = "/documentation/query/basics#order-by",
+	supportedIn = { ConstraintDomain.GENERIC, ConstraintDomain.ENTITY, ConstraintDomain.INLINE_REFERENCE, ConstraintDomain.SEGMENT }
 )
 public class OrderBy extends AbstractOrderConstraintContainer implements GenericConstraint<OrderConstraint> {
 	@Serial private static final long serialVersionUID = 6352220342769661652L;
 
 	@Creator
-	public OrderBy(@Nonnull @Child OrderConstraint... children) {
+	public OrderBy(@Nonnull OrderConstraint... children) {
 		super(children);
 	}
 
 	@Nullable
 	public OrderConstraint getChild() {
-		return getChildrenCount() == 0 ? null : getChildren()[0];
+		final OrderConstraint[] children = getChildren();
+		Assert.isPremiseValid(
+			children.length <= 1,
+			"OrderBy ordering query has more than one child!"
+		);
+		return children.length == 1 ? children[0] : null;
 	}
 
 	@Nonnull
 	@Override
 	public OrderConstraint getCopyWithNewChildren(@Nonnull OrderConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+		Assert.isPremiseValid(
+			additionalChildren.length == 0,
+			"OrderBy ordering query allows no additional children!"
+		);
 		return new OrderBy(children);
 	}
 

@@ -70,7 +70,7 @@ class RemovePriceMutationTest extends AbstractMutationTest {
 		assertEquals(BigDecimal.ZERO, removedPrice.taxRate());
 		assertEquals(BigDecimal.TEN, removedPrice.priceWithTax());
 		assertEquals(DateTimeRange.since(theDay), removedPrice.validity());
-		assertTrue(removedPrice.sellable());
+		assertTrue(removedPrice.indexed());
 		assertTrue(removedPrice.dropped());
 	}
 

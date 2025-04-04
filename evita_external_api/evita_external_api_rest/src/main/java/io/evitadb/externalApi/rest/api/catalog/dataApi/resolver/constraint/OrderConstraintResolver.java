@@ -28,15 +28,16 @@ import io.evitadb.api.query.descriptor.ConstraintDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
 import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.query.order.OrderBy;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.ConstraintResolver;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.CollectionRestHandlingContext;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Map;
 import java.util.Optional;
-
-import static io.evitadb.utils.CollectionUtils.createHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Implementation of {@link ConstraintResolver} for resolving {@link OrderConstraint} usually with {@link OrderBy}
@@ -50,17 +51,18 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  */
 public class OrderConstraintResolver extends RestConstraintResolver<OrderConstraint> {
 
-	public OrderConstraintResolver(@Nonnull CollectionRestHandlingContext restHandlingContext) {
+	public OrderConstraintResolver(@Nonnull CatalogSchemaContract catalogSchema,
+	                               @Nonnull AtomicReference<FilterConstraintResolver> filterConstraintResolver) {
 		super(
-			restHandlingContext,
-			createHashMap(0) // currently, we don't support any order constraints with additional children
+			catalogSchema,
+			Map.of(ConstraintType.FILTER, filterConstraintResolver)
 		);
 	}
 
 	@Nullable
-	public OrderConstraint resolve(@Nonnull String key, @Nullable Object value) {
+	public OrderConstraint resolve(@Nonnull String rootEntityType, @Nonnull String key, @Nullable Object value) {
 		return resolve(
-			new EntityDataLocator(restHandlingContext.getEntityType()),
+			new EntityDataLocator(new ManagedEntityTypePointer(rootEntityType)),
 			key,
 			value
 		);

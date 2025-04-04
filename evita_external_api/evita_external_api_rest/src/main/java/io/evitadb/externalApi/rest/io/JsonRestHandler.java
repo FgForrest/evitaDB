@@ -28,7 +28,6 @@ import com.linecorp.armeria.common.HttpData;
 import com.linecorp.armeria.common.HttpResponseWriter;
 import io.evitadb.externalApi.http.MimeTypes;
 import io.evitadb.externalApi.rest.exception.OpenApiInternalError;
-import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
 import io.evitadb.utils.Assert;
 import io.netty.channel.EventLoop;
@@ -56,20 +55,26 @@ public abstract class JsonRestHandler<CTX extends RestHandlingContext> extends R
 	 * Tries to parse input request body JSON into data class.
 	 */
 	@Nonnull
-	protected <T> CompletableFuture<T> parseRequestBody(@Nonnull RestEndpointExecutionContext exchange, @Nonnull Class<T> dataClass) {
-		return readRawRequestBody(exchange)
-			.thenApply(content -> {
-				Assert.isTrue(
-					!content.trim().isEmpty(),
-					() -> new RestInvalidArgumentException("Request's body contains no data.")
-				);
+	protected <T> CompletableFuture<T> parseRequestBody(@Nonnull RestEndpointExecutionContext executionContext, @Nonnull Class<T> dataClass) {
+		return readRawRequestBody(executionContext)
+			.thenApply(content -> parseRequestBody(content, dataClass));
+	}
 
-				try {
-					return restHandlingContext.getObjectMapper().readValue(content, dataClass);
-				} catch (JsonProcessingException e) {
-					throw new RestInternalError("Could not parse request body: ", e);
-				}
-			});
+	/**
+	 * Tries to parse input request body JSON into data class.
+	 */
+	@Nonnull
+	protected <T> T parseRequestBody(@Nonnull String rawRequestBody, @Nonnull Class<T> dataClass) {
+		Assert.isTrue(
+			!rawRequestBody.trim().isEmpty(),
+			() -> new RestInvalidArgumentException("Request's body contains no data.")
+		);
+
+		try {
+			return restHandlingContext.getObjectMapper().readValue(rawRequestBody, dataClass);
+		} catch (JsonProcessingException e) {
+			throw new RestInvalidArgumentException("Invalid request body: " + e.getLocation().toString(), e);
+		}
 	}
 
 	@Override

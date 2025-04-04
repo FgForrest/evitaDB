@@ -38,7 +38,6 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 				require(
 					facetSummaryOfReference(
 						"parameterValues",
-						COUNTS,
 						entityFetch(
 							attributeContent("name")
 						),

@@ -40,6 +40,10 @@ import static java.util.Optional.ofNullable;
 public class ReferenceNotFoundException extends EvitaInvalidUsageException {
 	@Serial private static final long serialVersionUID = -8969284548331815445L;
 
+	public ReferenceNotFoundException(@Nonnull String referenceName) {
+		super("Reference with name `" + referenceName + "` cannot be located when entity type is not known.");
+	}
+
 	public ReferenceNotFoundException(@Nonnull String referenceName, @Nonnull EntitySchemaContract entitySchema) {
 		super("Reference with name `" + referenceName + "` is not present in schema of `" + entitySchema.getName() + "` entity.");
 	}

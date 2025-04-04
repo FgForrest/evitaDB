@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,12 +23,12 @@
 
 package io.evitadb.core.query.sort;
 
-import io.evitadb.core.query.QueryExecutionContext;
-import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.function.IntConsumer;
 
 /**
  * This implementation of {@link Sorter} doesn't sort but just slices the formula output. The result ids are sorted
@@ -38,39 +38,38 @@ import javax.annotation.Nullable;
  */
 public class NoSorter implements Sorter {
 	public static final NoSorter INSTANCE = new NoSorter();
-	private static final int[] EMPTY_RESULT = new int[0];
 
 	private NoSorter() {
 	}
 
 	@Nonnull
 	@Override
-	public Sorter andThen(Sorter sorterForUnknownRecords) {
-		throw new UnsupportedOperationException("NoSorter cannot be chained!");
-	}
+	public SortingContext sortAndSlice(
+		@Nonnull SortingContext sortingContext,
+		@Nonnull int[] result,
+		@Nullable IntConsumer skippedRecordsConsumer
+	) {
+		final int recomputedStartIndex = sortingContext.recomputedStartIndex();
+		final int recomputedEndIndex = sortingContext.recomputedEndIndex();
+		final int peak = sortingContext.peak();
+		final Bitmap filteredRecordIdBitmap = sortingContext.nonSortedKeys();
 
-	@Nonnull
-	@Override
-	public Sorter cloneInstance() {
-		return this;
-	}
-
-	@Nullable
-	@Override
-	public Sorter getNextSorter() {
-		return null;
-	}
-
-	@Override
-	public int sortAndSlice(@Nonnull QueryExecutionContext queryContext, @Nonnull Formula input, int startIndex, int endIndex, @Nonnull int[] result, int peak) {
-		final Bitmap filteredRecordIdBitmap = input.compute();
-		final int maxLength = Math.min(endIndex - startIndex, filteredRecordIdBitmap.size() - startIndex);
-		if (endIndex > 0 && !filteredRecordIdBitmap.isEmpty()) {
-			final int[] slice = filteredRecordIdBitmap.getRange(startIndex, startIndex + maxLength);
-			System.arraycopy(slice, 0, result, peak, slice.length);
-			return peak + slice.length;
+		final int maxLength = Math.max(0, Math.min(recomputedEndIndex - recomputedStartIndex, filteredRecordIdBitmap.size() - recomputedStartIndex));
+		if (recomputedEndIndex > 0 && !filteredRecordIdBitmap.isEmpty()) {
+			final int[] slice = filteredRecordIdBitmap.getRange(recomputedStartIndex, recomputedStartIndex + maxLength);
+			final int copiedLength = Math.min(result.length - peak, slice.length);
+			System.arraycopy(slice, 0, result, peak, copiedLength);
+			return sortingContext.createResultContext(
+				EmptyBitmap.INSTANCE,
+				copiedLength,
+				Math.min(recomputedStartIndex, filteredRecordIdBitmap.size())
+			);
 		} else {
-			return 0;
+			return sortingContext.createResultContext(
+				EmptyBitmap.INSTANCE,
+				0,
+				Math.min(recomputedStartIndex, filteredRecordIdBitmap.size())
+			);
 		}
 	}
 }

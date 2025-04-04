@@ -31,12 +31,13 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 
+import java.io.Serializable;
+
 /**
  * Class handles Kryo (de)serialization of {@link ValueToRecordBitmap} instances.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
-@SuppressWarnings("rawtypes")
 public class ValueToRecordBitmapSerializer extends Serializer<ValueToRecordBitmap> {
 
 	public void write(Kryo kryo, Output output, ValueToRecordBitmap valueToRecordBitmap) {
@@ -46,12 +47,9 @@ public class ValueToRecordBitmapSerializer extends Serializer<ValueToRecordBitma
 	}
 
 	public ValueToRecordBitmap read(Kryo kryo, Input input, Class<? extends ValueToRecordBitmap> type) {
-		final Comparable comparable = (Comparable) kryo.readClassAndObject(input);
-		//noinspection unchecked
-		return new ValueToRecordBitmap(
-			comparable,
-			kryo.readObject(input, TransactionalBitmap.class)
-		);
+		final Serializable comparable = (Serializable) kryo.readClassAndObject(input);
+		final TransactionalBitmap bitmap = kryo.readObject(input, TransactionalBitmap.class);
+		return new ValueToRecordBitmap(comparable, bitmap);
 	}
 
 }

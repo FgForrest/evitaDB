@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,31 +29,37 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serial;
+import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.function.IntFunction;
 import java.util.function.ToIntBiFunction;
 
 /**
  * Composite array is a way around fixed size arrays. It allows to have arrays with elastic size composed of handful of
  * smaller arrays of specified CHUNK_SIZE, that created as necessary. This class is similar to ArrayList but doesn't
  * reallocate entire array to the bigger one, just asks for another small chunk if the current array limit is exceeded.
+ * This implementation is append only.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
 @Slf4j
-public class CompositeObjectArray<T> implements Iterable<T> {
+public class CompositeObjectArray<T> implements Iterable<T>, Serializable {
+	@Serial private static final long serialVersionUID = 2445066926280476433L;
 	private static final int CHUNK_SIZE = 50;
 
 	/**
 	 * List of all chunks used in this instance.
 	 */
 	@Nonnull
-	private final List<Object[]> chunks = new LinkedList<>();
+	private final List<T[]> chunks = new LinkedList<>();
 	/**
 	 * Generic class of the object that is used to create new arrays.
 	 */
@@ -72,10 +78,11 @@ public class CompositeObjectArray<T> implements Iterable<T> {
 	 * Current chunk that is being written to.
 	 */
 	@Nonnull
-	private Object[] currentChunk;
+	private T[] currentChunk;
 
 	public CompositeObjectArray(@Nonnull Class<T> objectType) {
-		this.currentChunk = new Object[CHUNK_SIZE];
+		//noinspection unchecked
+		this.currentChunk = (T[]) Array.newInstance(objectType, CHUNK_SIZE);
 		this.chunks.add(this.currentChunk);
 		this.objectType = objectType;
 		this.monotonic = Comparable.class.isAssignableFrom(objectType);
@@ -87,7 +94,8 @@ public class CompositeObjectArray<T> implements Iterable<T> {
 	}
 
 	public CompositeObjectArray(@Nonnull Class<T> objectType, boolean trackMonotonicity) {
-		this.currentChunk = new Object[CHUNK_SIZE];
+		//noinspection unchecked
+		this.currentChunk = (T[]) Array.newInstance(objectType, CHUNK_SIZE);
 		this.chunks.add(this.currentChunk);
 		this.objectType = objectType;
 		Assert.isTrue(!trackMonotonicity || Comparable.class.isAssignableFrom(objectType), "The type must be Comparable in order to track monotonicity!");
@@ -102,7 +110,7 @@ public class CompositeObjectArray<T> implements Iterable<T> {
 	/**
 	 * Converts any Object iterator to an array.
 	 */
-	public static <T extends Comparable<T>> T[] toArray(@Nonnull Class<T> objectType, @Nonnull Iterator<T> iterator) {
+	public static <T extends Comparable<T> & Serializable> T[] toArray(@Nonnull Class<T> objectType, @Nonnull Iterator<T> iterator) {
 		return toCompositeArray(objectType, iterator).toArray();
 	}
 
@@ -110,8 +118,8 @@ public class CompositeObjectArray<T> implements Iterable<T> {
 	 * Converts any Object iterator to an elastic {@link CompositeObjectArray}.
 	 */
 	@SuppressWarnings({"unchecked", "rawtypes"})
-	public static <T extends Comparable<T>> CompositeObjectArray<T> toCompositeArray(@Nonnull Class objectType, @Nonnull Iterator<T> iterator) {
-		final CompositeObjectArray<T> result = new CompositeObjectArray<>(objectType);
+	public static <S extends Comparable<S> & Serializable> CompositeObjectArray<S> toCompositeArray(@Nonnull Class objectType, @Nonnull Iterator<S> iterator) {
+		final CompositeObjectArray<S> result = new CompositeObjectArray<>(objectType);
 		while (iterator.hasNext()) {
 			result.add(iterator.next());
 		}
@@ -134,7 +142,7 @@ public class CompositeObjectArray<T> implements Iterable<T> {
 			return null;
 		} else {
 			//noinspection unchecked
-			return (T) currentChunk[chunkPeek];
+			return currentChunk[chunkPeek];
 		}
 	}
 
@@ -147,7 +155,7 @@ public class CompositeObjectArray<T> implements Iterable<T> {
 		final int indexInChunk = index % CHUNK_SIZE;
 		Assert.isTrue(chunkIndex < chunks.size(), "Chunk index " + chunkIndex + " exceeds chunks size (" + chunks.size() + ").");
 		//noinspection unchecked
-		return (T) chunks.get(chunkIndex)[indexInChunk];
+		return chunks.get(chunkIndex)[indexInChunk];
 	}
 
 	/**
@@ -264,14 +272,15 @@ public class CompositeObjectArray<T> implements Iterable<T> {
 	public void add(@Nonnull T record) {
 		// keep eye on monotonic row
 		//noinspection unchecked
-		if (monotonic && chunkPeek != -1 && ((Comparable<T>) record).compareTo((T) currentChunk[chunkPeek]) <= 0) {
+		if (monotonic && chunkPeek != -1 && ((Comparable<T>) record).compareTo(currentChunk[chunkPeek]) <= 0) {
 			monotonic = false;
 		}
 
 		// if last chunk was depleted obtain another one
 		if (++chunkPeek == CHUNK_SIZE) {
 			chunkPeek = 0;
-			currentChunk = new Object[CHUNK_SIZE];
+			//noinspection unchecked
+			currentChunk = (T[]) Array.newInstance(objectType, CHUNK_SIZE);
 			chunks.add(currentChunk);
 		}
 
@@ -326,7 +335,8 @@ public class CompositeObjectArray<T> implements Iterable<T> {
 			// if the current chunk is depleted borrow another one
 			if (chunkPeek + 1 == CHUNK_SIZE) {
 				chunkPeek = -1;
-				currentChunk = new Object[CHUNK_SIZE];
+				//noinspection unchecked
+				currentChunk = (T[]) Array.newInstance(objectType, CHUNK_SIZE);
 				chunks.add(currentChunk);
 			}
 			copyPosition = chunkPeek + 1;
@@ -349,7 +359,7 @@ public class CompositeObjectArray<T> implements Iterable<T> {
 	public T[] toArray() {
 		final int size = getSize();
 		@SuppressWarnings("unchecked") final T[] result = (T[]) Array.newInstance(objectType, size);
-		final Iterator<Object[]> it = chunks.iterator();
+		final Iterator<T[]> it = chunks.iterator();
 		int copied = 0;
 		while (copied < size) {
 			final Object[] chunk = it.next();
@@ -375,44 +385,114 @@ public class CompositeObjectArray<T> implements Iterable<T> {
 	@Override
 	@Nonnull
 	public Iterator<T> iterator() {
-		return new CompositeArrayIterator<>();
+		return new CompositeArrayIterator<>(this.chunks::listIterator);
+	}
+
+	/**
+	 * Returns iterator over the composite array from specified index.
+	 */
+	@Nonnull
+	public Iterator<T> iterator(int startIndex) {
+		return new CompositeArrayIterator<>(startIndex, this.chunks::listIterator);
+	}
+
+	/**
+	 * Returns iterator over the composite array starting at the specified index.
+	 */
+	@Nonnull
+	public Iterator<T> reverseIterator() {
+		return new CompositeArrayReverseIterator<>(this.chunks::listIterator);
+	}
+
+	/**
+	 * Returns iterator over the composite array starting at the specified index.
+	 */
+	@Nonnull
+	public Iterator<T> reverseIterator(int startIndex) {
+		return new CompositeArrayReverseIterator<>(startIndex, this.chunks::listIterator);
 	}
 
 	/**
 	 * Iterator implementation.
 	 */
 	private class CompositeArrayIterator<S> implements Iterator<S> {
-		private final Iterator<Object[]> chunkIterator;
-		private final int size;
+		private final ListIterator<S[]> chunkIterator;
 		private int chunkIndex;
 		private int index;
-		private S[] currentChunk;
+		@Nullable private S[] currentChunk;
 
-		CompositeArrayIterator() {
-			this.index = -1;
-			this.chunkIndex = CHUNK_SIZE;
-			this.currentChunk = null;
-			this.size = CompositeObjectArray.this.getSize();
-			this.chunkIterator = CompositeObjectArray.this.chunks.iterator();
+		CompositeArrayIterator(@Nonnull IntFunction<ListIterator<S[]>> chunkIteratorFactory) {
+			this(0, chunkIteratorFactory);
 		}
 
-		@Override
-		public boolean hasNext() {
-			return size > index + 1;
+		CompositeArrayIterator(int index, @Nonnull IntFunction<ListIterator<S[]>> chunkIteratorFactory) {
+			this.index = index - 1;
+			this.chunkIndex = Math.max(-1, index % CHUNK_SIZE - 1);
+			this.chunkIterator = chunkIteratorFactory.apply(index / CHUNK_SIZE);
+			this.currentChunk = null;
 		}
 
 		@Override
 		public S next() {
-			if (this.index == size) {
-				throw new NoSuchElementException("End of the array reached - max number of elements is " + CompositeObjectArray.this.getSize());
+			final boolean endOfChunk = this.chunkIndex + 1 >= CHUNK_SIZE;
+			if (endOfChunk || this.currentChunk == null) {
+				if (endOfChunk) {
+					this.chunkIndex = -1;
+				}
+				this.currentChunk = this.chunkIterator.hasNext() ? this.chunkIterator.next() : null;
 			}
-			if (this.chunkIndex + 1 >= CHUNK_SIZE) {
-				this.chunkIndex = -1;
-				//noinspection unchecked
-				this.currentChunk = (S[]) chunkIterator.next();
+			if (this.currentChunk == null) {
+				throw new NoSuchElementException("End of the array reached - max number of elements is " + getSize());
 			}
 			this.index++;
-			return this.currentChunk[++chunkIndex];
+			return this.currentChunk[++this.chunkIndex];
+		}
+
+		@Override
+		public boolean hasNext() {
+			return CompositeObjectArray.this.getSize() > this.index + 1;
+		}
+	}
+
+	/**
+	 * Reverse iterator implementation.
+	 */
+	private class CompositeArrayReverseIterator<S> implements Iterator<S> {
+		private final ListIterator<S[]> chunkIterator;
+		private int chunkIndex;
+		private int index;
+		@Nullable private S[] currentChunk;
+
+		CompositeArrayReverseIterator(@Nonnull IntFunction<ListIterator<S[]>> chunkIteratorFactory) {
+			this(getSize(), chunkIteratorFactory);
+		}
+
+		CompositeArrayReverseIterator(int index, @Nonnull IntFunction<ListIterator<S[]>> chunkIteratorFactory) {
+			this.index = index;
+			this.chunkIndex = Math.max(-1, index % CHUNK_SIZE - 1) + 1;
+			this.chunkIterator = chunkIteratorFactory.apply(index / CHUNK_SIZE + (index % CHUNK_SIZE > 0 ? 1 : 0));
+			this.currentChunk = null;
+		}
+
+		@Override
+		public S next() {
+			final boolean endOfChunk = this.chunkIndex == 0;
+			if (endOfChunk || this.currentChunk == null) {
+				if (endOfChunk) {
+					this.chunkIndex = CHUNK_SIZE;
+				}
+				this.currentChunk = this.chunkIterator.hasPrevious() ? this.chunkIterator.previous() : null;
+			}
+			if (this.currentChunk == null) {
+				throw new NoSuchElementException("Beginning of the array reached - max number of elements is " + getSize());
+			}
+			this.index--;
+			return this.currentChunk[--this.chunkIndex];
+		}
+
+		@Override
+		public boolean hasNext() {
+			return this.index > 0;
 		}
 	}
 }

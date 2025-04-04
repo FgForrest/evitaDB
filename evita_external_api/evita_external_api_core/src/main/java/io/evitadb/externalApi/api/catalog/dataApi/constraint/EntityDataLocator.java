@@ -32,7 +32,11 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public record EntityDataLocator(@Nonnull String entityType) implements DataLocator {
+public record EntityDataLocator(@Nonnull EntityTypePointer entityTypePointer) implements DataLocator {
+
+	public boolean isManaged() {
+		return entityTypePointer instanceof ManagedEntityTypePointer;
+	}
 
 	@Nonnull
 	@Override

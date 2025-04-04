@@ -42,10 +42,13 @@ import java.nio.file.attribute.BasicFileAttributes;
  * This class is simple DTO object holding general options of the Evita shared for all catalogs (or better - catalog
  * agnostic).
  *
- * @param name    Name of the evitaDB instance. It's used for identification purposes only.
- * @param server  Contains server wide options.
- * @param storage This field contains all options related to underlying key-value store.
- * @param cache   Cache options contain settings crucial for Evita caching and cache invalidation.
+ * @param name      Name of the evitaDB instance with automatically added hash consisting of host name, path of the data
+ *                  directory and the timestamp of its creation. This hash allows to correctly distinguish instances even
+ *                  if the user leaves configuration defaults and doesn't bother changing the instance name.
+ *                  It's used for identification purposes only.
+ * @param server    Contains server wide options.
+ * @param storage   This field contains all options related to underlying key-value store.
+ * @param cache     Cache options contain settings crucial for Evita caching and cache invalidation.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public record EvitaConfiguration(
@@ -120,15 +123,24 @@ public record EvitaConfiguration(
 	}
 
 	/**
+	 * Name of the evitaDB instance as it was provided in the configuration file without the automatically added hash.
+	 * @return Name of the evitaDB instance without appended hash.
+	 */
+	@Nonnull
+	public String plainName() {
+		return name.startsWith(DEFAULT_SERVER_NAME + "-") ? DEFAULT_SERVER_NAME : name;
+	}
+
+	/**
 	 * Standard builder pattern implementation.
 	 */
 	@ToString
 	public static class Builder {
 		private String name = DEFAULT_SERVER_NAME;
-		private ServerOptions server = new ServerOptions();
-		private StorageOptions storage = new StorageOptions();
-		private TransactionOptions transaction = new TransactionOptions();
-		private CacheOptions cache = new CacheOptions();
+		private ServerOptions server = ServerOptions.builder().build();
+		private StorageOptions storage = StorageOptions.builder().build();
+		private TransactionOptions transaction = TransactionOptions.builder().build();
+		private CacheOptions cache = CacheOptions.builder().build();
 
 		Builder() {
 		}

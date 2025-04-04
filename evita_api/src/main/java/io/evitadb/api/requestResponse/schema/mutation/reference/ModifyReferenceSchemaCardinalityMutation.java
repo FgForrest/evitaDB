@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.utils.Assert;
@@ -59,9 +60,9 @@ import java.util.Optional;
 public class ModifyReferenceSchemaCardinalityMutation
 	extends AbstractModifyReferenceDataSchemaMutation implements CombinableLocalEntitySchemaMutation {
 	@Serial private static final long serialVersionUID = -6542945168078711713L;
-	@Nonnull @Getter private final Cardinality cardinality;
+	@Nullable @Getter private final Cardinality cardinality;
 
-	public ModifyReferenceSchemaCardinalityMutation(@Nonnull String name, @Nonnull Cardinality cardinality) {
+	public ModifyReferenceSchemaCardinalityMutation(@Nonnull String name, @Nullable Cardinality cardinality) {
 		super(name);
 		this.cardinality = cardinality;
 	}
@@ -82,28 +83,41 @@ public class ModifyReferenceSchemaCardinalityMutation
 
 	@Nonnull
 	@Override
-	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema) {
+	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
-		return ReferenceSchema._internalBuild(
-			name,
-			referenceSchema.getNameVariants(),
-			referenceSchema.getDescription(),
-			referenceSchema.getDeprecationNotice(),
-			referenceSchema.getReferencedEntityType(),
-			referenceSchema.isReferencedEntityTypeManaged() ? Collections.emptyMap() : referenceSchema.getEntityTypeNameVariants(s -> null),
-			referenceSchema.isReferencedEntityTypeManaged(),
-			cardinality,
-			referenceSchema.getReferencedGroupType(),
-			referenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
-			referenceSchema.isReferencedGroupTypeManaged(),
-			referenceSchema.isIndexed(),
-			referenceSchema.isFaceted(),
-			referenceSchema.getAttributes(),
-			referenceSchema.getSortableAttributeCompounds()
-		);
+		if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema) {
+			if (reflectedReferenceSchema.isReflectedReferenceAvailable() && reflectedReferenceSchema.getCardinality() == this.cardinality) {
+				return referenceSchema;
+			} else {
+				return reflectedReferenceSchema
+					.withCardinality(this.cardinality);
+			}
+		} else {
+			if (referenceSchema.getCardinality() == this.cardinality) {
+				return referenceSchema;
+			} else {
+				return ReferenceSchema._internalBuild(
+					this.name,
+					referenceSchema.getNameVariants(),
+					referenceSchema.getDescription(),
+					referenceSchema.getDeprecationNotice(),
+					this.cardinality,
+					referenceSchema.getReferencedEntityType(),
+					referenceSchema.isReferencedEntityTypeManaged() ? Collections.emptyMap() : referenceSchema.getEntityTypeNameVariants(s -> null),
+					referenceSchema.isReferencedEntityTypeManaged(),
+					referenceSchema.getReferencedGroupType(),
+					referenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
+					referenceSchema.isReferencedGroupTypeManaged(),
+					referenceSchema.getIndexedInScopes(),
+					referenceSchema.getFacetedInScopes(),
+					referenceSchema.getAttributes(),
+					referenceSchema.getSortableAttributeCompounds()
+				);
+			}
+		}
 	}
 
-	@Nullable
+	@Nonnull
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");

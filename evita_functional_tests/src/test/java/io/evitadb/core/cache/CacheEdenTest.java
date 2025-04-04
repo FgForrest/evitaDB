@@ -23,6 +23,8 @@
 
 package io.evitadb.core.cache;
 
+import com.carrotsearch.hppc.IntObjectHashMap;
+import com.carrotsearch.hppc.IntObjectMap;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.index.price.PriceListAndCurrencyPriceSuperIndex;
@@ -30,6 +32,7 @@ import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.price.model.priceRecord.CumulatedVirtualPriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
+import io.evitadb.index.price.model.priceRecord.PriceRecordInnerRecordSpecific;
 
 import java.util.Arrays;
 import java.util.Comparator;
@@ -203,10 +206,26 @@ class CacheEdenTest {
 				);
 			} else {
 				final boolean withTax = random.nextBoolean();
+				final IntObjectMap<PriceRecordContract> innerRecordIds = new IntObjectHashMap<>();
+				for (int j = 0; j < 1 + random.nextInt(10); j++) {
+					final int innerRecordId = random.nextInt();
+					innerRecordIds.put(
+						innerRecordId,
+						new PriceRecordInnerRecordSpecific(
+							priceId,
+							priceId,
+							entityPrimaryKey,
+							innerRecordId,
+							(int) (price * 1.21),
+							price
+						)
+					);
+				}
 				result[i] = new CumulatedVirtualPriceRecord(
 					entityPrimaryKey,
 					price,
-					withTax ? QueryPriceMode.WITH_TAX : QueryPriceMode.WITHOUT_TAX
+					withTax ? QueryPriceMode.WITH_TAX : QueryPriceMode.WITHOUT_TAX,
+					innerRecordIds
 				);
 			}
 		}

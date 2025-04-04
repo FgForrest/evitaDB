@@ -10,8 +10,6 @@ POST /rest/evita/Product/query
     "attributeStatusEquals" : "ACTIVE"
   },
   "require" : {
-    "facetSummary" : {
-      "statisticsDepth" : "COUNTS"
-    }
+    "facetSummary" : { }
   }
 }

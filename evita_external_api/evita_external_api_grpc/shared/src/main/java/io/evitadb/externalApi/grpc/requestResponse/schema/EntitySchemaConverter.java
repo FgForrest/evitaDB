@@ -24,33 +24,16 @@
 package io.evitadb.externalApi.grpc.requestResponse.schema;
 
 import com.google.protobuf.StringValue;
-import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
-import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
+import io.evitadb.api.requestResponse.schema.*;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
-import io.evitadb.api.requestResponse.schema.dto.AssociatedDataSchema;
-import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
-import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
-import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
-import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
+import io.evitadb.api.requestResponse.schema.dto.*;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
-import io.evitadb.externalApi.grpc.generated.GrpcAssociatedDataSchema;
-import io.evitadb.externalApi.grpc.generated.GrpcAttributeElement;
-import io.evitadb.externalApi.grpc.generated.GrpcAttributeSchema;
-import io.evitadb.externalApi.grpc.generated.GrpcAttributeSchemaType;
-import io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema;
-import io.evitadb.externalApi.grpc.generated.GrpcEntitySchema;
-import io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema;
-import io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema;
+import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
@@ -59,11 +42,14 @@ import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrpcNameVariant;
@@ -93,12 +79,24 @@ public class EntitySchemaConverter {
 			.setName(entitySchema.getName())
 			.setWithGeneratedPrimaryKey(entitySchema.isWithGeneratedPrimaryKey())
 			.setWithHierarchy(entitySchema.isWithHierarchy())
+			.addAllHierarchyIndexedInScopes(
+				Arrays.stream(Scope.values())
+					.filter(entitySchema::isHierarchyIndexedInScope)
+					.map(EvitaEnumConverter::toGrpcScope)
+					.toList()
+			)
 			.setWithPrice(entitySchema.isWithPrice())
+			.addAllPriceIndexedInScopes(
+				Arrays.stream(Scope.values())
+					.filter(entitySchema::isPriceIndexedInScope)
+					.map(EvitaEnumConverter::toGrpcScope)
+					.toList()
+			)
 			.setIndexedPricePlaces(entitySchema.getIndexedPricePlaces())
 			.addAllLocales(entitySchema.getLocales().stream().map(EvitaDataTypesConverter::toGrpcLocale).toList())
 			.addAllCurrencies(entitySchema.getCurrencies().stream().map(EvitaDataTypesConverter::toGrpcCurrency).toList())
-			.putAllAttributes(toGrpcAttributeSchemas(entitySchema.getAttributes(), includeNameVariants))
-			.putAllSortableAttributeCompounds(toGrpcSortableAttributeCompoundSchemas(entitySchema.getSortableAttributeCompounds(), includeNameVariants))
+			.putAllAttributes(toGrpcAttributeSchemas(entitySchema.getAttributes(), includeNameVariants, attributeName -> false))
+			.putAllSortableAttributeCompounds(toGrpcSortableAttributeCompoundSchemas(entitySchema.getSortableAttributeCompounds(), includeNameVariants, attributeName -> false))
 			.putAllAssociatedData(toGrpcAssociatedDataSchemas(entitySchema.getAssociatedData(), includeNameVariants))
 			.putAllReferences(toGrpcReferenceSchemas(entitySchema.getReferences(), includeNameVariants))
 			.addAllEvolutionMode(entitySchema.getEvolutionMode().stream().map(EvitaEnumConverter::toGrpcEvolutionMode).toList())
@@ -134,7 +132,15 @@ public class EntitySchemaConverter {
 			entitySchema.hasDeprecationNotice() ? entitySchema.getDeprecationNotice().getValue() : null,
 			entitySchema.getWithGeneratedPrimaryKey(),
 			entitySchema.getWithHierarchy(),
+			entitySchema.getHierarchyIndexedInScopesList()
+				.stream()
+				.map(EvitaEnumConverter::toScope)
+				.toArray(Scope[]::new),
 			entitySchema.getWithPrice(),
+			entitySchema.getPriceIndexedInScopesList()
+				.stream()
+				.map(EvitaEnumConverter::toScope)
+				.toArray(Scope[]::new),
 			entitySchema.getIndexedPricePlaces(),
 			entitySchema.getLocalesList()
 				.stream()
@@ -215,13 +221,21 @@ public class EntitySchemaConverter {
 	 *
 	 * @param originalAttributeSchemas map of {@link AttributeSchema} to be converted to map of {@link GrpcAttributeSchema}
 	 * @param includeNameVariants      if true, name variants will be included in the result
+	 * @param inheritedPredicate predicate that matches all attributes that were inherited from the original schema via reflection
 	 * @return map where keys are representing attribute names and values are {@link GrpcAttributeSchema}
 	 */
 	@Nonnull
-	private static Map<String, GrpcAttributeSchema> toGrpcAttributeSchemas(@Nonnull Map<String, ? extends AttributeSchemaContract> originalAttributeSchemas, boolean includeNameVariants) {
+	private static Map<String, GrpcAttributeSchema> toGrpcAttributeSchemas(
+		@Nonnull Map<String, ? extends AttributeSchemaContract> originalAttributeSchemas,
+		boolean includeNameVariants,
+		@Nonnull Predicate<String> inheritedPredicate
+	) {
 		final Map<String, GrpcAttributeSchema> attributeSchemas = CollectionUtils.createHashMap(originalAttributeSchemas.size());
 		for (Map.Entry<String, ? extends AttributeSchemaContract> entry : originalAttributeSchemas.entrySet()) {
-			attributeSchemas.put(entry.getKey(), toGrpcAttributeSchema(entry.getValue(), includeNameVariants));
+			attributeSchemas.put(
+				entry.getKey(),
+				toGrpcAttributeSchema(entry.getValue(), includeNameVariants, inheritedPredicate)
+			);
 		}
 		return attributeSchemas;
 	}
@@ -231,22 +245,53 @@ public class EntitySchemaConverter {
 	 *
 	 * @param attributeSchema     instance of {@link AttributeSchema} to be converted to {@link GrpcAttributeSchema}
 	 * @param includeNameVariants if true, name variants will be included in the result
+	 * @param inheritedPredicate predicate that matches all attributes that were inherited from the original schema via reflection
 	 * @return built instance of {@link GrpcAttributeSchema}
 	 */
 	@Nonnull
-	private static GrpcAttributeSchema toGrpcAttributeSchema(@Nonnull AttributeSchemaContract attributeSchema, boolean includeNameVariants) {
+	private static GrpcAttributeSchema toGrpcAttributeSchema(
+		@Nonnull AttributeSchemaContract attributeSchema,
+		boolean includeNameVariants,
+		@Nonnull Predicate<String> inheritedPredicate
+	) {
 		final boolean isGlobal = attributeSchema instanceof GlobalAttributeSchemaContract;
 		final boolean isEntity = attributeSchema instanceof EntityAttributeSchemaContract;
 		final GrpcAttributeSchema.Builder builder = GrpcAttributeSchema.newBuilder()
 			.setName(attributeSchema.getName())
 			.setSchemaType(EvitaEnumConverter.toGrpcAttributeSchemaType(attributeSchema.getClass()))
 			.setUnique(EvitaEnumConverter.toGrpcAttributeUniquenessType(attributeSchema.getUniquenessType()))
+			.addAllUniqueInScopes(
+				Arrays.stream(Scope.values())
+					.map(scope -> new ScopedAttributeUniquenessType(scope, attributeSchema.getUniquenessType(scope)))
+					// filter default values
+					.filter(scopedUniquenessType -> scopedUniquenessType.uniquenessType() != AttributeUniquenessType.NOT_UNIQUE)
+					.map(
+						scopedUniquenessType -> GrpcScopedAttributeUniquenessType.newBuilder()
+							.setScope(EvitaEnumConverter.toGrpcScope(scopedUniquenessType.scope()))
+							.setUniquenessType(toGrpcAttributeUniquenessType(scopedUniquenessType.uniquenessType()))
+							.build()
+					)
+					.toList()
+			)
 			.setFilterable(attributeSchema.isFilterable())
+			.addAllFilterableInScopes(
+				Arrays.stream(Scope.values())
+					.filter(attributeSchema::isFilterableInScope)
+					.map(EvitaEnumConverter::toGrpcScope)
+					.toList()
+			)
 			.setSortable(attributeSchema.isSortable())
+			.addAllSortableInScopes(
+				Arrays.stream(Scope.values())
+					.filter(attributeSchema::isSortableInScope)
+					.map(EvitaEnumConverter::toGrpcScope)
+					.toList()
+			)
 			.setLocalized(attributeSchema.isLocalized())
 			.setNullable(attributeSchema.isNullable())
 			.setType(EvitaDataTypesConverter.toGrpcEvitaDataType(attributeSchema.getType()))
-			.setIndexedDecimalPlaces(attributeSchema.getIndexedDecimalPlaces());
+			.setIndexedDecimalPlaces(attributeSchema.getIndexedDecimalPlaces())
+			.setInherited(inheritedPredicate.test(attributeSchema.getName()));
 
 		ofNullable(attributeSchema.getDefaultValue())
 			.ifPresent(it -> builder.setDefaultValue(EvitaDataTypesConverter.toGrpcEvitaValue(it)));
@@ -264,6 +309,19 @@ public class EntitySchemaConverter {
 			final GlobalAttributeSchemaContract globalAttributeSchema = (GlobalAttributeSchemaContract) attributeSchema;
 			builder.setRepresentative(globalAttributeSchema.isRepresentative());
 			builder.setUniqueGlobally(EvitaEnumConverter.toGrpcGlobalAttributeUniquenessType(globalAttributeSchema.getGlobalUniquenessType()));
+			builder.addAllUniqueGloballyInScopes(
+				Arrays.stream(Scope.values())
+					.map(scope -> new ScopedGlobalAttributeUniquenessType(scope, globalAttributeSchema.getGlobalUniquenessType(scope)))
+					// filter default values
+					.filter(scopedUniquenessType -> scopedUniquenessType.uniquenessType() != GlobalAttributeUniquenessType.NOT_UNIQUE)
+					.map(
+						scopedUniquenessType -> GrpcScopedGlobalAttributeUniquenessType.newBuilder()
+							.setScope(EvitaEnumConverter.toGrpcScope(scopedUniquenessType.scope()))
+							.setUniquenessType(toGrpcGlobalAttributeUniquenessType(scopedUniquenessType.uniquenessType()))
+							.build()
+					)
+					.toList()
+			);
 		}
 
 		if (includeNameVariants) {
@@ -283,13 +341,21 @@ public class EntitySchemaConverter {
 	 * @param originalSortableAttributeCompoundSchemas map of {@link SortableAttributeCompoundSchema} to be converted
 	 *                                                 to map of {@link GrpcSortableAttributeCompoundSchema}
 	 * @param includeNameVariants                      if true, name variants will be included in the result
+	 * @param inheritedPredicate predicate that matches all attributes that were inherited from the original schema via reflection
 	 * @return map where keys are representing attribute names and values are {@link GrpcSortableAttributeCompoundSchema}
 	 */
 	@Nonnull
-	private static Map<String, GrpcSortableAttributeCompoundSchema> toGrpcSortableAttributeCompoundSchemas(@Nonnull Map<String, SortableAttributeCompoundSchemaContract> originalSortableAttributeCompoundSchemas, boolean includeNameVariants) {
+	private static Map<String, GrpcSortableAttributeCompoundSchema> toGrpcSortableAttributeCompoundSchemas(
+		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> originalSortableAttributeCompoundSchemas,
+		boolean includeNameVariants,
+		@Nonnull Predicate<String> inheritedPredicate
+	) {
 		final Map<String, GrpcSortableAttributeCompoundSchema> attributeSchemas = CollectionUtils.createHashMap(originalSortableAttributeCompoundSchemas.size());
 		for (Map.Entry<String, SortableAttributeCompoundSchemaContract> entry : originalSortableAttributeCompoundSchemas.entrySet()) {
-			attributeSchemas.put(entry.getKey(), toGrpcSortableAttributeCompoundSchema(entry.getValue(), includeNameVariants));
+			attributeSchemas.put(
+				entry.getKey(),
+				toGrpcSortableAttributeCompoundSchema(entry.getValue(), includeNameVariants, inheritedPredicate)
+			);
 		}
 		return attributeSchemas;
 	}
@@ -299,13 +365,26 @@ public class EntitySchemaConverter {
 	 *
 	 * @param attributeCompoundSchema instance of {@link SortableAttributeCompoundSchema} to be converted to {@link GrpcSortableAttributeCompoundSchema}
 	 * @param includeNameVariants if true, name variants will be included in the result
+	 * @param inheritedPredicate predicate that matches all attributes that were inherited from the original schema via reflection
+	 *
 	 * @return built instance of {@link GrpcSortableAttributeCompoundSchema}
 	 */
 	@Nonnull
-	private static GrpcSortableAttributeCompoundSchema toGrpcSortableAttributeCompoundSchema(@Nonnull SortableAttributeCompoundSchemaContract attributeCompoundSchema, boolean includeNameVariants) {
+	private static GrpcSortableAttributeCompoundSchema toGrpcSortableAttributeCompoundSchema(
+		@Nonnull SortableAttributeCompoundSchemaContract attributeCompoundSchema,
+		boolean includeNameVariants,
+		@Nonnull Predicate<String> inheritedPredicate
+	) {
 		final GrpcSortableAttributeCompoundSchema.Builder builder = GrpcSortableAttributeCompoundSchema.newBuilder()
 			.setName(attributeCompoundSchema.getName())
-			.addAllAttributeElements(toGrpcAttributeElement(attributeCompoundSchema.getAttributeElements()));
+			.addAllAttributeElements(toGrpcAttributeElement(attributeCompoundSchema.getAttributeElements()))
+			.addAllIndexedInScopes(
+				Arrays.stream(Scope.values())
+					.filter(attributeCompoundSchema::isIndexedInScope)
+					.map(EvitaEnumConverter::toGrpcScope)
+					.toList()
+			)
+			.setInherited(inheritedPredicate.test(attributeCompoundSchema.getName()));
 
 		ofNullable(attributeCompoundSchema.getDescription())
 			.ifPresent(it -> builder.setDescription(StringValue.newBuilder().setValue(it).build()));
@@ -383,7 +462,9 @@ public class EntitySchemaConverter {
 	private static Map<String, GrpcReferenceSchema> toGrpcReferenceSchemas(@Nonnull Map<String, ReferenceSchemaContract> originalReferenceSchemas, boolean includeNameVariants) {
 		final Map<String, GrpcReferenceSchema> referenceSchemas = CollectionUtils.createHashMap(originalReferenceSchemas.size());
 		for (Map.Entry<String, ReferenceSchemaContract> entry : originalReferenceSchemas.entrySet()) {
-			referenceSchemas.put(entry.getKey(), toGrpcReferenceSchema(entry.getValue(), includeNameVariants));
+			if (!(entry.getValue() instanceof ReflectedReferenceSchemaContract rrsc) || rrsc.isReflectedReferenceAvailable()) {
+				referenceSchemas.put(entry.getKey(), toGrpcReferenceSchema(entry.getValue(), includeNameVariants));
+			}
 		}
 		return referenceSchemas;
 	}
@@ -405,10 +486,10 @@ public class EntitySchemaConverter {
 			.setReferencedEntityTypeManaged(referenceSchema.isReferencedEntityTypeManaged())
 			.setGroupTypeRelatesToEntity(referenceSchema.isReferencedGroupTypeManaged())
 			.setReferencedGroupTypeManaged(referenceSchema.isReferencedGroupTypeManaged())
+			.addAllIndexedInScopes(Arrays.stream(Scope.values()).filter(referenceSchema::isIndexedInScope).map(EvitaEnumConverter::toGrpcScope).toList())
 			.setIndexed(referenceSchema.isIndexed())
-			.setFaceted(referenceSchema.isFaceted())
-			.putAllAttributes(toGrpcAttributeSchemas(referenceSchema.getAttributes(), includeNameVariants))
-			.putAllSortableAttributeCompounds(toGrpcSortableAttributeCompoundSchemas(referenceSchema.getSortableAttributeCompounds(), includeNameVariants));
+			.addAllFacetedInScopes(Arrays.stream(Scope.values()).filter(referenceSchema::isFacetedInScope).map(EvitaEnumConverter::toGrpcScope).toList())
+			.setFaceted(referenceSchema.isFaceted());
 
 		if (referenceSchema.getReferencedGroupType() != null) {
 			builder.setGroupType(StringValue.newBuilder().setValue(referenceSchema.getReferencedGroupType()).build());
@@ -419,6 +500,27 @@ public class EntitySchemaConverter {
 		if (referenceSchema.getDeprecationNotice() != null) {
 			builder.setDeprecationNotice(StringValue.newBuilder().setValue(referenceSchema.getDeprecationNotice()).build());
 		}
+
+		final Predicate<String> inheritedPredicate;
+		if (referenceSchema instanceof ReflectedReferenceSchema reflectedSchema) {
+			builder.setReflectedReferenceName(StringValue.of(reflectedSchema.getReflectedReferenceName()))
+				.setDescriptionInherited(reflectedSchema.isDescriptionInherited())
+				.setDeprecationNoticeInherited(reflectedSchema.isDeprecatedInherited())
+				.setCardinalityInherited(reflectedSchema.isCardinalityInherited())
+				.setFacetedInherited(reflectedSchema.isFacetedInherited())
+				.setAttributeInheritanceBehavior(toGrpcAttributeInheritanceBehavior(reflectedSchema.getAttributesInheritanceBehavior()));
+			for (String attributeName : reflectedSchema.getAttributeInheritanceFilter()) {
+				builder.addAttributeInheritanceFilter(attributeName);
+			}
+			final Set<String> declaredAttributes = reflectedSchema.getDeclaredAttributes().keySet();
+			inheritedPredicate = attributeName -> !declaredAttributes.contains(attributeName);
+		} else {
+			inheritedPredicate = attributeName -> false;
+		}
+
+		builder
+			.putAllAttributes(toGrpcAttributeSchemas(referenceSchema.getAttributes(), includeNameVariants, inheritedPredicate))
+			.putAllSortableAttributeCompounds(toGrpcSortableAttributeCompoundSchemas(referenceSchema.getSortableAttributeCompounds(), includeNameVariants, inheritedPredicate));
 
 		if (includeNameVariants) {
 			referenceSchema.getNameVariants()
@@ -454,7 +556,40 @@ public class EntitySchemaConverter {
 	 * Creates {@link AttributeSchema} from the {@link GrpcAttributeSchema}.
 	 */
 	@Nonnull
-	private static <T extends AttributeSchemaContract> T toAttributeSchema(@Nonnull GrpcAttributeSchema attributeSchema, @Nonnull Class<T> expectedType) {
+	static <T extends AttributeSchemaContract> T toAttributeSchema(@Nonnull GrpcAttributeSchema attributeSchema, @Nonnull Class<T> expectedType) {
+		final ScopedAttributeUniquenessType[] uniqueInScopes = attributeSchema.getUniqueInScopesList().isEmpty() ?
+			new ScopedAttributeUniquenessType[]{
+				new ScopedAttributeUniquenessType(Scope.DEFAULT_SCOPE, toAttributeUniquenessType(attributeSchema.getUnique()))
+			}
+			:
+			attributeSchema.getUniqueInScopesList()
+				.stream()
+				.map(it -> new ScopedAttributeUniquenessType(toScope(it.getScope()), toAttributeUniquenessType(it.getUniquenessType())))
+				.toArray(ScopedAttributeUniquenessType[]::new);
+		final ScopedGlobalAttributeUniquenessType[] uniqueGloballyInScopes = attributeSchema.getUniqueGloballyInScopesList().isEmpty() ?
+			new ScopedGlobalAttributeUniquenessType[]{
+				new ScopedGlobalAttributeUniquenessType(Scope.DEFAULT_SCOPE, toGlobalAttributeUniquenessType(attributeSchema.getUniqueGlobally()))
+			}
+			:
+			attributeSchema.getUniqueGloballyInScopesList()
+				.stream()
+				.map(it -> new ScopedGlobalAttributeUniquenessType(toScope(it.getScope()), toGlobalAttributeUniquenessType(it.getUniquenessType())))
+				.toArray(ScopedGlobalAttributeUniquenessType[]::new);
+		final Scope[] filterableInScopes = attributeSchema.getFilterableInScopesList().isEmpty() ?
+			(attributeSchema.getFilterable() ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE)
+			:
+			attributeSchema.getFilterableInScopesList()
+				.stream()
+				.map(EvitaEnumConverter::toScope)
+				.toArray(Scope[]::new);
+		final Scope[] sortableInScopes = attributeSchema.getSortableInScopesList().isEmpty() ?
+			(attributeSchema.getSortable() ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE)
+			:
+			attributeSchema.getSortableInScopesList()
+				.stream()
+				.map(EvitaEnumConverter::toScope)
+				.toArray(Scope[]::new);
+
 		if (attributeSchema.getSchemaType() == GrpcAttributeSchemaType.GLOBAL_SCHEMA) {
 			if (expectedType.isAssignableFrom(GlobalAttributeSchema.class)) {
 				//noinspection unchecked
@@ -463,10 +598,10 @@ public class EntitySchemaConverter {
 					NamingConvention.generate(attributeSchema.getName()),
 					attributeSchema.hasDescription() ? attributeSchema.getDescription().getValue() : null,
 					attributeSchema.hasDeprecationNotice() ? attributeSchema.getDeprecationNotice().getValue() : null,
-					EvitaEnumConverter.toAttributeUniquenessType(attributeSchema.getUnique()),
-					EvitaEnumConverter.toGlobalAttributeUniquenessType(attributeSchema.getUniqueGlobally()),
-					attributeSchema.getFilterable(),
-					attributeSchema.getSortable(),
+					uniqueInScopes,
+					uniqueGloballyInScopes,
+					filterableInScopes,
+					sortableInScopes,
 					attributeSchema.getLocalized(),
 					attributeSchema.getNullable(),
 					attributeSchema.getRepresentative(),
@@ -485,9 +620,9 @@ public class EntitySchemaConverter {
 					NamingConvention.generate(attributeSchema.getName()),
 					attributeSchema.hasDescription() ? attributeSchema.getDescription().getValue() : null,
 					attributeSchema.hasDeprecationNotice() ? attributeSchema.getDeprecationNotice().getValue() : null,
-					EvitaEnumConverter.toAttributeUniquenessType(attributeSchema.getUnique()),
-					attributeSchema.getFilterable(),
-					attributeSchema.getSortable(),
+					uniqueInScopes,
+					filterableInScopes,
+					sortableInScopes,
 					attributeSchema.getLocalized(),
 					attributeSchema.getNullable(),
 					attributeSchema.getRepresentative(),
@@ -506,9 +641,9 @@ public class EntitySchemaConverter {
 					NamingConvention.generate(attributeSchema.getName()),
 					attributeSchema.hasDescription() ? attributeSchema.getDescription().getValue() : null,
 					attributeSchema.hasDeprecationNotice() ? attributeSchema.getDeprecationNotice().getValue() : null,
-					EvitaEnumConverter.toAttributeUniquenessType(attributeSchema.getUnique()),
-					attributeSchema.getFilterable(),
-					attributeSchema.getSortable(),
+					uniqueInScopes,
+					filterableInScopes,
+					sortableInScopes,
 					attributeSchema.getLocalized(),
 					attributeSchema.getNullable(),
 					EvitaDataTypesConverter.toEvitaDataType(attributeSchema.getType()),
@@ -543,53 +678,152 @@ public class EntitySchemaConverter {
 	 */
 	@Nonnull
 	private static ReferenceSchemaContract toReferenceSchema(@Nonnull GrpcReferenceSchema referenceSchema) {
-		return ReferenceSchema._internalBuild(
-			referenceSchema.getName(),
-			NamingConvention.generate(referenceSchema.getName()),
-			referenceSchema.hasDescription() ? referenceSchema.getDescription().getValue() : null,
-			referenceSchema.hasDeprecationNotice() ? referenceSchema.getDeprecationNotice().getValue() : null,
-			referenceSchema.getEntityType(),
-			referenceSchema.getReferencedEntityTypeManaged()
-				? Collections.emptyMap()
-				: NamingConvention.generate(referenceSchema.getEntityType()),
-			referenceSchema.getReferencedEntityTypeManaged(),
-			toCardinality(referenceSchema.getCardinality()),
-			referenceSchema.hasGroupType() ? referenceSchema.getGroupType().getValue() : null,
-			referenceSchema.getReferencedGroupTypeManaged()
-				? Collections.emptyMap()
-				: NamingConvention.generate(referenceSchema.getGroupType().getValue()),
-			referenceSchema.getReferencedGroupTypeManaged(),
-			referenceSchema.getIndexed(),
-			referenceSchema.getFaceted(),
-			referenceSchema.getAttributesMap()
-				.entrySet()
+		final Cardinality cardinality = toCardinality(referenceSchema.getCardinality());
+		final Scope[] indexedInScopes = referenceSchema.getIndexedInScopesList().isEmpty() ?
+			(referenceSchema.getIndexed() ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE)
+			:
+			referenceSchema.getIndexedInScopesList()
 				.stream()
-				.collect(Collectors.toMap(
-					Entry::getKey,
-					it -> toAttributeSchema(it.getValue(), AttributeSchemaContract.class)
-				)),
-			referenceSchema.getSortableAttributeCompoundsMap()
-				.entrySet()
+				.map(EvitaEnumConverter::toScope)
+				.toArray(Scope[]::new);
+		final Scope[] facetedInScopes = referenceSchema.getFacetedInScopesList().isEmpty() ?
+			(referenceSchema.getFaceted() ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE)
+			:
+			referenceSchema.getFacetedInScopesList()
 				.stream()
-				.collect(
-					Collectors.toMap(
+				.map(EvitaEnumConverter::toScope)
+				.toArray(Scope[]::new);
+
+		if (referenceSchema.hasReflectedReferenceName()) {
+			return ReflectedReferenceSchema._internalBuild(
+				referenceSchema.getName(),
+				NamingConvention.generate(referenceSchema.getName()),
+				referenceSchema.hasDescription() ? referenceSchema.getDescription().getValue() : null,
+				referenceSchema.hasDeprecationNotice() ? referenceSchema.getDeprecationNotice().getValue() : null,
+				referenceSchema.getEntityType(),
+				NamingConvention.generate(referenceSchema.getEntityType()),
+				referenceSchema.hasGroupType() ? referenceSchema.getGroupType().getValue() : null,
+				referenceSchema.getReferencedGroupTypeManaged() ?
+					Collections.emptyMap() : NamingConvention.generate(referenceSchema.getGroupType().getValue()),
+				referenceSchema.getReferencedGroupTypeManaged(),
+				referenceSchema.getReflectedReferenceName().getValue(),
+				cardinality,
+				indexedInScopes,
+				facetedInScopes,
+				referenceSchema.getAttributesMap()
+					.entrySet()
+					.stream()
+					.collect(Collectors.toMap(
 						Entry::getKey,
-						it -> toSortableAttributeCompoundSchema(it.getValue())
-					)
+						it -> toAttributeSchema(it.getValue(), AttributeSchemaContract.class)
+					)),
+				referenceSchema.getSortableAttributeCompoundsMap()
+					.entrySet()
+					.stream()
+					.collect(
+						Collectors.toMap(
+							Entry::getKey,
+							it -> toSortableAttributeCompoundSchema(it.getValue())
+						)
+					),
+				referenceSchema.getDescriptionInherited(),
+				referenceSchema.getDeprecationNoticeInherited(),
+				referenceSchema.getCardinalityInherited(),
+				referenceSchema.getIndexedInherited(),
+				referenceSchema.getFacetedInherited(),
+				toAttributeInheritanceBehavior(referenceSchema.getAttributeInheritanceBehavior()),
+				referenceSchema.getAttributeInheritanceFilterList().toArray(String[]::new),
+				// here we create mock original reference - it won't be used in most cases, except for detecting
+				// inherited attributes
+				ReferenceSchema._internalBuild(
+					referenceSchema.getReflectedReferenceName().getValue(),
+					NamingConvention.generate(referenceSchema.getReflectedReferenceName().getValue()),
+					null,
+					null,
+					referenceSchema.getEntityType(),
+					Map.of(),
+					true,
+					cardinality,
+					referenceSchema.hasGroupType() ? referenceSchema.getGroupType().getValue() : null,
+					Map.of(),
+					referenceSchema.getReferencedGroupTypeManaged(),
+					indexedInScopes,
+					facetedInScopes,
+					referenceSchema.getAttributesMap()
+						.entrySet()
+						.stream()
+						.filter(it -> it.getValue().getInherited())
+						.collect(Collectors.toMap(
+							Entry::getKey,
+							it -> toAttributeSchema(it.getValue(), AttributeSchemaContract.class)
+						)),
+					referenceSchema.getSortableAttributeCompoundsMap()
+						.entrySet()
+						.stream()
+						.filter(it -> it.getValue().getInherited())
+						.collect(
+							Collectors.toMap(
+								Entry::getKey,
+								it -> toSortableAttributeCompoundSchema(it.getValue())
+							)
+						)
 				)
-		);
+			);
+		} else {
+			return ReferenceSchema._internalBuild(
+				referenceSchema.getName(),
+				NamingConvention.generate(referenceSchema.getName()),
+				referenceSchema.hasDescription() ? referenceSchema.getDescription().getValue() : null,
+				referenceSchema.hasDeprecationNotice() ? referenceSchema.getDeprecationNotice().getValue() : null,
+				referenceSchema.getEntityType(),
+				referenceSchema.getReferencedEntityTypeManaged()
+					? Collections.emptyMap()
+					: NamingConvention.generate(referenceSchema.getEntityType()),
+				referenceSchema.getReferencedEntityTypeManaged(),
+				cardinality,
+				referenceSchema.hasGroupType() ? referenceSchema.getGroupType().getValue() : null,
+				referenceSchema.getReferencedGroupTypeManaged()
+					? Collections.emptyMap()
+					: NamingConvention.generate(referenceSchema.getGroupType().getValue()),
+				referenceSchema.getReferencedGroupTypeManaged(),
+				indexedInScopes,
+				facetedInScopes,
+				referenceSchema.getAttributesMap()
+					.entrySet()
+					.stream()
+					.collect(Collectors.toMap(
+						Entry::getKey,
+						it -> toAttributeSchema(it.getValue(), AttributeSchemaContract.class)
+					)),
+				referenceSchema.getSortableAttributeCompoundsMap()
+					.entrySet()
+					.stream()
+					.collect(
+						Collectors.toMap(
+							Entry::getKey,
+							it -> toSortableAttributeCompoundSchema(it.getValue())
+						)
+					)
+			);
+		}
 	}
 
 	/**
 	 * Creates {@link SortableAttributeCompoundSchema} from the {@link GrpcSortableAttributeCompoundSchema}.
 	 */
 	@Nonnull
-	private static SortableAttributeCompoundSchemaContract toSortableAttributeCompoundSchema(@Nonnull GrpcSortableAttributeCompoundSchema sortableAttributeCompound) {
+	private static SortableAttributeCompoundSchemaContract toSortableAttributeCompoundSchema(
+		@Nonnull GrpcSortableAttributeCompoundSchema sortableAttributeCompound
+	) {
 		return SortableAttributeCompoundSchema._internalBuild(
 			sortableAttributeCompound.getName(),
 			NamingConvention.generate(sortableAttributeCompound.getName()),
 			sortableAttributeCompound.hasDescription() ? sortableAttributeCompound.getDescription().getValue() : null,
 			sortableAttributeCompound.hasDeprecationNotice() ? sortableAttributeCompound.getDeprecationNotice().getValue() : null,
+			sortableAttributeCompound.getIndexedInScopesList()
+				.stream()
+				.map(EvitaEnumConverter::toScope)
+				.toArray(Scope[]::new),
 			toAttributeElement(sortableAttributeCompound.getAttributeElementsList())
 		);
 	}

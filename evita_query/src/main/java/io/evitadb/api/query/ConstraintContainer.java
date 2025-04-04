@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -104,7 +104,7 @@ public abstract class ConstraintContainer<T extends Constraint<T>> extends BaseC
 	 */
 	@Nonnull
 	public T[] getChildren() {
-		return children;
+		return this.children;
 	}
 
 	/**
@@ -122,7 +122,7 @@ public abstract class ConstraintContainer<T extends Constraint<T>> extends BaseC
 	 * Returns count of query children.
 	 */
 	public int getChildrenCount() {
-		return children.length;
+		return this.children.length;
 	}
 
 	/**
@@ -134,7 +134,7 @@ public abstract class ConstraintContainer<T extends Constraint<T>> extends BaseC
 	@Override
 	public Iterator<T> iterator() {
 		return Arrays
-			.stream(children)
+			.stream(this.children)
 			.iterator();
 	}
 
@@ -143,7 +143,7 @@ public abstract class ConstraintContainer<T extends Constraint<T>> extends BaseC
 	 */
 	@Nonnull
 	public Constraint<?>[] getAdditionalChildren() {
-		return additionalChildren;
+		return this.additionalChildren;
 	}
 
 	/**
@@ -160,14 +160,14 @@ public abstract class ConstraintContainer<T extends Constraint<T>> extends BaseC
 	 * Returns count of all additional children.
 	 */
 	public int getAdditionalChildrenCount() {
-		return additionalChildren.length;
+		return this.additionalChildren.length;
 	}
 
 	/**
 	 * Returns true if there is more than one child - if not this container is probably useless (in most cases).
 	 */
 	public boolean isNecessary() {
-		return children.length > 1 || additionalChildren.length > 1;
+		return this.children.length > 1 || this.additionalChildren.length > 1;
 	}
 
 	/**
@@ -177,7 +177,7 @@ public abstract class ConstraintContainer<T extends Constraint<T>> extends BaseC
 	 */
 	@Override
 	public boolean isApplicable() {
-		return children.length > 0 || additionalChildren.length > 0;
+		return this.children.length > 0 || this.additionalChildren.length > 0;
 	}
 
 	/**
@@ -192,13 +192,13 @@ public abstract class ConstraintContainer<T extends Constraint<T>> extends BaseC
 		return getName() +
 			ARG_OPENING +
 			Stream.of(
-					Arrays.stream(getArgumentsExcludingDefaults())
+					Arrays.stream((this instanceof ConstraintWithDefaults<?> constraintWithDefaults) ? constraintWithDefaults.getArgumentsExcludingDefaults() : getArguments())
 						.filter(it -> !(this instanceof ConstraintWithSuffix cws) || !cws.isArgumentImplicitForSuffix(it))
 						.map(BaseConstraint::convertToString),
-					Arrays.stream(additionalChildren)
+					Arrays.stream(this.additionalChildren)
 						.filter(it -> !(this instanceof ConstraintContainerWithSuffix ccws) || !ccws.isAdditionalChildImplicitForSuffix(it))
 						.map(Constraint::toString),
-					Arrays.stream(children)
+					Arrays.stream(this.children)
 						.filter(it -> !(this instanceof ConstraintContainerWithSuffix ccws) || !ccws.isChildImplicitForSuffix(it))
 						.map(Constraint::toString)
 				)
@@ -211,7 +211,7 @@ public abstract class ConstraintContainer<T extends Constraint<T>> extends BaseC
 	 * Returns additional child whose type is same or subclass of passed type. Cannot be same type as this container.
 	 * This method should be used only internally to provide access to concrete additional children in implementations.
 	 */
-	@Nullable
+	@Nonnull
 	protected <C extends Constraint<?>> Optional<C> getAdditionalChild(@Nonnull Class<C> additionalChildType) {
 		if (getType().isAssignableFrom(additionalChildType) ||
 			additionalChildType.isAssignableFrom(getType())) {
@@ -224,6 +224,15 @@ public abstract class ConstraintContainer<T extends Constraint<T>> extends BaseC
 			.map(it -> (C) it);
 	}
 
+	/**
+	 * Validates and filters the input array of children elements. Ensures that all elements are non-null
+	 * and that the array's component type is assignable from the container type. If invalid elements or null values
+	 * are found, appropriate adjustments or exceptions will be handled.
+	 *
+	 * @param children an array of children elements to be validated and filtered
+	 * @return a filtered array of children elements with all null values removed
+	 * @throws EvitaInvalidUsageException if the component type of the input array is not assignable from the expected container type
+	 */
 	@Nonnull
 	private T[] validateAndFilterChildren(@Nonnull T[] children) {
 		if (children.length > 0 && !getType().isAssignableFrom(children.getClass().getComponentType())) {
@@ -243,6 +252,14 @@ public abstract class ConstraintContainer<T extends Constraint<T>> extends BaseC
 		}
 	}
 
+	/**
+	 * Validates and filters the input array of additional children constraints.
+	 * Ensures that the array does not contain null values and validates that the types of the additional children
+	 * do not match or extend the type of the parent container's children.
+	 *
+	 * @param additionalChildren an array of additional children constraints to be validated and filtered
+	 * @return an array of additional children constraints after validation and filtering
+	 */
 	@Nonnull
 	private Constraint<?>[] validateAndFilterAdditionalChildren(@Nonnull Constraint<?>[] additionalChildren) {
 		if (additionalChildren.length == 0) {
@@ -260,8 +277,8 @@ public abstract class ConstraintContainer<T extends Constraint<T>> extends BaseC
 		}
 
 		// validate additional child is not of same type as container and validate that there are distinct children
-		for (int i = 0; i < newAdditionalChildren.length; i++) {
-			final Class<?> additionalChildType = newAdditionalChildren[i].getType();
+		for (Constraint<?> newAdditionalChild : newAdditionalChildren) {
+			final Class<?> additionalChildType = newAdditionalChild.getType();
 
 			Assert.isTrue(
 				!getType().isAssignableFrom(additionalChildType),

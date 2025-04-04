@@ -26,6 +26,7 @@ package io.evitadb.api.query.filter;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.GenericConstraint;
+import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
@@ -60,7 +61,8 @@ import java.io.Serializable;
 @ConstraintDefinition(
 	name = "filterBy",
 	shortDescription = "The container encapsulating inner filter constraint into one main constraint that is required by the query.",
-	userDocsLink = "/documentation/query/basics#filter-by"
+	userDocsLink = "/documentation/query/basics#filter-by",
+	supportedIn = { ConstraintDomain.GENERIC, ConstraintDomain.ENTITY, ConstraintDomain.SEGMENT, ConstraintDomain.INLINE_REFERENCE }
 )
 public class FilterBy extends AbstractFilterConstraintContainer implements GenericConstraint<FilterConstraint> {
 	@Serial private static final long serialVersionUID = -2294600717092701351L;

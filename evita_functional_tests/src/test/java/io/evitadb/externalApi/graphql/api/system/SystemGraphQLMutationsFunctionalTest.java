@@ -58,7 +58,7 @@ public class SystemGraphQLMutationsFunctionalTest extends SystemGraphQLEndpointF
 	@Override
 	@DataSet(value = GRAPHQL_THOUSAND_PRODUCTS_SYSTEM_REPLACE, openWebApi = GraphQLProvider.CODE, readOnly = false, destroyAfterClass = true)
 	protected DataCarrier setUp(Evita evita) {
-		return super.setUpData(evita, 20);
+		return super.setUpData(evita, 20, false);
 	}
 
 	@Test

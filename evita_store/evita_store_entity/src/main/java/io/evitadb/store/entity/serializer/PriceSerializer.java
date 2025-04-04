@@ -57,7 +57,7 @@ public class PriceSerializer extends Serializer<Price> {
 		kryo.writeObject(output, price.taxRate());
 		kryo.writeObject(output, price.priceWithTax());
 		kryo.writeObjectOrNull(output, price.validity(), DateTimeRange.class);
-		output.writeBoolean(price.sellable());
+		output.writeBoolean(price.indexed());
 		output.writeBoolean(price.dropped());
 	}
 

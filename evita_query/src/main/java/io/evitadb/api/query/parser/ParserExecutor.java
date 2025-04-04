@@ -23,7 +23,7 @@
 
 package io.evitadb.api.query.parser;
 
-import io.evitadb.api.query.parser.error.EvitaQLInvalidQueryError;
+import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import lombok.AccessLevel;
@@ -51,15 +51,15 @@ public class ParserExecutor {
 			final T result = executable.get();
 			Assert.notNull(
 				result,
-				() -> new EvitaQLInvalidQueryError(0, 0, "Result of parse execution is null.")
+				() -> new EvitaSyntaxException(0, 0, "Result of parse execution is null.")
 			);
 			return result;
-		} catch (EvitaQLInvalidQueryError e) {
+		} catch (EvitaSyntaxException e) {
 			throw e;
 		} catch (ParseCancellationException e) {
 			final Throwable cause = e.getCause();
-			if (cause instanceof EvitaQLInvalidQueryError evitaQLInvalidQueryError) {
-				throw evitaQLInvalidQueryError;
+			if (cause instanceof EvitaSyntaxException evitaSyntaxException) {
+				throw evitaSyntaxException;
 			} else {
 				// probably missed to wrap error with EvitaQL error, therefore it should be checked
 				throw new GenericEvitaInternalError(cause.getMessage(), "Internal error occurred during query parsing.", cause);

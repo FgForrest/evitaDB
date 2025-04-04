@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import com.github.javafaker.Faker;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.exception.*;
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.ManagedReferencesBehaviour;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.requestResponse.EvitaResponse;
@@ -46,6 +47,8 @@ import io.evitadb.api.requestResponse.data.structure.EntityReferenceWithParent;
 import io.evitadb.api.requestResponse.data.structure.ReferenceFetcher;
 import io.evitadb.comparator.LocalizedStringComparator;
 import io.evitadb.core.Evita;
+import io.evitadb.dataType.PaginatedList;
+import io.evitadb.dataType.StripList;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
@@ -54,6 +57,7 @@ import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import lombok.extern.slf4j.Slf4j;
 import one.edee.oss.pmptt.model.Hierarchy;
 import one.edee.oss.pmptt.model.HierarchyItem;
@@ -219,12 +223,6 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 		return workingNode;
 	}
 
-	@DataSet(value = HUNDRED_PRODUCTS, destroyAfterClass = true)
-	@Override
-	protected DataCarrier setUp(Evita evita) {
-		return super.setUp(evita);
-	}
-
 	@Nonnull
 	@Override
 	protected BiFunction<String, Faker, Integer> getRandomEntityPicker(EvitaSessionContract session) {
@@ -244,6 +242,12 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				return primaryKey == 0 ? null : primaryKey;
 			}
 		};
+	}
+
+	@DataSet(value = HUNDRED_PRODUCTS, destroyAfterClass = true)
+	@Override
+	protected DataCarrier setUp(Evita evita) {
+		return super.setUp(evita);
 	}
 
 	@DisplayName("Should check existence of the entity")
@@ -1177,7 +1181,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 			it -> {
 				final List<PriceContract> filteredPrices = it.getPrices()
 					.stream()
-					.filter(PriceContract::sellable)
+					.filter(PriceContract::indexed)
 					.filter(price -> Objects.equals(price.priceList(), PRICE_LIST_B2B))
 					.toList();
 				return filteredPrices.stream().map(PriceContract::currency).anyMatch(CURRENCY_EUR::equals) &&
@@ -1223,8 +1227,8 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 	void shouldRetrieveMultipleEntitiesWithPricesInPriceListsByPrimaryKey(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
 			originalProducts,
-			it -> it.getPrices(CURRENCY_USD).stream().filter(PriceContract::sellable).map(PriceContract::priceList).anyMatch(PRICE_LIST_BASIC::equals) &&
-				it.getPrices(CURRENCY_USD).stream().filter(PriceContract::sellable).map(PriceContract::priceList)
+			it -> it.getPrices(CURRENCY_USD).stream().filter(PriceContract::indexed).map(PriceContract::priceList).anyMatch(PRICE_LIST_BASIC::equals) &&
+				it.getPrices(CURRENCY_USD).stream().filter(PriceContract::indexed).map(PriceContract::priceList)
 					.noneMatch(pl ->
 						pl.equals(PRICE_LIST_REFERENCE) &&
 							pl.equals(PRICE_LIST_INTRODUCTION) &&
@@ -1278,7 +1282,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 		final OffsetDateTime theMoment = OffsetDateTime.of(2015, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
 			originalProducts,
-			it -> it.getPrices().stream().filter(PriceContract::sellable).map(PriceContract::validity).anyMatch(validity -> validity == null || validity.isValidFor(theMoment))
+			it -> it.getPrices().stream().filter(PriceContract::indexed).map(PriceContract::validity).anyMatch(validity -> validity == null || validity.isValidFor(theMoment))
 		);
 
 		evita.queryCatalog(
@@ -1948,12 +1952,12 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 	void shouldLazyLoadFilteredPrices(Evita evita, List<SealedEntity> originalProducts) {
 		final SealedEntity product = originalProducts
 			.stream()
-			.filter(it -> it.getPrices().stream().filter(PriceContract::sellable).anyMatch(price -> price.validity() != null))
+			.filter(it -> it.getPrices().stream().filter(PriceContract::indexed).anyMatch(price -> price.validity() != null))
 			.findFirst()
 			.orElseThrow();
 		final PriceContract thePrice = product.getPrices()
 			.stream()
-			.filter(PriceContract::sellable)
+			.filter(PriceContract::indexed)
 			.filter(it -> it.validity() != null)
 			.findFirst()
 			.orElseThrow();
@@ -2504,7 +2508,17 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 					final Set<Integer> filteredStoreIds = storeIds.stream()
 						.filter(it -> Arrays.asList(randomStores).contains(it))
 						.collect(Collectors.toSet());
-					assertEquals(filteredStoreIds.size(), references.size(), "Product `" + product.getPrimaryKey() +"` has references to stores that are not in the filtered set: `"+product.getReferences(Entities.STORE).stream().map(ReferenceContract::getReferencedPrimaryKey).collect(Collectors.toSet())+"` vs. `"+ filteredStoreIds);
+					assertEquals(
+						filteredStoreIds.size(),
+						references.size(),
+						"Product `" + product.getPrimaryKey() + "` has references to stores that are not " +
+							"in the filtered set: `" +
+							product.getReferences(Entities.STORE)
+								.stream()
+								.map(ReferenceContract::getReferencedPrimaryKey)
+								.collect(Collectors.toSet()) +
+							"` vs. expected `" + filteredStoreIds
+					);
 
 					// references should be ordered by name
 					final String[] receivedOrderedNames = references.stream()
@@ -3954,7 +3968,8 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 									Entities.CATEGORY,
 									entityFetch(hierarchyContent())
 								)
-							)
+							),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
 						)
 					)
 				);
@@ -4117,7 +4132,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				final SealedEntity referencedCategory = categoryReference.getReferencedEntity().orElseThrow();
 				assertEquals(theParentPk, referencedCategory.getParentEntity().orElseThrow().getPrimaryKey());
 				assertEquals(
-					createParentChain(categoryHierarchy, theChildPk, 4, null),
+					createParentChain(categoryHierarchy, theChildPk, theChild.getLevel() - 1, null),
 					referencedCategory.getParentEntity().orElseThrow()
 				);
 				return null;
@@ -4558,8 +4573,8 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final Integer[] exactOrder = Arrays.copyOfRange(productsStartingWithD, 0, (int)(productsStartingWithD.length * 0.5));
-				final Integer[] theRest = Arrays.copyOfRange(productsStartingWithD, (int)(productsStartingWithD.length * 0.5), productsStartingWithD.length);
+				final Integer[] exactOrder = Arrays.copyOfRange(productsStartingWithD, 0, (int) (productsStartingWithD.length * 0.5));
+				final Integer[] theRest = Arrays.copyOfRange(productsStartingWithD, (int) (productsStartingWithD.length * 0.5), productsStartingWithD.length);
 				ArrayUtils.reverse(exactOrder);
 				final EvitaResponse<SealedEntity> products = session.querySealedEntity(
 					query(
@@ -5076,6 +5091,450 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 					ContextMissingException.class,
 					() -> productByPk.getReferences(Entities.CATEGORY)
 				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should provide paginated access to references")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnPaginatedReferences(Evita evita, List<SealedEntity> originalProducts) {
+		final SealedEntity productWithMaxReferences = originalProducts
+			.stream()
+			.max(Comparator.comparingInt(o -> o.getReferences(Entities.BRAND).size() + o.getReferences(Entities.PARAMETER).size()))
+			.orElseThrow();
+		final Set<Integer> originParameters = productWithMaxReferences.getReferences(Entities.PARAMETER)
+			.stream()
+			.map(ReferenceContract::getReferencedPrimaryKey)
+			.collect(Collectors.toSet());
+		final int totalParameterCount = originParameters.size();
+
+		assertEquals(
+			originParameters,
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final Set<Integer> referencedParameters = CollectionUtils.createHashSet(totalParameterCount);
+					for (int pageNumber = 1; pageNumber <= Math.ceil(totalParameterCount / 5.0f); pageNumber++) {
+						final SealedEntity productByPk = session.queryOneSealedEntity(
+							query(
+								collection(Entities.PRODUCT),
+								filterBy(
+									entityPrimaryKeyInSet(productWithMaxReferences.getPrimaryKeyOrThrowException())
+								),
+								require(
+									entityFetch(
+										// provide all brands
+										referenceContent(Entities.BRAND),
+										// but only first four parameters
+										referenceContent(
+											Entities.PARAMETER,
+											entityFetchAll(),
+											entityGroupFetchAll(),
+											page(pageNumber, 5)
+										)
+									)
+								)
+							)
+						).orElseThrow();
+
+						assertEquals(1, productByPk.getReferences(Entities.BRAND).size());
+
+						final Collection<ReferenceContract> foundParameters = productByPk.getReferences(Entities.PARAMETER);
+						assertTrue(!foundParameters.isEmpty() && foundParameters.size() <= 5);
+						assertEquals(foundParameters.size(), productByPk.getReferences().stream().filter(it -> it.getReferenceName().equals(Entities.PARAMETER)).count());
+
+						for (ReferenceContract foundParameter : foundParameters) {
+							assertNotNull(foundParameter.getReferencedEntity());
+							assertNotNull(foundParameter.getGroupEntity().orElse(null));
+						}
+
+						PaginatedList<ReferenceContract> parameters = new PaginatedList<>(pageNumber, 5, totalParameterCount, new ArrayList<>(foundParameters));
+						assertEquals(parameters, productByPk.getReferenceChunk(Entities.PARAMETER));
+						foundParameters
+							.stream()
+							.map(ReferenceContract::getReferencedPrimaryKey)
+							.forEach(referencedParameters::add);
+
+					}
+					return referencedParameters;
+				}
+			)
+		);
+	}
+
+	@DisplayName("Should provide paginated access to references")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnPaginatedReferencesWithSpacing(Evita evita, List<SealedEntity> originalProducts) {
+		final SealedEntity productWithMaxReferences = originalProducts
+			.stream()
+			.max(Comparator.comparingInt(o -> o.getReferences(Entities.BRAND).size() + o.getReferences(Entities.PARAMETER).size()))
+			.orElseThrow();
+		final Set<Integer> originParameters = productWithMaxReferences.getReferences(Entities.PARAMETER)
+			.stream()
+			.map(ReferenceContract::getReferencedPrimaryKey)
+			.collect(Collectors.toSet());
+		final int totalParameterCount = originParameters.size();
+
+		assertEquals(
+			originParameters,
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final Set<Integer> referencedParameters = CollectionUtils.createHashSet(totalParameterCount);
+					PaginatedList<ReferenceContract> parameters;
+					int pageNumber = 1;
+					do {
+						final SealedEntity productByPk = session.queryOneSealedEntity(
+							query(
+								collection(Entities.PRODUCT),
+								filterBy(
+									entityPrimaryKeyInSet(productWithMaxReferences.getPrimaryKeyOrThrowException())
+								),
+								require(
+									entityFetch(
+										// but only first four parameters
+										referenceContent(
+											Entities.PARAMETER,
+											entityFetchAll(),
+											entityGroupFetchAll(),
+											page(pageNumber, 5, spacing(gap(1, "$pageNumber % 2 == 0")))
+										)
+									)
+								)
+							)
+						).orElseThrow();
+
+						final Collection<ReferenceContract> foundParameters = productByPk.getReferences(Entities.PARAMETER);
+						final int maxItemsPerPage = pageNumber % 2 == 0 ? 4 : 5;
+						assertTrue(!foundParameters.isEmpty() && foundParameters.size() <= maxItemsPerPage);
+						assertEquals(foundParameters.size(), productByPk.getReferences().stream().filter(it -> it.getReferenceName().equals(Entities.PARAMETER)).count());
+
+						for (ReferenceContract foundParameter : foundParameters) {
+							assertNotNull(foundParameter.getReferencedEntity());
+							assertNotNull(foundParameter.getGroupEntity().orElse(null));
+						}
+
+						parameters = new PaginatedList<>(pageNumber, 4, 5, totalParameterCount, new ArrayList<>(foundParameters));
+						assertEquals(parameters, productByPk.getReferenceChunk(Entities.PARAMETER));
+						foundParameters
+							.stream()
+							.map(ReferenceContract::getReferencedPrimaryKey)
+							.forEach(referencedParameters::add);
+						pageNumber++;
+
+					} while (parameters.hasNext());
+
+					return referencedParameters;
+				}
+			)
+		);
+	}
+
+	@DisplayName("Should provide stripped access to references")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnStrippedReferences(Evita evita, List<SealedEntity> originalProducts) {
+		final SealedEntity productWithMaxReferences = originalProducts
+			.stream()
+			.max(Comparator.comparingInt(o -> o.getReferences(Entities.BRAND).size() + o.getReferences(Entities.PARAMETER).size()))
+			.orElseThrow();
+		final Set<Integer> originParameters = productWithMaxReferences.getReferences(Entities.PARAMETER)
+			.stream()
+			.map(ReferenceContract::getReferencedPrimaryKey)
+			.collect(Collectors.toSet());
+		final int totalParameterCount = originParameters.size();
+
+		assertEquals(
+			originParameters,
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final Set<Integer> referencedParameters = CollectionUtils.createHashSet(totalParameterCount);
+					for (int pageNumber = 1; pageNumber <= Math.ceil(totalParameterCount / 5.0f); pageNumber++) {
+						final int offset = (pageNumber - 1) * 5;
+						final SealedEntity productByPk = session.queryOneSealedEntity(
+							query(
+								collection(Entities.PRODUCT),
+								filterBy(
+									entityPrimaryKeyInSet(productWithMaxReferences.getPrimaryKeyOrThrowException())
+								),
+								require(
+									entityFetch(
+										// provide all brands
+										referenceContent(Entities.BRAND),
+										// but only first four parameters
+										referenceContent(
+											Entities.PARAMETER,
+											entityFetchAll(),
+											entityGroupFetchAll(),
+											strip(offset, 5)
+										)
+									)
+								)
+							)
+						).orElseThrow();
+
+						assertEquals(1, productByPk.getReferences(Entities.BRAND).size());
+
+						final Collection<ReferenceContract> foundParameters = productByPk.getReferences(Entities.PARAMETER);
+						assertTrue(!foundParameters.isEmpty() && foundParameters.size() <= 5);
+						assertEquals(foundParameters.size(), productByPk.getReferences().stream().filter(it -> it.getReferenceName().equals(Entities.PARAMETER)).count());
+
+						for (ReferenceContract foundParameter : foundParameters) {
+							assertNotNull(foundParameter.getReferencedEntity());
+							assertNotNull(foundParameter.getGroupEntity().orElse(null));
+						}
+
+						StripList<ReferenceContract> parameters = new StripList<>(offset, 5, totalParameterCount, new ArrayList<>(foundParameters));
+						assertEquals(parameters, productByPk.getReferenceChunk(Entities.PARAMETER));
+						foundParameters
+							.stream()
+							.map(ReferenceContract::getReferencedPrimaryKey)
+							.forEach(referencedParameters::add);
+
+					}
+					return referencedParameters;
+				}
+			)
+		);
+	}
+
+	@DisplayName("Should provide paginated and stripped access to references at once")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldCombinePaginatedAndStrippedReferences(Evita evita, List<SealedEntity> originalProducts) {
+		final SealedEntity productWithMaxReferences = originalProducts
+			.stream()
+			.max(Comparator.comparingInt(o -> o.getReferences(Entities.BRAND).size() + o.getReferences(Entities.PARAMETER).size() + o.getReferences(Entities.PRICE_LIST).size()))
+			.orElseThrow();
+		final Set<Integer> originParameters = productWithMaxReferences.getReferences(Entities.PARAMETER)
+			.stream()
+			.map(ReferenceContract::getReferencedPrimaryKey)
+			.collect(Collectors.toSet());
+		final int totalParameterCount = originParameters.size();
+		final Set<Integer> originPriceLists = productWithMaxReferences.getReferences(Entities.PRICE_LIST)
+			.stream()
+			.map(ReferenceContract::getReferencedPrimaryKey)
+			.collect(Collectors.toSet());
+		final int totalPriceListCount = originPriceLists.size();
+
+		final Set[] result = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final Set<Integer> referencedParameters = CollectionUtils.createHashSet(totalParameterCount);
+				final Set<Integer> referencedPriceLists = CollectionUtils.createHashSet(totalPriceListCount);
+				for (int pageNumber = 1; pageNumber <= Math.ceil(totalParameterCount / 5.0f); pageNumber++) {
+					final int offset = (pageNumber - 1) * 5;
+					final SealedEntity productByPk = session.queryOneSealedEntity(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								entityPrimaryKeyInSet(productWithMaxReferences.getPrimaryKeyOrThrowException())
+							),
+							require(
+								entityFetch(
+									// provide all brands
+									referenceContent(Entities.BRAND),
+									// but only first four price lists
+									referenceContent(
+										Entities.PRICE_LIST,
+										entityFetchAll(),
+										page(pageNumber, 5)
+									),
+									// but only first four parameters
+									referenceContent(
+										Entities.PARAMETER,
+										entityFetchAll(),
+										entityGroupFetchAll(),
+										strip(offset, 5)
+									)
+								)
+							)
+						)
+					).orElseThrow();
+
+					assertEquals(1, productByPk.getReferences(Entities.BRAND).size());
+
+					final StripList<ReferenceContract> foundParameters = productByPk.getReferenceChunk(Entities.PARAMETER);
+					foundParameters
+						.stream()
+						.map(ReferenceContract::getReferencedPrimaryKey)
+						.forEach(referencedParameters::add);
+
+					final PaginatedList<ReferenceContract> foundPriceLists = productByPk.getReferenceChunk(Entities.PRICE_LIST);
+					foundPriceLists
+						.stream()
+						.map(ReferenceContract::getReferencedPrimaryKey)
+						.forEach(referencedPriceLists::add);
+
+				}
+				return new Set[]{referencedParameters, referencedPriceLists};
+			}
+		);
+
+		assertEquals(originParameters, result[0]);
+		assertEquals(originPriceLists, result[1]);
+	}
+
+	@DisplayName("Should fetch entity without chunking and chunk it afterwards using enrichment")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldFetchEntityFirstAndEnrichItWithStrip(Evita evita, List<SealedEntity> originalProducts) {
+		final SealedEntity productWithMaxReferences = originalProducts
+			.stream()
+			.max(Comparator.comparingInt(o -> o.getReferences(Entities.BRAND).size() + o.getReferences(Entities.PARAMETER).size()))
+			.orElseThrow();
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final SealedEntity firstFetch = session.queryOneSealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(productWithMaxReferences.getPrimaryKeyOrThrowException())
+						)
+					)
+				).orElseThrow();
+
+				final SealedEntity secondFetch = session.enrichEntity(
+					firstFetch,
+					referenceContent(
+						Entities.PARAMETER,
+						entityFetchAll(),
+						entityGroupFetchAll(),
+						strip(2, 4)
+					)
+				);
+
+				final Collection<ReferenceContract> originalParameters = productWithMaxReferences.getReferences(Entities.PARAMETER);
+				final int[] expectedParameters = originalParameters
+					.stream()
+					.skip(2)
+					.limit(4)
+					.mapToInt(ReferenceContract::getReferencedPrimaryKey)
+					.toArray();
+
+				final Collection<ReferenceContract> foundParameters = secondFetch.getReferences(Entities.PARAMETER);
+				assertTrue(!foundParameters.isEmpty() && foundParameters.size() <= 4);
+				assertEquals(foundParameters.size(), secondFetch.getReferences().stream().filter(it -> it.getReferenceName().equals(Entities.PARAMETER)).count());
+				assertArrayEquals(
+					expectedParameters,
+					secondFetch.getReferences(Entities.PARAMETER)
+						.stream()
+						.mapToInt(ReferenceContract::getReferencedPrimaryKey)
+						.toArray()
+				);
+
+				for (ReferenceContract foundParameter : foundParameters) {
+					assertNotNull(foundParameter.getReferencedEntity());
+					assertNotNull(foundParameter.getGroupEntity().orElse(null));
+				}
+
+				StripList<ReferenceContract> parameters = new StripList<>(2, 4, (int) originalParameters.stream().count(), new ArrayList<>(foundParameters));
+				assertEquals(parameters, secondFetch.getReferenceChunk(Entities.PARAMETER));
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should fetch entity with one page and enrich it with different one")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldFetchEntityWithPageAndChangeItInEnrichment(Evita evita, List<SealedEntity> originalProducts) {
+		final SealedEntity productWithMaxReferences = originalProducts
+			.stream()
+			.max(Comparator.comparingInt(o -> o.getReferences(Entities.BRAND).size() + o.getReferences(Entities.PARAMETER).size()))
+			.orElseThrow();
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final SealedEntity firstFetch = session.queryOneSealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(productWithMaxReferences.getPrimaryKeyOrThrowException())
+						),
+						require(
+							entityFetch(
+								referenceContent(
+									Entities.PARAMETER,
+									entityFetchAll(),
+									entityGroupFetchAll(),
+									page(1, 4)
+								)
+							)
+						)
+					)
+				).orElseThrow();
+
+				final Collection<ReferenceContract> originalParameters = productWithMaxReferences.getReferences(Entities.PARAMETER);
+				final int[] expectedFirstFetchParameters = originalParameters
+					.stream()
+					.limit(4)
+					.mapToInt(ReferenceContract::getReferencedPrimaryKey)
+					.toArray();
+
+				final Collection<ReferenceContract> foundParametersOnFirstFetch = firstFetch.getReferences(Entities.PARAMETER);
+				assertTrue(!foundParametersOnFirstFetch.isEmpty() && foundParametersOnFirstFetch.size() <= 4);
+				assertEquals(foundParametersOnFirstFetch.size(), firstFetch.getReferences().stream().filter(it -> it.getReferenceName().equals(Entities.PARAMETER)).count());
+				assertArrayEquals(
+					expectedFirstFetchParameters,
+					firstFetch.getReferences(Entities.PARAMETER)
+						.stream()
+						.mapToInt(ReferenceContract::getReferencedPrimaryKey)
+						.toArray()
+				);
+
+				for (ReferenceContract foundParameter : foundParametersOnFirstFetch) {
+					assertNotNull(foundParameter.getReferencedEntity());
+					assertNotNull(foundParameter.getGroupEntity().orElse(null));
+				}
+
+				PaginatedList<ReferenceContract> firstFetchChunk = new PaginatedList<>(1, 4, (int) originalParameters.stream().count(), new ArrayList<>(foundParametersOnFirstFetch));
+				assertEquals(firstFetchChunk, firstFetch.getReferenceChunk(Entities.PARAMETER));
+
+				final SealedEntity secondFetch = session.enrichEntity(
+					firstFetch,
+					referenceContent(
+						Entities.PARAMETER,
+						entityFetchAll(),
+						entityGroupFetchAll(),
+						strip(2, 4)
+					)
+				);
+
+				final int[] expectedSecondFetchParameters = originalParameters
+					.stream()
+					.skip(2)
+					.limit(4)
+					.mapToInt(ReferenceContract::getReferencedPrimaryKey)
+					.toArray();
+
+				final Collection<ReferenceContract> foundParametersOnSecondFetch = secondFetch.getReferences(Entities.PARAMETER);
+				assertTrue(!foundParametersOnSecondFetch.isEmpty() && foundParametersOnSecondFetch.size() <= 4);
+				assertEquals(foundParametersOnSecondFetch.size(), secondFetch.getReferences().stream().filter(it -> it.getReferenceName().equals(Entities.PARAMETER)).count());
+				assertArrayEquals(
+					expectedSecondFetchParameters,
+					secondFetch.getReferences(Entities.PARAMETER)
+						.stream()
+						.mapToInt(ReferenceContract::getReferencedPrimaryKey)
+						.toArray()
+				);
+
+				for (ReferenceContract foundParameter : foundParametersOnSecondFetch) {
+					assertNotNull(foundParameter.getReferencedEntity());
+					assertNotNull(foundParameter.getGroupEntity().orElse(null));
+				}
+
+				StripList<ReferenceContract> secondFetchChunk = new StripList<>(2, 4, (int) originalParameters.stream().count(), new ArrayList<>(foundParametersOnSecondFetch));
+				assertEquals(secondFetchChunk, secondFetch.getReferenceChunk(Entities.PARAMETER));
+
 				return null;
 			}
 		);

@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.sortableAttributeCompound;
 
-import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDescriptionMutation;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.ReferenceSortableAttributeCompoundSchemaMutation;
@@ -60,7 +59,7 @@ class ReferenceSortableAttributeCompoundSchemaMutationAggregateConverterTest {
 
 	@Test
 	void shouldResolveInputToLocalMutation() {
-		final List<ReferenceSchemaMutation> expectedMutations = List.of(
+		final List<ReferenceSortableAttributeCompoundSchemaMutation> expectedMutations = List.of(
 			new ModifySortableAttributeCompoundSchemaDescriptionMutation("code", "desc"),
 			new ModifySortableAttributeCompoundSchemaNameMutation("code", "betterCode")
 		);

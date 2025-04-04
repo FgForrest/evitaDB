@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,18 +27,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linecorp.armeria.common.HttpHeaderNames;
 import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.common.HttpResponse;
+import com.linecorp.armeria.common.HttpStatus;
+import com.linecorp.armeria.common.QueryParamsBuilder;
+import com.linecorp.armeria.common.ServerCacheControl;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import com.linecorp.armeria.server.file.HttpFile;
-import io.evitadb.externalApi.configuration.ApiOptions;
-import io.evitadb.externalApi.graphql.GraphQLProvider;
-import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
-import io.evitadb.externalApi.lab.LabManager;
-import io.evitadb.externalApi.lab.configuration.GuiConfig;
-import io.evitadb.externalApi.lab.configuration.LabConfig;
+import io.evitadb.externalApi.lab.configuration.LabOptions;
 import io.evitadb.externalApi.lab.gui.dto.EvitaDBConnection;
-import io.evitadb.externalApi.rest.RestProvider;
-import io.evitadb.externalApi.rest.configuration.RestConfig;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
@@ -48,7 +44,6 @@ import java.nio.file.Paths;
 import java.util.Base64;
 import java.util.Base64.Encoder;
 import java.util.List;
-import java.util.Optional;
 import java.util.regex.Pattern;
 
 /**
@@ -60,45 +55,40 @@ public class GuiHandler implements HttpService {
 
 	private static final Encoder BASE_64_ENCODER = Base64.getEncoder();
 
-	private static final String EVITALAB_SERVER_NAME_COOKIE = "evitalab_servername";
-	private static final String EVITALAB_READONLY_COOKIE = "evitalab_readonly";
-	private static final String EVITALAB_PRECONFIGURED_CONNECTIONS_COOKIE = "evitalab_pconnections";
+	private static final String EVITALAB_DATA_SET_PARAM_NAME = "evitalab";
+	private static final String EVITALAB_SERVER_NAME_PARAM_NAME = "evitalab-server-name";
+	private static final String EVITALAB_READONLY_PARAM_NAME = "evitalab-readonly";
+	private static final String EVITALAB_PRECONFIGURED_CONNECTIONS_PARAM_NAME = "evitalab-pconnections";
 
 	private static final Pattern ASSETS_PATTERN = Pattern.compile("/assets/([a-zA-Z0-9\\-]+/)*[a-zA-Z0-9\\-]+\\.[a-z0-9]+");
 	private static final Pattern ROOT_ASSETS_PATTERN = Pattern.compile("(/logo)?/[a-zA-Z0-9\\-]+\\.[a-z0-9]+");
 
-	@Nonnull private final LabConfig labConfig;
+	@Nonnull private final LabOptions labConfig;
 	@Nonnull private final String serverName;
-	@Nonnull private final ApiOptions apiOptions;
 	@Nonnull private final ObjectMapper objectMapper;
+
+	private List<EvitaDBConnection> preconfiguredConnections;
 
 	@Nonnull
 	public static GuiHandler create(
-		@Nonnull LabConfig labConfig,
+		@Nonnull LabOptions labConfig,
 		@Nonnull String serverName,
-		@Nonnull ApiOptions apiOptions,
 		@Nonnull ObjectMapper objectMapper
 	) {
-		return new GuiHandler(labConfig, serverName, apiOptions, objectMapper);
+		return new GuiHandler(labConfig, serverName, objectMapper);
 	}
 
-	private GuiHandler(@Nonnull LabConfig labConfig,
+	private GuiHandler(@Nonnull LabOptions labConfig,
 	                   @Nonnull String serverName,
-	                   @Nonnull ApiOptions apiOptions,
 	                   @Nonnull ObjectMapper objectMapper) {
 		this.labConfig = labConfig;
 		this.serverName = serverName;
-		this.apiOptions = apiOptions;
 		this.objectMapper = objectMapper;
 	}
 
 	@Nonnull
 	@Override
 	public HttpResponse serve(@Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) throws Exception {
-		passServerName(ctx);
-		passReadOnlyFlag(ctx);
-		passPreconfiguredEvitaDBConnections(ctx);
-
 		final String path;
 		if (ctx.query() == null) {
 			path = req.path();
@@ -108,68 +98,146 @@ public class GuiHandler implements HttpService {
 		final ClassLoader classLoader = getClass().getClassLoader();
 		final Path fsPath = Paths.get("META-INF/lab/gui/dist");
 		if (path.isEmpty() || path.equals("/") || path.equals("/index.html")) {
-			return HttpFile.of(classLoader, fsPath.resolve("index.html").toString()).asService().serve(ctx, req);
+			return serveRoot(ctx, req, classLoader, fsPath);
 		} else if (ROOT_ASSETS_PATTERN.matcher(path).matches() || ASSETS_PATTERN.matcher(path).matches()) {
-			return HttpFile.of(classLoader, fsPath.resolve(Paths.get(path.substring(1))).toString()).asService().serve(ctx, req);
+			return serveAssets(ctx, req, classLoader, path, fsPath);
 		}
 		return HttpResponse.of(404);
 	}
 
-	private void passServerName(@Nonnull ServiceRequestContext ctx) {
-		ctx.addAdditionalResponseHeader(
-			HttpHeaderNames.SET_COOKIE,
-			createCookie(EVITALAB_SERVER_NAME_COOKIE, serverName)
-		);
+	@Nonnull
+	private HttpResponse serveRoot(@Nonnull ServiceRequestContext ctx,
+	                               @Nonnull HttpRequest req,
+	                               @Nonnull ClassLoader classLoader,
+	                               @Nonnull Path fsPath) throws Exception {
+		final boolean labDataSetParamValue = isLabDataSet(ctx);
+		if (!labDataSetParamValue) {
+			final QueryParamsBuilder paramsWithLabData = ctx.queryParams().toBuilder();
+			passLabDataSet(paramsWithLabData);
+			passServerName(paramsWithLabData);
+			passReadOnlyFlag(paramsWithLabData);
+			passPreconfiguredEvitaDBConnections(paramsWithLabData);
+
+			final String newQueryString = paramsWithLabData.toQueryString();
+
+			// pass data to lab by redirecting the browser to new URL with the data
+			return HttpResponse.builder()
+				.status(HttpStatus.SEE_OTHER)
+				.header(HttpHeaderNames.LOCATION, ctx.path() + "?" + newQueryString)
+				// we don't want to cache evitaLab index file because in development environments, developers often
+				// switch evitaDB server under same hostname and each evitaDB server may have different version or config
+				// therefore we need to make sure that the initialization of evitaLab is always fresh
+				.header(HttpHeaderNames.CACHE_CONTROL, ServerCacheControl.DISABLED.asHeaderValue())
+				.build();
+		}
+
+		return HttpFile.builder(
+			classLoader,
+			createJarResourceLocationWithForwardSlashes(fsPath.resolve("index.html"))
+		)
+			// we don't want to cache evitaLab index file because in development environments, developers often
+			// switch evitaDB server under same hostname and each evitaDB server may have different version or config
+			// therefore we need to make sure that the initialization of evitaLab is always fresh
+			.lastModified(false)
+			.cacheControl(ServerCacheControl.DISABLED)
+			.build()
+			.asService()
+			.serve(ctx, req);
+	}
+
+	@Nonnull
+	private HttpResponse serveAssets(@Nonnull ServiceRequestContext ctx,
+	                                 @Nonnull HttpRequest req,
+	                                 @Nonnull ClassLoader classLoader,
+									 @Nonnull String path,
+	                                 @Nonnull Path fsPath) throws Exception {
+		return HttpFile.builder(
+			classLoader,
+			createJarResourceLocationWithForwardSlashes(
+				fsPath.resolve(Paths.get(path.substring(1)))
+			)
+		)
+			// all assets are versioned so we can cache them for long and never change
+			.cacheControl(ServerCacheControl.IMMUTABLE)
+			.build()
+			.asService()
+			.serve(ctx, req);
+	}
+
+
+	/**
+	 * Creates a resource location with forward slashes. It is necessary to handle it this way for the sake of Windows
+	 * compatibility - it needs forwards slashes within jar file resources.
+	 * @param path path of a jar file resource to be converted
+	 * @return path of a jar file resource with forward slashes
+	 */
+	@Nonnull
+	private static String createJarResourceLocationWithForwardSlashes(@Nonnull Path path) {
+		return path.toString().replace("\\", "/");
+	}
+
+	@Nonnull
+	private static Boolean isLabDataSet(@Nonnull ServiceRequestContext ctx) {
+		return Boolean.parseBoolean(ctx.queryParam(EVITALAB_DATA_SET_PARAM_NAME));
 	}
 
 	/**
-	 * Sends a {@link #EVITALAB_READONLY_COOKIE} cookie to the evitaLab with {@link GuiConfig#isReadOnly()} flag.
+	 * Creates a {@link #EVITALAB_DATA_SET_PARAM_NAME} param to the evitaLab as system property to indicate that lab data
+	 * were set and should not be set again.
+	 */
+	private void passLabDataSet(@Nonnull QueryParamsBuilder params) {
+		params.add(EVITALAB_DATA_SET_PARAM_NAME, Boolean.TRUE.toString());
+	}
+
+	/**
+	 * Passes a {@link #EVITALAB_SERVER_NAME_PARAM_NAME} param to the evitaLab as system property to specify source server.
+	 */
+	private void passServerName(@Nonnull QueryParamsBuilder params) {
+		passEncodedParam(params, EVITALAB_SERVER_NAME_PARAM_NAME, serverName);
+	}
+
+	/**
+	 * Passes a {@link #EVITALAB_READONLY_PARAM_NAME} param to the evitaLab as system property to specify
+	 * in which mode should evitaLab run.
 	 * If true, the evitaLab GUI will be in read-only mode.
 	 */
-	private void passReadOnlyFlag(@Nonnull ServiceRequestContext ctx) {
-		if (labConfig.getGui().isReadOnly()) {
-			ctx.addAdditionalResponseHeader(
-				HttpHeaderNames.SET_COOKIE,
-				createCookie(EVITALAB_READONLY_COOKIE, "true")
-			);
-		}
+	private void passReadOnlyFlag(@Nonnull QueryParamsBuilder params) {
+		passEncodedParam(params, EVITALAB_READONLY_PARAM_NAME, String.valueOf(labConfig.getGui().isReadOnly()));
 	}
 
 	/**
-	 * Sends a {@link #EVITALAB_PRECONFIGURED_CONNECTIONS_COOKIE} cookie to the evitaLab with preconfigured
+	 * Passes a {@link #EVITALAB_PRECONFIGURED_CONNECTIONS_PARAM_NAME} param to the evitaLab as system property with preconfigured
 	 * evitaDB connections.
 	 */
-	private void passPreconfiguredEvitaDBConnections(@Nonnull ServiceRequestContext ctx) throws IOException {
+	private void passPreconfiguredEvitaDBConnections(@Nonnull QueryParamsBuilder params) throws IOException {
 		final List<EvitaDBConnection> preconfiguredConnections = resolvePreconfiguredEvitaDBConnections();
 		final String serializedSelfConnection = objectMapper.writeValueAsString(preconfiguredConnections);
 
-		ctx.addAdditionalResponseHeader(
-			HttpHeaderNames.SET_COOKIE,
-			createCookie(EVITALAB_PRECONFIGURED_CONNECTIONS_COOKIE, serializedSelfConnection)
-		);
+		passEncodedParam(params, EVITALAB_PRECONFIGURED_CONNECTIONS_PARAM_NAME, serializedSelfConnection);
+	}
+
+	/**
+	 * Passes a param to the evitaLab as system property. Its value is encoded with Base64
+	 */
+	private void passEncodedParam(@Nonnull QueryParamsBuilder params, @Nonnull String name, @Nonnull String value) {
+		params.add(name, BASE_64_ENCODER.encodeToString(value.getBytes(StandardCharsets.UTF_8)));
 	}
 
 	@Nonnull
 	private List<EvitaDBConnection> resolvePreconfiguredEvitaDBConnections() {
-		final List<EvitaDBConnection> preconfiguredConnections = labConfig.getGui().getPreconfiguredConnections();
-		if (preconfiguredConnections != null) {
-			return preconfiguredConnections;
+		if (preconfiguredConnections == null) {
+			final List<EvitaDBConnection> customPreconfiguredConnections = labConfig.getGui().getPreconfiguredConnections();
+			if (customPreconfiguredConnections != null) {
+				preconfiguredConnections = customPreconfiguredConnections;
+			} else {
+				final EvitaDBConnection selfConnection = new EvitaDBConnection(
+					null,
+					serverName,
+					labConfig.getResolvedExposeOnUrl()
+				);
+				preconfiguredConnections = List.of(selfConnection);
+			}
 		}
-
-		final RestConfig restConfig = apiOptions.getEndpointConfiguration(RestProvider.CODE);
-		final GraphQLConfig graphQLConfig = apiOptions.getEndpointConfiguration(GraphQLProvider.CODE);
-		final EvitaDBConnection selfConnection = new EvitaDBConnection(
-			null,
-			serverName,
-			labConfig.getBaseUrls(apiOptions.exposedOn())[0] + LabManager.LAB_API_URL_PREFIX,
-			Optional.ofNullable(restConfig).map(it -> it.getBaseUrls(apiOptions.exposedOn())[0]).orElse(null),
-			Optional.ofNullable(graphQLConfig).map(it -> it.getBaseUrls(apiOptions.exposedOn())[0]).orElse(null)
-		);
-		return List.of(selfConnection);
-	}
-
-	@Nonnull
-	private static String createCookie(@Nonnull String name, @Nonnull String value) {
-		return name + "=" + BASE_64_ENCODER.encodeToString(value.getBytes(StandardCharsets.UTF_8)) + ";SameSite=Strict";
+		return preconfiguredConnections;
 	}
 }

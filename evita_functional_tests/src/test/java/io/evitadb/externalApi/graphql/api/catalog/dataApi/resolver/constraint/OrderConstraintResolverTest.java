@@ -26,16 +26,17 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.visitor.QueryPurifierVisitor;
 import io.evitadb.exception.EvitaInternalError;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.Entities;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.utils.ListBuilder.list;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -51,7 +52,7 @@ class OrderConstraintResolverTest extends AbstractConstraintResolverTest {
 	@BeforeEach
 	void init() {
 		super.init();
-		resolver = new OrderConstraintResolver(catalogSchema);
+		resolver = new OrderConstraintResolver(catalogSchema, new AtomicReference<>(new FilterConstraintResolver(catalogSchema)));
 	}
 
 	@Test
@@ -68,7 +69,6 @@ class OrderConstraintResolverTest extends AbstractConstraintResolverTest {
 
 	@Test
 	void shouldNotResolveValueOrderConstraint() {
-		assertThrows(EvitaInvalidUsageException.class, () -> resolver.resolve(Entities.PRODUCT, "attributeCodeNatural", null));
 		assertThrows(EvitaInternalError.class, () -> resolver.resolve(Entities.PRODUCT, "attributeCodeNatural", List.of()));
 		assertThrows(EvitaInternalError.class, () -> resolver.resolve(Entities.PRODUCT, "attributeCodeNatural", Map.of()));
 	}
@@ -85,10 +85,10 @@ class OrderConstraintResolverTest extends AbstractConstraintResolverTest {
 				Entities.PRODUCT,
 				"referenceCategoryProperty",
 				List.of(
-					mapOf(
-						"attributeCodeNatural", OrderDirection.ASC,
-						"random", true
-					)
+					map()
+						.e("attributeCodeNatural", OrderDirection.ASC)
+						.e("random", true)
+						.build()
 				)
 			)
 		);
@@ -118,34 +118,51 @@ class OrderConstraintResolverTest extends AbstractConstraintResolverTest {
 					Entities.PRODUCT,
 					"orderBy",
 					List.of(
-						mapOf(
-							"attributeCodeNatural", OrderDirection.ASC,
-							"priceNatural", OrderDirection.DESC,
-							"referenceCategoryProperty", List.of(
-								mapOf(
-									"attributeCodeNatural", OrderDirection.DESC,
-									"random", true
-								)
-							)
-						)
+						map()
+							.e("attributeCodeNatural", OrderDirection.ASC)
+							.e("priceNatural", OrderDirection.DESC)
+							.e("referenceCategoryProperty", list()
+								.i(map()
+									.e("attributeCodeNatural", OrderDirection.DESC)
+									.e("random", true)))
+							.build()
 					)
 				)
 			)
 		);
 	}
 
-	private <K, V> Map<K, V> mapOf(K k1, V v1, K k2, V v2) {
-		final LinkedHashMap<K, V> map = new LinkedHashMap<>();
-		map.put(k1, v1);
-		map.put(k2, v2);
-		return map;
-	}
-
-	private <K, V> Map<K, V> mapOf(K k1, V v1, K k2, V v2, K k3, V v3) {
-		final LinkedHashMap<K, V> map = new LinkedHashMap<>();
-		map.put(k1, v1);
-		map.put(k2, v2);
-		map.put(k3, v3);
-		return map;
+	@Test
+	void shouldResolveComplexOrderAndFilterOutUndefinedConstraints() {
+		//noinspection ConstantConditions
+		assertEquals(
+			orderBy(
+				attributeNatural("CODE", OrderDirection.ASC),
+				priceNatural(OrderDirection.DESC),
+				referenceProperty(
+					"CATEGORY",
+					attributeNatural("CODE", OrderDirection.DESC),
+					random()
+				)
+			),
+			QueryPurifierVisitor.purify(
+				resolver.resolve(
+					Entities.PRODUCT,
+					"orderBy",
+					List.of(
+						map()
+							.e("attributeCodeNatural", OrderDirection.ASC)
+							.e("priceNatural", OrderDirection.DESC)
+							.e("referenceBrandProperty", null)
+							.e("referenceCategoryProperty", list()
+								.i(map()
+									.e("attributeCodeNatural", OrderDirection.DESC)
+									.e("priceNatural", null)
+									.e("random", true)))
+							.build()
+					)
+				)
+			)
+		);
 	}
 }

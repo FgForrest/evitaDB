@@ -14,7 +14,6 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 				),
 				require(
 					facetSummary(
-						COUNTS,
 						entityFetch(
 							attributeContent("name")
 						),

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ import static io.evitadb.api.requestResponse.data.AssociatedDataContract.Associa
 
 /**
  * Implementations of this interface allows to translate complex keys that are repeated in entities to int values and
- * thus allow big savings of space in serialized form. This is easiest form of compression that can yield significant
+ * thus allow big savings of space in serialized form. This is easiest form of compress that can yield significant
  * results.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021

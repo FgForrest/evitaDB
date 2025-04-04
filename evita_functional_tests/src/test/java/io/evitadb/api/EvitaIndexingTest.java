@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,12 +27,12 @@ import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.exception.EntityMissingException;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.MandatoryAssociatedDataNotProvidedException;
 import io.evitadb.api.exception.MandatoryAttributesNotProvidedException;
 import io.evitadb.api.exception.ReferenceCardinalityViolatedException;
 import io.evitadb.api.exception.UniqueValueViolationException;
-import io.evitadb.api.query.Query;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
@@ -54,6 +54,8 @@ import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Predecessor;
+import io.evitadb.dataType.ReferencedEntityPredecessor;
+import io.evitadb.dataType.Scope;
 import io.evitadb.function.TriConsumer;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
@@ -71,8 +73,8 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.math.BigDecimal;
-import java.nio.file.Path;
 import java.util.Currency;
 import java.util.Locale;
 import java.util.Optional;
@@ -91,23 +93,30 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 class EvitaIndexingTest implements EvitaTestSupport {
-	public static final String ATTRIBUTE_CODE = "code";
-	public static final String ATTRIBUTE_NAME = "name";
-	public static final String ATTRIBUTE_URL = "url";
-	public static final String ATTRIBUTE_DESCRIPTION = "description";
-	public static final String ATTRIBUTE_EAN = "ean";
+	private static final String DIR_EVITA_INDEXING_TEST = "evitaIndexingTest";
+	private static final String DIR_EVITA_INDEXING_TEST_EXPORT = "evitaIndexingTest_export";
+	private static final String REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY = "productsInCategory";
+	private static final String REFERENCE_PRODUCT_CATEGORY = "productCategory";
 
-	public static final String ATTRIBUTE_BRAND_NAME = "brandName";
-	public static final String ATTRIBUTE_BRAND_DESCRIPTION = "brandDescription";
-	public static final String ATTRIBUTE_BRAND_EAN = "brandEan";
-	public static final String ATTRIBUTE_CATEGORY_PRIORITY = "categoryPriority";
-	public static final String DIR_EVITA_INDEXING_TEST = "evitaIndexingTest";
+	private static final String ATTRIBUTE_CODE = "code";
+	private static final String ATTRIBUTE_NAME = "name";
+	private static final String ATTRIBUTE_DESCRIPTION = "description";
+	private static final String ATTRIBUTE_EAN = "ean";
+
+	private static final String ATTRIBUTE_BRAND_NAME = "brandName";
+	private static final String ATTRIBUTE_BRAND_DESCRIPTION = "brandDescription";
+	private static final String ATTRIBUTE_BRAND_EAN = "brandEan";
+	private static final String ATTRIBUTE_CATEGORY_PRIORITY = "categoryPriority";
 	private static final Locale LOCALE_CZ = new Locale("cs", "CZ");
 	private static final Currency CURRENCY_CZK = Currency.getInstance("CZK");
 	private static final Currency CURRENCY_EUR = Currency.getInstance("EUR");
 	private static final Currency CURRENCY_GBP = Currency.getInstance("GBP");
 	private static final String PRICE_LIST_BASIC = "basic";
 	private static final String PRICE_LIST_VIP = "vip";
+	private static final String ATTRIBUTE_PRODUCT_CATEGORY_NOT_INHERITED = "notInherited";
+	private static final String ATTRIBUTE_PRODUCT_CATEGORY_INHERITED = "inherited";
+	private static final String ATTRIBUTE_CATEGORY_MARKET = "market";
+	private static final String ATTRIBUTE_PRODUCT_CATEGORY_VARIANT = "variant";
 	private Evita evita;
 
 	private static void assertDataWasPropagated(EntityIndex categoryIndex, int recordId) {
@@ -116,7 +125,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 		assertTrue(categoryIndex.getFilterIndex(new AttributeKey(ATTRIBUTE_EAN)).getAllRecords().contains(recordId));
 		assertTrue(ArrayUtils.contains(categoryIndex.getSortIndex(new AttributeKey(ATTRIBUTE_EAN)).getSortedRecords(), recordId));
 		assertTrue(categoryIndex.getPriceIndex(PRICE_LIST_BASIC, CURRENCY_CZK, PriceInnerRecordHandling.NONE).getIndexedPriceEntityIds().contains(recordId));
-		// EUR price is not sellable
+		// EUR price is not indexed
 		assertNull(categoryIndex.getPriceIndex(PRICE_LIST_BASIC, CURRENCY_EUR, PriceInnerRecordHandling.NONE));
 	}
 
@@ -135,9 +144,214 @@ class EvitaIndexingTest implements EvitaTestSupport {
 		).orElse(null);
 	}
 
+	/**
+	 * Asserts that the references between product and category entities are linked correctly.
+	 *
+	 * @param session the session to use for entity fetching
+	 */
+	private static void assertReferencesAreEntangled(@Nonnull EvitaSessionContract session) {
+		final SealedEntity product = session.getEntity(Entities.PRODUCT, 10, entityFetchAllContent()).orElseThrow();
+		assertTrue(product.getReference(REFERENCE_PRODUCT_CATEGORY, 1).isPresent());
+		final SealedEntity category = session.getEntity(Entities.CATEGORY, 1, entityFetchAllContent()).orElseThrow();
+		assertTrue(category.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10).isPresent());
+	}
+
+	/**
+	 * Asserts that the references between product and category entities are linked correctly.
+	 *
+	 * @param session the session to use for entity fetching
+	 */
+	private static void assertReferencesAreNotEntangled(@Nonnull EvitaSessionContract session) {
+		final SealedEntity product = session.getEntity(Entities.PRODUCT, 10, entityFetchAllContent()).orElseThrow();
+		assertTrue(product.getReference(REFERENCE_PRODUCT_CATEGORY, 1).isEmpty());
+		final SealedEntity category = session.getEntity(Entities.CATEGORY, 1, entityFetchAllContent()).orElseThrow();
+		assertTrue(category.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10).isEmpty());
+	}
+
+	/**
+	 * Asserts that the references between product and category entities are linked correctly.
+	 *
+	 * @param session the session to use for entity fetching
+	 */
+	private static void assertEntitiesAreNotEntangled(@Nonnull EvitaSessionContract session) {
+		final Optional<SealedEntity> product = session.getEntity(Entities.PRODUCT, 10, entityFetchAllContent());
+		product.ifPresent(it -> assertTrue(it.getReference(REFERENCE_PRODUCT_CATEGORY, 1).isEmpty()));
+		final Optional<SealedEntity> category = session.getEntity(Entities.CATEGORY, 1, entityFetchAllContent());
+		category.ifPresent(it -> assertTrue(it.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10).isEmpty()));
+		assertTrue(
+			product.isPresent() || category.isPresent(),
+			"Neither product nor category entity was found!"
+		);
+		assertFalse(
+			product.isPresent() && category.isPresent(),
+			"Both product and category entities were found!"
+		);
+	}
+
+	/**
+	 * Creates a schema with reflected references between CATEGORY and PRODUCT entities using the given session.
+	 *
+	 * @param session the session to use for schema creation
+	 */
+	private static void createEntangledSchema(@Nonnull EvitaSessionContract session) {
+		session.defineEntitySchema(Entities.CATEGORY)
+			.withReflectedReferenceToEntity(
+				REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY
+			)
+			.updateVia(session);
+		session
+			.defineEntitySchema(Entities.PRODUCT)
+			.withReferenceToEntity(
+				REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs.indexed()
+			)
+			.updateVia(session);
+	}
+
+	/**
+	 * Creates a schema with reflected references between CATEGORY and PRODUCT entities using the given session.
+	 *
+	 * @param session the session to use for schema creation
+	 */
+	private static void createEntangledSchemaWithInheritedAttributes(@Nonnull EvitaSessionContract session) {
+		session.defineEntitySchema(Entities.CATEGORY)
+			.withReflectedReferenceToEntity(
+				REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY,
+				whichIs -> whichIs.withAttributesInheritedExcept(ATTRIBUTE_PRODUCT_CATEGORY_NOT_INHERITED)
+					.withAttribute(ATTRIBUTE_CATEGORY_MARKET, String.class, thatIs -> thatIs.filterable().sortable().withDefaultValue("CZ"))
+			)
+			.updateVia(session);
+		session
+			.defineEntitySchema(Entities.PRODUCT)
+			.withReferenceToEntity(
+				REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs.indexed()
+					.withAttribute(ATTRIBUTE_PRODUCT_CATEGORY_NOT_INHERITED, String.class, thatIs -> thatIs.filterable().sortable().withDefaultValue("default"))
+					.withAttribute(ATTRIBUTE_PRODUCT_CATEGORY_INHERITED, String.class, thatIs -> thatIs.filterable().sortable().nullable())
+			)
+			.updateVia(session);
+	}
+
+	/**
+	 * Creates a schema with reflected references between CATEGORY and PRODUCT entities using the given session.
+	 *
+	 * @param session the session to use for schema creation
+	 */
+	private static void createEntangledSchemaWithInheritedAttributesWithoutDefaults(@Nonnull EvitaSessionContract session) {
+		session.defineEntitySchema(Entities.CATEGORY)
+			.withReflectedReferenceToEntity(
+				REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY,
+				whichIs -> whichIs.withAttributesInheritedExcept(ATTRIBUTE_PRODUCT_CATEGORY_NOT_INHERITED)
+					.withAttribute(ATTRIBUTE_CATEGORY_MARKET, String.class, thatIs -> thatIs.filterable().sortable())
+			)
+			.updateVia(session);
+		session
+			.defineEntitySchema(Entities.PRODUCT)
+			.withReferenceToEntity(
+				REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs.indexed()
+					.withAttribute(ATTRIBUTE_PRODUCT_CATEGORY_NOT_INHERITED, String.class, thatIs -> thatIs.filterable().sortable())
+					.withAttribute(ATTRIBUTE_PRODUCT_CATEGORY_INHERITED, String.class, thatIs -> thatIs.filterable().sortable())
+			)
+			.updateVia(session);
+	}
+
+	/**
+	 * Asserts the values of inherited and non-inherited attributes for specified product and category entities.
+	 *
+	 * @param session the session to use for entity fetching
+	 * @param productNotInherited expected value for the non-inherited product attribute
+	 * @param productInherited expected value for the inherited product attribute
+	 * @param categoryMarket expected value for the category market attribute
+	 */
+	private static void assertInheritedAttributesValues(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull String productNotInherited,
+		@Nullable String productInherited,
+		@Nonnull String categoryMarket
+	) {
+		final SealedEntity product = session.getEntity(Entities.PRODUCT, 10, entityFetchAllContent()).orElseThrow();
+		final ReferenceContract productCategory = product.getReference(REFERENCE_PRODUCT_CATEGORY, 1).orElseThrow();
+		assertEquals(productNotInherited, productCategory.getAttribute(ATTRIBUTE_PRODUCT_CATEGORY_NOT_INHERITED));
+		if (productInherited != null) {
+			assertEquals(productInherited, productCategory.getAttribute(ATTRIBUTE_PRODUCT_CATEGORY_INHERITED));
+		} else {
+			assertNull(productCategory.getAttribute(ATTRIBUTE_PRODUCT_CATEGORY_INHERITED));
+		}
+
+		final SealedEntity category = session.getEntity(Entities.CATEGORY, 1, entityFetchAllContent()).orElseThrow();
+		final ReferenceContract productsInCategory = category.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10).orElseThrow();
+		assertEquals(categoryMarket, productsInCategory.getAttribute(ATTRIBUTE_CATEGORY_MARKET));
+		if (productInherited != null) {
+			assertEquals(productInherited, productsInCategory.getAttribute(ATTRIBUTE_PRODUCT_CATEGORY_INHERITED));
+		} else {
+			assertNull(productsInCategory.getAttribute(ATTRIBUTE_PRODUCT_CATEGORY_INHERITED));
+		}
+	}
+
+	@Nullable
+	static EntityIndex getGlobalIndex(@Nonnull EntityCollectionContract collection) {
+		return getGlobalIndex(collection, Scope.LIVE);
+	}
+
+	@Nullable
+	static EntityIndex getGlobalIndex(@Nonnull EntityCollectionContract collection, @Nonnull Scope scope) {
+		Assert.isTrue(collection instanceof EntityCollection, "Unexpected entity collection type!");
+		return ((EntityCollection) collection).getIndexByKeyIfExists(
+			new EntityIndexKey(EntityIndexType.GLOBAL, scope)
+		);
+	}
+
+	@Nullable
+	static EntityIndex getReferencedEntityIndex(@Nonnull EntityCollectionContract collection, @Nonnull String entityType, int recordId) {
+		return getReferencedEntityIndex(collection, Scope.LIVE, entityType, recordId);
+	}
+
+	@Nullable
+	static EntityIndex getReferencedEntityIndex(@Nonnull EntityCollectionContract collection, @Nonnull Scope scope, @Nonnull String entityType, int recordId) {
+		Assert.isTrue(collection instanceof EntityCollection, "Unexpected entity collection type!");
+		return ((EntityCollection) collection).getIndexByKeyIfExists(
+			new EntityIndexKey(
+				EntityIndexType.REFERENCED_ENTITY,
+				scope,
+				new ReferenceKey(entityType, recordId)
+			)
+		);
+	}
+
+	private static int[] getAllCategories(EvitaSessionContract session) {
+		return session.query(
+				query(
+					collection(Entities.CATEGORY)
+				),
+				EntityReferenceContract.class
+			)
+			.getRecordData()
+			.stream()
+			.mapToInt(EntityReferenceContract::getPrimaryKey)
+			.toArray();
+	}
+
+	private static int countProductsWithPriceListCurrencyCombination(EvitaSessionContract session, String priceList, Currency currency) {
+		return session.query(
+				query(
+					collection(Entities.PRODUCT),
+					filterBy(
+						and(
+							priceInPriceLists(priceList),
+							priceInCurrency(currency)
+						)
+					)
+				),
+				EntityReferenceContract.class
+			)
+			.getTotalRecordCount();
+	}
+
 	@BeforeEach
 	void setUp() {
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_INDEXING_TEST);
+		cleanTestSubDirectoryWithRethrow(DIR_EVITA_INDEXING_TEST_EXPORT);
 		evita = new Evita(
 			getEvitaConfiguration()
 		);
@@ -148,6 +362,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	void tearDown() {
 		evita.close();
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_INDEXING_TEST);
+		cleanTestSubDirectoryWithRethrow(DIR_EVITA_INDEXING_TEST_EXPORT);
 	}
 
 	@DisplayName("Update catalog in warm-up mode with another product - synchronously.")
@@ -429,7 +644,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				TEST_CATALOG,
 				session -> {
 					return session.queryOneSealedEntity(
-						Query.query(
+						query(
 							collection(Entities.PRODUCT),
 							filterBy(
 								and(
@@ -456,7 +671,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				session.defineEntitySchema(Entities.PRODUCT)
 					.withReferenceTo(
 						Entities.CATEGORY,
-						Entities.CATEGORY,
+						"externalCategory",
 						Cardinality.ZERO_OR_MORE,
 						whichIs -> whichIs
 							.indexed()
@@ -521,7 +736,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					.defineEntitySchema(Entities.PRODUCT)
 					.withReferenceTo(
 						Entities.CATEGORY,
-						Entities.CATEGORY,
+						"externalCategory",
 						Cardinality.ZERO_OR_MORE,
 						whichIs -> whichIs
 							.indexed()
@@ -1282,7 +1497,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 		} catch (UniqueValueViolationException ex) {
 			assertEquals(
-				"Unique value is already present for entity `PRODUCT` `name` key: `A` (existing: 1, new: 2)!",
+				"Unique constraint violation: attribute `name` value A` is already present for entity `PRODUCT` (existing entity PK: 1, newly inserted  entity PK: 2)!",
 				ex.getMessage()
 			);
 		}
@@ -1347,7 +1562,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 		} catch (UniqueValueViolationException ex) {
 			assertEquals(
-				"Unique value is already present for entity `PRODUCT` `name` key: `A` in locale `en` (existing: 1, new: 2)!",
+				"Unique constraint violation: attribute `name` value A` in locale `en` is already present for entity `PRODUCT` (existing entity PK: 1, newly inserted  entity PK: 2)!",
 				ex.getMessage()
 			);
 		}
@@ -1431,7 +1646,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 		} catch (UniqueValueViolationException ex) {
 			assertEquals(
-				"Unique value is already present for entity `PRODUCT` `name` key: `A` (existing: 1, new: 2 of entity `CATEGORY`)!",
+				"Unique constraint violation: attribute `name` value A` is already present for entity `PRODUCT` (existing entity PK: 1, newly inserted `CATEGORY` entity PK: 2)!",
 				ex.getMessage()
 			);
 		}
@@ -1515,7 +1730,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 		} catch (UniqueValueViolationException ex) {
 			assertEquals(
-				"Unique value is already present for entity `PRODUCT` `name` key: `A` in locale `en` (existing: 1, new: 2 of entity `CATEGORY`)!",
+				"Unique constraint violation: attribute `name` value A` in locale `en` is already present for entity `PRODUCT` (existing entity PK: 1, newly inserted `CATEGORY` entity PK: 2)!",
 				ex.getMessage()
 			);
 		}
@@ -1566,6 +1781,47 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	}
 
 	@Test
+	void shouldFailToSetUpReferencedEntityPredecessorAsDirectAttribute() {
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.getCatalogSchema()
+						.openForWrite()
+						.withEntitySchema(
+							"whatever",
+							whichIs -> whichIs.withAttribute("whatever", ReferencedEntityPredecessor.class)
+						)
+						.updateVia(session);
+				}
+			)
+		);
+	}
+
+	@Test
+	void shouldFailToMarkReferencedEntityPredecessorAsFilterable() {
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.getCatalogSchema()
+						.openForWrite()
+						.withEntitySchema(
+							"whatever",
+							thatIs -> thatIs.withReferenceToEntity(
+								"whatever", "whatever", Cardinality.ZERO_OR_MORE,
+								whichIs -> whichIs.withAttribute("whatever", ReferencedEntityPredecessor.class, AttributeSchemaEditor::filterable)
+							)
+						)
+						.updateVia(session);
+				}
+			)
+		);
+	}
+
+	@Test
 	void shouldFailToSetUpPredecessorAsAssociatedData() {
 		assertThrows(
 			InvalidSchemaMutationException.class,
@@ -1577,6 +1833,25 @@ class EvitaIndexingTest implements EvitaTestSupport {
 						.withEntitySchema(
 							"whatever",
 							whichIs -> whichIs.withAssociatedData("whatever", Predecessor.class)
+						)
+						.updateVia(session);
+				}
+			)
+		);
+	}
+
+	@Test
+	void shouldFailToSetUpReferencedEntityPredecessorAsAssociatedData() {
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.getCatalogSchema()
+						.openForWrite()
+						.withEntitySchema(
+							"whatever",
+							whichIs -> whichIs.withAssociatedData("whatever", ReferencedEntityPredecessor.class)
 						)
 						.updateVia(session);
 				}
@@ -1606,69 +1881,6 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					session.getEntitySchemaOrThrow("whatever").getAttribute("whatever").orElseThrow().isFilterable()
 				);
 			}
-		);
-	}
-
-	@Test
-	void shouldFailToMarkCurrencyAsSortable() {
-		assertThrows(
-			InvalidSchemaMutationException.class,
-			() -> evita.updateCatalog(
-				TEST_CATALOG,
-				session -> {
-					session.getCatalogSchema()
-						.openForWrite()
-						.withEntitySchema(
-							"whatever",
-							whichIs -> whichIs.withAttribute("whatever", Currency.class, AttributeSchemaEditor::sortable)
-						)
-						.updateVia(session);
-				}
-			)
-		);
-	}
-
-	@Test
-	void shouldMarkLocaleAsFilterable() {
-		evita.updateCatalog(
-			TEST_CATALOG,
-			session -> {
-				session.getCatalogSchema()
-					.openForWrite()
-					.withEntitySchema(
-						"whatever",
-						whichIs -> whichIs.withAttribute("whatever", Locale.class, AttributeSchemaEditor::filterable)
-					)
-					.updateVia(session);
-			}
-		);
-
-		evita.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				assertTrue(
-					session.getEntitySchemaOrThrow("whatever").getAttribute("whatever").orElseThrow().isFilterable()
-				);
-			}
-		);
-	}
-
-	@Test
-	void shouldFailToMarkLocaleAsSortable() {
-		assertThrows(
-			InvalidSchemaMutationException.class,
-			() -> evita.updateCatalog(
-				TEST_CATALOG,
-				session -> {
-					session.getCatalogSchema()
-						.openForWrite()
-						.withEntitySchema(
-							"whatever",
-							whichIs -> whichIs.withAttribute("whatever", Locale.class, AttributeSchemaEditor::sortable)
-						)
-						.updateVia(session);
-				}
-			)
 		);
 	}
 
@@ -2068,7 +2280,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				final EntityCollectionContract productCollection = catalog.getCollectionForEntity(Entities.PRODUCT)
 					.orElseThrow();
 
-				assertNull(getHierarchyIndex(productCollection, Entities.CATEGORY, 1));
+				assertNull(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 1));
 				assertNull(getReferencedEntityIndex(productCollection, Entities.BRAND, 1));
 
 				// load it and add references
@@ -2080,11 +2292,11 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					.upsertVia(session);
 
 				// assert data from global index were propagated
-				assertNull(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 1));
-				final EntityIndex categoryIndex = getHierarchyIndex(productCollection, Entities.CATEGORY, 1);
+				assertNotNull(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 1));
+				final EntityIndex categoryIndex = getReferencedEntityIndex(productCollection, Entities.CATEGORY, 1);
 				assertDataWasPropagated(categoryIndex, 1);
 
-				assertNull(getHierarchyIndex(productCollection, Entities.BRAND, 1));
+				assertNotNull(getReferencedEntityIndex(productCollection, Entities.BRAND, 1));
 				final EntityIndex brandIndex = getReferencedEntityIndex(productCollection, Entities.BRAND, 1);
 				assertDataWasPropagated(brandIndex, 1);
 
@@ -2095,10 +2307,9 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					.removeReference(Entities.BRAND, 1)
 					.removeReference(Entities.CATEGORY, 1)
 					.upsertVia(session);
-				;
 
 				// assert indexes were emptied and removed
-				assertNull(getHierarchyIndex(productCollection, Entities.CATEGORY, 1));
+				assertNull(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 1));
 				assertNull(getReferencedEntityIndex(productCollection, Entities.BRAND, 1));
 			}
 		);
@@ -2152,7 +2363,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				final EntityCollectionContract productCollection = catalog.getCollectionForEntity(Entities.PRODUCT)
 					.orElseThrow();
 
-				assertNull(getHierarchyIndex(productCollection, Entities.CATEGORY, 1));
+				assertNull(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 1));
 				assertNull(getReferencedEntityIndex(productCollection, Entities.BRAND, 1));
 			}
 		);
@@ -2183,17 +2394,20 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					.orElseThrow();
 
 				// this function allows us to repeatedly verify index contents
-				final Consumer<Comparable<?>[]> verifyIndexContents = expected -> {
+				final Consumer<Serializable[]> verifyIndexContents = expected -> {
 					final EntityIndex globalIndex = getGlobalIndex(productCollection);
 					assertNotNull(globalIndex);
 
 					final SortIndex sortIndex = globalIndex.getSortIndex(new AttributeKey(attributeCodeEan));
-					assertNotNull(sortIndex);
-
-					assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(expected).getArray());
+					if (ArrayUtils.isEmptyOrItsValuesNull(expected)) {
+						assertNull(sortIndex);
+					} else {
+						assertNotNull(sortIndex);
+						assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(expected).getArray());
+					}
 				};
 
-				verifyIndexContents.accept(new Comparable<?>[]{null, null});
+				verifyIndexContents.accept(new Serializable[]{null, null});
 
 				session.getEntity(Entities.PRODUCT, 1, attributeContentAll())
 					.orElseThrow()
@@ -2202,7 +2416,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					.setAttribute(ATTRIBUTE_CODE, "ABC")
 					.upsertVia(session);
 
-				verifyIndexContents.accept(new Comparable<?>[]{"ABC", "123"});
+				verifyIndexContents.accept(new Serializable[]{"ABC", "123"});
 			}
 		);
 	}
@@ -2234,8 +2448,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				final SortIndex sortIndex = globalIndex.getSortIndex(new AttributeKey(attributeCodeEan));
 				assertNotNull(sortIndex);
 
-				assertTrue(sortIndex.getRecordsEqualTo(new Comparable<?>[]{"ABC", "123"}).isEmpty());
-				assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(new Comparable<?>[]{"Whatever", "578"}).getArray());
+				assertTrue(sortIndex.getRecordsEqualTo(new Serializable[]{"ABC", "123"}).isEmpty());
+				assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(new Serializable[]{"Whatever", "578"}).getArray());
 			}
 		);
 	}
@@ -2309,7 +2523,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				final SortIndex englishSortIndex = updatedGlobalIndex.getSortIndex(new AttributeKey(attributeCodeEan, Locale.ENGLISH));
 				assertNotNull(englishSortIndex);
 
-				assertArrayEquals(new int[]{1}, englishSortIndex.getRecordsEqualTo(new Comparable<?>[]{"ABC", null}).getArray());
+				assertArrayEquals(new int[]{1}, englishSortIndex.getRecordsEqualTo(new Serializable[]{"ABC", null}).getArray());
 
 				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), dataInLocalesAll())
 					.orElseThrow()
@@ -2324,12 +2538,12 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				final SortIndex englishSortIndexAgain = updatedGlobalIndexAgain.getSortIndex(new AttributeKey(attributeCodeEan, Locale.ENGLISH));
 				assertNotNull(englishSortIndexAgain);
 
-				assertArrayEquals(new int[]{1}, englishSortIndexAgain.getRecordsEqualTo(new Comparable<?>[]{"ABC", null}).getArray());
+				assertArrayEquals(new int[]{1}, englishSortIndexAgain.getRecordsEqualTo(new Serializable[]{"ABC", null}).getArray());
 
 				final SortIndex canadianSortIndex = updatedGlobalIndexAgain.getSortIndex(new AttributeKey(attributeCodeEan, Locale.CANADA));
 				assertNotNull(canadianSortIndex);
 
-				assertArrayEquals(new int[]{1}, canadianSortIndex.getRecordsEqualTo(new Comparable<?>[]{"ABC", "123"}).getArray());
+				assertArrayEquals(new int[]{1}, canadianSortIndex.getRecordsEqualTo(new Serializable[]{"ABC", "123"}).getArray());
 
 				final SealedEntity finalEntity = session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), dataInLocalesAll())
 					.orElseThrow();
@@ -2368,8 +2582,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				final SortIndex sortIndex = globalIndex.getSortIndex(new AttributeKey(attributeCodeEan, Locale.CANADA));
 				assertNotNull(sortIndex);
 
-				assertTrue(sortIndex.getRecordsEqualTo(new Comparable<?>[]{"ABC", "123"}).isEmpty());
-				assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(new Comparable<?>[]{"Whatever", "578"}).getArray());
+				assertTrue(sortIndex.getRecordsEqualTo(new Serializable[]{"ABC", "123"}).isEmpty());
+				assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(new Serializable[]{"Whatever", "578"}).getArray());
 			}
 		);
 	}
@@ -2404,7 +2618,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 				final SortIndex canadianSortIndex = globalIndex.getSortIndex(new AttributeKey(attributeCodeEan, Locale.CANADA));
 				assertNotNull(canadianSortIndex);
-				assertArrayEquals(new int[]{1}, canadianSortIndex.getRecordsEqualTo(new Comparable<?>[]{"ABC", "123"}).getArray());
+				assertArrayEquals(new int[]{1}, canadianSortIndex.getRecordsEqualTo(new Serializable[]{"ABC", "123"}).getArray());
 
 				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), dataInLocalesAll())
 					.orElseThrow()
@@ -2470,11 +2684,11 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					final SortIndex sortIndex = entityIndex.getSortIndex(new AttributeKey(attributeCodeEan));
 					assertNotNull(sortIndex);
 
-					assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(new Comparable<?>[]{"ABC", "123"}).getArray());
+					assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(new Serializable[]{"ABC", "123"}).getArray());
 				};
 
-				verifyIndexContents.accept(getHierarchyIndex(productCollection, Entities.CATEGORY, 10));
-				verifyIndexContents.accept(getHierarchyIndex(productCollection, Entities.CATEGORY, 11));
+				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10));
+				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 11));
 				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.BRAND, 20));
 				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.BRAND, 21));
 			}
@@ -2507,11 +2721,11 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					final SortIndex sortIndex = entityIndex.getSortIndex(new AttributeKey(attributeCodeEan));
 					assertNotNull(sortIndex);
 
-					assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(new Comparable<?>[]{"ABC", "123"}).getArray());
+					assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(new Serializable[]{"ABC", "123"}).getArray());
 				};
 
-				assertNull(getHierarchyIndex(productCollection, Entities.CATEGORY, 10));
-				verifyIndexContentsContains.accept(getHierarchyIndex(productCollection, Entities.CATEGORY, 11));
+				assertNull(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10));
+				verifyIndexContentsContains.accept(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 11));
 				assertNull(getReferencedEntityIndex(productCollection, Entities.BRAND, 20));
 				verifyIndexContentsContains.accept(getReferencedEntityIndex(productCollection, Entities.BRAND, 21));
 			}
@@ -2576,17 +2790,20 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					.orElseThrow();
 
 				// this function allows us to repeatedly verify index contents
-				final BiConsumer<EntityIndex, Comparable<?>[]> verifyIndexContents = (entityIndex, expected) -> {
+				final BiConsumer<EntityIndex, Serializable[]> verifyIndexContents = (entityIndex, expected) -> {
 					assertNotNull(entityIndex);
 
 					final SortIndex sortIndex = entityIndex.getSortIndex(new AttributeKey(attributeCodeEan));
-					assertNotNull(sortIndex);
-
-					assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(expected).getArray());
+					if (ArrayUtils.isEmptyOrItsValuesNull(expected)) {
+						assertNull(sortIndex);
+					} else {
+						assertNotNull(sortIndex);
+						assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(expected).getArray());
+					}
 				};
 
-				verifyIndexContents.accept(getHierarchyIndex(productCollection, Entities.CATEGORY, 10), new Comparable<?>[]{null, null});
-				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.BRAND, 20), new Comparable<?>[]{null, null});
+				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10), new Serializable[]{null, null});
+				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.BRAND, 20), new Serializable[]{null, null});
 
 				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), referenceContentAll())
 					.orElseThrow()
@@ -2605,8 +2822,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					)
 					.upsertVia(session);
 
-				verifyIndexContents.accept(getHierarchyIndex(productCollection, Entities.CATEGORY, 10), new Comparable<?>[]{"ABC", "123"});
-				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.BRAND, 20), new Comparable<?>[]{"ABC", "123"});
+				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10), new Serializable[]{"ABC", "123"});
+				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.BRAND, 20), new Serializable[]{"ABC", "123"});
 			}
 		);
 	}
@@ -2628,8 +2845,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				final EntityIndex globalIndex = getGlobalIndex(productCollection);
 				assertNotNull(globalIndex);
 
-				assertNull(getHierarchyIndex(productCollection, Entities.CATEGORY, 10));
-				assertNull(getHierarchyIndex(productCollection, Entities.CATEGORY, 11));
+				assertNull(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10));
+				assertNull(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 11));
 				assertNull(getReferencedEntityIndex(productCollection, Entities.BRAND, 20));
 				assertNull(getReferencedEntityIndex(productCollection, Entities.BRAND, 21));
 			}
@@ -2695,17 +2912,20 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				final EntityCollectionContract productCollection = catalog.getCollectionForEntity(Entities.PRODUCT)
 					.orElseThrow();
 
-				assertNull(getHierarchyIndex(productCollection, Entities.CATEGORY, 10).getSortIndex(new AttributeKey(attributeCodeEan)));
+				assertNull(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10).getSortIndex(new AttributeKey(attributeCodeEan)));
 				assertNull(getReferencedEntityIndex(productCollection, Entities.BRAND, 20).getSortIndex(new AttributeKey(attributeCodeEan, Locale.ENGLISH)));
 
 				// this function allows us to repeatedly verify index contents
-				final TriConsumer<EntityIndex, Locale, Comparable<?>[]> verifyIndexContents = (entityIndex, locale, expected) -> {
+				final TriConsumer<EntityIndex, Locale, Serializable[]> verifyIndexContents = (entityIndex, locale, expected) -> {
 					assertNotNull(entityIndex);
 
 					final SortIndex sortIndex = entityIndex.getSortIndex(new AttributeKey(attributeCodeEan, locale));
-					assertNotNull(sortIndex);
-
-					assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(expected).getArray());
+					if (ArrayUtils.isEmptyOrItsValuesNull(expected)) {
+						assertNull(sortIndex);
+					} else {
+						assertNotNull(sortIndex);
+						assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(expected).getArray());
+					}
 				};
 
 				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), referenceContentAll(), dataInLocalesAll())
@@ -2719,8 +2939,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					)
 					.upsertVia(session);
 
-				verifyIndexContents.accept(getHierarchyIndex(productCollection, Entities.CATEGORY, 10), Locale.ENGLISH, new Comparable<?>[]{null, null});
-				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.BRAND, 20), Locale.CANADA, new Comparable<?>[]{null, null});
+				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10), Locale.ENGLISH, new Serializable[]{null, null});
+				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.BRAND, 20), Locale.CANADA, new Serializable[]{null, null});
 
 				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), referenceContentAll(), dataInLocalesAll())
 					.orElseThrow()
@@ -2735,8 +2955,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					)
 					.upsertVia(session);
 
-				verifyIndexContents.accept(getHierarchyIndex(productCollection, Entities.CATEGORY, 10), Locale.ENGLISH, new Comparable<?>[]{"The product", "123"});
-				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.BRAND, 20), Locale.CANADA, new Comparable<?>[]{"The CA product", "456"});
+				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10), Locale.ENGLISH, new Serializable[]{"The product", "123"});
+				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.BRAND, 20), Locale.CANADA, new Serializable[]{"The CA product", "456"});
 			}
 		);
 	}
@@ -2751,7 +2971,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				final String attributeCodeEan = ATTRIBUTE_CODE + StringUtils.capitalize(ATTRIBUTE_EAN);
 
 				// this function allows us to repeatedly verify index contents
-				final TriConsumer<EntityIndex, Locale, Comparable<?>[]> verifyIndexContents = (entityIndex, locale, expected) -> {
+				final TriConsumer<EntityIndex, Locale, Serializable[]> verifyIndexContents = (entityIndex, locale, expected) -> {
 					assertNotNull(entityIndex);
 
 					final SortIndex sortIndex = entityIndex.getSortIndex(new AttributeKey(attributeCodeEan, locale));
@@ -2782,8 +3002,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				final EntityCollectionContract productCollection = catalog.getCollectionForEntity(Entities.PRODUCT)
 					.orElseThrow();
 
-				verifyIndexContents.accept(getHierarchyIndex(productCollection, Entities.CATEGORY, 10), Locale.ENGLISH, new Comparable<?>[]{"Whatever", "567"});
-				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.BRAND, 20), Locale.CANADA, new Comparable<?>[]{"Else", "624"});
+				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10), Locale.ENGLISH, new Serializable[]{"Whatever", "567"});
+				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.BRAND, 20), Locale.CANADA, new Serializable[]{"Else", "624"});
 			}
 		);
 	}
@@ -2811,7 +3031,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				final EntityCollectionContract productCollection = catalog.getCollectionForEntity(Entities.PRODUCT)
 					.orElseThrow();
 
-				assertNull(getHierarchyIndex(productCollection, Entities.CATEGORY, 10).getSortIndex(new AttributeKey(attributeCodeEan, Locale.ENGLISH)));
+				assertNull(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10).getSortIndex(new AttributeKey(attributeCodeEan, Locale.ENGLISH)));
 				assertNotNull(getReferencedEntityIndex(productCollection, Entities.BRAND, 20).getSortIndex(new AttributeKey(attributeCodeEan, Locale.CANADA)));
 
 				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), referenceContentAll(), dataInLocalesAll())
@@ -2823,69 +3043,714 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					)
 					.upsertVia(session);
 
-				assertNull(getHierarchyIndex(productCollection, Entities.CATEGORY, 10).getSortIndex(new AttributeKey(attributeCodeEan, Locale.ENGLISH)));
+				assertNull(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10).getSortIndex(new AttributeKey(attributeCodeEan, Locale.ENGLISH)));
 				assertNull(getReferencedEntityIndex(productCollection, Entities.BRAND, 20).getSortIndex(new AttributeKey(attributeCodeEan, Locale.CANADA)));
 			}
 		);
 	}
 
-	@Nullable
-	private EntityIndex getGlobalIndex(EntityCollectionContract collection) {
-		Assert.isTrue(collection instanceof EntityCollection, "Unexpected entity collection type!");
-		return ((EntityCollection) collection).getIndexByKeyIfExists(
-			new EntityIndexKey(EntityIndexType.GLOBAL)
+	@Test
+	void shouldAutomaticallySetupReflectedReferencesOnEntityCreation() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				createEntangledSchema(session);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+						.setReference(REFERENCE_PRODUCT_CATEGORY, 1)
+				);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, 1)
+				);
+
+				assertReferencesAreEntangled(session);
+			}
 		);
 	}
 
-	@Nullable
-	private EntityIndex getHierarchyIndex(EntityCollectionContract collection, String entityType, int recordId) {
-		Assert.isTrue(collection instanceof EntityCollection, "Unexpected entity collection type!");
-		return ((EntityCollection) collection).getIndexByKeyIfExists(
-			new EntityIndexKey(
-				EntityIndexType.REFERENCED_HIERARCHY_NODE,
-				new ReferenceKey(entityType, recordId)
-			)
-		);
-	}
-
-	@Nullable
-	private EntityIndex getReferencedEntityIndex(EntityCollectionContract collection, String entityType, int recordId) {
-		Assert.isTrue(collection instanceof EntityCollection, "Unexpected entity collection type!");
-		return ((EntityCollection) collection).getIndexByKeyIfExists(
-			new EntityIndexKey(
-				EntityIndexType.REFERENCED_ENTITY,
-				new ReferenceKey(entityType, recordId)
-			)
-		);
-	}
-
-	private int[] getAllCategories(EvitaSessionContract session) {
-		return session.query(
-				query(
-					collection(Entities.CATEGORY)
-				),
-				EntityReferenceContract.class
-			)
-			.getRecordData()
-			.stream()
-			.mapToInt(EntityReferenceContract::getPrimaryKey)
-			.toArray();
-	}
-
-	private int countProductsWithPriceListCurrencyCombination(EvitaSessionContract session, String priceList, Currency currency) {
-		return session.query(
-				query(
-					collection(Entities.PRODUCT),
-					filterBy(
-						and(
-							priceInPriceLists(priceList),
-							priceInCurrency(currency)
-						)
+	@Test
+	void shouldAutomaticallySetupOneToManyReflectedReferencesIncludingAttributesOnEntityCreation() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(Entities.CATEGORY)
+					.withReflectedReferenceToEntity(
+						REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY,
+						whichIs -> whichIs.withAttributesInherited().withCardinality(Cardinality.ZERO_OR_MORE)
 					)
-				),
-				EntityReferenceContract.class
-			)
-			.getTotalRecordCount();
+					.updateVia(session);
+				session
+					.defineEntitySchema(Entities.PRODUCT)
+					.withReferenceToEntity(
+						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ONE_OR_MORE,
+						whichIs -> whichIs.indexed()
+							.withAttribute(ATTRIBUTE_PRODUCT_CATEGORY_VARIANT, Boolean.class, thatIs -> thatIs.filterable())
+					)
+					.updateVia(session);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, 1)
+				);
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, 2)
+				);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+						.setReference(REFERENCE_PRODUCT_CATEGORY, 1, whichIs -> whichIs.setAttribute(ATTRIBUTE_PRODUCT_CATEGORY_VARIANT, true))
+						.setReference(REFERENCE_PRODUCT_CATEGORY, 2, whichIs -> whichIs.setAttribute(ATTRIBUTE_PRODUCT_CATEGORY_VARIANT, false))
+				);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 11)
+						.setReference(REFERENCE_PRODUCT_CATEGORY, 1, whichIs -> whichIs.setAttribute(ATTRIBUTE_PRODUCT_CATEGORY_VARIANT, false))
+						.setReference(REFERENCE_PRODUCT_CATEGORY, 2, whichIs -> whichIs.setAttribute(ATTRIBUTE_PRODUCT_CATEGORY_VARIANT, true))
+				);
+			}
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final SealedEntity category1 = session.getEntity(Entities.CATEGORY, 1, entityFetchAllContent()).orElseThrow();
+				assertTrue(category1.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10).orElseThrow().getAttribute(ATTRIBUTE_PRODUCT_CATEGORY_VARIANT, Boolean.class).booleanValue());
+				assertFalse(category1.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 11).orElseThrow().getAttribute(ATTRIBUTE_PRODUCT_CATEGORY_VARIANT, Boolean.class).booleanValue());
+
+				final SealedEntity category2 = session.getEntity(Entities.CATEGORY, 2, entityFetchAllContent()).orElseThrow();
+				assertFalse(category2.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10).orElseThrow().getAttribute(ATTRIBUTE_PRODUCT_CATEGORY_VARIANT, Boolean.class).booleanValue());
+				assertTrue(category2.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 11).orElseThrow().getAttribute(ATTRIBUTE_PRODUCT_CATEGORY_VARIANT, Boolean.class).booleanValue());
+			}
+		);
+	}
+
+	@Test
+	void shouldFailToCreateReflectedReferenceWhenMandatoryAttributesHasNoDefaultValues() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				createEntangledSchemaWithInheritedAttributesWithoutDefaults(session);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+						.setReference(
+							REFERENCE_PRODUCT_CATEGORY, 1,
+							whichIs -> whichIs
+								.setAttribute(ATTRIBUTE_PRODUCT_CATEGORY_INHERITED, "ABC")
+								.setAttribute(ATTRIBUTE_PRODUCT_CATEGORY_NOT_INHERITED, "123")
+						)
+				);
+
+				assertThrows(
+					MandatoryAttributesNotProvidedException.class,
+					() -> session.upsertEntity(
+						session.createNewEntity(Entities.CATEGORY, 1)
+					)
+				);
+			}
+		);
+	}
+
+	@Test
+	void shouldAutomaticallySetupReflectedReferencesOnEntityCreationIncludingInheritedAttributes() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				createEntangledSchemaWithInheritedAttributes(session);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+						.setReference(
+							REFERENCE_PRODUCT_CATEGORY, 1,
+							whichIs -> whichIs
+								.setAttribute(ATTRIBUTE_PRODUCT_CATEGORY_INHERITED, "ABC")
+								.setAttribute(ATTRIBUTE_PRODUCT_CATEGORY_NOT_INHERITED, "123")
+						)
+				);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, 1)
+				);
+
+				assertReferencesAreEntangled(session);
+				assertInheritedAttributesValues(session, "123", "ABC", "CZ");
+			}
+		);
+	}
+
+	@Test
+	void shouldUpdateInheritedAttributeOnReflectedReference() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				createEntangledSchemaWithInheritedAttributes(session);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, 1)
+				);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+						.setReference(
+							REFERENCE_PRODUCT_CATEGORY, 1,
+							whichIs -> whichIs
+								.setAttribute(ATTRIBUTE_PRODUCT_CATEGORY_INHERITED, "ABC")
+						)
+				);
+
+				assertReferencesAreEntangled(session);
+				assertInheritedAttributesValues(session, "default", "ABC", "CZ");
+
+				session.upsertEntity(
+					session.getEntity(Entities.PRODUCT, 10, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setReference(
+							REFERENCE_PRODUCT_CATEGORY, 1,
+							whichIs -> whichIs
+								.setAttribute(ATTRIBUTE_PRODUCT_CATEGORY_INHERITED, "123")
+						)
+				);
+
+				assertReferencesAreEntangled(session);
+				assertInheritedAttributesValues(session, "default", "123", "CZ");
+			}
+		);
+	}
+
+	@Test
+	void shouldUpdateInheritedAttributeOnReferenceWhenSetOnReflectedOne() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				createEntangledSchemaWithInheritedAttributes(session);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, 1)
+				);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+						.setReference(
+							REFERENCE_PRODUCT_CATEGORY, 1,
+							whichIs -> whichIs
+								.setAttribute(ATTRIBUTE_PRODUCT_CATEGORY_INHERITED, "ABC")
+						)
+				);
+
+				assertReferencesAreEntangled(session);
+				assertInheritedAttributesValues(session, "default", "ABC", "CZ");
+
+				session.upsertEntity(
+					session.getEntity(Entities.CATEGORY, 1, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setReference(
+							REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10,
+							whichIs -> whichIs
+								.setAttribute(ATTRIBUTE_PRODUCT_CATEGORY_INHERITED, "123")
+						)
+				);
+
+				assertReferencesAreEntangled(session);
+				assertInheritedAttributesValues(session, "default", "123", "CZ");
+			}
+		);
+	}
+
+	@Test
+	void shouldRemoveInheritedAttributeOnReflectedReference() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				createEntangledSchemaWithInheritedAttributes(session);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, 1)
+				);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+						.setReference(
+							REFERENCE_PRODUCT_CATEGORY, 1,
+							whichIs -> whichIs
+								.setAttribute(ATTRIBUTE_PRODUCT_CATEGORY_INHERITED, "ABC")
+						)
+				);
+
+				assertReferencesAreEntangled(session);
+				assertInheritedAttributesValues(session, "default", "ABC", "CZ");
+
+				session.upsertEntity(
+					session.getEntity(Entities.PRODUCT, 10, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setReference(
+							REFERENCE_PRODUCT_CATEGORY, 1,
+							whichIs -> whichIs
+								.removeAttribute(ATTRIBUTE_PRODUCT_CATEGORY_INHERITED)
+						)
+				);
+
+				assertReferencesAreEntangled(session);
+				assertInheritedAttributesValues(session, "default", null, "CZ");
+			}
+		);
+	}
+
+	@Test
+	void shouldRemoveInheritedAttributeOnReferenceWhenSetOnReflectedOne() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				createEntangledSchemaWithInheritedAttributes(session);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, 1)
+				);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+						.setReference(
+							REFERENCE_PRODUCT_CATEGORY, 1,
+							whichIs -> whichIs
+								.setAttribute(ATTRIBUTE_PRODUCT_CATEGORY_INHERITED, "ABC")
+						)
+				);
+
+				assertReferencesAreEntangled(session);
+				assertInheritedAttributesValues(session, "default", "ABC", "CZ");
+
+				session.upsertEntity(
+					session.getEntity(Entities.CATEGORY, 1, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setReference(
+							REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10,
+							whichIs -> whichIs
+								.removeAttribute(ATTRIBUTE_PRODUCT_CATEGORY_INHERITED)
+						)
+				);
+
+				assertReferencesAreEntangled(session);
+				assertInheritedAttributesValues(session, "default", null, "CZ");
+			}
+		);
+	}
+
+	@Test
+	void shouldAutomaticallySetupReferencesWhenReflectedOnesExistOnEntityCreation() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				createEntangledSchema(session);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+				);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, 1)
+						.setReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10)
+				);
+
+				assertReferencesAreEntangled(session);
+			}
+		);
+	}
+
+	@Test
+	void shouldAutomaticallySetupReferencesWhenReflectedOnesExistOnEntityCreationIncludingInheritedAttributes() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				createEntangledSchemaWithInheritedAttributes(session);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+				);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, 1)
+						.setReference(
+							REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10,
+							whichIs -> whichIs
+								.setAttribute(ATTRIBUTE_PRODUCT_CATEGORY_INHERITED, "ABC")
+						)
+				);
+
+				assertReferencesAreEntangled(session);
+				assertInheritedAttributesValues(session, "default", "ABC", "CZ");
+			}
+		);
+	}
+
+	@Test
+	void shouldFailToCreateReflectedReferencesWhenBaseEntityIsNotPresentDuringCreation() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				createEntangledSchema(session);
+
+				assertThrows(
+					EntityMissingException.class,
+					() -> session.upsertEntity(
+						session.createNewEntity(Entities.CATEGORY, 1)
+							.setReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10)
+					)
+				);
+			}
+		);
+	}
+
+	@Test
+	void shouldFailToCreateReflectedReferencesWhenBaseEntityIsNotPresentDuringUpdate() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				createEntangledSchema(session);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, 1)
+				);
+
+				assertThrows(
+					EntityMissingException.class,
+					() -> session.upsertEntity(
+						session.getEntity(Entities.CATEGORY, 1, entityFetchAllContent())
+							.orElseThrow()
+							.openForWrite()
+							.setReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10)
+							.upsertVia(session)
+					)
+				);
+			}
+		);
+	}
+
+	@Test
+	void shouldAutomaticallySetupReflectedReferencesByReferencesOnCreatedEntity() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				createEntangledSchema(session);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, 1)
+				);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+						.setReference(REFERENCE_PRODUCT_CATEGORY, 1)
+				);
+
+				assertReferencesAreEntangled(session);
+			}
+		);
+	}
+
+	@Test
+	void shouldAutomaticallySetupReflectedReferencesByReferencesOnCreatedEntityIncludingInheritedValues() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				createEntangledSchemaWithInheritedAttributes(session);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, 1)
+				);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+						.setReference(
+							REFERENCE_PRODUCT_CATEGORY, 1,
+							whichIs -> whichIs
+								.setAttribute(ATTRIBUTE_PRODUCT_CATEGORY_INHERITED, "ABC")
+						)
+				);
+
+				assertReferencesAreEntangled(session);
+				assertInheritedAttributesValues(session, "default", "ABC", "CZ");
+			}
+		);
+	}
+
+	@Test
+	void shouldAutomaticallySetupReferencesByReflectedReferencesOnCreatedEntity() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				createEntangledSchema(session);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+				);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, 1)
+						.setReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10)
+				);
+
+				assertReferencesAreEntangled(session);
+			}
+		);
+	}
+
+	@Test
+	void shouldAutomaticallySetupReferencesByReflectedReferencesOnCreatedEntityIncludingInheritedAttributes() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				createEntangledSchemaWithInheritedAttributes(session);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+				);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, 1)
+						.setReference(
+							REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10,
+							whichIs -> whichIs
+								.setAttribute(ATTRIBUTE_PRODUCT_CATEGORY_INHERITED, "ABC")
+						)
+				);
+
+				assertReferencesAreEntangled(session);
+				assertInheritedAttributesValues(session, "default", "ABC", "CZ");
+			}
+		);
+	}
+
+	@Test
+	void shouldAutomaticallySetupReflectedReference() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				createEntangledSchema(session);
+
+				// first create both entities without any references
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, 1)
+				);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+				);
+
+				// then add regular reference
+				session.getEntity(Entities.PRODUCT, 10, entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.setReference(REFERENCE_PRODUCT_CATEGORY, 1)
+					.upsertVia(session);
+
+				assertReferencesAreEntangled(session);
+			}
+		);
+	}
+
+	@Test
+	void shouldAutomaticallySetupReflectedReferenceIncludingInheritedAttributes() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				createEntangledSchemaWithInheritedAttributes(session);
+
+				// first create both entities without any references
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, 1)
+				);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+				);
+
+				// then add regular reference
+				session.getEntity(Entities.PRODUCT, 10, entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.setReference(
+						REFERENCE_PRODUCT_CATEGORY, 1,
+						whichIs -> whichIs
+							.setAttribute(ATTRIBUTE_PRODUCT_CATEGORY_INHERITED, "ABC")
+					)
+					.upsertVia(session);
+
+				assertReferencesAreEntangled(session);
+				assertInheritedAttributesValues(session, "default", "ABC", "CZ");
+			}
+		);
+	}
+
+	@Test
+	void shouldAutomaticallySetupReferenceViaReflectedReference() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				createEntangledSchema(session);
+
+				// first create both entities without any references
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, 1)
+				);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+				);
+
+				// then add regular reference
+				session.getEntity(Entities.CATEGORY, 1, entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.setReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10)
+					.upsertVia(session);
+
+				assertReferencesAreEntangled(session);
+			}
+		);
+	}
+
+	@Test
+	void shouldAutomaticallySetupReferenceViaReflectedReferenceWithInheritedAttributes() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				createEntangledSchemaWithInheritedAttributes(session);
+
+				// first create both entities without any references
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, 1)
+				);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+				);
+
+				// then add regular reference
+				session.getEntity(Entities.CATEGORY, 1, entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.setReference(
+						REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10,
+						whichIs -> whichIs
+							.setAttribute(ATTRIBUTE_PRODUCT_CATEGORY_INHERITED, "ABC")
+					)
+					.upsertVia(session);
+
+				assertReferencesAreEntangled(session);
+				assertInheritedAttributesValues(session, "default", "ABC", "CZ");
+			}
+		);
+	}
+
+	@Test
+	void shouldAutomaticallyRemoveReferenceViaReflectedReferenceIsRemoved() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				createEntangledSchema(session);
+
+				// first create both entities with particular reference
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+				);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, 1)
+						.setReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10)
+				);
+
+				// then remove reflected reference
+				session.getEntity(Entities.CATEGORY, 1, entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.removeReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10)
+					.upsertVia(session);
+
+				assertReferencesAreNotEntangled(session);
+			}
+		);
+	}
+
+	@Test
+	void shouldAutomaticallyRemoveReflectedReferenceViaReferenceIsRemoved() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				createEntangledSchema(session);
+
+				// first create both entities with particular reference
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+				);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, 1)
+						.setReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10)
+				);
+
+				// then remove regular reference
+				session.getEntity(Entities.PRODUCT, 10, entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.removeReference(REFERENCE_PRODUCT_CATEGORY, 1)
+					.upsertVia(session);
+
+				assertReferencesAreNotEntangled(session);
+			}
+		);
+	}
+
+	@Test
+	void shouldAutomaticallyRemoveReflectedReferenceViaReferenceOnEntityRemoval() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				createEntangledSchema(session);
+
+				// first create both entities with particular reference
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+				);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, 1)
+						.setReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10)
+				);
+
+				// then delete entity
+				session.deleteEntity(Entities.PRODUCT, 10, entityFetchAllContent());
+
+				assertEntitiesAreNotEntangled(session);
+			}
+		);
+	}
+
+	@Test
+	void shouldAutomaticallyRemoveReferenceViaReflectedReferenceOnEntityRemoval() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				createEntangledSchema(session);
+
+				// first create both entities with particular reference
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 10)
+				);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.CATEGORY, 1)
+						.setReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10)
+				);
+
+				// then delete entity
+				session.deleteEntity(Entities.CATEGORY, 1, entityFetchAllContent());
+
+				assertEntitiesAreNotEntangled(session);
+			}
+		);
 	}
 
 	@Nonnull
@@ -2903,15 +3768,11 @@ class EvitaIndexingTest implements EvitaTestSupport {
 			)
 			.storage(
 				StorageOptions.builder()
-					.storageDirectory(getEvitaTestDirectory())
+					.storageDirectory(getTestDirectory().resolve(DIR_EVITA_INDEXING_TEST))
+					.exportDirectory(getTestDirectory().resolve(DIR_EVITA_INDEXING_TEST_EXPORT))
 					.build()
 			)
 			.build();
-	}
-
-	@Nonnull
-	private Path getEvitaTestDirectory() {
-		return getTestDirectory().resolve(DIR_EVITA_INDEXING_TEST);
 	}
 
 }

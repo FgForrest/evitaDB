@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -58,7 +58,7 @@ import static io.evitadb.core.Transaction.isTransactionAvailable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
 @ThreadSafe
-public class TransactionalObjArray<T extends Comparable<T>> implements TransactionalLayerProducer<ObjArrayChanges<T>, T[]>, Serializable {
+public class TransactionalObjArray<T> implements TransactionalLayerProducer<ObjArrayChanges<T>, T[]>, Serializable {
 	@Serial private static final long serialVersionUID = 3207853222537134300L;
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	@Nonnull private T[] delegate;
@@ -168,9 +168,9 @@ public class TransactionalObjArray<T extends Comparable<T>> implements Transacti
 	public int indexOf(@Nonnull T recordId) {
 		final ObjArrayChanges<T> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
-			return Arrays.binarySearch(this.delegate, recordId, comparator);
+			return Arrays.binarySearch(this.delegate, recordId, this.comparator);
 		} else {
-			return layer.indexOf(recordId, comparator);
+			return layer.indexOf(recordId, this.comparator);
 		}
 	}
 
@@ -220,6 +220,7 @@ public class TransactionalObjArray<T extends Comparable<T>> implements Transacti
 		TRANSACTIONAL OBJECT IMPLEMENTATION
 	 */
 
+	@Nullable
 	@Override
 	public ObjArrayChanges<T> createLayer() {
 		return isTransactionAvailable() ? new ObjArrayChanges<>(this.delegate) : null;

@@ -25,15 +25,30 @@ package io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetche
 
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.schema.dto.AssociatedDataSchema;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * Translates Java {@link AssociatedDataSchema#getType()} to GraphQL equivalent.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class AssociatedDataSchemaTypeDataFetcher extends SchemaTypeDataFetcher {
+
+	@Nullable
+	private static AssociatedDataSchemaTypeDataFetcher INSTANCE;
+
+	@Nonnull
+	public static AssociatedDataSchemaTypeDataFetcher getInstance() {
+		if (INSTANCE == null) {
+			INSTANCE = new AssociatedDataSchemaTypeDataFetcher();
+		}
+		return INSTANCE;
+	}
 
 	@Nonnull
 	@Override

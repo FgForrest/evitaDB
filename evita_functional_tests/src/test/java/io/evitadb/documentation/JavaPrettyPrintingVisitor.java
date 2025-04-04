@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import io.evitadb.api.query.ConstraintContainer;
 import io.evitadb.api.query.ConstraintContainerWithSuffix;
 import io.evitadb.api.query.ConstraintLeaf;
 import io.evitadb.api.query.ConstraintVisitor;
+import io.evitadb.api.query.ConstraintWithDefaults;
 import io.evitadb.api.query.ConstraintWithSuffix;
 import io.evitadb.api.query.Query;
 import io.evitadb.dataType.BigDecimalNumberRange;
@@ -37,6 +38,7 @@ import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.dataType.Range;
 import io.evitadb.dataType.ShortNumberRange;
+import io.evitadb.dataType.expression.Expression;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -189,7 +191,7 @@ public class JavaPrettyPrintingVisitor implements ConstraintVisitor {
 		}
 		this.result.append("query" + ARG_OPENING).append(newLine());
 		this.level = 1;
-		ofNullable(query.getCollection()).ifPresent(it -> {
+		ofNullable(query.getHead()).ifPresent(it -> {
 			it.accept(this);
 			this.result.append(",");
 		});
@@ -274,7 +276,9 @@ public class JavaPrettyPrintingVisitor implements ConstraintVisitor {
 			final Constraint<?>[] additionalChildren = constraint.getExplicitAdditionalChildren();
 			final int additionalChildrenLength = additionalChildren.length;
 
-			final Serializable[] arguments = constraint.getArguments();
+			final Serializable[] arguments = (constraint instanceof ConstraintWithDefaults<?> constraintWithDefaults)
+				? constraintWithDefaults.getArgumentsExcludingDefaults()
+				: constraint.getArguments();
 			final int argumentsLength = arguments.length;
 
 			// print arguments
@@ -435,6 +439,8 @@ public class JavaPrettyPrintingVisitor implements ConstraintVisitor {
 			return "Locale.forLanguageTag(\"" + locale.toLanguageTag() + "\")";
 		} else if (value instanceof Currency currency) {
 			return "Currency.getInstance(\"" + currency.getCurrencyCode() + "\")";
+		} else if (value instanceof Expression expression) {
+			return "ExpressionFactory.parse(\"" + expression + "\")";
 		} else if (value == null) {
 			return "null";
 		} else {

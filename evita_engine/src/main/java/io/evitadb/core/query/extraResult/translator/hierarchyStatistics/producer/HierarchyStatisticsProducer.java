@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.filter.HierarchyFilterConstraint;
 import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
+import io.evitadb.api.query.require.FetchRequirementCollector;
 import io.evitadb.api.query.require.HierarchyOfReference;
 import io.evitadb.api.query.require.HierarchyOfSelf;
 import io.evitadb.api.query.require.StatisticsBase;
@@ -38,13 +39,12 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.core.query.AttributeSchemaAccessor;
-import io.evitadb.core.query.PrefetchRequirementCollector;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.sort.NestedContextSorter;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.function.IntBiFunction;
+import io.evitadb.function.IntObjBiFunction;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.hierarchy.HierarchyIndex;
@@ -57,7 +57,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -108,7 +107,7 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 
 	@Nullable
 	@Override
-	public <T extends Serializable> EvitaResponseExtraResult fabricate(@Nonnull QueryExecutionContext context, @Nonnull List<T> entities) {
+	public <T extends Serializable> EvitaResponseExtraResult fabricate(@Nonnull QueryExecutionContext context) {
 		return new Hierarchy(
 			ofNullable(selfHierarchyRequest)
 				.map(it -> it.createStatistics(context, language))
@@ -161,8 +160,8 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
 		@Nullable HierarchyFilterConstraint hierarchyWithin,
 		@Nonnull GlobalEntityIndex targetIndex,
-		@Nullable PrefetchRequirementCollector prefetchRequirementCollector,
-		@Nonnull IntBiFunction<StatisticsBase, Formula> directlyQueriedEntitiesFormulaProducer,
+		@Nullable FetchRequirementCollector fetchRequirementCollector,
+		@Nonnull IntObjBiFunction<StatisticsBase, Formula> directlyQueriedEntitiesFormulaProducer,
 		@Nullable Function<StatisticsBase, HierarchyFilteringPredicate> hierarchyFilterPredicateProducer,
 		@Nonnull EmptyHierarchicalEntityBehaviour behaviour,
 		@Nullable NestedContextSorter sorter,
@@ -178,7 +177,7 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 					attributeSchemaAccessor,
 					hierarchyWithin,
 					targetIndex,
-					prefetchRequirementCollector,
+					fetchRequirementCollector,
 					directlyQueriedEntitiesFormulaProducer,
 					hierarchyFilterPredicateProducer,
 					behaviour == EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY

@@ -40,12 +40,20 @@ public class RandomSerializer extends Serializer<Random> {
 
 	@Override
 	public void write(Kryo kryo, Output output, Random object) {
-		// we don't need to serialize anything about this query
+		final Long seed = object.getSeed();
+		output.writeBoolean(seed != null);
+		if (seed != null) {
+			output.writeLong(seed);
+		}
 	}
 
 	@Override
 	public Random read(Kryo kryo, Input input, Class<? extends Random> type) {
-		return new Random();
+		if (input.readBoolean()) {
+			return new Random(input.readLong());
+		} else {
+			return Random.INSTANCE;
+		}
 	}
 
 }

@@ -27,17 +27,30 @@ import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import lombok.RequiredArgsConstructor;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * Fetches referenced entity from parent {@link ReferenceContract}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-@RequiredArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class ReferencedEntityDataFetcher implements DataFetcher<SealedEntity> {
+
+	@Nullable
+	private static ReferencedEntityDataFetcher INSTANCE;
+
+	@Nonnull
+	public static ReferencedEntityDataFetcher getInstance() {
+		if (INSTANCE == null) {
+			INSTANCE = new ReferencedEntityDataFetcher();
+		}
+		return INSTANCE;
+	}
 
 	@Nonnull
 	@Override

@@ -85,7 +85,7 @@ public class ObjectCoercing implements Coercing<Object, Object> {
 			return ((StringValue) input).getValue();
 		}
 		if (input instanceof IntValue) {
-			return ((IntValue) input).getValue();
+			return ((IntValue) input).getValue().longValueExact();
 		}
 		if (input instanceof BooleanValue) {
 			return ((BooleanValue) input).isValue();

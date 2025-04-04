@@ -36,7 +36,8 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.ExternalEntityDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ExternalEntityTypePointer;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetStatisticsDescriptor;
@@ -110,12 +111,11 @@ public class FacetSummaryResolver {
 		final FilterGroupBy filterGroupBy;
 		final OrderGroupBy orderGroupBy;
 		if (referenceSchema.getReferencedGroupType() != null) {
-			final DataLocator groupEntityDataLocator;
-			if (referenceSchema.isReferencedGroupTypeManaged()) {
-				groupEntityDataLocator = new EntityDataLocator(referenceSchema.getReferencedGroupType());
-			} else {
-				groupEntityDataLocator = new ExternalEntityDataLocator(referenceSchema.getReferencedEntityType());
-			}
+			final DataLocator groupEntityDataLocator = new EntityDataLocator(
+				referenceSchema.isReferencedGroupTypeManaged()
+					? new ManagedEntityTypePointer(referenceSchema.getReferencedGroupType())
+					: new ExternalEntityTypePointer(referenceSchema.getReferencedGroupType())
+			);
 
 			filterGroupBy = resolveGroupFilterBy(field, groupEntityDataLocator).orElse(null);
 			orderGroupBy = resolveGroupOrderBy(field, groupEntityDataLocator).orElse(null);
@@ -133,12 +133,11 @@ public class FacetSummaryResolver {
 		final FilterBy filterBy;
 		final OrderBy orderBy;
 		if (facetStatisticsField.isPresent()) {
-			final DataLocator facetEntityDataLocator;
-			if (referenceSchema.isReferencedEntityTypeManaged()) {
-				facetEntityDataLocator = new EntityDataLocator(referenceSchema.getReferencedEntityType());
-			} else {
-				facetEntityDataLocator = new ExternalEntityDataLocator(referenceSchema.getReferencedEntityType());
-			}
+			final DataLocator facetEntityDataLocator = new EntityDataLocator(
+				referenceSchema.isReferencedEntityTypeManaged()
+					? new ManagedEntityTypePointer(referenceSchema.getReferencedEntityType())
+					: new ExternalEntityTypePointer(referenceSchema.getReferencedEntityType())
+			);
 
 			filterBy = resolveFacetFilterBy(facetStatisticsField.get(), facetEntityDataLocator).orElse(null);
 			orderBy = resolveFacetOrderBy(facetStatisticsField.get(), facetEntityDataLocator).orElse(null);

@@ -56,7 +56,7 @@ public class JavaTestContextFactory implements TestContextFactory<JavaTestContex
 	public DynamicTest getTearDownTest(@Nonnull Environment profile) {
 		return dynamicTest(
 			"Destroy JShell (" + profile + ")",
-			() -> getContext().getJShell().close()
+			() -> getContext().tearDown()
 		);
 	}
 

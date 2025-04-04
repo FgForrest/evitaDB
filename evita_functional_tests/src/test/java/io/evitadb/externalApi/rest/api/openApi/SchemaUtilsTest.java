@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,9 +25,10 @@ package io.evitadb.externalApi.rest.api.openApi;
 
 import io.evitadb.api.CatalogContract;
 import io.evitadb.core.Evita;
+import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.rest.api.catalog.CatalogRestBuilder;
 import io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator;
-import io.evitadb.externalApi.rest.configuration.RestConfig;
+import io.evitadb.externalApi.rest.configuration.RestOptions;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
@@ -71,10 +72,15 @@ class SchemaUtilsTest {
 	@DataSet(value = REST_THOUSAND_PRODUCTS_OPEN_API, destroyAfterClass = true)
 	DataCarrier setUp(Evita evita) {
 		TestDataGenerator.generateMockCatalogs(evita);
-		final Set<Entry<String, Object>> dataCarrier = new HashSet<>(TestDataGenerator.generateMainCatalogEntities(evita,20).entrySet());
+		final Set<Entry<String, Object>> dataCarrier = new HashSet<>(TestDataGenerator.generateMainCatalogEntities(evita,20, false).entrySet());
 
 		final CatalogContract catalog = evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
-		final OpenAPI openApi = new CatalogRestBuilder(null, new RestConfig(true, "localhost:5555", null, null, "rest", null), evita, catalog).build().openApi();
+		final OpenAPI openApi = new CatalogRestBuilder(
+			new RestOptions(true, "localhost:5555", null, null, null, "rest", null),
+			HeaderOptions.builder().build(),
+			evita,
+			catalog
+		).build().openApi();
 		dataCarrier.add(new SimpleEntry<>("openApi", openApi));
 
 		return new DataCarrier(dataCarrier);

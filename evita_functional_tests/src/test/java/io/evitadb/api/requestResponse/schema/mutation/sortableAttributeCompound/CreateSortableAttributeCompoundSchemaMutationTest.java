@@ -32,9 +32,11 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
+import io.evitadb.dataType.Scope;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -60,6 +62,7 @@ public class CreateSortableAttributeCompoundSchemaMutationTest {
 			ATTRIBUTE_COMPOUND_NAME,
 			"oldDescription",
 			"oldDeprecationNotice",
+			new Scope[] { Scope.LIVE },
 			List.of(
 				new AttributeElement("A", OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
 				new AttributeElement("B", OrderDirection.DESC, OrderBehaviour.NULLS_LAST)
@@ -69,7 +72,7 @@ public class CreateSortableAttributeCompoundSchemaMutationTest {
 
 	@Nonnull
 	static ReferenceSchemaContract createMockedReferenceSchema() {
-		final ReferenceSchemaContract referenceSchema = Mockito.mock(ReferenceSchemaContract.class);
+		final ReferenceSchemaContract referenceSchema = Mockito.mock(ReferenceSchema.class);
 		Mockito.when(referenceSchema.getName()).thenReturn("referenceName");
 		Mockito.when(referenceSchema.getReferencedEntityType()).thenReturn("abd");
 		return referenceSchema;
@@ -78,7 +81,7 @@ public class CreateSortableAttributeCompoundSchemaMutationTest {
 	@Test
 	void shouldBeReplacedWithIndividualMutationsWhenAttributeWasRemovedAndCreatedWithDifferentSettings() {
 		CreateSortableAttributeCompoundSchemaMutation mutation = new CreateSortableAttributeCompoundSchemaMutation(
-			ATTRIBUTE_COMPOUND_NAME, "description", "deprecationNotice",
+			ATTRIBUTE_COMPOUND_NAME, "description", "deprecationNotice", new Scope[] { Scope.LIVE },
 			new AttributeElement("A", OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
 			new AttributeElement("B", OrderDirection.DESC, OrderBehaviour.NULLS_LAST)
 		);
@@ -101,7 +104,7 @@ public class CreateSortableAttributeCompoundSchemaMutationTest {
 	@Test
 	void shouldLeaveMutationIntactWhenRemovalMutationTargetsDifferentCompoundData() {
 		CreateSortableAttributeCompoundSchemaMutation mutation = new CreateSortableAttributeCompoundSchemaMutation(
-			ATTRIBUTE_COMPOUND_NAME, "description", "deprecationNotice",
+			ATTRIBUTE_COMPOUND_NAME, "description", "deprecationNotice", new Scope[] { Scope.LIVE },
 			new AttributeElement("A", OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
 			new AttributeElement("B", OrderDirection.DESC, OrderBehaviour.NULLS_LAST)
 		);
@@ -112,14 +115,14 @@ public class CreateSortableAttributeCompoundSchemaMutationTest {
 	@Test
 	void shouldCreateSortableAttributeCompound() {
 		CreateSortableAttributeCompoundSchemaMutation mutation = new CreateSortableAttributeCompoundSchemaMutation(
-			ATTRIBUTE_COMPOUND_NAME, "description", "deprecationNotice",
+			ATTRIBUTE_COMPOUND_NAME, "description", "deprecationNotice", new Scope[] { Scope.LIVE },
 			new AttributeElement("A", OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
 			new AttributeElement("B", OrderDirection.DESC, OrderBehaviour.NULLS_LAST)
 		);
 		final SortableAttributeCompoundSchemaContract compoundSchema = mutation.mutate(
 			Mockito.mock(EntitySchemaContract.class),
 			Mockito.mock(ReferenceSchemaContract.class),
-			null
+			(SortableAttributeCompoundSchemaContract) null
 		);
 		assertNotNull(compoundSchema);
 		assertEquals(ATTRIBUTE_COMPOUND_NAME, compoundSchema.getName());
@@ -134,7 +137,7 @@ public class CreateSortableAttributeCompoundSchemaMutationTest {
 	@Test
 	void shouldCreateAttributeInEntity() {
 		CreateSortableAttributeCompoundSchemaMutation mutation = new CreateSortableAttributeCompoundSchemaMutation(
-			ATTRIBUTE_COMPOUND_NAME, "description", "deprecationNotice",
+			ATTRIBUTE_COMPOUND_NAME, "description", "deprecationNotice", new Scope[] { Scope.LIVE },
 			new AttributeElement("A", OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
 			new AttributeElement("B", OrderDirection.DESC, OrderBehaviour.NULLS_LAST)
 		);
@@ -157,7 +160,7 @@ public class CreateSortableAttributeCompoundSchemaMutationTest {
 	@Test
 	void shouldCreateAttributeInReference() {
 		CreateSortableAttributeCompoundSchemaMutation mutation = new CreateSortableAttributeCompoundSchemaMutation(
-			ATTRIBUTE_COMPOUND_NAME, "description", "deprecationNotice",
+			ATTRIBUTE_COMPOUND_NAME, "description", "deprecationNotice", new Scope[] { Scope.LIVE },
 			new AttributeElement("A", OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
 			new AttributeElement("B", OrderDirection.DESC, OrderBehaviour.NULLS_LAST)
 		);
@@ -181,7 +184,7 @@ public class CreateSortableAttributeCompoundSchemaMutationTest {
 	@Test
 	void shouldThrowExceptionWhenMutatingEntitySchemaWithExistingAttribute() {
 		CreateSortableAttributeCompoundSchemaMutation mutation = new CreateSortableAttributeCompoundSchemaMutation(
-			ATTRIBUTE_COMPOUND_NAME, "description", "deprecationNotice",
+			ATTRIBUTE_COMPOUND_NAME, "description", "deprecationNotice", new Scope[] { Scope.LIVE },
 			new AttributeElement("A", OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
 			new AttributeElement("B", OrderDirection.DESC, OrderBehaviour.NULLS_LAST)
 		);
@@ -201,7 +204,7 @@ public class CreateSortableAttributeCompoundSchemaMutationTest {
 	@Test
 	void shouldThrowExceptionWhenMutatingReferenceSchemaWithExistingAttribute() {
 		CreateSortableAttributeCompoundSchemaMutation mutation = new CreateSortableAttributeCompoundSchemaMutation(
-			ATTRIBUTE_COMPOUND_NAME, "description", "deprecationNotice",
+			ATTRIBUTE_COMPOUND_NAME, "description", "deprecationNotice", new Scope[] { Scope.LIVE },
 			new AttributeElement("A", OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
 			new AttributeElement("B", OrderDirection.DESC, OrderBehaviour.NULLS_LAST)
 		);

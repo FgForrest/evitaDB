@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute;
 
+import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.dataType.Any;
@@ -34,7 +35,7 @@ import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
- * Descriptor representing {@link io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation}.
+ * Descriptor representing {@link UpsertAttributeMutation}.
  *
  * Note: this descriptor has static structure.
  *

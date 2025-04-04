@@ -64,6 +64,11 @@ public record PriceRecordInnerRecordSpecific(
 	}
 
 	@Override
+	public boolean relatesTo(@Nonnull PriceRecordContract anotherPriceRecord) {
+		return this.innerRecordId == anotherPriceRecord.innerRecordId();
+	}
+
+	@Override
 	public int compareTo(@Nonnull PriceRecordContract other) {
 		return PRICE_RECORD_COMPARATOR.compare(this, other);
 	}

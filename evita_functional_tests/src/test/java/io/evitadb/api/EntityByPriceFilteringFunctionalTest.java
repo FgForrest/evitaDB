@@ -31,6 +31,9 @@ import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
+import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
+import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
+import io.evitadb.api.requestResponse.data.PricesContract.PriceForSaleWithAccompanyingPrices;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
@@ -59,18 +62,21 @@ import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Currency;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.api.query.order.OrderDirection.ASC;
 import static io.evitadb.api.query.order.OrderDirection.DESC;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
@@ -83,8 +89,6 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * This test verifies whether entities can be filtered by prices.
  *
- * TOBEDONE JNO - create multiple functional tests - one run with enabled SelectionFormula, one with disabled
- *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("Evita entity filtering by prices functionality")
@@ -95,7 +99,9 @@ public class EntityByPriceFilteringFunctionalTest {
 	private static final String HUNDRED_PRODUCTS_WITH_PRICES = "HundredProductsWithPrices";
 
 	private static final int SEED = 40;
-	private final DataGenerator dataGenerator = new DataGenerator();
+	private final DataGenerator dataGenerator = new DataGenerator.Builder()
+		.withPriceIndexingDecider((priceList, faker) -> !PRICE_LIST_REFERENCE.equals(priceList))
+		.build();
 
 	/**
 	 * Verifies histogram integrity against source entities.
@@ -153,36 +159,36 @@ public class EntityByPriceFilteringFunctionalTest {
 	/**
 	 * Returns true if there is any indexed price for passed currency.
 	 */
-	protected static boolean hasAnySellablePrice(@Nonnull SealedEntity entity, @Nonnull Currency currency) {
-		return entity.getPrices(currency).stream().anyMatch(PriceContract::sellable);
+	protected static boolean hasAnyIndexedPrice(@Nonnull SealedEntity entity, @Nonnull Currency currency) {
+		return entity.getPrices(currency).stream().anyMatch(PriceContract::indexed);
 	}
 
 	/**
 	 * Returns true if there is any indexed price for passed price list.
 	 */
-	protected static boolean hasAnySellablePrice(@Nonnull SealedEntity entity, @Nonnull String priceList) {
-		return entity.getPrices(priceList).stream().anyMatch(PriceContract::sellable);
+	protected static boolean hasAnyIndexedPrice(@Nonnull SealedEntity entity, @Nonnull String priceList) {
+		return entity.getPrices(priceList).stream().anyMatch(PriceContract::indexed);
 	}
 
 	/**
 	 * Returns true if there is any indexed price for passed currency and price list.
 	 */
-	protected static boolean hasAnySellablePrice(@Nonnull SealedEntity entity, @Nonnull OffsetDateTime atTheMoment) {
-		return entity.getPrices().stream().filter(PriceContract::sellable).anyMatch(it -> it.validity() == null || it.validity().isValidFor(atTheMoment));
+	protected static boolean hasAnyIndexedPrice(@Nonnull SealedEntity entity, @Nonnull OffsetDateTime atTheMoment) {
+		return entity.getPrices().stream().filter(PriceContract::indexed).anyMatch(it -> it.validity() == null || it.validity().isValidFor(atTheMoment));
 	}
 
 	/**
 	 * Returns true if there is any indexed price for passed currency and price list.
 	 */
-	protected static boolean hasAnySellablePrice(@Nonnull SealedEntity entity, @Nonnull Currency currency, @Nonnull String priceList) {
-		return entity.getPrices(currency, priceList).stream().anyMatch(PriceContract::sellable);
+	protected static boolean hasAnyIndexedPrice(@Nonnull SealedEntity entity, @Nonnull Currency currency, @Nonnull String priceList) {
+		return entity.getPrices(currency, priceList).stream().anyMatch(PriceContract::indexed);
 	}
 
 	/**
 	 * Returns true if there is any indexed price for passed currency and price list.
 	 */
-	protected static boolean hasAnySellablePrice(@Nonnull SealedEntity entity, @Nonnull Currency currency, @Nonnull String priceList, @Nonnull OffsetDateTime atTheMoment) {
-		return entity.getPrices(currency, priceList).stream().filter(PriceContract::sellable).anyMatch(it -> it.validAt(atTheMoment));
+	protected static boolean hasAnyIndexedPrice(@Nonnull SealedEntity entity, @Nonnull Currency currency, @Nonnull String priceList, @Nonnull OffsetDateTime atTheMoment) {
+		return entity.getPrices(currency, priceList).stream().filter(PriceContract::indexed).anyMatch(it -> it.validAt(atTheMoment));
 	}
 
 	/**
@@ -197,12 +203,12 @@ public class EntityByPriceFilteringFunctionalTest {
 	}
 
 	/**
-	 * Verifies that result contains at least one product with non-sellable price from passed price list.
+	 * Verifies that result contains at least one product with non-indexed price from passed price list.
 	 */
-	protected static void assertResultContainProductWithNonSellablePriceFrom(@Nonnull List<SealedEntity> recordData, @Nonnull String... priceLists) {
+	protected static void assertResultContainProductWithNonIndexedPriceFrom(@Nonnull List<SealedEntity> recordData, @Nonnull String... priceLists) {
 		final Set<String> allowedPriceLists = Arrays.stream(priceLists).collect(Collectors.toSet());
 		for (SealedEntity entity : recordData) {
-			if (entity.getPrices().stream().anyMatch(price -> allowedPriceLists.contains(price.priceList()) && !price.sellable())) {
+			if (entity.getPrices().stream().anyMatch(price -> allowedPriceLists.contains(price.priceList()) && !price.indexed())) {
 				return;
 			}
 		}
@@ -231,8 +237,76 @@ public class EntityByPriceFilteringFunctionalTest {
 	/**
 	 * Returns true if there is any indexed price for passed currency and price list.
 	 */
-	private static boolean hasAnySellablePrice(@Nonnull SealedEntity entity, @Nonnull Currency currency, @Nonnull OffsetDateTime atTheMoment) {
-		return entity.getPrices(currency).stream().filter(PriceContract::sellable).anyMatch(it -> it.validity() == null || it.validity().isValidFor(atTheMoment));
+	private static boolean hasAnyIndexedPrice(@Nonnull SealedEntity entity, @Nonnull Currency currency, @Nonnull OffsetDateTime atTheMoment) {
+		return entity.getPrices(currency).stream().filter(PriceContract::indexed).anyMatch(it -> it.validity() == null || it.validity().isValidFor(atTheMoment));
+	}
+
+	/**
+	 * Calculates the discount based on the selling price and a reference price from accompanying prices.
+	 *
+	 * @param completePrice        The complete price structure including the price for sale and any accompanying prices.
+	 * @param resultPriceExtractor A function to extract the BigDecimal value from a given PriceContract.
+	 * @return The calculated discount as a BigDecimal, or null if the reference price is not present.
+	 */
+	@Nullable
+	private static BigDecimal toDiscount(
+		@Nonnull PriceForSaleWithAccompanyingPrices completePrice,
+		@Nonnull Function<PriceContract, BigDecimal> resultPriceExtractor
+	) {
+		final BigDecimal sellingPrice = resultPriceExtractor.apply(completePrice.priceForSale());
+		final BigDecimal referencePrice = completePrice.accompanyingPrices().get("reference")
+			.map(resultPriceExtractor)
+			.orElse(null);
+		if (referencePrice == null) {
+			return null;
+		} else {
+			return referencePrice.compareTo(sellingPrice) > 0 ?
+				referencePrice.subtract(sellingPrice) : BigDecimal.ZERO;
+		}
+	}
+
+	/**
+	 * Creates a comparator for SealedEntity that compares entities based on their discount prices.
+	 *
+	 * @param accompanyingPrices array of accompanying prices, can be null
+	 * @param priceComparator    comparator for prices
+	 * @return a comparator for SealedEntity
+	 */
+	@Nonnull
+	private static Comparator<SealedEntity> createDiscountComparator(
+		@Nullable AccompanyingPrice[] accompanyingPrices,
+		@Nonnull Comparator<BigDecimal> priceComparator
+	) {
+		final Map<Integer, BigDecimal> memoizedDiscounts = new HashMap<>();
+		final BigDecimal NEGATIVE = new BigDecimal(-1);
+		final Function<SealedEntity, BigDecimal> discountCalculator = entity -> {
+			final BigDecimal result = memoizedDiscounts.computeIfAbsent(
+				entity.getPrimaryKey(),
+				epk -> {
+					final BigDecimal discount = entity.getPriceForSaleWithAccompanyingPrices(
+							CURRENCY_EUR, null, new String[]{PRICE_LIST_VIP, PRICE_LIST_BASIC},
+							accompanyingPrices
+						)
+						.map(it -> toDiscount(it, PriceContract::priceWithTax))
+						.orElse(NEGATIVE);
+					return discount;
+				}
+			);
+			return result == NEGATIVE ? null : result;
+		};
+		return (o1, o2) -> {
+			final BigDecimal priceDiscount1 = discountCalculator.apply(o1);
+			final BigDecimal priceDiscount2 = discountCalculator.apply(o2);
+			if (priceDiscount1 == null && priceDiscount2 == null) {
+				return Integer.compare(o1.getPrimaryKey(), o2.getPrimaryKey());
+			} else if (priceDiscount1 == null) {
+				return 1;
+			} else if (priceDiscount2 == null) {
+				return -1;
+			} else {
+				return priceComparator.compare(priceDiscount1, priceDiscount2);
+			}
+		};
 	}
 
 	/**
@@ -267,7 +341,17 @@ public class EntityByPriceFilteringFunctionalTest {
 	/**
 	 * Verifies that `originalEntities` filtered by `predicate` match exactly contents of the `resultToVerify`.
 	 */
-	protected void assertSortedResultIs(@Nonnull List<SealedEntity> originalEntities, @Nonnull Predicate<SealedEntity> predicate, @Nonnull List<SealedEntity> resultToVerify, @Nonnull Comparator<PriceContract> priceComparator, @Nonnull Page page, @Nonnull PriceContentMode priceContentMode, @Nonnull Currency currency, @Nullable OffsetDateTime validIn, @Nonnull String... priceLists) {
+	protected void assertSortedResultIs(
+		@Nonnull List<SealedEntity> originalEntities,
+		@Nonnull Predicate<SealedEntity> predicate,
+		@Nonnull List<SealedEntity> resultToVerify,
+		@Nonnull Comparator<PriceContract> priceComparator,
+		@Nonnull Page page,
+		@Nonnull PriceContentMode priceContentMode,
+		@Nonnull Currency currency,
+		@Nullable OffsetDateTime validIn,
+		@Nonnull String... priceLists
+	) {
 		final String[] priceListClassifiers = Arrays.stream(priceLists).toArray(String[]::new);
 		@SuppressWarnings("ConstantConditions") final int[] expectedResult = originalEntities
 			.stream()
@@ -280,6 +364,46 @@ public class EntityByPriceFilteringFunctionalTest {
 					o2.getPriceForSale(currency, validIn, priceListClassifiers).orElseThrow()
 				)
 			)
+			.mapToInt(EntityContract::getPrimaryKey)
+			.skip(PaginatedList.getFirstItemNumberForPage(page.getPageNumber(), page.getPageSize()))
+			.limit(page.getPageSize())
+			.toArray();
+
+		assertFalse(ArrayUtils.isEmpty(expectedResult), "Expected result should never be empty - this would cause false positive tests!");
+		final List<Integer> recordsCopy = resultToVerify
+			.stream()
+			.map(SealedEntity::getPrimaryKey)
+			.collect(Collectors.toList());
+
+		assertSortedResultEquals(
+			recordsCopy,
+			expectedResult
+		);
+
+		assertPricesForSaleAreAsExpected(resultToVerify, priceContentMode, currency, validIn, priceLists);
+	}
+
+	/**
+	 * Verifies that `originalEntities` filtered by `predicate` match exactly contents of the `resultToVerify`.
+	 */
+	protected void assertSortedResultByEntityIs(
+		@Nonnull List<SealedEntity> originalEntities,
+		@Nonnull Predicate<SealedEntity> predicate,
+		@Nonnull List<SealedEntity> resultToVerify,
+		@Nonnull Comparator<SealedEntity> entityComparator,
+		@Nonnull Page page,
+		@Nonnull PriceContentMode priceContentMode,
+		@Nonnull Currency currency,
+		@Nullable OffsetDateTime validIn,
+		@Nonnull String... priceLists
+	) {
+		final String[] priceListClassifiers = Arrays.stream(priceLists).toArray(String[]::new);
+		@SuppressWarnings("ConstantConditions") final int[] expectedResult = originalEntities
+			.stream()
+			.filter(predicate)
+			// consider only entities that has valid selling price
+			.filter(it -> it.getPriceForSale(currency, validIn, priceListClassifiers).isPresent())
+			.sorted(entityComparator)
 			.mapToInt(EntityContract::getPrimaryKey)
 			.skip(PaginatedList.getFirstItemNumberForPage(page.getPageNumber(), page.getPageSize()))
 			.limit(page.getPageSize())
@@ -352,10 +476,10 @@ public class EntityByPriceFilteringFunctionalTest {
 
 				assertResultIs(
 					originalProductEntities,
-					sealedEntity -> hasAnySellablePrice(sealedEntity, CURRENCY_CZK, PRICE_LIST_VIP) ||
-						hasAnySellablePrice(sealedEntity, CURRENCY_CZK, PRICE_LIST_SELLOUT) ||
-						hasAnySellablePrice(sealedEntity, CURRENCY_CZK, PRICE_LIST_INTRODUCTION) ||
-						hasAnySellablePrice(sealedEntity, CURRENCY_CZK, PRICE_LIST_BASIC),
+					sealedEntity -> hasAnyIndexedPrice(sealedEntity, CURRENCY_CZK, PRICE_LIST_VIP) ||
+						hasAnyIndexedPrice(sealedEntity, CURRENCY_CZK, PRICE_LIST_SELLOUT) ||
+						hasAnyIndexedPrice(sealedEntity, CURRENCY_CZK, PRICE_LIST_INTRODUCTION) ||
+						hasAnyIndexedPrice(sealedEntity, CURRENCY_CZK, PRICE_LIST_BASIC),
 					result.getRecordData(),
 					PriceContentMode.RESPECTING_FILTER,
 					CURRENCY_CZK,
@@ -373,10 +497,10 @@ public class EntityByPriceFilteringFunctionalTest {
 		);
 	}
 
-	@DisplayName("Should return products with prices including non sellable ones")
+	@DisplayName("Should return products with prices including non-indexed ones")
 	@UseDataSet(HUNDRED_PRODUCTS_WITH_PRICES)
 	@Test
-	void shouldReturnProductsIncludingNonSellablePrice(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnProductsIncludingNonIndexedPrice(Evita evita, List<SealedEntity> originalProductEntities) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -402,15 +526,15 @@ public class EntityByPriceFilteringFunctionalTest {
 
 				assertResultIs(
 					originalProductEntities,
-					sealedEntity -> hasAnySellablePrice(sealedEntity, CURRENCY_CZK, PRICE_LIST_BASIC) ||
-						hasAnySellablePrice(sealedEntity, CURRENCY_CZK, PRICE_LIST_REFERENCE),
+					sealedEntity -> hasAnyIndexedPrice(sealedEntity, CURRENCY_CZK, PRICE_LIST_BASIC) ||
+						hasAnyIndexedPrice(sealedEntity, CURRENCY_CZK, PRICE_LIST_REFERENCE),
 					result.getRecordData(),
 					PriceContentMode.RESPECTING_FILTER,
 					CURRENCY_CZK,
 					null,
 					PRICE_LIST_BASIC, PRICE_LIST_REFERENCE
 				);
-				assertResultContainProductWithNonSellablePriceFrom(
+				assertResultContainProductWithNonIndexedPriceFrom(
 					result.getRecordData(),
 					PRICE_LIST_REFERENCE
 				);
@@ -449,8 +573,8 @@ public class EntityByPriceFilteringFunctionalTest {
 
 				assertResultIs(
 					originalProductEntities,
-					sealedEntity -> hasAnySellablePrice(sealedEntity, CURRENCY_CZK, PRICE_LIST_VIP) ||
-						hasAnySellablePrice(sealedEntity, CURRENCY_CZK, PRICE_LIST_BASIC),
+					sealedEntity -> hasAnyIndexedPrice(sealedEntity, CURRENCY_CZK, PRICE_LIST_VIP) ||
+						hasAnyIndexedPrice(sealedEntity, CURRENCY_CZK, PRICE_LIST_BASIC),
 					result.getRecordData(),
 					PriceContentMode.ALL,
 					CURRENCY_CZK,
@@ -498,9 +622,9 @@ public class EntityByPriceFilteringFunctionalTest {
 
 				assertResultIs(
 					originalProductEntities,
-					sealedEntity -> hasAnySellablePrice(sealedEntity, CURRENCY_CZK, PRICE_LIST_VIP) ||
-						hasAnySellablePrice(sealedEntity, CURRENCY_CZK, PRICE_LIST_B2B) ||
-						hasAnySellablePrice(sealedEntity, CURRENCY_CZK, PRICE_LIST_BASIC),
+					sealedEntity -> hasAnyIndexedPrice(sealedEntity, CURRENCY_CZK, PRICE_LIST_VIP) ||
+						hasAnyIndexedPrice(sealedEntity, CURRENCY_CZK, PRICE_LIST_B2B) ||
+						hasAnyIndexedPrice(sealedEntity, CURRENCY_CZK, PRICE_LIST_BASIC),
 					result.getRecordData(),
 					PriceContentMode.RESPECTING_FILTER,
 					CURRENCY_CZK,
@@ -543,9 +667,9 @@ public class EntityByPriceFilteringFunctionalTest {
 				);
 				assertResultIs(
 					originalProductEntities,
-					sealedEntity -> hasAnySellablePrice(sealedEntity, CURRENCY_CZK, PRICE_LIST_VIP, theMoment) ||
-						hasAnySellablePrice(sealedEntity, CURRENCY_CZK, PRICE_LIST_B2B, theMoment) ||
-						hasAnySellablePrice(sealedEntity, CURRENCY_CZK, PRICE_LIST_BASIC, theMoment),
+					sealedEntity -> hasAnyIndexedPrice(sealedEntity, CURRENCY_CZK, PRICE_LIST_VIP, theMoment) ||
+						hasAnyIndexedPrice(sealedEntity, CURRENCY_CZK, PRICE_LIST_B2B, theMoment) ||
+						hasAnyIndexedPrice(sealedEntity, CURRENCY_CZK, PRICE_LIST_BASIC, theMoment),
 					result.getRecordData(),
 					PriceContentMode.RESPECTING_FILTER,
 					CURRENCY_CZK,
@@ -686,8 +810,8 @@ public class EntityByPriceFilteringFunctionalTest {
 				);
 				assertSortedResultIs(
 					originalProductEntities,
-					sealedEntity -> hasAnySellablePrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_VIP) ||
-						hasAnySellablePrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_BASIC),
+					sealedEntity -> hasAnyIndexedPrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_VIP) ||
+						hasAnyIndexedPrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_BASIC),
 					result.getRecordData(),
 					Comparator.comparing(PriceContract::priceWithTax),
 					page(1, 10),
@@ -733,8 +857,116 @@ public class EntityByPriceFilteringFunctionalTest {
 				);
 				assertSortedResultIs(
 					originalProductEntities,
-					sealedEntity -> hasAnySellablePrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_VIP) ||
-						hasAnySellablePrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_BASIC),
+					sealedEntity -> hasAnyIndexedPrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_VIP) ||
+						hasAnyIndexedPrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_BASIC),
+					result.getRecordData(),
+					Comparator.comparing(PriceContract::priceWithTax).reversed(),
+					page(1, 10),
+					PriceContentMode.RESPECTING_FILTER,
+					CURRENCY_EUR,
+					null,
+					PRICE_LIST_VIP, PRICE_LIST_BASIC
+				);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return prefetched products with price in price list and certain currency ordered by price asc")
+	@UseDataSet(HUNDRED_PRODUCTS_WITH_PRICES)
+	@Test
+	void shouldReturnPrefetchedProductsHavingPriceInCurrencyAndPriceListOrderByPriceAscending(Evita evita, List<SealedEntity> originalProductEntities) {
+		final Set<Integer> productsWithSellingPrice = originalProductEntities
+			.stream()
+			.filter(sealedEntity -> hasAnyIndexedPrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_VIP) ||
+				hasAnyIndexedPrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_BASIC))
+			.map(SealedEntity::getPrimaryKey)
+			.limit(10)
+			.collect(Collectors.toSet());
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(productsWithSellingPrice.stream().mapToInt(Integer::intValue).toArray()),
+							and(
+								priceInCurrency(CURRENCY_EUR),
+								priceInPriceLists(PRICE_LIST_VIP, PRICE_LIST_BASIC)
+							)
+						),
+						require(
+							page(1, 10),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.PREFER_PREFETCHING),
+							entityFetch(
+								priceContentRespectingFilter()
+							)
+						),
+						orderBy(
+							priceNatural()
+						)
+					),
+					SealedEntity.class
+				);
+				assertSortedResultIs(
+					originalProductEntities,
+					sealedEntity -> productsWithSellingPrice.contains(sealedEntity.getPrimaryKey()),
+					result.getRecordData(),
+					Comparator.comparing(PriceContract::priceWithTax),
+					page(1, 10),
+					PriceContentMode.RESPECTING_FILTER,
+					CURRENCY_EUR,
+					null,
+					PRICE_LIST_VIP, PRICE_LIST_BASIC
+				);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return prefetched products with price in price list and certain currency ordered by price desc")
+	@UseDataSet(HUNDRED_PRODUCTS_WITH_PRICES)
+	@Test
+	void shouldReturnPrefetchedProductsHavingPriceInCurrencyAndPriceListOrderByPriceDescending(Evita evita, List<SealedEntity> originalProductEntities) {
+		final Set<Integer> productsWithSellingPrice = originalProductEntities
+			.stream()
+			.filter(sealedEntity -> hasAnyIndexedPrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_VIP) ||
+				hasAnyIndexedPrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_BASIC))
+			.map(SealedEntity::getPrimaryKey)
+			.limit(10)
+			.collect(Collectors.toSet());
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(productsWithSellingPrice.stream().mapToInt(Integer::intValue).toArray()),
+							and(
+								priceInCurrency(CURRENCY_EUR),
+								priceInPriceLists(PRICE_LIST_VIP, PRICE_LIST_BASIC)
+							)
+						),
+						require(
+							page(1, 10),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.PREFER_PREFETCHING),
+							entityFetch(
+								priceContentRespectingFilter()
+							)
+						),
+						orderBy(
+							priceNatural(DESC)
+						)
+					),
+					SealedEntity.class
+				);
+				assertSortedResultIs(
+					originalProductEntities,
+					sealedEntity -> productsWithSellingPrice.contains(sealedEntity.getPrimaryKey()),
 					result.getRecordData(),
 					Comparator.comparing(PriceContract::priceWithTax).reversed(),
 					page(1, 10),
@@ -902,10 +1134,6 @@ public class EntityByPriceFilteringFunctionalTest {
 			}
 		);
 	}
-
-	/*
-		ASSERTIONS
-	 */
 
 	@DisplayName("Should return products with price in price list and currency within interval (without tax) ordered by price desc")
 	@UseDataSet(HUNDRED_PRODUCTS_WITH_PRICES)
@@ -1199,7 +1427,7 @@ public class EntityByPriceFilteringFunctionalTest {
 
 				assertResultIs(
 					originalProductEntities,
-					sealedEntity -> hasAnySellablePrice(sealedEntity, CURRENCY_EUR),
+					sealedEntity -> hasAnyIndexedPrice(sealedEntity, CURRENCY_EUR),
 					result.getRecordData(),
 					PriceContentMode.RESPECTING_FILTER,
 					CURRENCY_EUR,
@@ -1237,7 +1465,7 @@ public class EntityByPriceFilteringFunctionalTest {
 
 				assertResultIs(
 					originalProductEntities,
-					sealedEntity -> hasAnySellablePrice(sealedEntity, PRICE_LIST_SELLOUT),
+					sealedEntity -> hasAnyIndexedPrice(sealedEntity, PRICE_LIST_SELLOUT),
 					result.getRecordData(),
 					PriceContentMode.RESPECTING_FILTER,
 					CURRENCY_EUR,
@@ -1276,7 +1504,7 @@ public class EntityByPriceFilteringFunctionalTest {
 
 				assertResultIs(
 					originalProductEntities,
-					sealedEntity -> hasAnySellablePrice(sealedEntity, theMoment),
+					sealedEntity -> hasAnyIndexedPrice(sealedEntity, theMoment),
 					result.getRecordData(),
 					PriceContentMode.RESPECTING_FILTER,
 					null,
@@ -1318,7 +1546,7 @@ public class EntityByPriceFilteringFunctionalTest {
 
 				assertResultIs(
 					originalProductEntities,
-					sealedEntity -> hasAnySellablePrice(sealedEntity, CURRENCY_EUR, theMoment),
+					sealedEntity -> hasAnyIndexedPrice(sealedEntity, CURRENCY_EUR, theMoment),
 					result.getRecordData(),
 					PriceContentMode.RESPECTING_FILTER,
 					CURRENCY_EUR,
@@ -1358,8 +1586,8 @@ public class EntityByPriceFilteringFunctionalTest {
 
 				final List<SealedEntity> filteredProducts = originalProductEntities
 					.stream()
-					.filter(sealedEntity -> hasAnySellablePrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_VIP) ||
-						hasAnySellablePrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_BASIC))
+					.filter(sealedEntity -> hasAnyIndexedPrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_VIP) ||
+						hasAnyIndexedPrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_BASIC))
 					.collect(Collectors.toList());
 
 				assertHistogramIntegrity(result, filteredProducts, null, null, null);
@@ -1402,8 +1630,8 @@ public class EntityByPriceFilteringFunctionalTest {
 
 				final List<SealedEntity> filteredProducts = originalProductEntities
 					.stream()
-					.filter(sealedEntity -> hasAnySellablePrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_VIP) ||
-						hasAnySellablePrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_BASIC))
+					.filter(sealedEntity -> hasAnyIndexedPrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_VIP) ||
+						hasAnyIndexedPrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_BASIC))
 					.collect(Collectors.toList());
 
 				// verify our test works
@@ -1459,8 +1687,8 @@ public class EntityByPriceFilteringFunctionalTest {
 
 				final List<SealedEntity> filteredProducts = originalProductEntities
 					.stream()
-					.filter(sealedEntity -> hasAnySellablePrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_VIP, theMoment) ||
-						hasAnySellablePrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_BASIC, theMoment))
+					.filter(sealedEntity -> hasAnyIndexedPrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_VIP, theMoment) ||
+						hasAnyIndexedPrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_BASIC, theMoment))
 					.collect(Collectors.toList());
 
 				// verify our test works
@@ -1490,12 +1718,12 @@ public class EntityByPriceFilteringFunctionalTest {
 	@UseDataSet(HUNDRED_PRODUCTS_WITH_PRICES)
 	@Test
 	void shouldReturnPriceHistogramWithoutBeingAffectedByPriceFilterUsingPrefetch(Evita evita, List<SealedEntity> originalProductEntities) {
-		final BigDecimal from = new BigDecimal("80");
+		final BigDecimal from = new BigDecimal("50");
 		final BigDecimal to = new BigDecimal("150");
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final Predicate<PriceContract> betweenPredicate = it -> it.priceWithTax().compareTo(from) >= 0 && it.priceWithoutTax().compareTo(to) <= 0;
+				final Predicate<PriceContract> betweenPredicate = it -> it.priceWithTax().compareTo(from) >= 0 && it.priceWithTax().compareTo(to) <= 0;
 				final List<SealedEntity> filteredProducts = Stream.concat(
 					originalProductEntities
 						.stream()
@@ -1509,8 +1737,12 @@ public class EntityByPriceFilteringFunctionalTest {
 						.stream()
 						.filter(
 							sealedEntity ->
-								sealedEntity.getPriceForSale(CURRENCY_EUR, null, PRICE_LIST_VIP).map(it -> !betweenPredicate.test(it)).orElse(false) ||
-									sealedEntity.getPriceForSale(CURRENCY_EUR, null, PRICE_LIST_BASIC).map(it -> !betweenPredicate.test(it)).orElse(false)
+							{
+								final Optional<PriceContract> vipPrice = sealedEntity.getPriceForSale(CURRENCY_EUR, null, PRICE_LIST_VIP);
+								final Optional<PriceContract> basicPrice = sealedEntity.getPriceForSale(CURRENCY_EUR, null, PRICE_LIST_BASIC);
+								return (vipPrice.isPresent() && vipPrice.map(it -> !betweenPredicate.test(it)).orElse(true)) &&
+									(basicPrice.map(it -> !betweenPredicate.test(it)).orElse(true));
+							}
 						)
 						.limit(3)
 				).collect(Collectors.toList());
@@ -1530,7 +1762,7 @@ public class EntityByPriceFilteringFunctionalTest {
 						),
 						require(
 							page(1, Integer.MAX_VALUE),
-							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES, DebugMode.PREFER_PREFETCHING),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.PREFER_PREFETCHING),
 							entityFetch(),
 							priceHistogram(20)
 						)
@@ -1658,26 +1890,284 @@ public class EntityByPriceFilteringFunctionalTest {
 		);
 	}
 
-	void assertPricesForSaleAreAsExpected(@Nonnull List<SealedEntity> resultToVerify, @Nonnull PriceContentMode priceContentMode, @Nonnull Currency currency, @Nullable OffsetDateTime validIn, @Nonnull String[] priceLists) {
+	@DisplayName("Should return products with price in price list and certain currency ordered by biggest discount asc")
+	@UseDataSet(HUNDRED_PRODUCTS_WITH_PRICES)
+	@Test
+	void shouldReturnProductsHavingPriceInCurrencyAndPriceListOrderByDiscountAscending(Evita evita, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								priceInCurrency(CURRENCY_EUR),
+								priceInPriceLists(PRICE_LIST_VIP, PRICE_LIST_BASIC)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							entityFetch(
+								priceContentRespectingFilter()
+							)
+						),
+						orderBy(
+							priceDiscount(ASC, PRICE_LIST_SELLOUT, PRICE_LIST_INTRODUCTION, PRICE_LIST_BASIC)
+						)
+					),
+					SealedEntity.class
+				);
+
+				final AccompanyingPrice[] accompanyingPrices = {
+					new AccompanyingPrice("reference", PRICE_LIST_SELLOUT, PRICE_LIST_INTRODUCTION, PRICE_LIST_BASIC),
+				};
+				assertSortedResultByEntityIs(
+					originalProductEntities,
+					sealedEntity -> hasAnyIndexedPrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_VIP) ||
+						hasAnyIndexedPrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_BASIC),
+					result.getRecordData(),
+					createDiscountComparator(accompanyingPrices, Comparator.naturalOrder()),
+					page(1, Integer.MAX_VALUE),
+					PriceContentMode.RESPECTING_FILTER,
+					CURRENCY_EUR,
+					null,
+					PRICE_LIST_VIP, PRICE_LIST_BASIC
+				);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return products with price in price list and certain currency ordered by discount desc")
+	@UseDataSet(HUNDRED_PRODUCTS_WITH_PRICES)
+	@Test
+	void shouldReturnProductsHavingPriceInCurrencyAndPriceListOrderByDiscountDescending(Evita evita, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								priceInCurrency(CURRENCY_EUR),
+								priceInPriceLists(PRICE_LIST_VIP, PRICE_LIST_BASIC)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							entityFetch(
+								priceContentRespectingFilter()
+							)
+						),
+						orderBy(
+							priceDiscount(PRICE_LIST_SELLOUT, PRICE_LIST_INTRODUCTION, PRICE_LIST_BASIC)
+						)
+					),
+					SealedEntity.class
+				);
+
+				final AccompanyingPrice[] accompanyingPrices = {
+					new AccompanyingPrice("reference", PRICE_LIST_SELLOUT, PRICE_LIST_INTRODUCTION, PRICE_LIST_BASIC),
+				};
+				assertSortedResultByEntityIs(
+					originalProductEntities,
+					sealedEntity -> hasAnyIndexedPrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_VIP) ||
+						hasAnyIndexedPrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_BASIC),
+					result.getRecordData(),
+					createDiscountComparator(accompanyingPrices, Comparator.reverseOrder()),
+					page(1, Integer.MAX_VALUE),
+					PriceContentMode.RESPECTING_FILTER,
+					CURRENCY_EUR,
+					null,
+					PRICE_LIST_VIP, PRICE_LIST_BASIC
+				);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return prefetched products with price in price list and certain currency ordered by biggest discount asc")
+	@UseDataSet(HUNDRED_PRODUCTS_WITH_PRICES)
+	@Test
+	void shouldReturnPrefetchedProductsHavingPriceInCurrencyAndPriceListOrderByDiscountAscending(Evita evita, List<SealedEntity> originalProductEntities) {
+		final Set<Integer> productsWithSellingPrice = originalProductEntities
+			.stream()
+			.filter(sealedEntity -> hasAnyIndexedPrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_VIP) ||
+				hasAnyIndexedPrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_BASIC))
+			.map(SealedEntity::getPrimaryKey)
+			.limit(10)
+			.collect(Collectors.toSet());
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(productsWithSellingPrice.stream().mapToInt(Integer::intValue).toArray()),
+							and(
+								priceInCurrency(CURRENCY_EUR),
+								priceInPriceLists(PRICE_LIST_VIP, PRICE_LIST_BASIC)
+							)
+						),
+						require(
+							page(1, 20),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.PREFER_PREFETCHING),
+							entityFetch(
+								priceContentRespectingFilter()
+							)
+						),
+						orderBy(
+							priceDiscount(ASC, PRICE_LIST_SELLOUT, PRICE_LIST_INTRODUCTION, PRICE_LIST_BASIC)
+						)
+					),
+					SealedEntity.class
+				);
+
+				final AccompanyingPrice[] accompanyingPrices = {
+					new AccompanyingPrice("reference", PRICE_LIST_SELLOUT, PRICE_LIST_INTRODUCTION, PRICE_LIST_BASIC),
+				};
+				assertSortedResultByEntityIs(
+					originalProductEntities,
+					sealedEntity -> productsWithSellingPrice.contains(sealedEntity.getPrimaryKey()),
+					result.getRecordData(),
+					createDiscountComparator(accompanyingPrices, Comparator.naturalOrder()),
+					page(1, 20),
+					PriceContentMode.RESPECTING_FILTER,
+					CURRENCY_EUR,
+					null,
+					PRICE_LIST_VIP, PRICE_LIST_BASIC
+				);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return prefetched products with price in price list and certain currency ordered by discount desc")
+	@UseDataSet(HUNDRED_PRODUCTS_WITH_PRICES)
+	@Test
+	void shouldReturnPrefetchedProductsHavingPriceInCurrencyAndPriceListOrderByDiscountDescending(Evita evita, List<SealedEntity> originalProductEntities) {
+		final Set<Integer> productsWithSellingPrice = originalProductEntities
+			.stream()
+			.filter(sealedEntity -> hasAnyIndexedPrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_VIP) ||
+				hasAnyIndexedPrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_BASIC))
+			.map(SealedEntity::getPrimaryKey)
+			.limit(10)
+			.collect(Collectors.toSet());
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(productsWithSellingPrice.stream().mapToInt(Integer::intValue).toArray()),
+							and(
+								priceInCurrency(CURRENCY_EUR),
+								priceInPriceLists(PRICE_LIST_VIP, PRICE_LIST_BASIC)
+							)
+						),
+						require(
+							page(1, 20),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.PREFER_PREFETCHING),
+							entityFetch(
+								priceContentRespectingFilter()
+							)
+						),
+						orderBy(
+							priceDiscount(PRICE_LIST_SELLOUT, PRICE_LIST_INTRODUCTION, PRICE_LIST_BASIC)
+						)
+					),
+					SealedEntity.class
+				);
+
+				final AccompanyingPrice[] accompanyingPrices = {
+					new AccompanyingPrice("reference", PRICE_LIST_SELLOUT, PRICE_LIST_INTRODUCTION, PRICE_LIST_BASIC),
+				};
+				assertSortedResultByEntityIs(
+					originalProductEntities,
+					sealedEntity -> productsWithSellingPrice.contains(sealedEntity.getPrimaryKey()),
+					result.getRecordData(),
+					createDiscountComparator(accompanyingPrices, Comparator.reverseOrder()),
+					page(1, 20),
+					PriceContentMode.RESPECTING_FILTER,
+					CURRENCY_EUR,
+					null,
+					PRICE_LIST_VIP, PRICE_LIST_BASIC
+				);
+
+				return null;
+			}
+		);
+	}
+
+	void assertPricesForSaleAreAsExpected(
+		@Nonnull List<SealedEntity> resultToVerify,
+		@Nonnull PriceContentMode priceContentMode,
+		@Nonnull Currency currency,
+		@Nullable OffsetDateTime validIn,
+		@Nonnull String[] priceLists
+	) {
 		final Set<String> priceListsSet = Arrays.stream(priceLists).collect(Collectors.toSet());
 
 		for (SealedEntity sealedEntity : resultToVerify) {
-			final PriceContract priceForSale = sealedEntity.getPriceForSale()
-				.orElseThrow();
+			if (sealedEntity.getPriceInnerRecordHandling() == PriceInnerRecordHandling.NONE) {
+				final PriceContract priceForSale = sealedEntity.getPriceForSale()
+					.orElseThrow();
 
-			for (String priceList : priceLists) {
-				if (priceList.equals(priceForSale.priceList())) {
-					break;
-				} else {
-					assertTrue(
-						sealedEntity.getPrices(currency, priceList)
+				for (String priceList : priceLists) {
+					if (priceList.equals(priceForSale.priceList())) {
+						break;
+					} else {
+						assertTrue(
+							sealedEntity.getPrices(currency, priceList)
+								.stream()
+								.filter(PriceContract::indexed)
+								// for first occurrence strategy the price with more prioritized list might be found but is skipped, because is bigger than other inner record price
+								.filter(it -> Objects.equals(it.innerRecordId(), priceForSale.innerRecordId()) || it.priceWithTax().compareTo(priceForSale.priceWithTax()) <= 0)
+								.noneMatch(it -> it.validity() == null || validIn == null || it.validity().isValidFor(validIn)),
+							() -> "There must be no price for more prioritized price lists! But is for: " + priceList
+						);
+					}
+				}
+			} else if (sealedEntity.getPriceInnerRecordHandling() == PriceInnerRecordHandling.SUM) {
+				assertTrue(sealedEntity.getPriceForSale().isPresent());
+			} else if (sealedEntity.getPriceInnerRecordHandling() == PriceInnerRecordHandling.LOWEST_PRICE) {
+				final PriceContract priceForSale = sealedEntity.getPriceForSale()
+					.orElseThrow();
+
+				final Map<Integer, List<PriceContract>> pricesByInnerRecordId = sealedEntity.getPrices()
+					.stream()
+					.collect(Collectors.groupingBy(PriceContract::innerRecordId));
+
+				for (List<PriceContract> pricesPerVariant : pricesByInnerRecordId.values()) {
+					// we need to eagerly skip prices for inner record records for which the price is already found
+					for (String priceList : priceLists) {
+						final List<PriceContract> pricesSubSet = pricesPerVariant
 							.stream()
-							.filter(PriceContract::sellable)
-							// for first occurrence strategy the price with more prioritized list might be found but is skipped, because is bigger than other inner record price
-							.filter(it -> Objects.equals(it.innerRecordId(), priceForSale.innerRecordId()) || it.priceWithTax().compareTo(priceForSale.priceWithTax()) <= 0)
-							.noneMatch(it -> it.validity() == null || validIn == null || it.validity().isValidFor(validIn)),
-						"There must be no price for more prioritized price lists! But is for: " + priceList
-					);
+							.filter(it -> Objects.equals(it.priceList(), priceList))
+							.filter(it -> Objects.equals(it.currency(), currency))
+							.filter(PriceContract::indexed)
+							.filter(it -> it.validity() == null || validIn == null || it.validity().isValidFor(validIn))
+							.toList();
+						// for first occurrence strategy the price with more prioritized list might be found but is skipped, because is bigger than other inner record price
+						assertTrue(
+							pricesSubSet.isEmpty() ||
+								priceForSale.equals(pricesSubSet.get(0)) ||
+								priceForSale.priceWithTax().compareTo(pricesSubSet.get(0).priceWithTax()) <= 0,
+							() -> "There must be no price for more prioritized price lists! But is for: " + priceList
+						);
+						if (!pricesSubSet.isEmpty()) {
+							break;
+						}
+					}
 				}
 			}
 			checkReturnedPrices(priceContentMode, currency, validIn, priceListsSet, sealedEntity);

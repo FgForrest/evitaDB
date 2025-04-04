@@ -23,11 +23,14 @@
 
 package io.evitadb.core.query.filter.translator.price.alternative;
 
+import com.carrotsearch.hppc.IntObjectHashMap;
+import com.carrotsearch.hppc.IntObjectMap;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.PriceContent;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.PriceContract;
+import io.evitadb.api.requestResponse.data.structure.CumulatedPrice;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.query.QueryExecutionContext;
@@ -51,7 +54,10 @@ import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.price.model.priceRecord.CumulatedVirtualPriceRecord;
+import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
+import io.evitadb.index.price.model.priceRecord.PriceRecordInnerRecordSpecific;
+import io.evitadb.store.entity.model.entity.price.PriceInternalIdContainer;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NumberUtils;
@@ -59,6 +65,8 @@ import io.evitadb.utils.NumberUtils;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -95,19 +103,65 @@ public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, 
 	 * Contains result containing all entities that were filtered out by {@link #filter} predicate.
 	 */
 	private Formula filteredOutRecords;
+	/**
+	 * Memoized result of the filter.
+	 */
+	private Bitmap memoizedResult;
 
 	public SellingPriceAvailableBitmapFilter(
 		@Nullable String[] additionalPriceLists,
 		@Nonnull PriceContractPredicate filter
 	) {
 		this.entityFetch = ArrayUtils.isEmpty(additionalPriceLists) ? ENTITY_REQUIRE : new EntityFetch(PriceContent.respectingFilter(additionalPriceLists));
-		this.converter = (entityPrimaryKey, indexedPricePlaces, priceQueryMode, priceContract) -> new CumulatedVirtualPriceRecord(
-			entityPrimaryKey,
-			priceQueryMode == QueryPriceMode.WITH_TAX ?
-				NumberUtils.convertToInt(priceContract.priceWithTax(), indexedPricePlaces) :
-				NumberUtils.convertToInt(priceContract.priceWithoutTax(), indexedPricePlaces),
-			priceQueryMode
-		);
+		this.converter = (entityPrimaryKey, indexedPricePlaces, priceQueryMode, priceContract) -> {
+			if (priceContract instanceof CumulatedPrice cumulatedPrice) {
+				final Map<Integer, PriceContract> innerRecordIds = cumulatedPrice.innerRecordPrices();
+				final IntObjectMap<PriceRecordContract> intSetInnerRecordIds = new IntObjectHashMap<>(innerRecordIds.size());
+				for (Entry<Integer, PriceContract> entry : innerRecordIds.entrySet()) {
+					final PriceContract innerRecordPrice = entry.getValue();
+					if (entry.getKey() != null) {
+						intSetInnerRecordIds.put(
+							entry.getKey(),
+							new PriceRecordInnerRecordSpecific(
+								-1,
+								innerRecordPrice.priceId(),
+								entityPrimaryKey,
+								innerRecordPrice.innerRecordId(),
+								NumberUtils.convertExternalNumberToInt(innerRecordPrice.priceWithTax(), indexedPricePlaces),
+								NumberUtils.convertExternalNumberToInt(innerRecordPrice.priceWithoutTax(), indexedPricePlaces)
+							)
+						);
+					}
+				}
+				return new CumulatedVirtualPriceRecord(
+					entityPrimaryKey,
+					priceQueryMode == QueryPriceMode.WITH_TAX ?
+						NumberUtils.convertExternalNumberToInt(cumulatedPrice.priceWithTax(), indexedPricePlaces) :
+						NumberUtils.convertExternalNumberToInt(cumulatedPrice.priceWithoutTax(), indexedPricePlaces),
+					priceQueryMode,
+					intSetInnerRecordIds
+				);
+			} else if (priceContract.innerRecordId() == null) {
+				return new PriceRecord(
+					priceContract instanceof PriceInternalIdContainer priceWithInternalIds ?
+						priceWithInternalIds.getInternalPriceId() : -1,
+						priceContract.priceId(),
+					entityPrimaryKey,
+					NumberUtils.convertExternalNumberToInt(priceContract.priceWithTax(), indexedPricePlaces),
+					NumberUtils.convertExternalNumberToInt(priceContract.priceWithoutTax(), indexedPricePlaces)
+				);
+			} else {
+				return new PriceRecordInnerRecordSpecific(
+					priceContract instanceof PriceInternalIdContainer priceWithInternalIds ?
+						priceWithInternalIds.getInternalPriceId() : -1,
+					priceContract.priceId(),
+					entityPrimaryKey,
+					priceContract.innerRecordId(),
+					NumberUtils.convertExternalNumberToInt(priceContract.priceWithTax(), indexedPricePlaces),
+					NumberUtils.convertExternalNumberToInt(priceContract.priceWithoutTax(), indexedPricePlaces)
+				);
+			}
+		};
 		this.filter = filter;
 	}
 
@@ -136,63 +190,69 @@ public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, 
 
 	@Nonnull
 	@Override
-	public FilteredPriceRecords getFilteredPriceRecords() {
-		Assert.isPremiseValid(filteredOutRecords != null, "Filter was not yet called on selling price bitmap filter, this is not expected!");
-		return filteredPriceRecords;
+	public FilteredPriceRecords getFilteredPriceRecords(@Nonnull QueryExecutionContext context) {
+		if (this.filteredPriceRecords == null) {
+			// init the records first
+			filter(context);
+		}
+		return this.filteredPriceRecords;
 	}
 
 	@Nonnull
 	@Override
 	public Bitmap filter(@Nonnull QueryExecutionContext context) {
-		final CompositeObjectArray<PriceRecordContract> theFilteredPriceRecords = new CompositeObjectArray<>(PriceRecordContract.class);
-		final QueryPriceMode queryPriceMode = context.getQueryPriceMode();
-		final BaseBitmap result = new BaseBitmap();
-		final BaseBitmap filterOutResult = new BaseBitmap();
-		final AtomicInteger indexedPricePlaces = new AtomicInteger();
-		String entityType = null;
-		final List<ServerEntityDecorator> entities = context.getPrefetchedEntities();
-		if (entities == null) {
-			return EmptyBitmap.INSTANCE;
-		} else {
-			// iterate over all entities
-			for (EntityDecorator entity : entities) {
+		if (this.memoizedResult == null) {
+			final CompositeObjectArray<PriceRecordContract> theFilteredPriceRecords = new CompositeObjectArray<>(PriceRecordContract.class);
+			final QueryPriceMode queryPriceMode = context.getQueryPriceMode();
+			final BaseBitmap result = new BaseBitmap();
+			final BaseBitmap filterOutResult = new BaseBitmap();
+			final AtomicInteger indexedPricePlaces = new AtomicInteger();
+			String entityType = null;
+			final List<ServerEntityDecorator> entities = context.getPrefetchedEntities();
+			if (entities == null) {
+				this.memoizedResult = EmptyBitmap.INSTANCE;
+			} else {
+				// iterate over all entities
+				for (EntityDecorator entity : entities) {
 				/* we can be sure entities are sorted by type because:
 				   1. all entities share the same type
 				   2. or entities are fetched via {@link QueryPlanningContext#prefetchEntities(EntityReference[], EntityContentRequire[])}
 				      that fetches them by entity type in bulk
 				*/
-				final EntitySchemaContract entitySchema = entity.getSchema();
-				if (!Objects.equals(entityType, entitySchema.getName())) {
-					entityType = entitySchema.getName();
-					indexedPricePlaces.set(entitySchema.getIndexedPricePlaces());
-				}
-				final int primaryKey = context.translateEntity(entity);
-				if (entity.isPriceForSaleContextAvailable()) {
-					// check whether they have valid selling price (applying filter on price lists and currency)
-					entity.getPriceForSale(filter)
-						// and if there is still selling price add it to the output result
-						.ifPresentOrElse(
-							it -> {
-								theFilteredPriceRecords.add(converter.apply(primaryKey, indexedPricePlaces.get(), queryPriceMode, it));
-								result.add(primaryKey);
-							},
-							() -> filterOutResult.add(primaryKey)
-						);
-				} else {
-					if (entity.getPrices().stream().filter(PriceContract::sellable).anyMatch(filter)) {
-						result.add(primaryKey);
-					} else {
-						filterOutResult.add(primaryKey);
+					final EntitySchemaContract entitySchema = entity.getSchema();
+					if (!Objects.equals(entityType, entitySchema.getName())) {
+						entityType = entitySchema.getName();
+						indexedPricePlaces.set(entitySchema.getIndexedPricePlaces());
 					}
-				}
+					final int primaryKey = context.translateEntity(entity);
+					if (entity.isPriceForSaleContextAvailable()) {
+						// check whether they have valid selling price (applying filter on price lists and currency)
+						entity.getPriceForSale(filter)
+							// and if there is still selling price add it to the output result
+							.ifPresentOrElse(
+								it -> {
+									theFilteredPriceRecords.add(converter.apply(primaryKey, indexedPricePlaces.get(), queryPriceMode, it));
+									result.add(primaryKey);
+								},
+								() -> filterOutResult.add(primaryKey)
+							);
+					} else {
+						if (entity.getPrices().stream().filter(PriceContract::indexed).anyMatch(filter)) {
+							result.add(primaryKey);
+						} else {
+							filterOutResult.add(primaryKey);
+						}
+					}
 
+				}
+				// memoize valid selling prices for sorting purposes
+				this.filteredPriceRecords = new ResolvedFilteredPriceRecords(theFilteredPriceRecords.toArray(), SortingForm.NOT_SORTED);
+				this.filteredOutRecords = filterOutResult.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(filterOutResult);
+				// return entity ids having selling prices
+				this.memoizedResult = result;
 			}
-			// memoize valid selling prices for sorting purposes
-			this.filteredPriceRecords = new ResolvedFilteredPriceRecords(theFilteredPriceRecords.toArray(), SortingForm.NOT_SORTED);
-			this.filteredOutRecords = filterOutResult.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(filterOutResult);
-			// return entity ids having selling prices
-			return result;
 		}
+		return this.memoizedResult;
 	}
 
 }

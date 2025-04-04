@@ -23,26 +23,62 @@
 
 package io.evitadb.api.query.require;
 
+import io.evitadb.api.query.EntityConstraint;
 import io.evitadb.api.query.RequireConstraint;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
- * No extra information provided - see (selfexplanatory) method signatures.
- * I have the best intention to write more detailed documentation but if you see this, there was not enough time or will to do so.
+ * Ancestor for all requirement containers that serves as entity richness definers.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public interface EntityFetchRequire extends RequireConstraint, EntityRequire, SeparateEntityContentRequireContainer {
+public interface EntityFetchRequire extends EntityConstraint<RequireConstraint>, SeparateEntityContentRequireContainer {
+
 	/**
-	 * Returns requirement constraints for the loaded entities.
+	 * Combines two EntityFetchRequire requirements into one combined requirement.
+	 * If one of the requirements is null, the non-null requirement is returned.
+	 * If both are null, null is returned. If both are non-null, they are combined.
+	 *
+	 * @param <T> the type of the requirement which extends EntityFetchRequire
+	 * @param a the first EntityFetchRequire requirement, can be null
+	 * @param b the second EntityFetchRequire requirement, can be null
+	 * @return the combined EntityFetchRequire requirement, or null if both are null
+	 */
+	@Nullable
+	static <T extends EntityFetchRequire> T combineRequirements(@Nullable T a, @Nullable T b) {
+		if (a == null) {
+			return b;
+		} else if (b == null) {
+			return a;
+		} else {
+			return a.combineWith(b);
+		}
+	}
+
+	/**
+	 * Returns all requirements that are needed to be satisfied for this requirement to be fulfilled.
+	 * @return array of requirements
 	 */
 	@Nonnull
-	@Override
 	EntityContentRequire[] getRequirements();
 
+	/**
+	 * Determines if the current requirement is fully contained within the provided requirement. Contained means that
+	 * this requirement is not necessary because it will be fully satisfied by the provided `anotherRequirement`.
+	 *
+	 * @param anotherRequirement another requirement to be checked for containment
+	 * @param <T> the type of the requirement which extends EntityFetchRequire
+	 * @return true if the current requirement is fully contained within the provided requirement, false otherwise
+	 */
+	<T extends EntityFetchRequire> boolean isFullyContainedWithin(@Nonnull T anotherRequirement);
+
+	/**
+	 * Method allows to combine two requirements of same type (that needs to be compatible with "this" type) into one
+	 * combining the arguments of both of them.
+	 */
 	@Nonnull
-	@Override
-	<T extends EntityRequire> T combineWith(@Nullable T anotherRequirement);
+	<T extends EntityFetchRequire> T combineWith(@Nullable T anotherRequirement);
+
 }

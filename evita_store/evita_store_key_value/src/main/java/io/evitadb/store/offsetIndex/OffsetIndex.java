@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -45,11 +45,13 @@ import io.evitadb.store.offsetIndex.io.WriteOnlyHandle;
 import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.offsetIndex.model.RecordKey;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
+import io.evitadb.store.offsetIndex.model.StorageRecord.RawRecord;
 import io.evitadb.store.offsetIndex.model.VersionedValue;
-import io.evitadb.store.offsetIndex.stream.RandomAccessFileInputStream;
 import io.evitadb.store.service.KeyCompressor;
+import io.evitadb.stream.RandomAccessFileInputStream;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.BitUtils;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.MemoryMeasuringConstants;
 import lombok.Getter;
@@ -139,6 +141,15 @@ public class OffsetIndex {
 	 * Initial size of the central {@link #histogram} index.
 	 */
 	public static final int HISTOGRAM_INITIAL_CAPACITY = 16;
+	/**
+	 * Default size of the pools for decompression.
+	 */
+	public static final int DECOMPRESSION_ARRAY_POOL_MAXIMUM_CAPACITY = 5;
+	/**
+	 * Pool that is usually empty, but may contain large byte arrays that are used as temporary containers during
+	 * decompression of binary records.
+	 */
+	private final Pool<byte[]> decompressionPool;
 	/**
 	 * Contains configuration options for the {@link OffsetIndex},
 	 */
@@ -230,8 +241,9 @@ public class OffsetIndex {
 	 * @param <T>               The type of the storage part.
 	 * @return deserialized storage part or null if the record was not found
 	 */
-	@Nullable
+	@Nonnull
 	public static <T extends StoragePart> T readSingleRecord(
+		@Nonnull StorageOptions storageOptions,
 		@Nonnull Path filePath,
 		@Nonnull FileLocation fileLocation,
 		@Nonnull RecordKey recordKey,
@@ -245,13 +257,21 @@ public class OffsetIndex {
 				)
 			)
 		) {
+			if (storageOptions.computeCRC32C()) {
+				input.computeCRC32();
+			}
+			if (storageOptions.compress()) {
+				input.compress();
+			}
 			final FilteringOffsetIndexBuilder filteringOffsetIndexBuilder = new FilteringOffsetIndexBuilder(recordKey);
 			deserialize(
 				input,
 				fileLocation,
 				filteringOffsetIndexBuilder
 			);
-			return storagePartReader.apply(filteringOffsetIndexBuilder, input);
+			return Objects.requireNonNull(
+				storagePartReader.apply(filteringOffsetIndexBuilder, input)
+			);
 		} catch (FileNotFoundException e) {
 			throw new UnexpectedIOException(
 				"Cannot create read offset file index from file `" + filePath + "`!",
@@ -308,6 +328,12 @@ public class OffsetIndex {
 				this.totalSizeBytes.set(it.getTotalSizeBytes());
 				this.maxRecordSizeBytes.set(it.getMaxSizeBytes());
 			});
+		this.decompressionPool = new Pool<>(true, false, DECOMPRESSION_ARRAY_POOL_MAXIMUM_CAPACITY) {
+			@Override
+			protected byte[] create() {
+				return new byte[storageOptions.outputBufferSize()];
+			}
+		};
 	}
 
 	public OffsetIndex(
@@ -348,6 +374,12 @@ public class OffsetIndex {
 				)
 			)
 		) {
+			if (storageOptions.computeCRC32C()) {
+				input.computeCRC32();
+			}
+			if (storageOptions.compress()) {
+				input.compress();
+			}
 			final CollectingOffsetIndexBuilder fileOffsetIndexBuilder = new CollectingOffsetIndexBuilder();
 			deserialize(
 				input,
@@ -365,6 +397,12 @@ public class OffsetIndex {
 				version -> this.fileOffsetDescriptor.getReadKryoFactory().apply(version)
 			);
 			this.writeKryo = fileOffsetDescriptor.getWriteKryo();
+			this.decompressionPool = new Pool<>(true, false, DECOMPRESSION_ARRAY_POOL_MAXIMUM_CAPACITY) {
+				@Override
+				protected byte[] create() {
+					return new byte[storageOptions.outputBufferSize()];
+				}
+			};
 		} catch (FileNotFoundException e) {
 			throw new UnexpectedIOException(
 				"Cannot create read offset file index from file `" + filePath + "`!",
@@ -414,7 +452,13 @@ public class OffsetIndex {
 			storageOptions.maxOpenedReadHandles(),
 			version -> this.fileOffsetDescriptor.getReadKryoFactory().apply(version)
 		);
-		this.writeKryo = fileOffsetDescriptor.getWriteKryo();
+		this.writeKryo = this.fileOffsetDescriptor.getWriteKryo();
+		this.decompressionPool = new Pool<>(true, false, DECOMPRESSION_ARRAY_POOL_MAXIMUM_CAPACITY) {
+			@Override
+			protected byte[] create() {
+				return new byte[storageOptions.outputBufferSize()];
+			}
+		};
 	}
 
 	/**
@@ -479,7 +523,7 @@ public class OffsetIndex {
 	public <T extends StoragePart> T get(long catalogVersion, long primaryKey, @Nonnull Class<T> recordType) throws RecordNotYetWrittenException {
 		assertOperative();
 		final RecordKey key = new RecordKey(
-			recordTypeRegistry.idFor(recordType),
+			this.recordTypeRegistry.idFor(recordType),
 			primaryKey
 		);
 
@@ -491,7 +535,7 @@ public class OffsetIndex {
 			} else {
 				try {
 					// if the record was not yet flushed to the disk we need to enforce sync so that we can read it
-					if (lastSyncedPosition < nonFlushedValue.fileLocation().getEndPosition()) {
+					if (lastSyncedPosition < nonFlushedValue.fileLocation().endPosition()) {
 						doSoftFlush();
 					}
 					//noinspection unchecked
@@ -510,15 +554,19 @@ public class OffsetIndex {
 					return null;
 				} else {
 					final VersionedValue rewrittenValue = volatileValue.versionedValue();
-					//noinspection unchecked
-					return (T) get(rewrittenValue.fileLocation(), recordTypeRegistry.typeFor(rewrittenValue.recordType()));
+					if (rewrittenValue == null) {
+						return null;
+					} else {
+						//noinspection unchecked
+						return (T) get(rewrittenValue.fileLocation(), recordTypeRegistry.typeFor(rewrittenValue.recordType()));
+					}
 				}
 			}
 		}
 
-		return ofNullable(keyToLocations.get(key))
+		return ofNullable(this.keyToLocations.get(key))
 			.map(it -> doGet(recordType, primaryKey, it))
-			.filter(it -> it.transactionId() <= catalogVersion)
+			.filter(it -> it.generationId() <= catalogVersion)
 			.map(StorageRecord::payload)
 			.orElse(null);
 	}
@@ -543,7 +591,7 @@ public class OffsetIndex {
 		assertOperative();
 
 		final RecordKey key = new RecordKey(
-			recordTypeRegistry.idFor(recordType),
+			this.recordTypeRegistry.idFor(recordType),
 			primaryKey
 		);
 
@@ -555,10 +603,10 @@ public class OffsetIndex {
 			} else {
 				try {
 					// if the record was not yet flushed to the disk we need to enforce sync so that we can read it
-					if (lastSyncedPosition < nonFlushedValue.fileLocation().getEndPosition()) {
+					if (this.lastSyncedPosition < nonFlushedValue.fileLocation().endPosition()) {
 						doSoftFlush();
 					}
-					return getBinary(nonFlushedValue.fileLocation(), recordTypeRegistry.typeFor(nonFlushedValue.recordType()));
+					return getBinary(nonFlushedValue.fileLocation(), this.recordTypeRegistry.typeFor(nonFlushedValue.recordType()));
 				} catch (KryoException exception) {
 					throw new RecordNotYetWrittenException(primaryKey, recordType, exception);
 				}
@@ -573,14 +621,18 @@ public class OffsetIndex {
 					return null;
 				} else {
 					final VersionedValue rewrittenValue = volatileValue.versionedValue();
-					return getBinary(rewrittenValue.fileLocation(), recordTypeRegistry.typeFor(rewrittenValue.recordType()));
+					if (rewrittenValue == null) {
+						return null;
+					} else {
+						return getBinary(rewrittenValue.fileLocation(), recordTypeRegistry.typeFor(rewrittenValue.recordType()));
+					}
 				}
 			}
 		}
 
-		return ofNullable(keyToLocations.get(key))
+		return ofNullable(this.keyToLocations.get(key))
 			.map(it -> doGetBinary(recordType, primaryKey, it))
-			.filter(it -> it.transactionId() <= catalogVersion)
+			.filter(it -> it.generationId() <= catalogVersion)
 			.map(StorageRecord::payload)
 			.orElse(null);
 	}
@@ -631,7 +683,7 @@ public class OffsetIndex {
 	 * Stores or overwrites record with passed primary key in OffsetIndex. Values of different types are distinguished by
 	 * the OffsetIndex so that two different types of objects with same primary keys don't overwrite each other.
 	 *
-	 * @param catalogVersion will be propagated to {@link StorageRecord#transactionId()}
+	 * @param catalogVersion will be propagated to {@link StorageRecord#generationId()}
 	 * @param value          value to be stored
 	 */
 	public <T extends StoragePart> long put(long catalogVersion, @Nonnull T value) {
@@ -695,7 +747,7 @@ public class OffsetIndex {
 	/**
 	 * Flushes current state of the OffsetIndex to the disk. File contents are in sync when this method finalizes.
 	 *
-	 * @param catalogVersion will be propagated to {@link StorageRecord#transactionId()}
+	 * @param catalogVersion will be propagated to {@link StorageRecord#generationId()}
 	 */
 	@Nonnull
 	public OffsetIndexDescriptor flush(long catalogVersion) {
@@ -709,10 +761,10 @@ public class OffsetIndex {
 	 * Purges the catalog for the given catalog version. This method should be called when there is no client using
 	 * a particular version of the catalog.
 	 *
-	 * @param catalogVersion the version of the catalog to be purged, NULL if entire history should be purged
+	 * @param catalogVersion the version of the catalog that can be purged
 	 * @throws IllegalStateException if the catalog is not in an operative state
 	 */
-	public void purge(@Nullable Long catalogVersion) {
+	public void purge(long catalogVersion) {
 		assertOperative();
 		this.volatileValues.purge(catalogVersion);
 	}
@@ -723,7 +775,7 @@ public class OffsetIndex {
 	 *
 	 * @param outputStream   target output stream to write the copy to
 	 * @param progressConsumer consumer that will be called with the progress of the copy
-	 * @param catalogVersion will be propagated to {@link StorageRecord#transactionId()}
+	 * @param catalogVersion will be propagated to {@link StorageRecord#generationId()}
 	 * @return result containing the file location and the file descriptor actual when the copy was made
 	 */
 	@Nonnull
@@ -848,9 +900,9 @@ public class OffsetIndex {
 	/**
 	 * Returns position of last fragment of the current {@link OffsetIndex} in the tracked file.
 	 */
-	@Nullable
+	@Nonnull
 	public FileLocation getFileOffsetIndexLocation() {
-		return fileOffsetDescriptor.fileLocation();
+		return this.fileOffsetDescriptor.fileLocation();
 	}
 
 	/**
@@ -934,7 +986,7 @@ public class OffsetIndex {
 	 * @return the living object share as a double value
 	 */
 	public double getActiveRecordShare(long fileSize) {
-		final double activeRecordShare = (double) getTotalActiveSize() / (double) fileSize;
+		final double activeRecordShare = fileSize == 0 ? 1.0d : (double) getTotalActiveSize() / (double) fileSize;
 		Assert.isPremiseValid(activeRecordShare >= 0, "Active record share must be non-negative!");
 		return activeRecordShare;
 	}
@@ -1069,7 +1121,8 @@ public class OffsetIndex {
 		@Nonnull OffsetIndexDescriptor fileOffsetIndexDescriptor,
 		boolean close
 	) {
-		if (this.volatileValues.hasValuesToFlush()) {
+		// if there are any non-flushed values, we need to flush them to the disk (of if the offset index was not yet created)
+		if (this.volatileValues.hasValuesToFlush() || fileOffsetIndexDescriptor.fileLocation() == FileLocation.EMPTY) {
 			final OffsetIndexDescriptor newFileOffsetIndexDescriptor = writeHandle.checkAndExecuteAndSync(
 				"Writing mem table",
 				this::assertOperative,
@@ -1196,8 +1249,9 @@ public class OffsetIndex {
 					if (currentRecordLength > workingMaxRecordSize) {
 						workingMaxRecordSize = currentRecordLength;
 					}
+					final FileLocation previousValue = newKeyToLocations.put(recordKey, recordLocation);
 					Assert.isPremiseValid(
-						newKeyToLocations.put(recordKey, recordLocation) == null,
+						previousValue == null,
 						"Record was already present!"
 					);
 					count = 1;
@@ -1295,7 +1349,7 @@ public class OffsetIndex {
 	 * Method retrieves existing record from the OffsetIndex.
 	 */
 	private <T extends Serializable> StorageRecord<T> doGet(@Nonnull Class<T> recordType, long primaryKey, @Nonnull FileLocation it) {
-		return readOnlyHandlePool.borrowAndExecute(
+		return this.readOnlyHandlePool.borrowAndExecute(
 			readOnlyFileHandle -> readOnlyFileHandle.execute(
 				exclusiveReadAccess -> {
 					assertOperative();
@@ -1305,7 +1359,7 @@ public class OffsetIndex {
 								return StorageRecord.read(
 									exclusiveReadAccess,
 									it,
-									(stream, length) -> kryo.readObject(stream, recordType)
+									(stream, length, control) -> kryo.readObject(stream, recordType)
 								);
 							} catch (CorruptedRecordException ex) {
 								throw new CorruptedKeyValueRecordException(
@@ -1323,17 +1377,39 @@ public class OffsetIndex {
 	 * Method retrieves existing record from the OffsetIndex without parsing its contents.
 	 */
 	private <T extends Serializable> StorageRecord<byte[]> doGetBinary(@Nonnull Class<T> recordType, long primaryKey, @Nonnull FileLocation it) {
-		return readOnlyHandlePool.borrowAndExecute(
+		return this.readOnlyHandlePool.borrowAndExecute(
 			readOnlyFileHandle -> readOnlyFileHandle.execute(
 				exclusiveReadAccess -> {
 					assertOperative();
 					return this.readKryoPool.borrowAndExecute(
 						kryo -> {
 							try {
-								return StorageRecord.read(
-									exclusiveReadAccess,
-									it,
-									(stream, length) -> stream.readBytes(length - StorageRecord.OVERHEAD_SIZE)
+								exclusiveReadAccess.seek(it);
+								final RawRecord rawRecord = StorageRecord.readRaw(exclusiveReadAccess);
+								/* TOBEDONE 13 - THIS LOGIC SHOULD BE EXTRACTED TO HIGHER LEVELS,
+								     DECOMPRESSION SHOULD OCCUR ON THE CLIENT TO SAVE NETWORK BANDWITH */
+								final byte[] decompressed;
+								if (BitUtils.isBitSet(rawRecord.control(), StorageRecord.COMPRESSION_BIT)) {
+									// decompress the record first
+									byte[] utility = null;
+									try {
+										utility = this.decompressionPool.obtain();
+										final int decompressedBytes = exclusiveReadAccess.decompress(rawRecord.rawData(), utility);
+										decompressed = Arrays.copyOf(utility, decompressedBytes);
+									} finally {
+										if (utility != null) {
+											this.decompressionPool.free(utility);
+										}
+									}
+								} else {
+									decompressed = rawRecord.rawData();
+								}
+								// we need to manually read generation id, hence it may have been compressed
+								return new StorageRecord<>(
+									rawRecord.generationId(),
+									BitUtils.isBitSet(rawRecord.control(), StorageRecord.GENERATION_CLOSING_BIT),
+									decompressed,
+									rawRecord.location()
 								);
 							} catch (CorruptedRecordException ex) {
 								throw new CorruptedKeyValueRecordException(
@@ -1648,7 +1724,7 @@ public class OffsetIndex {
 			// scan non-flushed values
 			final ConcurrentHashMap<Long, NonFlushedValueSet> nvValues = this.nonFlushedValues;
 			final long[] nv = this.nonFlushedVersions;
-			if (nv != null) {
+			if (nv != null && nvValues != null) {
 				int index = Arrays.binarySearch(nv, catalogVersion);
 				if (index != -1) {
 					final int startIndex = index >= 0 ? index : -index - 1;
@@ -1672,7 +1748,7 @@ public class OffsetIndex {
 				}
 				if (hv != null) {
 					int index = Arrays.binarySearch(hv, catalogVersion);
-					if (index != -1) {
+					if (index != -1 && hvValues != null) {
 						final int startIndex = index >= 0 ? index : -index - 1;
 						for (int ix = hv.length - 1; ix > startIndex && ix >= 0; ix--) {
 							final PastMemory differenceSet = hvValues.get(hv[ix]);
@@ -1700,11 +1776,11 @@ public class OffsetIndex {
 			final long[] nv = this.nonFlushedVersions;
 			if (nv != null) {
 				int index = Arrays.binarySearch(nv, catalogVersion);
-				if (index != -1) {
+				if (index != -1 && nvValues != null) {
 					final int startIndex = index >= 0 ? index : -index - 1;
 					for (int ix = nv.length - 1; ix >= startIndex && ix >= 0; ix--) {
 						final NonFlushedValueSet nonFlushedValueSet = nvValues.get(nv[ix]);
-						diff += nonFlushedValueSet.getCountFor(recordTypeId);
+						diff += nonFlushedValueSet == null ? 0 : nonFlushedValueSet.getCountFor(recordTypeId);
 					}
 				}
 			}
@@ -1720,13 +1796,13 @@ public class OffsetIndex {
 				} finally {
 					this.lock.unlock();
 				}
-				if (hv != null) {
+				if (hv != null && hvValues != null) {
 					int index = Arrays.binarySearch(hv, catalogVersion);
 					if (index != -1) {
 						final int startIndex = index >= 0 ? index : -index - 1;
 						for (int ix = hv.length - 1; ix > startIndex && ix >= 0; ix--) {
 							final PastMemory differenceSet = hvValues.get(hv[ix]);
-							diff -= differenceSet.getCountFor(recordTypeId);
+							diff -= differenceSet == null ? 0 : differenceSet.getCountFor(recordTypeId);
 						}
 					}
 				}
@@ -1736,7 +1812,7 @@ public class OffsetIndex {
 		}
 
 		/**
-		 * Retrieves the non-flushed versioned value associated with the given catalog version and key.
+		 * Retrieves the non-flushed versioned value associated with the given catalog version (or lesser) and key.
 		 *
 		 * @param catalogVersion the catalog version to check against
 		 * @param key            the record key
@@ -1746,15 +1822,17 @@ public class OffsetIndex {
 		public Optional<VersionedValue> getNonFlushedValueIfVersionMatches(long catalogVersion, @Nonnull RecordKey key) {
 			final ConcurrentHashMap<Long, NonFlushedValueSet> nvSet = this.nonFlushedValues;
 			final long[] nv = this.nonFlushedVersions;
-			if (nv != null) {
+			if (nv != null && nvSet != null) {
 				int index = Arrays.binarySearch(nv, catalogVersion);
-				if (index != -1) {
-					final int startIndex = index >= 0 ? index - 1 : -index - 2;
-					for (int ix = nv.length - 1; ix >= startIndex && ix >= 0; ix--) {
-						final Optional<VersionedValue> versionedValue = ofNullable(nvSet.get(nv[ix]))
-							.map(it -> it.get(key));
-						if (versionedValue.isPresent()) {
-							return versionedValue;
+				final int startIndex = index >= 0 ? index : -index - 2;
+				if (startIndex >= 0) {
+					for (int ix = startIndex; ix >= 0; ix--) {
+						final NonFlushedValueSet nfvs = nvSet.get(nv[ix]);
+						if (nfvs != null) {
+							final Optional<VersionedValue> versionedValue = ofNullable(nfvs.get(key));
+							if (versionedValue.isPresent()) {
+								return versionedValue;
+							}
 						}
 					}
 				}
@@ -1781,7 +1859,8 @@ public class OffsetIndex {
 		 * @return true if there are non-flushed values, false otherwise
 		 */
 		public boolean hasValuesToFlush() {
-			return !(nonFlushedValues == null || nonFlushedValues.isEmpty());
+			final ConcurrentHashMap<Long, NonFlushedValueSet> nvSet = this.nonFlushedValues;
+			return nvSet != null && !nvSet.isEmpty();
 		}
 
 		/**
@@ -1812,6 +1891,7 @@ public class OffsetIndex {
 					final long examinedVersion = hv[ix];
 					final PastMemory pastMemory = hvValues.get(examinedVersion);
 					if (pastMemory.getRemovedKeys().contains(key)) {
+						//noinspection DataFlowIssue
 						addedInFuture = false;
 					}
 					if (pastMemory.getAddedKeys().contains(key) && examinedVersion != catalogVersion) {
@@ -1843,7 +1923,7 @@ public class OffsetIndex {
 		 * @param create          whether the record was created or not (affects the histogram)
 		 */
 		public void putValue(long catalogVersion, @Nonnull RecordKey key, @Nonnull VersionedValue nonFlushedValue, boolean create) {
-			getNonFlushedValues(catalogVersion).put(key, nonFlushedValue, create);
+			getNonFlushedValues(catalogVersion).put(key, nonFlushedValue, create && !contains(key));
 		}
 
 		/**
@@ -1868,7 +1948,7 @@ public class OffsetIndex {
 		public Collection<NonFlushedValueSet> getNonFlushedEntriesToPromote(long catalogVersion) {
 			final ConcurrentHashMap<Long, NonFlushedValueSet> nvSet = this.nonFlushedValues;
 			final long[] nv = this.nonFlushedVersions;
-			if (nv != null) {
+			if (nv != null && nvSet != null) {
 				Assert.isPremiseValid(
 					catalogVersion >= nv[nv.length - 1],
 					"Catalog version is expected to be at least " + nv[nv.length - 1] + "!"
@@ -1909,13 +1989,14 @@ public class OffsetIndex {
 			if (versionToPurge > -1) {
 				try {
 					this.lock.lock();
-					if (this.historicalVersions != null) {
-						final long[] versionsToPurge = this.historicalVersions;
+					final long[] versionsToPurge = this.historicalVersions;
+					final ConcurrentHashMap<Long, PastMemory> theVolatileValues = this.volatileValues;
+					if (versionsToPurge != null && theVolatileValues != null) {
 						int index = Arrays.binarySearch(versionsToPurge, versionToPurge);
 						final int startIndex = index >= 0 ? index : -index - 2;
 						if (index != -1) {
 							for (int ix = startIndex; ix >= 0; ix--) {
-								this.volatileValues.remove(versionsToPurge[ix]);
+								theVolatileValues.remove(versionsToPurge[ix]);
 							}
 						}
 						this.historicalVersions = Arrays.copyOfRange(versionsToPurge, startIndex + 1, versionsToPurge.length);
@@ -1930,16 +2011,18 @@ public class OffsetIndex {
 				final long catalogVersion = valuesToPromote.getCatalogVersion();
 				try {
 					this.lock.lock();
-					if (this.historicalVersions == null) {
+					final long[] hv = this.historicalVersions;
+					final ConcurrentHashMap<Long, PastMemory> theVolatileValues = this.volatileValues;
+					if (hv == null || theVolatileValues == null) {
+						final ConcurrentHashMap<Long, PastMemory> newVolatileValues = CollectionUtils.createConcurrentHashMap(16);
+						newVolatileValues.put(catalogVersion, valuesToPromote.createFrom(keyToLocations));
 						this.historicalVersions = new long[]{catalogVersion};
-						this.volatileValues = CollectionUtils.createConcurrentHashMap(16);
-						this.volatileValues.put(catalogVersion, valuesToPromote.createFrom(keyToLocations));
+						this.volatileValues = newVolatileValues;
 					} else {
-						this.volatileValues.compute(
+						theVolatileValues.compute(
 							catalogVersion,
 							(key, value) -> {
 								if (value == null) {
-									final long[] hv = this.historicalVersions;
 									this.historicalVersions = ArrayUtils.insertLongIntoOrderedArray(catalogVersion, hv);
 									return valuesToPromote.createFrom(keyToLocations);
 								} else {
@@ -1958,9 +2041,10 @@ public class OffsetIndex {
 		 * Removes all versions of volatile record backup that are lower than the given catalog version.
 		 * There will never be another client asking for those values.
 		 *
-		 * @param catalogVersion the catalog version to compare against, NULL if all versions should be removed
+		 * @param catalogVersion the catalog version to compare against, all values related to this or
+		 *                       lesser version will be removed
 		 */
-		public void purge(@Nullable Long catalogVersion) {
+		public void purge(long catalogVersion) {
 			final long[] hv;
 			try {
 				this.lock.lock();
@@ -1970,7 +2054,7 @@ public class OffsetIndex {
 			}
 			if (hv != null && hv.length > 0) {
 				this.purgeOlderThan.accumulateAndGet(
-					catalogVersion == null ? hv[hv.length - 1] : catalogVersion,
+					catalogVersion,
 					(prev, next) -> prev > -1 ? Math.min(prev, next) : next
 				);
 			}
@@ -2006,8 +2090,8 @@ public class OffsetIndex {
 				Optional.ofNullable(this.volatileValues)
 					.map(vv -> vv.values().stream().mapToLong(it -> MemoryMeasuringConstants.LONG_SIZE + it.getTotalSize()).sum())
 					.orElse(0L)
-				+ MemoryMeasuringConstants.OBJECT_HEADER_SIZE * 4 +
-				+MemoryMeasuringConstants.INT_SIZE + MemoryMeasuringConstants.LONG_SIZE;
+				+ MemoryMeasuringConstants.OBJECT_HEADER_SIZE * 4
+				+ MemoryMeasuringConstants.INT_SIZE + MemoryMeasuringConstants.LONG_SIZE;
 		}
 
 		/**
@@ -2032,6 +2116,30 @@ public class OffsetIndex {
 		}
 
 		/**
+		 * Returns true if the non-flushed values contain the non-removed specified key.
+		 * @param key the record key
+		 * @return true if the non-flushed values contain the non-removed specified key, false otherwise
+		 */
+		public boolean contains(@Nonnull RecordKey key) {
+			final long[] nv = this.nonFlushedVersions;
+			final ConcurrentHashMap<Long, NonFlushedValueSet> theNonVlushedValues = this.nonFlushedValues;
+			if (nv != null && theNonVlushedValues != null) {
+				for (int i = nv.length - 1; i >= 0; i--) {
+					long nonFlushedVersion = nv[i];
+					final NonFlushedValueSet nfSet = theNonVlushedValues.get(nonFlushedVersion);
+					if (nfSet != null) {
+						if (nfSet.removedKeys.contains(key)) {
+							return false;
+						} else if (nfSet.addedKeys.contains(key)) {
+							return true;
+						}
+					}
+				}
+			}
+			return false;
+		}
+
+		/**
 		 * Retrieves the NonFlushedValueSet associated with the given catalog version or creates new set.
 		 *
 		 * @param catalogVersion the catalog version to check against
@@ -2039,17 +2147,19 @@ public class OffsetIndex {
 		 */
 		@Nonnull
 		private NonFlushedValueSet getNonFlushedValues(long catalogVersion) {
-			if (this.nonFlushedVersions == null) {
-				this.nonFlushedValues = CollectionUtils.createConcurrentHashMap(16);
+			final long[] nv = this.nonFlushedVersions;
+			final ConcurrentHashMap<Long, NonFlushedValueSet> theNonFlushedValues = this.nonFlushedValues;
+			if (nv == null || theNonFlushedValues == null) {
+				final ConcurrentHashMap<Long, NonFlushedValueSet> newNonFlushedValues = CollectionUtils.createConcurrentHashMap(16);
+				final NonFlushedValueSet nvSet = new NonFlushedValueSet(catalogVersion, this::notifySizeIncrease);
+				newNonFlushedValues.put(catalogVersion, nvSet);
+				this.nonFlushedValues = newNonFlushedValues;
 				this.nonFlushedVersions = new long[]{catalogVersion};
-				final NonFlushedValueSet nv = new NonFlushedValueSet(catalogVersion, this::notifySizeIncrease);
-				this.nonFlushedValues.put(catalogVersion, nv);
-				return nv;
+				return nvSet;
 			} else {
-				return this.nonFlushedValues.computeIfAbsent(
+				return theNonFlushedValues.computeIfAbsent(
 					catalogVersion,
 					cv -> {
-						final long[] nv = this.nonFlushedVersions;
 						final long lastCatalogVersion = nv[nv.length - 1];
 						Assert.isPremiseValid(
 							lastCatalogVersion == -1 || lastCatalogVersion <= catalogVersion,
@@ -2229,7 +2339,7 @@ public class OffsetIndex {
 	 * @param addedInFuture  true if the value was added in future versions
 	 */
 	protected record VolatileValueInformation(
-		@Nonnull VersionedValue versionedValue,
+		@Nullable VersionedValue versionedValue,
 		boolean removed,
 		boolean addedInFuture
 	) {
@@ -2283,7 +2393,7 @@ public class OffsetIndex {
 			try {
 				if (this.readFilesLock.tryLock(storageOptions.lockTimeoutSeconds(), TimeUnit.SECONDS)) {
 					try {
-						final ReadOnlyHandle readOnlyFileHandle = writeHandle.toReadOnlyHandle();
+						final ReadOnlyHandle readOnlyFileHandle = OffsetIndex.this.writeHandle.toReadOnlyHandle();
 						if (OffsetIndex.this.readOnlyOpenedHandles.size() >= OffsetIndex.this.storageOptions.maxOpenedReadHandles()) {
 							throw new PoolExhaustedException(storageOptions.maxOpenedReadHandles(), readOnlyFileHandle.toString());
 						}

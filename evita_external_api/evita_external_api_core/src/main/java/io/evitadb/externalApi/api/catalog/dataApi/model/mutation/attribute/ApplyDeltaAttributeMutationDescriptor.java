@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute;
 
+import io.evitadb.api.requestResponse.data.mutation.attribute.ApplyDeltaAttributeMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.dataType.Any;
@@ -33,7 +34,7 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
- * Descriptor representing {@link io.evitadb.api.requestResponse.data.mutation.attribute.ApplyDeltaAttributeMutation}.
+ * Descriptor representing {@link ApplyDeltaAttributeMutation}.
  *
  * Note: this descriptor has static structure.
  *

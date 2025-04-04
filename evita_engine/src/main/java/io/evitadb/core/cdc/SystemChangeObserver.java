@@ -25,7 +25,7 @@ package io.evitadb.core.cdc;
 
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.exception.InstanceTerminatedException;
-import io.evitadb.api.requestResponse.cdc.CaptureContent;
+import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
@@ -97,7 +97,7 @@ public class SystemChangeObserver implements AutoCloseable {
 		for (DelegatingChangeCapturePublisher<ChangeSystemCapture, ChangeSystemCaptureRequest> publisher : systemObservers.values()) {
 			final ChangeSystemCaptureRequest request = publisher.getRequest();
 			boolean offerFailed;
-			if (request.content() == CaptureContent.BODY) {
+			if (request.content() == ChangeCaptureContent.BODY) {
 				if (captureBody == null) {
 					// todo jno: implement CDC indexes
 					captureBody = new ChangeSystemCapture(0, 0, catalog, operation, eventSupplier.get());

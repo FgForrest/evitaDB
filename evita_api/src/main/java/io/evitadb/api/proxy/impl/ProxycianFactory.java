@@ -55,6 +55,7 @@ import io.evitadb.function.ExceptionRethrowingFunction;
 import io.evitadb.function.ExceptionRethrowingIntBiFunction;
 import io.evitadb.function.ExceptionRethrowingIntTriFunction;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.RequiredArgsConstructor;
@@ -489,12 +490,13 @@ public class ProxycianFactory implements ProxyFactory {
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nonnull ProxyFactory proxyFactory
 	) {
-		final Class<?> expectedType = cacheKey.subType();
 		if (REFERENCE_CONSTRUCTOR_CACHE.containsKey(cacheKey)) {
 			//noinspection unchecked
 			return (BestMatchingReferenceConstructorWithExtractionLambda<T>) REFERENCE_CONSTRUCTOR_CACHE.get(cacheKey);
 		} else {
 			int bestConstructorScore = Integer.MIN_VALUE;
+			final Class<?> expectedType = cacheKey.subType();
+			Assert.notNull(expectedType, "Expected type cannot be null");
 			BestMatchingReferenceConstructorWithExtractionLambda<T> bestConstructor = null;
 			for (Constructor<?> declaredConstructor : expectedType.getDeclaredConstructors()) {
 				int score = 0;
@@ -640,7 +642,7 @@ public class ProxycianFactory implements ProxyFactory {
 		@Nonnull EntityContract entity,
 		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas
 	) throws EntityClassInvalidException {
-		return createEntityProxy(expectedType, recipes, collectedRecipes, entity, referencedEntitySchemas, reflectionLookup);
+		return createEntityProxy(expectedType, this.recipes, this.collectedRecipes, entity, referencedEntitySchemas, this.reflectionLookup);
 	}
 
 	/**

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,30 +23,34 @@
 
 package io.evitadb.externalApi.observability;
 
+import io.evitadb.externalApi.configuration.ApiOptions;
+import io.evitadb.externalApi.event.ReadinessEvent;
+import io.evitadb.externalApi.event.ReadinessEvent.Prospective;
+import io.evitadb.externalApi.event.ReadinessEvent.Result;
 import io.evitadb.externalApi.http.ExternalApiProvider;
-import io.evitadb.externalApi.observability.configuration.ObservabilityConfig;
+import io.evitadb.externalApi.observability.configuration.ObservabilityOptions;
 import io.evitadb.utils.NetworkUtils;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.util.function.Predicate;
 
-import static io.evitadb.externalApi.observability.ObservabilityManager.METRICS_SUFFIX;
+import static io.evitadb.externalApi.observability.ObservabilityManager.LIVENESS_SUFFIX;
 
 /**
  * Descriptor of external API provider that provides Metrics API.
  *
- * @see ObservabilityProviderRegistrar
  * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
+ * @see ObservabilityProviderRegistrar
  */
-@RequiredArgsConstructor
-public class ObservabilityProvider implements ExternalApiProvider<ObservabilityConfig> {
+@Slf4j
+public class ObservabilityProvider implements ExternalApiProvider<ObservabilityOptions> {
 	public static final String CODE = "observability";
 
 	@Nonnull
 	@Getter
-	private final ObservabilityConfig configuration;
+	private final ObservabilityOptions configuration;
 
 	@Nonnull
 	@Getter
@@ -57,18 +61,26 @@ public class ObservabilityProvider implements ExternalApiProvider<ObservabilityC
 	private final String[] serverNameUrls;
 
 	/**
+	 * Timeout taken from {@link ApiOptions#requestTimeoutInMillis()} that will be used in {@link #isReady()}
+	 * method.
+	 */
+	private final long requestTimeout;
+
+	/**
 	 * Contains url that was at least once found reachable.
 	 */
 	private String reachableUrl;
 
-	@Nonnull
-	public HttpServiceDefinition[] getHttpServiceDefinitions() {
-		return new HttpServiceDefinition[] {
-			new HttpServiceDefinition(
-				observabilityManager.getObservabilityRouter(),
-				PathHandlingMode.DYNAMIC_PATH_HANDLING
-			)
-		};
+	public ObservabilityProvider(
+		@Nonnull ObservabilityOptions configuration,
+		@Nonnull ObservabilityManager observabilityManager,
+		@Nonnull String[] serverNameUrls,
+		long requestTimeout
+	) {
+		this.configuration = configuration;
+		this.observabilityManager = observabilityManager;
+		this.serverNameUrls = serverNameUrls;
+		this.requestTimeout = requestTimeout;
 	}
 
 	@Nonnull
@@ -77,15 +89,48 @@ public class ObservabilityProvider implements ExternalApiProvider<ObservabilityC
 		return CODE;
 	}
 
+	@Nonnull
+	public HttpServiceDefinition[] getHttpServiceDefinitions() {
+		return new HttpServiceDefinition[]{
+			new HttpServiceDefinition(
+				observabilityManager.getObservabilityRouter(),
+				PathHandlingMode.DYNAMIC_PATH_HANDLING
+			)
+		};
+	}
+
 	@Override
 	public boolean isReady() {
-		final Predicate<String> isReady = url -> NetworkUtils.fetchContent(url, "GET", "text/plain", null)
-			.map(content -> !content.isEmpty())
-			.orElse(false);
-		final String[] baseUrls = this.configuration.getBaseUrls(configuration.getExposedHost());
+		final Predicate<String> isReady = url -> {
+			final ReadinessEvent readinessEvent = new ReadinessEvent(CODE, Prospective.CLIENT);
+			return NetworkUtils.fetchContent(
+					url,
+					"GET",
+					"text/plain",
+					null,
+					this.requestTimeout,
+					error -> {
+						log.error("Error while checking readiness of Observability API: {}", error);
+						readinessEvent.finish(Result.ERROR);
+					},
+					timeouted -> {
+						log.error("{}", timeouted);
+						readinessEvent.finish(Result.TIMEOUT);
+					}
+				)
+				.map(content -> {
+					final boolean result = !content.isEmpty();
+					if (result) {
+						readinessEvent.finish(Result.READY);
+					}
+					return result;
+				})
+				.orElse(false);
+		};
+		final String[] baseUrls = this.configuration.getBaseUrls();
 		if (this.reachableUrl == null) {
 			for (String baseUrl : baseUrls) {
-				final String url = baseUrl + METRICS_SUFFIX;
+				final String url = baseUrl + LIVENESS_SUFFIX;
 				if (isReady.test(url)) {
 					this.reachableUrl = url;
 					return true;

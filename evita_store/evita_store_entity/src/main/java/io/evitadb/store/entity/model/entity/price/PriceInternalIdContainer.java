@@ -27,8 +27,6 @@ import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.utils.NumberUtils;
 
-import javax.annotation.Nullable;
-
 /**
  * Interface allow accessing internally assigned price identifiers. We use our own identifiers because we need
  * to stick to Java int types in indexes and searching. The priceId and innerRecordId are related to its entity. And
@@ -51,7 +49,6 @@ public interface PriceInternalIdContainer {
 	 * by {@link PriceKey} inside single entity. The id is different for two prices sharing same {@link PriceKey}
 	 * but are present in different entities.
 	 */
-	@Nullable
-	Integer getInternalPriceId();
+	int getInternalPriceId();
 
 }

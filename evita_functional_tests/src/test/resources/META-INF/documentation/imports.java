@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -72,6 +72,7 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
 import io.evitadb.api.requestResponse.data.structure.ExistingEntityBuilder;
 import io.evitadb.api.query.visitor.PrettyPrintingVisitor.StringWithParameters;
+import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.requestResponse.data.SealedInstance;
 import io.evitadb.api.requestResponse.data.InstanceEditor;
@@ -103,6 +104,7 @@ import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.test.generator.DataGenerator.Labels;
 import io.evitadb.test.generator.DataGenerator.ReferencedFileSet;
+import io.evitadb.api.query.require.ManagedReferencesBehaviour;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy;
@@ -133,7 +135,6 @@ import io.grpc.ForwardingClientCall;
 import io.grpc.ManagedChannel;
 import io.grpc.Metadata;
 import io.grpc.MethodDescriptor;
-import io.grpc.netty.NettyChannelBuilder;
 import io.netty.handler.ssl.ApplicationProtocolConfig;
 import io.netty.handler.ssl.ApplicationProtocolConfig.Protocol;
 import io.netty.handler.ssl.ApplicationProtocolConfig.SelectedListenerFailureBehavior;
@@ -141,6 +142,9 @@ import io.netty.handler.ssl.ApplicationProtocolConfig.SelectorFailureBehavior;
 import io.netty.handler.ssl.ApplicationProtocolNames;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
+import com.linecorp.armeria.client.grpc.GrpcClients;
+import io.evitadb.driver.interceptor.ClientSessionInterceptor;
+import io.evitadb.driver.interceptor.ClientSessionInterceptor.SessionIdHolder;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.api.query.filter.AttributeSpecialValue.*;
@@ -148,9 +152,14 @@ import static io.evitadb.api.query.require.StatisticsType.*;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.Query.*;
 import static io.evitadb.api.query.order.OrderDirection.*;
+import static io.evitadb.api.query.require.ManagedReferencesBehaviour.*;
 import static io.evitadb.api.query.require.PriceContentMode.*;
 import static io.evitadb.api.query.require.FacetStatisticsDepth.*;
 import static io.evitadb.api.query.require.QueryPriceMode.*;
 import static io.evitadb.api.query.require.StatisticsBase.*;
 import static io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour.*;
 import static io.evitadb.api.query.require.HistogramBehavior.*;
+import static io.evitadb.api.query.require.FacetRelationType.*;
+import static io.evitadb.api.query.require.FacetGroupRelationLevel.*;
+import static io.evitadb.api.query.order.TraversalMode.*;
+import static io.evitadb.dataType.Scope.*;

@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price;
 
+import io.evitadb.api.requestResponse.data.mutation.price.UpsertPriceMutation;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
@@ -34,7 +35,7 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
- * Descriptor representing {@link io.evitadb.api.requestResponse.data.mutation.price.UpsertPriceMutation}.
+ * Descriptor representing {@link UpsertPriceMutation}.
  *
  * Note: this descriptor has static structure.
  *
@@ -81,10 +82,10 @@ public interface UpsertPriceMutationDescriptor extends PriceMutationDescriptor {
 			""")
 		.type(nullable(DateTimeRange.class))
 		.build();
-	PropertyDescriptor SELLABLE = PropertyDescriptor.builder()
-		.name("sellable")
+	PropertyDescriptor INDEXED = PropertyDescriptor.builder()
+		.name("indexed")
 		.description("""
-			Controls whether price is subject to filtering / sorting logic, non-sellable prices will be fetched along with
+			Controls whether price is subject to filtering / sorting logic, non-indexed prices will be fetched along with
 			entity but won't be considered when evaluating search query. These prices may be
 			used for "informational" prices such as reference price (the crossed out price often found on e-commerce sites
 			as "usual price") but are not considered as the "selling" price.
@@ -107,7 +108,7 @@ public interface UpsertPriceMutationDescriptor extends PriceMutationDescriptor {
 			TAX_RATE,
 			PRICE_WITH_TAX,
 			VALIDITY,
-			SELLABLE
+			INDEXED
 		))
 		.build();
 }

@@ -1,22 +1,22 @@
 ```json
 {
-  "data": [
+  "data" : [
     {
-      "primaryKey": 64703,
-      "associatedData": {
-        "allActiveUrls": [
+      "primaryKey" : 64703,
+      "associatedData" : {
+        "allActiveUrls" : [
           {
-            "locale": "cs",
-            "url": "/cs/samsung"
+            "locale" : "cs",
+            "url" : "/cs/samsung"
           },
           {
-            "locale": "en",
-            "url": "/en/samsung"
+            "locale" : "en",
+            "url" : "/en/samsung"
           }
         ],
-        "localization": {
-          "labels": {
-            "name": "Samsung"
+        "localization" : {
+          "labels" : {
+            "name" : "Samsung"
           }
         }
       }

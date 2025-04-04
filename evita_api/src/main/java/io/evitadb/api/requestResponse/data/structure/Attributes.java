@@ -325,7 +325,6 @@ public abstract class Attributes<S extends AttributeSchemaContract> implements A
 			this.filteredAttributeValues = this.attributeValues
 				.values()
 				.stream()
-				.filter(ad -> ad.value() != null)
 				.filter(attributeValue -> attributeTypes.get(attributeValue.key().attributeName()) != null)
 				.toList();
 		}

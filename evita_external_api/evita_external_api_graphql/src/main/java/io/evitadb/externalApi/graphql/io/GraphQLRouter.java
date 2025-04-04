@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,11 +31,11 @@ import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import graphql.GraphQL;
 import io.evitadb.core.Evita;
-import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
+import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.io.web.GraphQLWebHandler;
 import io.evitadb.externalApi.http.CorsEndpoint;
-import io.evitadb.externalApi.http.CorsFilter;
+import io.evitadb.externalApi.http.CorsService;
 import io.evitadb.externalApi.utils.UriPath;
 import io.evitadb.externalApi.utils.path.PathHandlingService;
 import io.evitadb.externalApi.utils.path.RoutingHandlerService;
@@ -76,7 +76,10 @@ public class GraphQLRouter implements HttpService {
 	 * Provides access to Evita private API
 	 */
 	@Nonnull private final Evita evita;
-	@Nonnull private final GraphQLConfig graphQLConfig;
+	/**
+	 * Provides access to headers configuration.
+	 */
+	@Nonnull private final HeaderOptions headers;
 
 	private final PathHandlingService delegateRouter = new PathHandlingService();
 	private boolean systemApiRegistered = false;
@@ -156,30 +159,28 @@ public class GraphQLRouter implements HttpService {
 	 * Registers all needed endpoints for a single API into a passed router.
 	 */
 	private void registerApi(@Nonnull RoutingHandlerService apiRouter, @Nonnull RegisteredApi registeredApi) {
-		final CorsEndpoint corsEndpoint = new CorsEndpoint(this.graphQLConfig);
+		final CorsEndpoint corsEndpoint = new CorsEndpoint(this.headers);
 		corsEndpoint.addMetadata(Set.of(HttpMethod.GET, HttpMethod.POST), true, true);
 
 		// actual GraphQL query handler
 		apiRouter.add(
 			HttpMethod.POST,
 			registeredApi.path().toString(),
-			new CorsFilter(
-				new GraphQLWebHandler(this.evita, this.objectMapper, registeredApi.instanceType(), registeredApi.graphQLReference())
-					.decorate(service -> new GraphQLExceptionHandler(this.objectMapper, service)),
-				graphQLConfig.getAllowedOrigins()
+			CorsService.standaloneFilter(
+				new GraphQLWebHandler(this.evita, this.headers, this.objectMapper, registeredApi.instanceType(), registeredApi.graphQLReference())
+					.decorate(service -> new GraphQLExceptionHandler(this.objectMapper, service))
 			)
 		);
 		// GraphQL schema handler
 		apiRouter.add(
 			HttpMethod.GET,
 			registeredApi.path().toString(),
-			new CorsFilter(
+			CorsService.standaloneFilter(
 				new GraphQLSchemaHandler(
 					this.evita,
 					registeredApi.graphQLReference()
 				)
-					.decorate(service -> new GraphQLExceptionHandler(this.objectMapper, service)),
-				graphQLConfig.getAllowedOrigins()
+					.decorate(service -> new GraphQLExceptionHandler(this.objectMapper, service))
 			)
 		);
 		// CORS pre-flight handler for the GraphQL handler

@@ -29,7 +29,6 @@ import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
-import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
@@ -87,16 +86,6 @@ public class CombinedEntityFilteringFunctionalTest {
 	private static final String ATTRIBUTE_CAPACITY = "capacity";
 
 	private static final int SEED = 40;
-	private final DataGenerator dataGenerator = new DataGenerator(faker -> {
-		final int rndPIRH = faker.random().nextInt(10);
-		if (rndPIRH < 6) {
-			return PriceInnerRecordHandling.NONE;
-		} else if (rndPIRH < 8) {
-			return PriceInnerRecordHandling.LOWEST_PRICE;
-		} else {
-			return PriceInnerRecordHandling.SUM;
-		}
-	});
 
 	@DataSet(value = THREE_HUNDRED_PRODUCTS_WITH_ALL_DATA, destroyAfterClass = true)
 	DataCarrier setUp(Evita evita) {
@@ -106,6 +95,11 @@ public class CombinedEntityFilteringFunctionalTest {
 				final int primaryKey = entityCount == 0 ? 0 : faker.random().nextInt(1, entityCount);
 				return primaryKey == 0 ? null : primaryKey;
 			};
+
+			final DataGenerator dataGenerator = new DataGenerator.Builder()
+				.withPriceInnerRecordHandlingGenerator(ALL_PRICE_INNER_RECORD_HANDLING_GENERATOR)
+				.withPriceIndexingDecider(DEFAULT_PRICE_INDEXING_DECIDER)
+				.build();
 
 			final List<EntityReference> storedBrands = dataGenerator.generateEntities(
 					dataGenerator.getSampleBrandSchema(session),
@@ -336,6 +330,7 @@ public class CombinedEntityFilteringFunctionalTest {
 					originalProducts,
 					sealedEntity -> {
 						final boolean hasPrice = sealedEntity.hasPriceInInterval(from, to, QueryPriceMode.WITH_TAX, CURRENCY_CZK, null, PRICE_LIST_BASIC);
+						final boolean hasCzechLocale = sealedEntity.getAllLocales().contains(CZECH_LOCALE);
 						final Set<String> names = sealedEntity.getReferences(Entities.BRAND).stream()
 							.map(it -> brandsById.get(it.getReferencedPrimaryKey()))
 							.map(it -> it.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE, String.class))
@@ -343,7 +338,7 @@ public class CombinedEntityFilteringFunctionalTest {
 							.collect(Collectors.toSet());
 						final boolean hasBrandStartingWithChar = names.stream()
 							.anyMatch(it -> it.startsWith("L"));
-						return hasPrice && hasBrandStartingWithChar;
+						return hasPrice && hasCzechLocale && hasBrandStartingWithChar;
 					},
 					result.getRecordData()
 				);
@@ -359,8 +354,8 @@ public class CombinedEntityFilteringFunctionalTest {
 	void shouldReturnProductsHavingBothPriceAndHierarchyLocationAndReferencedEntity(Evita evita, List<SealedEntity> originalProducts, Hierarchy categoryHierarchy) {
 		final Function<SealedEntity, Boolean> isReferencingBrand = sealedEntity ->
 			sealedEntity.getReference(Entities.BRAND, 2).isPresent() ||
-			sealedEntity.getReference(Entities.BRAND, 4).isPresent() ||
-			sealedEntity.getReference(Entities.BRAND, 5).isPresent();
+				sealedEntity.getReference(Entities.BRAND, 4).isPresent() ||
+				sealedEntity.getReference(Entities.BRAND, 5).isPresent();
 		final Function<SealedEntity, Boolean> isWithinCategory = sealedEntity -> sealedEntity
 			.getReferences(Entities.CATEGORY)
 			.stream()

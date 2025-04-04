@@ -33,7 +33,6 @@ import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.store.service.KeyCompressor;
 import io.evitadb.store.spi.model.storageParts.index.FilterIndexStoragePart;
-import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -48,18 +47,7 @@ public class FilterIndexStoragePartSerializer_2024_5 extends Serializer<FilterIn
 
 	@Override
 	public void write(Kryo kryo, Output output, FilterIndexStoragePart filterIndex) {
-		output.writeInt(filterIndex.getEntityIndexPrimaryKey());
-		final Long uniquePartId = filterIndex.getStoragePartPK();
-		Assert.notNull(uniquePartId, "Unique part id should have been computed by now!");
-		output.writeVarLong(uniquePartId, true);
-		output.writeVarInt(keyCompressor.getId(filterIndex.getAttributeKey()), true);
-
-		kryo.writeObject(output, new InvertedIndex<>(filterIndex.getHistogramPoints(), (o1, o2) -> ((Comparable)o1).compareTo(o2)));
-		final boolean rangeIndex = filterIndex.getRangeIndex() != null;
-		output.writeBoolean(rangeIndex);
-		if (rangeIndex) {
-			kryo.writeObject(output, filterIndex.getRangeIndex());
-		}
+		throw new UnsupportedOperationException("This serializer is deprecated and should not be used.");
 	}
 
 	@Override
@@ -68,7 +56,7 @@ public class FilterIndexStoragePartSerializer_2024_5 extends Serializer<FilterIn
 		final long uniquePartId = input.readVarLong(true);
 		final AttributeKey attributeKey = keyCompressor.getKeyForId(input.readVarInt(true));
 
-		final InvertedIndex<?> invertedIndex = kryo.readObject(input, InvertedIndex.class);
+		final InvertedIndex invertedIndex = kryo.readObject(input, InvertedIndex.class);
 		final boolean hasRangeIndex = input.readBoolean();
 		if (hasRangeIndex) {
 			final RangeIndex intRangeIndex = kryo.readObject(input, RangeIndex.class);

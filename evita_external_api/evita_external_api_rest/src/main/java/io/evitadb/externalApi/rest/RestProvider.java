@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,13 +23,17 @@
 
 package io.evitadb.externalApi.rest;
 
+import io.evitadb.externalApi.configuration.ApiOptions;
+import io.evitadb.externalApi.event.ReadinessEvent;
+import io.evitadb.externalApi.event.ReadinessEvent.Prospective;
+import io.evitadb.externalApi.event.ReadinessEvent.Result;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiSystemEndpoint;
 import io.evitadb.externalApi.rest.api.system.model.LivenessDescriptor;
-import io.evitadb.externalApi.rest.configuration.RestConfig;
+import io.evitadb.externalApi.rest.configuration.RestOptions;
 import io.evitadb.utils.NetworkUtils;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.util.function.Predicate;
@@ -39,16 +43,22 @@ import java.util.function.Predicate;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-@RequiredArgsConstructor
-public class RestProvider implements ExternalApiProvider<RestConfig> {
+@Slf4j
+public class RestProvider implements ExternalApiProvider<RestOptions> {
 
 	public static final String CODE = "rest";
 
 	@Nonnull
 	@Getter
-	private final RestConfig configuration;
+	private final RestOptions configuration;
 	@Nonnull
 	private final RestManager restManager;
+
+	/**
+	 * Timeout taken from {@link ApiOptions#requestTimeoutInMillis()} that will be used in {@link #isReady()}
+	 * method.
+	 */
+	private final long requestTimeout;
 
 	/**
 	 * Contains url that was at least once found reachable.
@@ -59,6 +69,12 @@ public class RestProvider implements ExternalApiProvider<RestConfig> {
 	@Override
 	public String getCode() {
 		return CODE;
+	}
+
+	public RestProvider(@Nonnull RestOptions configuration, @Nonnull RestManager restManager, long requestTimeout) {
+		this.configuration = configuration;
+		this.restManager = restManager;
+		this.requestTimeout = requestTimeout;
 	}
 
 	@Nonnull
@@ -76,10 +92,33 @@ public class RestProvider implements ExternalApiProvider<RestConfig> {
 
 	@Override
 	public boolean isReady() {
-		final Predicate<String> isReady = url -> NetworkUtils.fetchContent(url, "GET", "application/json", null)
-			.map(content -> content.contains("true"))
-			.orElse(false);
-		final String[] baseUrls = this.configuration.getBaseUrls(configuration.getExposedHost());
+		final Predicate<String> isReady = url -> {
+			final ReadinessEvent readinessEvent = new ReadinessEvent(CODE, Prospective.CLIENT);
+			return NetworkUtils.fetchContent(
+					url,
+					"GET",
+					"application/json",
+					null,
+					this.requestTimeout,
+					error -> {
+						log.error("Error while checking readiness of REST API: {}", error);
+						readinessEvent.finish(Result.ERROR);
+					},
+					timeouted -> {
+						log.error("{}", timeouted);
+						readinessEvent.finish(Result.TIMEOUT);
+					}
+				)
+				.map(content -> {
+					final boolean result = content.contains("true");
+					if (result) {
+						readinessEvent.finish(Result.READY);
+					}
+					return result;
+				})
+				.orElse(false);
+		};
+		final String[] baseUrls = this.configuration.getBaseUrls();
 		if (this.reachableUrl == null) {
 			for (String baseUrl : baseUrls) {
 				final String url = baseUrl + OpenApiSystemEndpoint.URL_PREFIX + "/" + LivenessDescriptor.LIVENESS_SUFFIX;

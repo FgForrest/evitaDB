@@ -71,7 +71,7 @@ import java.io.Serializable;
 		arraysSupported = true
 	)
 )
-public class AttributeStartsWith extends AbstractAttributeFilterConstraintLeaf implements IndexUsingConstraint {
+public class AttributeStartsWith extends AbstractAttributeFilterStringSearchConstraintLeaf implements FilterConstraint {
 	@Serial private static final long serialVersionUID = 5516189083269213655L;
 
 	private AttributeStartsWith(Serializable... arguments) {
@@ -84,9 +84,7 @@ public class AttributeStartsWith extends AbstractAttributeFilterConstraintLeaf i
 		super(attributeName, textToSearch);
 	}
 
-	/**
-	 * Returns part of attribute value that needs to be looked up for.
-	 */
+	@Override
 	@Nonnull
 	public String getTextToSearch() {
 		return (String) getArguments()[1];

@@ -24,6 +24,7 @@
 package io.evitadb.core.cache.payload;
 
 import io.evitadb.api.query.require.QueryPriceMode;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.price.FilteredOutPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
@@ -34,6 +35,7 @@ import io.evitadb.core.query.algebra.price.termination.PriceTerminationFormula;
 import io.evitadb.core.query.algebra.price.termination.PriceWrappingFormula;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.MemoryMeasuringConstants;
 import io.evitadb.utils.NumberUtils;
 import lombok.Getter;
@@ -55,9 +57,9 @@ public class FlattenedFormulaWithFilteredPricesAndFilteredOutRecords extends Fla
 	@Serial private static final long serialVersionUID = -6052882250380556441L;
 	/**
 	 * Contains information about price records leading to a computed result.
-	 * Copies {@link FilteredPriceRecordAccessor#getFilteredPriceRecords()}.
+	 * Copies {@link FilteredPriceRecordAccessor#getFilteredPriceRecords(QueryExecutionContext)}.
 	 */
-	@Getter @Nonnull private final FilteredPriceRecords filteredPriceRecords;
+	@Nonnull private final FilteredPriceRecords filteredPriceRecords;
 	/**
 	 * Records that has been filtered out by the original formula.
 	 * Copies {@link FilteredOutPriceRecordAccessor#getCloneWithPricePredicateFilteredOutResults()}.
@@ -167,4 +169,15 @@ public class FlattenedFormulaWithFilteredPricesAndFilteredOutRecords extends Fla
 		return this.memoizedClone;
 	}
 
+	@Nonnull
+	@Override
+	public FilteredPriceRecords getFilteredPriceRecords(@Nonnull QueryExecutionContext context) {
+		return this.filteredPriceRecords;
+	}
+
+	@Nonnull
+	public FilteredPriceRecords getFilteredPriceRecordsOrThrowException() {
+		Assert.isPremiseValid(this.filteredPriceRecords != null, "Filtered price records must not be null.");
+		return this.filteredPriceRecords;
+	}
 }

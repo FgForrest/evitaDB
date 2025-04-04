@@ -57,7 +57,7 @@ import java.util.Currency;
 	userDocsLink = "/documentation/query/filtering/price#price-in-currency",
 	supportedIn = ConstraintDomain.ENTITY
 )
-public class PriceInCurrency extends AbstractFilterConstraintLeaf implements PriceConstraint<FilterConstraint>, IndexUsingConstraint {
+public class PriceInCurrency extends AbstractFilterConstraintLeaf implements PriceConstraint<FilterConstraint>, FilterConstraint {
 	@Serial private static final long serialVersionUID = -6188252788595824381L;
 
 	private PriceInCurrency(@Nonnull Serializable... arguments) {

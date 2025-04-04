@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -161,7 +161,7 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 		@Nullable AttributeRequest defaultAttributeRequest,
 		boolean requiresEntityReferences,
 		@Nullable Locale implicitLocale,
-		@Nonnull Set<Locale> locales
+		@Nullable Set<Locale> locales
 	) {
 		this.referenceSet = referenceSet;
 		this.defaultAttributeRequest = defaultAttributeRequest;
@@ -206,14 +206,39 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	@Override
 	public boolean test(ReferenceContract reference) {
 		if (requiresEntityReferences) {
-			final String referencedEntityType = reference.getReferenceName();
+			final String referenceName = reference.getReferenceName();
 			return reference.exists() &&
-				(referenceSet.isEmpty() || referenceSet.containsKey(referencedEntityType));
+				(referenceSet.isEmpty() || referenceSet.containsKey(referenceName));
 		} else {
 			return false;
 		}
 	}
 
+	/**
+	 * Determines if a reference with a given name has been requested based on the current state
+	 * of reference requirements and the reference set.
+	 *
+	 * @param referenceName the name of the reference to check.
+	 * @return {@code true} if references are required and the reference name is either part of the set
+	 *         or the set is empty; {@code false} otherwise.
+	 */
+	public boolean isReferenceRequested(@Nonnull String referenceName) {
+		if (requiresEntityReferences) {
+			return referenceSet.isEmpty() || referenceSet.containsKey(referenceName);
+		} else {
+			return false;
+		}
+	}
+
+	/**
+	 * Creates a richer copy of the current {@code ReferenceContractSerializablePredicate} instance
+	 * by combining its existing state with the details from the provided {@code EvitaRequest}.
+	 *
+	 * @param evitaRequest the {@code EvitaRequest} containing additional requirements and state to merge into the new instance.
+	 * @return a new {@code ReferenceContractSerializablePredicate} instance that combines the state from the current instance
+	 *         with the requirements from the provided {@code EvitaRequest}.
+	 */
+	@Nonnull
 	public ReferenceContractSerializablePredicate createRicherCopyWith(@Nonnull EvitaRequest evitaRequest) {
 		final Set<Locale> requiredLocales = combineLocales(evitaRequest);
 		Assert.isPremiseValid(
@@ -241,12 +266,18 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 				requiredReferencedEntities,
 				mergeAttributeRequests(this.defaultAttributeRequest, defaultAttributeRequest),
 				this.requiresEntityReferences || doesRequireEntityReferences,
-				implicitLocale,
+				this.implicitLocale,
 				requiredLocales
 			);
 		}
 	}
 
+	/**
+	 * Retrieves a predicate that can be used to filter attribute values for a specific reference.
+	 *
+	 * @param referenceName the name of the reference for which to obtain the attribute predicate.
+	 * @return a {@code ReferenceAttributeValueSerializablePredicate} configured for the specified reference name.
+	 */
 	@Nonnull
 	public ReferenceAttributeValueSerializablePredicate getAttributePredicate(@Nonnull String referenceName) {
 		return new ReferenceAttributeValueSerializablePredicate(
@@ -258,6 +289,14 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 		);
 	}
 
+	/**
+	 * Retrieves a set of all locales available in the current instance. If an implicit locale is set and
+	 * no explicit locales are available, a set containing only the implicit locale is returned. If both
+	 * implicit and explicit locales are present, a merged set of both is returned. If no implicit locale
+	 * is set, the explicit locales are returned.
+	 *
+	 * @return a set of available locales, potentially empty, or null if no locales are defined.
+	 */
 	@Nullable
 	public Set<Locale> getAllLocales() {
 		if (this.implicitLocale != null && this.locales == null) {
@@ -272,6 +311,12 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 		}
 	}
 
+	/**
+	 * Combines and merges referenced entity attribute requests from the provided EvitaRequest.
+	 *
+	 * @param evitaRequest the EvitaRequest containing the reference entity fetch requirements.
+	 * @return a map of combined AttributeRequests for referenced entities.
+	 */
 	@Nonnull
 	private Map<String, AttributeRequest> combineReferencedEntities(@Nonnull EvitaRequest evitaRequest) {
 		final Map<String, AttributeRequest> requiredReferences;
@@ -301,6 +346,17 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 		return requiredReferences;
 	}
 
+	/**
+	 * Merges two AttributeRequest objects. If either of the input requests is null,
+	 * the method returns the non-null request. If both requests are non-null, the method
+	 * combines their attribute sets and consolidates the entity attribute requirements.
+	 *
+	 * @param existingAttributeRequest the existing AttributeRequest to be merged.
+	 * @param newAttributeRequest the new AttributeRequest to be merged.
+	 * @return a merged AttributeRequest that combines the attribute sets and entity attribute requirements
+	 *         from the provided requests, or null if both inputs are null.
+	 */
+	@Nullable
 	private static AttributeRequest mergeAttributeRequests(
 		@Nullable AttributeRequest existingAttributeRequest,
 		@Nullable AttributeRequest newAttributeRequest
@@ -308,6 +364,8 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 		final AttributeRequest mergedAttributeRequest;
 		if (existingAttributeRequest == null) {
 			mergedAttributeRequest = newAttributeRequest;
+		} else if (newAttributeRequest == null) {
+			mergedAttributeRequest = existingAttributeRequest;
 		} else {
 			final AttributeRequest attributeRequest;
 			if (existingAttributeRequest.isRequiresEntityAttributes() && existingAttributeRequest.attributeSet().isEmpty()) {
@@ -326,6 +384,12 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 		return mergedAttributeRequest;
 	}
 
+	/**
+	 * Combines the locales from the current instance and the given EvitaRequest.
+	 *
+	 * @param evitaRequest the EvitaRequest containing additional locales to merge.
+	 * @return a set of combined locales, potentially null if no locales are present.
+	 */
 	@Nullable
 	private Set<Locale> combineLocales(@Nonnull EvitaRequest evitaRequest) {
 		final Set<Locale> requiredLanguages;

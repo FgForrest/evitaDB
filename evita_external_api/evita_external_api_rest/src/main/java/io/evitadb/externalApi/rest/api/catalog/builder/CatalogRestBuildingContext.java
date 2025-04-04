@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,15 +29,15 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.rest.api.builder.RestBuildingContext;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiObject;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference;
-import io.evitadb.externalApi.rest.configuration.RestConfig;
+import io.evitadb.externalApi.rest.configuration.RestOptions;
 import io.swagger.v3.oas.models.servers.Server;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Currency;
@@ -68,9 +68,13 @@ public class CatalogRestBuildingContext extends RestBuildingContext {
 	 */
 	@Nonnull @Getter private final List<OpenApiTypeReference> localizedEntityObjects;
 
-
-	public CatalogRestBuildingContext(@Nullable String exposedOn, @Nonnull RestConfig restConfig, @Nonnull Evita evita, @Nonnull CatalogContract catalog) {
-		super(exposedOn, restConfig, evita);
+	public CatalogRestBuildingContext(
+		@Nonnull RestOptions restConfig,
+		@Nonnull HeaderOptions headerOptions,
+		@Nonnull Evita evita,
+		@Nonnull CatalogContract catalog
+	) {
+		super(restConfig, headerOptions, evita);
 		this.catalog = catalog;
 		this.supportedLocales = createHashSet(20);
 		this.supportedCurrencies = createHashSet(20);
@@ -88,14 +92,14 @@ public class CatalogRestBuildingContext extends RestBuildingContext {
 			return schemas;
 		});
 
-		entityObjects = new ArrayList<>(this.entitySchemas.size());
-		localizedEntityObjects = new ArrayList<>(this.entitySchemas.size());
+		this.entityObjects = new ArrayList<>(this.entitySchemas.size());
+		this.localizedEntityObjects = new ArrayList<>(this.entitySchemas.size());
 	}
 
 	@Nonnull
 	@Override
 	protected List<Server> buildOpenApiServers() {
-		return Arrays.stream(restConfig.getBaseUrls(getExposedOn()))
+		return Arrays.stream(restConfig.getBaseUrls())
 			.map(baseUrl -> new Server()
 				.url(baseUrl + getSchema().getName()))
 			.toList();
@@ -115,14 +119,14 @@ public class CatalogRestBuildingContext extends RestBuildingContext {
 	@Nonnull
 	public OpenApiTypeReference registerEntityObject(@Nonnull OpenApiObject entityObject) {
 		final OpenApiTypeReference ref = registerType(entityObject);
-		entityObjects.add(ref);
+		this.entityObjects.add(ref);
 		return ref;
 	}
 
 	@Nonnull
 	public OpenApiTypeReference registerLocalizedEntityObject(@Nonnull OpenApiObject entityObject) {
 		final OpenApiTypeReference ref = registerType(entityObject);
-		localizedEntityObjects.add(ref);
+		this.localizedEntityObjects.add(ref);
 		return ref;
 	}
 }

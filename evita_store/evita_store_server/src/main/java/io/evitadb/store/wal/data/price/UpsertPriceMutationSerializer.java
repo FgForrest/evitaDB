@@ -53,7 +53,7 @@ public class UpsertPriceMutationSerializer extends Serializer<UpsertPriceMutatio
 		kryo.writeObject(output, mutation.getTaxRate());
 		kryo.writeObject(output, mutation.getPriceWithTax());
 		kryo.writeObjectOrNull(output, mutation.getValidity(), DateTimeRange.class);
-		output.writeBoolean(mutation.isSellable());
+		output.writeBoolean(mutation.isIndexed());
 	}
 
 	@Override
@@ -66,7 +66,7 @@ public class UpsertPriceMutationSerializer extends Serializer<UpsertPriceMutatio
 		final BigDecimal taxRate = kryo.readObject(input, BigDecimal.class);
 		final BigDecimal priceWithTax = kryo.readObject(input, BigDecimal.class);
 		final DateTimeRange validity = kryo.readObjectOrNull(input, DateTimeRange.class);
-		final boolean sellable = input.readBoolean();
+		final boolean indexed = input.readBoolean();
 		return new UpsertPriceMutation(
 			new PriceKey(
 				priceId,
@@ -78,7 +78,7 @@ public class UpsertPriceMutationSerializer extends Serializer<UpsertPriceMutatio
 			taxRate,
 			priceWithTax,
 			validity,
-			sellable
+			indexed
 		);
 	}
 }

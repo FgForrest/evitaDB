@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.grpc.services;
 
 import com.google.protobuf.Empty;
+import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SessionTraits;
@@ -33,6 +34,12 @@ import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.core.Evita;
+import io.evitadb.core.async.ObservableExecutorServiceWithHardDeadline;
+import io.evitadb.externalApi.configuration.HeaderOptions;
+import io.evitadb.externalApi.event.ReadinessEvent;
+import io.evitadb.externalApi.event.ReadinessEvent.Prospective;
+import io.evitadb.externalApi.event.ReadinessEvent.Result;
+import io.evitadb.externalApi.grpc.GrpcProvider;
 import io.evitadb.externalApi.grpc.constants.GrpcHeaders;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.requestResponse.cdc.ChangeCaptureConverter;
@@ -40,6 +47,7 @@ import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingTop
 import io.evitadb.externalApi.grpc.services.interceptors.GlobalExceptionHandlerInterceptor;
 import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionInterceptor;
 import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
+import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.evitadb.utils.UUIDUtil;
 import io.grpc.Metadata;
 import io.grpc.stub.CallStreamObserver;
@@ -52,7 +60,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Flow.Publisher;
 import java.util.concurrent.Flow.Subscriber;
 import java.util.concurrent.Flow.Subscription;
@@ -72,6 +79,10 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 * Instance of Evita upon which will be executed service calls
 	 */
 	@Nonnull private final Evita evita;
+	/**
+	 * Tracing context to be used for gRPC calls.
+	 */
+	@Nonnull private final ExternalApiTracingContext<Metadata> context;
 
 	/**
 	 * Builds array of {@link SessionFlags} based on session type and rollback transaction flag.
@@ -98,32 +109,63 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	/**
 	 * Executes entire lambda function within the scope of a tracing context.
 	 *
+	 * @param context  tracing context to be used
 	 * @param lambda   lambda function to be executed
 	 * @param executor executor service to be used as a carrier for a lambda function
 	 */
-	private static void executeWithClientContext(
+	public static void executeWithClientContext(
 		@Nonnull Runnable lambda,
-		@Nonnull ExecutorService executor,
-		@Nonnull StreamObserver<?> responseObserver
+		@Nonnull ObservableExecutorServiceWithHardDeadline executor,
+		@Nonnull StreamObserver<?> responseObserver,
+		@Nonnull ExternalApiTracingContext<Metadata> context
 	) {
+		// Retrieve the deadline from the context
+		final long requestTimeoutMillis = ServiceRequestContext.current().requestTimeoutMillis();
 		final Metadata metadata = ServerSessionInterceptor.METADATA.get();
-		ExternalApiTracingContextProvider.getContext()
+		final String methodName = GrpcHeaders.getGrpcTraceTaskNameWithMethodName(metadata);
+		final Runnable theMethod =
+			() -> executor.execute(
+				executor.createTask(
+					methodName,
+					() -> {
+						try {
+							lambda.run();
+						} catch (RuntimeException exception) {
+							// Delegate exception handling to GlobalExceptionHandlerInterceptor
+							GlobalExceptionHandlerInterceptor.sendErrorToClient(exception, responseObserver);
+						}
+					},
+					requestTimeoutMillis
+				)
+			);
+
+		context
 			.executeWithinBlock(
-				GrpcHeaders.getGrpcTraceTaskNameWithMethodName(metadata),
+				methodName,
 				metadata,
-				() -> {
-					try {
-						executor.execute(lambda);
-					} catch (RuntimeException exception) {
-						// Delegate exception handling to GlobalExceptionHandlerInterceptor
-						GlobalExceptionHandlerInterceptor.sendErrorToClient(exception, responseObserver);
-					}
-				}
+				theMethod
 			);
 	}
 
-	public EvitaService(@Nonnull Evita evita) {
+	public EvitaService(
+		@Nonnull Evita evita,
+		@Nonnull HeaderOptions headers
+	) {
 		this.evita = evita;
+		this.context = ExternalApiTracingContextProvider.getContext(headers);
+	}
+
+	/**
+	 * Method is used to check readiness of the gRPC API.
+	 *
+	 * @param request          empty message
+	 * @param responseObserver observer on which errors might be thrown and result returned
+	 */
+	@Override
+	public void isReady(Empty request, StreamObserver<GrpcReadyResponse> responseObserver) {
+		new ReadinessEvent(GrpcProvider.CODE, Prospective.SERVER).finish(Result.READY);
+		responseObserver.onNext(GrpcReadyResponse.newBuilder().setReady(true).build());
+		responseObserver.onCompleted();
 	}
 
 	/**
@@ -192,8 +234,9 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 					.build());
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor(),
-			responseObserver
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
 		);
 	}
 
@@ -213,8 +256,10 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 					.build());
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor(),
-			responseObserver);
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
+		);
 	}
 
 	/**
@@ -228,12 +273,14 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	public void defineCatalog(GrpcDefineCatalogRequest request, StreamObserver<GrpcDefineCatalogResponse> responseObserver) {
 		executeWithClientContext(
 			() -> {
-				evita.defineCatalog(request.getCatalogName());
+				this.evita.defineCatalog(request.getCatalogName());
 				responseObserver.onNext(GrpcDefineCatalogResponse.newBuilder().setSuccess(true).build());
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor(),
-			responseObserver);
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
+		);
 	}
 
 	/**
@@ -252,8 +299,10 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 				responseObserver.onNext(GrpcDeleteCatalogIfExistsResponse.newBuilder().setSuccess(success).build());
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor(),
-			responseObserver);
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
+		);
 	}
 
 	/**
@@ -268,12 +317,14 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 					.map(DelegatingTopLevelCatalogSchemaMutationConverter.INSTANCE::convert)
 					.toArray(TopLevelCatalogSchemaMutation[]::new);
 
-				evita.update(schemaMutations);
+				this.evita.update(schemaMutations);
 				responseObserver.onNext(Empty.getDefaultInstance());
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor(),
-			responseObserver);
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
+		);
 	}
 
 	/**
@@ -287,12 +338,14 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	public void renameCatalog(GrpcRenameCatalogRequest request, StreamObserver<GrpcRenameCatalogResponse> responseObserver) {
 		executeWithClientContext(
 			() -> {
-				evita.renameCatalog(request.getCatalogName(), request.getNewCatalogName());
+				this.evita.renameCatalog(request.getCatalogName(), request.getNewCatalogName());
 				responseObserver.onNext(GrpcRenameCatalogResponse.newBuilder().setSuccess(true).build());
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor(),
-			responseObserver);
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
+		);
 	}
 
 	/**
@@ -306,12 +359,14 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	public void replaceCatalog(GrpcReplaceCatalogRequest request, StreamObserver<GrpcReplaceCatalogResponse> responseObserver) {
 		executeWithClientContext(
 			() -> {
-				evita.replaceCatalog(request.getCatalogNameToBeReplacedWith(), request.getCatalogNameToBeReplaced());
+				this.evita.replaceCatalog(request.getCatalogNameToBeReplacedWith(), request.getCatalogNameToBeReplaced());
 				responseObserver.onNext(GrpcReplaceCatalogResponse.newBuilder().setSuccess(true).build());
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor(),
-			responseObserver);
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
+		);
 	}
 
 	/**
@@ -340,8 +395,10 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 					.build());
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor(),
-			responseObserver);
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
+		);
 	}
 
 	/**

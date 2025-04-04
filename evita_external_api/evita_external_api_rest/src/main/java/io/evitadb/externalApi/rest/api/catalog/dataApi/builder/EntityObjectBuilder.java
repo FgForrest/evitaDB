@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,6 +33,8 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.AssociatedDataDescriptor
 import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.ReferencePageDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceStripDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContext;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.GlobalAssociatedDataDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.GlobalAttributesDescriptor;
@@ -54,13 +56,15 @@ import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
 import static io.evitadb.externalApi.rest.api.catalog.dataApi.builder.DataApiNamesConstructor.constructEntityObjectName;
 import static io.evitadb.externalApi.rest.api.catalog.dataApi.builder.DataApiNamesConstructor.constructReferenceObjectName;
+import static io.evitadb.externalApi.rest.api.catalog.dataApi.builder.DataApiNamesConstructor.constructReferencePageObjectName;
+import static io.evitadb.externalApi.rest.api.catalog.dataApi.builder.DataApiNamesConstructor.constructReferenceStripObjectName;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiArray.arrayOf;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiNonNull.nonNull;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiProperty.newProperty;
@@ -381,21 +385,64 @@ public class EntityObjectBuilder {
 			.getReferences()
 			.values()
 			.stream()
-			.map(referenceSchema -> {
+			.flatMap(referenceSchema -> {
+				final List<OpenApiProperty> properties = new ArrayList<>(3);
+
 				final OpenApiTypeReference referenceObject = buildReferenceObject(entitySchema, referenceSchema, localized);
 
-				final OpenApiProperty.Builder referencePropertyBuilder = newProperty()
-					.name(referenceSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
-					.description(referenceSchema.getDescription())
-					.deprecationNotice(referenceSchema.getDeprecationNotice());
+				final Cardinality referenceCardinality = referenceSchema.getCardinality();
+				final boolean referenceIsList = Cardinality.ZERO_OR_MORE.equals(referenceCardinality) ||
+					Cardinality.ONE_OR_MORE.equals(referenceCardinality);
 
-				if (referenceSchema.getCardinality() == Cardinality.ZERO_OR_MORE || referenceSchema.getCardinality() == Cardinality.ONE_OR_MORE) {
-					referencePropertyBuilder.type(referenceSchema.getCardinality() == Cardinality.ONE_OR_MORE ? nonNull(arrayOf(referenceObject)) : arrayOf(referenceObject));
-				} else {
-					referencePropertyBuilder.type(referenceSchema.getCardinality() == Cardinality.EXACTLY_ONE ? nonNull(referenceObject) : referenceObject);
+				{ // base reference field
+					final OpenApiProperty.Builder referencePropertyBuilder = RestEntityDescriptor.REFERENCE
+						.to(propertyBuilderTransformer)
+						.name(RestEntityDescriptor.REFERENCE.name(referenceSchema))
+						.description(referenceSchema.getDescription())
+						.deprecationNotice(referenceSchema.getDeprecationNotice());
+
+					if (referenceIsList) {
+						referencePropertyBuilder.type(
+							referenceSchema.getCardinality() == Cardinality.ONE_OR_MORE
+								? nonNull(arrayOf(referenceObject))
+								: arrayOf(referenceObject)
+						);
+					} else {
+						referencePropertyBuilder.type(
+							referenceSchema.getCardinality() == Cardinality.EXACTLY_ONE
+								? nonNull(referenceObject)
+								: referenceObject
+						);
+					}
+
+					properties.add(referencePropertyBuilder.build());
 				}
 
-				return referencePropertyBuilder.build();
+				{ // chunked reference fields
+					if (referenceIsList) {
+						properties.add(
+							RestEntityDescriptor.REFERENCE_PAGE
+								.to(propertyBuilderTransformer)
+								.name(RestEntityDescriptor.REFERENCE_PAGE.name(referenceSchema))
+								.description(referenceSchema.getDescription())
+								.deprecationNotice(referenceSchema.getDeprecationNotice())
+								.type(buildReferencePageObject(entitySchema, referenceSchema, localized))
+								.build()
+						);
+
+						properties.add(
+							RestEntityDescriptor.REFERENCE_STRIP
+								.to(propertyBuilderTransformer)
+								.name(RestEntityDescriptor.REFERENCE_STRIP.name(referenceSchema))
+								.description(referenceSchema.getDescription())
+								.deprecationNotice(referenceSchema.getDeprecationNotice())
+								.type(buildReferenceStripObject(entitySchema, referenceSchema, localized))
+								.build()
+						);
+					}
+				}
+
+				return properties.stream();
 			})
 			.toList();
 	}
@@ -449,24 +496,21 @@ public class EntityObjectBuilder {
 		return referencedEntityObject;
 	}
 
-	@Nullable
+	@Nonnull
 	private OpenApiProperty buildReferenceGroupEntityProperty(@Nonnull ReferenceSchemaContract referenceSchema,
-	                                                   boolean localized) {
+	                                                          boolean localized) {
 		final OpenApiTypeReference groupEntityObject = buildReferenceGroupEntityObject(referenceSchema, localized);
-		if (groupEntityObject == null) {
-			return null;
-		}
 		return ReferenceDescriptor.GROUP_ENTITY
 			.to(propertyBuilderTransformer)
 			.type(nonNull(groupEntityObject))
 			.build();
 	}
 
-	@Nullable
+	@Nonnull
 	private OpenApiTypeReference buildReferenceGroupEntityObject(@Nonnull ReferenceSchemaContract referenceSchema,
 	                                                             boolean localized) {
 		if(referenceSchema.getReferencedGroupType() == null) {
-			return null;
+			throw new OpenApiBuildingError("Group type on reference `" + referenceSchema.getName() + "` is not defined.");
 		}
 
 		final OpenApiTypeReference groupEntityObject;
@@ -519,5 +563,37 @@ public class EntityObjectBuilder {
 		}
 
 		return buildingContext.registerType(attributesObject);
+	}
+
+	@Nonnull
+	private OpenApiTypeReference buildReferencePageObject(@Nonnull EntitySchemaContract entitySchema,
+	                                                      @Nonnull ReferenceSchemaContract referenceSchema,
+	                                                      boolean localized) {
+		return buildingContext.registerType(
+			ReferencePageDescriptor.THIS
+				.to(objectBuilderTransformer)
+				.name(constructReferencePageObjectName(entitySchema, referenceSchema, localized))
+				.description(referenceSchema.getDescription())
+				.property(ReferencePageDescriptor.DATA
+					.to(propertyBuilderTransformer)
+					.type(nonNull(arrayOf(typeRefTo(constructReferenceObjectName(entitySchema, referenceSchema, localized))))))
+				.build()
+		);
+	}
+
+	@Nonnull
+	private OpenApiTypeReference buildReferenceStripObject(@Nonnull EntitySchemaContract entitySchema,
+	                                                       @Nonnull ReferenceSchemaContract referenceSchema,
+	                                                       boolean localized) {
+		return buildingContext.registerType(
+			ReferenceStripDescriptor.THIS
+				.to(objectBuilderTransformer)
+				.name(constructReferenceStripObjectName(entitySchema, referenceSchema, localized))
+				.description(referenceSchema.getDescription())
+				.property(ReferencePageDescriptor.DATA
+					.to(propertyBuilderTransformer)
+					.type(nonNull(arrayOf(typeRefTo(constructReferenceObjectName(entitySchema, referenceSchema, localized))))))
+				.build()
+		);
 	}
 }

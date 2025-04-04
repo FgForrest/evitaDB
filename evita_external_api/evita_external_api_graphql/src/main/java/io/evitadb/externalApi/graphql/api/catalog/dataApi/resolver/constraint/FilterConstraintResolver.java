@@ -31,6 +31,7 @@ import io.evitadb.api.query.filter.And;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.ConstraintResolver;
 
 import javax.annotation.Nonnull;
@@ -63,7 +64,7 @@ public class FilterConstraintResolver extends GraphQLConstraintResolver<FilterCo
 	@Nullable
 	public FilterConstraint resolve(@Nonnull String rootEntityType, @Nonnull String key, @Nullable Object value) {
 		return resolve(
-			new EntityDataLocator(rootEntityType),
+			new EntityDataLocator(new ManagedEntityTypePointer(rootEntityType)),
 			key,
 			value
 		);

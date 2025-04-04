@@ -23,9 +23,7 @@
 
 package io.evitadb.store.spi;
 
-import io.evitadb.core.buffer.DataStoreIndexChanges;
-import io.evitadb.index.Index;
-import io.evitadb.index.IndexKey;
+import io.evitadb.core.buffer.DataStoreChanges;
 
 import javax.annotation.Nonnull;
 import java.io.Closeable;
@@ -35,7 +33,7 @@ import java.io.Closeable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-sealed interface PersistenceService<IK extends IndexKey, I extends Index<IK>>
+sealed interface PersistenceService
 	extends Closeable
 	permits CatalogPersistenceService, EntityCollectionPersistenceService {
 
@@ -48,7 +46,7 @@ sealed interface PersistenceService<IK extends IndexKey, I extends Index<IK>>
 	 * Flushes all trapped memory data to the persistent storage.
 	 * This method doesn't take transactional memory into an account but only flushes changes for trapped updates.
 	 */
-	void flushTrappedUpdates(long catalogVersion, @Nonnull DataStoreIndexChanges<IK, I> dataStoreIndexChanges);
+	void flushTrappedUpdates(long catalogVersion, @Nonnull DataStoreChanges dataStoreChanges);
 
 	/**
 	 * Returns true if the persistence service is closed.

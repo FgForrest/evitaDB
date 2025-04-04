@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute;
 
-import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaDescriptionMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ReferenceAttributeSchemaMutation;
@@ -60,7 +59,7 @@ class ReferenceAttributeSchemaMutationAggregateConverterTest {
 
 	@Test
 	void shouldResolveInputToLocalMutation() {
-		final List<ReferenceSchemaMutation> expectedMutations = List.of(
+		final List<ReferenceAttributeSchemaMutation> expectedMutations = List.of(
 			new ModifyAttributeSchemaDescriptionMutation("code", "desc"),
 			new ModifyAttributeSchemaNameMutation("code", "betterCode")
 		);

@@ -27,6 +27,7 @@ import io.evitadb.api.CatalogStatistics.EntityCollectionStatistics;
 import io.evitadb.api.exception.EntityAlreadyRemovedException;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
+import io.evitadb.api.query.filter.EntityScope;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.DeletedHierarchy;
@@ -34,18 +35,17 @@ import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
-import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
-import java.util.List;
 import java.util.Optional;
 
 /**
@@ -67,31 +67,6 @@ public interface EntityCollectionContract {
 	int getEntityTypePrimaryKey();
 
 	/**
-	 * Method returns a response containing entities that match passed `evitaRequest`. This is universal method for
-	 * accessing multiple entities from the collection in a paginated fashion in requested form of completeness.
-	 */
-	@Nonnull
-	<S extends Serializable, T extends EvitaResponse<S>> T getEntities(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session);
-
-	/**
-	 * Method returns entity by its type and primary key in requested form of completeness. This method allows quick
-	 * access to the entity contents when primary key is known.
-	 *
-	 * @see io.evitadb.api.requestResponse.EvitaBinaryEntityResponse
-	 */
-	@Nonnull
-	Optional<BinaryEntity> getBinaryEntity(int primaryKey, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session);
-
-	/**
-	 * Method returns multiple entities by their type and primary key in requested form of completeness. This method
-	 * allows quick access to the entity contents when primary key is known.
-	 *
-	 * @see io.evitadb.api.requestResponse.EvitaBinaryEntityResponse
-	 */
-	@Nonnull
-	List<BinaryEntity> getBinaryEntities(@Nonnull int[] primaryKeys, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session);
-
-	/**
 	 * Method returns entity by its type and primary key in requested form of completeness. This method allows quick
 	 * access to the entity contents when primary key is known.
 	 */
@@ -99,11 +74,11 @@ public interface EntityCollectionContract {
 	Optional<SealedEntity> getEntity(int primaryKey, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session);
 
 	/**
-	 * Method returns multiple entities by their type and primary key in requested form of completeness. This method
-	 * allows quick access to the entity contents when primary key is known.
+	 * Method returns a response containing entities that match passed `evitaRequest`. This is universal method for
+	 * accessing multiple entities from the collection in a paginated fashion in requested form of completeness.
 	 */
 	@Nonnull
-	List<SealedEntity> getEntities(@Nonnull int[] primaryKeys, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session);
+	<S extends Serializable, T extends EvitaResponse<S>> T getEntities(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session);
 
 	/**
 	 * Method returns entity with additionally loaded data specified by requirements in second argument. This method
@@ -142,7 +117,7 @@ public interface EntityCollectionContract {
 	/**
 	 * Creates entity builder for new entity without specified primary key needed to be inserted to the collection.
 	 *
-	 * @return builder instance to be filled up and stored via {@link #upsertEntity(EntityMutation)}
+	 * @return builder instance to be filled up and stored via {@link #upsertEntity(EvitaSessionContract, EntityMutation)}
 	 */
 	@Nonnull
 	EntityBuilder createNewEntity();
@@ -152,7 +127,7 @@ public interface EntityCollectionContract {
 	 * the collection.
 	 *
 	 * @param primaryKey externally assigned primary key for the entity
-	 * @return builder instance to be filled up and stored via {@link #upsertEntity(EntityMutation)}
+	 * @return builder instance to be filled up and stored via {@link #upsertEntity(EvitaSessionContract, EntityMutation)}
 	 */
 	@Nonnull
 	EntityBuilder createNewEntity(int primaryKey);
@@ -160,42 +135,45 @@ public interface EntityCollectionContract {
 	/**
 	 * Method inserts to or updates entity in collection according to passed set of mutations.
 	 *
+	 * @param session        that connect this request with an opened session
 	 * @param entityMutation list of mutation snippets that alter or form the entity
 	 * @throws InvalidMutationException when mutation cannot be executed - it is throw when there is attempt to insert
 	 *                                  twice entity with the same primary key, or execute update that has no sense
 	 */
 	@Nonnull
-	EntityReference upsertEntity(@Nonnull EntityMutation entityMutation) throws InvalidMutationException;
+	EntityReference upsertEntity(@Nonnull EvitaSessionContract session, @Nonnull EntityMutation entityMutation) throws InvalidMutationException;
 
 	/**
 	 * Method inserts to or updates entity in collection according to passed set of mutations.
 	 *
-	 * @param entityMutation list of mutation snippets that alter or form the entity
 	 * @param session        that connect this request with an opened session
+	 * @param entityMutation list of mutation snippets that alter or form the entity
 	 * @throws InvalidMutationException when mutation cannot be executed - it is throw when there is attempt to insert
 	 *                                  twice entity with the same primary key, or execute update that has no sense
 	 */
 	@Nonnull
-	SealedEntity upsertAndFetchEntity(@Nonnull EntityMutation entityMutation, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session);
+	SealedEntity upsertAndFetchEntity(@Nonnull EvitaSessionContract session, @Nonnull EntityMutation entityMutation, @Nonnull EvitaRequest evitaRequest);
 
 	/**
 	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
 	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
 	 *
+	 * @param session    that connect this request with an opened session
+	 * @param primaryKey primary key of the entity to be removed
 	 * @return true if entity existed and was removed
 	 */
-	boolean deleteEntity(int primaryKey);
+	boolean deleteEntity(@Nonnull EvitaSessionContract session, int primaryKey);
 
 	/**
 	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
 	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
 	 *
-	 * @param evitaRequest allowing to propagate instructions for fetching the deleted entity
 	 * @param session      that connect this request with an opened session
+	 * @param evitaRequest allowing to propagate instructions for fetching the deleted entity
 	 * @return removed entity fetched according to `require` definition
 	 */
 	@Nonnull
-	<T extends Serializable> Optional<T> deleteEntity(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session);
+	<T extends Serializable> Optional<T> deleteEntity(@Nonnull EvitaSessionContract session, @Nonnull EvitaRequest evitaRequest);
 
 	/**
 	 * Method removes existing hierarchical entity in collection by its primary key. Method also removes all entities
@@ -224,22 +202,77 @@ public interface EntityCollectionContract {
 	 * Method removes all entities that match passed query. All entities of other entity types that reference removed
 	 * entities in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
 	 *
-	 * @param evitaRequest allowing to propagate instructions for fetching the deleted entity
 	 * @param session      that connect this request with an opened session
+	 * @param evitaRequest allowing to propagate instructions for fetching the deleted entity
 	 * @return number of deleted entities
 	 */
-	int deleteEntities(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session);
+	int deleteEntities(@Nonnull EvitaSessionContract session, @Nonnull EvitaRequest evitaRequest);
 
 	/**
-	 * Method removes all entities that match passed query. All entities of other entity types that reference removed
-	 * entities in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
+	 * Method archives existing active (living) entity in collection by its primary key. Archiving in evitaDB resembles
+	 * soft-delete in the sense that the entity is not removed from the collection but is marked as archived and is not
+	 * visible in the regular queries. The entity can be restored back to the active state by calling {@link #restoreEntity(EvitaSessionContract, int)}.
+	 * Archived entities can still be retrieved using query using {@link EntityScope} requirement with {@link Scope#ARCHIVED}.
+	 * Archived entities have the same schema structure, but by default none of their data (except for primary key) are
+	 * indexed so that soft-deleted entities consume only minimal space in the memory. Set of indexed data can be
+	 * extended using schema definition process.
 	 *
-	 * @param evitaRequest allowing to propagate instructions for fetching the deleted entity
+	 * All entities of other entity types that reference removed entity in their {@link SealedEntity#getReference(String, int)}
+	 * still keep the data untouched. Automatically created - bi-directional references in the archived entity and
+	 * the entities on the opposite side are automatically removed along with the entity.
+	 *
 	 * @param session      that connect this request with an opened session
-	 * @return array of deleted entities
+	 * @param primaryKey primary key of the entity to be archived
+	 * @return true if entity existed in living scope and was archived
+	 */
+	boolean archiveEntity(@Nonnull EvitaSessionContract session, int primaryKey);
+
+	/**
+	 * Method archives existing active (living) entity in collection by its primary key. Archiving in evitaDB resembles
+	 * soft-delete in the sense that the entity is not removed from the collection but is marked as archived and is not
+	 * visible in the regular queries. The entity can be restored back to the active state by calling {@link #restoreEntity(EvitaSessionContract, int)}.
+	 * Archived entities can still be retrieved using query using {@link EntityScope} requirement with {@link Scope#ARCHIVED}.
+	 * Archived entities have the same schema structure, but by default none of their data (except for primary key) are
+	 * indexed so that soft-deleted entities consume only minimal space in the memory. Set of indexed data can be
+	 * extended using schema definition process.
+	 *
+	 * All entities of other entity types that reference removed entity in their {@link SealedEntity#getReference(String, int)}
+	 * still keep the data untouched. Automatically created - bi-directional references in the archived entity and
+	 * the entities on the opposite side are automatically removed along with the entity.
+	 *
+	 * @param session      that connect this request with an opened session
+	 * @param evitaRequest allowing to propagate instructions for fetching the archived entity
+	 * @return archived entity fetched according to `require` definition
 	 */
 	@Nonnull
-	SealedEntity[] deleteEntitiesAndReturnThem(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session);
+	<T extends Serializable> Optional<T> archiveEntity(@Nonnull EvitaSessionContract session, @Nonnull EvitaRequest evitaRequest);
+
+	/**
+	 * Method restores existing archived entity in collection by its primary key. Restoring process reverts the effects
+	 * of the archiving.
+	 *
+	 * The automatically created - bi-directional references in the restored entity and the entities on the opposite
+	 * side are automatically recreated along with the entity.
+	 *
+	 * @param session that connect this request with an opened session
+	 * @param primaryKey primary key of the entity to be restored
+	 * @return true if entity was found in archive and was restored back to the living scope
+	 */
+	boolean restoreEntity(@Nonnull EvitaSessionContract session, int primaryKey);
+
+	/**
+	 * Method restores existing archived entity in collection by its primary key. Restoring process reverts the effects
+	 * of the archiving.
+	 *
+	 * The automatically created - bi-directional references in the restored entity and the entities on the opposite
+	 * side are automatically recreated along with the entity.
+	 *
+	 * @param session      that connect this request with an opened session
+	 * @param evitaRequest allowing to propagate instructions for fetching the deleted entity
+	 * @return removed entity fetched according to `require` definition
+	 */
+	@Nonnull
+	<T extends Serializable> Optional<T> restoreEntity(@Nonnull EvitaSessionContract session, @Nonnull EvitaRequest evitaRequest);
 
 	/**
 	 * Method returns true if there is no single entity in the collection.
@@ -263,11 +296,20 @@ public interface EntityCollectionContract {
 	/**
 	 * Applies mutation to the entity collection. This is a generic method that accepts any mutation and tries to apply
 	 * it to the collection. If the mutation is not applicable to the catalog, exception is thrown.
+	 *
+	 * @param session        that connect this request with an opened session
+	 * @param entityMutation mutation to be applied
+	 * @throws InvalidMutationException when mutation cannot be executed
 	 */
-	void applyMutation(@Nonnull EntityMutation entityMutation) throws InvalidMutationException;
+	void applyMutation(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull EntityMutation entityMutation
+	) throws InvalidMutationException;
 
 	/**
 	 * Alters existing schema applying passed schema mutation.
+	 * Note that the schema update might have updated also instances of other schemas (for example due to reflected
+	 * reference schemas).
 	 *
 	 * @return new updated schema
 	 * @throws SchemaAlteringException signalizing that the schema alteration has failed and was not applied
@@ -288,6 +330,7 @@ public interface EntityCollectionContract {
 	/**
 	 * Returns entity collection statistics aggregating basic information about the entity collection and the data
 	 * stored in it.
+	 *
 	 * @return statistics about the entity collection
 	 */
 	@Nonnull

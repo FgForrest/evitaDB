@@ -138,7 +138,7 @@ public class OpenApiEndpointParameter {
 		 * not set as deprecated.
 		 */
 		@Nonnull
-		public Builder deprecationNotice(@Nonnull String deprecationNotice) {
+		public Builder deprecationNotice(@Nullable String deprecationNotice) {
 			this.deprecationNotice = deprecationNotice;
 			return this;
 		}

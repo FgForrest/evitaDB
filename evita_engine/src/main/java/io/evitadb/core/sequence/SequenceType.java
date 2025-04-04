@@ -26,6 +26,7 @@ package io.evitadb.core.sequence;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.EntityCollection;
+import io.evitadb.store.entity.model.entity.price.PriceInternalIdContainer;
 
 /**
  * This enum represents various type of sequences used in {@link Catalog} and {@link EntityCollection}.
@@ -44,5 +45,9 @@ public enum SequenceType {
 	/**
 	 * {@link io.evitadb.index.EntityIndex} type.
 	 */
-	INDEX
+	INDEX,
+	/**
+	 * {@link PriceInternalIdContainer#getInternalPriceId()} type.
+	 */
+	PRICE
 }

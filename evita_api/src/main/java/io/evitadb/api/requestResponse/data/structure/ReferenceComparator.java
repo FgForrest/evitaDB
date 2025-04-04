@@ -98,4 +98,21 @@ public interface ReferenceComparator extends Comparator<ReferenceContract> {
 	@Nullable
 	ReferenceComparator getNextComparator();
 
+	/**
+	 * This interface defines a comparator that is aware of an entity's primary key.
+	 * Implementations of this interface can receive and store the primary key of an entity,
+	 * which can be used later in the comparison logic.
+	 */
+	interface EntityPrimaryKeyAwareComparator {
+
+		/**
+		 * Sets the primary key for an actual entity. This method is called before the comparison is made and everytime
+		 * the entity has been exchanged.
+		 *
+		 * @param entityPrimaryKey the primary key of the entity to be set
+		 */
+		void setEntityPrimaryKey(int entityPrimaryKey);
+
+	}
+
 }

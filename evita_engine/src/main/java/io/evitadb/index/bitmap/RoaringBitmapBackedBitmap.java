@@ -47,14 +47,14 @@ public interface RoaringBitmapBackedBitmap extends Bitmap {
 	 * Creates {@link MutableRoaringBitmap} from the array of integers.
 	 * Array is expected to be sorted in ascending order!
 	 */
-	static RoaringBitmap fromArray(int... array) {
+	@Nonnull
+	static RoaringBitmap fromArray(@Nonnull int... array) {
 		if (ArrayUtils.isEmpty(array)) {
 			return new RoaringBitmap();
 		} else {
 			final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapWriter
 				.writer()
 				.constantMemory()
-				.expectedRange(array[0], array[array.length - 1])
 				.runCompress(false)
 				.get();
 			writer.addMany(array);
@@ -65,9 +65,22 @@ public interface RoaringBitmapBackedBitmap extends Bitmap {
 	/**
 	 * Returns {@link MutableRoaringBitmap} from any bitmap in the argument.
 	 */
-	static RoaringBitmap getRoaringBitmap(Bitmap bitmap) {
+	@Nonnull
+	static RoaringBitmap getRoaringBitmap(@Nonnull Bitmap bitmap) {
 		if (bitmap instanceof RoaringBitmapBackedBitmap) {
 			return ((RoaringBitmapBackedBitmap) bitmap).getRoaringBitmap();
+		} else {
+			return fromArray(bitmap.getArray());
+		}
+	}
+
+	/**
+	 * Returns clone of the {@link MutableRoaringBitmap} from any bitmap in the argument.
+	 */
+	@Nonnull
+	static RoaringBitmap getRoaringBitmapClone(@Nonnull Bitmap bitmap) {
+		if (bitmap instanceof RoaringBitmapBackedBitmap) {
+			return (((RoaringBitmapBackedBitmap) bitmap).getRoaringBitmap()).clone();
 		} else {
 			return fromArray(bitmap.getArray());
 		}
@@ -78,7 +91,7 @@ public interface RoaringBitmapBackedBitmap extends Bitmap {
 	 * Returns negative integer when record id is not present in the array, positive if it is present. Returned number
 	 * reflect the index where the record id is or should be present.
 	 */
-	static int indexOf(ImmutableBitmapDataProvider roaringBitmap, int recordId) {
+	static int indexOf(@Nonnull ImmutableBitmapDataProvider roaringBitmap, int recordId) {
 		if (roaringBitmap.isEmpty()) {
 			return -1;
 		}
@@ -91,6 +104,7 @@ public interface RoaringBitmapBackedBitmap extends Bitmap {
 	/**
 	 * Method creates {@link RoaringBitmap} builder that is optimized for fast and memory efficient bitmap construction.
 	 */
+	@Nonnull
 	static RoaringBitmapWriter<RoaringBitmap> buildWriter() {
 		return RoaringBitmapWriter
 			.writer()

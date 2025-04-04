@@ -25,6 +25,7 @@ package io.evitadb.externalApi.api.catalog.schemaApi.model;
 
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
@@ -124,8 +125,10 @@ public interface ReferenceSchemaDescriptor extends NamedSchemaWithDeprecationDes
 			Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed, 
 			the entity cannot be looked up by reference attributes or relation existence itself, but the data can be 
 			fetched.
+			
+			Returns array of scope in which this reference is indexed.
 			""")
-		.type(nonNull(Boolean.class))
+		.type(nonNull(Scope[].class))
 		.build();
 
 	PropertyDescriptor FACETED = PropertyDescriptor.builder()
@@ -139,8 +142,10 @@ public interface ReferenceSchemaDescriptor extends NamedSchemaWithDeprecationDes
 			occupies (memory/disk) space in the form of index.
 						
 			Reference that was marked as faceted is called Facet.
+			
+			Returns array of scope in which this reference is faceted.
 			""")
-		.type(nonNull(Boolean.class))
+		.type(nonNull(Scope[].class))
 		.build();
 
 	PropertyDescriptor ATTRIBUTES = PropertyDescriptor.builder()

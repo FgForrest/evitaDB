@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -36,12 +36,15 @@ import io.evitadb.api.exception.EntityTypeAlreadyPresentInCatalogSchemaException
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.UnexpectedResultCountException;
 import io.evitadb.api.exception.UnexpectedResultException;
+import io.evitadb.api.exception.UniqueValueViolationException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.mock.MockCatalogStructuralChangeSubscriber;
+import io.evitadb.api.mock.ProductInterface;
+import io.evitadb.api.mock.ProductParameterInterface;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.requestResponse.EvitaResponse;
-import io.evitadb.api.requestResponse.cdc.CaptureContent;
+import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
@@ -51,21 +54,14 @@ import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
-import io.evitadb.api.requestResponse.schema.Cardinality;
-import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaEditor;
-import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
-import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
-import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
+import io.evitadb.api.requestResponse.schema.*;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.task.TaskStatus;
-import io.evitadb.api.task.TaskStatus.State;
+import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.core.Evita;
 import io.evitadb.core.EvitaManagement;
+import io.evitadb.core.async.SessionKiller;
 import io.evitadb.core.exception.AttributeNotFilterableException;
 import io.evitadb.core.exception.AttributeNotSortableException;
 import io.evitadb.core.exception.CatalogCorruptedException;
@@ -73,17 +69,15 @@ import io.evitadb.core.exception.ReferenceNotFacetedException;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.PaginatedList;
-import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.configuration.ApiOptions;
-import io.evitadb.externalApi.configuration.CertificateSettings;
+import io.evitadb.externalApi.configuration.CertificateOptions;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
-import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
+import io.evitadb.externalApi.graphql.configuration.GraphQLOptions;
 import io.evitadb.externalApi.grpc.GrpcProvider;
-import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
+import io.evitadb.externalApi.grpc.configuration.GrpcOptions;
 import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.externalApi.rest.RestProvider;
-import io.evitadb.externalApi.rest.configuration.RestConfig;
+import io.evitadb.externalApi.rest.configuration.RestOptions;
 import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
@@ -102,6 +96,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -111,7 +106,9 @@ import java.util.Arrays;
 import java.util.Currency;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -140,6 +137,9 @@ class EvitaTest implements EvitaTestSupport {
 	public static final String ATTRIBUTE_NAME = "name";
 	public static final String ATTRIBUTE_URL = "url";
 	public static final String DIR_EVITA_TEST = "evitaTest";
+	public static final String DIR_EVITA_TEST_EXPORT = "evitaTest_export";
+	public static final String REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY = "productsInCategory";
+	public static final String REFERENCE_PRODUCT_CATEGORY = "productCategory";
 	private static final Locale LOCALE_CZ = new Locale("cs", "CZ");
 	private static final Currency CURRENCY_CZK = Currency.getInstance("CZK");
 	private static final Currency CURRENCY_EUR = Currency.getInstance("EUR");
@@ -152,12 +152,13 @@ class EvitaTest implements EvitaTestSupport {
 	@BeforeEach
 	void setUp() {
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST);
+		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST_EXPORT);
 		evita = new Evita(
 			getEvitaConfiguration()
 		);
 		evita.defineCatalog(TEST_CATALOG);
 
-		evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(CaptureContent.BODY)).subscribe(subscriber);
+		evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(ChangeCaptureContent.BODY)).subscribe(subscriber);
 		// todo lho
 //		evita.updateCatalog(
 //			TEST_CATALOG,
@@ -175,11 +176,12 @@ class EvitaTest implements EvitaTestSupport {
 	void tearDown() {
 		evita.close();
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST);
+		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST_EXPORT);
 	}
 
 	@Test
 	void shouldNotifyBasicSubscriber() throws InterruptedException {
-		final ChangeCapturePublisher<ChangeSystemCapture> publisher = evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(CaptureContent.HEADER));
+		final ChangeCapturePublisher<ChangeSystemCapture> publisher = evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(ChangeCaptureContent.HEADER));
 
 		// subscriber is registered and wants one event when it happens
 		final MockCatalogStructuralChangeSubscriber subscriber = new MockCatalogStructuralChangeSubscriber(new CountDownLatch(5), 1);
@@ -224,8 +226,8 @@ class EvitaTest implements EvitaTestSupport {
 
 	@Test
 	void shouldNotifyLateSubscribers() throws InterruptedException {
-		final ChangeCapturePublisher<ChangeSystemCapture> publisher1 = evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(CaptureContent.HEADER));
-		final ChangeCapturePublisher<ChangeSystemCapture> publisher2 = evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(CaptureContent.HEADER));
+		final ChangeCapturePublisher<ChangeSystemCapture> publisher1 = evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(ChangeCaptureContent.HEADER));
+		final ChangeCapturePublisher<ChangeSystemCapture> publisher2 = evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(ChangeCaptureContent.HEADER));
 
 		// first subscriber is registered at the start, but it's not ready to receive events yet
 		final MockCatalogStructuralChangeSubscriber subscriberWithDelayedRequest = new MockCatalogStructuralChangeSubscriber(new CountDownLatch(1), 0);
@@ -259,11 +261,11 @@ class EvitaTest implements EvitaTestSupport {
 	@Test
 	void shouldNotifyMultipleSubscriberWithDifferentRequests() throws InterruptedException {
 		// subscribers want first future events
-		final ChangeCapturePublisher<ChangeSystemCapture> publisher1 = evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(CaptureContent.HEADER));
+		final ChangeCapturePublisher<ChangeSystemCapture> publisher1 = evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(ChangeCaptureContent.HEADER));
 		final MockCatalogStructuralChangeSubscriber subscriber1 = new MockCatalogStructuralChangeSubscriber(new CountDownLatch(2), 1);
 		publisher1.subscribe(subscriber1);
 
-		final ChangeCapturePublisher<ChangeSystemCapture> publisher2 = evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(CaptureContent.HEADER));
+		final ChangeCapturePublisher<ChangeSystemCapture> publisher2 = evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(ChangeCaptureContent.HEADER));
 		final MockCatalogStructuralChangeSubscriber subscriber2 = new MockCatalogStructuralChangeSubscriber(new CountDownLatch(2), 1);
 		publisher2.subscribe(subscriber2);
 
@@ -296,11 +298,11 @@ class EvitaTest implements EvitaTestSupport {
 
 	@Test
 	void shouldNotifyMultiplePublishers() throws InterruptedException {
-		final ChangeCapturePublisher<ChangeSystemCapture> publisher1 = evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(CaptureContent.HEADER));
+		final ChangeCapturePublisher<ChangeSystemCapture> publisher1 = evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(ChangeCaptureContent.HEADER));
 		final MockCatalogStructuralChangeSubscriber subscriber1 = new MockCatalogStructuralChangeSubscriber(new CountDownLatch(1), 1);
 		publisher1.subscribe(subscriber1);
 
-		final ChangeCapturePublisher<ChangeSystemCapture> publisher2 = evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(CaptureContent.HEADER));
+		final ChangeCapturePublisher<ChangeSystemCapture> publisher2 = evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(ChangeCaptureContent.HEADER));
 		final MockCatalogStructuralChangeSubscriber subscriber2 = new MockCatalogStructuralChangeSubscriber(new CountDownLatch(1), 1);
 		publisher2.subscribe(subscriber2);
 
@@ -719,7 +721,7 @@ class EvitaTest implements EvitaTestSupport {
 	}
 
 	@Test
-	void shouldKillInactiveSessionsAutomatically() {
+	void shouldKillInactiveSessionsAutomatically() throws NoSuchFieldException, IllegalAccessException {
 		evita.updateCatalog(
 			TEST_CATALOG,
 			it -> {
@@ -740,11 +742,16 @@ class EvitaTest implements EvitaTestSupport {
 		final long start = System.currentTimeMillis();
 		do {
 			assertNotNull(sessionActive.getCatalogSchema());
-		} while (!(System.currentTimeMillis() - start > 5000 || !sessionInactive.isActive()));
+		} while (!(System.currentTimeMillis() - start > 2000));
+
+		final Field sessionKillerField = Evita.class.getDeclaredField("sessionKiller");
+		sessionKillerField.setAccessible(true);
+		final SessionKiller sessionKiller = (SessionKiller) sessionKillerField.get(this.evita);
+		sessionKiller.run();
 
 		assertFalse(sessionInactive.isActive());
 		assertTrue(sessionActive.isActive());
-		assertEquals(1L, evita.getActiveSessions().count());
+		assertEquals(1L, this.evita.getActiveSessions().count());
 	}
 
 	@Test
@@ -883,6 +890,30 @@ class EvitaTest implements EvitaTestSupport {
 	}
 
 	@Test
+	void shouldRenameEntityCollection() {
+		setupCatalogWithProductAndCategory();
+
+		final File theCollectionFile = getEvitaTestDirectory()
+			.resolve(TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + "-1_0" + ENTITY_COLLECTION_FILE_SUFFIX)
+			.toFile();
+		assertTrue(theCollectionFile.exists());
+
+		evita.updateCatalog(TEST_CATALOG, session -> {
+			session.renameCollection(Entities.PRODUCT, Entities.BRAND);
+		});
+
+		evita.queryCatalog(TEST_CATALOG, session -> {
+			assertThrows(CollectionNotFoundException.class, () -> session.getEntityCollectionSize(Entities.PRODUCT));
+			assertEquals(2, session.getEntityCollectionSize(Entities.CATEGORY));
+			assertEquals(1, session.getEntityCollectionSize(Entities.BRAND));
+			final Optional<SealedEntity> brand = session.getEntity(Entities.BRAND, 1, entityFetchAllContent());
+			assertTrue(brand.isPresent());
+			assertEquals("The product", brand.get().getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH));
+			return null;
+		});
+	}
+
+	@Test
 	void shouldFailToRenameCollectionToExistingCollection() {
 		setupCatalogWithProductAndCategory();
 
@@ -893,7 +924,7 @@ class EvitaTest implements EvitaTestSupport {
 
 		evita.updateCatalog(TEST_CATALOG, session -> {
 			assertThrows(
-				EvitaInvalidUsageException.class,
+				EntityTypeAlreadyPresentInCatalogSchemaException.class,
 				() -> session.renameCollection(Entities.PRODUCT, Entities.CATEGORY)
 			);
 		});
@@ -1140,6 +1171,677 @@ class EvitaTest implements EvitaTestSupport {
 				assertTrue(categoryUrl.isUnique());
 				assertTrue(categoryUrl instanceof GlobalAttributeSchemaContract ga && ga.isUniqueGloballyWithinLocale());
 			}
+		);
+	}
+
+	@Test
+	void shouldCreateReflectedReference() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// we can create reflected reference even before the main one is created
+				session.defineEntitySchema(Entities.CATEGORY)
+					.withReflectedReferenceToEntity(
+						REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY,
+						whichIs -> whichIs.withAttributesInheritedExcept("note")
+							.withFacetedInherited()
+							.withAttribute("customNote", String.class)
+					)
+					.updateVia(session);
+
+				session
+					.defineEntitySchema(Entities.PRODUCT)
+					.withReferenceToEntity(
+						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
+						whichIs -> whichIs
+							.withDescription("Assigned category.")
+							.deprecated("Already deprecated.")
+							.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable())
+							.withAttribute("note", String.class)
+							.indexed()
+							.faceted()
+					)
+					.updateVia(session);
+
+				final SealedEntitySchema categorySchema = session.getEntitySchema(Entities.CATEGORY)
+					.orElseThrow();
+
+				final ReferenceSchemaContract reflectedReference = categorySchema.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY).orElseThrow();
+				assertInstanceOf(ReflectedReferenceSchemaContract.class, reflectedReference);
+
+				assertEquals("Assigned category.", reflectedReference.getDescription());
+				assertEquals("Already deprecated.", reflectedReference.getDeprecationNotice());
+				assertEquals(Cardinality.ZERO_OR_ONE, reflectedReference.getCardinality());
+				assertTrue(reflectedReference.isIndexed());
+				assertTrue(reflectedReference.isFaceted());
+
+				final Map<String, AttributeSchemaContract> attributes = reflectedReference.getAttributes();
+				assertEquals(2, attributes.size());
+				assertTrue(attributes.containsKey("categoryPriority"));
+				assertFalse(attributes.get("categoryPriority").isFilterable());
+				assertTrue(attributes.get("categoryPriority").isSortable());
+				assertTrue(attributes.containsKey("customNote"));
+			}
+		);
+	}
+
+	@Test
+	void shouldCreateReflectedReferenceAndRetainInheritanceDuringEngineRestart() {
+		shouldCreateReflectedReference();
+
+		evita.close();
+
+		evita = new Evita(
+			getEvitaConfiguration()
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final SealedEntitySchema categorySchema = session.getEntitySchema(Entities.CATEGORY)
+					.orElseThrow();
+
+				final ReferenceSchemaContract reflectedReference = categorySchema.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY).orElseThrow();
+				assertInstanceOf(ReflectedReferenceSchemaContract.class, reflectedReference);
+
+				assertEquals("Assigned category.", reflectedReference.getDescription());
+				assertEquals("Already deprecated.", reflectedReference.getDeprecationNotice());
+				assertEquals(Cardinality.ZERO_OR_ONE, reflectedReference.getCardinality());
+				assertTrue(reflectedReference.isIndexed());
+				assertTrue(reflectedReference.isFaceted());
+
+				final Map<String, AttributeSchemaContract> attributes = reflectedReference.getAttributes();
+				assertEquals(2, attributes.size());
+				assertTrue(attributes.containsKey("categoryPriority"));
+				assertFalse(attributes.get("categoryPriority").isFilterable());
+				assertTrue(attributes.get("categoryPriority").isSortable());
+				assertTrue(attributes.containsKey("customNote"));
+			}
+		);
+	}
+
+	@Test
+	void shouldUpdateInheritedPropertiesInReflectedReference() {
+		shouldCreateReflectedReference();
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// we can create reflected reference even before the main one is created
+				session
+					.defineEntitySchema(Entities.PRODUCT)
+					.withReferenceToEntity(
+						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.EXACTLY_ONE,
+						whichIs -> whichIs
+							.withDescription("Assigned category (updated).")
+							.notDeprecatedAnymore()
+							.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable().filterable())
+							.withAttribute("note", String.class)
+							.withAttribute("additionalAttribute", String.class)
+							.indexed()
+							.nonFaceted()
+					)
+					.updateVia(session);
+
+				final SealedEntitySchema categorySchema = session.getEntitySchema(Entities.CATEGORY)
+					.orElseThrow();
+
+				final ReferenceSchemaContract reflectedReference = categorySchema.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY).orElseThrow();
+				assertInstanceOf(ReflectedReferenceSchemaContract.class, reflectedReference);
+
+				assertEquals("Assigned category (updated).", reflectedReference.getDescription());
+				assertNull(reflectedReference.getDeprecationNotice());
+				assertEquals(Cardinality.EXACTLY_ONE, reflectedReference.getCardinality());
+				assertTrue(reflectedReference.isIndexed());
+				assertFalse(reflectedReference.isFaceted());
+
+				final Map<String, AttributeSchemaContract> attributes = reflectedReference.getAttributes();
+				assertEquals(3, attributes.size());
+				assertTrue(attributes.containsKey("categoryPriority"));
+				assertTrue(attributes.get("categoryPriority").isFilterable());
+				assertTrue(attributes.get("categoryPriority").isSortable());
+				assertTrue(attributes.containsKey("customNote"));
+				assertTrue(attributes.containsKey("additionalAttribute"));
+			}
+		);
+	}
+
+	@Test
+	void shouldDropReflectedReferenceAndCreateRegularOneOfTheSameName() {
+		shouldCreateReflectedReference();
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// we can create reflected reference even before the main one is created
+				session
+					.defineEntitySchema(Entities.CATEGORY)
+					.withoutReferenceTo(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY)
+					.withReferenceToEntity(
+						REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, Cardinality.ZERO_OR_ONE
+					)
+					.updateVia(session);
+
+				final SealedEntitySchema categorySchema = session.getEntitySchema(Entities.CATEGORY)
+					.orElseThrow();
+
+				final ReferenceSchemaContract newReference = categorySchema.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY).orElseThrow();
+				assertFalse(newReference instanceof ReflectedReferenceSchemaContract);
+
+				assertNull(newReference.getDescription());
+				assertNull(newReference.getDeprecationNotice());
+				assertEquals(Cardinality.ZERO_OR_ONE, newReference.getCardinality());
+				assertFalse(newReference.isIndexed());
+				assertFalse(newReference.isFaceted());
+
+				final Map<String, AttributeSchemaContract> attributes = newReference.getAttributes();
+				assertEquals(0, attributes.size());
+			}
+		);
+	}
+
+	@Test
+	void shouldDropRegularReferenceAndCreateReflectedOneOfTheSameName() {
+		shouldDropReflectedReferenceAndCreateRegularOneOfTheSameName();
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// we can create reflected reference even before the main one is created
+				session.defineEntitySchema(Entities.CATEGORY)
+					.withoutReferenceTo(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY)
+					.withReflectedReferenceToEntity(
+						REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY,
+						whichIs -> whichIs.withAttributesInheritedExcept("note")
+							.withAttribute("customNote", String.class)
+					)
+					.updateVia(session);
+
+				final SealedEntitySchema categorySchema = session.getEntitySchema(Entities.CATEGORY)
+					.orElseThrow();
+
+				final ReferenceSchemaContract reflectedReference = categorySchema.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY).orElseThrow();
+				assertInstanceOf(ReflectedReferenceSchemaContract.class, reflectedReference);
+
+				assertEquals("Assigned category.", reflectedReference.getDescription());
+				assertEquals("Already deprecated.", reflectedReference.getDeprecationNotice());
+				assertEquals(Cardinality.ZERO_OR_ONE, reflectedReference.getCardinality());
+				assertTrue(reflectedReference.isIndexed());
+				assertTrue(reflectedReference.isFaceted());
+
+				final Map<String, AttributeSchemaContract> attributes = reflectedReference.getAttributes();
+				assertEquals(2, attributes.size());
+				assertTrue(attributes.containsKey("categoryPriority"));
+				assertFalse(attributes.get("categoryPriority").isFilterable());
+				assertTrue(attributes.get("categoryPriority").isSortable());
+				assertTrue(attributes.containsKey("customNote"));
+			}
+		);
+	}
+
+	@Test
+	void shouldFailToCreateNonIndexedReferenceWhenReflectedReferenceExists() {
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() ->
+				evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						session.defineEntitySchema(Entities.CATEGORY)
+							.withReflectedReferenceToEntity(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY)
+							.updateVia(session);
+
+						session.defineEntitySchema(Entities.PRODUCT)
+							.withReferenceToEntity(
+								REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
+								ReferenceSchemaEditor::nonIndexed
+							)
+							.updateVia(session);
+					}
+				)
+		);
+	}
+
+	@Test
+	void shouldFailToCreateReflectedReferenceToNonIndexedReference() {
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchema(Entities.PRODUCT)
+						.withReferenceToEntity(
+							REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
+							ReferenceSchemaEditor::nonIndexed
+						)
+						.updateVia(session);
+
+					session.defineEntitySchema(Entities.CATEGORY)
+						.withReflectedReferenceToEntity(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY)
+						.updateVia(session);
+				}
+			)
+		);
+	}
+
+	@Test
+	void shouldFailToCreateNonManagedReferenceWhenEntityOfSuchNameExists() {
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchema(Entities.CATEGORY)
+						.updateVia(session);
+
+					session
+						.defineEntitySchema(Entities.PRODUCT)
+						.withReferenceTo(REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE)
+						.updateVia(session);
+				}
+			)
+		);
+	}
+
+	@Test
+	void shouldFailToCreateManagedReferenceWhenEntityOfSuchNameDoesntExist() {
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session
+						.defineEntitySchema(Entities.PRODUCT)
+						.withReferenceToEntity(REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE)
+						.updateVia(session);
+				}
+			)
+		);
+	}
+
+	@Test
+	void shouldFailToCreateNonManagedGroupReferenceWhenEntityOfSuchNameExists() {
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchema(Entities.PARAMETER_GROUP)
+						.updateVia(session);
+
+					session
+						.defineEntitySchema(Entities.PRODUCT)
+						.withReferenceTo(
+							REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
+							whichIs -> whichIs.withGroupType(Entities.PARAMETER_GROUP)
+						)
+						.updateVia(session);
+				}
+			)
+		);
+	}
+
+	@Test
+	void shouldFailToCreateManagedGroupReferenceWhenEntityOfSuchNameDoesntExist() {
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session
+						.defineEntitySchema(Entities.PRODUCT)
+						.withReferenceTo(
+							REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
+							whichIs -> whichIs.withGroupTypeRelatedToEntity(Entities.PARAMETER_GROUP)
+						)
+						.updateVia(session);
+				}
+			)
+		);
+	}
+
+	@Test
+	void shouldFailToChangeReferenceToNonIndexedWhenThereIsFilterableAttributePresent() {
+		// set-up correctly created indexed schema with filterable attribute
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session
+					.defineEntitySchema(Entities.PRODUCT)
+					.withReferenceTo(
+						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
+						whichIs -> whichIs
+							.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.filterable())
+							.indexed()
+					)
+					.updateVia(session);
+			}
+		);
+		// now try to un-index the reference
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session
+						.defineEntitySchema(Entities.PRODUCT)
+						.withReferenceToEntity(
+							REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
+							whichIs -> whichIs.nonIndexed()
+						)
+						.updateVia(session);
+				}
+			)
+		);
+	}
+
+	@Test
+	void shouldFailToChangeReferenceToNonIndexedWhenThereIsUniqueAttributePresent() {
+		// set-up correctly created indexed schema with filterable attribute
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session
+					.defineEntitySchema(Entities.PRODUCT)
+					.withReferenceTo(
+						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
+						whichIs -> whichIs
+							.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.unique())
+							.indexed()
+					)
+					.updateVia(session);
+			}
+		);
+		// now try to un-index the reference
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session
+						.defineEntitySchema(Entities.PRODUCT)
+						.withReferenceToEntity(
+							REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
+							whichIs -> whichIs.nonIndexed()
+						)
+						.updateVia(session);
+				}
+			)
+		);
+	}
+
+	@Test
+	void shouldFailToChangeReferenceToNonIndexedWhenThereIsSortableAttributePresent() {
+		// set-up correctly created indexed schema with filterable attribute
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session
+					.defineEntitySchema(Entities.PRODUCT)
+					.withReferenceTo(
+						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
+						whichIs -> whichIs
+							.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable())
+							.indexed()
+					)
+					.updateVia(session);
+			}
+		);
+		// now try to un-index the reference
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session
+						.defineEntitySchema(Entities.PRODUCT)
+						.withReferenceToEntity(
+							REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
+							whichIs -> whichIs.nonIndexed()
+						)
+						.updateVia(session);
+				}
+			)
+		);
+	}
+
+	@Test
+	void shouldFailToChangeReferenceEntityTypeWhenThereIsReflectedReference() {
+		// first create intertwined references
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(Entities.CATEGORY)
+					.withReflectedReferenceToEntity(
+						REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY
+					)
+					.updateVia(session);
+
+				session
+					.defineEntitySchema(Entities.PRODUCT)
+					.withReferenceToEntity(
+						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
+						ReferenceSchemaEditor::indexed
+					)
+					.updateVia(session);
+			}
+		);
+
+		// now try to change the target entity
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session
+						.defineEntitySchema(Entities.PRODUCT)
+						.withReferenceToEntity(REFERENCE_PRODUCT_CATEGORY, Entities.PARAMETER, Cardinality.ZERO_OR_ONE)
+						.updateVia(session);
+				}
+			)
+		);
+	}
+
+	@Test
+	void shouldFailToChangeReferenceEntityTypeToNonManagedWhenThereIsReflectedReference() {
+		// first create intertwined references
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(Entities.CATEGORY)
+					.withReflectedReferenceToEntity(
+						REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY
+					)
+					.updateVia(session);
+
+				session
+					.defineEntitySchema(Entities.PRODUCT)
+					.withReferenceToEntity(
+						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
+						ReferenceSchemaEditor::indexed
+					)
+					.updateVia(session);
+			}
+		);
+
+		// now try to change the target entity
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session
+						.defineEntitySchema(Entities.PRODUCT)
+						.withReferenceTo(REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE)
+						.updateVia(session);
+				}
+			)
+		);
+	}
+
+	@Test
+	void shouldFailToChangeReferenceToNonIndexed() {
+		// set-up correctly created indexed schema with filterable attribute
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+
+				session.defineEntitySchema(Entities.CATEGORY)
+					.withReflectedReferenceToEntity(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY)
+					.updateVia(session);
+
+				session
+					.defineEntitySchema(Entities.PRODUCT)
+					.withReferenceToEntity(
+						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
+						whichIs -> whichIs
+							.withAttribute("categoryPriority", Long.class)
+							.indexed()
+					)
+					.updateVia(session);
+			}
+		);
+		// now try to un-index the reference, and it should be ok
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session
+						.defineEntitySchema(Entities.CATEGORY)
+						.withReflectedReferenceToEntity(
+							REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY,
+							whichIs -> whichIs.nonIndexed()
+						)
+						.updateVia(session);
+				}
+			)
+		);
+	}
+
+	@Test
+	void shouldFailToChangeReferenceToNonIndexedWhenThereIsInheritedFilterableAttributePresentInReflectedReference() {
+		// set-up correctly created indexed schema with filterable attribute
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+
+				session.defineEntitySchema(Entities.CATEGORY)
+					.withReflectedReferenceToEntity(
+						REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY,
+						ReflectedReferenceSchemaEditor::withAttributesInherited
+					)
+					.updateVia(session);
+
+				session
+					.defineEntitySchema(Entities.PRODUCT)
+					.withReferenceToEntity(
+						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
+						whichIs -> whichIs
+							.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.filterable())
+							.indexed()
+					)
+					.updateVia(session);
+			}
+		);
+		// now try to un-index the reference
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session
+						.defineEntitySchema(Entities.CATEGORY)
+						.withReflectedReferenceToEntity(
+							REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY,
+							whichIs -> whichIs.nonIndexed()
+						)
+						.updateVia(session);
+				}
+			)
+		);
+	}
+
+	@Test
+	void shouldFailToChangeReferenceToNonIndexedWhenThereIsInheritedUniqueAttributePresentInReflectedReference() {
+		// set-up correctly created indexed schema with filterable attribute
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+
+				session.defineEntitySchema(Entities.CATEGORY)
+					.withReflectedReferenceToEntity(
+						REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY,
+						ReflectedReferenceSchemaEditor::withAttributesInherited
+					)
+					.updateVia(session);
+
+				session
+					.defineEntitySchema(Entities.PRODUCT)
+					.withReferenceToEntity(
+						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
+						whichIs -> whichIs
+							.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.unique())
+							.indexed()
+					)
+					.updateVia(session);
+			}
+		);
+		// now try to un-index the reference
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session
+						.defineEntitySchema(Entities.CATEGORY)
+						.withReflectedReferenceToEntity(
+							REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY,
+							whichIs -> whichIs.nonIndexed()
+						)
+						.updateVia(session);
+				}
+			)
+		);
+	}
+
+	@Test
+	void shouldFailToChangeReferenceToNonIndexedWhenThereIsInheritedSortableAttributePresentInReflectedReference() {
+		// set-up correctly created indexed schema with filterable attribute
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+
+				session.defineEntitySchema(Entities.CATEGORY)
+					.withReflectedReferenceToEntity(
+						REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY,
+						ReflectedReferenceSchemaEditor::withAttributesInherited
+					)
+					.updateVia(session);
+
+				session
+					.defineEntitySchema(Entities.PRODUCT)
+					.withReferenceToEntity(
+						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
+						whichIs -> whichIs
+							.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable())
+							.indexed()
+					)
+					.updateVia(session);
+			}
+		);
+		// now try to un-index the reference
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session
+						.defineEntitySchema(Entities.CATEGORY)
+						.withReflectedReferenceToEntity(
+							REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY,
+							whichIs -> whichIs.nonIndexed()
+						)
+						.updateVia(session);
+				}
+			)
 		);
 	}
 
@@ -1630,13 +2332,13 @@ class EvitaTest implements EvitaTestSupport {
 				evita,
 				ApiOptions.builder()
 					.certificate(
-						CertificateSettings.builder()
+						CertificateOptions.builder()
 							.folderPath(getEvitaTestDirectory() + "-certificates")
 							.build()
 					)
-					.enable(GraphQLProvider.CODE, new GraphQLConfig(AbstractApiConfiguration.LOCALHOST + ":" + ports[0]))
-					.enable(GrpcProvider.CODE, new GrpcConfig(AbstractApiConfiguration.LOCALHOST + ":" + ports[1]))
-					.enable(RestProvider.CODE, new RestConfig(AbstractApiConfiguration.LOCALHOST + ":" + ports[2]))
+					.enable(GraphQLProvider.CODE, new GraphQLOptions(":" + ports[0]))
+					.enable(GrpcProvider.CODE, new GrpcOptions(":" + ports[1]))
+					.enable(RestProvider.CODE, new RestOptions(":" + ports[2]))
 					.build()
 			)) {
 				externalApiServer.start();
@@ -1661,28 +2363,48 @@ class EvitaTest implements EvitaTestSupport {
 			assertNotNull(catalogStatistics);
 			assertEquals(3, catalogStatistics.length);
 
+			final CatalogStatistics statistics = Arrays.stream(catalogStatistics).filter(it -> TEST_CATALOG.equals(it.catalogName())).findFirst().orElseThrow();
+			assertTrue(
+				statistics.sizeOnDiskInBytes() > 400L && statistics.sizeOnDiskInBytes() < 600L,
+				"Expected size on disk to be between 400 and 600 bytes, but was " + statistics.sizeOnDiskInBytes()
+			);
 			assertEquals(
-				Arrays.stream(catalogStatistics).filter(it -> TEST_CATALOG.equals(it.catalogName())).findFirst().orElseThrow(),
 				new CatalogStatistics(
-					UUIDUtil.randomUUID(), TEST_CATALOG, false, CatalogState.WARMING_UP, 0L, 0, 1, 490, new EntityCollectionStatistics[0]
-				)
+					UUIDUtil.randomUUID(), TEST_CATALOG, false, CatalogState.WARMING_UP, 0L, 0, 1, statistics.sizeOnDiskInBytes(), new EntityCollectionStatistics[0]
+				),
+				statistics
 			);
 
+			final CatalogStatistics statistics1 = Arrays.stream(catalogStatistics).filter(it -> (TEST_CATALOG + "_1").equals(it.catalogName())).findFirst().orElseThrow();
+			assertTrue(
+				statistics1.sizeOnDiskInBytes() > 900L && statistics1.sizeOnDiskInBytes() < 1200L,
+				"Expected size on disk to be between 900 and 1200 bytes, but was " + statistics1.sizeOnDiskInBytes()
+			);
 			assertEquals(
-				Arrays.stream(catalogStatistics).filter(it -> (TEST_CATALOG + "_1").equals(it.catalogName())).findFirst().orElseThrow(),
 				new CatalogStatistics(
-					UUIDUtil.randomUUID(), TEST_CATALOG + "_1", true, null, -1L, -1, -1, 922, new EntityCollectionStatistics[0]
-				)
+					UUIDUtil.randomUUID(), TEST_CATALOG + "_1", true, null, -1L, -1, -1, statistics1.sizeOnDiskInBytes(), new EntityCollectionStatistics[0]
+				),
+				statistics1
 			);
 
+			final CatalogStatistics statistics2 = Arrays.stream(catalogStatistics).filter(it -> (TEST_CATALOG + "_2").equals(it.catalogName())).findFirst().orElseThrow();
+			assertTrue(
+				statistics2.sizeOnDiskInBytes() > 1000L && statistics2.sizeOnDiskInBytes() < 1700L,
+				"Expected size on disk to be between 1000 and 1700 bytes, but was " + statistics2.sizeOnDiskInBytes()
+			);
+			final EntityCollectionStatistics productStatistics = statistics2.entityCollectionStatistics()[0];
+			assertTrue(
+				productStatistics.sizeOnDiskInBytes() > 300L && productStatistics.sizeOnDiskInBytes() < 600L,
+				"Expected size on disk to be between 300 and 600 bytes, but was " + productStatistics.sizeOnDiskInBytes()
+			);
 			assertEquals(
-				Arrays.stream(catalogStatistics).filter(it -> (TEST_CATALOG + "_2").equals(it.catalogName())).findFirst().orElseThrow(),
 				new CatalogStatistics(
-					UUIDUtil.randomUUID(), TEST_CATALOG + "_2", false, CatalogState.WARMING_UP, 0, 1, 2, 1381,
-					new EntityCollectionStatistics[] {
-						new EntityCollectionStatistics(Entities.PRODUCT, 1, 1, 475)
+					UUIDUtil.randomUUID(), TEST_CATALOG + "_2", false, CatalogState.WARMING_UP, 0, 1, 2, statistics2.sizeOnDiskInBytes(),
+					new EntityCollectionStatistics[]{
+						new EntityCollectionStatistics(Entities.PRODUCT, 1, 1, productStatistics.sizeOnDiskInBytes())
 					}
-				)
+				),
+				statistics2
 			);
 
 		} finally {
@@ -1742,13 +2464,13 @@ class EvitaTest implements EvitaTestSupport {
 				evita,
 				ApiOptions.builder()
 					.certificate(
-						CertificateSettings.builder()
+						CertificateOptions.builder()
 							.folderPath(getEvitaTestDirectory() + "-certificates")
 							.build()
 					)
-					.enable(GraphQLProvider.CODE, new GraphQLConfig(AbstractApiConfiguration.LOCALHOST + ":" + ports[0]))
-					.enable(GrpcProvider.CODE, new GrpcConfig(AbstractApiConfiguration.LOCALHOST + ":" + ports[1]))
-					.enable(RestProvider.CODE, new RestConfig(AbstractApiConfiguration.LOCALHOST + ":" + ports[2]))
+					.enable(GraphQLProvider.CODE, new GraphQLOptions(":" + ports[0]))
+					.enable(GrpcProvider.CODE, new GrpcOptions(":" + ports[1]))
+					.enable(RestProvider.CODE, new RestOptions(":" + ports[2]))
 					.build()
 			)) {
 				externalApiServer.start();
@@ -1832,13 +2554,13 @@ class EvitaTest implements EvitaTestSupport {
 				evita,
 				ApiOptions.builder()
 					.certificate(
-						CertificateSettings.builder()
+						CertificateOptions.builder()
 							.folderPath(getEvitaTestDirectory() + "-certificates")
 							.build()
 					)
-					.enable(GraphQLProvider.CODE, new GraphQLConfig(AbstractApiConfiguration.LOCALHOST + ":" + ports[0]))
-					.enable(GrpcProvider.CODE, new GrpcConfig(AbstractApiConfiguration.LOCALHOST + ":" + ports[1]))
-					.enable(RestProvider.CODE, new RestConfig(AbstractApiConfiguration.LOCALHOST + ":" + ports[2]))
+					.enable(GraphQLProvider.CODE, new GraphQLOptions(":" + ports[0]))
+					.enable(GrpcProvider.CODE, new GrpcOptions(":" + ports[1]))
+					.enable(RestProvider.CODE, new RestOptions(":" + ports[2]))
 					.build()
 			)) {
 				externalApiServer.start();
@@ -1933,6 +2655,177 @@ class EvitaTest implements EvitaTestSupport {
 				assertEquals(2, shortEntity.getReferences(Entities.BRAND).size());
 				assertEquals(1, shortEntity.getReferences(Entities.PARAMETER).size());
 			}
+		);
+	}
+
+	@Test
+	void shouldNotReturnGroupOfNonMatchingLocale() {
+		shouldCreateReflectedReference();
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session
+					.defineEntitySchema(Entities.PARAMETER_GROUP)
+					.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized())
+					.updateVia(session);
+
+				session
+					.defineEntitySchema(Entities.PARAMETER)
+					.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized())
+					.withReferenceToEntity(Entities.PARAMETER_GROUP, Entities.PARAMETER_GROUP, Cardinality.ZERO_OR_ONE)
+					.updateVia(session);
+
+				session
+					.defineEntitySchema(Entities.PRODUCT)
+					.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized())
+					.withReferenceToEntity(Entities.PARAMETER, Entities.PARAMETER, Cardinality.ZERO_OR_MORE, whichIs -> whichIs.withGroupTypeRelatedToEntity(Entities.PARAMETER_GROUP))
+					.updateVia(session);
+
+				session.createNewEntity(Entities.PARAMETER_GROUP, 1)
+					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Group")
+					.upsertVia(session);
+
+				session.createNewEntity(Entities.PARAMETER, 1)
+					.setAttribute(ATTRIBUTE_NAME, LOCALE_CZ, "Parametr")
+					.setReference(Entities.PARAMETER_GROUP, 1)
+					.upsertVia(session);
+
+				session.createNewEntity(Entities.PRODUCT, 1)
+					.setAttribute(ATTRIBUTE_NAME, LOCALE_CZ, "Produkt")
+					.setReference(Entities.PARAMETER, 1, whichIs -> whichIs.setGroup(1))
+					.upsertVia(session);
+
+				final SealedEntity product = session.queryOneSealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(1),
+							entityLocaleEquals(LOCALE_CZ)
+						),
+						require(
+							entityFetch(
+								entityFetchAllContentAnd(
+									referenceContent(Entities.PARAMETER, entityFetchAll(), entityGroupFetchAll())
+								)
+							)
+						)
+					)
+				).orElseThrow();
+
+				assertNotNull(product.getReference(Entities.PARAMETER, 1).orElse(null));
+				assertNotNull(product.getReference(Entities.PARAMETER, 1).orElseThrow().getGroup().orElse(null));
+				assertNull(product.getReference(Entities.PARAMETER, 1).orElseThrow().getGroupEntity().orElse(null));
+
+				final ProductInterface productAsCustomClass = session.queryOne(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(1),
+							entityLocaleEquals(LOCALE_CZ)
+						),
+						require(
+							entityFetch(
+								entityFetchAllContentAnd(
+									referenceContent(Entities.PARAMETER, entityFetchAll(), entityGroupFetchAll())
+								)
+							)
+						)
+					),
+					ProductInterface.class
+				).orElseThrow();
+
+				final ProductParameterInterface parameter = productAsCustomClass.getParameterById(1);
+				assertNotNull(parameter);
+				assertNotNull(parameter.getParameterGroup());
+				assertNull(parameter.getParameterGroupEntity());
+			}
+		);
+	}
+
+	@Test
+	void shouldCorrectlyLocalizeGloballyUniqueAttribute() {
+		evita.defineCatalog(TEST_CATALOG)
+			.withAttribute(ATTRIBUTE_URL, String.class, whichIs -> whichIs.localized().uniqueGlobally())
+			.updateViaNewSession(evita);
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session
+					.defineEntitySchema(Entities.PRODUCT)
+					.withGlobalAttribute(ATTRIBUTE_URL)
+					.updateVia(session);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 1)
+						.setAttribute(ATTRIBUTE_URL, Locale.ENGLISH, "/theProduct")
+				);
+			}
+		);
+
+		assertThrows(
+			UniqueValueViolationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.upsertEntity(
+						session.createNewEntity(Entities.PRODUCT, 2)
+							.setAttribute(ATTRIBUTE_URL, Locale.ENGLISH, "/theProduct")
+					);
+				}
+			)
+		);
+
+		assertEquals(
+			new EntityReference(Entities.PRODUCT, 1),
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.queryOne(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(attributeEquals(ATTRIBUTE_URL, "/theProduct"))
+						),
+						EntityReference.class
+					).orElseThrow();
+				}
+			)
+		);
+
+		assertEquals(
+			new EntityReference(Entities.PRODUCT, 1),
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.queryOne(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								attributeEquals(ATTRIBUTE_URL, "/theProduct"),
+								entityLocaleEquals(Locale.ENGLISH)
+							)
+						),
+						EntityReference.class
+					).orElseThrow();
+				}
+			)
+		);
+
+		assertNull(
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.queryOne(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								attributeEquals(ATTRIBUTE_URL, "/theProduct"),
+								entityLocaleEquals(Locale.FRENCH)
+							)
+						),
+						EntityReference.class
+					).orElse(null);
+				}
+			)
 		);
 	}
 
@@ -2060,11 +2953,11 @@ class EvitaTest implements EvitaTestSupport {
 		CompletableFuture.allOf(backupTasks.toArray(new CompletableFuture[0])).join();
 		executorService.shutdown();
 
-		management.listTaskStatuses(1, numberOfTasks);
+		management.listTaskStatuses(1, numberOfTasks, null);
 
 		// cancel 7 of them immediately
 		final List<Boolean> cancellationResult = Stream.concat(
-				management.listTaskStatuses(1, 1)
+				management.listTaskStatuses(1, 1, null)
 					.getData()
 					.stream()
 					.map(it -> management.cancelTask(it.taskId())),
@@ -2085,13 +2978,13 @@ class EvitaTest implements EvitaTestSupport {
 			fail(e);
 		}
 
-		final PaginatedList<TaskStatus<?, ?>> taskStatuses = management.listTaskStatuses(1, numberOfTasks);
+		final PaginatedList<TaskStatus<?, ?>> taskStatuses = management.listTaskStatuses(1, numberOfTasks, null);
 		assertEquals(numberOfTasks, taskStatuses.getTotalRecordCount());
 		final int cancelled = cancellationResult.stream().mapToInt(b -> b ? 1 : 0).sum();
 		// there is small chance, that cancelled task will finish after all (if it was cancelled in terminal stage)
-		final long finishedTasks = taskStatuses.getData().stream().filter(task -> task.state() == State.FINISHED).count();
+		final long finishedTasks = taskStatuses.getData().stream().filter(task -> task.simplifiedState() == TaskSimplifiedState.FINISHED).count();
 		assertTrue(Math.abs((backupTasks.size() - cancelled) - finishedTasks) < numberOfTasks * 0.1);
-		assertEquals(numberOfTasks - finishedTasks, taskStatuses.getData().stream().filter(task -> task.state() == State.FAILED).count());
+		assertEquals(numberOfTasks - finishedTasks, taskStatuses.getData().stream().filter(task -> task.simplifiedState() == TaskSimplifiedState.FAILED).count());
 
 		// fetch all tasks by their ids
 		management.getTaskStatuses(
@@ -2349,7 +3242,7 @@ class EvitaTest implements EvitaTestSupport {
 			.storage(
 				StorageOptions.builder()
 					.storageDirectory(getEvitaTestDirectory())
-					.exportDirectory(getEvitaTestDirectory())
+					.exportDirectory(getTestDirectory().resolve(DIR_EVITA_TEST_EXPORT))
 					.timeTravelEnabled(false)
 					.build()
 			)

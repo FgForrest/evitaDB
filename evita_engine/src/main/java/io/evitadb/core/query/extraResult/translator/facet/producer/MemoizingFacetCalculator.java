@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -48,6 +48,10 @@ import java.util.Arrays;
 @NotThreadSafe
 public class MemoizingFacetCalculator implements FacetCalculator, ImpactCalculator {
 	/**
+	 * The query execution context to provide access to the schema and other necessary data.
+	 */
+	private final QueryExecutionContext executionContext;
+	/**
 	 * Contains filtering formula that was used to compute result of the {@link EvitaRequest}.
 	 * The formula is converted to more optimal form that produces the same result but allows to memoize more
 	 * intermediate calculations in the formula tree.
@@ -84,18 +88,21 @@ public class MemoizingFacetCalculator implements FacetCalculator, ImpactCalculat
 		// first optimize formula to a form that utilizes memoization the most while adding new facet filters
 		final Formula optimizedFormula = FilterFormulaFacetOptimizeVisitor.optimize(baseFormula);
 		// now replace common parts of the formula with cached counterparts
+		this.executionContext = queryContext;
 		this.baseFormula = queryContext.analyse(optimizedFormula);
 		this.baseFormulaWithoutUserFilter = baseFormulaWithoutUserFilter;
 		this.baseMatchCount = baseFormula.compute().size();
 		this.facetFormulaGenerator = new FacetFormulaGenerator(
 			queryContext::isFacetGroupConjunction,
 			queryContext::isFacetGroupDisjunction,
-			queryContext::isFacetGroupNegation
+			queryContext::isFacetGroupNegation,
+			queryContext::isFacetGroupExclusive
 		);
 		this.impactFormulaGenerator = new ImpactFormulaGenerator(
 			queryContext::isFacetGroupConjunction,
 			queryContext::isFacetGroupDisjunction,
-			queryContext::isFacetGroupNegation
+			queryContext::isFacetGroupNegation,
+			queryContext::isFacetGroupExclusive
 		);
 	}
 
@@ -103,9 +110,11 @@ public class MemoizingFacetCalculator implements FacetCalculator, ImpactCalculat
 	@Override
 	public RequestImpact calculateImpact(@Nonnull ReferenceSchemaContract referenceSchema, int facetId, @Nullable Integer facetGroupId, boolean required, @Nonnull Bitmap[] facetEntityIds) {
 		// create formula that would capture the requested facet selected
-		final Formula hypotheticalFormula = impactFormulaGenerator.generateFormula(
-			baseFormula, baseFormulaWithoutUserFilter, referenceSchema, facetGroupId, facetId, facetEntityIds
+		final Formula hypotheticalFormula = this.impactFormulaGenerator.generateFormula(
+			this.baseFormula, this.baseFormulaWithoutUserFilter, referenceSchema, facetGroupId, facetId, facetEntityIds
 		);
+		// initialize the formula
+		hypotheticalFormula.initialize(this.executionContext);
 		// compute the hypothetical result
 		final int hypotheticalCount = hypotheticalFormula.compute().size();
 		// and return computed impact
@@ -114,7 +123,7 @@ public class MemoizingFacetCalculator implements FacetCalculator, ImpactCalculat
 			difference,
 			hypotheticalCount,
 			hypotheticalCount > 0 &&
-				(difference != 0 || impactFormulaGenerator.hasSenseAlone(hypotheticalFormula, referenceSchema, facetGroupId, facetId, facetEntityIds))
+				(difference != 0 || this.impactFormulaGenerator.hasSenseAlone(hypotheticalFormula, referenceSchema, facetGroupId, facetId, facetEntityIds))
 		);
 	}
 
@@ -122,9 +131,12 @@ public class MemoizingFacetCalculator implements FacetCalculator, ImpactCalculat
 	@Override
 	public Formula createCountFormula(@Nonnull ReferenceSchemaContract referenceSchema, int facetId, @Nullable Integer facetGroupId, @Nonnull Bitmap[] facetEntityIds) {
 		// create formula that would capture all mandatory filtering constraints plus this single facet selected
-		return facetFormulaGenerator.generateFormula(
+		final Formula hypotheticalFormula = facetFormulaGenerator.generateFormula(
 			baseFormula, baseFormulaWithoutUserFilter, referenceSchema, facetGroupId, facetId, facetEntityIds
 		);
+		// initialize the formula
+		hypotheticalFormula.initialize(this.executionContext);
+		return hypotheticalFormula;
 	}
 
 	@Nonnull
@@ -135,16 +147,18 @@ public class MemoizingFacetCalculator implements FacetCalculator, ImpactCalculat
 				.map(ConstantFormula::new)
 				.toArray(Formula[]::new)
 		);
-		final Formula result;
+		final Formula hypotheticalFormula;
 		if (baseFormulaWithoutUserFilter == null) {
-			result = allFacetEntityIds;
+			hypotheticalFormula = allFacetEntityIds;
 		} else {
-			result = FormulaFactory.and(
+			hypotheticalFormula = FormulaFactory.and(
 				baseFormulaWithoutUserFilter,
 				allFacetEntityIds
 			);
 		}
-		return result;
+		// initialize the formula
+		hypotheticalFormula.initialize(this.executionContext);
+		return hypotheticalFormula;
 	}
 
 }

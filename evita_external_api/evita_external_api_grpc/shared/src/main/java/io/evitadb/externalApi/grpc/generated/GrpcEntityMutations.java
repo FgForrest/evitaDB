@@ -39,14 +39,19 @@ public final class GrpcEntityMutations {
   }
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetParentMutation_descriptor;
-  static final
+  static final 
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetParentMutation_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcRemoveParentMutation_descriptor;
-  static final
+  static final 
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcRemoveParentMutation_fieldAccessorTable;
+  static final com.google.protobuf.Descriptors.Descriptor
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetEntityScopeMutation_descriptor;
+  static final 
+    com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+      internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetEntityScopeMutation_fieldAccessorTable;
 
   public static com.google.protobuf.Descriptors.FileDescriptor
       getDescriptor() {
@@ -57,14 +62,17 @@ public final class GrpcEntityMutations {
   static {
     java.lang.String[] descriptorData = {
       "\n\031GrpcEntityMutations.proto\022%io.evitadb." +
-      "externalApi.grpc.generated\"+\n\025GrpcSetPar" +
-      "entMutation\022\022\n\nprimaryKey\030\001 \001(\005\"\032\n\030GrpcR" +
-      "emoveParentMutationB\014P\001\252\002\007EvitaDBb\006proto" +
-      "3"
+      "externalApi.grpc.generated\032\017GrpcEnums.pr" +
+      "oto\"+\n\025GrpcSetParentMutation\022\022\n\nprimaryK" +
+      "ey\030\001 \001(\005\"\032\n\030GrpcRemoveParentMutation\"c\n\032" +
+      "GrpcSetEntityScopeMutation\022E\n\005scope\030\001 \001(" +
+      "\01626.io.evitadb.externalApi.grpc.generate" +
+      "d.GrpcEntityScopeB\014P\001\252\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
         new com.google.protobuf.Descriptors.FileDescriptor[] {
+          io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor(),
         });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetParentMutation_descriptor =
       getDescriptor().getMessageTypes().get(0);
@@ -78,6 +86,13 @@ public final class GrpcEntityMutations {
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcRemoveParentMutation_descriptor,
         new java.lang.String[] { });
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetEntityScopeMutation_descriptor =
+      getDescriptor().getMessageTypes().get(2);
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetEntityScopeMutation_fieldAccessorTable = new
+      com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
+        internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetEntityScopeMutation_descriptor,
+        new java.lang.String[] { "Scope", });
+    io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor();
   }
 
   // @@protoc_insertion_point(outer_class_scope)

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,10 +32,11 @@ import com.linecorp.armeria.server.grpc.GrpcService;
 import com.linecorp.armeria.server.grpc.GrpcServiceBuilder;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.configuration.ApiOptions;
-import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
+import io.evitadb.externalApi.grpc.configuration.GrpcOptions;
 import io.evitadb.externalApi.grpc.services.EvitaManagementService;
 import io.evitadb.externalApi.grpc.services.EvitaService;
 import io.evitadb.externalApi.grpc.services.EvitaSessionService;
+import io.evitadb.externalApi.grpc.services.EvitaTrafficRecordingService;
 import io.evitadb.externalApi.grpc.services.interceptors.GlobalExceptionHandlerInterceptor;
 import io.evitadb.externalApi.grpc.services.interceptors.ObservabilityInterceptor;
 import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionInterceptor;
@@ -51,7 +52,7 @@ import javax.annotation.Nonnull;
  *
  * @author Tomáš Pozler, 2022
  */
-public class GrpcProviderRegistrar implements ExternalApiProviderRegistrar<GrpcConfig> {
+public class GrpcProviderRegistrar implements ExternalApiProviderRegistrar<GrpcOptions> {
 
 	@Nonnull
 	@Override
@@ -61,32 +62,33 @@ public class GrpcProviderRegistrar implements ExternalApiProviderRegistrar<GrpcC
 
 	@Nonnull
 	@Override
-	public Class<GrpcConfig> getConfigurationClass() {
-		return GrpcConfig.class;
+	public Class<GrpcOptions> getConfigurationClass() {
+		return GrpcOptions.class;
 	}
 
 	@Nonnull
 	@Override
-	public ExternalApiProvider<GrpcConfig> register(@Nonnull Evita evita, @Nonnull ExternalApiServer externalApiServer, @Nonnull ApiOptions apiOptions, @Nonnull GrpcConfig grpcAPIConfig) {
+	public ExternalApiProvider<GrpcOptions> register(
+		@Nonnull Evita evita,
+		@Nonnull ExternalApiServer externalApiServer,
+		@Nonnull ApiOptions apiOptions,
+		@Nonnull GrpcOptions grpcAPIConfig
+	) {
 		final GrpcServiceBuilder grpcServiceBuilder = GrpcService.builder()
-			.addService(new EvitaService(evita))
-			.addService(new EvitaManagementService(evita))
-			.addService(new EvitaSessionService(evita))
+			.addService(new EvitaService(evita, apiOptions.headers()))
+			.addService(new EvitaManagementService(evita, externalApiServer, apiOptions.headers()))
+			.addService(new EvitaSessionService(evita, apiOptions.headers()))
+			.addService(new EvitaTrafficRecordingService(evita, apiOptions.headers()))
 			.addService(ProtoReflectionService.newInstance())
-			.intercept(new ServerSessionInterceptor(evita, grpcAPIConfig.getTlsMode()))
+			.intercept(new ServerSessionInterceptor(evita))
 			.intercept(new GlobalExceptionHandlerInterceptor())
 			.intercept(new ObservabilityInterceptor())
 			.supportedSerializationFormats(GrpcSerializationFormats.values())
 			.enableHttpJsonTranscoding(true)
-			.enableUnframedRequests(true);
+			.enableUnframedRequests(true)
+			.useClientTimeoutHeader(true);
 
-		final CorsServiceBuilder corsBuilder;
-		if (grpcAPIConfig.getAllowedOrigins() == null) {
-			corsBuilder = CorsService.builderForAnyOrigin();
-		} else {
-			corsBuilder = CorsService.builder(grpcAPIConfig.getAllowedOrigins());
-		}
-		corsBuilder
+		final CorsServiceBuilder corsBuilder = CorsService.builderForAnyOrigin()
 			.allowRequestMethods(HttpMethod.POST) // Allow POST method.
 			// Allow all request headers to ensure proper Metadata to HTTP headers conversion in gRPC-Web.
 			// Because of the variability of such headers, it is not wise to list them all and maintain it.
@@ -98,6 +100,11 @@ public class GrpcProviderRegistrar implements ExternalApiProviderRegistrar<GrpcC
 
 		final GrpcService grpcService = grpcServiceBuilder.build();
 
-		return new GrpcProvider(grpcAPIConfig, corsBuilder.build(grpcService));
+		return new GrpcProvider(
+			grpcAPIConfig,
+			corsBuilder.build(grpcService),
+			apiOptions.requestTimeoutInMillis(),
+			apiOptions.idleTimeoutInMillis()
+		);
 	}
 }

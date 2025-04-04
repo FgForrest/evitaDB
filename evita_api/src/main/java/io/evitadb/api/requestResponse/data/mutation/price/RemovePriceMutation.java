@@ -70,7 +70,7 @@ public class RemovePriceMutation extends PriceMutation {
 			existingValue.taxRate(),
 			existingValue.priceWithTax(),
 			existingValue.validity(),
-			existingValue.sellable(),
+			existingValue.indexed(),
 			true
 		);
 	}

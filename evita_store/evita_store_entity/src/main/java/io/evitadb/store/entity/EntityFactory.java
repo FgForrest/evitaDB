@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.structure.AssociatedData;
 import io.evitadb.api.requestResponse.data.structure.Entity;
+import io.evitadb.api.requestResponse.data.structure.Entity.ChunkTransformerAccessor;
 import io.evitadb.api.requestResponse.data.structure.EntityAttributes;
 import io.evitadb.api.requestResponse.data.structure.Prices;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -73,13 +74,15 @@ public class EntityFactory {
 	 *
 	 * This method is used for initial loading of the entity.
 	 */
+	@Nonnull
 	public static Entity createEntityFrom(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull EntityBodyStoragePart entityStorageContainer,
 		@Nonnull List<AttributesStoragePart> attributesStorageContainers,
 		@Nonnull List<AssociatedDataStoragePart> associatedDataStorageContainers,
 		@Nullable ReferencesStoragePart referencesStorageContainer,
-		@Nullable PricesStoragePart priceStorageContainer
+		@Nullable PricesStoragePart priceStorageContainer,
+		@Nonnull ChunkTransformerAccessor referenceChunkTransformer
 	) {
 		final Map<AttributeKey, AttributeValue> attributeValues = attributesStorageContainers
 			.stream()
@@ -123,8 +126,12 @@ public class EntityFactory {
 				.orElseGet(() -> new Prices(entitySchema, PriceInnerRecordHandling.UNKNOWN)),
 			// pass all locales known in the entity container
 			entityStorageContainer.getLocales(),
+			// pass entity scope
+			entityStorageContainer.getScope(),
 			// loaded entity is never dropped - otherwise it could not have been read
-			false
+			false,
+			// transformation function used to wrap references into the data chunk
+			referenceChunkTransformer
 		);
 	}
 
@@ -218,8 +225,13 @@ public class EntityFactory {
 			ofNullable(entityStoragePart)
 				.map(EntityBodyStoragePart::getLocales)
 				.orElse(null),
+			// pass scope known in the entity container
+			ofNullable(entityStoragePart)
+				.map(EntityBodyStoragePart::getScope)
+				.orElseGet(entity::getScope),
 			// loaded entity is never dropped - otherwise it could not have been read
-			false
+			false,
+			entity.getReferenceChunkTransformer()
 		);
 	}
 

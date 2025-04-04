@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.index.attribute;
 
+import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedComparableForwardSeeker;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.index.bitmap.Bitmap;
 import lombok.Getter;
@@ -43,10 +44,11 @@ public class SortedRecordsSupplier implements SortedRecordsProvider, Serializabl
 	@Getter @Nonnull private final int[] sortedRecordIds;
 	@Getter @Nonnull private final int[] recordPositions;
 	@Getter @Nonnull private final Bitmap allRecords;
+	@Getter @Nonnull private final SortedComparableForwardSeeker sortedComparableForwardSeeker;
 
 	@Override
 	public int getRecordCount() {
-		return sortedRecordIds.length;
+		return this.sortedRecordIds.length;
 	}
 
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ package io.evitadb.index.facet;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.algebra.facet.FacetGroupFormula;
 import io.evitadb.function.TriFunction;
 import io.evitadb.index.bitmap.Bitmap;
@@ -84,7 +85,7 @@ public interface FacetIndexContract {
 	boolean isFacetInGroup(@Nonnull String entityType, int groupId, int facetId);
 
 	/**
-	 * Returns index of {@link FacetReferenceIndex} where key is the {@link EntityReference#getType()} of the facet
+	 * Returns index of {@link FacetReferenceIndex} where key is the {@link ReferenceSchemaContract#getName()} of the facet
 	 * referred by the entity.
 	 */
 	@Nonnull

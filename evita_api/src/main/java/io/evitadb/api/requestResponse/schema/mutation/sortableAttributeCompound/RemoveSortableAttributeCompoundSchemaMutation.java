@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaCont
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.SchemaMutation;
@@ -98,11 +99,11 @@ public class RemoveSortableAttributeCompoundSchemaMutation
 		return null;
 	}
 
-	@Nullable
+	@Nonnull
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		final Optional<SortableAttributeCompoundSchemaContract> existingAttributeSchema = entitySchema.getSortableAttributeCompound(name);
+		final Optional<SortableAttributeCompoundSchemaContract> existingAttributeSchema = entitySchema.getSortableAttributeCompound(this.name);
 		if (existingAttributeSchema.isEmpty()) {
 			// the sortable attribute compound schema was already removed - or just doesn't exist,
 			// so we can simply return current schema
@@ -116,7 +117,9 @@ public class RemoveSortableAttributeCompoundSchemaMutation
 				entitySchema.getDeprecationNotice(),
 				entitySchema.isWithGeneratedPrimaryKey(),
 				entitySchema.isWithHierarchy(),
+				entitySchema.getHierarchyIndexedInScopes(),
 				entitySchema.isWithPrice(),
+				entitySchema.getPriceIndexedInScopes(),
 				entitySchema.getIndexedPricePlaces(),
 				entitySchema.getLocales(),
 				entitySchema.getCurrencies(),
@@ -127,7 +130,7 @@ public class RemoveSortableAttributeCompoundSchemaMutation
 				entitySchema.getSortableAttributeCompounds()
 					.entrySet()
 					.stream()
-					.filter(it -> !Objects.equals(name, it.getKey()))
+					.filter(it -> !Objects.equals(this.name, it.getKey()))
 					.collect(
 						Collectors.toMap(
 							Map.Entry::getKey,
@@ -140,40 +143,56 @@ public class RemoveSortableAttributeCompoundSchemaMutation
 
 	@Nullable
 	@Override
-	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema) {
+	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
-		final Optional<SortableAttributeCompoundSchemaContract> existingAttributeSchema = referenceSchema.getSortableAttributeCompound(name);
-		if (existingAttributeSchema.isEmpty()) {
+		final Optional<SortableAttributeCompoundSchemaContract> existingCompoundSchema = getReferenceSortableAttributeCompoundSchema(referenceSchema, this.name);
+		if (existingCompoundSchema.isEmpty()) {
 			// the attribute schema was already removed - or just doesn't exist,
 			// so we can simply return current schema
 			return referenceSchema;
 		} else {
-			return ReferenceSchema._internalBuild(
-				referenceSchema.getName(),
-				referenceSchema.getNameVariants(),
-				referenceSchema.getDescription(),
-				referenceSchema.getDeprecationNotice(),
-				referenceSchema.getReferencedEntityType(),
-				referenceSchema.getEntityTypeNameVariants(entityType -> null),
-				referenceSchema.isReferencedEntityTypeManaged(),
-				referenceSchema.getCardinality(),
-				referenceSchema.getReferencedGroupType(),
-				referenceSchema.getGroupTypeNameVariants(entityType -> null),
-				referenceSchema.isReferencedGroupTypeManaged(),
-				referenceSchema.isIndexed(),
-				referenceSchema.isFaceted(),
-				referenceSchema.getAttributes(),
-				referenceSchema.getSortableAttributeCompounds()
-					.entrySet()
-					.stream()
-					.filter(it -> !Objects.equals(name, it.getKey()))
-					.collect(
-						Collectors.toMap(
-							Map.Entry::getKey,
-							Map.Entry::getValue
+			if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema) {
+				return reflectedReferenceSchema
+					.withDeclaredSortableAttributeCompounds(
+						reflectedReferenceSchema.getDeclaredSortableAttributeCompounds()
+							.entrySet()
+							.stream()
+							.filter(it -> !Objects.equals(this.name, it.getKey()))
+							.collect(
+								Collectors.toMap(
+									Map.Entry::getKey,
+									Map.Entry::getValue
+								)
+							)
+					);
+			} else {
+				return ReferenceSchema._internalBuild(
+					referenceSchema.getName(),
+					referenceSchema.getNameVariants(),
+					referenceSchema.getDescription(),
+					referenceSchema.getDeprecationNotice(),
+					referenceSchema.getCardinality(),
+					referenceSchema.getReferencedEntityType(),
+					referenceSchema.getEntityTypeNameVariants(entityType -> null),
+					referenceSchema.isReferencedEntityTypeManaged(),
+					referenceSchema.getReferencedGroupType(),
+					referenceSchema.getGroupTypeNameVariants(entityType -> null),
+					referenceSchema.isReferencedGroupTypeManaged(),
+					referenceSchema.getIndexedInScopes(),
+					referenceSchema.getFacetedInScopes(),
+					referenceSchema.getAttributes(),
+					referenceSchema.getSortableAttributeCompounds()
+						.entrySet()
+						.stream()
+						.filter(it -> !Objects.equals(this.name, it.getKey()))
+						.collect(
+							Collectors.toMap(
+								Map.Entry::getKey,
+								Map.Entry::getValue
+							)
 						)
-					)
-			);
+				);
+			}
 		}
 	}
 
@@ -186,7 +205,7 @@ public class RemoveSortableAttributeCompoundSchemaMutation
 	@Override
 	public String toString() {
 		return "Remove sortable attribute compound schema: " +
-			"name='" + name + '\'';
+			"name='" + this.name + '\'';
 	}
 
 }

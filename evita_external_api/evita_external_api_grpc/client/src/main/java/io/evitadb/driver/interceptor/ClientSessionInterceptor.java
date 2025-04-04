@@ -36,6 +36,7 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.util.function.Supplier;
 
 /**
  * This class is used to intercept client calls prior their sending to the server. If client did set sessionId and sessionType
@@ -93,16 +94,47 @@ public class ClientSessionInterceptor implements ClientInterceptor {
 		/**
 		 * Context that holds current session in thread-local space.
 		 */
-		private static final ThreadLocal<SessionDescriptor> SESSION_DESCRIPTOR = new ThreadLocal<>();
+		private static final ThreadLocal<String> SESSION_DESCRIPTOR = new ThreadLocal<>();
+
+		/**
+		 * Executes lambda in a session scope.
+		 *
+		 * @param sessionId session to set
+		 * @param lambda lambda to execute
+		 * @return result of the lambda
+		 * @param <T> type of the result
+		 */
+		public static <T> T executeInSession(@Nonnull String sessionId, @Nonnull Supplier<T> lambda) {
+			setSessionId(sessionId);
+			try {
+				return lambda.get();
+			} finally {
+				reset();
+			}
+		}
+
+		/**
+		 * Executes lambda in a session scope.
+		 *
+		 * @param sessionId session to set
+		 * @param lambda lambda to execute
+		 */
+		public static void executeInSession(@Nonnull String sessionId, @Nonnull Runnable lambda) {
+			setSessionId(sessionId);
+			try {
+				lambda.run();
+			} finally {
+				reset();
+			}
+		}
 
 		/**
 		 * Sets sessionId to the context.
 		 *
-		 * @param catalogName session to set
 		 * @param sessionId   session to set
 		 */
-		public static void setSessionId(String catalogName, String sessionId) {
-			SESSION_DESCRIPTOR.set(new SessionDescriptor(catalogName, sessionId));
+		public static void setSessionId(@Nonnull String sessionId) {
+			SESSION_DESCRIPTOR.set(sessionId);
 		}
 
 		/**
@@ -118,24 +150,8 @@ public class ClientSessionInterceptor implements ClientInterceptor {
 		 * @return sessionId
 		 */
 		public static String getSessionId() {
-			final SessionDescriptor descriptor = SESSION_DESCRIPTOR.get();
-			return descriptor == null ? null : SESSION_DESCRIPTOR.get().sessionId();
+			return SESSION_DESCRIPTOR.get();
 		}
 
-		/**
-		 * Returns catalog name from the context.
-		 *
-		 * @return sessionType
-		 */
-		public static String getCatalogName() {
-			final SessionDescriptor descriptor = SESSION_DESCRIPTOR.get();
-			return descriptor == null ? null : SESSION_DESCRIPTOR.get().catalogName();
-		}
-
-		/**
-		 * Record that holds information about session.
-		 */
-		public record SessionDescriptor(@Nonnull String catalogName, @Nonnull String sessionId) {
-		}
 	}
 }

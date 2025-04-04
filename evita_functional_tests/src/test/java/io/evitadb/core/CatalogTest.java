@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -46,6 +46,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 class CatalogTest implements EvitaTestSupport {
 
 	public static final String DIR_CATALOG_TEST = "catalogTest";
+	public static final String DIR_CATALOG_TEST_EXPORT = "catalogTest_export";
 
 	@Test
 	void shouldDefineCatalogSchemaUpfront() throws IOException {
@@ -55,6 +56,7 @@ class CatalogTest implements EvitaTestSupport {
 				.storage(
 					StorageOptions.builder()
 						.storageDirectory(getTestDirectory().resolve(DIR_CATALOG_TEST))
+						.exportDirectory(getTestDirectory().resolve(DIR_CATALOG_TEST_EXPORT))
 						.build()
 				).build()
 		)) {
@@ -80,7 +82,7 @@ class CatalogTest implements EvitaTestSupport {
 				evitaSession -> {
 					final SealedCatalogSchema catalogSchema = evitaSession.getCatalogSchema();
 
-					assertEquals(9, catalogSchema.version());
+					assertEquals(10, catalogSchema.version());
 					final AttributeSchemaContract code = catalogSchema.getAttribute("code").orElseThrow();
 					final AttributeSchemaContract name = catalogSchema.getAttribute("name").orElseThrow();
 

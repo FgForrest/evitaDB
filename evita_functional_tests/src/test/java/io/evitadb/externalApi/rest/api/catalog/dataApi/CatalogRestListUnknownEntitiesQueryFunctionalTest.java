@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,7 +28,9 @@ import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.FetchEntityEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.ListUnknownEntitiesEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.QueryHeaderFilterArgumentsJoinType;
@@ -41,12 +43,15 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.ATTRIBUTE_RELATIVE_URL;
+import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE;
 import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.generator.DataGenerator.ASSOCIATED_DATA_LABELS;
@@ -54,8 +59,11 @@ import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_URL;
 import static io.evitadb.utils.MapBuilder.map;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -64,6 +72,115 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataEndpointFunctionalTest {
+
+
+	@Test
+	@UseDataSet(REST_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE)
+	@DisplayName("Should return archived entities")
+	void shouldReturnArchivedEntities(Evita evita, RestTester tester) {
+		final List<SealedEntity> archivedEntities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					scope(Scope.ARCHIVED)
+				),
+				require(
+					page(1, 2),
+					entityFetch(attributeContent(ATTRIBUTE_CODE))
+				)
+			),
+			SealedEntity.class
+		);
+
+		final var expectedBodyOfArchivedEntities = archivedEntities.stream()
+			.map(entity -> new EntityReference(entity.getType(), entity.getPrimaryKey()))
+			.map(CatalogRestDataEndpointFunctionalTest::createEntityDto)
+			.toList();
+
+		tester.test(TEST_CATALOG)
+			.get("/entity/list")
+			.requestParam(ATTRIBUTE_CODE, archivedEntities.stream().map(it -> it.getAttribute(ATTRIBUTE_CODE)).toList())
+			.requestParam(ListUnknownEntitiesEndpointHeaderDescriptor.SCOPE.name(), List.of(Scope.ARCHIVED.name()))
+			.executeAndThen()
+			.statusCode(200)
+			.body("", equalTo(expectedBodyOfArchivedEntities));
+	}
+
+	@Test
+	@UseDataSet(REST_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE)
+	@DisplayName("Should return both live and archived entities explicitly")
+	void shouldReturnBothLiveAndArchivedEntitiesExplicitly(Evita evita, RestTester tester) {
+		final SealedEntity liveEntity = getEntity(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					scope(Scope.LIVE)
+				),
+				require(
+					page(1, 1),
+					entityFetch(attributeContent(ATTRIBUTE_CODE))
+				)
+			),
+			SealedEntity.class
+		);
+		final SealedEntity archivedEntity = getEntity(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					scope(Scope.ARCHIVED)
+				),
+				require(
+					page(1, 1),
+					entityFetch(attributeContent(ATTRIBUTE_CODE))
+				)
+			),
+			SealedEntity.class
+		);
+		assertNotEquals((String) liveEntity.getAttribute(ATTRIBUTE_CODE), (String) archivedEntity.getAttribute(ATTRIBUTE_CODE));
+
+		final var expectedBodyOfArchivedEntities = Stream.of(liveEntity, archivedEntity)
+			.map(entity -> new EntityReference(entity.getType(), entity.getPrimaryKey()))
+			.map(CatalogRestDataEndpointFunctionalTest::createEntityDto)
+			.toList();
+
+		tester.test(TEST_CATALOG)
+			.get("/entity/list")
+			.requestParam(ATTRIBUTE_CODE, Stream.of(liveEntity, archivedEntity).map(it -> it.getAttribute(ATTRIBUTE_CODE)).toList())
+			.requestParam(ListUnknownEntitiesEndpointHeaderDescriptor.SCOPE.name(), List.of(Scope.LIVE.name(), Scope.ARCHIVED.name()))
+			.executeAndThen()
+			.statusCode(200)
+			.body("", containsInAnyOrder(expectedBodyOfArchivedEntities.toArray()));
+	}
+
+	@Test
+	@UseDataSet(REST_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE)
+	@DisplayName("Should not return archived entity without scope")
+	void shouldNotReturnArchivedEntityWithoutScope(Evita evita, RestTester tester) {
+		final SealedEntity archivedEntity = getEntity(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					scope(Scope.ARCHIVED)
+				),
+				require(
+					page(1, 1),
+					entityFetch(attributeContent(ATTRIBUTE_CODE))
+				)
+			),
+			SealedEntity.class
+		);
+
+		tester.test(TEST_CATALOG)
+			.get("/entity/list")
+			.requestParam(ATTRIBUTE_CODE, Collections.singletonList((String) archivedEntity.getAttribute(ATTRIBUTE_CODE)))
+			.executeAndThen()
+			.statusCode(200)
+			.body("", emptyIterable());
+	}
 
 	@Test
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
@@ -280,7 +397,7 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return price for entities")
 	void shouldReturnPriceForEntities(Evita evita, List<SealedEntity> originalProductEntities, RestTester tester) {
-		final var pks = findEntityWithPricePks(originalProductEntities);
+		final var pks = findEntityWithPricePks(originalProductEntities, 2);
 
 		final List<String> codes = getAttributesByPks(evita, pks, ATTRIBUTE_CODE);
 
@@ -317,7 +434,8 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 	void shouldReturnAssociatedDataWithCustomLocaleForEntities(Evita evita, List<SealedEntity> originalProductEntities, RestTester tester) {
 		final var pks = findEntityPks(
 			originalProductEntities,
-			it -> it.getAssociatedData(ASSOCIATED_DATA_LABELS, Locale.ENGLISH) != null
+			it -> it.getAssociatedData(ASSOCIATED_DATA_LABELS, Locale.ENGLISH) != null,
+			2
 		);
 
 		final List<String> codes = getAttributesByPks(evita, pks, ATTRIBUTE_CODE);
@@ -356,7 +474,8 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 	void shouldReturnAssociatedDataWithCustomLocaleForEntitiesWithLocaleInUrl(Evita evita, List<SealedEntity> originalProductEntities, RestTester tester) {
 		final var pks = findEntityPks(
 			originalProductEntities,
-			it -> it.getAssociatedData(ASSOCIATED_DATA_LABELS, Locale.ENGLISH) != null
+			it -> it.getAssociatedData(ASSOCIATED_DATA_LABELS, Locale.ENGLISH) != null,
+			2
 		);
 
 		final List<String> codes = getAttributesByPks(evita, pks, ATTRIBUTE_CODE);
@@ -394,7 +513,8 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 	void shouldReturnReferenceListForEntities(Evita evita, List<SealedEntity> originalProductEntities, RestTester tester) {
 		final var pks = findEntityPks(
 			originalProductEntities,
-			it -> it.getReferences(Entities.STORE).size() > 1
+			it -> it.getReferences(Entities.STORE).size() > 1,
+			2
 		);
 
 		final List<String> codes = getAttributesByPks(evita, pks, ATTRIBUTE_CODE);

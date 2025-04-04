@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,6 +33,8 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.api.ExternalApiNamingConventions;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ExternalEntityTypePointer;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetRequestImpactDescriptor;
@@ -89,6 +91,15 @@ public class FacetSummaryConverter extends RequireConverter {
 					.values()
 					.stream()
 					.filter(ReferenceSchemaContract::isFaceted)
+					.filter(it -> {
+						if (facetSummary != null) {
+							// we need to generate constraints for all references if generic facet summary is requested
+							return true;
+						}
+						// else pick only requested references
+						return facetSummaryOfReferences.stream().anyMatch(facetSummaryOfReference ->
+							facetSummaryOfReference.getReferenceName().equals(it.getName()));
+					})
 					.map(referenceSchema -> getFacetSummaryOfReference(
 						referenceSchema,
 						facetSummaryRequests.get(referenceSchema.getName()),
@@ -114,9 +125,11 @@ public class FacetSummaryConverter extends RequireConverter {
 	}
 
 	@Nonnull
-	private FacetSummaryOfReference getFacetSummaryOfReference(@Nonnull ReferenceSchemaContract referenceSchema,
-	                                                           @Nullable FacetSummaryOfReference facetSummaryRequest,
-	                                                           @Nullable FacetSummary defaultRequest) {
+	private static FacetSummaryOfReference getFacetSummaryOfReference(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nullable FacetSummaryOfReference facetSummaryRequest,
+		@Nullable FacetSummary defaultRequest
+	) {
 		if (facetSummaryRequest == null && defaultRequest == null) {
 			throw new GenericEvitaInternalError("Either facet summary request or default request must be present!");
 		}
@@ -168,7 +181,11 @@ public class FacetSummaryConverter extends RequireConverter {
 					offset,
 					multipleArguments,
 					convertFilterConstraint(
-						new EntityDataLocator(referenceSchema.getReferencedGroupType()),
+						new EntityDataLocator(
+							referenceSchema.isReferencedGroupTypeManaged()
+								? new ManagedEntityTypePointer(referenceSchema.getReferencedGroupType())
+								: new ExternalEntityTypePointer(referenceSchema.getReferencedGroupType())
+						),
 						facetSummaryOfReference.getFilterGroupBy().get()
 					)
 						.orElseThrow()
@@ -184,7 +201,11 @@ public class FacetSummaryConverter extends RequireConverter {
 					offset,
 					multipleArguments,
 					convertOrderConstraint(
-						new EntityDataLocator(referenceSchema.getReferencedGroupType()),
+						new EntityDataLocator(
+							referenceSchema.isReferencedGroupTypeManaged()
+								? new ManagedEntityTypePointer(referenceSchema.getReferencedGroupType())
+								: new ExternalEntityTypePointer(referenceSchema.getReferencedGroupType())
+						),
 						facetSummaryOfReference.getOrderGroupBy().get()
 					)
 						.orElseThrow()
@@ -242,7 +263,11 @@ public class FacetSummaryConverter extends RequireConverter {
 					offset,
 					multipleArguments,
 					convertFilterConstraint(
-						new EntityDataLocator(referenceSchema.getReferencedEntityType()),
+						new EntityDataLocator(
+							referenceSchema.isReferencedEntityTypeManaged()
+								? new ManagedEntityTypePointer(referenceSchema.getReferencedEntityType())
+								: new ExternalEntityTypePointer(referenceSchema.getReferencedEntityType())
+						),
 						facetSummaryOfReference.getFilterBy().get()
 					)
 						.orElseThrow()
@@ -257,7 +282,11 @@ public class FacetSummaryConverter extends RequireConverter {
 					offset,
 					multipleArguments,
 					convertOrderConstraint(
-						new EntityDataLocator(referenceSchema.getReferencedEntityType()),
+						new EntityDataLocator(
+							referenceSchema.isReferencedEntityTypeManaged()
+								? new ManagedEntityTypePointer(referenceSchema.getReferencedEntityType())
+								: new ExternalEntityTypePointer(referenceSchema.getReferencedEntityType())
+						),
 						facetSummaryOfReference.getOrderBy().get()
 					)
 						.orElseThrow()

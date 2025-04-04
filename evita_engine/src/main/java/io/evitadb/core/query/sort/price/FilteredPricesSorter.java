@@ -27,15 +27,13 @@ import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.order.PriceNatural;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.core.query.QueryExecutionContext;
-import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordsLookupResult;
 import io.evitadb.core.query.algebra.price.termination.SumPriceTerminationFormula;
 import io.evitadb.core.query.sort.Sorter;
-import io.evitadb.core.query.sort.utils.SortUtils;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
@@ -48,6 +46,7 @@ import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.function.IntConsumer;
 
 /**
  * This sorter implementation executes sorting by price according to passed {@link PriceNatural} and {@link QueryPriceMode}.
@@ -79,10 +78,6 @@ public class FilteredPricesSorter implements Sorter {
 	 */
 	protected static final Comparator<PriceRecordContract> DESC_PRICE_WITHOUT_TAX = (o1, o2) -> Integer.compare(o2.priceWithoutTax(), o1.priceWithoutTax());
 	/**
-	 * This sorter instance will be used for sorting entities, that cannot be sorted by this sorter.
-	 */
-	protected final Sorter unknownRecordIdsSorter;
-	/**
 	 * This collection contains list of {@link FilteredPriceRecordAccessor} that were used in the filtering query
 	 * and already posses limited set of {@link PriceRecord} data that can be used for sorting. We want to avoid sorting
 	 * excessive large data sets and using already prefiltered records allows it.
@@ -98,83 +93,92 @@ public class FilteredPricesSorter implements Sorter {
 	 */
 	@Getter private FilteredPriceRecordsLookupResult priceRecordsLookupResult;
 
-	public FilteredPricesSorter(@Nonnull OrderDirection sortOrder, @Nonnull QueryPriceMode queryPriceMode, @Nonnull Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors) {
-		this.unknownRecordIdsSorter = null;
+	public FilteredPricesSorter(
+		@Nonnull OrderDirection sortOrder,
+		@Nonnull QueryPriceMode queryPriceMode,
+		@Nonnull Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors
+	) {
 		this.priceRecordComparator = getPriceRecordComparator(sortOrder, queryPriceMode);
 		this.filteredPriceRecordAccessors = filteredPriceRecordAccessors;
 		Assert.isTrue(!filteredPriceRecordAccessors.isEmpty(), "Price translate formulas must not be empty!");
 	}
 
-	private FilteredPricesSorter(@Nonnull Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors, @Nonnull Comparator<PriceRecordContract> priceRecordComparator, @Nullable Sorter unknownRecordIdsSorter) {
-		this.unknownRecordIdsSorter = unknownRecordIdsSorter;
-		this.filteredPriceRecordAccessors = filteredPriceRecordAccessors;
+	public FilteredPricesSorter(
+		@Nonnull Comparator<PriceRecordContract> priceRecordComparator,
+		@Nonnull Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors
+	) {
 		this.priceRecordComparator = priceRecordComparator;
+		this.filteredPriceRecordAccessors = filteredPriceRecordAccessors;
+		Assert.isTrue(!filteredPriceRecordAccessors.isEmpty(), "Price translate formulas must not be empty!");
 	}
 
 	@Nonnull
 	@Override
-	public Sorter andThen(Sorter sorterForUnknownRecords) {
-		return new FilteredPricesSorter(
-			filteredPriceRecordAccessors,
-			priceRecordComparator,
-			sorterForUnknownRecords
-		);
-	}
-
-	@Nonnull
-	@Override
-	public Sorter cloneInstance() {
-		return new FilteredPricesSorter(
-			filteredPriceRecordAccessors,
-			priceRecordComparator,
-			null
-		);
-	}
-
-	@Nullable
-	@Override
-	public Sorter getNextSorter() {
-		return unknownRecordIdsSorter;
-	}
-
-	@Override
-	public int sortAndSlice(@Nonnull QueryExecutionContext queryContext, @Nonnull Formula input, int startIndex, int endIndex, @Nonnull int[] result, int peak) {
+	public SortingContext sortAndSlice(
+		@Nonnull SortingContext sortingContext,
+		@Nonnull int[] result,
+		@Nullable IntConsumer skippedRecordsConsumer
+	) {
 		// compute entire set of entity pks that needs to be sorted
-		final Bitmap computeResult = input.compute();
-		final RoaringBitmap computeResultBitmap = RoaringBitmapBackedBitmap.getRoaringBitmap(computeResult);
+		final RoaringBitmap computeResultBitmap = RoaringBitmapBackedBitmap.getRoaringBitmap(sortingContext.nonSortedKeys());
 		// collect price records from the filtering formulas
-		priceRecordsLookupResult = new FilteredPriceRecordsCollector(
-			computeResultBitmap, filteredPriceRecordAccessors
+		final QueryExecutionContext queryContext = sortingContext.queryContext();
+		this.priceRecordsLookupResult = new FilteredPriceRecordsCollector(
+			computeResultBitmap, this.filteredPriceRecordAccessors, queryContext
 		).getResult();
 
+		// initialize the comparator with the lookup result
+		if (this.priceRecordComparator instanceof PriceRecordsLookupResultAware priceRecordsLookupResultAware) {
+			priceRecordsLookupResultAware.setPriceRecordsLookupResult(
+				queryContext, computeResultBitmap, this.priceRecordsLookupResult
+			);
+		}
+
 		// now sort filtered prices by passed comparator
-		final PriceRecordContract[] translatedResult = priceRecordsLookupResult.getPriceRecords();
+		final PriceRecordContract[] translatedResult = this.priceRecordsLookupResult.getPriceRecords();
 		Arrays.sort(translatedResult, getPriceRecordComparator());
 
+		// determine the count and set of non-found (not-sorted) entities
+		Bitmap notFoundEntities = this.priceRecordsLookupResult.getNotFoundEntities();
+		if (this.priceRecordComparator instanceof NonSortedRecordsProvider notSortedRecordsProvider && notSortedRecordsProvider.getNonSortedRecords() != null) {
+			if (notFoundEntities == null) {
+				notFoundEntities = notSortedRecordsProvider.getNonSortedRecords();
+			} else {
+				notFoundEntities = new BaseBitmap(
+					RoaringBitmap.or(
+						RoaringBitmapBackedBitmap.getRoaringBitmap(notFoundEntities),
+						RoaringBitmapBackedBitmap.getRoaringBitmap(notSortedRecordsProvider.getNonSortedRecords())
+					)
+				);
+			}
+		}
+		final int notFoundEntitiesLength = notFoundEntities == null ? 0 : notFoundEntities.size();
+
+		final int recomputedStartIndex = sortingContext.recomputedStartIndex();
+		final int recomputedEndIndex = sortingContext.recomputedEndIndex();
+
 		// slice the output and cut appropriate page from it
-		final int pageSize = Math.min(endIndex - startIndex, translatedResult.length - startIndex);
-		int written = 0;
-		for (int i = startIndex; i < startIndex + pageSize; i++) {
-			result[peak + written++] = translatedResult[i].entityPrimaryKey();
+		final int peak = sortingContext.peak();
+		final int pageSize = Math.min(recomputedEndIndex - recomputedStartIndex, translatedResult.length - notFoundEntitiesLength - recomputedStartIndex);
+		int writtenRecords = 0;
+		int skippedRecords = 0;
+		for (int i = 0; i < recomputedStartIndex + pageSize; i++) {
+			if (i < recomputedStartIndex) {
+				skippedRecords++;
+				if (skippedRecordsConsumer != null) {
+					skippedRecordsConsumer.accept(translatedResult[i].entityPrimaryKey());
+				}
+			} else {
+				result[peak + writtenRecords++] = translatedResult[i].entityPrimaryKey();
+			}
 		}
 
-		// if the output is not complete, and we have not found entity PKs
-		final int[] notFoundEntities = priceRecordsLookupResult.getNotFoundEntities();
-		if (translatedResult.length < endIndex && (notFoundEntities != null && notFoundEntities.length > 0)) {
-			// pass them to another sorter
-			final int recomputedStartIndex = Math.max(0, startIndex - written);
-			final int recomputedEndIndex = Math.max(0, endIndex - written);
-			// combine sorted result with the unknown rest using additional sorter or default own
-			return appendSortedUnknownEntityPks(
-				queryContext,
-				computeResult, computeResultBitmap,
-				notFoundEntities,
-				recomputedStartIndex, recomputedEndIndex,
-				result, peak + written
-			);
-		} else {
-			return peak + written;
-		}
+		return sortingContext.createResultContext(
+			notFoundEntitiesLength == 0 ?
+				EmptyBitmap.INSTANCE : new BaseBitmap(notFoundEntities),
+			writtenRecords,
+			skippedRecords
+		);
 	}
 
 	/**
@@ -188,56 +192,54 @@ public class FilteredPricesSorter implements Sorter {
 	}
 
 	/**
-	 * Method fills the missing gap for requested page with unknown entities sorted by {@link #unknownRecordIdsSorter}
-	 * or by default in ascending order of PKs.
+	 * Provides a comparator used for sorting {@link PriceRecordContract} instances.
+	 *
+	 * @return A comparator for sorting {@link PriceRecordContract} objects.
 	 */
-	private int appendSortedUnknownEntityPks(
-		@Nonnull QueryExecutionContext queryContext,
-		@Nonnull Bitmap computeResult,
-		@Nonnull RoaringBitmap computeResultBitmap,
-		@Nullable int[] notFoundArray,
-		int startIndex,
-		int endIndex,
-		@Nonnull int[] result,
-		int peak
-	) {
-		// compute the rest we need to fill in
-		if (notFoundArray == null) {
-			if (unknownRecordIdsSorter != null) {
-				// use provided unknown sorter to sort the rest and copy the result to the output
-				return unknownRecordIdsSorter.sortAndSlice(
-					queryContext, new ConstantFormula(computeResult),
-					startIndex, endIndex, result, peak
-				);
-			} else {
-				// copy the not found ids sorted by PK asc in to the result
-				final int[] buffer = queryContext.borrowBuffer();
-				try {
-					return SortUtils.appendNotFoundResult(
-						result, peak, startIndex, endIndex, computeResultBitmap, buffer
-					);
-				} finally {
-					queryContext.returnBuffer(buffer);
-				}
-			}
-		} else {
-			if (unknownRecordIdsSorter != null) {
-				// use provided unknown sorter to sort the rest and copty the result to the output
-				return unknownRecordIdsSorter.sortAndSlice(
-					queryContext, new ConstantFormula(new BaseBitmap(notFoundArray)),
-					startIndex, endIndex, result, peak
-				);
-			} else {
-				// copy the not found ids sorted by PK asc in to the result
-				return SortUtils.appendNotFoundResult(
-					result, peak, startIndex, endIndex, notFoundArray
-				);
-			}
-		}
-	}
-
+	@Nonnull
 	private Comparator<PriceRecordContract> getPriceRecordComparator() {
 		return priceRecordComparator;
+	}
+
+	/**
+	 * Interface that can be implemented by {@link FilteredPricesSorter#priceRecordComparator} that needs to be informed
+	 * about the data internally calculated in the sorter prior to actual sorting starts.
+	 */
+	@SuppressWarnings("InterfaceWithOnlyOneDirectInheritor")
+	public interface PriceRecordsLookupResultAware {
+
+		/**
+		 * Initializes the comparator with internally calculated data.
+		 * Method is called before the comparator is used for the first time.
+		 *
+		 * @param queryContext The context of the query execution.
+		 * @param filteredEntityPrimaryKeys The primary keys of the filtered entities.
+		 * @param priceRecordsLookupResult The result of the filtered price records lookup.
+		 */
+		void setPriceRecordsLookupResult(
+			@Nonnull QueryExecutionContext queryContext,
+			@Nonnull RoaringBitmap filteredEntityPrimaryKeys,
+			@Nonnull FilteredPriceRecordsLookupResult priceRecordsLookupResult
+		);
+
+	}
+
+	/**
+	 * Interface that can be implemented by {@link FilteredPricesSorter#priceRecordComparator} that produces its own
+	 * set of non-sorted records that should be appended to the result of the sorting.
+	 */
+	@SuppressWarnings("InterfaceWithOnlyOneDirectInheritor")
+	public interface NonSortedRecordsProvider {
+
+		/**
+		 * Returns an array of non-sorted entity primary keys. These keys will be appended to the unsorted records
+		 * and passed to next sorter in the chain.
+		 *
+		 * @return an array of integers representing non-sorted record identifiers or null if no such records exist
+		 */
+		@Nullable
+		Bitmap getNonSortedRecords();
+
 	}
 
 }

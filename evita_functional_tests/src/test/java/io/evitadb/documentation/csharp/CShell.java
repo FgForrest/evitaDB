@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -54,6 +54,8 @@ import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
+
+import static io.evitadb.utils.Assert.isTrue;
 
 /**
  * CShell is a wrapper around the C# query validator executable. It downloads the executable if it is not present in the
@@ -165,10 +167,10 @@ public class CShell {
     }
 
     /**
-     * Method for unzipping downloaded C# query validator executable archive.
+     * Method for unzipping downloaded C# query validator executable scope.
      * @param zipPath path to the zip file that should be unzipped
      * @param destDir path to the destination directory where the zip file should be unzipped
-     * @throws IOException if the archive cannot be unzipped
+     * @throws IOException if the scope cannot be unzipped
      */
     private static void unzip(@Nonnull String zipPath, @Nonnull String destDir) throws IOException {
         final File dir = new File(destDir);
@@ -186,7 +188,10 @@ public class CShell {
             ZipEntry ze = zis.getNextEntry();
             while (ze != null) {
                 final String fileName = ze.getName();
-                final File newFile = new File(destDir + File.separator + fileName);
+                final Path targetPath = Path.of(destDir, fileName).normalize();
+                isTrue(targetPath.startsWith(destDir), "Zip file contains files outside the target directory.");
+
+                final File newFile = targetPath.toFile();
                 //create directories for subdirectories in zip
                 //noinspection ResultOfMethodCallIgnored
                 new File(newFile.getParent()).mkdirs();
@@ -292,7 +297,7 @@ public class CShell {
     /**
      * Finds URL of an asset with a given name from GitHub release.
      *
-     * @author Lukáš Hornych, 2023
+     * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
      */
     private static class GithubLatestAssetUrlFetcher {
         private static final String GITHUB_RELEASE_API_URL_TEMPLATE = "https://api.github.com/repos/FgForrest/evitaDB-C-Sharp-client/releases/latest";

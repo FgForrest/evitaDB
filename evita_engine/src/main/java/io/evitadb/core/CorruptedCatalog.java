@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -65,6 +65,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
+import java.util.function.LongConsumer;
 import java.util.stream.Stream;
 
 /**
@@ -87,7 +88,7 @@ public final class CorruptedCatalog implements CatalogContract {
 	}
 
 	@Override
-	public @Nonnull CatalogSchemaContract updateSchema(@Nonnull LocalCatalogSchemaMutation... schemaMutation) throws SchemaAlteringException {
+	public @Nonnull CatalogSchemaContract updateSchema(@Nonnull EvitaSessionContract session, @Nonnull LocalCatalogSchemaMutation... schemaMutation) throws SchemaAlteringException {
 		throw new CatalogCorruptedException(this);
 	}
 
@@ -151,17 +152,17 @@ public final class CorruptedCatalog implements CatalogContract {
 
 	@Nonnull
 	@Override
-	public EntityCollection getOrCreateCollectionForEntity(@Nonnull String entityType, @Nonnull EvitaSessionContract session) {
+	public EntityCollection getOrCreateCollectionForEntity(@Nonnull EvitaSessionContract session, @Nonnull String entityType) {
 		throw new CatalogCorruptedException(this);
 	}
 
 	@Override
-	public boolean replaceCollectionOfEntity(@Nonnull String entityTypeToBeReplaced, @Nonnull String entityTypeToBeReplacedWith, @Nonnull EvitaSessionContract session) {
+	public boolean replaceCollectionOfEntity(@Nonnull EvitaSessionContract session, @Nonnull String entityTypeToBeReplaced, @Nonnull String entityTypeToBeReplacedWith) {
 		throw new CatalogCorruptedException(this);
 	}
 
 	@Override
-	public boolean deleteCollectionOfEntity(@Nonnull String entityType, @Nonnull EvitaSessionContract session) {
+	public boolean deleteCollectionOfEntity(@Nonnull EvitaSessionContract session, @Nonnull String entityType) {
 		throw new CatalogCorruptedException(this);
 	}
 
@@ -194,7 +195,7 @@ public final class CorruptedCatalog implements CatalogContract {
 	}
 
 	@Override
-	public void applyMutation(@Nonnull Mutation mutation) throws InvalidMutationException {
+	public void applyMutation(@Nonnull EvitaSessionContract session, @Nonnull Mutation mutation) throws InvalidMutationException {
 		throw new CatalogCorruptedException(this);
 	}
 
@@ -240,7 +241,12 @@ public final class CorruptedCatalog implements CatalogContract {
 
 	@Nonnull
 	@Override
-	public ServerTask<Void, FileForFetch> backup(@Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException {
+	public ServerTask<Void, FileForFetch> backup(
+		@Nullable OffsetDateTime pastMoment,
+		boolean includingWAL,
+		@Nullable LongConsumer onStart,
+		@Nullable LongConsumer onComplete
+	) throws TemporalDataNotAvailableException {
 		throw new CatalogCorruptedException(this);
 	}
 

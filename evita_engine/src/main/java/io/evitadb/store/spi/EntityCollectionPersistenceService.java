@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.api.requestResponse.data.structure.Entity;
+import io.evitadb.api.requestResponse.data.structure.Entity.ChunkTransformerAccessor;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.predicate.AssociatedDataValueSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.AttributeValueSerializablePredicate;
@@ -37,15 +38,16 @@ import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSeri
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.EntityCollection;
-import io.evitadb.core.buffer.DataStoreIndexChanges;
-import io.evitadb.core.buffer.DataStoreMemoryBuffer;
+import io.evitadb.core.buffer.DataStoreChanges;
+import io.evitadb.core.buffer.DataStoreReader;
 import io.evitadb.index.EntityIndex;
-import io.evitadb.index.EntityIndexKey;
+import io.evitadb.store.model.EntityStoragePart;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.EntityCollectionHeader;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.OptionalInt;
 import java.util.function.Function;
 
 /**
@@ -56,7 +58,7 @@ import java.util.function.Function;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public non-sealed interface EntityCollectionPersistenceService extends PersistenceService<EntityIndexKey, EntityIndex> {
+public non-sealed interface EntityCollectionPersistenceService extends PersistenceService {
 
 	/**
 	 * Returns underlying {@link StoragePartPersistenceService} which this instance uses for {@link StoragePart}
@@ -69,7 +71,7 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 
 	/**
 	 * Returns current instance of {@link EntityCollectionHeader}. The header is initialized in the instance constructor
-	 * and (because it's immutable) is exchanged with each {@link #flushTrappedUpdates(long, DataStoreIndexChanges)}
+	 * and (because it's immutable) is exchanged with each {@link #flushTrappedUpdates(long, DataStoreChanges)}
 	 * method call.
 	 */
 	@Nonnull
@@ -86,7 +88,29 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 		int entityPrimaryKey,
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull EntitySchema entitySchema,
-		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex> storageContainerBuffer
+		@Nonnull DataStoreReader dataStoreReader
+	);
+
+	/**
+	 * Uses already created / fetched storage parts to construct an entity object that would comply with passed requirements
+	 * in `evitaRequest`. If any of storage parts is missing, it's fetched from the underlying data store.
+	 *
+	 * @param catalogVersion the version of the catalog
+	 * @param entityPrimaryKey the primary key of the entity
+	 * @param evitaRequest the request containing requirements for the entity
+	 * @param entitySchema the schema of the entity
+	 * @param dataStoreReader the data store reader for accessing storage parts
+	 * @param storageParts the parts of the entity storage
+	 * @return an object containing the entity and the fetch count
+	 */
+	@Nonnull
+	EntityWithFetchCount toEntity(
+		long catalogVersion,
+		int entityPrimaryKey,
+		@Nonnull EvitaRequest evitaRequest,
+		@Nonnull EntitySchema entitySchema,
+		@Nonnull DataStoreReader dataStoreReader,
+		@Nonnull EntityStoragePart... storageParts
 	);
 
 	/**
@@ -99,9 +123,10 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 		long catalogVersion,
 		int entityPrimaryKey,
 		@Nonnull EvitaRequest evitaRequest,
+		@Nonnull EntitySchema entitySchema,
 		@Nonnull EvitaSessionContract session,
 		@Nonnull Function<String, EntityCollection> entityCollectionFetcher,
-		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex> storageContainerBuffer
+		@Nonnull DataStoreReader dataStoreReader
 	);
 
 	/**
@@ -115,14 +140,14 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 	@Nonnull
 	EntityWithFetchCount enrichEntity(
 		long catalogVersion,
-		@Nonnull EntitySchema entitySchema,
 		@Nonnull EntityDecorator entityDecorator,
 		@Nonnull HierarchySerializablePredicate newHierarchyPredicate,
 		@Nonnull AttributeValueSerializablePredicate newAttributePredicate,
 		@Nonnull AssociatedDataValueSerializablePredicate newAssociatedDataPredicate,
 		@Nonnull ReferenceContractSerializablePredicate newReferenceContractPredicate,
 		@Nonnull PriceContractSerializablePredicate newPricePredicate,
-		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex> storageContainerBuffer
+		@Nonnull DataStoreReader dataStoreReader,
+		@Nonnull ChunkTransformerAccessor referenceChunkTransformer
 	) throws EntityAlreadyRemovedException;
 
 	/**
@@ -133,7 +158,7 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 	 */
 	int countEntities(
 		long catalogVersion,
-		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex> storageContainerBuffer
+		@Nonnull DataStoreReader dataStoreReader
 	);
 
 	/**
@@ -141,7 +166,7 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 	 */
 	boolean isEmpty(
 		long catalogVersion,
-		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex> storageContainerBuffer
+		@Nonnull DataStoreReader dataStoreReader
 	);
 
 	/**
@@ -158,7 +183,7 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 		@Nonnull EntitySchema entitySchema,
 		@Nonnull BinaryEntity entity,
 		@Nonnull EvitaRequest evitaRequest,
-		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex> storageContainerBuffer
+		@Nonnull DataStoreReader dataStoreReader
 	) throws EntityAlreadyRemovedException;
 
 	/**
@@ -178,8 +203,19 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 	long getSizeOnDiskInBytes();
 
 	/**
-	 * Closes the entity collection persistent storage. If you don't call {@link #flushTrappedUpdates(long, DataStoreIndexChanges)}
-	 * or {@link #flushTrappedUpdates(long, DataStoreIndexChanges)}  you'll lose the data in the buffers.
+	 * Fetches the last assigned price id from the global index (if this is present in the entity collection storage
+	 * file). This method is only temporary and will be removed in the future.
+	 *
+	 * @return the last assigned price id from the global index
+	 * @deprecated connected with old storage format, will be removed in the future
+	 */
+	@Deprecated
+	@Nonnull
+	OptionalInt fetchLastAssignedInternalPriceIdFromGlobalIndex(long catalogVersion, int entityIndexId);
+
+	/**
+	 * Closes the entity collection persistent storage. If you don't call {@link #flushTrappedUpdates(long, DataStoreChanges)}
+	 * or {@link #flushTrappedUpdates(long, DataStoreChanges)}   you'll lose the data in the buffers.
 	 */
 	@Override
 	void close();

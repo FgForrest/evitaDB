@@ -28,7 +28,7 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * TODO JNO - document me
+ * TODO JNO - document me 
  * </pre>
  *
  * Protobuf enum {@code io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType}

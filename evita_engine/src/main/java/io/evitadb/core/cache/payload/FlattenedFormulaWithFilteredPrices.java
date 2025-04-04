@@ -23,12 +23,14 @@
 
 package io.evitadb.core.cache.payload;
 
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
 import io.evitadb.core.query.algebra.price.termination.PriceEvaluationContext;
 import io.evitadb.core.query.algebra.price.termination.PriceWrappingFormula;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.MemoryMeasuringConstants;
 import lombok.Getter;
 
@@ -47,9 +49,9 @@ public class FlattenedFormulaWithFilteredPrices extends FlattenedFormula impleme
 	@Serial private static final long serialVersionUID = 29711505428272096L;
 	/**
 	 * Contains information about price records leading to a computed result.
-	 * Copies {@link FilteredPriceRecordAccessor#getFilteredPriceRecords()}.
+	 * Copies {@link FilteredPriceRecordAccessor#getFilteredPriceRecords(QueryExecutionContext)} .
 	 */
-	@Getter private final FilteredPriceRecords filteredPriceRecords;
+	private final FilteredPriceRecords filteredPriceRecords;
 	/**
 	 * Price evaluation context. Copies {@link PriceWrappingFormula#getPriceEvaluationContext()}.
 	 */
@@ -73,4 +75,15 @@ public class FlattenedFormulaWithFilteredPrices extends FlattenedFormula impleme
 		this.filteredPriceRecords.prepareForFlattening();
 	}
 
+	@Nonnull
+	@Override
+	public FilteredPriceRecords getFilteredPriceRecords(@Nonnull QueryExecutionContext context) {
+		return this.filteredPriceRecords;
+	}
+
+	@Nonnull
+	public FilteredPriceRecords getFilteredPriceRecordsOrThrowException() {
+		Assert.isPremiseValid(this.filteredPriceRecords != null, "Filtered price records are not available.");
+		return this.filteredPriceRecords;
+	}
 }

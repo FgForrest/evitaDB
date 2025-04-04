@@ -48,7 +48,7 @@ public interface EntitySchemaMutation extends SchemaMutation {
 	 * @param catalogSchema owner catalog schema that contains shared global {@link CatalogSchemaContract#getAttributes()}
 	 * @param entitySchema current version of the schema as an input to mutate
 	 */
-	@Nullable
+	@Nonnull
 	EntitySchemaContract mutate(
 		@Nonnull CatalogSchemaContract catalogSchema,
 		@Nullable EntitySchemaContract entitySchema

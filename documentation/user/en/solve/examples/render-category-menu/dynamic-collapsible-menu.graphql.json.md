@@ -1,70 +1,70 @@
 ```json
 [
   {
-    "level": 1,
-    "entity": {
-      "primaryKey": 66466,
-      "attributes": {
-        "code": "portables"
+    "level" : 1,
+    "entity" : {
+      "primaryKey" : 66466,
+      "attributes" : {
+        "code" : "portables"
       }
     },
-    "requested": false,
-    "childrenCount": 3
+    "requested" : false,
+    "childrenCount" : 3
   },
   {
-    "level": 1,
-    "entity": {
-      "primaryKey": 66467,
-      "attributes": {
-        "code": "laptops"
+    "level" : 1,
+    "entity" : {
+      "primaryKey" : 66467,
+      "attributes" : {
+        "code" : "laptops"
       }
     },
-    "requested": false,
-    "childrenCount": 6
+    "requested" : false,
+    "childrenCount" : 6
   },
   {
-    "level": 1,
-    "entity": {
-      "primaryKey": 66468,
-      "attributes": {
-        "code": "accessories"
+    "level" : 1,
+    "entity" : {
+      "primaryKey" : 66468,
+      "attributes" : {
+        "code" : "accessories"
       }
     },
-    "requested": false,
-    "childrenCount": 6
+    "requested" : false,
+    "childrenCount" : 6
   },
   {
-    "level": 1,
-    "entity": {
-      "primaryKey": 66469,
-      "attributes": {
-        "code": "vouchers"
+    "level" : 1,
+    "entity" : {
+      "primaryKey" : 66469,
+      "attributes" : {
+        "code" : "vouchers"
       }
     },
-    "requested": false,
-    "childrenCount": 1
+    "requested" : false,
+    "childrenCount" : 1
   },
   {
-    "level": 1,
-    "entity": {
-      "primaryKey": 66470,
-      "attributes": {
-        "code": "prepared-products"
+    "level" : 1,
+    "entity" : {
+      "primaryKey" : 66470,
+      "attributes" : {
+        "code" : "prepared-products"
       }
     },
-    "requested": false,
-    "childrenCount": 0
+    "requested" : false,
+    "childrenCount" : 0
   },
   {
-    "level": 1,
-    "entity": {
-      "primaryKey": 347154,
-      "attributes": {
-        "code": "bargain-bundles"
+    "level" : 1,
+    "entity" : {
+      "primaryKey" : 347154,
+      "attributes" : {
+        "code" : "bargain-bundles"
       }
     },
-    "requested": false,
-    "childrenCount": 0
+    "requested" : false,
+    "childrenCount" : 0
   }
 ]
 ```

@@ -234,6 +234,15 @@ public class FacetIndex implements FacetIndexContract, TransactionalLayerProduce
 			.collect(Collectors.toList());
 	}
 
+	/**
+	 * Checks if the collection of faceting entities is empty.
+	 *
+	 * @return true if there are no faceting entities; false otherwise.
+	 */
+	public boolean isEmpty() {
+		return this.facetingEntities.isEmpty();
+	}
+
 	@Override
 	public String toString() {
 		final StringBuilder sb = new StringBuilder();

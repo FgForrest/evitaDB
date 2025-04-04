@@ -23,8 +23,11 @@
 
 package io.evitadb.core.query.filter.translator.price;
 
+import io.evitadb.api.exception.EntityHasNoPricesException;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.core.exception.PriceNotIndexedException;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.price.innerRecordHandling.PriceHandlingContainerFormula;
@@ -37,14 +40,19 @@ import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaLocator;
+import io.evitadb.core.query.filter.FilterByVisitor;
+import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.function.TriFunction;
+import io.evitadb.index.Index;
 import io.evitadb.index.price.model.PriceIndexKey;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Currency;
 import java.util.List;
@@ -63,7 +71,12 @@ abstract class AbstractPriceRelatedConstraintTranslator<T extends FilterConstrai
 	 * result where for each record only its price from most prioritized price list is taken into an account.
 	 */
 	@Nonnull
-	protected List<Formula> createPriceListFormula(@Nullable String[] priceLists, @Nullable Currency currency, @Nonnull TriFunction<String, Currency, PriceInnerRecordHandling, Formula> priceListFormulaComputer) {
+	protected static List<Formula> createPriceListFormula(
+		@Nullable String[] priceLists,
+		@Nullable Currency currency,
+		@Nullable OffsetDateTime validIn,
+		@Nonnull TriFunction<String, Currency, PriceInnerRecordHandling, Formula> priceListFormulaComputer
+	) {
 		final List<Formula> formulas = new ArrayList<>(PriceInnerRecordHandling.values().length);
 		for (PriceInnerRecordHandling innerRecordHandling : PriceInnerRecordHandling.values()) {
 			final CompositeObjectArray<Formula> priceListFormulas = new CompositeObjectArray<>(Formula.class);
@@ -85,6 +98,7 @@ abstract class AbstractPriceRelatedConstraintTranslator<T extends FilterConstrai
 							lastFormula = translatedFormula;
 						} else {
 							final PriceEvaluationContext priceContext = new PriceEvaluationContext(
+								validIn,
 								FormulaFinder.find(
 									translatedFormula, PriceIndexProvidingFormula.class, LookUp.SHALLOW
 								)
@@ -116,8 +130,40 @@ abstract class AbstractPriceRelatedConstraintTranslator<T extends FilterConstrai
 		return formulas;
 	}
 
+	/**
+	 * Verifies that the prices for the entities being processed by the given FilterByVisitor are indexed.
+	 * If the entity type is known, the method checks if the schema allows prices and ensures that
+	 * all the processing scopes are indexed for prices in the schema.
+	 *
+	 * @param filterByVisitor the visitor that processes the filter by which entities are being filtered
+	 *                        and checked for price indexing
+	 */
+	protected static void verifyEntityPricesAreIndexed(@Nonnull FilterByVisitor filterByVisitor) {
+		if (filterByVisitor.isEntityTypeKnown()) {
+			final EntitySchemaContract schema = filterByVisitor.getSchema();
+			Assert.isTrue(
+				schema.isWithPrice(),
+				() -> new EntityHasNoPricesException(schema.getName())
+			);
+			final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
+			Assert.isTrue(
+				processingScope.getScopes().stream().allMatch(schema::isPriceIndexedInScope),
+				() -> new PriceNotIndexedException(schema)
+			);
+		}
+	}
+
+	/**
+	 * Translates an initial formula into a new formula if it contains a {@link PriceIdContainerFormula}.
+	 * If the initial formula contains a {@link PriceIdContainerFormula}, it wraps the initial formula
+	 * in a {@link PriceIdToEntityIdTranslateFormula} to translate price IDs to entity IDs.
+	 * Otherwise, it returns the initial formula unchanged.
+	 *
+	 * @param initialFormula the formula to be translated
+	 * @return the translated formula or the initial formula if no translation is needed
+	 */
 	@Nonnull
-	private Formula translateFormula(Formula initialFormula) {
+	private static Formula translateFormula(@Nonnull Formula initialFormula) {
 		final Formula translatedFormula;
 		if (FormulaLocator.contains(initialFormula, PriceIdContainerFormula.class)) {
 			translatedFormula = new PriceIdToEntityIdTranslateFormula(initialFormula);

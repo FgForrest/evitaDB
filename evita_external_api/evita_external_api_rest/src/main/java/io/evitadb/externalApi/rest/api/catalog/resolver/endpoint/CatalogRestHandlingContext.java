@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ package io.evitadb.externalApi.rest.api.catalog.resolver.endpoint;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.core.Evita;
+import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.rest.io.RestHandlingContext;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.Operation;
@@ -44,14 +45,17 @@ public class CatalogRestHandlingContext extends RestHandlingContext {
 
 	@Nonnull @Getter protected final CatalogSchemaContract catalogSchema;
 
-	public CatalogRestHandlingContext(@Nonnull ObjectMapper objectMapper,
-	                                  @Nonnull Evita evita,
-									  @Nonnull CatalogSchemaContract catalogSchema,
-	                                  @Nonnull OpenAPI openApi,
-									  @Nonnull Map<String, Class<? extends Enum<?>>> enumMapping,
-	                                  @Nonnull Operation endpointOperation,
-	                                  boolean localized) {
-		super(objectMapper, evita, openApi, enumMapping, endpointOperation, localized);
+	public CatalogRestHandlingContext(
+		@Nonnull ObjectMapper objectMapper,
+		@Nonnull Evita evita,
+		@Nonnull HeaderOptions headers,
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nonnull OpenAPI openApi,
+		@Nonnull Map<String, Class<? extends Enum<?>>> enumMapping,
+		@Nonnull Operation endpointOperation,
+		boolean localized
+	) {
+		super(objectMapper, evita, headers, openApi, enumMapping, endpointOperation, localized);
 		this.catalogSchema = catalogSchema;
 	}
 

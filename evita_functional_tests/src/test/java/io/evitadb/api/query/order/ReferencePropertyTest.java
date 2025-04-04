@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -42,12 +42,13 @@ class ReferencePropertyTest {
 		final ReferenceProperty referenceProperty = referenceProperty("parameters", attributeNatural("code"));
 		assertEquals("parameters", referenceProperty.getReferenceName());
 		assertArrayEquals(new OrderConstraint[] { attributeNatural("code") }, referenceProperty.getChildren());
+		assertNull(referenceProperty("parameter"));
 	}
 
 	@Test
 	void shouldRecognizeApplicability() {
 		assertTrue(referenceProperty("parameter", attributeNatural("code")).isApplicable());
-		assertFalse(referenceProperty("parameter").isApplicable());
+		assertFalse(new ReferenceProperty("parameter").isApplicable());
 	}
 
 	@Test

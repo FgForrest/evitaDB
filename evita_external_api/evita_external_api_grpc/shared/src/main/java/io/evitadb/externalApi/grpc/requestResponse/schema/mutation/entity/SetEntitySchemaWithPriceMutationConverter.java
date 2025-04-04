@@ -24,12 +24,15 @@
 package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.entity;
 
 import io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWithPriceMutation;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.grpc.generated.GrpcSetEntitySchemaWithPriceMutation;
+import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.util.Arrays;
 
 /**
  * Converts between {@link SetEntitySchemaWithPriceMutation} and {@link GrpcSetEntitySchemaWithPriceMutation} in both directions.
@@ -44,6 +47,10 @@ public class SetEntitySchemaWithPriceMutationConverter implements SchemaMutation
 	public SetEntitySchemaWithPriceMutation convert(@Nonnull GrpcSetEntitySchemaWithPriceMutation mutation) {
 		return new SetEntitySchemaWithPriceMutation(
 			mutation.getWithPrice(),
+			mutation.getIndexedInScopesList()
+				.stream()
+				.map(EvitaEnumConverter::toScope)
+				.toArray(Scope[]::new),
 			mutation.getIndexedPricePlaces()
 		);
 	}
@@ -52,6 +59,11 @@ public class SetEntitySchemaWithPriceMutationConverter implements SchemaMutation
 	public GrpcSetEntitySchemaWithPriceMutation convert(@Nonnull SetEntitySchemaWithPriceMutation mutation) {
 		return GrpcSetEntitySchemaWithPriceMutation.newBuilder()
 			.setWithPrice(mutation.isWithPrice())
+			.addAllIndexedInScopes(
+				Arrays.stream(mutation.getIndexedInScopes())
+					.map(EvitaEnumConverter::toGrpcScope)
+					.toList()
+			)
 			.setIndexedPricePlaces(mutation.getIndexedPricePlaces())
 			.build();
 	}

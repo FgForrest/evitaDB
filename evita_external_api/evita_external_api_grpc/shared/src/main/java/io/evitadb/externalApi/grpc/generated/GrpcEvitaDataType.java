@@ -213,6 +213,14 @@ public enum GrpcEvitaDataType
   PREDECESSOR(21),
   /**
    * <pre>
+   * Represents ReferencedEntityPredecessor data type.
+   * </pre>
+   *
+   * <code>REFERENCED_ENTITY_PREDECESSOR = 22;</code>
+   */
+  REFERENCED_ENTITY_PREDECESSOR(22),
+  /**
+   * <pre>
    * Represents string array data type.
    * </pre>
    *
@@ -560,6 +568,14 @@ public enum GrpcEvitaDataType
   public static final int PREDECESSOR_VALUE = 21;
   /**
    * <pre>
+   * Represents ReferencedEntityPredecessor data type.
+   * </pre>
+   *
+   * <code>REFERENCED_ENTITY_PREDECESSOR = 22;</code>
+   */
+  public static final int REFERENCED_ENTITY_PREDECESSOR_VALUE = 22;
+  /**
+   * <pre>
    * Represents string array data type.
    * </pre>
    *
@@ -774,6 +790,7 @@ public enum GrpcEvitaDataType
       case 19: return CURRENCY;
       case 20: return UUID;
       case 21: return PREDECESSOR;
+      case 22: return REFERENCED_ENTITY_PREDECESSOR;
       case 50: return STRING_ARRAY;
       case 51: return BYTE_ARRAY;
       case 52: return SHORT_ARRAY;

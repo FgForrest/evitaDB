@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.AttributeContent;
+import io.evitadb.api.query.require.ChunkingRequireConstraint;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.EntityGroupFetch;
 import io.evitadb.api.query.require.ReferenceContent;
@@ -51,30 +52,44 @@ public class ReferenceContentSerializer extends Serializer<ReferenceContent> {
 			output.writeString(refEntityType);
 		}
 
-		kryo.writeClassAndObject(output, object.getAttributeContent().orElse(null));
-		kryo.writeClassAndObject(output, object.getEntityRequirement().orElse(null));
-		kryo.writeClassAndObject(output, object.getGroupEntityRequirement().orElse(null));
+		kryo.writeObjectOrNull(output, object.getAttributeContent().orElse(null), AttributeContent.class);
+		kryo.writeObjectOrNull(output, object.getEntityRequirement().orElse(null), EntityFetch.class);
+		kryo.writeObjectOrNull(output, object.getGroupEntityRequirement().orElse(null), EntityGroupFetch.class);
 
-		kryo.writeClassAndObject(output, object.getFilterBy().orElse(null));
-		kryo.writeClassAndObject(output, object.getOrderBy().orElse(null));
+		kryo.writeObjectOrNull(output, object.getFilterBy().orElse(null), FilterBy.class);
+		kryo.writeObjectOrNull(output, object.getOrderBy().orElse(null), OrderBy.class);
+
+		kryo.writeClassAndObject(output, object.getChunking().orElse(null));
 	}
 
 	@Override
 	public ReferenceContent read(Kryo kryo, Input input, Class<? extends ReferenceContent> type) {
 		final int referencedEntityTypeCount = input.readVarInt(true);
-		final String[] referencedEntityTypes = new String[referencedEntityTypeCount];
+		final String[] referencedEntityName = new String[referencedEntityTypeCount];
 		for (int i = 0; i < referencedEntityTypeCount; i++) {
-			referencedEntityTypes[i] = input.readString();
+			referencedEntityName[i] = input.readString();
 		}
 
-		final AttributeContent attributeContent = (AttributeContent) kryo.readClassAndObject(input);
-		final EntityFetch entityFetch = (EntityFetch) kryo.readClassAndObject(input);
-		final EntityGroupFetch groupEntityFetch = (EntityGroupFetch) kryo.readClassAndObject(input);
+		final AttributeContent attributeContent = kryo.readObjectOrNull(input, AttributeContent.class);
+		final EntityFetch entityFetch = kryo.readObjectOrNull(input, EntityFetch.class);
+		final EntityGroupFetch groupEntityFetch = kryo.readObjectOrNull(input, EntityGroupFetch.class);
 
-		final FilterBy filter = (FilterBy) kryo.readClassAndObject(input);
-		final OrderBy orderBy = (OrderBy) kryo.readClassAndObject(input);
+		final FilterBy filter = kryo.readObjectOrNull(input, FilterBy.class);
+		final OrderBy orderBy = kryo.readObjectOrNull(input, OrderBy.class);
 
-		return new ReferenceContent(referencedEntityTypes[0], filter, orderBy, attributeContent, entityFetch, groupEntityFetch);
+		final ChunkingRequireConstraint chunk = (ChunkingRequireConstraint) kryo.readClassAndObject(input);
+
+		if (referencedEntityTypeCount == 0) {
+			return attributeContent == null ?
+				new ReferenceContent(entityFetch, groupEntityFetch, chunk) :
+				new ReferenceContent(attributeContent, entityFetch, groupEntityFetch, chunk);
+		} else if (referencedEntityTypeCount == 1) {
+			return attributeContent == null ?
+				new ReferenceContent(referencedEntityName[0], filter, orderBy, entityFetch, groupEntityFetch, chunk) :
+				new ReferenceContent(referencedEntityName[0], filter, orderBy, attributeContent, entityFetch, groupEntityFetch, chunk);
+		} else {
+			return new ReferenceContent(referencedEntityName, entityFetch, groupEntityFetch, chunk);
+		}
 	}
 
 }

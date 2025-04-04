@@ -23,16 +23,17 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute;
 
-import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaGloballyUniqueMutation;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedGlobalAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import java.util.List;
 
-import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
+import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nullableListRef;
 
 /**
- * Descriptor representing {@link io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaGloballyUniqueMutation}.
+ * Descriptor representing {@link SetAttributeSchemaGloballyUniqueMutation}.
  *
  * Note: this descriptor has static structure.
  *
@@ -40,20 +41,20 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  */
 public interface SetAttributeSchemaGloballyUniqueMutationDescriptor extends AttributeSchemaMutationDescriptor {
 
-	PropertyDescriptor GLOBAL_UNIQUENESS_TYPE = PropertyDescriptor.builder()
-		.name("globalUniquenessType")
-		.description("""
-			When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
-			entity having certain value of this attribute in entire catalog.
-            
-            As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
-            better to have this ensured by the database engine.
-            
-            If the attribute is localized you can choose between `UNIQUE_WITHIN_CATALOG` and `UNIQUE_WITHIN_CATALOG_LOCALE`
-			modes. The first will ensure there is only single value within entire catalog regardless of locale,
-			the second will ensure there is only single value within catalog and specific locale.
+	PropertyDescriptor UNIQUE_GLOBALLY_IN_SCOPES = PropertyDescriptor.builder()
+		.name("uniqueGloballyInScopes")
+		.description("""			
+			Encapsulates the relationship between an attribute's
+			uniqueness type and the scope in which this uniqueness characteristic is enforced.
+			
+			It makes use of two parameters:
+			- scope: Defines the context or domain (live or archived) where the attribute resides.
+			- uniquenessType: Determines the uniqueness enforcement (e.g., unique within the entire catalog or specific locale).
+			
+			The combination of these parameters allows for scoped uniqueness checks within attribute schemas,
+			providing fine-grained control over attribute constraints based on the entity's scope.
 			""")
-		.type(nonNull(GlobalAttributeUniquenessType.class))
+		.type(nullableListRef(ScopedGlobalAttributeUniquenessTypeDescriptor.THIS_INPUT))
 		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
@@ -63,6 +64,6 @@ public interface SetAttributeSchemaGloballyUniqueMutationDescriptor extends Attr
 			in `EntitySchema`.
 			Mutation can be used for altering also the existing `GlobalAttributeSchema` alone.
 			""")
-		.staticFields(List.of(NAME, GLOBAL_UNIQUENESS_TYPE))
+		.staticFields(List.of(NAME, UNIQUE_GLOBALLY_IN_SCOPES))
 		.build();
 }

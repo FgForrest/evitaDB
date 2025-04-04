@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
@@ -47,11 +48,13 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.ATTRIBUTE_MARKET_SHARE;
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.ATTRIBUTE_RELATIVE_URL;
+import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRAPHQL_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE;
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRAPHQL_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.generator.DataGenerator.*;
@@ -69,6 +72,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends CatalogGraphQLDataEndpointFunctionalTest {
 
 	private static final String LIST_ENTITY_PATH = "data.listEntity";
+
+
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
@@ -260,6 +265,159 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 					)
 				)
 			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE)
+	@DisplayName("Should return archived entities")
+	void shouldReturnArchivedEntities(Evita evita, GraphQLTester tester) {
+		final List<SealedEntity> archivedEntities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					scope(Scope.ARCHIVED)
+				),
+				require(
+					page(1, 2),
+					entityFetch(attributeContent(ATTRIBUTE_CODE))
+				)
+			),
+			SealedEntity.class
+		);
+
+		final var expectedBodyOfArchivedEntities = archivedEntities.stream()
+			.map(entity ->
+				map()
+					.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+					.e(EntityDescriptor.SCOPE.name(), Scope.ARCHIVED.name())
+					.build())
+			.toList();
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    listEntity(
+	                        code: ["%s", "%s"]
+	                        scope: ARCHIVED
+	                    ) {
+                            primaryKey
+                            scope
+	                    }
+	                }
+					""",
+				archivedEntities.get(0).getAttribute(ATTRIBUTE_CODE),
+				archivedEntities.get(1).getAttribute(ATTRIBUTE_CODE)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(LIST_ENTITY_PATH, equalTo(expectedBodyOfArchivedEntities));
+	}
+
+
+	@Test
+	@UseDataSet(GRAPHQL_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE)
+	@DisplayName("Should return both live and archived entities explicitly")
+	void shouldReturnBothLiveAndArchivedEntitiesExplicitly(Evita evita, GraphQLTester tester) {
+		final SealedEntity liveEntity = getEntity(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					scope(Scope.LIVE)
+				),
+				require(
+					page(1, 1),
+					entityFetch(attributeContent(ATTRIBUTE_CODE))
+				)
+			),
+			SealedEntity.class
+		);
+		final SealedEntity archivedEntity = getEntity(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					scope(Scope.ARCHIVED)
+				),
+				require(
+					page(1, 1),
+					entityFetch(attributeContent(ATTRIBUTE_CODE))
+				)
+			),
+			SealedEntity.class
+		);
+		assertNotEquals((String) liveEntity.getAttribute(ATTRIBUTE_CODE), (String) archivedEntity.getAttribute(ATTRIBUTE_CODE));
+
+		final var expectedBodyOfArchivedEntities = Stream.of(liveEntity, archivedEntity)
+			.map(entity ->
+				map()
+					.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+					.e(EntityDescriptor.SCOPE.name(), entity.getScope().name())
+					.build())
+			.toList();
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    listEntity(
+	                        code: ["%s", "%s"]
+	                        scope: [LIVE, ARCHIVED]
+	                    ) {
+                            primaryKey
+	                        scope
+	                    }
+	                }
+					""",
+				liveEntity.getAttribute(ATTRIBUTE_CODE),
+				archivedEntity.getAttribute(ATTRIBUTE_CODE)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(LIST_ENTITY_PATH, equalTo(expectedBodyOfArchivedEntities));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE)
+	@DisplayName("Should not return archived entity without scope")
+	void shouldNotReturnArchivedEntityWithoutScope(Evita evita, GraphQLTester tester) {
+		final SealedEntity archivedEntity = getEntity(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					scope(Scope.ARCHIVED)
+				),
+				require(
+					page(1, 1),
+					entityFetch(attributeContent(ATTRIBUTE_CODE))
+				)
+			),
+			SealedEntity.class
+		);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    listEntity(
+	                        code: ["%s"]
+                        ) {
+                            primaryKey
+	                        scope
+	                    }
+	                }
+					""",
+				(String) archivedEntity.getAttribute(ATTRIBUTE_CODE)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(LIST_ENTITY_PATH, emptyIterable());
 	}
 
 	@Test
@@ -1111,6 +1269,41 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(LIST_ENTITY_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should pass query labels")
+	void shouldPassQueryLabels(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final String codeAttribute1 = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CODE, 5);
+		final String codeAttribute2 = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CODE, 7);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    listEntity(
+	                        labels: [
+	                            {
+							        name: "myLabel1"
+							        value: "myValue1"
+								},
+								{
+							        name: "myLabel2"
+							        value: 100
+								}
+	                        ]
+	                        code: ["%s","%s"]
+                        ) {
+	                        primaryKey
+	                    }
+	                }
+					""",
+				codeAttribute1,
+				codeAttribute2
+			)
+			.executeAndExpectOkAndThen()
+			.body(LIST_ENTITY_PATH, hasSize(greaterThan(0)));
 	}
 
 

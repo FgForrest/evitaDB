@@ -23,6 +23,8 @@
 
 package io.evitadb.api.exception;
 
+import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
+
 import javax.annotation.Nonnull;
 import java.io.Serial;
 
@@ -36,6 +38,14 @@ public class InvalidSchemaMutationException extends SchemaAlteringException {
 
 	public InvalidSchemaMutationException(@Nonnull String message) {
 		super(message);
+	}
+
+	public InvalidSchemaMutationException(@Nonnull String entityType, @Nonnull CatalogEvolutionMode necessaryEvolutionMode) {
+		this(
+			"The entity collection `" + entityType + "` doesn't exist and would be automatically created," +
+				" providing that catalog schema allows `" + necessaryEvolutionMode + "`" +
+				" evolution mode."
+		);
 	}
 
 }

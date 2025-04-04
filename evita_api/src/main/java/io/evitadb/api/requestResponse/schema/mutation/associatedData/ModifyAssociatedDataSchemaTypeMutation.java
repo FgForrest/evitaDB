@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Predecessor;
+import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -68,7 +69,9 @@ public class ModifyAssociatedDataSchemaTypeMutation
 		@Nonnull Class<? extends Serializable> type
 	) {
 		super(name);
-		if (!(EvitaDataTypes.isSupportedTypeOrItsArray(type) || ComplexDataObject.class.equals(type)) || Predecessor.class.equals(type)) {
+		final Class<?> plainType = type.isArray() ? type.getComponentType() : type;
+		if (!(EvitaDataTypes.isSupportedTypeOrItsArray(type) || ComplexDataObject.class.equals(plainType)) ||
+			Predecessor.class.equals(plainType) || ReferencedEntityPredecessor.class.equals(plainType)) {
 			throw new InvalidSchemaMutationException("The type `" + type + "` is not allowed in associated data!");
 		}
 		this.type = type;
@@ -103,7 +106,7 @@ public class ModifyAssociatedDataSchemaTypeMutation
 		);
 	}
 
-	@Nullable
+	@Nonnull
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");

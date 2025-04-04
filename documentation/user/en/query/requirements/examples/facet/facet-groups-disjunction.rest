@@ -42,6 +42,7 @@ POST /rest/evita/Product/query
       }
     },
     "facetParameterValuesGroupsDisjunction" : {
+      "facetGroupRelationLevel" : "WITH_DIFFERENT_GROUPS",
       "filterBy" : {
         "attributeCodeInSet" : [
           "ram-memory",

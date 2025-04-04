@@ -24,13 +24,11 @@
 package io.evitadb.core.query.filter.translator.price;
 
 import io.evitadb.api.exception.ContextMissingException;
-import io.evitadb.api.exception.EntityHasNoPricesException;
 import io.evitadb.api.query.filter.PriceBetween;
 import io.evitadb.api.query.filter.PriceInCurrency;
 import io.evitadb.api.query.filter.PriceInPriceLists;
 import io.evitadb.api.query.filter.PriceValidIn;
 import io.evitadb.api.query.require.QueryPriceMode;
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.prefetch.EntityFilteringFormula;
@@ -40,7 +38,6 @@ import io.evitadb.core.query.algebra.price.predicate.PricePredicate.PriceRecordP
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.filter.translator.price.alternative.SellingPriceAvailableBitmapFilter;
-import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -61,13 +58,7 @@ public class PriceBetweenTranslator extends AbstractPriceRelatedConstraintTransl
 	@Nonnull
 	@Override
 	public Formula translate(@Nonnull PriceBetween priceBetween, @Nonnull FilterByVisitor filterByVisitor) {
-		if (filterByVisitor.isEntityTypeKnown()) {
-			final EntitySchemaContract schema = filterByVisitor.getSchema();
-			Assert.isTrue(
-				schema.isWithPrice(),
-				() -> new EntityHasNoPricesException(schema.getName())
-			);
-		}
+		verifyEntityPricesAreIndexed(filterByVisitor);
 
 		final int indexedPricePlaces = filterByVisitor.getSchema().getIndexedPricePlaces();
 		final QueryPriceMode queryPriceMode = filterByVisitor.getQueryPriceMode();
@@ -101,25 +92,25 @@ public class PriceBetweenTranslator extends AbstractPriceRelatedConstraintTransl
 				final List<Formula> formula = PriceValidInTranslator.INSTANCE.createFormula(filterByVisitor, theMoment, priceLists, currency);
 				filteringFormula = applyVisitorAndReturnModifiedResult(
 					priceBetween.getFrom(), priceBetween.getTo(), indexedPricePlaces,
-					queryPriceMode, formula, filterByVisitor
+					priceLists, currency, theMoment, queryPriceMode, formula, filterByVisitor
 				);
 			} else if (currency == null && theMoment != null) {
 				final List<Formula> formula = PriceValidInTranslator.INSTANCE.createFormula(filterByVisitor, theMoment, priceLists, null);
 				filteringFormula = applyVisitorAndReturnModifiedResult(
 					priceBetween.getFrom(), priceBetween.getTo(), indexedPricePlaces,
-					queryPriceMode, formula, filterByVisitor
+					priceLists, null, theMoment, queryPriceMode, formula, filterByVisitor
 				);
 			} else if (currency == null) {
 				final List<Formula> formula = PriceInPriceListsTranslator.INSTANCE.createFormula(filterByVisitor, priceLists, null);
 				filteringFormula = applyVisitorAndReturnModifiedResult(
 					priceBetween.getFrom(), priceBetween.getTo(), indexedPricePlaces,
-					queryPriceMode, formula, filterByVisitor
+					priceLists, null, null, queryPriceMode, formula, filterByVisitor
 				);
 			} else {
 				final List<Formula> formula = PriceInPriceListsTranslator.INSTANCE.createFormula(filterByVisitor, priceLists, currency);
 				filteringFormula = applyVisitorAndReturnModifiedResult(
 					priceBetween.getFrom(), priceBetween.getTo(), indexedPricePlaces,
-					queryPriceMode, formula, filterByVisitor
+					priceLists, currency, null, queryPriceMode, formula, filterByVisitor
 				);
 			}
 
@@ -153,6 +144,9 @@ public class PriceBetweenTranslator extends AbstractPriceRelatedConstraintTransl
 		@Nullable BigDecimal from,
 		@Nullable BigDecimal to,
 		int indexedPricePlaces,
+		@Nullable String[] priceLists,
+		@Nullable Currency currency,
+		@Nullable OffsetDateTime validIn,
 		@Nonnull QueryPriceMode queryPriceMode,
 		@Nonnull List<Formula> formula,
 		@Nonnull FilterByVisitor filterByVisitor
@@ -160,7 +154,7 @@ public class PriceBetweenTranslator extends AbstractPriceRelatedConstraintTransl
 		final io.evitadb.core.query.algebra.price.predicate.PriceRecordPredicate priceFilter = new PriceRecordPredicate(from, to, queryPriceMode, indexedPricePlaces);
 
 		return PriceListCompositionTerminationVisitor.translate(
-			formula, filterByVisitor.getQueryPriceMode(), priceFilter
+			formula, priceLists, currency, validIn, filterByVisitor.getQueryPriceMode(), priceFilter
 		);
 	}
 

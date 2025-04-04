@@ -39,17 +39,19 @@ import javax.annotation.Nonnull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Name(AbstractTransactionEvent.PACKAGE_NAME + ".Accepted")
-@Description("Event that is fired when a transaction passed conflict resolution stage.")
+@Description("Event fired when a transaction passes the conflict resolution phase.")
 @Label("Transaction accepted")
 @ExportDurationMetric(label = "Conflict resolution duration in milliseconds")
 @ExportInvocationMetric(label = "Transactions accepted")
 @Getter
 public class TransactionAcceptedEvent extends AbstractTransactionEvent {
+
 	/**
 	 * The resolution of the transaction (either commit or rollback) - rollback happens in case the transaction is in
 	 * conflict with another already committed and accepted transaction.
 	 */
 	@Label("Transaction resolution")
+	@Description("The resolution of the transaction (either commit or rollback).")
 	@ExportMetricLabel
 	private String resolution;
 

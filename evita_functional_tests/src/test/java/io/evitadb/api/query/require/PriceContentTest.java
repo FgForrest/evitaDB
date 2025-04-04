@@ -23,15 +23,16 @@
 
 package io.evitadb.api.query.require;
 
+import io.evitadb.exception.GenericEvitaInternalError;
 import org.junit.jupiter.api.Test;
 
+import java.util.Optional;
+
+import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
 import static io.evitadb.api.query.QueryConstraints.priceContent;
 import static io.evitadb.api.query.QueryConstraints.priceContentAll;
 import static io.evitadb.api.query.QueryConstraints.priceContentRespectingFilter;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * This tests verifies basic properties of {@link PriceContent} query.
@@ -79,12 +80,68 @@ class PriceContentTest {
 	}
 
 	@Test
+	void shouldReturnTrueWhenFullyContainedWithinSameFetchModeAndPriceLists() {
+		PriceContent priceContent1 = priceContentRespectingFilter("a", "b");
+		PriceContent priceContent2 = priceContentRespectingFilter("a", "b");
+		assertTrue(priceContent1.isFullyContainedWithin(priceContent2));
+	}
+
+	@Test
+	void shouldReturnFalseWhenFetchModeIsHigher() {
+		PriceContent priceContent1 = priceContentAll();
+		PriceContent priceContent2 = priceContentRespectingFilter();
+		assertFalse(priceContent1.isFullyContainedWithin(priceContent2));
+		assertTrue(priceContent2.isFullyContainedWithin(priceContent1));
+	}
+
+	@Test
+	void shouldReturnFalseWhenAdditionalPriceListsAreNotContained() {
+		PriceContent priceContent1 = priceContentRespectingFilter("a", "b");
+		PriceContent priceContent2 = priceContentRespectingFilter("a");
+		assertFalse(priceContent1.isFullyContainedWithin(priceContent2));
+		assertTrue(priceContent2.isFullyContainedWithin(priceContent1));
+	}
+
+	@Test
+	void shouldThrowExceptionWhenNonPriceContentIsPassed() {
+		PriceContent priceContent = priceContentRespectingFilter();
+		assertFalse(priceContent.isFullyContainedWithin(attributeContentAll()));
+	}
+
+	@Test
+	void shouldReturnCorrectFetchMode() {
+		assertEquals(PriceContentMode.NONE, priceContent(PriceContentMode.NONE).getFetchMode());
+		assertEquals(PriceContentMode.RESPECTING_FILTER, priceContentRespectingFilter().getFetchMode());
+		assertEquals(PriceContentMode.ALL, priceContentAll().getFetchMode());
+	}
+
+	@Test
+	void shouldReturnAdditionalPriceListsToFetch() {
+		assertArrayEquals(new String[]{"a", "b"}, priceContentRespectingFilter("a", "b").getAdditionalPriceListsToFetch());
+		assertArrayEquals(new String[]{}, priceContentRespectingFilter().getAdditionalPriceListsToFetch());
+	}
+
+	@Test
+	void shouldReturnSuffixIfApplied() {
+		assertEquals(Optional.of("all"), priceContentAll().getSuffixIfApplied());
+		assertEquals(Optional.of("respectingFilter"), priceContentRespectingFilter().getSuffixIfApplied());
+		assertEquals(Optional.empty(), priceContent(PriceContentMode.NONE).getSuffixIfApplied());
+	}
+
+	@Test
 	void shouldCombineWithAnotherConstraint() {
 		assertEquals(priceContent(PriceContentMode.NONE), priceContent(PriceContentMode.NONE).combineWith(priceContent(PriceContentMode.NONE)));
 		assertEquals(priceContent(PriceContentMode.RESPECTING_FILTER), priceContent(PriceContentMode.NONE).combineWith(priceContent(PriceContentMode.RESPECTING_FILTER)));
 		assertEquals(priceContent(PriceContentMode.ALL), priceContent(PriceContentMode.RESPECTING_FILTER).combineWith(priceContent(PriceContentMode.ALL)));
 		assertEquals(priceContent(PriceContentMode.ALL), priceContent(PriceContentMode.NONE).combineWith(priceContent(PriceContentMode.ALL)));
 		assertEquals(priceContentRespectingFilter("a", "b"), priceContentRespectingFilter("a").combineWith(priceContentRespectingFilter("b")));
+		assertEquals(priceContent(PriceContentMode.ALL), priceContent(PriceContentMode.NONE).combineWith(priceContent(PriceContentMode.ALL)));
+		assertEquals(priceContentRespectingFilter("a", "b"), priceContentRespectingFilter("a").combineWith(priceContentRespectingFilter("b")));
+	}
+
+	@Test
+	void shouldThrowExceptionWhenCombiningWithNonPriceContent() {
+		assertThrows(GenericEvitaInternalError.class, () -> priceContent(PriceContentMode.NONE).combineWith(attributeContentAll()));
 	}
 
 }

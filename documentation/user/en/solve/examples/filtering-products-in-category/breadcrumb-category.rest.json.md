@@ -1,90 +1,93 @@
 ```json
 {
-  "recordPage": {
-    "data": [
+  "recordPage" : {
+    "data" : [
       {
-        "primaryKey": 66486,
-        "type": "Category",
-        "version": 1,
-        "parentEntity": {
-          "primaryKey": 66481,
-          "type": "Category",
-          "version": 1,
-          "parentEntity": {
-            "primaryKey": 66468,
-            "type": "Category",
-            "version": 1,
-            "locales": [
+        "primaryKey" : 66486,
+        "type" : "Category",
+        "version" : 1,
+        "scope" : "LIVE",
+        "parentEntity" : {
+          "primaryKey" : 66481,
+          "type" : "Category",
+          "version" : 1,
+          "scope" : "LIVE",
+          "parentEntity" : {
+            "primaryKey" : 66468,
+            "type" : "Category",
+            "version" : 1,
+            "scope" : "LIVE",
+            "locales" : [
               "en"
             ],
-            "allLocales": [
+            "allLocales" : [
               "cs",
               "de",
               "en"
             ],
-            "attributes": {
-              "global": {
-                "code": "accessories",
-                "level": 1
+            "attributes" : {
+              "global" : {
+                "code" : "accessories",
+                "level" : 1
               },
-              "localized": {
-                "en": {
-                  "name": "Accessories"
+              "localized" : {
+                "en" : {
+                  "name" : "Accessories"
                 }
               }
             }
           },
-          "locales": [
+          "locales" : [
             "en"
           ],
-          "allLocales": [
+          "allLocales" : [
             "en"
           ],
-          "attributes": {
-            "global": {
-              "code": "smart-wearable",
-              "level": 2
+          "attributes" : {
+            "global" : {
+              "code" : "smart-wearable",
+              "level" : 2
             },
-            "localized": {
-              "en": {
-                "name": "Smart wearable"
+            "localized" : {
+              "en" : {
+                "name" : "Smart wearable"
               }
             }
           }
         },
-        "locales": [
+        "locales" : [
           "en"
         ],
-        "allLocales": [
+        "allLocales" : [
           "cs",
           "de",
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "smartwatches"
+        "attributes" : {
+          "global" : {
+            "code" : "smartwatches"
           },
-          "localized": {
-            "en": {
-              "name": "Smartwatches"
+          "localized" : {
+            "en" : {
+              "name" : "Smartwatches"
             }
           }
         }
       }
     ],
-    "empty": false,
-    "first": true,
-    "firstPageItemNumber": 0,
-    "hasNext": false,
-    "hasPrevious": false,
-    "last": true,
-    "lastPageItemNumber": 1,
-    "lastPageNumber": 1,
-    "pageNumber": 1,
-    "pageSize": 20,
-    "singlePage": true,
-    "totalRecordCount": 1,
-    "type": "PAGE"
+    "type" : "PAGE",
+    "totalRecordCount" : 1,
+    "first" : true,
+    "last" : true,
+    "hasPrevious" : false,
+    "hasNext" : false,
+    "singlePage" : true,
+    "empty" : false,
+    "pageSize" : 20,
+    "pageNumber" : 1,
+    "lastPageNumber" : 1,
+    "firstPageItemNumber" : 0,
+    "lastPageItemNumber" : 1
   }
 }
 ```

@@ -12,12 +12,16 @@ ENV SYSTEM_API_PORT="5555"
 
 ## 2. Environment variables, MAY BE overriden in container ##
 
+## set to TRUE to fail on unknown properties in configuration files
+ENV EVITA_STRICT_CONFIG_FILE_CHECK="false"
+
 ## using volumes:
 
 ## folder with configuration files, all of them are applied one on top of another in alphabetical order
 ENV EVITA_BIN_DIR="$EVITA_HOME/bin/"
 ENV EVITA_CONFIG_DIR="$EVITA_HOME/conf/"
 ENV EVITA_STORAGE_DIR="$EVITA_HOME/data/"
+ENV EVITA_EXPORT_DIR="$EVITA_HOME/export/"
 ENV EVITA_CERTIFICATE_DIR="$EVITA_HOME/certificates/"
 ENV EVITA_LOG_FILE="$EVITA_HOME/logback.xml"
 
@@ -44,7 +48,7 @@ RUN apt update && apt install -y netcat-openbsd iproute2 iputils-ping mc tcpdump
 
 # Create necessary folders
 RUN set -ex \
-    && mkdir "$EVITA_HOME" "$EVITA_BIN_DIR" "$EVITA_CONFIG_DIR" "$EVITA_STORAGE_DIR" "$EVITA_CERTIFICATE_DIR" \
+    && mkdir "$EVITA_HOME" "$EVITA_BIN_DIR" "$EVITA_CONFIG_DIR" "$EVITA_STORAGE_DIR" "$EVITA_EXPORT_DIR" "$EVITA_CERTIFICATE_DIR" \
     && : ## end
 
 # Copy files

@@ -52,9 +52,9 @@ public class EntityGroupFetchTranslator implements RequireConstraintTranslator<E
 
 	@Nullable
 	@Override
-	public ExtraResultProducer apply(EntityGroupFetch entityGroupFetch, ExtraResultPlanningVisitor extraResultPlanningVisitor) {
+	public ExtraResultProducer createProducer(@Nonnull EntityGroupFetch entityGroupFetch, @Nonnull ExtraResultPlanningVisitor extraResultPlanningVisitor) {
 		if (extraResultPlanningVisitor.isEntityTypeKnown()) {
-			final EntitySchemaContract schema = extraResultPlanningVisitor.isScopeEmpty() ?
+			final EntitySchemaContract schema = extraResultPlanningVisitor.isRootScope() ?
 				extraResultPlanningVisitor.getSchema() :
 				getReferencedSchema(extraResultPlanningVisitor);
 
@@ -87,7 +87,10 @@ public class EntityGroupFetchTranslator implements RequireConstraintTranslator<E
 
 		return referenceSchema
 			.filter(ReferenceSchemaContract::isReferencedGroupTypeManaged)
-			.map(schema -> extraResultPlanningVisitor.getSchema(schema.getReferencedGroupType()))
+			.map(
+				schema -> schema.getReferencedGroupType() == null ?
+					null : extraResultPlanningVisitor.getSchema(schema.getReferencedGroupType())
+			)
 			.orElse(null);
 	}
 

@@ -23,6 +23,8 @@
 
 package io.evitadb.test.extension;
 
+import io.evitadb.utils.Assert;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collection;
@@ -101,6 +103,16 @@ public class DataCarrier {
 		this.valuesByType.putIfAbsent(value2.getClass(), value2);
 		this.valuesByType.putIfAbsent(value3.getClass(), value3);
 		this.valuesByType.putIfAbsent(value4.getClass(), value4);
+	}
+
+	@Nonnull
+	public DataCarrier put(@Nonnull String name, @Nonnull Object value) {
+		Assert.isPremiseValid(!valuesByName.containsKey(name), () -> "Value with name `" + name + "` already exists!");
+		this.valuesByName.put(name, value);
+		if (!valuesByType.containsKey(value.getClass())) {
+			this.valuesByType.put(value.getClass(), value);
+		}
+		return this;
 	}
 
 	@Nullable

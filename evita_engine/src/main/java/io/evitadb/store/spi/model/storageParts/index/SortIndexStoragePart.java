@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -36,6 +36,7 @@ import lombok.ToString;
 
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serial;
+import java.io.Serializable;
 import java.util.Map;
 
 /**
@@ -73,12 +74,12 @@ public class SortIndexStoragePart implements AttributeIndexStoragePart, RecordWi
 	/**
 	 * Contains comparable values sorted naturally by their {@link Comparable} characteristics.
 	 */
-	@Getter private final Comparable<?>[] sortedRecordsValues;
+	@Getter private final Serializable[] sortedRecordsValues;
 	/**
 	 * Map contains only values with cardinalities greater than one. It is expected that records will have scarce values
 	 * with low cardinality so this should save a lot of memory.
 	 */
-	@Getter private final Map<Comparable<?>, Integer> valueCardinalities;
+	@Getter private final Map<Serializable, Integer> valueCardinalities;
 	/**
 	 * Id used for lookups in persistent data storage for this particular container.
 	 */

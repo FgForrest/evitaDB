@@ -1,34 +1,35 @@
 ```json
 {
-  "recordPage": {
-    "data": [
+  "recordPage" : {
+    "data" : [
       {
-        "primaryKey": 106250,
-        "type": "Product",
-        "version": 1,
-        "allLocales": [
+        "primaryKey" : 106250,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
           "en"
         ],
-        "attributes": {
-          "global": {
-            "code": "apple-iphone-13-pro-3"
+        "attributes" : {
+          "global" : {
+            "code" : "apple-iphone-13-pro-3"
           }
         }
       }
     ],
-    "empty": false,
-    "first": true,
-    "firstPageItemNumber": 0,
-    "hasNext": false,
-    "hasPrevious": false,
-    "last": true,
-    "lastPageItemNumber": 1,
-    "lastPageNumber": 1,
-    "pageNumber": 1,
-    "pageSize": 20,
-    "singlePage": true,
-    "totalRecordCount": 1,
-    "type": "PAGE"
+    "type" : "PAGE",
+    "totalRecordCount" : 1,
+    "first" : true,
+    "last" : true,
+    "hasPrevious" : false,
+    "hasNext" : false,
+    "singlePage" : true,
+    "empty" : false,
+    "pageSize" : 20,
+    "pageNumber" : 1,
+    "lastPageNumber" : 1,
+    "firstPageItemNumber" : 0,
+    "lastPageItemNumber" : 1
   }
 }
 ```

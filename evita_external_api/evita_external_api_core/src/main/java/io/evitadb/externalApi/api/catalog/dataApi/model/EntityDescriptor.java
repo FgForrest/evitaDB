@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ package io.evitadb.externalApi.api.catalog.dataApi.model;
 
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
@@ -62,6 +63,14 @@ public interface EntityDescriptor extends VersionedDescriptor, AttributesProvide
             entity type entity is uniquely represented by primary key.
             """)
         .type(nonNull(String.class))
+        .build();
+    PropertyDescriptor SCOPE = PropertyDescriptor.builder()
+        .name("scope")
+        .description("""
+            The scope the entity is part of.
+            There are two scopes: `LIVE` for regular and `ARCHIVED` for "soft-deleted" entities.
+            """)
+        .type(nonNull(Scope.class))
         .build();
     PropertyDescriptor LOCALES = PropertyDescriptor.builder()
         .name("locales")
@@ -123,6 +132,21 @@ public interface EntityDescriptor extends VersionedDescriptor, AttributesProvide
             """)
         .type(nonNull(PriceInnerRecordHandling.class))
         .build();
+    PropertyDescriptor REFERENCE = PropertyDescriptor.builder()
+        .name("*")
+        .description("References")
+        // type is expected to be reference or list of references
+        .build();
+    PropertyDescriptor REFERENCE_PAGE = PropertyDescriptor.builder()
+        .name("*Page")
+        .description("Paginated list of references.")
+        // type is expected to be paginated list of references
+        .build();
+    PropertyDescriptor REFERENCE_STRIP = PropertyDescriptor.builder()
+        .name("*Strip")
+        .description("Strip list of references.")
+        // type is expected to be strip list of references
+        .build();
 
     ObjectDescriptor THIS_CLASSIFIER = ObjectDescriptor.builder()
         .name("Entity")
@@ -133,6 +157,7 @@ public interface EntityDescriptor extends VersionedDescriptor, AttributesProvide
         .staticField(PRIMARY_KEY)
         .staticField(TYPE)
         .staticField(VERSION)
+        .staticField(SCOPE)
         .build();
     /**
      * Used only to distinguish from entity classifier for clarity, that this is a final object that just references an

@@ -32,6 +32,7 @@ import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.FilterGroupBy;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiSimpleType;
 
 import javax.annotation.Nonnull;
@@ -62,7 +63,7 @@ public class FilterConstraintSchemaBuilder extends OpenApiConstraintSchemaBuilde
 
 	@Nonnull
 	public OpenApiSimpleType build(@Nonnull String rootEntityType) {
-		return build(new EntityDataLocator(rootEntityType));
+		return build(new EntityDataLocator(new ManagedEntityTypePointer(rootEntityType)));
 	}
 
 	@Nonnull
@@ -85,6 +86,6 @@ public class FilterConstraintSchemaBuilder extends OpenApiConstraintSchemaBuilde
 	@Nonnull
 	@Override
 	protected Predicate<AttributeSchemaContract> getAttributeSchemaFilter() {
-		return attributeSchema -> attributeSchema.isUnique() || attributeSchema.isFilterable();
+		return attributeSchema -> attributeSchema.isUniqueInAnyScope() || attributeSchema.isFilterableInAnyScope();
 	}
 }

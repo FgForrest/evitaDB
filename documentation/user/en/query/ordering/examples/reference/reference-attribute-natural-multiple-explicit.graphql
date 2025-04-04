@@ -1,0 +1,42 @@
+{
+  queryProduct(
+    filterBy: {
+      hierarchyCategoriesWithin: {
+        ofParent: {
+          attributeCodeEquals: "e-readers"
+        }
+      }
+    },
+    orderBy: [
+      {
+        referenceCategoriesProperty: [
+          {
+            pickFirstByEntityProperty: [
+              {
+                attributeOrderNatural: DESC
+              }
+            ]
+          },
+          {
+            attributeCategoryPriorityNatural: DESC
+          }
+        ]
+      }
+    ]
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        attributes {
+          code
+        }
+        categories {
+          referencedPrimaryKey
+          attributes {
+            categoryPriority
+          }
+        }
+      }
+    }
+  }
+}

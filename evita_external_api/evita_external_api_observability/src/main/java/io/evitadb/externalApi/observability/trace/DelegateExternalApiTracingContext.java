@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.api.observability.trace.TracingContext.SpanAttribute;
 import io.evitadb.api.observability.trace.TracingContextProvider;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.grpc.Metadata;
 
@@ -47,8 +48,13 @@ public class DelegateExternalApiTracingContext implements ExternalApiTracingCont
 
 	public DelegateExternalApiTracingContext() {
 		final TracingContext context = TracingContextProvider.getContext();
-		jsonApiTracingContext = new JsonApiTracingContext(context);
-		grpcApiTracingContext = new GrpcTracingContext(context);
+		this.jsonApiTracingContext = new JsonApiTracingContext(context);
+		this.grpcApiTracingContext = new GrpcTracingContext(context);
+	}
+
+	@Override
+	public void configureHeaders(@Nonnull HeaderOptions headerOptions) {
+		this.jsonApiTracingContext.setHeaderOptions(headerOptions);
 	}
 
 	@Override
@@ -59,9 +65,9 @@ public class DelegateExternalApiTracingContext implements ExternalApiTracingCont
 		@Nullable SpanAttribute... attributes
 	) {
 		if (context instanceof HttpRequest httpRequest) {
-			jsonApiTracingContext.executeWithinBlock(protocolName, httpRequest, runnable, attributes);
+			this.jsonApiTracingContext.executeWithinBlock(protocolName, httpRequest, runnable, attributes);
 		} else if (context instanceof Metadata metadata) {
-			grpcApiTracingContext.executeWithinBlock(protocolName, metadata, runnable, attributes);
+			this.grpcApiTracingContext.executeWithinBlock(protocolName, metadata, runnable, attributes);
 		} else {
 			throw new EvitaInvalidUsageException("Invalid object type sent as a External API tracing context!");
 		}

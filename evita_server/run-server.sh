@@ -7,7 +7,7 @@
 #             |  __/\ V /| | || (_| | |_| | |_) |
 #              \___| \_/ |_|\__\__,_|____/|____/
 #
-#   Copyright (c) 2023-2024
+#   Copyright (c) 2023-2025
 #
 #   Licensed under the Business Source License, Version 1.1 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -22,16 +22,30 @@
 #   limitations under the License.
 #
 
+## JMX REMOTE
+#-Dcom.sun.management.jmxremote \
+#-Dcom.sun.management.jmxremote.port=7091 \
+#-Dcom.sun.management.jmxremote.authenticate=false \
+#-Dcom.sun.management.jmxremote.ssl=false \
+
 java \
         -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:8005 \
+        --add-opens java.base/jdk.internal.misc=ALL-UNNAMED \
         -javaagent:target/evita-server.jar \
         -jar "target/evita-server.jar" \
-        "configDir=../config/" \
+        "configDir=../conf/" \
         "logback.configurationFile=./logback.xml" \
+        "server.trafficRecording.enabled=true " \
+        "server.trafficRecording.trafficFlushIntervalInMilliseconds=0 " \
+        "server.trafficRecording.sourceQueryTracking=true " \
         "storage.storageDirectory=../data " \
+        "api.exposedOn=localhost" \
         "api.accessLog=true" \
         "cache.enabled=false" \
-        "api.endpoints.graphQL.tlsMode=FORCE_NO_TLS" \
-        "api.endpoints.rest.tlsMode=FORCE_NO_TLS" \
-        "api.endpoints.lab.tlsMode=FORCE_NO_TLS" \
-        "api.endpoints.gRPC.exposeDocsService=true"
+        "api.certificate.generateAndUseSelfSigned=true" \
+        "api.endpoints.graphQL.tlsMode=RELAXED" \
+        "api.endpoints.rest.tlsMode=RELAXED" \
+        "api.endpoints.lab.tlsMode=RELAXED" \
+        "api.endpoints.gRPC.tlsMode=RELAXED" \
+        "api.endpoints.gRPC.exposeDocsService=true" \
+        "api.endpoints.gRPC.mTLS.enabled=false"

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -196,7 +196,7 @@ public class OpenApiProperty {
 		 * set as deprecated.
 		 */
 		@Nonnull
-		public Builder deprecationNotice(@Nonnull String deprecationNotice) {
+		public Builder deprecationNotice(@Nullable String deprecationNotice) {
 			this.deprecationNotice = deprecationNotice;
 			return this;
 		}

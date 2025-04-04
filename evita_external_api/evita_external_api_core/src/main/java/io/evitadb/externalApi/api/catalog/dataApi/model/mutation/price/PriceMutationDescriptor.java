@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price;
 
+import io.evitadb.api.requestResponse.data.mutation.price.PriceMutation;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import java.util.Currency;
@@ -30,7 +31,7 @@ import java.util.Currency;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
- * Abstract descriptor for all {@link io.evitadb.api.requestResponse.data.mutation.price.PriceMutation}s.
+ * Abstract descriptor for all {@link PriceMutation}s.
  *
  * Note: this descriptor has static structure.
  *

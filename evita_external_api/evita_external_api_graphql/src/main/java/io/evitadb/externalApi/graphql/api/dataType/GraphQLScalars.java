@@ -182,6 +182,13 @@ public class GraphQLScalars {
         .coercing(PREDECESSOR_COERCING)
         .build();
 
+    public static final Coercing<?, ?> REFERENCED_ENTITY_PREDECESSOR_COERCING = new ReferencedEntityPredecessorCoercing();
+    public static final GraphQLScalarType REFERENCED_ENTITY_PREDECESSOR = newScalar()
+        .name("ReferencedEntityPredecessor")
+        .description("An inverse Predecessor (using referenced entity PK instead of this entity PK) in number format.")
+        .coercing(REFERENCED_ENTITY_PREDECESSOR_COERCING)
+        .build();
+
     public static final Coercing<?, ?> OBJECT_COERCING = new ObjectCoercing();
     public static final GraphQLScalarType COMPLEX_DATA_OBJECT = newScalar()
         .name("ComplexDataObject")
@@ -192,6 +199,13 @@ public class GraphQLScalars {
         .name("Object")
         .description("A generic JSON object")
         .coercing(OBJECT_COERCING)
+        .build();
+
+    public static final Coercing<?, ?> EXPRESSION_COERCING = new ExpressionCoercing();
+    public static final GraphQLScalarType EXPRESSION = newScalar()
+        .name("Expression")
+        .description("Expression statement allowing simple mathematics formulas and boolean algebra including support for externally provide data via input variables.")
+        .coercing(EXPRESSION_COERCING)
         .build();
 
     public static final AnyCoercing ANY_COERCING = new AnyCoercing();

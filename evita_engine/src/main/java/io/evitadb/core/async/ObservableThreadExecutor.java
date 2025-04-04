@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,12 +24,17 @@
 package io.evitadb.core.async;
 
 import io.evitadb.api.configuration.ThreadPoolOptions;
+import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.core.metric.event.system.BackgroundTaskTimedOutEvent;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 
 import javax.annotation.Nonnull;
+import java.io.Serial;
 import java.lang.Thread.UncaughtExceptionHandler;
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
@@ -37,6 +42,7 @@ import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * This class implementation of {@link ExecutorService} that allows to process asynchronous tasks in a safe and limited
@@ -46,7 +52,16 @@ import java.util.concurrent.atomic.AtomicLong;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Slf4j
-public class ObservableThreadExecutor implements ObservableExecutorService {
+public class ObservableThreadExecutor implements ObservableExecutorServiceWithHardDeadline {
+	private static final int BUFFER_CAPACITY = 512;
+	/**
+	 * Buffer used for purging finished tasks.
+	 */
+	private final ArrayList<WeakReference<ObservableTask>> buffer = new ArrayList<>(BUFFER_CAPACITY);
+	/**
+	 * Lock synchronizing access to the buffer and purge operation.
+	 */
+	private final ReentrantLock bufferLock = new ReentrantLock();
 	/**
 	 * Name used in log messages and events.
 	 */
@@ -75,7 +90,7 @@ public class ObservableThreadExecutor implements ObservableExecutorService {
 	 * Queue that holds the tasks that are currently being executed or waiting to be executed. It could also contain
 	 * already finished tasks that are subject to be removed.
 	 */
-	private final ArrayBlockingQueue<ObservableTask> queue;
+	private final ArrayBlockingQueue<WeakReference<ObservableTask>> queue;
 
 	public ObservableThreadExecutor(
 		@Nonnull String name,
@@ -114,6 +129,83 @@ public class ObservableThreadExecutor implements ObservableExecutorService {
 		}
 	}
 
+	/**
+	 * Returns the internal fork join pool. This method is intended for observability purposes only.
+	 *
+	 * @return the internal fork join pool
+	 */
+	@Nonnull
+	public ForkJoinPool getForkJoinPoolInternal() {
+		return forkJoinPool;
+	}
+
+	@Override
+	public long getDefaultTimeoutInMilliseconds() {
+		return this.timeoutInMilliseconds;
+	}
+
+	@Override
+	@Nonnull
+	public Runnable createTask(@Nonnull String name, @Nonnull Runnable lambda) {
+		return new ObservableRunnable(name, lambda, this.timeoutInMilliseconds);
+	}
+
+	@Override
+	@Nonnull
+	public Runnable createTask(@Nonnull Runnable lambda) {
+		final StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
+		return new ObservableRunnable(
+			stackTrace.length > 1 ? stackTrace[1].toString() : "Unknown",
+			lambda, this.timeoutInMilliseconds);
+	}
+
+	@Override
+	@Nonnull
+	public Runnable createTask(@Nonnull String name, @Nonnull Runnable lambda, long timeoutInMilliseconds) {
+		return new ObservableRunnable(name, lambda, timeoutInMilliseconds);
+	}
+
+	@Override
+	@Nonnull
+	public Runnable createTask(@Nonnull Runnable lambda, long timeoutInMilliseconds) {
+		final StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
+		return new ObservableRunnable(
+			stackTrace.length > 1 ? stackTrace[1].toString() : "Unknown",
+			lambda, timeoutInMilliseconds);
+	}
+
+	@Override
+	@Nonnull
+	public <V> Callable<V> createTask(@Nonnull String name, @Nonnull Callable<V> lambda) {
+		return new ObservableCallable<>(name, lambda, this.timeoutInMilliseconds);
+	}
+
+	@Override
+	@Nonnull
+	public <V> Callable<V> createTask(@Nonnull Callable<V> lambda) {
+		final StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
+		return new ObservableCallable<>(
+			stackTrace.length > 1 ? stackTrace[1].toString() : "Unknown",
+			lambda, this.timeoutInMilliseconds
+		);
+	}
+
+	@Override
+	@Nonnull
+	public <V> Callable<V> createTask(@Nonnull String name, @Nonnull Callable<V> lambda, long timeoutInMilliseconds) {
+		return new ObservableCallable<>(name, lambda, timeoutInMilliseconds);
+	}
+
+	@Override
+	@Nonnull
+	public <V> Callable<V> createTask(@Nonnull Callable<V> lambda, long timeoutInMilliseconds) {
+		final StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
+		return new ObservableCallable<>(
+			stackTrace.length > 1 ? stackTrace[1].toString() : "Unknown",
+			lambda, timeoutInMilliseconds
+		);
+	}
+
 	@Override
 	public long getSubmittedTaskCount() {
 		return this.submittedTaskCount.get();
@@ -132,6 +224,36 @@ public class ObservableThreadExecutor implements ObservableExecutorService {
 		} catch (RejectedExecutionException e) {
 			this.rejectedExecutionHandler.rejectedExecution();
 		}
+	}
+
+	@Override
+	public void shutdown() {
+		this.forkJoinPool.shutdown();
+	}
+
+	@Nonnull
+	@Override
+	public List<Runnable> shutdownNow() {
+		return this.forkJoinPool.shutdownNow();
+	}
+
+	@Override
+	public boolean isShutdown() {
+		return this.forkJoinPool.isShutdown();
+	}
+
+	@Override
+	public boolean isTerminated() {
+		return this.forkJoinPool.isTerminated();
+	}
+
+	/*
+	 * PRIVATE METHODS
+	 */
+
+	@Override
+	public boolean awaitTermination(long timeout, @Nonnull TimeUnit unit) throws InterruptedException {
+		return this.forkJoinPool.awaitTermination(timeout, unit);
 	}
 
 	@Nonnull
@@ -230,39 +352,10 @@ public class ObservableThreadExecutor implements ObservableExecutorService {
 		}
 	}
 
-	@Override
-	public void shutdown() {
-		this.forkJoinPool.shutdown();
-	}
-
-	@Nonnull
-	@Override
-	public List<Runnable> shutdownNow() {
-		return this.forkJoinPool.shutdownNow();
-	}
-
-	@Override
-	public boolean isShutdown() {
-		return this.forkJoinPool.isShutdown();
-	}
-
-	@Override
-	public boolean isTerminated() {
-		return this.forkJoinPool.isTerminated();
-	}
-
-	@Override
-	public boolean awaitTermination(long timeout, @Nonnull TimeUnit unit) throws InterruptedException {
-		return this.forkJoinPool.awaitTermination(timeout, unit);
-	}
-
-	/*
-	 * PRIVATE METHODS
-	 */
-
 	/**
 	 * Register a task with a particular timeout.
-	 * @param runnable the task to run
+	 *
+	 * @param runnable              the task to run
 	 * @param timeoutInMilliseconds the timeout in milliseconds
 	 * @return wrapped runnable into an observable task
 	 */
@@ -273,10 +366,11 @@ public class ObservableThreadExecutor implements ObservableExecutorService {
 
 	/**
 	 * Register a task with a particular timeout.
-	 * @param callable the task to run
+	 *
+	 * @param callable              the task to run
 	 * @param timeoutInMilliseconds the timeout in milliseconds
+	 * @param <V>                   the type of the result
 	 * @return wrapped callable into an observable task
-	 * @param <V> the type of the result
 	 */
 	@Nonnull
 	private <V> Callable<V> registerTask(@Nonnull Callable<V> callable, long timeoutInMilliseconds) {
@@ -288,20 +382,21 @@ public class ObservableThreadExecutor implements ObservableExecutorService {
 	 * to allow for fluent chaining.
 	 *
 	 * @param task the task to add
+	 * @param <T>  the type of the task
 	 * @return the task that was added and wrapped
-	 * @param <T> the type of the task
 	 */
 	@Nonnull
 	private <T extends ObservableTask> T addTaskToQueue(@Nonnull T task) {
+		final WeakReference<ObservableTask> taskRef = new WeakReference<>(task);
 		try {
 			// add the task to the queue
-			this.queue.add(task);
+			this.queue.add(taskRef);
 		} catch (IllegalStateException e) {
 			// this means the queue is full, so we need to remove some tasks
 			this.cancelTimedOutTasks();
 			// and try adding the task again
 			try {
-				this.queue.add(task);
+				this.queue.add(taskRef);
 			} catch (IllegalStateException exceptionAgain) {
 				// and this should never happen since queue was cleared of finished and timed out tasks and its size
 				// is double the configured size
@@ -317,38 +412,53 @@ public class ObservableThreadExecutor implements ObservableExecutorService {
 	 * still waiting or running and not timed out are added to the tail of the queue again.
 	 */
 	private void cancelTimedOutTasks() {
-		// go through the entire queue, but only once
-		final int bufferSize = 512;
-		final ArrayList<ObservableTask> buffer = new ArrayList<>(bufferSize);
-		final int queueSize = this.queue.size();
 		int timedOutTasks = 0;
-		for (int i = 0; i < queueSize;) {
-			// initialize threshold for entire batch only once
-			final long threshold = System.currentTimeMillis() - this.timeoutInMilliseconds;
-			// effectively withdraw first block of tasks from the queue
-			i += this.queue.drainTo(buffer, bufferSize);
-			// now go through all of them
-			final Iterator<ObservableTask> it = buffer.iterator();
-			while (it.hasNext()) {
-				final ObservableTask task = it.next();
-				if (task.isFinished()) {
-					// if task is finished, remove it from the queue
-					it.remove();
-				} else {
-					// if task is running / waiting longer than the threshold, cancel it and remove it from the queue
-					if (task.isTimedOut(threshold)) {
-						timedOutTasks++;
-						task.cancel();
-						it.remove();
-					} else {
-						// if task is not finished and not timed out, leave it in the buffer
+		if (this.bufferLock.tryLock()) {
+			try {
+				// go through the entire queue, but only once
+				final int queueSize = this.queue.size();
+				for (int i = 0; i < queueSize; ) {
+					// initialize threshold for entire batch only once
+					final long threshold = System.currentTimeMillis() - this.timeoutInMilliseconds;
+					// effectively withdraw first block of tasks from the queue
+					i += this.queue.drainTo(this.buffer, BUFFER_CAPACITY);
+					// now go through all of them
+					final Iterator<WeakReference<ObservableTask>> it = this.buffer.iterator();
+					while (it.hasNext()) {
+						final WeakReference<ObservableTask> taskRef = it.next();
+						final ObservableTask task = taskRef.get();
+						if (task == null) {
+							// if task is already garbage collected, remove it from the queue
+							it.remove();
+						} else if (task.isFinished()) {
+							// if task is finished, remove it from the queue
+							it.remove();
+						} else {
+							// if task is running / waiting longer than the threshold, cancel it and remove it from the queue
+							if (task.isTimedOut(threshold)) {
+								timedOutTasks++;
+								log.info("Cancelling timed out task: {}", task);
+								task.cancel();
+								it.remove();
+							} else {
+								// if task is not finished and not timed out, leave it in the buffer
+							}
+						}
 					}
+					// add the remaining tasks back to the queue in an effective way
+					this.queue.addAll(this.buffer);
+					// clear the buffer for the next iteration
+					this.buffer.clear();
 				}
+			} finally {
+				this.bufferLock.unlock();
 			}
-			// add the remaining tasks back to the queue in an effective way
-			this.queue.addAll(buffer);
-			// clear the buffer for the next iteration
-			buffer.clear();
+		} else {
+			// someone else is currently purging the queue
+			// we need to wait until he's done and then the queue should have enough free room
+			while (this.bufferLock.isLocked()) {
+				Thread.onSpinWait();
+			}
 		}
 		// emit aggregate event
 		new BackgroundTaskTimedOutEvent(this.name, timedOutTasks).commit();
@@ -362,12 +472,14 @@ public class ObservableThreadExecutor implements ObservableExecutorService {
 
 		/**
 		 * Check if the task is finished.
+		 *
 		 * @return true if the task is finished, false otherwise
 		 */
 		boolean isFinished();
 
 		/**
 		 * Check if the task is timed out.
+		 *
 		 * @param now the current time in milliseconds
 		 * @return true if the task is timed out, false otherwise
 		 */
@@ -385,6 +497,10 @@ public class ObservableThreadExecutor implements ObservableExecutorService {
 	 */
 	private static class ObservableRunnable implements Runnable, ObservableTask {
 		/**
+		 * Name / description of the task.
+		 */
+		private final String name;
+		/**
 		 * Delegate runnable that is being wrapped.
 		 */
 		private final Runnable delegate;
@@ -393,11 +509,31 @@ public class ObservableThreadExecutor implements ObservableExecutorService {
 		 */
 		private final long timedOutAt;
 		/**
+		 * Context object that is set when the task is running.
+		 */
+		private final TracingContext.CapturedContext capturedContext = TracingContext.captureContext();
+		/**
 		 * Future that is completed when the task is finished.
 		 */
 		private final CompletableFuture<Void> future = new CompletableFuture<>();
 
 		public ObservableRunnable(@Nonnull Runnable delegate, long timeoutInMilliseconds) {
+			final StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
+			// pick first name that doesn't contain Observable in the class name
+			String name = "Unknown";
+			for (StackTraceElement element : stackTrace) {
+				if (element.getClassName().contains("io.evitadb") && !element.getClassName().contains("Observable")) {
+					name = element.toString();
+					break;
+				}
+			}
+			this.name = name;
+			this.delegate = delegate;
+			this.timedOutAt = System.currentTimeMillis() + timeoutInMilliseconds;
+		}
+
+		public ObservableRunnable(@Nonnull String name, @Nonnull Runnable delegate, long timeoutInMilliseconds) {
+			this.name = name;
 			this.delegate = delegate;
 			this.timedOutAt = System.currentTimeMillis() + timeoutInMilliseconds;
 		}
@@ -419,22 +555,39 @@ public class ObservableThreadExecutor implements ObservableExecutorService {
 
 		@Override
 		public void run() {
-			try {
-				this.delegate.run();
-				this.future.complete(null);
-			} catch (Throwable e) {
-				this.future.completeExceptionally(e);
-				ObservableThreadExecutor.log.error("Uncaught exception in task.", e);
-				throw e;
-			}
+			TracingContext.executeWithClientContext(
+				this.capturedContext,
+				() -> {
+					try {
+						this.delegate.run();
+						this.future.complete(null);
+						return null;
+					} catch (Exception e) {
+						MDC.clear();
+						this.future.completeExceptionally(e);
+						ObservableThreadExecutor.log.error("Uncaught exception in task.", e);
+						throw new ObservableExecutionException(e);
+					}
+				}
+			);
+		}
+
+		@Override
+		public String toString() {
+			return this.name;
 		}
 	}
 
 	/**
 	 * Wrapper around a {@link Callable} that implements the {@link ObservableTask} interface.
+	 *
 	 * @param <V> the type of the result
 	 */
 	private static class ObservableCallable<V> implements Callable<V>, ObservableTask {
+		/**
+		 * Name / description of the task.
+		 */
+		private final String name;
 		/**
 		 * Delegate callable that is being wrapped.
 		 */
@@ -444,11 +597,31 @@ public class ObservableThreadExecutor implements ObservableExecutorService {
 		 */
 		private final long timedOutAt;
 		/**
+		 * Context object that is set when the task is running.
+		 */
+		private final TracingContext.CapturedContext capturedContext = TracingContext.captureContext();
+		/**
 		 * Future that is completed when the task is finished.
 		 */
 		private final CompletableFuture<V> future = new CompletableFuture<>();
 
 		public ObservableCallable(@Nonnull Callable<V> delegate, long timeout) {
+			final StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
+			// pick first name that doesn't contain Observable in the class name
+			String name = "Unknown";
+			for (StackTraceElement element : stackTrace) {
+				if (element.getClassName().contains("io.evitadb") && !element.getClassName().contains("Observable")) {
+					name = element.toString();
+					break;
+				}
+			}
+			this.name = name;
+			this.delegate = delegate;
+			this.timedOutAt = System.currentTimeMillis() + timeout;
+		}
+
+		public ObservableCallable(@Nonnull String name, @Nonnull Callable<V> delegate, long timeout) {
+			this.name = name;
 			this.delegate = delegate;
 			this.timedOutAt = System.currentTimeMillis() + timeout;
 		}
@@ -471,14 +644,30 @@ public class ObservableThreadExecutor implements ObservableExecutorService {
 		@Override
 		public V call() throws Exception {
 			try {
-				final V result = this.delegate.call();
-				this.future.complete(result);
-				return result;
-			} catch (Throwable e) {
-				this.future.completeExceptionally(e);
-				ObservableThreadExecutor.log.error("Uncaught exception in task.", e);
-				throw e;
+				return TracingContext.executeWithClientContext(
+					this.capturedContext,
+					() -> {
+						try {
+							final V result = this.delegate.call();
+							this.future.complete(result);
+							return result;
+						} catch (Exception e) {
+							MDC.clear();
+							this.future.completeExceptionally(e);
+							ObservableThreadExecutor.log.error("Uncaught exception in task.", e);
+							throw e instanceof RuntimeException re ?
+								re : new ObservableExecutionException(e);
+						}
+					}
+				);
+			} catch (ObservableExecutionException e) {
+				throw e.getDelegate();
 			}
+		}
+
+		@Override
+		public String toString() {
+			return this.name;
 		}
 	}
 
@@ -511,4 +700,23 @@ public class ObservableThreadExecutor implements ObservableExecutorService {
 			ObservableThreadExecutor.log.error("Uncaught exception in thread {}", t.getName(), e);
 		}
 	}
+
+	/**
+	 * A runtime exception that wraps another throwable. This exception is typically used to rethrow
+	 * a checked exception as an unchecked exception in scenarios where observables or asynchronous
+	 * processing are involved.
+	 *
+	 * Instances of this exception effectively act as wrappers for underlying cause exceptions,
+	 * enabling propagation of those exceptions through APIs that do not declare checked exceptions.
+	 */
+	private static class ObservableExecutionException extends RuntimeException {
+		@Serial private static final long serialVersionUID = -7044403627268312520L;
+		@Getter private final Exception delegate;
+
+		public ObservableExecutionException(@Nonnull Exception cause) {
+			super(cause);
+			this.delegate = cause;
+		}
+	}
+
 }

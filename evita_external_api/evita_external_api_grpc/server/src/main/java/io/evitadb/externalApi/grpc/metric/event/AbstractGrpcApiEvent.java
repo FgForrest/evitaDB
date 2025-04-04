@@ -35,7 +35,7 @@ import lombok.RequiredArgsConstructor;
 @EventGroup(
 	value = AbstractGrpcApiEvent.PACKAGE_NAME,
 	name = "evitaDB - gRPC Request",
-	description = "evitaDB events relating to gRPC request processing."
+	description = "evitaDB events related to gRPC request processing."
 )
 @Category({"evitaDB", "API", "gRPC"})
 @RequiredArgsConstructor

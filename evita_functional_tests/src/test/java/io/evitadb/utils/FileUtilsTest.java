@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,20 +23,22 @@
 
 package io.evitadb.utils;
 
+import io.evitadb.exception.UnexpectedIOException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.time.OffsetDateTime;
 import java.util.Arrays;
+import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Test verifies behaviour of {@link FileUtils}.
@@ -106,5 +108,210 @@ class FileUtilsTest {
 	@Test
 	void shouldConvertToSafeFileName() {
 		assertEquals("Abc-d784_2.z1p", FileUtils.convertToSupportedName("Abc   +-_ d784 2 .z1p"));
+	}
+
+	@Test
+	void shouldDeleteFileIfExists() throws IOException {
+		// Create a file in the temp directory
+		Path testFile = directoryTest.resolve("testFile.txt");
+		Files.write(testFile, "test content".getBytes(), StandardOpenOption.CREATE);
+
+		// Assert the file exists
+		assertTrue(testFile.toFile().exists());
+
+		// Call the method under test
+		FileUtils.deleteFileIfExists(testFile);
+
+		// Assert the file was deleted
+		assertFalse(testFile.toFile().exists());
+	}
+
+	/**
+	 * Test to verify behavior when there is extension in the given file name.
+	 */
+	@Test
+	void shouldGetFileNameWithoutExtensionWhenInputIsValid() {
+		String fileNameWithExtension = "testFile.txt";
+		String expectedOutput = "testFile";
+
+		String result = FileUtils.getFileNameWithoutExtension(fileNameWithExtension);
+
+		assertEquals(expectedOutput, result);
+	}
+
+	/**
+	 * Test to verify behavior when there is no extension in the given file name.
+	 */
+	@Test
+	void shouldGetFileNameWhenThereIsNoExtension() {
+		String fileNameWithoutExtension = "testFile";
+		String expectedOutput = "testFile";
+
+		String result = FileUtils.getFileNameWithoutExtension(fileNameWithoutExtension);
+
+		assertEquals(expectedOutput, result);
+	}
+
+	/**
+	 * Test to verify behavior when there is multiple periods in the given file name.
+	 */
+	@Test
+	void shouldGetFileNameUntilLastPeriodWhenThereAreMultiplePeriods() {
+		String fileNameWithMultiplePeriods = "test.File.txt";
+		String expectedOutput = "test.File";
+
+		String result = FileUtils.getFileNameWithoutExtension(fileNameWithMultiplePeriods);
+
+		assertEquals(expectedOutput, result);
+	}
+
+	@Test
+	void shouldRenameFolderSuccessfully() throws IOException {
+		// Set up source and target directories
+		Path sourceDir = directoryTest.resolve("sourceDir");
+		Path targetDir = directoryTest.resolve("targetDir");
+
+		Files.createDirectory(sourceDir);
+		Files.write(sourceDir.resolve("file1.txt"), "File 1 content".getBytes());
+		Files.createDirectory(sourceDir.resolve("subDir"));
+		Files.write(sourceDir.resolve("subDir").resolve("file2.txt"), "File 2 content".getBytes());
+
+		// Verify source directory exists and target does not
+		assertTrue(Files.exists(sourceDir));
+		assertFalse(Files.exists(targetDir));
+
+		// Perform the folder rename operation
+		FileUtils.renameFolder(sourceDir, targetDir);
+
+		// Verify source directory is deleted and target exists with same structure
+		assertFalse(Files.exists(sourceDir));
+		assertTrue(Files.exists(targetDir));
+		assertTrue(Files.exists(targetDir.resolve("file1.txt")));
+		assertTrue(Files.exists(targetDir.resolve("subDir").resolve("file2.txt")));
+	}
+
+	@Test
+	void shouldThrowExceptionWhenSourceDoesNotExist() {
+		// Set up source and target directories
+		Path nonExistentSource = directoryTest.resolve("nonExistentSource");
+		Path targetDir = directoryTest.resolve("targetDir");
+
+		// Verify source does not exist
+		assertFalse(Files.exists(nonExistentSource));
+
+		// Perform the folder rename operation and expect exception
+		assertThrows(UnexpectedIOException.class, () -> FileUtils.renameFolder(nonExistentSource, targetDir));
+
+		// Verify target directory does not exist
+		assertFalse(Files.exists(targetDir));
+	}
+
+	@Test
+	void shouldRenameFolderWithNestedStructureSuccessfully() throws IOException {
+		// Set up source and target directories with nested structure
+		Path sourceDir = directoryTest.resolve("nestedSource");
+		Path targetDir = directoryTest.resolve("nestedTarget");
+
+		Files.createDirectory(sourceDir);
+		Files.createDirectory(sourceDir.resolve("nested1"));
+		Files.createDirectory(sourceDir.resolve("nested1").resolve("nested2"));
+		Files.write(sourceDir.resolve("nested1").resolve("nested2").resolve("file.txt"), "Nested file content".getBytes());
+
+		// Verify source directory exists
+		assertTrue(Files.exists(sourceDir));
+
+		// Perform the folder rename operation
+		FileUtils.renameFolder(sourceDir, targetDir);
+
+		// Verify source directory is deleted and target exists with same structure
+		assertFalse(Files.exists(sourceDir));
+		assertTrue(Files.exists(targetDir));
+		assertTrue(Files.exists(targetDir.resolve("nested1").resolve("nested2").resolve("file.txt")));
+	}
+	@Test
+	void shouldGetLastModifiedTimeWhenFileExists() {
+		Path testFile = directoryTest.resolve("testFile.txt");
+		try {
+			Files.write(testFile, "test content".getBytes(), StandardOpenOption.CREATE);
+			Optional<OffsetDateTime> lastModifiedTimeOpt = FileUtils.getFileLastModifiedTime(testFile);
+			assertTrue(lastModifiedTimeOpt.isPresent());
+			OffsetDateTime lastModifiedTime = lastModifiedTimeOpt.get();
+			OffsetDateTime now = OffsetDateTime.now();
+			assertTrue(now.isAfter(lastModifiedTime) || now.isEqual(lastModifiedTime));
+		} catch (IOException e) {
+			fail("Unexpected error occurred: " + e.getMessage());
+		}
+	}
+
+	@Test
+	void shouldReturnEmptyWhenFileNotExists() {
+		Path nonExistentFile = directoryTest.resolve("nonExistentFile.txt");
+		Optional<OffsetDateTime> lastModifiedTimeOpt = FileUtils.getFileLastModifiedTime(nonExistentFile);
+		assertTrue(lastModifiedTimeOpt.isEmpty());
+	}
+
+	@Test
+	void shouldCompressDirectorySuccessfully() throws IOException {
+		// Arrange
+		Path subDir = directoryTest.resolve("subDir");
+		Files.createDirectory(subDir);
+		Path file1 = directoryTest.resolve("file1.txt");
+		Path file2 = subDir.resolve("file2.txt");
+		Files.write(file1, "File1 Content".getBytes(), StandardOpenOption.CREATE);
+		Files.write(file2, "File2 Content".getBytes(), StandardOpenOption.CREATE);
+
+		Path zipFile = tmpFolder.resolve("output.zip");
+
+		// Act
+		try (OutputStream outputStream = Files.newOutputStream(zipFile)) {
+			FileUtils.compressDirectory(directoryTest, outputStream);
+		}
+
+		// Assert
+		assertTrue(Files.exists(zipFile));
+		try (java.util.zip.ZipInputStream zis = new java.util.zip.ZipInputStream(Files.newInputStream(zipFile))) {
+			java.util.zip.ZipEntry entry = zis.getNextEntry();
+			assertNotNull(entry);
+			assertEquals("file1.txt", entry.getName());
+
+			entry = zis.getNextEntry();
+			assertNotNull(entry);
+			assertEquals("subDir/", entry.getName());
+
+			entry = zis.getNextEntry();
+			assertNotNull(entry);
+			assertEquals("subDir/file2.txt", entry.getName());
+		}
+	}
+
+	@Test
+	void shouldHandleCompressionOfEmptyDirectory() throws IOException {
+		// Arrange
+		Path zipFile = tmpFolder.resolve("output_empty.zip");
+
+		// Act
+		try (OutputStream outputStream = Files.newOutputStream(zipFile)) {
+			FileUtils.compressDirectory(directoryTest, outputStream);
+		}
+
+		// Assert
+		assertTrue(Files.exists(zipFile));
+		try (java.util.zip.ZipInputStream zis = new java.util.zip.ZipInputStream(Files.newInputStream(zipFile))) {
+			assertNull(zis.getNextEntry());
+		}
+	}
+
+	@Test
+	void shouldThrowExceptionWhenDirectoryDoesNotExist() {
+		// Arrange
+		Path nonExistentDirectory = tmpFolder.resolve("nonExistentDir");
+		Path zipFile = tmpFolder.resolve("output_error.zip");
+
+		// Act & Assert
+		try (OutputStream outputStream = Files.newOutputStream(zipFile)) {
+			assertThrows(UnexpectedIOException.class, () -> FileUtils.compressDirectory(nonExistentDirectory, outputStream));
+		} catch (IOException e) {
+			fail("Unexpected error occurred: " + e.getMessage());
+		}
 	}
 }

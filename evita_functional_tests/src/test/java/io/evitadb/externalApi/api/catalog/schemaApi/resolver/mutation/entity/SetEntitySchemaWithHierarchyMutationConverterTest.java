@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.entity;
 
 import io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWithHierarchyMutation;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
@@ -33,6 +34,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
+import static io.evitadb.utils.ListBuilder.list;
 import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -53,11 +55,16 @@ class SetEntitySchemaWithHierarchyMutationConverterTest {
 
 	@Test
 	void shouldResolveInputToLocalMutation() {
-		final SetEntitySchemaWithHierarchyMutation expectedMutation = new SetEntitySchemaWithHierarchyMutation(true);
+		final SetEntitySchemaWithHierarchyMutation expectedMutation = new SetEntitySchemaWithHierarchyMutation(
+			true,
+			new Scope[] { Scope.LIVE }
+		);
 
 		final SetEntitySchemaWithHierarchyMutation convertedMutation1 = converter.convertFromInput(
 			map()
 				.e(SetEntitySchemaWithHierarchyMutationDescriptor.WITH_HIERARCHY.name(), true)
+				.e(SetEntitySchemaWithHierarchyMutationDescriptor.INDEXED_IN_SCOPES.name(), list()
+					.i(Scope.LIVE))
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation1);
@@ -65,6 +72,8 @@ class SetEntitySchemaWithHierarchyMutationConverterTest {
 		final SetEntitySchemaWithHierarchyMutation convertedMutation2 = converter.convertFromInput(
 			map()
 				.e(SetEntitySchemaWithHierarchyMutationDescriptor.WITH_HIERARCHY.name(), "true")
+				.e(SetEntitySchemaWithHierarchyMutationDescriptor.INDEXED_IN_SCOPES.name(), list()
+					.i(Scope.LIVE.name()))
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation2);

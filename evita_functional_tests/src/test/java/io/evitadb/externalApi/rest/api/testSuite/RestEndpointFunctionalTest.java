@@ -71,13 +71,19 @@ public abstract class RestEndpointFunctionalTest {
 
 	@DataSet(value = TestDataGenerator.REST_THOUSAND_PRODUCTS, openWebApi = RestProvider.CODE)
 	protected DataCarrier setUp(Evita evita, EvitaServer evitaServer) {
-		return setUpData(evita, evitaServer, 1000);
+		return setUpData(evita, evitaServer, 1000, false);
 	}
 
+	@DataSet(value = TestDataGenerator.REST_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE, openWebApi = RestProvider.CODE)
+	protected DataCarrier setUpForArchival(Evita evita, EvitaServer evitaServer) {
+		return setUpData(evita, evitaServer, 100, true);
+	}
+
+
 	@Nonnull
-	protected DataCarrier setUpData(Evita evita, EvitaServer evitaServer, int productCount) {
+	protected DataCarrier setUpData(Evita evita, EvitaServer evitaServer, int productCount, boolean archiveSomeProducts) {
 		TestDataGenerator.generateMockCatalogs(evita);
-		return TestDataGenerator.generateMainCatalogEntities(evita, productCount);
+		return TestDataGenerator.generateMainCatalogEntities(evita, productCount, archiveSomeProducts);
 	}
 
 	@Nullable

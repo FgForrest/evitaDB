@@ -23,7 +23,7 @@
 
 package io.evitadb.driver;
 
-import io.evitadb.api.requestResponse.cdc.CaptureContent;
+import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
@@ -84,7 +84,7 @@ public class RemoteCDCIntegrityTest {
 		assertTrue(lastDash > 0, "Dash not found! Look at the evita-configuration.yml in test resources!");
 		final Path clientCertificates = Path.of(serverCertificates.substring(0, lastDash) + "-client");
 		final EvitaClientConfiguration evitaClientConfiguration = EvitaClientConfiguration.builder()
-			.host(grpcHost.hostName())
+			.host(grpcHost.hostAddress())
 			.port(grpcHost.port())
 			.systemApiPort(systemHost.port())
 			.mtlsEnabled(false)
@@ -109,7 +109,7 @@ public class RemoteCDCIntegrityTest {
 		final List<String> receivedCatalogs = new ArrayList<>(CATALOGS_COUNT);
 		final CountDownLatch receivedCatalogsLatch = new CountDownLatch(CATALOGS_COUNT);
 
-		final ChangeCapturePublisher<ChangeSystemCapture> publisher = evitaClient.registerSystemChangeCapture(new ChangeSystemCaptureRequest(CaptureContent.HEADER));
+		final ChangeCapturePublisher<ChangeSystemCapture> publisher = evitaClient.registerSystemChangeCapture(new ChangeSystemCaptureRequest(ChangeCaptureContent.HEADER));
 		publisher.subscribe(new Subscriber<>() {
 
 			private Subscription subscription;

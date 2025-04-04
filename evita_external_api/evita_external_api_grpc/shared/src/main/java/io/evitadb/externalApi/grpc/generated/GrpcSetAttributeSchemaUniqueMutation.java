@@ -46,6 +46,7 @@ private static final long serialVersionUID = 0L;
   private GrpcSetAttributeSchemaUniqueMutation() {
     name_ = "";
     unique_ = 0;
+    uniqueInScopes_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -68,6 +69,7 @@ private static final long serialVersionUID = 0L;
     if (extensionRegistry == null) {
       throw new java.lang.NullPointerException();
     }
+    int mutable_bitField0_ = 0;
     com.google.protobuf.UnknownFieldSet.Builder unknownFields =
         com.google.protobuf.UnknownFieldSet.newBuilder();
     try {
@@ -90,6 +92,15 @@ private static final long serialVersionUID = 0L;
             unique_ = rawValue;
             break;
           }
+          case 106: {
+            if (!((mutable_bitField0_ & 0x00000001) != 0)) {
+              uniqueInScopes_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType>();
+              mutable_bitField0_ |= 0x00000001;
+            }
+            uniqueInScopes_.add(
+                input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType.parser(), extensionRegistry));
+            break;
+          }
           default: {
             if (!parseUnknownField(
                 input, unknownFields, extensionRegistry, tag)) {
@@ -105,6 +116,9 @@ private static final long serialVersionUID = 0L;
       throw new com.google.protobuf.InvalidProtocolBufferException(
           e).setUnfinishedMessage(this);
     } finally {
+      if (((mutable_bitField0_ & 0x00000001) != 0)) {
+        uniqueInScopes_ = java.util.Collections.unmodifiableList(uniqueInScopes_);
+      }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
     }
@@ -138,7 +152,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs =
+      com.google.protobuf.ByteString bs = 
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       name_ = s;
@@ -158,7 +172,7 @@ private static final long serialVersionUID = 0L;
       getNameBytes() {
     java.lang.Object ref = name_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b =
+      com.google.protobuf.ByteString b = 
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       name_ = b;
@@ -174,13 +188,46 @@ private static final long serialVersionUID = 0L;
    * <pre>
    * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
    * having certain value of this attribute among other entities in the same collection.
+   * deprecated in favor of `uniqueInScopes`
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 2;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 2 [deprecated = true];</code>
+   * @deprecated
    * @return The enum numeric value on the wire for unique.
    */
-  @java.lang.Override public int getUniqueValue() {
+  @java.lang.Override @java.lang.Deprecated public int getUniqueValue() {
     return unique_;
+  }
+  /**
+   * <pre>
+   * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+   * having certain value of this attribute among other entities in the same collection.
+   * deprecated in favor of `uniqueInScopes`
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 2 [deprecated = true];</code>
+   * @deprecated
+   * @return The unique.
+   */
+  @java.lang.Override @java.lang.Deprecated public io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType getUnique() {
+    @SuppressWarnings("deprecation")
+    io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType result = io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType.valueOf(unique_);
+    return result == null ? io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType.UNRECOGNIZED : result;
+  }
+
+  public static final int UNIQUEINSCOPES_FIELD_NUMBER = 13;
+  private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType> uniqueInScopes_;
+  /**
+   * <pre>
+   * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+   * having certain value of this attribute among other entities in the same collection.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType uniqueInScopes = 13;</code>
+   */
+  @java.lang.Override
+  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType> getUniqueInScopesList() {
+    return uniqueInScopes_;
   }
   /**
    * <pre>
@@ -188,13 +235,49 @@ private static final long serialVersionUID = 0L;
    * having certain value of this attribute among other entities in the same collection.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 2;</code>
-   * @return The unique.
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType uniqueInScopes = 13;</code>
    */
-  @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType getUnique() {
-    @SuppressWarnings("deprecation")
-    io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType result = io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType.valueOf(unique_);
-    return result == null ? io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType.UNRECOGNIZED : result;
+  @java.lang.Override
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessTypeOrBuilder> 
+      getUniqueInScopesOrBuilderList() {
+    return uniqueInScopes_;
+  }
+  /**
+   * <pre>
+   * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+   * having certain value of this attribute among other entities in the same collection.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType uniqueInScopes = 13;</code>
+   */
+  @java.lang.Override
+  public int getUniqueInScopesCount() {
+    return uniqueInScopes_.size();
+  }
+  /**
+   * <pre>
+   * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+   * having certain value of this attribute among other entities in the same collection.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType uniqueInScopes = 13;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType getUniqueInScopes(int index) {
+    return uniqueInScopes_.get(index);
+  }
+  /**
+   * <pre>
+   * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+   * having certain value of this attribute among other entities in the same collection.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType uniqueInScopes = 13;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessTypeOrBuilder getUniqueInScopesOrBuilder(
+      int index) {
+    return uniqueInScopes_.get(index);
   }
 
   private byte memoizedIsInitialized = -1;
@@ -217,6 +300,9 @@ private static final long serialVersionUID = 0L;
     if (unique_ != io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType.NOT_UNIQUE.getNumber()) {
       output.writeEnum(2, unique_);
     }
+    for (int i = 0; i < uniqueInScopes_.size(); i++) {
+      output.writeMessage(13, uniqueInScopes_.get(i));
+    }
     unknownFields.writeTo(output);
   }
 
@@ -232,6 +318,10 @@ private static final long serialVersionUID = 0L;
     if (unique_ != io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType.NOT_UNIQUE.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
         .computeEnumSize(2, unique_);
+    }
+    for (int i = 0; i < uniqueInScopes_.size(); i++) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(13, uniqueInScopes_.get(i));
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -251,6 +341,8 @@ private static final long serialVersionUID = 0L;
     if (!getName()
         .equals(other.getName())) return false;
     if (unique_ != other.unique_) return false;
+    if (!getUniqueInScopesList()
+        .equals(other.getUniqueInScopesList())) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -266,6 +358,10 @@ private static final long serialVersionUID = 0L;
     hash = (53 * hash) + getName().hashCode();
     hash = (37 * hash) + UNIQUE_FIELD_NUMBER;
     hash = (53 * hash) + unique_;
+    if (getUniqueInScopesCount() > 0) {
+      hash = (37 * hash) + UNIQUEINSCOPES_FIELD_NUMBER;
+      hash = (53 * hash) + getUniqueInScopesList().hashCode();
+    }
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -399,6 +495,7 @@ private static final long serialVersionUID = 0L;
     private void maybeForceBuilderInitialization() {
       if (com.google.protobuf.GeneratedMessageV3
               .alwaysUseFieldBuilders) {
+        getUniqueInScopesFieldBuilder();
       }
     }
     @java.lang.Override
@@ -408,6 +505,12 @@ private static final long serialVersionUID = 0L;
 
       unique_ = 0;
 
+      if (uniqueInScopesBuilder_ == null) {
+        uniqueInScopes_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00000001);
+      } else {
+        uniqueInScopesBuilder_.clear();
+      }
       return this;
     }
 
@@ -434,8 +537,18 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation result = new io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation(this);
+      int from_bitField0_ = bitField0_;
       result.name_ = name_;
       result.unique_ = unique_;
+      if (uniqueInScopesBuilder_ == null) {
+        if (((bitField0_ & 0x00000001) != 0)) {
+          uniqueInScopes_ = java.util.Collections.unmodifiableList(uniqueInScopes_);
+          bitField0_ = (bitField0_ & ~0x00000001);
+        }
+        result.uniqueInScopes_ = uniqueInScopes_;
+      } else {
+        result.uniqueInScopes_ = uniqueInScopesBuilder_.build();
+      }
       onBuilt();
       return result;
     }
@@ -491,6 +604,32 @@ private static final long serialVersionUID = 0L;
       if (other.unique_ != 0) {
         setUniqueValue(other.getUniqueValue());
       }
+      if (uniqueInScopesBuilder_ == null) {
+        if (!other.uniqueInScopes_.isEmpty()) {
+          if (uniqueInScopes_.isEmpty()) {
+            uniqueInScopes_ = other.uniqueInScopes_;
+            bitField0_ = (bitField0_ & ~0x00000001);
+          } else {
+            ensureUniqueInScopesIsMutable();
+            uniqueInScopes_.addAll(other.uniqueInScopes_);
+          }
+          onChanged();
+        }
+      } else {
+        if (!other.uniqueInScopes_.isEmpty()) {
+          if (uniqueInScopesBuilder_.isEmpty()) {
+            uniqueInScopesBuilder_.dispose();
+            uniqueInScopesBuilder_ = null;
+            uniqueInScopes_ = other.uniqueInScopes_;
+            bitField0_ = (bitField0_ & ~0x00000001);
+            uniqueInScopesBuilder_ = 
+              com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
+                 getUniqueInScopesFieldBuilder() : null;
+          } else {
+            uniqueInScopesBuilder_.addAllMessages(other.uniqueInScopes_);
+          }
+        }
+      }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
       return this;
@@ -519,6 +658,7 @@ private static final long serialVersionUID = 0L;
       }
       return this;
     }
+    private int bitField0_;
 
     private java.lang.Object name_ = "";
     /**
@@ -553,7 +693,7 @@ private static final long serialVersionUID = 0L;
         getNameBytes() {
       java.lang.Object ref = name_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b =
+        com.google.protobuf.ByteString b = 
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         name_ = b;
@@ -576,7 +716,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-
+  
       name_ = value;
       onChanged();
       return this;
@@ -590,7 +730,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearName() {
-
+      
       name_ = getDefaultInstance().getName();
       onChanged();
       return this;
@@ -610,7 +750,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-
+      
       name_ = value;
       onChanged();
       return this;
@@ -621,26 +761,30 @@ private static final long serialVersionUID = 0L;
      * <pre>
      * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
      * having certain value of this attribute among other entities in the same collection.
+     * deprecated in favor of `uniqueInScopes`
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 2;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 2 [deprecated = true];</code>
+     * @deprecated
      * @return The enum numeric value on the wire for unique.
      */
-    @java.lang.Override public int getUniqueValue() {
+    @java.lang.Override @java.lang.Deprecated public int getUniqueValue() {
       return unique_;
     }
     /**
      * <pre>
      * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
      * having certain value of this attribute among other entities in the same collection.
+     * deprecated in favor of `uniqueInScopes`
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 2;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 2 [deprecated = true];</code>
+     * @deprecated
      * @param value The enum numeric value on the wire for unique to set.
      * @return This builder for chaining.
      */
-    public Builder setUniqueValue(int value) {
-
+    @java.lang.Deprecated public Builder setUniqueValue(int value) {
+      
       unique_ = value;
       onChanged();
       return this;
@@ -649,13 +793,15 @@ private static final long serialVersionUID = 0L;
      * <pre>
      * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
      * having certain value of this attribute among other entities in the same collection.
+     * deprecated in favor of `uniqueInScopes`
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 2;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 2 [deprecated = true];</code>
+     * @deprecated
      * @return The unique.
      */
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType getUnique() {
+    @java.lang.Deprecated public io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType getUnique() {
       @SuppressWarnings("deprecation")
       io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType result = io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType.valueOf(unique_);
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType.UNRECOGNIZED : result;
@@ -664,17 +810,19 @@ private static final long serialVersionUID = 0L;
      * <pre>
      * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
      * having certain value of this attribute among other entities in the same collection.
+     * deprecated in favor of `uniqueInScopes`
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 2;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 2 [deprecated = true];</code>
+     * @deprecated
      * @param value The unique to set.
      * @return This builder for chaining.
      */
-    public Builder setUnique(io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType value) {
+    @java.lang.Deprecated public Builder setUnique(io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType value) {
       if (value == null) {
         throw new NullPointerException();
       }
-
+      
       unique_ = value.getNumber();
       onChanged();
       return this;
@@ -683,16 +831,348 @@ private static final long serialVersionUID = 0L;
      * <pre>
      * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
      * having certain value of this attribute among other entities in the same collection.
+     * deprecated in favor of `uniqueInScopes`
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 2;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 2 [deprecated = true];</code>
+     * @deprecated
      * @return This builder for chaining.
      */
-    public Builder clearUnique() {
-
+    @java.lang.Deprecated public Builder clearUnique() {
+      
       unique_ = 0;
       onChanged();
       return this;
+    }
+
+    private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType> uniqueInScopes_ =
+      java.util.Collections.emptyList();
+    private void ensureUniqueInScopesIsMutable() {
+      if (!((bitField0_ & 0x00000001) != 0)) {
+        uniqueInScopes_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType>(uniqueInScopes_);
+        bitField0_ |= 0x00000001;
+       }
+    }
+
+    private com.google.protobuf.RepeatedFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType, io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType.Builder, io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessTypeOrBuilder> uniqueInScopesBuilder_;
+
+    /**
+     * <pre>
+     * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+     * having certain value of this attribute among other entities in the same collection.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType uniqueInScopes = 13;</code>
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType> getUniqueInScopesList() {
+      if (uniqueInScopesBuilder_ == null) {
+        return java.util.Collections.unmodifiableList(uniqueInScopes_);
+      } else {
+        return uniqueInScopesBuilder_.getMessageList();
+      }
+    }
+    /**
+     * <pre>
+     * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+     * having certain value of this attribute among other entities in the same collection.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType uniqueInScopes = 13;</code>
+     */
+    public int getUniqueInScopesCount() {
+      if (uniqueInScopesBuilder_ == null) {
+        return uniqueInScopes_.size();
+      } else {
+        return uniqueInScopesBuilder_.getCount();
+      }
+    }
+    /**
+     * <pre>
+     * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+     * having certain value of this attribute among other entities in the same collection.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType uniqueInScopes = 13;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType getUniqueInScopes(int index) {
+      if (uniqueInScopesBuilder_ == null) {
+        return uniqueInScopes_.get(index);
+      } else {
+        return uniqueInScopesBuilder_.getMessage(index);
+      }
+    }
+    /**
+     * <pre>
+     * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+     * having certain value of this attribute among other entities in the same collection.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType uniqueInScopes = 13;</code>
+     */
+    public Builder setUniqueInScopes(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType value) {
+      if (uniqueInScopesBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureUniqueInScopesIsMutable();
+        uniqueInScopes_.set(index, value);
+        onChanged();
+      } else {
+        uniqueInScopesBuilder_.setMessage(index, value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+     * having certain value of this attribute among other entities in the same collection.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType uniqueInScopes = 13;</code>
+     */
+    public Builder setUniqueInScopes(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType.Builder builderForValue) {
+      if (uniqueInScopesBuilder_ == null) {
+        ensureUniqueInScopesIsMutable();
+        uniqueInScopes_.set(index, builderForValue.build());
+        onChanged();
+      } else {
+        uniqueInScopesBuilder_.setMessage(index, builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+     * having certain value of this attribute among other entities in the same collection.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType uniqueInScopes = 13;</code>
+     */
+    public Builder addUniqueInScopes(io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType value) {
+      if (uniqueInScopesBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureUniqueInScopesIsMutable();
+        uniqueInScopes_.add(value);
+        onChanged();
+      } else {
+        uniqueInScopesBuilder_.addMessage(value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+     * having certain value of this attribute among other entities in the same collection.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType uniqueInScopes = 13;</code>
+     */
+    public Builder addUniqueInScopes(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType value) {
+      if (uniqueInScopesBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureUniqueInScopesIsMutable();
+        uniqueInScopes_.add(index, value);
+        onChanged();
+      } else {
+        uniqueInScopesBuilder_.addMessage(index, value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+     * having certain value of this attribute among other entities in the same collection.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType uniqueInScopes = 13;</code>
+     */
+    public Builder addUniqueInScopes(
+        io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType.Builder builderForValue) {
+      if (uniqueInScopesBuilder_ == null) {
+        ensureUniqueInScopesIsMutable();
+        uniqueInScopes_.add(builderForValue.build());
+        onChanged();
+      } else {
+        uniqueInScopesBuilder_.addMessage(builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+     * having certain value of this attribute among other entities in the same collection.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType uniqueInScopes = 13;</code>
+     */
+    public Builder addUniqueInScopes(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType.Builder builderForValue) {
+      if (uniqueInScopesBuilder_ == null) {
+        ensureUniqueInScopesIsMutable();
+        uniqueInScopes_.add(index, builderForValue.build());
+        onChanged();
+      } else {
+        uniqueInScopesBuilder_.addMessage(index, builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+     * having certain value of this attribute among other entities in the same collection.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType uniqueInScopes = 13;</code>
+     */
+    public Builder addAllUniqueInScopes(
+        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType> values) {
+      if (uniqueInScopesBuilder_ == null) {
+        ensureUniqueInScopesIsMutable();
+        com.google.protobuf.AbstractMessageLite.Builder.addAll(
+            values, uniqueInScopes_);
+        onChanged();
+      } else {
+        uniqueInScopesBuilder_.addAllMessages(values);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+     * having certain value of this attribute among other entities in the same collection.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType uniqueInScopes = 13;</code>
+     */
+    public Builder clearUniqueInScopes() {
+      if (uniqueInScopesBuilder_ == null) {
+        uniqueInScopes_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00000001);
+        onChanged();
+      } else {
+        uniqueInScopesBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+     * having certain value of this attribute among other entities in the same collection.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType uniqueInScopes = 13;</code>
+     */
+    public Builder removeUniqueInScopes(int index) {
+      if (uniqueInScopesBuilder_ == null) {
+        ensureUniqueInScopesIsMutable();
+        uniqueInScopes_.remove(index);
+        onChanged();
+      } else {
+        uniqueInScopesBuilder_.remove(index);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+     * having certain value of this attribute among other entities in the same collection.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType uniqueInScopes = 13;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType.Builder getUniqueInScopesBuilder(
+        int index) {
+      return getUniqueInScopesFieldBuilder().getBuilder(index);
+    }
+    /**
+     * <pre>
+     * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+     * having certain value of this attribute among other entities in the same collection.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType uniqueInScopes = 13;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessTypeOrBuilder getUniqueInScopesOrBuilder(
+        int index) {
+      if (uniqueInScopesBuilder_ == null) {
+        return uniqueInScopes_.get(index);  } else {
+        return uniqueInScopesBuilder_.getMessageOrBuilder(index);
+      }
+    }
+    /**
+     * <pre>
+     * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+     * having certain value of this attribute among other entities in the same collection.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType uniqueInScopes = 13;</code>
+     */
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessTypeOrBuilder> 
+         getUniqueInScopesOrBuilderList() {
+      if (uniqueInScopesBuilder_ != null) {
+        return uniqueInScopesBuilder_.getMessageOrBuilderList();
+      } else {
+        return java.util.Collections.unmodifiableList(uniqueInScopes_);
+      }
+    }
+    /**
+     * <pre>
+     * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+     * having certain value of this attribute among other entities in the same collection.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType uniqueInScopes = 13;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType.Builder addUniqueInScopesBuilder() {
+      return getUniqueInScopesFieldBuilder().addBuilder(
+          io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType.getDefaultInstance());
+    }
+    /**
+     * <pre>
+     * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+     * having certain value of this attribute among other entities in the same collection.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType uniqueInScopes = 13;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType.Builder addUniqueInScopesBuilder(
+        int index) {
+      return getUniqueInScopesFieldBuilder().addBuilder(
+          index, io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType.getDefaultInstance());
+    }
+    /**
+     * <pre>
+     * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+     * having certain value of this attribute among other entities in the same collection.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType uniqueInScopes = 13;</code>
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType.Builder> 
+         getUniqueInScopesBuilderList() {
+      return getUniqueInScopesFieldBuilder().getBuilderList();
+    }
+    private com.google.protobuf.RepeatedFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType, io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType.Builder, io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessTypeOrBuilder> 
+        getUniqueInScopesFieldBuilder() {
+      if (uniqueInScopesBuilder_ == null) {
+        uniqueInScopesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType, io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType.Builder, io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessTypeOrBuilder>(
+                uniqueInScopes_,
+                ((bitField0_ & 0x00000001) != 0),
+                getParentForChildren(),
+                isClean());
+        uniqueInScopes_ = null;
+      }
+      return uniqueInScopesBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

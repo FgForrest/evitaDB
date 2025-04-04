@@ -23,22 +23,37 @@
 
 package io.evitadb.core.query.sort.price.translator;
 
+import com.carrotsearch.hppc.IntObjectHashMap;
+import com.carrotsearch.hppc.IntObjectMap;
 import io.evitadb.api.exception.EntityHasNoPricesException;
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.order.PriceNatural;
 import io.evitadb.api.query.require.PriceContent;
+import io.evitadb.api.query.require.QueryPriceMode;
+import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
+import io.evitadb.core.query.sort.EntityComparator;
 import io.evitadb.core.query.sort.NoSorter;
 import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.Sorter;
+import io.evitadb.core.query.sort.generic.PrefetchedRecordsSorter;
 import io.evitadb.core.query.sort.price.FilteredPricesSorter;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
 import io.evitadb.utils.Assert;
+import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.io.Serial;
+import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.Collection;
+import java.util.Comparator;
+import java.util.List;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 /**
@@ -61,6 +76,7 @@ public class PriceNaturalTranslator implements OrderingConstraintTranslator<Pric
 
 		// if prefetch happens we need to prefetch prices so that the attribute comparator can work
 		orderByVisitor.addRequirementToPrefetch(PriceContent.respectingFilter());
+
 		// are filtered prices used in the filtering?
 		final Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors = FormulaFinder.find(
 			orderByVisitor.getFilteringFormula(), FilteredPriceRecordAccessor.class, LookUp.SHALLOW
@@ -79,7 +95,64 @@ public class PriceNaturalTranslator implements OrderingConstraintTranslator<Pric
 			thisSorter = NoSorter.INSTANCE;
 		}
 
-		return Stream.of(thisSorter);
+		final EntityComparator entityComparator;
+		final Function<PriceContract, BigDecimal> priceExtractor = orderByVisitor.getQueryPriceMode() == QueryPriceMode.WITH_TAX ?
+			PriceContract::priceWithTax : PriceContract::priceWithoutTax;
+		if (priceNatural.getOrderDirection() == OrderDirection.ASC) {
+			entityComparator = new PriceForSaleEntityComparator(priceExtractor, Comparator.naturalOrder());
+		} else {
+			entityComparator = new PriceForSaleEntityComparator(priceExtractor, Comparator.reverseOrder());
+		}
+
+		return Stream.of(
+			new PrefetchedRecordsSorter(entityComparator),
+			thisSorter
+		);
 	}
 
+	/**
+	 * The PriceForSaleEntityComparator class is responsible for comparing two EntityContract objects based on their prices.
+	 * It implements the EntityComparator and Serializable interfaces.
+	 * It uses a provided priceExtractor function to extract BigDecimal prices from PriceContract objects and a provided
+	 * priceComparator to compare these prices. If an entity doesn't have a price for sale, it falls back to BigDecimal.ZERO.
+	 */
+	@RequiredArgsConstructor
+	private static class PriceForSaleEntityComparator implements EntityComparator, Serializable {
+		@Serial private static final long serialVersionUID = 5350421028034052368L;
+		private final Function<PriceContract, BigDecimal> priceExtractor;
+		private final Comparator<BigDecimal> priceComparator;
+		private final IntObjectMap<BigDecimal> memoizedPrices = new IntObjectHashMap<>(64);
+
+		@Nonnull
+		@Override
+		public Iterable<EntityContract> getNonSortedEntities() {
+			return List.of();
+		}
+
+		@Override
+		public int compare(EntityContract o1, EntityContract o2) {
+			return priceComparator.compare(
+				getPriceForSaleOrElseZero(o1),
+				getPriceForSaleOrElseZero(o2)
+			);
+		}
+
+		/**
+		 * Retrieves the price for sale of the given entity or returns zero if no price is available.
+		 * The result is memoized to improve performance for subsequent calls with the same entity.
+		 *
+		 * @param o1 The entity from which to retrieve the price for sale.
+		 * @return The price for sale of the entity or zero if no price is available.
+		 */
+		@Nonnull
+		private BigDecimal getPriceForSaleOrElseZero(@Nonnull EntityContract o1) {
+			final BigDecimal memoizedResult = memoizedPrices.get(o1.getPrimaryKey());
+			if (memoizedResult != null) {
+				return memoizedResult;
+			}
+			final BigDecimal calculatedResult = o1.getPriceForSale().map(priceExtractor).orElse(BigDecimal.ZERO);
+			memoizedPrices.put(o1.getPrimaryKey(), calculatedResult);
+			return calculatedResult;
+		}
+	}
 }

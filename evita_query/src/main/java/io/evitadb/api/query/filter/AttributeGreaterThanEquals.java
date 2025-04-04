@@ -64,7 +64,7 @@ import java.io.Serializable;
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE },
 	supportedValues = @ConstraintSupportedValues(allTypesSupported = true, arraysSupported = true)
 )
-public class AttributeGreaterThanEquals extends AbstractAttributeFilterConstraintLeaf implements IndexUsingConstraint {
+public class AttributeGreaterThanEquals extends AbstractAttributeFilterComparisonConstraintLeaf implements FilterConstraint {
 	@Serial private static final long serialVersionUID = -7346624370759447859L;
 
 	private AttributeGreaterThanEquals(Serializable... arguments) {
@@ -72,7 +72,7 @@ public class AttributeGreaterThanEquals extends AbstractAttributeFilterConstrain
 	}
 
 	@Creator
-	public <T extends Serializable & Comparable<?>> AttributeGreaterThanEquals(@Nonnull @Classifier String attributeName,
+	public <T extends Serializable> AttributeGreaterThanEquals(@Nonnull @Classifier String attributeName,
 	                                                                           @Nonnull @Value(requiresPlainType = true) T attributeValue) {
 		super(attributeName, attributeValue);
 	}
@@ -81,7 +81,7 @@ public class AttributeGreaterThanEquals extends AbstractAttributeFilterConstrain
 	 * Returns value that must be more than or equals attribute value.
 	 */
 	@Nonnull
-	public <T extends Serializable & Comparable<?>> T getAttributeValue() {
+	public <T extends Serializable> T getAttributeValue() {
 		//noinspection unchecked
 		return (T) getArguments()[1];
 	}

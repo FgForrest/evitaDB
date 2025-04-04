@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,20 +32,22 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
-import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.mutation.index.ReferenceIndexMutator;
+import io.evitadb.index.mutation.index.dataAccess.EntityStoragePartExistingDataFactory;
+import io.evitadb.index.mutation.index.dataAccess.ExistingDataSupplierFactory;
 import io.evitadb.test.Entities;
 import org.junit.jupiter.api.Test;
 
+import javax.annotation.Nonnull;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
-import static io.evitadb.index.mutation.ReferenceIndexMutator.attributeUpdate;
-import static io.evitadb.index.mutation.ReferenceIndexMutator.referenceInsert;
+import static io.evitadb.index.mutation.index.ReferenceIndexMutator.attributeUpdate;
+import static io.evitadb.index.mutation.index.ReferenceIndexMutator.referenceInsert;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -61,7 +63,6 @@ class ReferenceIndexMutatorTest extends AbstractMutatorTestBase {
 	private static final String ATTRIBUTE_CHAR_ARRAY = "charArray";
 	public static final Consumer<Runnable> DO_NOTHING_CONSUMER = runnable -> {
 	};
-	private final Supplier<EntitySchema> schemaSupplier = () -> productSchema;
 	private final EntityIndex entityIndex = new GlobalEntityIndex(1, productSchema.getName(), new EntityIndexKey(EntityIndexType.GLOBAL));
 	private final ReferencedTypeEntityIndex referenceTypesIndex = new ReferencedTypeEntityIndex(1, productSchema.getName(), new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, Entities.BRAND));
 
@@ -89,7 +90,8 @@ class ReferenceIndexMutatorTest extends AbstractMutatorTestBase {
 		final ReferenceKey referenceKey = new ReferenceKey(Entities.BRAND, 10);
 		final EntityIndex referenceIndex = new GlobalEntityIndex(2, productSchema.getName(), new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, referenceKey));
 		referenceInsert(
-			1, productSchema, executor, entityIndex, referenceTypesIndex, referenceIndex, referenceKey, DO_NOTHING_CONSUMER
+			1, productSchema, executor, entityIndex, referenceTypesIndex, referenceIndex, referenceKey, null,
+			getEntityAttributeValueSupplierFactory(ENTITY_NAME, 1), DO_NOTHING_CONSUMER
 		);
 		assertArrayEquals(new int[]{10}, referenceTypesIndex.getAllPrimaryKeys().getArray());
 		assertArrayEquals(new int[]{1}, referenceIndex.getAllPrimaryKeys().getArray());
@@ -99,20 +101,22 @@ class ReferenceIndexMutatorTest extends AbstractMutatorTestBase {
 	void shouldIndexAttributes() {
 		final ReferenceKey referenceKey = new ReferenceKey(Entities.BRAND, 10);
 		final EntityIndex referenceIndex = new GlobalEntityIndex(2, productSchema.getName(), new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, referenceKey));
+		final ExistingDataSupplierFactory entityAttributeValueSupplierFactory = getEntityAttributeValueSupplierFactory(ENTITY_NAME, 1);
+
 		referenceInsert(
-			1, productSchema, executor, entityIndex, referenceTypesIndex, referenceIndex, referenceKey, DO_NOTHING_CONSUMER
+			1, productSchema, executor, entityIndex, referenceTypesIndex, referenceIndex, referenceKey, null, entityAttributeValueSupplierFactory, DO_NOTHING_CONSUMER
 		);
 		final ReferenceAttributeMutation referenceMutation = new ReferenceAttributeMutation(referenceKey, new UpsertAttributeMutation(new AttributeKey(ATTRIBUTE_VARIANT_COUNT), 55));
 		attributeUpdate(
-			1, ENTITY_NAME, executor, referenceTypesIndex, referenceIndex, referenceMutation.getReferenceKey(), referenceMutation.getAttributeMutation()
+			executor, entityAttributeValueSupplierFactory, referenceTypesIndex, referenceIndex, referenceMutation.getReferenceKey(), referenceMutation.getAttributeMutation()
 		);
 		final ReferenceAttributeMutation a = new ReferenceAttributeMutation(referenceKey, new UpsertAttributeMutation(new AttributeKey(ATTRIBUTE_BRAND_CODE), "A"));
 		attributeUpdate(
-			1, ENTITY_NAME, executor, referenceTypesIndex, referenceIndex, a.getReferenceKey(), a.getAttributeMutation()
+			executor, entityAttributeValueSupplierFactory, referenceTypesIndex, referenceIndex, a.getReferenceKey(), a.getAttributeMutation()
 		);
 		final ReferenceAttributeMutation referenceMutation1 = new ReferenceAttributeMutation(referenceKey, new UpsertAttributeMutation(new AttributeKey(ATTRIBUTE_BRAND_EAN), "EAN-001"));
 		attributeUpdate(
-			1, ENTITY_NAME, executor, referenceTypesIndex, referenceIndex, referenceMutation1.getReferenceKey(), referenceMutation1.getAttributeMutation()
+			executor, entityAttributeValueSupplierFactory, referenceTypesIndex, referenceIndex, referenceMutation1.getReferenceKey(), referenceMutation1.getAttributeMutation()
 		);
 
 		assertArrayEquals(new int[]{10}, referenceTypesIndex.getAllPrimaryKeys().getArray());
@@ -123,6 +127,14 @@ class ReferenceIndexMutatorTest extends AbstractMutatorTestBase {
 		assertArrayEquals(new int[]{10}, referenceTypesIndex.getFilterIndex(ATTRIBUTE_BRAND_EAN, null).getRecordsEqualTo("EAN-001").getArray());
 		assertEquals(1, referenceIndex.getUniqueIndex(brandCodeSchema, null).getRecordIdByUniqueValue("A"));
 		assertArrayEquals(new int[]{1}, referenceIndex.getFilterIndex(ATTRIBUTE_BRAND_EAN, null).getRecordsEqualTo("EAN-001").getArray());
+	}
+
+	@Nonnull
+	ExistingDataSupplierFactory getEntityAttributeValueSupplierFactory(
+		@Nonnull String entityType,
+		int entityPrimaryKey
+	) {
+		return new EntityStoragePartExistingDataFactory(executor.getContainerAccessor(), entityType, entityPrimaryKey);
 	}
 
 }

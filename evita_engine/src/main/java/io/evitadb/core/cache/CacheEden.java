@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,8 +23,8 @@
 
 package io.evitadb.core.cache;
 
+import com.carrotsearch.hppc.CharObjectHashMap;
 import com.carrotsearch.hppc.CharObjectMap;
-import com.carrotsearch.hppc.CharObjectWormMap;
 import com.carrotsearch.hppc.cursors.CharObjectCursor;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.CacheOptions;
@@ -50,6 +50,7 @@ import io.evitadb.core.query.sort.CacheableSorter;
 import io.evitadb.dataType.array.CompositeLongArray;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.BitUtils;
+import jdk.jfr.FlightRecorder;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import net.openhft.hashing.LongHashFunction;
@@ -170,11 +171,9 @@ public class CacheEden {
 		this.minimalUsageThreshold = minimalUsageThreshold;
 		this.minimalSpaceToPerformanceRatio = minimalSpaceToPerformanceRatio;
 
-		scheduler.scheduleAtFixedRate(
-			this::reportStatistics,
-			1,
-			1,
-			TimeUnit.MINUTES
+		FlightRecorder.addPeriodicEvent(
+			CacheStatisticsUpdatedEvent.class,
+			this::reportStatistics
 		);
 	}
 
@@ -313,7 +312,7 @@ public class CacheEden {
 						int adeptsPromoted = 0;
 						int survivingRecords = 0;
 						int coolDownRecords = 0;
-						final CharObjectMap<TypeStatistics> promotedTypes = new CharObjectWormMap<>(CacheRecordType.values().length);
+						final CharObjectMap<TypeStatistics> promotedTypes = new CharObjectHashMap<>(CacheRecordType.values().length);
 						for (int i = 0; i < evaluationSource.peek(); i++) {
 							final CacheAdeptKeyWithValue adept = evaluation[i];
 							final int adeptSizeInBytes = adept.estimatedSizeInBytes();
