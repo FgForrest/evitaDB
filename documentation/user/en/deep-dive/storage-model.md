@@ -51,7 +51,7 @@ Below is an explanation of the individual items:
 
 <dl>
     <dt>Record length in Bytes</dt>
-    <dd>The length of the record in bytes. This is compared against the value of <em>Record pointer: length</em> and must match; otherwise, data integrity has been compromised.</dd>
+    <dd>The length of the record in bytes. This is compared against the value of *Record pointer: length* and must match; otherwise, data integrity has been compromised.</dd>
     <dt>Control Byte</dt>
     <dd>This byte contains flags with key information about the nature of the record. The flags represent individual bits in this byte:
       <Table>
@@ -125,7 +125,7 @@ Below is an explanation of the individual items:
     </dd>
     <dt>Catalog version</dt>
     <dd>The catalog version is incremented upon completion of each committed transaction that pushes the catalog to the next version. There isn’t necessarily one bootstrap record per transaction. If the system manages to process multiple transactions within a time frame, the jumps between consecutive catalog versions in the bootstrap file can be greater than 1.<br/>
-     If the catalog is in <em>warm-up</em> mode, each of the bootstrap records may have a catalog version set to <code>0</code>.
+     If the catalog is in *warm-up* mode, each of the bootstrap records may have a catalog version set to <code>0</code>.
     </dd>
     <dt>Catalog file index</dt>
     <dd>Contains the index of the catalog data file. Using this information, you can construct the file name corresponding to the catalog’s data file in the format <code>catalogName_{index}.catalog</code>. Multiple data files for the same catalog can coexist in the directory with different indexes, indicating the availability of the <a href="#time-travel">time travel</a> feature.
@@ -161,7 +161,7 @@ Always preceded by this header:
 | Record pointer: start position | int64     | 8B              |
 | Record pointer: length         | int32     | 4B              |
 
-The <em>Effective length</em> value is key for determining how many records are in the payload, because when the record is compressed, the on-disk size of the record cannot be used for that calculation. This size is divided by the size of a single record in the collection to derive the number of records to load from the payload. The <em>Record pointer</em> indicates the position of the previous offset index fragment recorded in the data file. All offset index fragments are always located in the same file.
+The *Effective length* value is key for determining how many records are in the payload, because when the record is compressed, the on-disk size of the record cannot be used for that calculation. This size is divided by the size of a single record in the collection to derive the number of records to load from the payload. The *Record pointer* indicates the position of the previous offset index fragment recorded in the data file. All offset index fragments are always located in the same file.
 
 Specific offset index entries have the following meaning:
 
@@ -213,7 +213,7 @@ Deflate compression (part of the JDK) is used to compress data in the payload se
 
 ### Cleaning Up the Clutter
 
-Cleaning up the clutter is the process of preventing an excessive amount of “outdated” data from piling up in data files. Large amounts of stale data slow down database startup (because it has to be traversed and then ignored), and it also consumes space in the operating system’s file cache, reducing the likelihood that truly needed data is cached. Therefore, evitaDB includes an automatic <em>compaction</em> process that regularly cleans up this data whenever the configured <a href="/documentation/operate/configure#storage-configuration" target="_blank">thresholds</a> for <code>minimalActiveRecordShare</code> are exceeded and the file size surpasses <code>fileSizeCompactionThresholdBytes</code>.
+Cleaning up the clutter is the process of preventing an excessive amount of “outdated” data from piling up in data files. Large amounts of stale data slow down database startup (because it has to be traversed and then ignored), and it also consumes space in the operating system’s file cache, reducing the likelihood that truly needed data is cached. Therefore, evitaDB includes an automatic *compaction* process that regularly cleans up this data whenever the configured <a href="/documentation/operate/configure#storage-configuration" target="_blank">thresholds</a> for <code>minimalActiveRecordShare</code> are exceeded and the file size surpasses <code>fileSizeCompactionThresholdBytes</code>.
 
 This process takes place during transaction processing if it’s found that these conditions are met after the transaction completes. On the one hand, this prevents backlog and overgrowth of data in the file. On the other hand, it means the transaction’s completion may take longer than usual because it includes the compaction work.
 
