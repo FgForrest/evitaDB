@@ -11,21 +11,21 @@ author: 'Ing. Jan Novotný'
 evitaDB stores data in files on disk in a data directory specified in the configuration. The top level of this directory contains subdirectories for individual catalogs. Each catalog directory holds all the files required for working with that catalog (no external information outside of its directory is needed). The directory always contains:
 
 1. **[Bootstrap file](#bootstrap-file)** – a file corresponding to the catalog name with the `.boot` extension containing critical pointers to the other files
-2. **[Write-ahead log (WAL)](#write-ahead-log-wal)** – a file corresponding to the catalog name with the suffix `{index}.wal`, where `index` is an ascending number starting from zero; the file contains a sequence of catalog changes over time
-3. **[Catalog data file](#data-files)** – a file corresponding to the catalog name with the suffix `{index}.catalog`, where `index` is an ascending number starting from zero; the file contains data tied to the catalog, such as the catalog schema and global indexes
-4. **[Entity collection data files](#data-files)** – files corresponding to an entity name with the suffix `{index}.colection`, where `index` is an ascending number starting from zero; these files contain all data associated with the given entity collection—its schema, indexes, and entity data
+2. **[Write-ahead log (WAL)](#write-ahead-log-wal)** – a file corresponding to the catalog name with the suffix `{catalogName}_{index}.wal`, where `index` is an ascending number starting from zero; the file contains a sequence of catalog changes over time
+3. **[Catalog data file](#data-files)** – a file corresponding to the catalog name with the suffix `{catalogName}_{index}.catalog`, where `index` is an ascending number starting from zero; the file contains data tied to the catalog, such as the catalog schema and global indexes
+4. **[Entity collection data files](#data-files)** – files corresponding to an entity name with the suffix `{entityTypeName}_{index}.colection`, where `index` is an ascending number starting from zero; these files contain all data associated with the given entity collection—its schema, indexes, and entity data
 
 The files contain mutual references in the form of pointers to key positions within the file. The bootstrap file includes a pointer to the WAL file as well as to the location of the [offset index](#offset-index) in the catalog file. The catalog data file contains a catalog header, which then includes pointers to key positions in the individual entity collection data files. The pointer mechanism is depicted in the diagram below:
 
 ```mermaid
 flowchart TD
-A["Bootstrap File\n(catalog.boot)"] -->|"Pointer to WAL"| B["WAL file\n(catalog{index}.wal)"]
-A -->|"Pointer to offset index\nin the catalog"| C["Catalog data file\n(catalog{index}.catalog)"]
+A["Bootstrap File\n(catalog.boot)"] -->|"Pointer to WAL"| B["WAL file\n(catalog_{index}.wal)"]
+A -->|"Pointer to offset index\nin the catalog"| C["Catalog data file\n(catalog_{index}.catalog)"]
 
     subgraph S["Entity collection data files"]
-        D1["Entity collection data file\n(entity1{index}.colection)"]
-        D2["Entity collection data file\n(entity2{index}.colection)"]
-        Dn["Entity collection data file\n(entityN{index}.colection)"]
+        D1["Entity collection data file\n(entity1_{index}.colection)"]
+        D2["Entity collection data file\n(entity2_{index}.colection)"]
+        Dn["Entity collection data file\n(entityN_{index}.colection)"]
     end
 
     C -->|"Catalog header\n(contains pointer to offset index)"| D1
